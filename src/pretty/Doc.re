@@ -32,8 +32,7 @@ let annot = (annot, doc) => t_of_t'(Annot(annot, doc));
 let fail = () => t_of_t'(Fail);
 
 let empty = () => text("");
-let space = () => text(UnicodeConstants.nbsp);
-let indent = () => text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
+let space = () => text(Unicode.nbsp); // TODO: param to hsep
 
 let hcat = (x, y) => t_of_t'(Cat(x, y));
 let hcats: list(t('annot)) => t('annot) =

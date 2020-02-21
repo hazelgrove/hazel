@@ -1,8 +1,11 @@
+open Pretty;
+
 type t = Doc.t(TermAnnot.t);
 
 let empty = Doc.empty();
 let space = Doc.space();
-let indent: Doc.t(TermAnnot.t) = Doc.indent();
+let indent: Doc.t(TermAnnot.t) =
+  Doc.text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
 
 let annot_Indent = Doc.annot(TermAnnot.Indent);
 let annot_Padding = (d: Doc.t(TermAnnot.t)) =>
@@ -33,7 +36,7 @@ let annot_Case = (~err: ErrStatus.t) =>
   Doc.annot(TermAnnot.mk_Term(~family=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
-  Doc.(hcats([indent() |> annot_Indent, align(d)]));
+  Doc.(hcats([indent |> annot_Indent, align(d)]));
 
 let mk_text = (~steps: CursorPath.steps, text: string): t =>
   Doc.text(text)

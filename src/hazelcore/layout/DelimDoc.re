@@ -1,4 +1,5 @@
 open ViewUtil;
+open Pretty;
 
 type doc = Doc.t(TermAnnot.t);
 
