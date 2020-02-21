@@ -1,5 +1,6 @@
 open Sexplib.Std;
 
+// TODO: rename Annot to Ann?
 [@deriving sexp]
 type t('annot) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
