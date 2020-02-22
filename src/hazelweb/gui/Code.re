@@ -4,8 +4,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
 
-type annot = TermAnnot.t;
-
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
 let clss_of_err: ErrStatus.t => list(cls) =
