@@ -297,7 +297,7 @@ module Contenteditable = {
      * Transport to next caret position
      * following elem in post-order traversal
      */
-    let rec transport_next = elem => {
+    let rec transport_next = elem =>
       if (elem |> has_cls("code")) {
         JSUtil.log("Caret position not found");
         ();
@@ -319,7 +319,6 @@ module Contenteditable = {
           };
         };
       };
-    };
 
     if (anchor_parent |> has_cls("caret-position")) {
       if (anchor_parent |> has_cls("has-caret")) {
