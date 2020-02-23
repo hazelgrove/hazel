@@ -175,39 +175,36 @@ let rec schedule_move =
 and schedule_move_prev = (~schedule_action, anchor_parent) => {
   let schedule_move' = schedule_move(~schedule_action);
   let schedule_move_prev' = schedule_move_prev(~schedule_action);
+  let prev =
+    switch (anchor_parent |> JSUtil.get_prev_sibling_elem) {
+    | None => anchor_parent |> JSUtil.force_get_parent_elem
+    | Some(next) => next
+    };
   // TODO use better root condition
-  if (anchor_parent |> has_cls("code")) {
+  if (prev |> has_cls("code")) {
     ();
-  } else if (anchor_parent |> has_cls("caret-position")) {
-    schedule_move'(0, anchor_parent);
-  } else if (anchor_parent |> has_cls("code-text")) {
-    schedule_move'(
-      anchor_parent |> JSUtil.inner_text |> String.length,
-      anchor_parent,
-    );
+  } else if (prev |> has_cls("caret-position")) {
+    schedule_move'(0, prev);
+  } else if (prev |> has_cls("code-text")) {
+    schedule_move'(prev |> JSUtil.inner_text |> String.length, prev);
   } else {
-    let prev =
-      switch (anchor_parent |> JSUtil.get_prev_sibling_elem) {
-      | None => anchor_parent |> JSUtil.force_get_parent_elem
-      | Some(next) => next
-      };
     schedule_move_prev'(prev);
   };
 }
 and schedule_move_next = (~schedule_action, anchor_parent) => {
   let schedule_move' = schedule_move(~schedule_action);
   let schedule_move_next' = schedule_move_next(~schedule_action);
+  let next =
+    switch (anchor_parent |> JSUtil.get_next_sibling_elem) {
+    | None => anchor_parent |> JSUtil.force_get_parent_elem
+    | Some(next) => next
+    };
   // TODO use better root condition
-  if (anchor_parent |> has_cls("code")) {
+  if (next |> has_cls("code")) {
     ();
-  } else if (anchor_parent |> has_any_cls(["caret-position", "code-text"])) {
-    schedule_move'(0, anchor_parent);
+  } else if (next |> has_any_cls(["caret-position", "code-text"])) {
+    schedule_move'(0, next);
   } else {
-    let next =
-      switch (anchor_parent |> JSUtil.get_next_sibling_elem) {
-      | None => anchor_parent |> JSUtil.force_get_parent_elem
-      | Some(next) => next
-      };
     schedule_move_next'(next);
   };
 };
