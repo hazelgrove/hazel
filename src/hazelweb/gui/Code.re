@@ -313,6 +313,10 @@ module Contenteditable = {
           anchor_parent |> has_cls("Before")
             ? transport_prev : transport_next;
         transport(anchor_parent);
+      } else if (anchor_parent |> has_cls("Before") && anchor_offset == 0) {
+        set_caret(anchor_parent, 1);
+      } else if (anchor_parent |> has_cls("After") && anchor_offset == 1) {
+        set_caret(anchor_parent, 0);
       } else {
         let cursor: CursorPosition.t = {
           let side: Side.t =
