@@ -64,6 +64,9 @@ let create =
           JSUtil.set_caret(anchor_parent, anchor_offset);
         } else {
           state.setting_caret := false;
+          if (model.is_cell_focused) {
+            Code.Presentation.restart_caret_animation();
+          };
         };
       },
     model,

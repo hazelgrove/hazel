@@ -419,18 +419,23 @@ module Presentation = {
 
   let caret_from_left = (from_left: float): Vdom.Node.t => {
     assert(0.0 <= from_left && from_left <= 100.0);
+    open Vdom;
     let left_attr =
-      Vdom.Attr.create(
-        "style",
-        "left: " ++ string_of_float(from_left) ++ "0%;",
-      );
-    Vdom.Node.span([Vdom.Attr.id("caret"), left_attr], []);
+      Attr.create("style", "left: " ++ string_of_float(from_left) ++ "0%;");
+    Node.span([Attr.id("caret"), Attr.classes(["blink"]), left_attr], []);
   };
 
   let caret_of_side: Side.t => Vdom.Node.t =
     fun
     | Before => caret_from_left(0.0)
     | After => caret_from_left(100.0);
+
+  let restart_caret_animation = () => {
+    let caret = JSUtil.force_get_elem_by_id("caret");
+    caret##.classList##remove(Js.string("blink"));
+    let _ = caret##getBoundingClientRect;
+    caret##.classList##add(Js.string("blink"));
+  };
 
   let view_of_layout = (l: TermLayout.t): Vdom.Node.t => {
     open Vdom;
