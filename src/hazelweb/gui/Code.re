@@ -246,6 +246,13 @@ module Contenteditable = {
       setting_caret := false;
     };
 
+    let rec get_last_nonstep_descendant = elem =>
+      if (elem |> JSUtil.has_attr("step")) {
+        elem |> JSUtil.force_get_last_child_elem |> get_last_nonstep_descendant;
+      } else {
+        elem;
+      };
+
     /**
      * Transport to last caret position
      * preceding elem in pre-order traversal
@@ -260,23 +267,30 @@ module Contenteditable = {
           let parent = elem |> JSUtil.force_get_parent_elem;
           transport_prev(parent);
         | Some(prev) =>
+          let prev = prev |> get_last_nonstep_descendant;
           if (prev |> has_cls("caret-position")) {
             let anchor_offset = prev |> has_cls("Before") ? 1 : 0;
             set_caret(prev, anchor_offset);
           } else if (prev |> has_cls("code-text")) {
             let anchor_offset = prev |> JSUtil.inner_text |> String.length;
             set_caret(prev, anchor_offset);
-          } else if (prev |> JSUtil.has_attr("step")) {
-            let prev_last_child = prev |> JSUtil.force_get_last_child_elem;
-            transport_prev(prev_last_child);
           } else {
             transport_prev(prev);
-          }
+          };
         };
       };
 
+    let rec get_first_nonstep_descendant = elem =>
+      if (elem |> JSUtil.has_attr("step")) {
+        elem
+        |> JSUtil.force_get_first_child_elem
+        |> get_first_nonstep_descendant;
+      } else {
+        elem;
+      };
+
     /**
-     * Transport move to next caret position
+     * Transport to next caret position
      * following elem in post-order traversal
      */
     let rec transport_next = elem =>
@@ -289,18 +303,15 @@ module Contenteditable = {
           let parent = elem |> JSUtil.force_get_parent_elem;
           transport_next(parent);
         | Some(next) =>
+          let next = next |> get_first_nonstep_descendant;
           if (next |> has_cls("caret-position")) {
             let anchor_offset = next |> has_cls("Before") ? 1 : 0;
             set_caret(next, anchor_offset);
           } else if (next |> has_cls("code-text")) {
-            let anchor_offset = next |> JSUtil.inner_text |> String.length;
-            set_caret(next, anchor_offset);
-          } else if (next |> JSUtil.has_attr("step")) {
-            let next_first_child = next |> JSUtil.force_get_first_child_elem;
-            transport_next(next_first_child);
+            set_caret(next, 0);
           } else {
             transport_next(next);
-          }
+          };
         };
       };
 
