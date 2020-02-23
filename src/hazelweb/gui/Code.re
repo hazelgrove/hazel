@@ -38,6 +38,7 @@ let shape_clss: TermShape.t => list(cls) =
     @ (show_use ? ["show-use"] : [])
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | FreeLivelit => ["FreeLivelit"]
+  | ApLivelit(_) => ["ApLivelit"]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];
@@ -161,13 +162,32 @@ let contenteditable_of_layout =
           Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
         ]
       | UserNewline => []
+      | Term({shape, _}) =>
+        switch (shape) {
+        | ApLivelit({lln, llview, steps}) =>
+          switch (llview) {
+          | Inline(view, _) => [
+              Node.span(
+                [],
+                [
+                  Node.span(
+                    [Attr.id(text_id(steps))],
+                    [Node.text(lln), view],
+                  ),
+                ],
+              ),
+            ]
+          | MultiLine(_) =>
+            failwith(__LOC__ ++ ": Multiline livelits not yet supported")
+          }
+        | _ => vs
+        }
       | OpenChild(_)
       | ClosedChild(_)
       | HoleLabel(_)
       | DelimGroup
       | LetLine
-      | Step(_)
-      | Term(_) => vs
+      | Step(_) => vs
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
     imp_of_string: str => [Node.text(str)],
@@ -490,11 +510,12 @@ let editor_view_of_exp =
       ~ci: option(CursorInfo.t)=?,
       ~show_contenteditable: bool,
       e: UHExp.t,
+      ctx: Livelits.LivelitViewCtx.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
-    |> TermDoc.Exp.mk(~steps=[], ~enforce_inline=false)
+    |> TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, ~ctx)
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")

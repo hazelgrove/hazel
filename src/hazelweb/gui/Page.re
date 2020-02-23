@@ -102,7 +102,12 @@ let cardstack_controls = (~inject, model: Model.t) =>
   );
 
 let page_view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      model: Model.t,
+      ctx: Livelits.LivelitViewCtx.t,
+    )
+    : Vdom.Node.t => {
   let card = model |> Model.get_card;
   let program = model |> Model.get_program;
   let cell_status =
@@ -146,7 +151,7 @@ let page_view =
       );
     };
   let e = program |> Program.get_uhexp;
-  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
+  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, ~ctx, e));
   let layout =
     lazy(
       switch (
@@ -206,7 +211,7 @@ let page_view =
                                ),
                              ], */
                         ),
-                        Cell.view(~inject, model),
+                        Cell.view(~inject, model, ctx),
                         cell_status,
                         cardstack_controls(~inject, model),
                       ],
@@ -257,5 +262,10 @@ let page_view =
 };
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t =>
-  page_view(~inject, model);
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      model: Model.t,
+      ctx: Livelits.LivelitViewCtx.t,
+    )
+    : Vdom.Node.t =>
+  page_view(~inject, model, ctx);

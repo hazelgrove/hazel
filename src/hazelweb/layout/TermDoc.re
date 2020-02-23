@@ -1,5 +1,7 @@
 open Pretty;
 
+module Vdom = Virtual_dom.Vdom;
+
 type t = Doc.t(TermAnnot.t);
 
 let empty = Doc.empty();
@@ -31,6 +33,19 @@ let annot_Var =
 let annot_FreeLivelit =
   Doc.annot(
     TermAnnot.mk_Term(~family=Exp, ~shape=TermShape.FreeLivelit, ()),
+  );
+let annot_ApLivelit =
+    (
+      lln: LivelitName.t,
+      llview: Livelits.LivelitView.t,
+      steps: CursorPath.steps,
+    ) =>
+  Doc.annot(
+    TermAnnot.mk_Term(
+      ~family=Exp,
+      ~shape=TermShape.mk_ApLivelit(~lln, ~llview, ~steps),
+      (),
+    ),
   );
 let annot_Operand = (~family: TermFamily.t, ~err: ErrStatus.t=NotInHole) =>
   Doc.annot(
@@ -170,6 +185,28 @@ let mk_Var =
 
 let mk_FreeLivelit = (~steps: CursorPath.steps, lln: LivelitName.t): t =>
   annot_FreeLivelit(mk_text(~steps, lln));
+
+let mk_ApLivelit =
+    (
+      ~steps: CursorPath.steps,
+      lln: LivelitName.t,
+      llview: Livelits.LivelitView.t,
+    )
+    : t =>
+  switch (llview) {
+  | Inline(_, width) =>
+    annot_ApLivelit(
+      lln,
+      llview,
+      steps,
+      Doc.hcats([
+        mk_text(~steps, lln),
+        mk_text(~steps, String.make(width, ' ')),
+      ]),
+    )
+  | MultiLine(_) =>
+    failwith(__LOC__ ++ ": No support for multiline views yet")
+  };
 
 let mk_NumLit =
     (
@@ -784,13 +821,20 @@ module Exp = {
     );
 
   let rec mk =
-          (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): t =>
-    mk_block(~enforce_inline, ~steps, e)
+          (
+            ~steps: CursorPath.steps,
+            ~enforce_inline: bool,
+            ~ctx: Livelits.LivelitViewCtx.t,
+            e: UHExp.t,
+          )
+          : t =>
+    mk_block(~enforce_inline, ~steps, ~ctx, e)
   and mk_block =
       (
         ~offset=0,
         ~steps: CursorPath.steps,
         ~enforce_inline: bool,
+        ~ctx: Livelits.LivelitViewCtx.t,
         block: UHExp.block,
       )
       : t =>
@@ -799,7 +843,7 @@ module Exp = {
     } else {
       block
       |> List.mapi((i, line) =>
-           mk_line(~enforce_inline, ~steps=steps @ [offset + i], line)
+           mk_line(~enforce_inline, ~steps=steps @ [offset + i], ~ctx, line)
            |> annot_Step(offset + i)
          )
       |> ListUtil.split_last
@@ -820,13 +864,19 @@ module Exp = {
       );
     }
   and mk_line =
-      (~enforce_inline: bool, ~steps: CursorPath.steps, line: UHExp.line): t =>
+      (
+        ~enforce_inline: bool,
+        ~steps: CursorPath.steps,
+        ~ctx: Livelits.LivelitViewCtx.t,
+        line: UHExp.line,
+      )
+      : t =>
     switch (line) {
     | EmptyLine =>
       // TODO: Once we figure out contenteditable cursors, use `mk_text(~steps, "")`
       mk_text(~steps, UnicodeConstants.zwsp)
       |> Doc.annot(TermAnnot.EmptyLine)
-    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)
+    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, ~ctx, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
       let ann =
@@ -834,12 +884,24 @@ module Exp = {
         |> OptUtil.map(ann =>
              Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
            );
-      let def = mk_child(~enforce_inline, ~steps, ~child_step=2, def);
+      let def = mk_child(~enforce_inline, ~steps, ~child_step=2, ~ctx, def);
       mk_LetLine(~steps, p, ann, def) |> Doc.annot(TermAnnot.LetLine);
     }
   and mk_opseq =
-      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHExp.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
+      (
+        ~steps: CursorPath.steps,
+        ~enforce_inline: bool,
+        ~ctx: Livelits.LivelitViewCtx.t,
+        opseq: UHExp.opseq,
+      )
+      : t =>
+    mk_NTuple(
+      ~mk_operand=mk_operand(~ctx),
+      ~mk_operator,
+      ~steps,
+      ~enforce_inline,
+      opseq,
+    )
   and mk_operator = (~steps: CursorPath.steps, op: UHExp.operator): t =>
     op |> UHExp.is_Space
       ? mk_space_op : mk_op(~steps, UHExp.string_of_operator(op), ())
@@ -847,6 +909,7 @@ module Exp = {
       (
         ~steps: CursorPath.steps,
         ~enforce_inline: bool,
+        ~ctx: Livelits.LivelitViewCtx.t,
         operand: UHExp.operand,
       )
       : t =>
@@ -863,24 +926,25 @@ module Exp = {
         |> OptUtil.map(ann =>
              Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
            );
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=2, body);
+      let body = mk_child(~enforce_inline, ~steps, ~child_step=2, ~ctx, body);
       mk_Lam(~err, ~steps, p, ann, body);
     | Inj(err, inj_side, body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
+      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, ~ctx, body);
       mk_Inj(~err, ~steps, ~inj_side, body);
     | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
+      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, ~ctx, body);
       mk_Parenthesized(~steps, body);
     | Case(err, scrut, rules, ann) =>
       if (enforce_inline) {
         Doc.fail();
       } else {
         let scrut =
-          mk_child(~enforce_inline=false, ~steps, ~child_step=0, scrut);
+          mk_child(~enforce_inline=false, ~steps, ~child_step=0, ~ctx, scrut);
         let rules =
           rules
           |> List.mapi((i, rule) =>
-               mk_rule(~steps=steps @ [1 + i], rule) |> annot_Step(1 + i)
+               mk_rule(~steps=steps @ [1 + i], ~ctx, rule)
+               |> annot_Step(1 + i)
              );
         switch (ann) {
         | None => mk_Case(~err, ~steps, scrut, rules)
@@ -895,16 +959,28 @@ module Exp = {
           mk_Case_ann(~err, ~steps, scrut, rules, ann);
         };
       }
-    | ApLivelit(_) => failwith("unimplemented: mk_exp/ApLivelit")
+    | ApLivelit(_, lln, m, _) =>
+      switch (VarMap.lookup(ctx, lln)) {
+      | None => assert(false)
+      | Some(svf) => mk_ApLivelit(~steps, lln, svf(m, _ => Vdom.Event.Ignore))
+      }
     | FreeLivelit(_, lln) => mk_FreeLivelit(~steps, lln)
     }
-  and mk_rule = (~steps: CursorPath.steps, Rule(p, clause): UHExp.rule): t => {
+
+  and mk_rule =
+      (
+        ~steps: CursorPath.steps,
+        ~ctx: Livelits.LivelitViewCtx.t,
+        Rule(p, clause): UHExp.rule,
+      )
+      : t => {
     let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);
     let clause =
-      mk_child(~enforce_inline=false, ~steps, ~child_step=1, clause);
+      mk_child(~enforce_inline=false, ~steps, ~child_step=1, ~ctx, clause);
     mk_Rule(~steps, p, clause);
   }
-  and mk_child = (~enforce_inline, ~steps, ~child_step, e): formatted_child => {
+  and mk_child =
+      (~enforce_inline, ~steps, ~child_step, ~ctx, e): formatted_child => {
     switch (e) {
     | [EmptyLine, ...subblock] =>
       if (enforce_inline) {
@@ -915,6 +991,7 @@ module Exp = {
             ~offset=1,
             ~steps=steps @ [child_step],
             ~enforce_inline=false,
+            ~ctx,
             subblock,
           )
           |> annot_Step(child_step);
@@ -922,7 +999,7 @@ module Exp = {
       }
     | _ =>
       let formattable = (~enforce_inline) =>
-        mk(~steps=steps @ [child_step], ~enforce_inline, e)
+        mk(~steps=steps @ [child_step], ~enforce_inline, ~ctx, e)
         |> annot_Step(child_step);
       enforce_inline
         ? EnforcedInline(formattable(~enforce_inline=true))

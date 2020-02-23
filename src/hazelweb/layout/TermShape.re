@@ -1,4 +1,3 @@
-
 type t =
   | Rule
   | Case({err: ErrStatus.t})
@@ -9,6 +8,11 @@ type t =
     })
   | Operand({err: ErrStatus.t})
   | FreeLivelit
+  | ApLivelit({
+      lln: LivelitName.t,
+      llview: Livelits.LivelitView.t,
+      steps: CursorPath.steps,
+    })
   | BinOp({
       op_index: int,
       err: ErrStatus.t,
@@ -29,3 +33,11 @@ let mk_Var =
   Var({err, verr, show_use});
 
 let mk_Operand = (~err: ErrStatus.t=NotInHole, ()) => Operand({err: err});
+
+let mk_ApLivelit =
+    (
+      ~lln: LivelitName.t,
+      ~llview: Livelits.LivelitView.t,
+      ~steps: CursorPath.steps,
+    ) =>
+  ApLivelit({lln, llview, steps});

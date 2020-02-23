@@ -16,7 +16,7 @@ type div_type = Vdom.Node.t;
 
 module LivelitView = {
   type t =
-    | Inline(div_type)
+    | Inline(div_type, int)
     | MultiLine(div_type);
 };
 
@@ -229,7 +229,7 @@ module CheckboxLivelit: LIVELIT = {
         )
       );
     let view_span = Vdom.Node.span([], [input_elt]);
-    LivelitView.Inline(view_span);
+    LivelitView.Inline(view_span, /* TODO! */ 7);
   };
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));

@@ -48,7 +48,12 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> Hashtbl.of_seq;
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      model: Model.t,
+      ctx: Livelits.LivelitViewCtx.t,
+    )
+    : Vdom.Node.t => {
   let program = model |> Model.get_program;
   Vdom.(
     Node.div(
@@ -104,11 +109,13 @@ let view =
                 ~ci=program |> Program.get_cursor_info,
                 ~show_contenteditable=model.show_contenteditable,
                 program |> Program.get_uhexp,
+                ctx,
               )
             : Code.editor_view_of_exp(
                 ~inject,
                 ~show_contenteditable=model.show_contenteditable,
                 program |> Program.get_uhexp,
+                ctx,
               );
         [
           Node.div(

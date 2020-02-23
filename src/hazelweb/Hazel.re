@@ -67,6 +67,6 @@ let create =
         };
       },
     model,
-    Page.view(~inject, model),
+    Page.view(~inject, model, Livelits.initial_livelit_view_ctx),
   );
 };
