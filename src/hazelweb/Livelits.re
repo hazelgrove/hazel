@@ -232,7 +232,7 @@ module CheckboxLivelit: LIVELIT = {
     LivelitView.Inline(view_span);
   };
 
-  let expand = m => UHExp.E0(UHExp.BoolLit(NotInHole, m));
+  let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
 
 /*

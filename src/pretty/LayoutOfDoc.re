@@ -1,70 +1,27 @@
-open Sexplib.Std;
-
 // TODO: compute actual layout size and use instead of t_of_layout
 let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
-  fun
-  | Text(string) => [Layout.Text(string)]
-  | Cat(d1, d2) => {
+  doc => {
+    switch (doc.doc) {
+    | Text(string) => [Layout.Text(string)]
+    | Cat(d1, d2) =>
       let ls1 = all(d1);
       let ls2 = all(d2);
       List.concat(
         List.map(l1 => List.map(l2 => Layout.Cat(l1, l2), ls2), ls1),
       );
-    }
-  | Linebreak => [Layout.Linebreak]
-  | Align(d) => List.map(l => Layout.Align(l), all(d))
-  | Annot(annot, d) => List.map(l => Layout.Annot(annot, l), all(d))
-  | Fail => []
-  | Choice(d1, d2) => all(d1) @ all(d2);
+    | Linebreak => [Layout.Linebreak]
+    | Align(d) => List.map(l => Layout.Align(l), all(d))
+    | Annot(annot, d) => List.map(l => Layout.Annot(annot, l), all(d))
+    | Fail => []
+    | Choice(d1, d2) => all(d1) @ all(d2)
+    };
+  };
 };
 
 // TODO: does Reason have 'type classes'? operators?
 // TODO: unions are left biased
-
-// Maps keyed by an end position
-//module PosMap = Map.Make(OrderedInt);
-
-// Maps keyed by an end position
-module PosMap = {
-  // Invarient: keys are assending and unique
-  type t('a) = list((int, 'a));
-  type key = int;
-  let empty: 'a. t('a) = [];
-  let singleton: 'a. (int, 'a) => t('a) = (pos, x) => [(pos, x)];
-  let rec union: 'a. (('a, 'a) => 'a, t('a), t('a)) => t('a) =
-    (f, t1, t2) =>
-      switch (t1, t2) {
-      | ([], t_other) => t_other
-      | (t_other, []) => t_other
-      | ([(p1, x1), ...xs1], [(p2, x2), ...xs2]) =>
-        if (p1 < p2) {
-          [(p1, x1), ...union(f, xs1, [(p2, x2), ...xs2])];
-        } else if (p1 > p2) {
-          [(p2, x2), ...union(f, [(p1, x1), ...xs1], xs2)];
-        } else {
-          [(p1, f(x1, x2)), ...union(f, xs1, xs2)];
-        }
-      };
-  let rec map: 'a 'b. ('a => 'b, t('a)) => t('b) =
-    f =>
-      fun
-      | [] => []
-      | [(pos, x), ...rest] => [(pos, f(x)), ...map(f, rest)];
-  let rec mapi: 'a 'b. ((int, 'a) => 'b, t('a)) => t('b) =
-    f =>
-      fun
-      | [] => []
-      | [(pos, x), ...rest] => [(pos, f(pos, x)), ...mapi(f, rest)];
-  let rec fold_left: 'a 'b. ((int, 'b, 'a) => 'b, 'b, t('a)) => 'b =
-    (f, z) =>
-      fun
-      | [] => z
-      | [(pos, x), ...rest] => fold_left(f, f(pos, z, x), rest);
-};
-
-// NOTE: pos is relative to most recent `Align`
-type m'('a) = PosMap.t((int /*cost*/, 'a));
-type m('a) = (~width: int, ~pos: int) => m'('a);
+type m('a) = Doc.m('a);
+type m'('a) = Doc.m'('a);
 
 // Functions for m'
 let add_cost: 'a. (int, m'('a)) => m'('a) =
@@ -133,28 +90,33 @@ let modify_position = (delta: int): m(unit) => {
   set_position(pos + delta);
 };
 
-module WidthPosKey = {
-  type t = (int, int);
-  let hash = ((width, pos)) => 256 * 256 * width + pos;
-  let equal = ((w1, p1), (w2, p2)) => w1 == w2 && p1 == p2;
-};
-module StrongWidthPosKey = Memoize.Strong(WidthPosKey);
-
 let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
   (doc, ~width: int, ~pos: int) => {
-    Obj.magic(Lazy.force(memo_table, Obj.magic(doc), ~width, ~pos));
+    Obj.magic(snd(Lazy.force(memo_table), Obj.magic(doc), ~width, ~pos));
   }
 
-and memo_table: Lazy.t(Doc.t(unit) => m(Layout.t(unit))) =
-  lazy(Memoize.WeakPoly.make(layout_of_doc''))
+and memo_table: Lazy.t((unit => unit, Doc.t(unit) => m(Layout.t(unit)))) =
+  lazy((
+    () => (),
+    (d, ~width, ~pos) => {
+      let key = (width, pos);
+      switch (Doc.M.find_opt(d.mem, key)) {
+      | Some(value) => value
+      | None =>
+        let value = layout_of_doc''(d, ~width, ~pos);
+        Doc.M.add(d.mem, key, value);
+        value;
+      };
+    },
+  ))
 
 and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
   doc => {
     let g = ((width, pos): (int, int)): m'(Layout.t(unit)) => {
       let ret: m(Layout.t(unit)) = {
-        switch (doc) {
+        switch (doc.doc) {
         | Text(string) =>
-          let%bind () = modify_position(StringUtil.utf8_length(string));
+          let%bind () = modify_position(Unicode.length(string));
           return(Layout.Text(string));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
@@ -186,7 +148,8 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       };
       ret(~width, ~pos);
     };
-    let h = StrongWidthPosKey.make(g);
+    module StrongWidthPosKey = Memoize.Strong(Doc.WidthPosKey);
+    let (_clear, h) = StrongWidthPosKey.make(g);
     (~width, ~pos) => h((width, pos));
   };
 
@@ -208,5 +171,15 @@ let layout_of_doc =
       };
   };
   // TODO: use options instead of max_int
-  minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
+  let start_time = Sys.time();
+  let l =
+    minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
+  let end_time = Sys.time();
+  Printf.printf(
+    "layout_of_doc: %d \t%f\n",
+    -1, //fst(Lazy.force(memo_table))##.size,
+    //Memoize.WeakPoly.Table.length(fst(Lazy.force(memo_table))),
+    1000.0 *. (end_time -. start_time),
+  );
+  l;
 };

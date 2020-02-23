@@ -29,10 +29,7 @@ module Pat = {
   let tuple_zip = _tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
   let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
-    switch (p) {
-    | P1(p1) => syn_opseq(ctx, p1)
-    | P0(p0) => syn_operand(ctx, p0)
-    }
+    syn_opseq(ctx, p)
   and syn_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq): UHPat.opseq)
       : option((HTyp.t, Contexts.t)) =>
@@ -126,10 +123,7 @@ module Pat = {
     | Parenthesized(p) => syn(ctx, p)
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
-    switch (p) {
-    | P1(p1) => ana_opseq(ctx, p1, ty)
-    | P0(p0) => ana_operand(ctx, p0, ty)
-    }
+    ana_opseq(ctx, p, ty)
   and ana_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHPat.opseq, ty: HTyp.t)
       : option(Contexts.t) =>
@@ -347,16 +341,7 @@ module Pat = {
             p: UHPat.t,
           )
           : (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t) =>
-    switch (p) {
-    | P1(p1) =>
-      let (p1, ty, ctx, u_gen) =
-        syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, p1);
-      (P1(p1), ty, ctx, u_gen);
-    | P0(p0) =>
-      let (p0, ty, ctx, u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, p0);
-      (P0(p0), ty, ctx, u_gen);
-    }
+    syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, p)
   and syn_fix_holes_opseq =
       (
         ctx: Contexts.t,
@@ -477,16 +462,7 @@ module Pat = {
         ty: HTyp.t,
       )
       : (UHPat.t, Contexts.t, MetaVarGen.t) =>
-    switch (p) {
-    | P1(p1) =>
-      let (p1, ctx, u_gen) =
-        ana_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, p1, ty);
-      (P1(p1), ctx, u_gen);
-    | P0(p0) =>
-      let (p0, ctx, u_gen) =
-        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, p0, ty);
-      (P0(p0), ctx, u_gen);
-    }
+    ana_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, p, ty)
   and ana_fix_holes_opseq =
       (
         ctx: Contexts.t,
@@ -774,10 +750,8 @@ module Exp = {
       : (Contexts.t, option(Var.t)) =>
     switch (p, e) {
     | (
-        P0(Var(_, NotInVarHole, x)) |
-        P1(OpSeq(_, S(Var(_, NotInVarHole, x), E))),
-        E0(Lam(_)) | E1(OpSeq(_, S(Lam(_), E))) |
-        E2([ExpLine(OpSeq(_, S(Lam(_), E)))]),
+        OpSeq(_, S(Var(_, NotInVarHole, x), E)),
+        [ExpLine(OpSeq(_, S(Lam(_), E)))],
       ) =>
       switch (HTyp.matched_arrow(ty)) {
       | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
@@ -796,13 +770,9 @@ module Exp = {
    * Synthesize a type, if possible, for e
    */
   let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
-    switch (e) {
-    | E2(e2) => syn_block(ctx, e2)
-    | E1(e1) => syn_opseq(ctx, e1)
-    | E0(e0) => syn_operand(ctx, e0)
-    }
+    syn_block(ctx, e)
   and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
-    switch (block |> UHExp.split_conclusion) {
+    switch (block |> UHExp.Block.split_conclusion) {
     | None => None
     | Some((leading, conclusion)) =>
       switch (syn_lines(ctx, leading)) {
@@ -996,14 +966,10 @@ module Exp = {
    * Analyze e against expected type ty
    */
   and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
-    switch (e) {
-    | E2(e2) => ana_block(ctx, e2, ty)
-    | E1(e1) => ana_opseq(ctx, e1, ty)
-    | E0(e0) => ana_operand(ctx, e0, ty)
-    }
+    ana_block(ctx, e, ty)
   and ana_block =
       (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) =>
-    switch (block |> UHExp.split_conclusion) {
+    switch (block |> UHExp.Block.split_conclusion) {
     | None => None
     | Some((leading, conclusion)) =>
       switch (syn_lines(ctx, leading)) {
@@ -1317,20 +1283,7 @@ module Exp = {
             e: UHExp.t,
           )
           : (UHExp.t, HTyp.t, MetaVarGen.t) =>
-    switch (e) {
-    | E2(e2) =>
-      let (e2, ty, u_gen) =
-        syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e2);
-      (E2(e2), ty, u_gen);
-    | E1(e1) =>
-      let (e1, ty, u_gen) =
-        syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e1);
-      (E1(e1), ty, u_gen);
-    | E0(e0) =>
-      let (e0, ty, u_gen) =
-        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e0);
-      (E0(e0), ty, u_gen);
-    }
+    syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e)
   and syn_fix_holes_block =
       (
         ctx: Contexts.t,
@@ -1339,7 +1292,7 @@ module Exp = {
         block: UHExp.block,
       )
       : (UHExp.block, HTyp.t, MetaVarGen.t) =>
-    switch (block |> UHExp.split_conclusion) {
+    switch (block |> UHExp.Block.split_conclusion) {
     | None =>
       let (leading, _ctx, u_gen) =
         syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, block);
@@ -1633,7 +1586,11 @@ module Exp = {
           ty1,
           HTyp.Hole,
         );
-      (Case(NotInHole, scrut, rules, Some(T0(Hole))), HTyp.Hole, u_gen);
+      (
+        Case(NotInHole, scrut, rules, Some(OpSeq.wrap(UHTyp.Hole))),
+        HTyp.Hole,
+        u_gen,
+      );
     | ApLivelit(_, name, serialized_model, si) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
@@ -1755,20 +1712,7 @@ module Exp = {
         ty: HTyp.t,
       )
       : (UHExp.t, MetaVarGen.t) =>
-    switch (e) {
-    | E2(e2) =>
-      let (e2, u_gen) =
-        ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e2, ty);
-      (E2(e2), u_gen);
-    | E1(e1) =>
-      let (e1, u_gen) =
-        ana_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e1, ty);
-      (E1(e1), u_gen);
-    | E0(e0) =>
-      let (e0, u_gen) =
-        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e0, ty);
-      (E0(e0), u_gen);
-    }
+    ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty)
   and ana_fix_holes_block =
       (
         ctx: Contexts.t,
@@ -1778,7 +1722,7 @@ module Exp = {
         ty: HTyp.t,
       )
       : (UHExp.block, MetaVarGen.t) =>
-    switch (block |> UHExp.split_conclusion) {
+    switch (block |> UHExp.Block.split_conclusion) {
     | None =>
       let (leading, _ctx, u_gen) =
         syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, block);

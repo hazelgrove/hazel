@@ -1,3 +1,5 @@
+let is_empty = l => List.length(l) == 0;
+
 /**
  * List of ints starting from lo,
  * up to and excluding hi.

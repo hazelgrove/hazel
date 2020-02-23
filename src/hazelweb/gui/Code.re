@@ -2,6 +2,7 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
+open Pretty;
 open ViewUtil;
 
 type annot = TermAnnot.t;
@@ -113,7 +114,7 @@ let caret_of_side: Side.t => Vdom.Node.t =
 let contenteditable_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~show_content_editable: bool,
+      ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : Vdom.Node.t => {
@@ -191,7 +192,7 @@ let contenteditable_of_layout =
           Attr.classes(
             ["code", "contenteditable"]
             @ (
-              if (show_content_editable) {
+              if (show_contenteditable) {
                 [];
               } else {
                 ["hiddencontenteditable"];
@@ -424,7 +425,7 @@ let editor_view_of_layout =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
-      ~show_content_editable: bool,
+      ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -433,11 +434,7 @@ let editor_view_of_layout =
     | None => l
     | Some((steps, _) as path) =>
       switch (l |> TermLayout.find_and_decorate_caret(~path)) {
-      | None =>
-        JSUtil.log(
-          Js.string(Sexplib.Sexp.to_string_hum(TermLayout.sexp_of_t(l))),
-        );
-        failwith(__LOC__ ++ ": could not find caret");
+      | None => failwith(__LOC__ ++ ": could not find caret")
       | Some(l) =>
         switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
         | None => failwith(__LOC__ ++ ": could not find cursor")
@@ -466,7 +463,7 @@ let editor_view_of_layout =
          )
     };
   (
-    contenteditable_of_layout(~inject, ~show_content_editable, l),
+    contenteditable_of_layout(~inject, ~show_contenteditable, l),
     presentation_of_layout(~inject, l),
   );
 };
@@ -491,7 +488,7 @@ let editor_view_of_exp =
       ~pos=0,
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
-      ~show_content_editable: bool,
+      ~show_contenteditable: bool,
       e: UHExp.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -502,6 +499,6 @@ let editor_view_of_exp =
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_content_editable, l)
+    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
   };
 };

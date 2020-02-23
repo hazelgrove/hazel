@@ -26,10 +26,13 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   );
 
 let cardstacks_select =
-    (~inject: Update.Action.t => Vdom.Event.t, cardstacks: list(CardStack.t)) => {
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      cardstacks: list(CardstackInfo.t),
+    ) => {
   let cardstack_options =
     List.mapi(
-      (i, cardstack: CardStack.t) => {
+      (i, cardstack: CardstackInfo.t) => {
         let example_idx = string_of_int(i);
         Vdom.(
           Node.option(
@@ -44,7 +47,7 @@ let cardstacks_select =
     Node.select(
       [
         Attr.on_change((_, example_idx) =>
-          inject(Update.Action.LoadCardStack(int_of_string(example_idx)))
+          inject(Update.Action.LoadCardstack(int_of_string(example_idx)))
         ),
       ],
       cardstack_options,
@@ -53,9 +56,8 @@ let cardstacks_select =
 };
 
 let prev_card_button = (~inject, model: Model.t) => {
-  let cardstack = Model.cardstack_state_of(model);
-  let show_prev =
-    ZList.prefix_length(cardstack.zcards) > 0 ? [] : [Vdom.Attr.disabled];
+  let cardstack = model |> Model.get_cardstack;
+  let show_prev = Cardstack.has_prev(cardstack) ? [] : [Vdom.Attr.disabled];
   Vdom.(
     Node.button(
       [
@@ -69,9 +71,8 @@ let prev_card_button = (~inject, model: Model.t) => {
 };
 
 let next_card_button = (~inject, model: Model.t) => {
-  let cardstack = Model.cardstack_state_of(model);
-  let show_next =
-    ZList.suffix_length(cardstack.zcards) > 0 ? [] : [Vdom.Attr.disabled];
+  let cardstack = model |> Model.get_cardstack;
+  let show_next = Cardstack.has_next(cardstack) ? [] : [Vdom.Attr.disabled];
   Vdom.(
     Node.button(
       [
@@ -102,11 +103,12 @@ let cardstack_controls = (~inject, model: Model.t) =>
 
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
-  let card = Model.card_of(model);
+  let card = model |> Model.get_card;
+  let program = model |> Model.get_program;
   let cell_status =
-    switch (model.result_state) {
-    | ResultsDisabled => Vdom.Node.div([], [])
-    | Result(_) =>
+    if (!model.compute_results) {
+      Vdom.Node.div([], []);
+    } else {
       Vdom.(
         Node.div(
           [],
@@ -125,7 +127,7 @@ let page_view =
                       [Attr.classes(["htype-view"])],
                       [
                         {
-                          let (_, ty, _) = Model.edit_state_of(model);
+                          let (_, ty, _) = program |> Program.get_edit_state;
                           Code.view_of_htyp(~inject, ty);
                         },
                       ],
@@ -141,18 +143,20 @@ let page_view =
             ),
           ],
         )
-      )
+      );
     };
-  let e = model |> Model.exp;
+  let e = program |> Program.get_uhexp;
   let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
   let layout =
     lazy(
-      switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
-      | None => Layout.Text("layout FAILED") // TODO
+      switch (
+        Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
+      ) {
+      | None => Pretty.Layout.Text("layout FAILED") // TODO
       | Some(l) => l
       }
     );
-  let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
+  let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -164,7 +168,7 @@ let page_view =
               [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
               [Node.text("Hazel")],
             ),
-            cardstacks_select(~inject, model.cardstacks),
+            cardstacks_select(~inject, Model.cardstack_info),
           ],
         ),
         Node.div(
@@ -188,7 +192,7 @@ let page_view =
                       [
                         Node.div(
                           [Attr.classes(["card-caption"])],
-                          [card.caption],
+                          [card.info.caption],
                           /* [
                                Node.text("Hazel is an experiment in "),
                                Node.strong(
@@ -211,12 +215,8 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let e = model |> Model.exp;
-                          JSUtil.log(
-                            Js.string(
-                              Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)),
-                            ),
-                          );
+                          let e = program |> Program.get_uhexp;
+                          JSUtil.log(Js.string(Serialize.string_of_exp(e)));
                           Event.Ignore;
                         }),
                       ],

@@ -49,6 +49,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
 
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+  let program = model |> Model.get_program;
   Vdom.(
     Node.div(
       [
@@ -73,7 +74,11 @@ let view =
             | Some(kc) =>
               prevent_stop_inject(
                 Update.Action.EditAction(
-                  Hashtbl.find(kc_actions, kc, model.cursor_info),
+                  Hashtbl.find(
+                    kc_actions,
+                    kc,
+                    program |> Program.get_cursor_info,
+                  ),
                 ),
               )
             | None =>
@@ -95,15 +100,15 @@ let view =
           model.is_cell_focused
             ? Code.editor_view_of_exp(
                 ~inject,
-                ~path=model |> Model.path,
-                ~ci=model.cursor_info,
-                ~show_content_editable=model.show_content_editable,
-                model |> Model.exp,
+                ~path=program |> Program.get_path,
+                ~ci=program |> Program.get_cursor_info,
+                ~show_contenteditable=model.show_contenteditable,
+                program |> Program.get_uhexp,
               )
             : Code.editor_view_of_exp(
                 ~inject,
-                ~show_content_editable=model.show_content_editable,
-                model |> Model.exp,
+                ~show_contenteditable=model.show_contenteditable,
+                program |> Program.get_uhexp,
               );
         [
           Node.div(
