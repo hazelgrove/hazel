@@ -232,17 +232,14 @@ module Contenteditable = {
     steps^;
   };
 
-  let rec schedule_move_or_transport =
-          (
-            ~schedule_action: Update.Action.t => unit,
-            ~setting_caret: ref(bool),
-            anchor_offset: int,
-            anchor_parent: Js.t(Dom_html.element),
-          )
-          : unit => {
-    let schedule_move_or_transport' =
-      schedule_move_or_transport(~schedule_action, ~setting_caret);
-
+  let schedule_move_or_transport =
+      (
+        ~schedule_action: Update.Action.t => unit,
+        ~setting_caret: ref(bool),
+        anchor_offset: int,
+        anchor_parent: Js.t(Dom_html.element),
+      )
+      : unit => {
     let set_caret = (anchor_parent, anchor_offset) => {
       setting_caret := true;
       JSUtil.set_caret(anchor_parent, anchor_offset);
@@ -352,21 +349,12 @@ module Contenteditable = {
         let s = Js.Opt.get(anchor_parent##.textContent, () => assert(false));
         s##.length;
       };
-      let get_sibling_elem =
-        anchor_offset * 2 <= n
-          ? JSUtil.force_get_prev_sibling_elem
-          : JSUtil.force_get_next_sibling_elem;
-      schedule_move_or_transport'(0, anchor_parent |> get_sibling_elem);
+      let transport = anchor_offset * 2 <= n ? transport_prev : transport_next;
+      transport(anchor_parent);
     } else if (anchor_parent |> has_cls("trailing-whitespace")) {
-      schedule_move_or_transport'(
-        0,
-        anchor_parent |> JSUtil.force_get_prev_sibling_elem,
-      );
+      transport_prev(anchor_parent);
     } else if (anchor_parent |> has_cls("leading-whitespace")) {
-      schedule_move_or_transport'(
-        0,
-        anchor_parent |> JSUtil.force_get_next_sibling_elem,
-      );
+      transport_next(anchor_parent);
     };
   };
 };
