@@ -250,22 +250,42 @@ let force_get_parent_elem = elem => {
   Js.Opt.get(Dom_html.CoerceTo.element(parent_node), () => assert(false));
 };
 
-let get_prev_sibling_elem = elem => {
-  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
-  Js.Opt.bind(node##.previousSibling, next => Dom_html.CoerceTo.element(next))
-  |> Js.Opt.to_option;
+/**
+ * Get nearest sibling element preceding node,
+ * skipping any non-element nodes in between
+ */
+let rec get_prev_sibling_elem = node => {
+  switch (node##.previousSibling |> Js.Opt.to_option) {
+  | None => None
+  | Some(prev_node) =>
+    switch (prev_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
+    | None => prev_node |> get_prev_sibling_elem
+    | Some(prev_elem) => Some(prev_elem)
+    }
+  };
 };
+
 let force_get_prev_sibling_elem = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
   let prev_node = Js.Opt.get(node##.previousSibling, () => assert(false));
   Js.Opt.get(Dom_html.CoerceTo.element(prev_node), () => assert(false));
 };
 
-let get_next_sibling_elem = elem => {
-  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
-  Js.Opt.bind(node##.nextSibling, next => Dom_html.CoerceTo.element(next))
-  |> Js.Opt.to_option;
+/**
+ * Get next sibling element following node,
+ * skipping any non-element nodes in between
+ */
+let rec get_next_sibling_elem = node => {
+  switch (node##.nextSibling |> Js.Opt.to_option) {
+  | None => None
+  | Some(next_node) =>
+    switch (next_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
+    | None => next_node |> get_next_sibling_elem
+    | Some(next_elem) => Some(next_elem)
+    }
+  };
 };
+
 let force_get_next_sibling_elem = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
   let next_node = Js.Opt.get(node##.nextSibling, () => assert(false));

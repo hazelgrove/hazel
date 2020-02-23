@@ -265,7 +265,8 @@ module Contenteditable = {
         JSUtil.log("Caret position not found");
         ();
       } else {
-        switch (elem |> JSUtil.get_prev_sibling_elem) {
+        let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+        switch (node |> JSUtil.get_prev_sibling_elem) {
         | None =>
           let parent = elem |> JSUtil.force_get_parent_elem;
           transport_prev(parent);
@@ -296,12 +297,13 @@ module Contenteditable = {
      * Transport to next caret position
      * following elem in post-order traversal
      */
-    let rec transport_next = elem =>
+    let rec transport_next = elem => {
       if (elem |> has_cls("code")) {
         JSUtil.log("Caret position not found");
         ();
       } else {
-        switch (elem |> JSUtil.get_next_sibling_elem) {
+        let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+        switch (node |> JSUtil.get_next_sibling_elem) {
         | None =>
           let parent = elem |> JSUtil.force_get_parent_elem;
           transport_next(parent);
@@ -317,6 +319,7 @@ module Contenteditable = {
           };
         };
       };
+    };
 
     if (anchor_parent |> has_cls("caret-position")) {
       if (anchor_parent |> has_cls("has-caret")) {
