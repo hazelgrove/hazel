@@ -131,10 +131,9 @@ let rec schedule_move =
       let cursor: CursorPosition.t = {
         let side: Side.t =
           anchor_parent |> has_cls("Before") ? Before : After;
-        let grandparent = anchor_parent |> JSUtil.force_get_parent_elem;
-        if (grandparent |> has_cls("code-delim")) {
+        if (anchor_parent |> has_cls("Delim")) {
           let index =
-            grandparent |> JSUtil.force_get_attr("index") |> int_of_string;
+            int_of_string(anchor_parent |> JSUtil.force_get_attr("index"));
           OnDelim(index, side);
         } else {
           OnOp(side);

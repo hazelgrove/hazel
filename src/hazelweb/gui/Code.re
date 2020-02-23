@@ -77,16 +77,33 @@ module Contenteditable = {
      };
      */
 
-    let caret_position = (~side: Side.t, ~has_caret: bool) => {
+    let caret_position_Op = (~side: Side.t, ~has_caret: bool) => {
       Node.span(
         [
           Attr.classes([
             "caret-position",
+            "Op",
             Side.to_string(side),
             ...has_caret ? ["has-caret"] : [],
           ]),
         ],
         // TODO: Once we figure out contenteditable cursor use `Node.text("")`
+        [Node.text(UnicodeConstants.zwsp)],
+      );
+    };
+
+    let caret_position_Delim =
+        (~index: DelimIndex.t, ~side: Side.t, ~has_caret: bool) => {
+      Node.span(
+        [
+          Attr.classes([
+            "caret-position",
+            "Delim",
+            Side.to_string(side),
+            ...has_caret ? ["has-caret"] : [],
+          ]),
+          Attr.create("index", string_of_int(index)),
+        ],
         [Node.text(UnicodeConstants.zwsp)],
       );
     };
@@ -121,7 +138,8 @@ module Contenteditable = {
                Node.span([Attr.create("step", string_of_int(step))], vs),
              ]
            | Delim({caret, index}) => [
-               caret_position(
+               caret_position_Delim(
+                 ~index,
                  ~side=Before,
                  ~has_caret=caret == Some(Before),
                ),
@@ -133,15 +151,22 @@ module Contenteditable = {
                  ],
                  vs,
                ),
-               caret_position(~side=After, ~has_caret=caret == Some(After)),
+               caret_position_Delim(
+                 ~index,
+                 ~side=After,
+                 ~has_caret=caret == Some(After),
+               ),
              ]
            | Op({caret}) => [
-               caret_position(
+               caret_position_Op(
                  ~side=Before,
                  ~has_caret=caret == Some(Before),
                ),
                Node.span([contenteditable_false], vs),
-               caret_position(~side=After, ~has_caret=caret == Some(After)),
+               caret_position_Op(
+                 ~side=After,
+                 ~has_caret=caret == Some(After),
+               ),
              ]
            | EmptyLine({has_caret}) => [
                Node.span(
