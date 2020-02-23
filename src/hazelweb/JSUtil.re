@@ -137,12 +137,18 @@ let get_selection_anchor = () => {
 
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
 
-let set_caret = (anchorNode, offset) => {
+let set_caret = (anchor_parent, offset) => {
+  let anchor_node =
+    Js.Opt.get(
+      (anchor_parent: Js.t(Dom_html.element) :> Js.t(Dom.node))##.firstChild,
+      () =>
+      assert(false)
+    );
   let go = () => {
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
-    range##setStart(anchorNode, offset);
-    range##setEnd(anchorNode, offset);
+    range##setStart(anchor_node, offset);
+    range##setEnd(anchor_node, offset);
     selection##removeAllRanges;
     selection##addRange(range);
   };
@@ -151,7 +157,7 @@ let set_caret = (anchorNode, offset) => {
   | exception e =>
     log(Js.string(__LOC__ ++ ": Failed to set caret"));
     log(Js.string(Printexc.to_string(e)));
-    log(anchorNode);
+    log(anchor_node);
     log(offset);
     assert(false);
   };
@@ -225,6 +231,18 @@ let force_get_elem_by_cls = cls =>
     assert(false);
   | [elem, ..._] => elem
   };
+
+let force_get_first_child_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  let first_child = Js.Opt.get(node##.firstChild, () => assert(false));
+  Js.Opt.get(Dom_html.CoerceTo.element(first_child), () => assert(false));
+};
+
+let force_get_last_child_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  let last_child = Js.Opt.get(node##.lastChild, () => assert(false));
+  Js.Opt.get(Dom_html.CoerceTo.element(last_child), () => assert(false));
+};
 
 let force_get_parent_elem = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));

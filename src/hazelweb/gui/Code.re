@@ -28,55 +28,6 @@ module Contenteditable = {
       : Vdom.Node.t => {
     open Vdom;
 
-    /*
-     let on_click_noneditable =
-         (
-           ~cursor_before: CursorPosition.t,
-           ~cursor_after: CursorPosition.t,
-           ~rev_steps: CursorPath.rev_steps,
-           evt,
-         )
-         : Vdom.Event.t => {
-       let steps = rev_steps |> List.rev;
-       let path_before = (steps, cursor_before);
-       let path_after = (steps, cursor_after);
-       switch (Js.Opt.to_option(evt##.target)) {
-       | None => inject(Update.Action.EditAction(MoveTo(path_before)))
-       | Some(target) =>
-         let from_left =
-           float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-         let from_right =
-           target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-         let path = from_left <= from_right ? path_before : path_after;
-         inject(Update.Action.EditAction(MoveTo(path)));
-       };
-     };
-
-     let on_click_text =
-         (~rev_steps: CursorPath.rev_steps, ~length: int, evt): Vdom.Event.t => {
-       let steps = rev_steps |> List.rev;
-       switch (Js.Opt.to_option(evt##.target)) {
-       | None => inject(Update.Action.EditAction(MoveToBefore(steps)))
-       | Some(target) =>
-         let from_left =
-           float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-         let from_right =
-           target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-         let char_index =
-           floor(
-             from_left
-             /. (from_left +. from_right)
-             *. float_of_int(length)
-             +. 0.5,
-           )
-           |> int_of_float;
-         inject(
-           Update.Action.EditAction(MoveTo((steps, OnText(char_index)))),
-         );
-       };
-     };
-     */
-
     let caret_position_Op = (~side: Side.t, ~has_caret: bool) => {
       Node.span(
         [
@@ -237,14 +188,14 @@ module Contenteditable = {
             index,
             Side.to_string(side),
           ),
-          0,
+          side == Before ? 1 : 0,
         )
       | OnOp(side) => (
           Printf.sprintf(
             ".code-op .caret-position.%s",
             Side.to_string(side),
           ),
-          0,
+          side == Before ? 1 : 0,
         )
       };
     let selector =
@@ -254,15 +205,165 @@ module Contenteditable = {
           @ [cursor_selector],
         ),
       );
-    let anchor_parent = (
+    let anchor_parent =
       JSUtil.force_get_elem_by_id("contenteditable")
-      |> JSUtil.force_query_selector(selector):
-        Js.t(Dom_html.element) :>
-        Js.t(Dom.node)
-    );
-    let anchor_elem =
-      Js.Opt.get(anchor_parent##.firstChild, () => assert(false));
-    (anchor_elem, anchor_offset);
+      |> JSUtil.force_query_selector(selector);
+    (anchor_parent, anchor_offset);
+  };
+
+  let has_cls = JSUtil.elem_has_cls;
+  let has_any_cls = (clss, elem) =>
+    clss |> List.exists(cls => elem |> has_cls(cls));
+
+  let steps_of_caret_position =
+      (elem: Js.t(Dom_html.element)): CursorPath.steps => {
+    let steps = ref([]);
+    let ancestor = ref(elem);
+    // TODO use better root condition
+    while (!(ancestor^ |> has_cls("code"))) {
+      switch (ancestor^ |> JSUtil.get_attr("step")) {
+      | None => ()
+      | Some(step) =>
+        let step = int_of_string(step);
+        steps := [step, ...steps^];
+      };
+      ancestor := ancestor^ |> JSUtil.force_get_parent_elem;
+    };
+    steps^;
+  };
+
+  let rec schedule_move_or_transport =
+          (
+            ~schedule_action: Update.Action.t => unit,
+            ~setting_caret: ref(bool),
+            anchor_offset: int,
+            anchor_parent: Js.t(Dom_html.element),
+          )
+          : unit => {
+    let schedule_move_or_transport' =
+      schedule_move_or_transport(~schedule_action, ~setting_caret);
+
+    let set_caret = (anchor_parent, anchor_offset) => {
+      setting_caret := true;
+      JSUtil.set_caret(anchor_parent, anchor_offset);
+      setting_caret := false;
+    };
+
+    /**
+     * Transport to last caret position
+     * preceding elem in pre-order traversal
+     */
+    let rec transport_prev = elem =>
+      if (elem |> has_cls("code")) {
+        JSUtil.log("Caret position not found");
+        ();
+      } else {
+        switch (elem |> JSUtil.get_prev_sibling_elem) {
+        | None =>
+          let parent = elem |> JSUtil.force_get_parent_elem;
+          transport_prev(parent);
+        | Some(prev) =>
+          if (prev |> has_cls("caret-position")) {
+            let anchor_offset = prev |> has_cls("Before") ? 1 : 0;
+            set_caret(prev, anchor_offset);
+          } else if (prev |> has_cls("code-text")) {
+            let anchor_offset = prev |> JSUtil.inner_text |> String.length;
+            set_caret(prev, anchor_offset);
+          } else if (prev |> JSUtil.has_attr("step")) {
+            let prev_last_child = prev |> JSUtil.force_get_last_child_elem;
+            transport_prev(prev_last_child);
+          } else {
+            transport_prev(prev);
+          }
+        };
+      };
+
+    /**
+     * Transport move to next caret position
+     * following elem in post-order traversal
+     */
+    let rec transport_next = elem =>
+      if (elem |> has_cls("code")) {
+        JSUtil.log("Caret position not found");
+        ();
+      } else {
+        switch (elem |> JSUtil.get_next_sibling_elem) {
+        | None =>
+          let parent = elem |> JSUtil.force_get_parent_elem;
+          transport_next(parent);
+        | Some(next) =>
+          if (next |> has_cls("caret-position")) {
+            let anchor_offset = next |> has_cls("Before") ? 1 : 0;
+            set_caret(next, anchor_offset);
+          } else if (next |> has_cls("code-text")) {
+            let anchor_offset = next |> JSUtil.inner_text |> String.length;
+            set_caret(next, anchor_offset);
+          } else if (next |> JSUtil.has_attr("step")) {
+            let next_last_child = next |> JSUtil.force_get_first_child_elem;
+            transport_next(next_last_child);
+          } else {
+            transport_next(next);
+          }
+        };
+      };
+
+    if (anchor_parent |> has_cls("caret-position")) {
+      if (anchor_parent |> has_cls("has-caret")) {
+        let transport =
+          anchor_parent |> has_cls("Before")
+            ? transport_prev : transport_next;
+        transport(anchor_parent);
+      } else {
+        let cursor: CursorPosition.t = {
+          let side: Side.t =
+            anchor_parent |> has_cls("Before") ? Before : After;
+          if (anchor_parent |> has_cls("Delim")) {
+            let index =
+              int_of_string(anchor_parent |> JSUtil.force_get_attr("index"));
+            OnDelim(index, side);
+          } else {
+            OnOp(side);
+          };
+        };
+        let steps = steps_of_caret_position(anchor_parent);
+        schedule_action(Update.Action.EditAction(MoveTo((steps, cursor))));
+      };
+    } else if (anchor_parent |> has_cls("caret-position-EmptyLine")) {
+      if (anchor_parent |> has_cls("has-caret")) {
+        let transport = anchor_offset == 0 ? transport_prev : transport_next;
+        transport(anchor_parent);
+      } else {
+        let steps = steps_of_caret_position(anchor_parent);
+        schedule_action(
+          Update.Action.EditAction(MoveTo((steps, OnText(0)))),
+        );
+      };
+    } else if (anchor_parent |> has_cls("code-text")) {
+      let cursor = CursorPosition.OnText(anchor_offset);
+      let steps = steps_of_caret_position(anchor_parent);
+      schedule_action(Update.Action.EditAction(MoveTo((steps, cursor))));
+    } else if (anchor_parent
+               |> has_any_cls(["Padding", "SpaceOp", "code-delim", "code-op"])) {
+      let n = {
+        let s = Js.Opt.get(anchor_parent##.textContent, () => assert(false));
+        s##.length;
+      };
+      let get_sibling_elem =
+        anchor_offset * 2 <= n
+          ? JSUtil.force_get_prev_sibling_elem
+          : JSUtil.force_get_next_sibling_elem;
+      schedule_move_or_transport'(0, anchor_parent |> get_sibling_elem);
+    } else if (anchor_parent |> has_cls("trailing-whitespace")) {
+      schedule_move_or_transport'(
+        0,
+        anchor_parent |> JSUtil.force_get_prev_sibling_elem,
+      );
+    } else if (anchor_parent |> has_cls("leading-whitespace")) {
+      schedule_move_or_transport'(
+        0,
+        anchor_parent |> JSUtil.force_get_next_sibling_elem,
+      );
+    };
   };
 };
 

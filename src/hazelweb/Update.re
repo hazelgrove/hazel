@@ -21,7 +21,6 @@ module Action = {
     | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
-    | SelectionChange
     | FocusCell
     | BlurCell
     | FocusWindow
@@ -87,130 +86,11 @@ let log_action = (action: Action.t, _: State.t): unit => {
         sexp_of_timestamped_action(mk_timestamped_action(action)),
       ),
     )
-  | SelectionChange => ()
-  };
-};
-
-let has_cls = JSUtil.elem_has_cls;
-let has_any_cls = (clss, elem) =>
-  clss |> List.exists(cls => elem |> has_cls(cls));
-
-let steps_of_caret_position =
-    (elem: Js.t(Dom_html.element)): CursorPath.steps => {
-  let steps = ref([]);
-  let ancestor = ref(elem);
-  // TODO use better root condition
-  while (!(ancestor^ |> has_cls("code"))) {
-    switch (ancestor^ |> JSUtil.get_attr("step")) {
-    | None => ()
-    | Some(step) =>
-      let step = int_of_string(step);
-      steps := [step, ...steps^];
-    };
-    ancestor := ancestor^ |> JSUtil.force_get_parent_elem;
-  };
-  steps^;
-};
-
-let rec schedule_move =
-        (
-          ~schedule_action: Action.t => unit,
-          anchor_offset: int,
-          anchor_parent: Js.t(Dom_html.element),
-        )
-        : unit => {
-  let schedule_move' = schedule_move(~schedule_action);
-  let schedule_move_prev' = schedule_move_prev(~schedule_action);
-  let schedule_move_next' = schedule_move_next(~schedule_action);
-  if (anchor_parent |> has_cls("caret-position")) {
-    if (anchor_parent |> has_cls("has-caret")) {
-      let schedule_move_to_neighbor =
-        anchor_offset == 0 ? schedule_move_prev' : schedule_move_next';
-      schedule_move_to_neighbor(anchor_parent);
-    } else {
-      let cursor: CursorPosition.t = {
-        let side: Side.t =
-          anchor_parent |> has_cls("Before") ? Before : After;
-        if (anchor_parent |> has_cls("Delim")) {
-          let index =
-            int_of_string(anchor_parent |> JSUtil.force_get_attr("index"));
-          OnDelim(index, side);
-        } else {
-          OnOp(side);
-        };
-      };
-      let steps = steps_of_caret_position(anchor_parent);
-      schedule_action(Action.EditAction(MoveTo((steps, cursor))));
-    };
-  } else if (anchor_parent |> has_cls("caret-position-EmptyLine")) {
-    if (anchor_parent |> has_cls("has-caret")) {
-      let schedule_move_to_neighbor =
-        anchor_offset == 0 ? schedule_move_prev' : schedule_move_next';
-      schedule_move_to_neighbor(anchor_parent);
-    } else {
-      let steps = steps_of_caret_position(anchor_parent);
-      schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
-    };
-  } else if (anchor_parent |> has_cls("code-text")) {
-    let cursor = CursorPosition.OnText(anchor_offset);
-    let steps = steps_of_caret_position(anchor_parent);
-    schedule_action(Action.EditAction(MoveTo((steps, cursor))));
-  } else if (anchor_parent
-             |> has_any_cls(["Padding", "SpaceOp", "code-delim", "code-op"])) {
-    let n = {
-      let s = Js.Opt.get(anchor_parent##.textContent, () => assert(false));
-      s##.length;
-    };
-    let get_sibling_elem =
-      anchor_offset * 2 <= n
-        ? JSUtil.force_get_prev_sibling_elem
-        : JSUtil.force_get_next_sibling_elem;
-    schedule_move'(0, anchor_parent |> get_sibling_elem);
-  } else if (anchor_parent |> has_cls("trailing-whitespace")) {
-    schedule_move'(0, anchor_parent |> JSUtil.force_get_prev_sibling_elem);
-  } else if (anchor_parent |> has_cls("leading-whitespace")) {
-    schedule_move'(0, anchor_parent |> JSUtil.force_get_next_sibling_elem);
-  };
-}
-and schedule_move_prev = (~schedule_action, anchor_parent) => {
-  let schedule_move' = schedule_move(~schedule_action);
-  let schedule_move_prev' = schedule_move_prev(~schedule_action);
-  let prev =
-    switch (anchor_parent |> JSUtil.get_prev_sibling_elem) {
-    | None => anchor_parent |> JSUtil.force_get_parent_elem
-    | Some(next) => next
-    };
-  // TODO use better root condition
-  if (prev |> has_cls("code")) {
-    ();
-  } else if (prev |> has_cls("caret-position")) {
-    schedule_move'(0, prev);
-  } else if (prev |> has_cls("code-text")) {
-    schedule_move'(prev |> JSUtil.inner_text |> String.length, prev);
-  } else {
-    schedule_move_prev'(prev);
-  };
-}
-and schedule_move_next = (~schedule_action, anchor_parent) => {
-  let schedule_move' = schedule_move(~schedule_action);
-  let schedule_move_next' = schedule_move_next(~schedule_action);
-  let next =
-    switch (anchor_parent |> JSUtil.get_next_sibling_elem) {
-    | None => anchor_parent |> JSUtil.force_get_parent_elem
-    | Some(next) => next
-    };
-  // TODO use better root condition
-  if (next |> has_cls("code")) {
-    ();
-  } else if (next |> has_any_cls(["caret-position", "code-text"])) {
-    schedule_move'(0, next);
-  } else {
-    schedule_move_next'(next);
   };
 };
 
 let apply_action =
-    (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
+    (model: Model.t, action: Action.t, state: State.t, ~schedule_action as _)
     : Model.t => {
   log_action(action, state);
   switch (action) {
@@ -268,14 +148,5 @@ let apply_action =
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.put_program(Program.mk(new_edit_state));
     {...new_model, undo_history: new_history};
-  | SelectionChange =>
-    if (! state.setting_caret^) {
-      let anchor_offset = Dom_html.window##getSelection##.anchorOffset;
-      let anchor_parent =
-        Dom_html.window##getSelection##.anchorNode
-        |> JSUtil.force_get_closest_elem;
-      schedule_move(~schedule_action, anchor_offset, anchor_parent);
-    };
-    model;
   };
 };
