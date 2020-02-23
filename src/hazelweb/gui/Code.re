@@ -480,7 +480,7 @@ module Presentation = {
       | Annot(EmptyLine({has_caret}), _) =>
         let children = {
           let zwsp = Node.text(UnicodeConstants.zwsp);
-          has_caret ? [zwsp] : [caret_from_left(0.0), zwsp];
+          has_caret ? [caret_from_left(0.0), zwsp] : [zwsp];
         };
         [Node.span([Attr.classes(["EmptyLine"])], children)];
 
