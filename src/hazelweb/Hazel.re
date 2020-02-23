@@ -53,17 +53,8 @@ let create =
             path |> Code.Contenteditable.caret_position_of_path;
           state.setting_caret := true;
           JSUtil.set_caret(anchor_node, anchor_offset);
-        } else if (model.is_cell_focused) {
-          let (expected_node, expected_offset) =
-            path |> Code.Contenteditable.caret_position_of_path;
-          let (actual_node, actual_offset) = JSUtil.get_selection_anchor();
-          if (actual_node === expected_node
-              && actual_offset === expected_offset) {
-            state.setting_caret := false;
-          } else {
-            state.setting_caret := true;
-            JSUtil.set_caret(expected_node, expected_offset);
-          };
+        } else {
+          state.setting_caret := false;
         };
       },
     model,

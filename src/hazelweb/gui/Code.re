@@ -202,36 +202,43 @@ module Contenteditable = {
        });
   };
 
-  let caret_position_of_path =
-      ((steps, cursor) as path: CursorPath.t): (Js.t(Dom.node), int) =>
-    switch (cursor) {
-    | OnOp(side)
-    | OnDelim(_, side) =>
-      let anchor_parent = (
-        JSUtil.force_get_elem_by_id(path_id(path)): Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
-      );
-      (
-        Js.Opt.get(anchor_parent##.firstChild, () =>
-          failwith(__LOC__ ++ ": Found caret position without child text")
+  let caret_position_of_path = ((steps, cursor): CursorPath.t) => {
+    let (cursor_selector, anchor_offset) =
+      switch (cursor) {
+      | OnText(j) => (".code-text", j)
+      | OnDelim(index, side) => (
+          Printf.sprintf(
+            ".code-delim[index=%d] .caret-position.%s",
+            index,
+            Side.to_string(side),
+          ),
+          0,
+        )
+      | OnOp(side) => (
+          Printf.sprintf(
+            ".code-op .caret-position.%s",
+            Side.to_string(side),
+          ),
+          0,
+        )
+      };
+    let selector =
+      Js.string(
+        StringUtil.cat(
+          (steps |> List.map(step => Printf.sprintf("[step=%d]", step)))
+          @ [cursor_selector],
         ),
-        switch (side) {
-        | Before => 1
-        | After => 0
-        },
       );
-    | OnText(j) =>
-      let anchor_parent = (
-        JSUtil.force_get_elem_by_id(text_id(steps)): Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
-      );
-      (
-        Js.Opt.get(anchor_parent##.firstChild, () =>
-          failwith(__LOC__ ++ ": Found Text node without child text")
-        ),
-        j,
-      );
-    };
+    let anchor_parent = (
+      JSUtil.force_get_elem_by_id("contenteditable")
+      |> JSUtil.force_query_selector(selector):
+        Js.t(Dom_html.element) :>
+        Js.t(Dom.node)
+    );
+    let anchor_elem =
+      Js.Opt.get(anchor_parent##.firstChild, () => assert(false));
+    (anchor_elem, anchor_offset);
+  };
 };
 
 module Presentation = {

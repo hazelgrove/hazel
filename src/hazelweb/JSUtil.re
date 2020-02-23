@@ -191,6 +191,9 @@ let listen_to_t = (ev, elem, f) =>
     },
   );
 
+let force_query_selector = (selector, elem) =>
+  Js.Opt.get(elem##querySelector(selector), () => assert(false));
+
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
   Js.Opt.to_option(doc##getElementById(Js.string(id)));
@@ -229,12 +232,22 @@ let force_get_parent_elem = elem => {
   Js.Opt.get(Dom_html.CoerceTo.element(parent_node), () => assert(false));
 };
 
+let get_prev_sibling_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  Js.Opt.bind(node##.previousSibling, next => Dom_html.CoerceTo.element(next))
+  |> Js.Opt.to_option;
+};
 let force_get_prev_sibling_elem = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
   let prev_node = Js.Opt.get(node##.previousSibling, () => assert(false));
   Js.Opt.get(Dom_html.CoerceTo.element(prev_node), () => assert(false));
 };
 
+let get_next_sibling_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  Js.Opt.bind(node##.nextSibling, next => Dom_html.CoerceTo.element(next))
+  |> Js.Opt.to_option;
+};
 let force_get_next_sibling_elem = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
   let next_node = Js.Opt.get(node##.nextSibling, () => assert(false));
@@ -624,6 +637,11 @@ let window_has_focus = (): bool => {
 let is_connected = (node: node) => {
   let result: Js.t(bool) = Js.Unsafe.get(node, "isConnected");
   Js.to_bool(result);
+};
+
+let inner_text = (elem: Js.t(Dom_html.element)): string => {
+  let result: Js.t(Js.js_string) = Js.Unsafe.get(elem, "innerText");
+  Js.to_string(result);
 };
 
 let remove_cls_from_all = (cls_to_remove, cls_to_remove_from) => {

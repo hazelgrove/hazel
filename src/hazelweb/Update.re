@@ -120,13 +120,13 @@ let rec schedule_move =
         )
         : unit => {
   let schedule_move' = schedule_move(~schedule_action);
+  let schedule_move_prev' = schedule_move_prev(~schedule_action);
+  let schedule_move_next' = schedule_move_next(~schedule_action);
   if (anchor_parent |> has_cls("caret-position")) {
     if (anchor_parent |> has_cls("has-caret")) {
-      schedule_action(
-        Action.EditAction(
-          anchor_parent |> has_cls("Before") ? MoveLeft : MoveRight,
-        ),
-      );
+      let schedule_move_to_neighbor =
+        anchor_offset == 0 ? schedule_move_prev' : schedule_move_next';
+      schedule_move_to_neighbor(anchor_parent);
     } else {
       let cursor: CursorPosition.t = {
         let side: Side.t =
@@ -145,9 +145,9 @@ let rec schedule_move =
     };
   } else if (anchor_parent |> has_cls("caret-position-EmptyLine")) {
     if (anchor_parent |> has_cls("has-caret")) {
-      schedule_action(
-        Action.EditAction(anchor_offset == 0 ? MoveLeft : MoveRight),
-      );
+      let schedule_move_to_neighbor =
+        anchor_offset == 0 ? schedule_move_prev' : schedule_move_next';
+      schedule_move_to_neighbor(anchor_parent);
     } else {
       let steps = steps_of_caret_position(anchor_parent);
       schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
@@ -171,6 +171,45 @@ let rec schedule_move =
     schedule_move'(0, anchor_parent |> JSUtil.force_get_prev_sibling_elem);
   } else if (anchor_parent |> has_cls("leading-whitespace")) {
     schedule_move'(0, anchor_parent |> JSUtil.force_get_next_sibling_elem);
+  };
+}
+and schedule_move_prev = (~schedule_action, anchor_parent) => {
+  let schedule_move' = schedule_move(~schedule_action);
+  let schedule_move_prev' = schedule_move_prev(~schedule_action);
+  // TODO use better root condition
+  if (anchor_parent |> has_cls("code")) {
+    ();
+  } else if (anchor_parent |> has_cls("caret-position")) {
+    schedule_move'(0, anchor_parent);
+  } else if (anchor_parent |> has_cls("code-text")) {
+    schedule_move'(
+      anchor_parent |> JSUtil.inner_text |> String.length,
+      anchor_parent,
+    );
+  } else {
+    let prev =
+      switch (anchor_parent |> JSUtil.get_prev_sibling_elem) {
+      | None => anchor_parent |> JSUtil.force_get_parent_elem
+      | Some(next) => next
+      };
+    schedule_move_prev'(prev);
+  };
+}
+and schedule_move_next = (~schedule_action, anchor_parent) => {
+  let schedule_move' = schedule_move(~schedule_action);
+  let schedule_move_next' = schedule_move_next(~schedule_action);
+  // TODO use better root condition
+  if (anchor_parent |> has_cls("code")) {
+    ();
+  } else if (anchor_parent |> has_any_cls(["caret-position", "code-text"])) {
+    schedule_move'(0, anchor_parent);
+  } else {
+    let next =
+      switch (anchor_parent |> JSUtil.get_next_sibling_elem) {
+      | None => anchor_parent |> JSUtil.force_get_parent_elem
+      | Some(next) => next
+      };
+    schedule_move_next'(next);
   };
 };
 
