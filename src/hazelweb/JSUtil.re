@@ -223,14 +223,11 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
-let force_get_parent_elem = elem =>
-  (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
-  |> (node => node##.parentNode)
-  |> Js.Opt.to_option
-  |> OptUtil.get(() => assert(false))
-  |> Dom_html.CoerceTo.element
-  |> Js.Opt.to_option
-  |> OptUtil.get(() => assert(false));
+let force_get_parent_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  let parent_node = Js.Opt.get(node##.parentNode, () => assert(false));
+  Js.Opt.get(Dom_html.CoerceTo.element(parent_node), () => assert(false));
+};
 
 let force_get_prev_sibling_elem = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));

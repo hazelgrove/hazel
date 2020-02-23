@@ -134,14 +134,15 @@ let contenteditable_of_layout =
    };
    */
 
-  let caret_position = (~caret: option(Side.t)) => {
-    let caret_clss =
-      switch (caret) {
-      | None => []
-      | Some(side) => ["has-caret", Side.to_string(side)]
-      };
+  let caret_position = (~side: Side.t, ~has_caret: bool) => {
     Node.span(
-      [Attr.classes(["caret-position", ...caret_clss])],
+      [
+        Attr.classes([
+          "caret-position",
+          Side.to_string(side),
+          ...has_caret ? ["has-caret"] : [],
+        ]),
+      ],
       // TODO: Once we figure out contenteditable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
@@ -176,18 +177,22 @@ let contenteditable_of_layout =
          | Step(step) => [
              Node.span([Attr.create("step", string_of_int(step))], vs),
            ]
-         | Delim({caret, _}) => [
-             caret_position(~caret),
+         | Delim({caret, index}) => [
+             caret_position(~side=Before, ~has_caret=caret == Some(Before)),
              Node.span(
-               [Attr.classes(["code-delim"]), contenteditable_false],
+               [
+                 Attr.classes(["code-delim"]),
+                 Attr.create("index", string_of_int(index)),
+                 contenteditable_false,
+               ],
                vs,
              ),
-             caret_position(~caret),
+             caret_position(~side=After, ~has_caret=caret == Some(After)),
            ]
          | Op({caret}) => [
-             caret_position(~caret),
+             caret_position(~side=Before, ~has_caret=caret == Some(Before)),
              Node.span([contenteditable_false], vs),
-             caret_position(~caret),
+             caret_position(~side=After, ~has_caret=caret == Some(After)),
            ]
          | EmptyLine({has_caret}) => [
              Node.span(
@@ -275,6 +280,32 @@ let caret_position_of_path =
       j,
     );
   };
+
+let path_of_caret_position = (elem: Js.t(Dom_html.element)): CursorPath.t => {
+  let cursor: CursorPosition.t = {
+    let side: Side.t = elem |> JSUtil.elem_has_cls("Before") ? Before : After;
+    let parent = elem |> JSUtil.force_get_parent_elem;
+    if (parent |> JSUtil.elem_has_cls("code-delim")) {
+      let index = parent |> JSUtil.force_get_attr("index") |> int_of_string;
+      OnDelim(index, side);
+    } else {
+      OnOp(side);
+    };
+  };
+  let steps = ref([]);
+  let ancestor = ref(elem);
+  // TODO use better root condition
+  while (!(ancestor^ |> JSUtil.elem_has_cls("code"))) {
+    switch (ancestor^ |> JSUtil.get_attr("step")) {
+    | None => ()
+    | Some(step) =>
+      let step = int_of_string(step);
+      steps := [step, ...steps^];
+    };
+    ancestor := ancestor^ |> JSUtil.force_get_parent_elem;
+  };
+  (steps^, cursor);
+};
 
 let presentation_of_layout = (l: TermLayout.t): Vdom.Node.t => {
   open Vdom;

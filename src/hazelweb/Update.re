@@ -151,6 +151,7 @@ let apply_action =
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
+
       if (closest_elem |> has_cls("caret-position")) {
         if (closest_elem |> has_cls("has-caret")) {
           schedule_action(
