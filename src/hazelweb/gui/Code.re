@@ -299,8 +299,8 @@ module Contenteditable = {
             let anchor_offset = next |> JSUtil.inner_text |> String.length;
             set_caret(next, anchor_offset);
           } else if (next |> JSUtil.has_attr("step")) {
-            let next_last_child = next |> JSUtil.force_get_first_child_elem;
-            transport_next(next_last_child);
+            let next_first_child = next |> JSUtil.force_get_first_child_elem;
+            transport_next(next_first_child);
           } else {
             transport_next(next);
           }
