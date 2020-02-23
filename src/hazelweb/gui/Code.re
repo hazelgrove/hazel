@@ -65,6 +65,16 @@ let caret_of_side: Side.t => Vdom.Node.t =
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
 
+let whitespace = (~clss=[], n: int) =>
+  Vdom.(
+    Node.span(
+      [contenteditable_false, Attr.classes(clss)],
+      [Node.text(StringUtil.replicat(n, UnicodeConstants.nbsp))],
+    )
+  );
+let leading_whitespace = whitespace(~clss=["leading-whitespace"]);
+let trailing_whitespace = whitespace(~clss=["trailing-whitespace"]);
+
 let contenteditable_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
@@ -75,240 +85,164 @@ let contenteditable_of_layout =
     : Vdom.Node.t => {
   open Vdom;
 
-  let on_click_noneditable =
-      (
-        ~cursor_before: CursorPosition.t,
-        ~cursor_after: CursorPosition.t,
-        ~rev_steps: CursorPath.rev_steps,
-        evt,
-      )
-      : Vdom.Event.t => {
-    let steps = rev_steps |> List.rev;
-    let path_before = (steps, cursor_before);
-    let path_after = (steps, cursor_after);
-    switch (Js.Opt.to_option(evt##.target)) {
-    | None => inject(Update.Action.EditAction(MoveTo(path_before)))
-    | Some(target) =>
-      let from_left =
-        float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-      let from_right =
-        target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-      let path = from_left <= from_right ? path_before : path_after;
-      inject(Update.Action.EditAction(MoveTo(path)));
-    };
-  };
+  /*
+   let on_click_noneditable =
+       (
+         ~cursor_before: CursorPosition.t,
+         ~cursor_after: CursorPosition.t,
+         ~rev_steps: CursorPath.rev_steps,
+         evt,
+       )
+       : Vdom.Event.t => {
+     let steps = rev_steps |> List.rev;
+     let path_before = (steps, cursor_before);
+     let path_after = (steps, cursor_after);
+     switch (Js.Opt.to_option(evt##.target)) {
+     | None => inject(Update.Action.EditAction(MoveTo(path_before)))
+     | Some(target) =>
+       let from_left =
+         float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
+       let from_right =
+         target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
+       let path = from_left <= from_right ? path_before : path_after;
+       inject(Update.Action.EditAction(MoveTo(path)));
+     };
+   };
 
-  let on_click_text =
-      (~rev_steps: CursorPath.rev_steps, ~length: int, evt): Vdom.Event.t => {
-    let steps = rev_steps |> List.rev;
-    switch (Js.Opt.to_option(evt##.target)) {
-    | None => inject(Update.Action.EditAction(MoveToBefore(steps)))
-    | Some(target) =>
-      let from_left =
-        float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-      let from_right =
-        target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-      let char_index =
-        floor(
-          from_left
-          /. (from_left +. from_right)
-          *. float_of_int(length)
-          +. 0.5,
-        )
-        |> int_of_float;
-      inject(
-        Update.Action.EditAction(MoveTo((steps, OnText(char_index)))),
-      );
-    };
-  };
+   let on_click_text =
+       (~rev_steps: CursorPath.rev_steps, ~length: int, evt): Vdom.Event.t => {
+     let steps = rev_steps |> List.rev;
+     switch (Js.Opt.to_option(evt##.target)) {
+     | None => inject(Update.Action.EditAction(MoveToBefore(steps)))
+     | Some(target) =>
+       let from_left =
+         float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
+       let from_right =
+         target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
+       let char_index =
+         floor(
+           from_left
+           /. (from_left +. from_right)
+           *. float_of_int(length)
+           +. 0.5,
+         )
+         |> int_of_float;
+       inject(
+         Update.Action.EditAction(MoveTo((steps, OnText(char_index)))),
+       );
+     };
+   };
+   */
 
-  let caret_position =
-      (~has_caret: bool, (cursor, rev_steps): CursorPath.rev_t) => {
-    let side =
-      switch (cursor) {
-      | OnText(_) => raise(Invalid_argument("cursor"))
-      | OnOp(side)
-      | OnDelim(_, side) => side
+  let caret_position = (~caret: option(Side.t)) => {
+    let caret_clss =
+      switch (caret) {
+      | None => []
+      | Some(side) => ["has-caret", Side.to_string(side)]
       };
     Node.span(
-      [
-        Attr.classes([
-          "caret-position",
-          side == Before ? "Before" : "After",
-          ...has_caret ? ["has-caret"] : [],
-        ]),
-        Attr.on("move_caret_here", _ => {
-          let path = (rev_steps |> List.rev, cursor);
-          inject(Update.Action.EditAction(MoveTo(path)));
-        }),
-      ],
+      [Attr.classes(["caret-position", ...caret_clss])],
       // TODO: Once we figure out contenteditable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
   };
 
-  let caret_position_EmptyLine =
-      (~has_caret: bool, rev_steps: CursorPath.rev_steps) =>
+  let caret_position_EmptyLine = (~has_caret: bool) =>
     Node.span(
       [
         Attr.classes([
           "caret-position-EmptyLine",
           ...has_caret ? ["has-caret"] : [],
         ]),
-        Attr.on("move_caret_here", _ => {
-          let path = (rev_steps |> List.rev, CursorPosition.OnText(0));
-          inject(Update.Action.EditAction(MoveTo(path)));
-        }),
       ],
       [Node.text(UnicodeConstants.zwsp)],
     );
 
-  // whether `go` encounters a Linebreak
   let found_linebreak = ref(false);
-  // the current column at the start of `l` on each call to `go`
-  let column = ref(0);
-
-  let whitespace = (~clss: list(cls)=[], n: int) => {
-    Node.span(
-      [contenteditable_false, Attr.classes(clss)],
-      [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(n))],
-    );
-  };
-
-  let rec go =
-          (~indent: int, ~rev_steps: CursorPath.rev_steps, l: TermLayout.t)
-          : list(Vdom.Node.t) => {
-    /* All DOM text nodes are expected to be wrapped in an
-     * element either with contenteditable set to false or
-     * annotated with the appropriate path-related metadata.
-     * cf SelectionChange clause in Update.apply_action
-     */
-    switch (l) {
-    | Text(s) =>
-      column := column^ + StringUtil.utf8_length(s);
-      [Node.text(s)];
-
-    | Align(l) => l |> go(~indent=column^, ~rev_steps)
-
-    | Linebreak =>
-      found_linebreak := true;
-      let last_col = column^;
-      column := indent;
-      [
-        whitespace(~clss=["trailing-whitespace"], width - last_col),
-        Node.br([]),
-        whitespace(~clss=["leading-whitespace"], indent),
-      ];
-
-    | Cat(l1, l2) =>
-      let vs1 = l1 |> go(~indent, ~rev_steps);
-      let vs2 = l2 |> go(~indent, ~rev_steps);
-      vs1 @ vs2;
-
-    | Annot(Step(step), l) =>
-      l |> go(~indent, ~rev_steps=[step, ...rev_steps])
-
-    | Annot(annot, l) =>
-      let vs = l |> go(~indent, ~rev_steps);
-      switch (annot) {
-      | Step(_) => assert(false)
-      | Delim({index, caret}) => [
-          caret_position(
-            ~has_caret=caret == Some(Before),
-            (OnDelim(index, Before), rev_steps),
-          ),
-          Node.span(
-            [
-              Attr.classes(["code-delim"]),
-              contenteditable_false,
-              Attr.on_click(
-                on_click_noneditable(
-                  ~rev_steps,
-                  ~cursor_before=OnDelim(index, Before),
-                  ~cursor_after=OnDelim(index, After),
-                ),
-              ),
-            ],
-            vs,
-          ),
-          caret_position(
-            ~has_caret=caret == Some(After),
-            (OnDelim(index, After), rev_steps),
-          ),
-        ]
-      | Op({caret}) => [
-          caret_position(
-            ~has_caret=caret == Some(Before),
-            (OnOp(Before), rev_steps),
-          ),
-          Node.span([contenteditable_false], vs),
-          caret_position(
-            ~has_caret=caret == Some(After),
-            (OnOp(After), rev_steps),
-          ),
-        ]
-      | EmptyLine({has_caret}) => [
-          Node.span(
-            [Attr.classes(["EmptyLine"])],
-            [caret_position_EmptyLine(~has_caret, rev_steps)],
-          ),
-        ]
-      | SpaceOp => [
-          Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
-        ]
-      | Text({length, _}) => [
-          Node.span(
-            [
-              Attr.classes(["code-text"]),
-              Attr.on("move_caret_here", evt => {
-                let path = (
-                  rev_steps |> List.rev,
-                  CursorPosition.OnText(Js.parseInt(evt##.on_text)),
-                );
-                inject(Update.Action.EditAction(MoveTo(path)));
-              }),
-              Attr.on_click(on_click_text(~rev_steps, ~length)),
-            ],
-            vs,
-          ),
-        ]
-      | Padding => [
-          Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
-        ]
-      | Indent => [
-          Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
-        ]
-      | UserNewline => []
-      | OpenChild(_)
-      | ClosedChild(_)
-      | HoleLabel(_)
-      | DelimGroup
-      | LetLine
-      | Term(_) => vs
-      };
-    };
-  };
-  let vs = {
-    let vs = l |> go(~indent=0, ~rev_steps=[]);
-    found_linebreak^
-      ? vs
-      : vs @ [whitespace(~clss=["trailing-whitespace"], width - column^)];
-  };
-  Node.div(
-    [
-      // TODO clean up classes
-      Attr.id("contenteditable"),
-      Attr.classes(
-        ["code", "contenteditable"]
-        @ (show_contenteditable ? [] : ["hiddencontenteditable"]),
-      ),
-      Attr.create("contenteditable", "true"),
-      Attr.on("drop", _ => Event.Prevent_default),
-      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-    ],
-    vs,
-  );
+  l
+  |> Layout.make_of_layout({
+       imp_of_string: s => [Node.text(s)],
+       imp_append: (@),
+       imp_newline: (~last_col, ~indent) => {
+         found_linebreak := true;
+         [
+           trailing_whitespace(width - last_col),
+           Node.br([]),
+           leading_whitespace(indent),
+         ];
+       },
+       imp_of_annot: (annot: TermAnnot.t, vs) =>
+         switch (annot) {
+         | Step(step) => [
+             Node.span([Attr.create("step", string_of_int(step))], vs),
+           ]
+         | Delim({caret, _}) => [
+             caret_position(~caret),
+             Node.span(
+               [Attr.classes(["code-delim"]), contenteditable_false],
+               vs,
+             ),
+             caret_position(~caret),
+           ]
+         | Op({caret}) => [
+             caret_position(~caret),
+             Node.span([contenteditable_false], vs),
+             caret_position(~caret),
+           ]
+         | EmptyLine({has_caret}) => [
+             Node.span(
+               [Attr.classes(["EmptyLine"])],
+               [caret_position_EmptyLine(~has_caret)],
+             ),
+           ]
+         | SpaceOp => [
+             Node.span(
+               [contenteditable_false, Attr.classes(["SpaceOp"])],
+               vs,
+             ),
+           ]
+         | Text(_) => [Node.span([Attr.classes(["code-text"])], vs)]
+         | Padding => [
+             Node.span(
+               [contenteditable_false, Attr.classes(["Padding"])],
+               vs,
+             ),
+           ]
+         | Indent => [
+             Node.span(
+               [contenteditable_false, Attr.classes(["Indent"])],
+               vs,
+             ),
+           ]
+         | UserNewline => []
+         | OpenChild(_)
+         | ClosedChild(_)
+         | HoleLabel(_)
+         | DelimGroup
+         | LetLine
+         | Term(_) => vs
+         },
+       t_of_imp: (~last_col, vs) => {
+         let vs =
+           found_linebreak^
+             ? vs : vs @ [trailing_whitespace(width - last_col)];
+         Node.div(
+           [
+             // TODO clean up attrs
+             Attr.id("contenteditable"),
+             Attr.classes(
+               ["code", "contenteditable"]
+               @ (show_contenteditable ? [] : ["hiddencontenteditable"]),
+             ),
+             Attr.create("contenteditable", "true"),
+             Attr.on("drop", _ => Event.Prevent_default),
+             Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+             Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+           ],
+           vs,
+         );
+       },
+     });
 };
 
 let caret_position_of_path =
