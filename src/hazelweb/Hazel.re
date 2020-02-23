@@ -28,6 +28,8 @@ let on_startup = (~schedule_action, _) => {
             anchor_parent,
           );
         };
+      } else {
+        setting_caret := false;
       }
     );
   Dom_html.window##.onfocus :=

@@ -178,6 +178,10 @@ module Contenteditable = {
        });
   };
 
+  /**
+   * Use sparingly. Queries DOM using selector whose size
+   * is linear in length of path.
+   */
   let caret_position_of_path = ((steps, cursor): CursorPath.t) => {
     let (cursor_selector, anchor_offset) =
       switch (cursor) {
@@ -243,7 +247,6 @@ module Contenteditable = {
     let set_caret = (anchor_parent, anchor_offset) => {
       setting_caret := true;
       JSUtil.set_caret(anchor_parent, anchor_offset);
-      setting_caret := false;
     };
 
     let rec get_last_nonstep_descendant = elem =>
