@@ -36,11 +36,14 @@
   --code-shadow-thickness: 1.5px;
 
   /* necessary for hiding portions of box shadows */
+  --presentation-z: 0;
   --para-border-z: 1;
   --delim-group-z: 2;
   --inline-border-z: 3;
   --child-z: 4;
   --caret-z: 5;
+
+  --contenteditable-z: 6;
 }
 
 /* general */
@@ -747,6 +750,10 @@ h1 {
   font-size: 14pt;
   line-height: var(--code-line-height);
 }
+.code.presentation {
+  position: relative;
+  z-index: var(--presentation-z);
+}
 .code.presentation * {
   position: relative;
 }
@@ -770,21 +777,17 @@ h1 {
   display: inline;
 }
 
-.code-container {
+#code-container {
   position: relative;
 }
-.contenteditable {
-  background-color: lightgray;
-}
-.hiddencontenteditable {
+.code.contenteditable {
   /* TODO consolidate #contenteditable vs .contenteditable */
-  position: fixed;
+  position: absolute;
   top: 0;
-  left: 100%;
-  padding: 10px;
-  color: transparent;
+  left: 0;
+  z-index: var(--contenteditable-z);
 }
-.hiddencontenteditable:focus {
+.code.contenteditable:focus {
   outline: 0px;
 }
 
@@ -1114,8 +1117,6 @@ h1 {
 }
 
 #cell {
-  opacity: 0.99;
-  /*background-color: transparent;*/
   position: relative;
   width: auto;
   margin-top: 20px;
