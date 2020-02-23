@@ -28,8 +28,10 @@ let annot_Var =
   Doc.annot(
     TermAnnot.mk_Term(~family, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
   );
-let annot_FreeLivelit = (~family: TermFamily.t) =>
-  Doc.annot(TermAnnot.mk_Term(~family, ~shape=TermShape.FreeLivelit, ()));
+let annot_FreeLivelit =
+  Doc.annot(
+    TermAnnot.mk_Term(~family=Exp, ~shape=TermShape.FreeLivelit, ()),
+  );
 let annot_Operand = (~family: TermFamily.t, ~err: ErrStatus.t=NotInHole) =>
   Doc.annot(
     TermAnnot.mk_Term(~family, ~shape=TermShape.mk_Operand(~err, ()), ()),
@@ -166,9 +168,8 @@ let mk_Var =
     : t =>
   mk_text(~steps, x) |> annot_Var(~family, ~err, ~verr);
 
-let mk_FreeLivelit =
-    (~family: TermFamily.t, ~steps: CursorPath.steps, lln: LivelitName.t): t =>
-  mk_text(~steps, lln) |> annot_FreeLivelit(~family);
+let mk_FreeLivelit = (~steps: CursorPath.steps, lln: LivelitName.t): t =>
+  annot_FreeLivelit(mk_text(~steps, lln));
 
 let mk_NumLit =
     (
@@ -764,7 +765,6 @@ module Exp = {
   let mk_BoolLit = mk_BoolLit(~family=Exp);
   let mk_ListNil = mk_ListNil(~family=Exp);
   let mk_Var = mk_Var(~family=Exp);
-  let mk_FreeLivelit = mk_FreeLivelit(~family=Exp);
   let mk_Parenthesized = mk_Parenthesized(~family=Exp);
   let mk_Inj = mk_Inj(~family=Exp);
   let mk_NTuple =
