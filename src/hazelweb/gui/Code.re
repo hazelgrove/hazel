@@ -14,7 +14,8 @@ module Contenteditable = {
         [Node.text(StringUtil.replicat(n, UnicodeConstants.nbsp))],
       )
     );
-  let leading_whitespace = whitespace(~clss=["leading-whitespace"]);
+  let leading_whitespace_cls = "leading-whitespace";
+  let leading_whitespace = whitespace(~clss=[leading_whitespace_cls]);
   let trailing_whitespace = whitespace(~clss=["trailing-whitespace"]);
 
   let view_of_layout =
@@ -163,7 +164,10 @@ module Contenteditable = {
              ]
            | Indent => [
                Node.span(
-                 [contenteditable_false, Attr.classes(["Indent"])],
+                 [
+                   contenteditable_false,
+                   Attr.classes([leading_whitespace_cls]),
+                 ],
                  vs,
                ),
              ]
@@ -228,33 +232,6 @@ module Contenteditable = {
         j,
       );
     };
-
-  let path_of_caret_position = (elem: Js.t(Dom_html.element)): CursorPath.t => {
-    let cursor: CursorPosition.t = {
-      let side: Side.t =
-        elem |> JSUtil.elem_has_cls("Before") ? Before : After;
-      let parent = elem |> JSUtil.force_get_parent_elem;
-      if (parent |> JSUtil.elem_has_cls("code-delim")) {
-        let index = parent |> JSUtil.force_get_attr("index") |> int_of_string;
-        OnDelim(index, side);
-      } else {
-        OnOp(side);
-      };
-    };
-    let steps = ref([]);
-    let ancestor = ref(elem);
-    // TODO use better root condition
-    while (!(ancestor^ |> JSUtil.elem_has_cls("code"))) {
-      switch (ancestor^ |> JSUtil.get_attr("step")) {
-      | None => ()
-      | Some(step) =>
-        let step = int_of_string(step);
-        steps := [step, ...steps^];
-      };
-      ancestor := ancestor^ |> JSUtil.force_get_parent_elem;
-    };
-    (steps^, cursor);
-  };
 };
 
 module Presentation = {
