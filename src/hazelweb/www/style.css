@@ -753,10 +753,13 @@ h1 {
 .code.presentation .Term.Rule,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,
-.code.presentation .Term.FreeLivelit,
 .code.presentation .Term.SubBlock,
 .code.presentation .LetLine,
 .code.presentation .DelimGroup {
+  display: inline-block;
+}
+.code.presentation .Term.FreeLivelit {
+  color: #F47C04;
   display: inline-block;
 }
 .code.presentation .Term.NTuple,
