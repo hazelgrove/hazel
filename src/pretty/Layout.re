@@ -1,6 +1,4 @@
-open Sexplib.Std;
-
-[@deriving sexp]
+// TODO: rename Annot to Ann?
 type t('annot) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // Associative
@@ -10,52 +8,6 @@ type t('annot) =
 
 let align = (l: t('annot)) => Align(l);
 let annot = (annot: 'annot, l: t('annot)) => Annot(annot, l);
-
-type metrics = {
-  height: int,
-  last_width: int,
-  last_width_is_relative: bool,
-};
-
-let rec metrics'': 'annot. t('annot) => metrics =
-  // TODO: rename
-  layout => {
-    Obj.magic(snd(Lazy.force(metrics_memo_table), Obj.magic(layout)));
-  }
-
-and metrics_memo_table:
-  Lazy.t((Memoize.WeakPoly.Table.t(metrics), t(unit) => metrics)) =
-  lazy(Memoize.WeakPoly.make(metrics'))
-
-and metrics' = (layout: t(unit)): metrics =>
-  switch (layout) {
-  | Text(string) => {
-      height: 1,
-      last_width: StringUtil.utf8_length(string),
-      last_width_is_relative: true,
-    }
-  | Linebreak => {height: 2, last_width: 0, last_width_is_relative: false}
-  | Annot(_, l) => metrics''(l)
-  | Align(l) => {...metrics''(l), last_width_is_relative: false}
-  | Cat(l1, l2) =>
-    let metrics1 = metrics''(l1);
-    let metrics2 = metrics''(l2);
-    let height = metrics1.height + metrics2.height - 1;
-    let metrics =
-      if (!metrics2.last_width_is_relative) {
-        metrics2;
-      } else {
-        {...metrics1, last_width: metrics1.last_width + metrics2.last_width};
-      };
-    {...metrics, height};
-  };
-
-let metrics: 'annot. t('annot) => metrics =
-  layout => {
-    let l = metrics''(layout);
-    Memoize.WeakPoly.Table.clear(fst(Lazy.force(metrics_memo_table)));
-    l;
-  };
 
 let rec remove_annots = (layout: t('annot)): t('annot) => {
   switch (layout) {
@@ -89,7 +41,7 @@ let make_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
       (indent, layout) => {
         switch (layout) {
         | Text(string) =>
-          column := column^ + StringUtil.utf8_length(string);
+          column := column^ + Unicode.length(string);
           text.imp_of_string(string);
         | Cat(l1, l2) =>
           let imp1 = go(indent, l1);
