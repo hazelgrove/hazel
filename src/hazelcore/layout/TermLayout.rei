@@ -1,5 +1,6 @@
-[@deriving sexp]
-type t = Layout.t(TermTag.t);
+open Pretty;
+
+type t = Layout.t(TermAnnot.t);
 
 let has_child: t => bool;
 

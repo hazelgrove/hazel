@@ -48,6 +48,14 @@ instructions contained in [INSTALL.md](INSTALL.md).
 
 ## Contributing
 
+### Learning ReasonML
+
+This link lets you type OCaml and see what the corresponding ReasonML syntax is:
+<https://reasonml.github.io/en/try>.
+
+This is useful if you are trying to figure out the ReasonML syntax for something
+that you know the OCaml syntax for.
+
 ### Suggested Extensions for VS Code
 
 Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
