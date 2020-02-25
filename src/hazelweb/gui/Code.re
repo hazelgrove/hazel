@@ -2,6 +2,7 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
+open Pretty;
 open ViewUtil;
 
 type annot = TermAnnot.t;
@@ -21,7 +22,7 @@ let clss_of_verr: VarErrStatus.t => list(cls) =
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
-let family_clss: TermFamily.t => list(cls) =
+let sort_clss: TermSort.t => list(cls) =
   fun
   | Typ => ["Typ"]
   | Pat => ["Pat"]
@@ -357,14 +358,14 @@ let presentation_of_layout =
 
     | Annot(Step(_), l) => go(l)
 
-    | Annot(Term({has_cursor, shape, family}), l) => [
+    | Annot(Term({has_cursor, shape, sort}), l) => [
         Node.span(
           [
             Attr.classes(
               List.concat([
                 ["Term"],
                 cursor_clss(has_cursor),
-                family_clss(family),
+                sort_clss(sort),
                 shape_clss(shape),
                 open_child_clss(
                   l |> TermLayout.has_inline_OpenChild,
@@ -432,11 +433,7 @@ let editor_view_of_layout =
     | None => l
     | Some((steps, _) as path) =>
       switch (l |> TermLayout.find_and_decorate_caret(~path)) {
-      | None =>
-        JSUtil.log(
-          Js.string(Sexplib.Sexp.to_string_hum(TermLayout.sexp_of_t(l))),
-        );
-        failwith(__LOC__ ++ ": could not find caret");
+      | None => failwith(__LOC__ ++ ": could not find caret")
       | Some(l) =>
         switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
         | None => failwith(__LOC__ ++ ": could not find cursor")
