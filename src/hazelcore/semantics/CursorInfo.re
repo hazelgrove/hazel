@@ -1184,8 +1184,8 @@ let rec _syn_cursor_info_block =
           find_uses_block(
             x,
             Block(suffix, conclusion),
-            node_steps,
-            List.length(prefix) + 1,
+            ~steps=node_steps,
+            ~index=List.length(prefix) + 1,
           );
         Some(uses |> deferred_ci);
       }
@@ -1254,7 +1254,8 @@ and _syn_cursor_info_line =
         switch (HTyp.matched_arrow(ty1)) {
         | None => deferrable
         | Some(_) =>
-          let rec_uses = find_uses_block(x, block, node_steps @ [2], 0);
+          let rec_uses =
+            find_uses_block(x, block, ~steps=node_steps @ [2], ~index=0);
           Some(
             CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
           );
@@ -1410,7 +1411,8 @@ and _syn_cursor_info =
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = find_uses_block(x, block, node_steps @ [2], 0); // TODO correct steps
+      let uses =
+        find_uses_block(x, block, ~steps=node_steps @ [2], ~index=0); // TODO correct steps
       Some(uses |> deferred_ci);
     };
   | LamZA(_, _, zann, _) =>
@@ -1512,8 +1514,8 @@ and _ana_cursor_info_block =
           find_uses_block(
             x,
             Block(suffix, conclusion),
-            node_steps,
-            List.length(prefix) + 1,
+            ~steps=node_steps,
+            ~index=List.length(prefix) + 1,
           );
         Some(uses |> deferred_ci);
       }
@@ -1610,7 +1612,8 @@ and _ana_cursor_info =
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = find_uses_block(x, block, node_steps @ [2], 0);
+        let uses =
+          find_uses_block(x, block, ~steps=node_steps @ [2], ~index=0);
         Some(uses |> deferred_ci);
       };
     }
@@ -1724,7 +1727,8 @@ and _ana_cursor_info_rule =
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = find_uses_block(x, block, node_steps @ [1], 0);
+      let uses =
+        find_uses_block(x, block, ~steps=node_steps @ [1], ~index=0);
       Some(uses |> deferred_ci);
     }
   | RuleZE(p, zblock) =>

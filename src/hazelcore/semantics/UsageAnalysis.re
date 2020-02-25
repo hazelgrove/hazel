@@ -22,7 +22,7 @@ let rec binds_var = (x: Var.t, p: UHPat.t): bool =>
   };
 
 let rec find_uses_block =
-        (x: Var.t, block: UHExp.block, steps, index): uses_list => {
+        (x: Var.t, ~index=0, ~steps=[], block: UHExp.block): uses_list => {
   let UHExp.Block(lines, e) = block;
   let (uses, shadowed) = find_uses_lines(x, lines, steps, index, false);
   shadowed
@@ -48,7 +48,7 @@ and find_uses_line = (x: Var.t, line: UHExp.line, steps): (uses_list, bool) =>
   | ExpLine(e) => (find_uses_exp(x, e, steps), false)
   | EmptyLine => ([], false)
   | LetLine(p, _, block) => (
-      find_uses_block(x, block, steps @ [2], 0),
+      find_uses_block(x, block, ~steps=steps @ [2], ~index=0),
       binds_var(x, p),
     )
   }
@@ -65,12 +65,15 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   | ApPalette(_, _, _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, block) =>
-    binds_var(x, p) ? [] : find_uses_block(x, block, steps @ [2], 0)
-  | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0], 0)
+    binds_var(x, p)
+      ? [] : find_uses_block(x, block, ~steps=steps @ [2], ~index=0)
+  | Inj(NotInHole, _, block) =>
+    find_uses_block(x, block, ~steps=steps @ [0], ~index=0)
   | Case(NotInHole, block, rules, _) =>
-    find_uses_block(x, block, steps @ [0], 0)
+    find_uses_block(x, block, ~steps=steps @ [0], ~index=0)
     @ find_uses_rules(x, rules, steps, 1)
-  | Parenthesized(block) => find_uses_block(x, block, steps @ [0], 0)
+  | Parenthesized(block) =>
+    find_uses_block(x, block, ~steps=steps @ [0], ~index=0)
   | OpSeq(_, opseq) =>
     let (uses, _) = find_uses_opseq(x, opseq, steps);
     uses;
@@ -83,7 +86,13 @@ and find_uses_rules =
     let UHExp.Rule(p, block) = rule;
     let uses =
       binds_var(x, p)
-        ? [] : find_uses_block(x, block, steps @ [prefix_length, 1], 0);
+        ? []
+        : find_uses_block(
+            x,
+            block,
+            ~steps=steps @ [prefix_length, 1],
+            ~index=0,
+          );
     uses @ find_uses_rules(x, rules, steps, prefix_length + 1);
   }
 and find_uses_opseq = (x: Var.t, opseq: UHExp.opseq, steps): (uses_list, int) =>

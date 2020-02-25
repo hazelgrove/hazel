@@ -1075,13 +1075,24 @@ let syn_zlines =
     : option(Contexts.t((HTyp.t, CursorPath.steps))) =>
   syn_lines(steps, ctx, ZExp.erase_lines(zlines));
 
-include MakeListDeferrable(GeneralUtil.ListMinOne);
-type var_warns_deferrable('a) = deferrable(VarWarnStatus.t, 'a, Var.t);
+type var_warns_deferrable('a) = ListDeferrable.t(VarWarnStatus.t, 'a, Var.t);
+include ListDeferrable;
+
+let rec chop_and_keep =
+        (k: int, ~kept=[], xs: list('a)): (list('a), list('a)) =>
+  if (k == 0) {
+    (kept, xs);
+  } else {
+    switch (xs) {
+    | [x, ...xs] => chop_and_keep(k - 1, ~kept=kept @ [x], xs)
+    | _ => assert(false)
+    };
+  };
 
 let examine_deferrable_in_block =
     (deferrable: var_warns_deferrable('a), block: UHExp.block): 'a =>
   switch (deferrable) {
-  | NotDeferred(_) => deferrable
+  | NotDeferred(not_deferred) => not_deferred
   | Deferred(deferred, vars) =>
     if (UHExp.is_complete_block(block)) {
       List.map(
@@ -1090,11 +1101,11 @@ let examine_deferrable_in_block =
           | [] => VarWarnStatus.CritUnused
           | [_, ..._] => VarWarnStatus.NoWarning
           },
-        ListMinOne.elements(vars),
+        vars,
       )
       |> deferred;
     } else {
-      List.map(_ => VarWarnStatus.NoWarning, vars) |> deferred
+      List.map(_ => VarWarnStatus.NoWarning, vars) |> deferred;
     }
   };
 
@@ -1141,10 +1152,10 @@ let rec syn_fix_holes_pat =
       Deferred(
         warn_list =>
           switch (warn_list) {
-          | One(warn) => Var(NotInHole, NotInVarHole, warn, x)
-          | Cons(_, _) => raise(DeferredNotConsistent)
+          | [warn] => Var(NotInHole, NotInVarHole, warn, x)
+          | _ => raise(DeferredNotConsistent)
           },
-        One(x),
+        [x],
       ),
       Hole,
       ctx,
@@ -1240,28 +1251,24 @@ and syn_fix_holes_pat_skel =
     | [_, ..._] =>
       let pats_deferred_seq = OperatorSeq.seq_update_tms(ns, seq);
       let var_warns_deferred_pats =
-          (var_warns: ListMinOne.t(VarWarnStatus.t)): list(UHPat.t) => {
-        let (pat, none) =
+          (var_warns: list(VarWarnStatus.t)): list(UHPat.t) => {
+        let (pat, empty) =
           List.fold_right2(
-            (n, deferred_pat, (acc_pats, opt_var_warns)) => {
-              switch (opt_var_warns) {
-              | Some(var_warns) =>
-                let (first_var_warns, opt_last_var_warns) =
-                  ListMinOne.divide_n(n, var_warns);
-                (
-                  [first_var_warns |> deferred_pat, ...acc_pats],
-                  opt_last_var_warns,
-                );
-              | None => raise(DeferredNotConsistent)
-              }
+            (n, deferred_pat, (acc_pats, var_warns)) => {
+              let (kept_var_warns, left_var_warns) =
+                chop_and_keep(n, var_warns);
+              (
+                [kept_var_warns |> deferred_pat, ...acc_pats],
+                left_var_warns,
+              );
             },
             ns,
             deferred_pats,
-            ([], Some(var_warns)),
+            ([], var_warns),
           );
-        switch (none) {
-        | Some(_) => raise(DeferredNotConsistent)
-        | None => pat
+        switch (empty) {
+        | [] => pat
+        | [_, ..._] => raise(DeferredNotConsistent)
         };
       };
       let var_warns_deferred_seq = var_warns =>
@@ -1269,7 +1276,7 @@ and syn_fix_holes_pat_skel =
         | Some(seq) => seq
         | None => raise(DeferredNotConsistent)
         };
-      Deferred(var_warns_deferred_seq, ListMinOne.concat(varss));
+      Deferred(var_warns_deferred_seq, List.concat(varss));
     };
   (skel, deferrable_seq, ty, ctx, u_gen);
 }
@@ -1287,8 +1294,8 @@ and _syn_fix_holes_pat_skel =
         UHPat.skel_t,
         UHPat.opseq,
         list(int),
-        list(ListMinOne.t(VarWarnStatus.t) => UHPat.t),
-        list(ListMinOne.t(Var.t)),
+        list(list(VarWarnStatus.t) => UHPat.t),
+        list(list(Var.t)),
         HTyp.t,
         Contexts.t((HTyp.t, CursorPath.steps)),
         MetaVarGen.t,
@@ -1466,7 +1473,18 @@ and ana_fix_holes_pat =
   | Var(_, NotInVarHole | InVarHole(Duplicate, _), _, x)
       when !VarSet.mem(x, var_set) =>
     let ctx = Contexts.extend_gamma(ctx, (x, (ty, steps)));
-    (NotDeferred(Var(NotInHole, NotInVarHole, NoWarning, x)), ctx, u_gen);
+    (
+      Deferred(
+        warn_list =>
+          switch (warn_list) {
+          | [warn] => Var(NotInHole, NotInVarHole, warn, x)
+          | _ => raise(DeferredNotConsistent)
+          },
+        [x],
+      ),
+      ctx,
+      u_gen,
+    );
   // variable pattern with duplicate name
   | Var(_, InVarHole(Duplicate, _), _, _) => (
       NotDeferred(p_nih_nvw),
@@ -1610,28 +1628,24 @@ and ana_fix_holes_pat_skel =
     | [_, ..._] =>
       let pats_deferred_seq = OperatorSeq.seq_update_tms(ns, seq);
       let var_warns_deferred_pats =
-          (var_warns: ListMinOne.t(VarWarnStatus.t)): list(UHPat.t) => {
-        let (pat, none) =
+          (var_warns: list(VarWarnStatus.t)): list(UHPat.t) => {
+        let (pat, empty) =
           List.fold_right2(
-            (n, deferred_pat, (acc_pats, opt_var_warns)) => {
-              switch (opt_var_warns) {
-              | Some(var_warns) =>
-                let (first_var_warns, opt_last_var_warns) =
-                  ListMinOne.divide_n(n, var_warns);
-                (
-                  [first_var_warns |> deferred_pat, ...acc_pats],
-                  opt_last_var_warns,
-                );
-              | None => raise(DeferredNotConsistent)
-              }
+            (n, deferred_pat, (acc_pats, var_warns)) => {
+              let (kept_var_warns, left_var_warns) =
+                chop_and_keep(n, var_warns);
+              (
+                [kept_var_warns |> deferred_pat, ...acc_pats],
+                left_var_warns,
+              );
             },
             ns,
             deferred_pats,
-            ([], Some(var_warns)),
+            ([], var_warns),
           );
-        switch (none) {
-        | Some(_) => raise(DeferredNotConsistent)
-        | None => pat
+        switch (empty) {
+        | [] => pat
+        | [_, ..._] => raise(DeferredNotConsistent)
         };
       };
       let var_warns_deferred_seq = var_warns =>
@@ -1639,7 +1653,7 @@ and ana_fix_holes_pat_skel =
         | Some(seq) => seq
         | None => raise(DeferredNotConsistent)
         };
-      Deferred(var_warns_deferred_seq, ListMinOne.concat(varss));
+      Deferred(var_warns_deferred_seq, List.concat(varss));
     };
   (skel, deferrable_seq, ctx, u_gen);
 }
@@ -1658,8 +1672,8 @@ and _ana_fix_holes_pat_skel =
         UHPat.skel_t,
         UHPat.opseq,
         list(int),
-        list(ListMinOne.t(VarWarnStatus.t) => UHPat.t),
-        list(ListMinOne.t(Var.t)),
+        list(list(VarWarnStatus.t) => UHPat.t),
+        list(list(Var.t)),
         Contexts.t((HTyp.t, CursorPath.steps)),
         MetaVarGen.t,
       ) =>
@@ -1738,8 +1752,8 @@ and _ana_fix_holes_pat_skel =
               ListMinTwo.t(UHPat.skel_t),
               UHPat.opseq,
               list(int),
-              list(ListMinOne.t(VarWarnStatus.t) => UHPat.t),
-              list(ListMinOne.t(Var.t)),
+              list(list(VarWarnStatus.t) => UHPat.t),
+              list(list(Var.t)),
               Contexts.t((HTyp.t, CursorPath.steps)),
               MetaVarGen.t,
             ),
@@ -2081,6 +2095,13 @@ let rec cmplx_fold_left =
     cmplx_fold_left(f, f(acc, hd, tl_block), tl_block, f_base);
   };
 
+let rec reduce = (f: ('b, 'a, list('a)) => 'b, acc: 'b, xs: list('a)): 'b => {
+  switch (xs) {
+  | [] => acc
+  | [x, ...xs] => reduce(f, f(acc, x, xs), xs)
+  };
+};
+
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
@@ -2094,45 +2115,43 @@ let rec syn_fix_holes_block =
           block: UHExp.block,
         )
         : (UHExp.block, HTyp.t, MetaVarGen.t) => {
-  let syn_fix_holes_line_auxiliary =
-      ((acc_lines, ctx, u_gen, i), line, lines) => {
-    let (deferrable_line, ctx, u_gen) =
-      syn_fix_holes_line(
-        steps @ [i],
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        line,
-      );
-    // TODO: find uses and fill in the deferred line
-    ([deferrable_line, ...acc_lines], ctx, u_gen, i + 1);
-  };
-  let (fixed_block, ty, u_gen, _) =
-    cmplx_fold_left(
-      syn_fix_holes_line_auxiliary,
-      ([], ctx, u_gen, 0),
-      block,
-      (e, ctx, u_gen, i) =>
-      syn_fix_holes_exp(steps @ [i], ctx, u_gen, ~renumber_empty_holes, e)
+  let Block(lines, e) = block;
+  let (lines, ctx, u_gen) =
+    syn_fix_holes_lines(steps, ctx, u_gen, ~renumber_empty_holes, lines, e);
+  let (e, ty, u_gen) =
+    syn_fix_holes_exp(
+      steps @ [List.length(lines)],
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      e,
     );
-  (fixed_block, ty, u_gen);
-}
-/*
- {
-   let Block(lines, e) = block;
-   let (lines, ctx, u_gen) =
-     syn_fix_holes_lines(steps, ctx, u_gen, ~renumber_empty_holes, lines);
-   let (e, ty, u_gen) =
-     syn_fix_holes_exp(
-       steps @ [List.length(lines)],
-       ctx,
-       u_gen,
-       ~renumber_empty_holes,
-       e,
+  (Block(lines, e), ty, u_gen);
+  /*
+   let syn_fix_holes_line_auxiliary =
+       ((acc_lines, ctx, u_gen, i), line, block) => {
+     let (deferrable_line, ctx, u_gen) =
+       syn_fix_holes_line(
+         steps @ [i],
+         ctx,
+         u_gen,
+         ~renumber_empty_holes,
+         line,
+       );
+     let line = examine_deferrable_in_block(deferrable_line, block);
+     ([line, ...acc_lines], ctx, u_gen, i + 1);
+   };
+   let (fixed_block, ty, u_gen, _) =
+     cmplx_fold_left(
+       syn_fix_holes_line_auxiliary,
+       ([], ctx, u_gen, 0),
+       block,
+       (e, ctx, u_gen, i) =>
+       syn_fix_holes_exp(steps @ [i], ctx, u_gen, ~renumber_empty_holes, e)
      );
-   (Block(lines, e), ty, u_gen);
- }
- */
+   (fixed_block, ty, u_gen);
+   */
+}
 and syn_fix_holes_lines =
     (
       steps: CursorPath.steps,
@@ -2141,10 +2160,11 @@ and syn_fix_holes_lines =
       ~renumber_empty_holes=false,
       ~start_line_index: ChildIndex.t=0,
       lines: UHExp.lines,
+      e: UHExp.t,
     )
     : (UHExp.lines, Contexts.t((HTyp.t, CursorPath.steps)), MetaVarGen.t) => {
   let (rev_fixed_lines, ctx, u_gen, _) =
-    List.fold_left(
+    reduce(
       (
         (fixed_lines, ctx, u_gen, line_index): (
           UHExp.lines,
@@ -2153,8 +2173,9 @@ and syn_fix_holes_lines =
           ChildIndex.t,
         ),
         line: UHExp.line,
+        lines: UHExp.lines,
       ) => {
-        let (fixed_line, ctx, u_gen) =
+        let (deferrable_line, ctx, u_gen) =
           syn_fix_holes_line(
             steps @ [line_index],
             ctx,
@@ -2162,6 +2183,8 @@ and syn_fix_holes_lines =
             ~renumber_empty_holes,
             line,
           );
+        let fixed_line =
+          examine_deferrable_in_block(deferrable_line, Block(lines, e));
         ([fixed_line, ...fixed_lines], ctx, u_gen, line_index + 1);
       },
       ([], ctx, u_gen, start_line_index),
@@ -2211,12 +2234,6 @@ and syn_fix_holes_line =
           p,
           ty1,
         );
-      let p =
-        if (HTyp.has_matched_arrow(ty1)) {
-          examine_deferrable_in_block(p, block);
-        } else {
-          p;
-        };
       (pass_deferrable(p => UHExp.LetLine(p, ann, block), p), ctx, u_gen);
     | None =>
       let (block, ty1, u_gen) =
@@ -2326,6 +2343,7 @@ and syn_fix_holes_exp =
         ~renumber_empty_holes,
         block,
       );
+    let p = examine_deferrable_in_block(p, block);
     (Lam(NotInHole, p, ann, block), Arrow(ty1, ty2), u_gen);
   | Inj(_, side, block) =>
     let (block, ty1, u_gen) =
@@ -2467,6 +2485,7 @@ and ana_rule_fix_holes =
       block,
       clause_ty,
     );
+  let p = examine_deferrable_in_block(p, block);
   (Rule(p, block), u_gen);
 }
 and ana_fix_holes_splice_map =
@@ -2508,7 +2527,7 @@ and ana_fix_holes_block =
     : (UHExp.block, MetaVarGen.t) => {
   let Block(lines, e) = block;
   let (lines, ctx, u_gen) =
-    syn_fix_holes_lines(steps, ctx, u_gen, ~renumber_empty_holes, lines);
+    syn_fix_holes_lines(steps, ctx, u_gen, ~renumber_empty_holes, lines, e);
   let (e, u_gen) =
     ana_fix_holes_exp(
       steps @ [List.length(lines)],
@@ -2611,6 +2630,7 @@ and ana_fix_holes_exp =
               block,
               ty2,
             );
+          let p = examine_deferrable_in_block(p, block);
           (UHExp.Lam(NotInHole, p, ann, block), u_gen);
         } else {
           let (e', _, u_gen) =
@@ -2637,6 +2657,7 @@ and ana_fix_holes_exp =
             block,
             ty2,
           );
+        let p = examine_deferrable_in_block(p, block);
         (UHExp.Lam(NotInHole, p, ann, block), u_gen);
       }
     | None =>
@@ -3186,12 +3207,13 @@ let syn_fix_holes_zlines =
       u_gen: MetaVarGen.t,
       ~start_line_index: ChildIndex.t=0,
       zlines: ZExp.zlines,
+      e: UHExp.t,
     )
     : (ZExp.zlines, Contexts.t((HTyp.t, CursorPath.steps)), MetaVarGen.t) => {
   let path = CursorPath.of_zlines(zlines);
   let lines = ZExp.erase_lines(zlines);
   let (lines, ctx, u_gen) =
-    syn_fix_holes_lines(steps, ctx, u_gen, lines, ~start_line_index);
+    syn_fix_holes_lines(steps, ctx, u_gen, lines, ~start_line_index, e);
   let zlines = CursorPath.follow_lines_or_fail(path, lines);
   (zlines, ctx, u_gen);
 };

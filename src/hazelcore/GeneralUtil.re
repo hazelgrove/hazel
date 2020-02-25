@@ -616,15 +616,14 @@ module Opt = {
     };
 };
 
-module MakeListDeferrable = (Needed: LIST) => {
-  type deferrable('needed_t, 'deferred_t, 'target_t) =
+module ListDeferrable = {
+  type t('needed_t, 'deferred_t, 'target_t) =
     | NotDeferred('deferred_t)
-    | Deferred(Needed.t('needed_t) => 'deferred_t, Needed.t('target_t));
+    | Deferred(list('needed_t) => 'deferred_t, list('target_t));
 
   exception ForceNotDeferredfromDeferred;
   let force_not_deferred =
-      (deferrable: deferrable('needed_t, 'deferred_t, 'target_t))
-      : 'deferred_t =>
+      (deferrable: t('needed_t, 'deferred_t, 'target_t)): 'deferred_t =>
     switch (deferrable) {
     | NotDeferred(not_deferred) => not_deferred
     | Deferred(_, _) => raise(ForceNotDeferredfromDeferred)
@@ -633,27 +632,25 @@ module MakeListDeferrable = (Needed: LIST) => {
   exception UndeferNotDeferred;
   exception DeferredNotConsistent;
   let undefer_one =
-      (
-        one_to_fill: 'needed_t,
-        deferrable: deferrable('a, 'deferred_t, 'target_t),
-      )
-      : deferrable('a, 'deferred_t, 'target_t) =>
+      (one_to_fill: 'needed_t, deferrable: t('a, 'deferred_t, 'target_t))
+      : t('a, 'deferred_t, 'target_t) =>
     switch (deferrable) {
     | NotDeferred(_) => raise(UndeferNotDeferred)
     | Deferred(deferred, target_list) =>
       switch (target_list) {
-      | One(_) => NotDeferred(Needed.One(one_to_fill) |> deferred)
-      | Cons(_, target_list) =>
+      | [] => raise(DeferredNotConsistent)
+      | [_] => NotDeferred([one_to_fill] |> deferred)
+      | [_, ...target_list] =>
         Deferred(
-          warn_list => Needed.Cons(one_to_fill, warn_list) |> deferred,
+          target_list => [one_to_fill, ...target_list] |> deferred,
           target_list,
         )
       }
     };
 
   let pass_deferrable =
-      (func: 'a => 'b, deferrable: deferrable('needed_t, 'a, 'target_t))
-      : deferrable('needed_t, 'b, 'target_t) =>
+      (func: 'a => 'b, deferrable: t('needed_t, 'a, 'target_t))
+      : t('needed_t, 'b, 'target_t) =>
     switch (deferrable) {
     | NotDeferred(p) => NotDeferred(func(p))
     | Deferred(deferred, var_list) =>
