@@ -10,10 +10,7 @@ module Pat = {
 
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
-    switch (p) {
-    | P1(p1) => syn_expand_opseq(ctx, delta, p1)
-    | P0(p0) => syn_expand_operand(ctx, delta, p0)
-    }
+    syn_expand_opseq(ctx, delta, p)
   and syn_expand_opseq =
       (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
       : expand_result =>
@@ -128,10 +125,7 @@ module Pat = {
     }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): expand_result =>
-    switch (p) {
-    | P1(p1) => ana_expand_opseq(ctx, delta, p1, ty)
-    | P0(p0) => ana_expand_operand(ctx, delta, p0, ty)
-    }
+    ana_expand_opseq(ctx, delta, p, ty)
   and ana_expand_opseq =
       (
         ctx: Contexts.t,
@@ -784,14 +778,10 @@ module Exp = {
 
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): expand_result =>
-    switch (e) {
-    | E2(e2) => syn_expand_block(ctx, delta, e2)
-    | E1(e1) => syn_expand_opseq(ctx, delta, e1)
-    | E0(e0) => syn_expand_operand(ctx, delta, e0)
-    }
+    syn_expand_block(ctx, delta, e)
   and syn_expand_block =
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): expand_result =>
-    switch (block |> UHExp.split_conclusion) {
+    switch (block |> UHExp.Block.split_conclusion) {
     | None => DoesNotExpand
     | Some((leading, conclusion)) =>
       switch (syn_expand_lines(ctx, delta, leading)) {
@@ -1121,15 +1111,11 @@ module Exp = {
     }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): expand_result =>
-    switch (e) {
-    | E2(e2) => ana_expand_block(ctx, delta, e2, ty)
-    | E1(e1) => ana_expand_opseq(ctx, delta, e1, ty)
-    | E0(e0) => ana_expand_operand(ctx, delta, e0, ty)
-    }
+    ana_expand_block(ctx, delta, e, ty)
   and ana_expand_block =
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
       : expand_result =>
-    switch (block |> UHExp.split_conclusion) {
+    switch (block |> UHExp.Block.split_conclusion) {
     | None => DoesNotExpand
     | Some((leading, conclusion)) =>
       switch (syn_expand_lines(ctx, delta, leading)) {

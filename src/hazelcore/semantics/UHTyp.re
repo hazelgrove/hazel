@@ -6,7 +6,7 @@ type operator =
 
 let string_of_operator =
   fun
-  | Arrow => LangUtil.typeArrowSym
+  | Arrow => UnicodeConstants.typeArrowSym
   | Prod => ","
   | Sum => "|";
 
@@ -16,9 +16,7 @@ let is_Prod =
   | _ => false;
 
 [@deriving sexp]
-type t =
-  | T1(opseq)
-  | T0(operand)
+type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | Hole
@@ -39,32 +37,23 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let bidelimited =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  | Parenthesized(_)
-  | List(_) => true;
-
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
   | Unit
   | Num
   | Bool
-  | List(_) => T0(operand)
+  | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
 
 /* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
-  let mk_operand = operand => Parenthesized(T0(operand));
+  let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
   let mk_seq_operand = (op, a, b) => {
     let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
     let seq = Seq.mk(a, [(op, b)]);
-    Parenthesized(T1(OpSeq(skel, seq)));
+    Parenthesized(OpSeq(skel, seq));
   };
   /* Save it for another day
      match (a, b) with
@@ -99,15 +88,12 @@ let contract = (ty: HTyp.t): t => {
         contract_to_operand(ty1),
         contract_to_operand(ty2),
       )
-    | List(ty1) => List(T0(ty1 |> contract_to_operand));
+    | List(ty1) => List(OpSeq.wrap(ty1 |> contract_to_operand));
 
   ty |> contract_to_operand |> unwrap_parentheses;
 };
 
-let rec expand: t => HTyp.t =
-  fun
-  | T1(opseq) => opseq |> expand_opseq
-  | T0(operand) => operand |> expand_operand
+let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
 and expand_opseq =
   fun
   | OpSeq(skel, seq) => expand_skel(skel, seq)
@@ -135,16 +121,3 @@ and expand_operand =
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
-
-let child_indices_operand =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool => []
-  | Parenthesized(_)
-  | List(_) => [0];
-let child_indices_opseq: opseq => list(int) =
-  fun
-  | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
-let child_indices = child_indices_opseq;

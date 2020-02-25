@@ -1,4 +1,3 @@
-/* fira-mono-regular - greek-ext_greek_cyrillic_cyrillic-ext_latin_latin-ext */
 @font-face {
   font-family: 'Fira Mono';
   font-style: normal;
@@ -168,7 +167,7 @@ html, body {
   width: 400px;
   flex-shrink: 0;
   transition: width 0.3s ease;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .collapsed-sidebar {
@@ -192,8 +191,8 @@ html, body {
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr auto;
   padding-top: 7px;
 }
 
@@ -214,11 +213,11 @@ html, body {
 }
 
 .sidebar-tab-icon {
-  width: 9px;
-  height: 9px;
-  flex-shrink: 0;
   fill: #41392c;
   display: block; /* MUST do this: inline elements have in-built vertical margins */
+  font-family: "Fira Mono", monospace;
+  font-size: 16px;
+  cursor: default;
 }
 
 .sidebar-body-slider {
@@ -782,7 +781,10 @@ h1 {
 .code-container {
   position: relative;
 }
-.code.contenteditable {
+.contenteditable {
+  background-color: lightgray;
+}
+.hiddencontenteditable {
   /* TODO consolidate #contenteditable vs .contenteditable */
   position: fixed;
   top: 0;
@@ -790,7 +792,7 @@ h1 {
   padding: 10px;
   color: transparent;
 }
-.code.contenteditable:focus {
+.hiddencontenteditable:focus {
   outline: 0px;
 }
 
@@ -872,7 +874,7 @@ h1 {
 }
 
 .Cursor.Term::before {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   content: "";
@@ -1011,7 +1013,7 @@ h1 {
 }
 
 .Cursor .DelimGroup {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);

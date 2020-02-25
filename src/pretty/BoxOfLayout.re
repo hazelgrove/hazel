@@ -1,41 +1,40 @@
 open Box;
 
-// Note: tags are inside-out (i.e. List.hd(tags) is the inner-most tag)
-let rec wrap_box_tags = (tags: list('tag), box: t('tag)): t('tag) => {
-  switch (tags) {
+// Note: annots are inside-out (i.e. List.hd(annots) is the inner-most annot)
+let rec wrap_box_annots = (annots: list('annot), box: t('annot)): t('annot) => {
+  switch (annots) {
   | [] => box
-  | [tag, ...tags] => wrap_box_tags(tags, Tagged(tag, box))
+  | [annot, ...annots] => wrap_box_annots(annots, Annot(annot, box))
   };
 };
 
-let rec box_append = (tags: list('tag), b1: t('tag), b2: t('tag)): t('tag) =>
+let rec box_append =
+        (annots: list('annot), b1: t('annot), b2: t('annot)): t('annot) =>
   if (box_height(b1) <= 1) {
-    HBox([wrap_box_tags(tags, b1), b2]);
+    HBox([wrap_box_annots(annots, b1), b2]);
   } else {
-    let rec append_last = (bs1: list(t('tag))): list(t('tag)) => {
+    let rec append_last = (bs1: list(t('annot))): list(t('annot)) => {
       switch (bs1) {
       | [] => failwith(__LOC__) // impossible due to `box_height` guard
-      | [b1] => [box_append(tags, b1, b2)]
-      | [b1, ...bs1] => [wrap_box_tags(tags, b1), ...append_last(bs1)]
+      | [b1] => [box_append(annots, b1, b2)]
+      | [b1, ...bs1] => [wrap_box_annots(annots, b1), ...append_last(bs1)]
       };
     };
     switch (b1) {
     | Text(_) => failwith(__LOC__) // impossible due to `box_height` gard
     | HBox(bs1) => HBox(append_last(bs1))
     | VBox(bs1) => VBox(append_last(bs1))
-    | Tagged(tag, b) => box_append([tag, ...tags], b, b2)
+    | Annot(annot, b) => box_append([annot, ...annots], b, b2)
     };
   };
 
-open Sexplib.Std;
-[@deriving sexp]
-type prebox('tag) = {
+type prebox('annot) = {
   initial_linebreak: bool,
-  lines: list(t('tag)),
+  lines: list(t('annot)),
   final_linebreak: bool,
 };
 
-let box_of_prebox = (prebox: prebox('tag)): t('tag) => {
+let box_of_prebox = (prebox: prebox('annot)): t('annot) => {
   let prefix =
     if (prebox.initial_linebreak) {
       [Text("")];
@@ -51,7 +50,7 @@ let box_of_prebox = (prebox: prebox('tag)): t('tag) => {
   VBox(prefix @ prebox.lines @ suffix); // TODO: omit VBox if only one line?
 };
 
-let rec prebox_of_layout = (layout: Layout.t('tag)): prebox('tag) => {
+let rec prebox_of_layout = (layout: Layout.t('annot)): prebox('annot) => {
   switch (layout) {
   | Text(string) => {
       initial_linebreak: false,
@@ -59,9 +58,9 @@ let rec prebox_of_layout = (layout: Layout.t('tag)): prebox('tag) => {
       final_linebreak: false,
     }
   | Linebreak => {initial_linebreak: true, lines: [], final_linebreak: true} // TODO: initial vs final vs both
-  | Tagged(t, l) => {
+  | Annot(t, l) => {
       initial_linebreak: false,
-      lines: [Tagged(t, box_of_prebox(prebox_of_layout(l)))],
+      lines: [Annot(t, box_of_prebox(prebox_of_layout(l)))],
       final_linebreak: false,
     }
   | Align(l) => {
@@ -80,7 +79,8 @@ let rec prebox_of_layout = (layout: Layout.t('tag)): prebox('tag) => {
       | (false, false) =>
         // TODO: assert(Shape.shape_of_layout(l1).lines == 1);
         let rec go =
-                (bs1: list(t('tag)), bs2: list(t('tag))): list(t('tag)) => {
+                (bs1: list(t('annot)), bs2: list(t('annot)))
+                : list(t('annot)) => {
           switch (bs1) {
           | [] => bs2
           | [b1] =>
@@ -101,26 +101,26 @@ let rec prebox_of_layout = (layout: Layout.t('tag)): prebox('tag) => {
   };
 };
 
-let box_of_layout = (layout: Layout.t('tag)): t('tag) => {
-  Printf.printf(
-    "box_of_layout:\n%s\n------\n%!",
-    Sexplib.Sexp.to_string_hum(
-      Layout.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<tag>"), layout),
-    ),
-  );
+let box_of_layout = (layout: Layout.t('annot)): t('annot) => {
+  // Printf.printf(
+  //   "box_of_layout:\n%s\n------\n%!",
+  //   Sexplib.Sexp.to_string_hum(
+  //     Layout.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<annot>"), layout),
+  //   ),
+  // );
   let prebox = prebox_of_layout(layout);
-  Printf.printf(
-    "prebox:\n%s\n------\n%!",
-    Sexplib.Sexp.to_string_hum(
-      sexp_of_prebox(_ => Sexplib.Std.sexp_of_string("<tag>"), prebox),
-    ),
-  );
+  // Printf.printf(
+  //   "prebox:\n%s\n------\n%!",
+  //   Sexplib.Sexp.to_string_hum(
+  //     sexp_of_prebox(_ => Sexplib.Std.sexp_of_string("<annot>"), prebox),
+  //   ),
+  // );
   let flattened = Box.flatten(box_of_prebox(prebox));
-  Printf.printf(
-    "flattened:\n%s\n------\n%!",
-    Sexplib.Sexp.to_string_hum(
-      Box.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<tag>"), flattened),
-    ),
-  );
+  // Printf.printf(
+  //   "flattened:\n%s\n------\n%!",
+  //   Sexplib.Sexp.to_string_hum(
+  //     Box.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<annot>"), flattened),
+  //   ),
+  // );
   flattened;
 };
