@@ -64,12 +64,16 @@ type typed =
   /* none of the above and went through subsumption */
   | PatAnaKeyword(HTyp.t, Keyword.t)
   /* cursor is on a keyword */
+  | PatAnaDuplicated(HTyp.t)
+  /* cursor is on a variable with a duplicated name */
   /*
    * # cursor in synthetic pattern position
    */
   | PatSynthesized(HTyp.t)
   /* cursor is on a keyword */
   | PatSynKeyword(Keyword.t)
+  /* cursor is on a variable with a duplicated name */
+  | PatSynDuplicated(HTyp.t)
   /*
    * # cursor in type position
    */
@@ -1070,6 +1074,7 @@ and _ana_cursor_found_exp =
   | Var(_, InVarHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), ctx))
   | Var(_, InVarHole(Free, _), _) => Some((AnaFree(ty), Exp(e), ctx))
+  | Var(_, InVarHole(Duplicate, _), _) => assert(false)
   | ListNil(NotInHole) => Some((Analyzed(ty), Exp(e), ctx))
   | EmptyHole(_)
   | Var(NotInHole, NotInVarHole, _)
@@ -1280,7 +1285,8 @@ and _syn_cursor_info_line =
           switch (HTyp.matched_arrow(ty1)) {
           | None => deferrable
           | Some(_) =>
-            let rec_uses = find_uses_block(x, block, node_steps @ [2], 0);
+            let rec_uses =
+              find_uses_block(x, block, ~steps=node_steps @ [2], ~index=0);
             Some(
               CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
             );

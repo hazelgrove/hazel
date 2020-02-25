@@ -104,6 +104,8 @@ module DHPat = {
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
     | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Duplicate, _), _, _) =>
+      raise(UHPat.DuplicatedVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, _, x) =>
@@ -228,6 +230,8 @@ module DHPat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Duplicate, _), _, _) =>
+      raise(UHPat.DuplicatedVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, _, x) =>
@@ -1070,6 +1074,7 @@ module DHExp = {
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        | Duplicate => assert(false)
         };
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
@@ -1344,6 +1349,7 @@ module DHExp = {
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
         | Keyword(k) => Keyword(u, 0, sigma, k)
+        | Duplicate => assert(false)
         };
       Expands(d, ty, delta);
     | Parenthesized(block) =>

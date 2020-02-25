@@ -2,6 +2,7 @@ open Sexplib.Std;
 open GeneralUtil;
 
 exception FreeVarInPat;
+exception DuplicatedVarInPat;
 
 [@deriving sexp]
 type op =
