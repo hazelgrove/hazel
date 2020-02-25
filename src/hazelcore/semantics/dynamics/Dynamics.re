@@ -1075,7 +1075,6 @@ module Exp = {
         Expands(d, ty, delta);
       }
     | Case(NotInHole, scrut, rules) =>
-      let ty = UHTyp.expand(uty);
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty, delta) =>
@@ -1085,7 +1084,7 @@ module Exp = {
           let d = DHExp.Case(d1, drs, 0);
           Expands(d, ty, delta);
         }
-      };
+      }
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
       DoesNotExpand
     /* TODO fix me */
@@ -1122,8 +1121,8 @@ module Exp = {
         rules: list(UHExp.rule),
         pat_ty: HTyp.t,
       )
-      : option((list(rule), Delta.t)) =>
-    switch (Statics.syn_rules(ctx, rules, pat_ty)) {
+      : option((list(DHExp.rule), Delta.t)) =>
+    switch (Statics.Exp.syn_rules(ctx, rules, pat_ty)) {
     | None => None
     | Some(join_ty) =>
       List.fold_left(
@@ -1150,15 +1149,15 @@ module Exp = {
         pat_ty: HTyp.t,
         clause_ty: HTyp.t,
       )
-      : option((rule, Delta.t)) => {
+      : option((DHExp.rule, Delta.t)) => {
     let UHExp.Rule(p, clause) = r;
-    switch (DHPat.ana_expand(ctx, delta, p, pat_ty)) {
+    switch (Pat.ana_expand(ctx, delta, p, pat_ty)) {
     | DoesNotExpand => None
     | Expands(dp, _, ctx, delta) =>
       switch (syn_expand(ctx, delta, clause)) {
       | DoesNotExpand => None
       | Expands(d1, ty1, delta) =>
-        Some((Rule(dp, cast(d1, ty1, clause_ty)), delta))
+        Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
       }
     };
   }
@@ -1246,7 +1245,8 @@ module Exp = {
       | _ =>
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
-        | InHole(TypeInconsistent, _) => DoesNotExpand
+        | InHole(TypeInconsistent | InconsistentBranches(_), _) =>
+          DoesNotExpand
         | InHole(WrongLength as reason, u) =>
           switch (
             syn_expand_opseq(
@@ -1444,22 +1444,6 @@ module Exp = {
         };
       }
     | Case(NotInHole, scrut, rules) =>
-      let ty2 = UHTyp.expand(uty);
-      switch (HTyp.consistent(ty, ty2)) {
-      | false => DoesNotExpand
-      | true =>
-        switch (syn_expand(ctx, delta, scrut)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
-          switch (ana_expand_rules(ctx, delta, rules, ty1, ty2)) {
-          | None => DoesNotExpand
-          | Some((drs, delta)) =>
-            let d = DHExp.Case(d1, drs, 0);
-            Expands(d, ty, delta);
-          }
-        }
-      };
-    | Case(NotInHole, scrut, rules, None) =>
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>

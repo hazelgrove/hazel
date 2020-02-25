@@ -655,7 +655,8 @@ module Exp = {
           switch (cursor_on_outer_expr(zoperand)) {
           | None =>
             syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
-          | Some((InHole(WrongLength, _), _)) => None
+          | Some((InHole(WrongLength | InconsistentBranches(_), _), _)) =>
+            None
           | Some((InHole(TypeInconsistent, _), _)) =>
             let operand_nih =
               zoperand
@@ -757,25 +758,19 @@ module Exp = {
       | Some(ctx1) => syn_cursor_info(~steps=steps @ [2], ctx1, zbody)
       };
     | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-    | CaseZE(_, _, _, None)
-    | CaseZR(_, _, _, None) => None
-    | CaseZE(_, zscrut, _, Some(_)) =>
+    | CaseZE(_, zscrut, _) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-    | CaseZR(_, scrut, (prefix, zrule, _), Some(ann)) =>
-      let clause_ty = UHTyp.expand(ann);
+    | CaseZR(_, scrut, (prefix, zrule, _)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => None
       | Some(pat_ty) =>
-        ana_cursor_info_rule(
+        syn_cursor_info_rule(
           ~steps=steps @ [1 + List.length(prefix)],
           ctx,
           zrule,
           pat_ty,
-          clause_ty,
         )
-      };
-    | CaseZA(_, _, rules, zann) =>
-      Typ.cursor_info(~steps=steps @ [1 + List.length(rules)], ctx, zann)
+      }
     | ApPaletteZ(_, _, _, zpsi) =>
       let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
       ana_cursor_info(~steps, ctx, ze, ty);
@@ -1090,17 +1085,17 @@ module Exp = {
       )
       : option(t) =>
     switch (zrule) {
-    | CursorR(cursor, rule) => Some(mk(OnRule, ctx))
+    | CursorR(_) => Some(mk(OnRule, ctx))
     | RuleZP(zp, clause) =>
       switch (Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)) {
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = find_uses(~steps=steps @ [1], x, clause);
+        let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
         Some(deferred_ci(uses));
       }
     | RuleZE(p, zclause) =>
-      switch (Statics.ana_pat(ctx, p, pat_ty)) {
+      switch (Statics.Pat.ana(ctx, p, pat_ty)) {
       | None => None
       | Some(ctx) => syn_cursor_info(~steps=steps @ [1], ctx, zclause)
       }
