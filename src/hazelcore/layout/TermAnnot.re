@@ -4,7 +4,7 @@ open Sexplib.Std;
 type term_data = {
   has_cursor: bool,
   shape: TermShape.t,
-  family: TermFamily.t,
+  sort: TermSort.t,
 };
 
 [@deriving sexp]
@@ -39,8 +39,8 @@ let mk_Text = (~caret: option(int)=?, ~length: int, ()): t =>
 let mk_EmptyLine = (~has_caret=false, ()) =>
   EmptyLine({has_caret: has_caret});
 let mk_Term =
-    (~has_cursor=false, ~shape: TermShape.t, ~family: TermFamily.t, ()): t =>
-  Term({has_cursor, shape, family});
+    (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
+  Term({has_cursor, shape, sort});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});
 let mk_ClosedChild = (~is_inline: bool, ()) =>

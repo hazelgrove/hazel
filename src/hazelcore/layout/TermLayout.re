@@ -1,7 +1,8 @@
+open Pretty;
+
 [@deriving sexp]
 type annot = TermAnnot.t;
 
-[@deriving sexp]
 type t = Layout.t(annot);
 
 // TODO shouldn't need this, refactor to use option

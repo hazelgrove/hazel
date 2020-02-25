@@ -737,6 +737,7 @@ module Vdom = Virtual_dom.Vdom;
 //     Layout.make_of_layout(record, layout);
 //   };
 
+open Pretty;
 let rec vdom_of_box = (box: Box.t('annot)): Vdom.Node.t =>
   switch (box) {
   | Text(string) =>

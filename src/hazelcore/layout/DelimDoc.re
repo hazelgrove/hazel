@@ -1,11 +1,13 @@
+open Pretty;
+
 type doc = Doc.t(TermAnnot.t);
 
 let mk =
     (~caret: option(Side.t)=?, ~index: DelimIndex.t, delim_text: string): doc =>
-  Doc.Text(delim_text) |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~index, ()));
+  Doc.text(delim_text) |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~index, ()));
 
 let empty_hole_doc = (~caret: option(Side.t)=?, hole_lbl: string): doc =>
-  Doc.Text(hole_lbl)
+  Doc.text(hole_lbl)
   |> Doc.annot(
        TermAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}),
      )
