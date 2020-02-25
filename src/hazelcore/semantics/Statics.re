@@ -134,7 +134,7 @@ module Pat = {
       switch (opseq |> UHPat.get_err_status_opseq) {
       | NotInHole
       | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength, _) =>
+      | InHole(WrongLength | InconsistentBranches(_), _) =>
         let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
       }
@@ -195,12 +195,12 @@ module Pat = {
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
-    | Wild(InHole(WrongLength, _))
-    | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
-    | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _) =>
+    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
+    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
+    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -314,7 +314,7 @@ module Pat = {
     let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
-      | BinOp(InHole(WrongLength, _), _, _, _) =>
+      | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
         failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
       | Placeholder(n') =>
         assert(n == n');
@@ -1015,7 +1015,7 @@ module Exp = {
       switch (opseq |> UHExp.get_err_status_opseq) {
       | NotInHole
       | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength, _) =>
+      | InHole(WrongLength | InconsistentBranches(_), _) =>
         let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
       }
@@ -1029,7 +1029,7 @@ module Exp = {
       : option(unit) =>
     switch (skel) {
     | BinOp(_, Comma, _, _)
-    | BinOp(InHole(WrongLength, _), _, _, _) =>
+    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
       failwith(__LOC__ ++ ": tuples handled at opseq level")
     | Placeholder(n) =>
       let en = Seq.nth_operand(n, seq);
@@ -1272,7 +1272,7 @@ module Exp = {
     let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
-      | BinOp(InHole(WrongLength, _), _, _, _) =>
+      | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
         failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
       | Placeholder(n') =>
         assert(n == n');
