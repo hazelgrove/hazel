@@ -1,6 +1,5 @@
 open Pretty;
 
-[@deriving sexp]
 type annot = TermAnnot.t;
 
 type t = Layout.t(annot);

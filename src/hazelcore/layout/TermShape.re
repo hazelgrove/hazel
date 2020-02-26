@@ -1,6 +1,4 @@
-open Sexplib.Std;
 
-[@deriving sexp]
 type t =
   | Rule
   | Case({err: ErrStatus.t})

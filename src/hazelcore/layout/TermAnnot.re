@@ -1,14 +1,11 @@
-open Sexplib.Std;
 open ViewUtil;
 
-[@deriving sexp]
 type term_data = {
   has_cursor: bool,
   shape: TermShape.t,
   family: TermFamily.t,
 };
 
-[@deriving sexp]
 type t =
   | Indent
   | Padding
