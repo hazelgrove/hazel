@@ -55,7 +55,7 @@ and is_before_zoperand =
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
   | CursorT(cursor, Int)
-  | CursonT(curson, Float)
+  | CursonT(cursor, Float)
   | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
