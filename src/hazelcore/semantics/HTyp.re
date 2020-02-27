@@ -162,7 +162,7 @@ let rec join = (ty1, ty2) =>
   | (Unit, _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
-  | (Float, Float) => some(ty1)
+  | (Float, Float) => Some(ty1)
   | (Float, _) => None
   | (Bool, Bool) => Some(ty1)
   | (Bool, _) => None
