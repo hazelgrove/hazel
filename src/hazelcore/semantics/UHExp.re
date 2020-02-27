@@ -6,6 +6,9 @@ type operator =
   | Plus
   | Minus
   | Times
+  | FPlus
+  | FMinus
+  | FTimes
   | LessThan
   | GreaterThan
   | Equals
@@ -20,6 +23,9 @@ let string_of_operator =
   | Plus => "+"
   | Minus => "-"
   | Times => "*"
+  | FPlus => "+."
+  | FMinus => "-."
+  | FTimes => "*."
   | LessThan => "<"
   | GreaterThan => ">"
   | Equals => "=="
@@ -58,6 +64,7 @@ and operand =
   | EmptyHole(MetaVar.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
+  | FloatLit(ErrStatus.t, float)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
@@ -92,6 +99,9 @@ let var =
 
 let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
   NumLit(err, n);
+
+let floatlit = (~err: ErrStatus.t=NotInHole, f: float): operand =>
+  FloatLit(err, f);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
@@ -218,6 +228,7 @@ and get_err_status_operand =
   | EmptyHole(_) => NotInHole
   | Var(err, _, _)
   | NumLit(err, _)
+  | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
   | Lam(err, _, _, _)
@@ -240,6 +251,7 @@ and set_err_status_operand = (err, operand) =>
   | EmptyHole(_) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
+  | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
@@ -272,6 +284,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | EmptyHole(_)
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
+  | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
@@ -281,6 +294,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
+  | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -310,6 +324,7 @@ let text_operand =
   switch (shape) {
   | Underscore => (var("_"), u_gen)
   | NumLit(n) => (numlit(n), u_gen)
+  | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
