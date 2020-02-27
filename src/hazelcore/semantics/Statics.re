@@ -107,7 +107,7 @@ module Pat = {
         x,
         Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
       )
-    | NumLit(NotInHole, _) => Some((Num, ctx))
+    | NumLit(NotInHole, _) => Some((Int, ctx))
     | BoolLit(NotInHole, _) => Some((Bool, ctx))
     | ListNil(NotInHole) => Some((List(Hole), ctx))
     | Inj(NotInHole, inj_side, p1) =>
@@ -435,7 +435,7 @@ module Pat = {
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       (operand_nih, Hole, ctx, u_gen);
-    | NumLit(_, _) => (operand_nih, Num, ctx, u_gen)
+    | NumLit(_, _) => (operand_nih, Int, ctx, u_gen)
     | BoolLit(_, _) => (operand_nih, Bool, ctx, u_gen)
     | ListNil(_) => (operand_nih, List(Hole), ctx, u_gen)
     | Parenthesized(p) =>
@@ -828,10 +828,10 @@ module Exp = {
     | BinOp(NotInHole, Minus, skel1, skel2)
     | BinOp(NotInHole, Plus, skel1, skel2)
     | BinOp(NotInHole, Times, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, HTyp.Num)) {
+      switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
       | None => None
       | Some(_) =>
-        ana_skel(ctx, skel2, seq, Num) |> OptUtil.map(_ => HTyp.Num)
+        ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
       }
     | BinOp(NotInHole, And | Or, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
@@ -840,10 +840,10 @@ module Exp = {
         ana_skel(ctx, skel2, seq, HTyp.Bool) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, Num)) {
+      switch (ana_skel(ctx, skel1, seq, Int)) {
       | None => None
       | Some(_) =>
-        ana_skel(ctx, skel2, seq, Num) |> OptUtil.map(_ => HTyp.Bool)
+        ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
@@ -898,7 +898,7 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, x) =>
       VarMap.lookup(Contexts.gamma(ctx), x)
     | Var(NotInHole, InVarHole(_), _) => Some(Hole)
-    | NumLit(NotInHole, _) => Some(Num)
+    | NumLit(NotInHole, _) => Some(Int)
     | BoolLit(NotInHole, _) => Some(Bool)
     | ListNil(NotInHole) => Some(List(Hole))
     | Lam(NotInHole, p, ann, body) =>
@@ -1198,7 +1198,7 @@ module Exp = {
           skel2,
         ) =>
         n <= Skel.rightmost_tm_index(skel1)
-          ? ana_go(skel1, Num) : ana_go(skel2, Num)
+          ? ana_go(skel1, Int) : ana_go(skel2, Int)
       | BinOp(NotInHole, And | Or, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
@@ -1408,7 +1408,7 @@ module Exp = {
           ~renumber_empty_holes,
           skel1,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1417,9 +1417,9 @@ module Exp = {
           ~renumber_empty_holes,
           skel2,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
-      (BinOp(NotInHole, op, skel1, skel2), seq, Num, u_gen);
+      (BinOp(NotInHole, op, skel1, skel2), seq, Int, u_gen);
     | BinOp(_, (And | Or) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1448,7 +1448,7 @@ module Exp = {
           ~renumber_empty_holes,
           skel1,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1457,7 +1457,7 @@ module Exp = {
           ~renumber_empty_holes,
           skel2,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
@@ -1541,7 +1541,7 @@ module Exp = {
           (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
         }
       };
-    | NumLit(_, _) => (e_nih, Num, u_gen)
+    | NumLit(_, _) => (e_nih, Int, u_gen)
     | BoolLit(_, _) => (e_nih, Bool, u_gen)
     | ListNil(_) => (e_nih, List(Hole), u_gen)
     | Parenthesized(body) =>

@@ -422,7 +422,7 @@ module Typ = {
       switch (operand) {
       | Hole
       | Unit
-      | Num
+      | Int
       | Bool => None
       | Parenthesized(body) =>
         switch (x) {
@@ -474,7 +474,7 @@ module Typ = {
       switch (operand) {
       | Hole
       | Unit
-      | Num
+      | Int
       | Bool => None
       | Parenthesized(body) =>
         switch (x) {
@@ -517,7 +517,7 @@ module Typ = {
     switch (operand) {
     | Hole => [(TypHole, rev_steps |> List.rev), ...hs]
     | Unit
-    | Num
+    | Int
     | Bool => hs
     | Parenthesized(body)
     | List(body) => hs |> holes(body, [0, ...rev_steps])
@@ -540,7 +540,7 @@ module Typ = {
     switch (zoperand) {
     | CursorT(_, Hole) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
-    | CursorT(_, Unit | Num | Bool) => no_holes
+    | CursorT(_, Unit | Int | Bool) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
       let holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
