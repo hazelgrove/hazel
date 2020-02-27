@@ -137,7 +137,7 @@ let mk_Unit = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "()") |> annot_Operand(~sort=Typ);
 
 let mk_Num = (~steps: CursorPath.steps, ()): t =>
-  DelimDoc.mk(~path=(steps, 0), "Num") |> annot_Operand(~sort=Typ);
+  DelimDoc.mk(~path=(steps, 0), "Int") |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "Bool") |> annot_Operand(~sort=Typ);
@@ -484,7 +484,7 @@ module Typ = {
   let precedence_Arrow = 3;
   let precedence_ty = (ty: HTyp.t): int =>
     switch (ty) {
-    | Num
+    | Int
     | Bool
     | Hole
     | Unit
@@ -506,7 +506,7 @@ module Typ = {
       switch (ty) {
       | Hole => mk_EmptyHole(~steps, "?")
       | Unit => mk_Unit(~steps, ())
-      | Num => mk_Num(~steps, ())
+      | Int => mk_Num(~steps, ())
       | Bool => mk_Bool(~steps, ())
       | List(ty) =>
         Doc.hcats([
@@ -638,7 +638,7 @@ module Typ = {
     switch (operand) {
     | Hole => mk_EmptyHole(~steps, "?")
     | Unit => mk_Unit(~steps, ())
-    | Num => mk_Num(~steps, ())
+    | Int => mk_Num(~steps, ())
     | Bool => mk_Bool(~steps, ())
     | Parenthesized(body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);

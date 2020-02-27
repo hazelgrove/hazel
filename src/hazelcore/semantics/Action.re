@@ -297,7 +297,7 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Num | Bool)) =>
+    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Bool)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
     /* ( _ )<|  ==>  _| */
@@ -323,7 +323,7 @@ module Typ = {
       }
 
     | (Construct(SChar("N")), CursorT(_, Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Num)))
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Int)))
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
     | (Construct(SChar(_)), CursorT(_)) => Failed
@@ -721,7 +721,7 @@ module Pat = {
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
     | Some(NumLit(n)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.numlit(n)));
-      Succeeded((zp, HTyp.Num, ctx, u_gen));
+      Succeeded((zp, HTyp.Int, ctx, u_gen));
     | Some(BoolLit(b)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
@@ -2023,7 +2023,7 @@ module Exp = {
       }
     | Some(NumLit(n)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.numlit(n)));
-      Succeeded(SynDone((ze, HTyp.Num, u_gen)));
+      Succeeded(SynDone((ze, HTyp.Int, u_gen)));
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
@@ -2531,7 +2531,7 @@ module Exp = {
 
     | (Backspace, CursorL(OnDelim(k, After), LetLine(p, _, def))) =>
       if (k == 1) {
-        /* let x :<| Num = 2   ==>   let x| = 2 */
+        /* let x :<| Int = 2   ==>   let x| = 2 */
         let zp = p |> ZPat.place_after;
         let new_zblock = ([], ZExp.LetLineZP(zp, None, def), []);
         fix_and_mk_result(u_gen, new_zblock);
@@ -2945,7 +2945,7 @@ module Exp = {
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
-    /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
+    /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
       let (p, body_ctx, u_gen) =
         Statics.Pat.ana_fix_holes(ctx, u_gen, p, Hole);
@@ -3994,7 +3994,7 @@ module Exp = {
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
-    /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
+    /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => Failed

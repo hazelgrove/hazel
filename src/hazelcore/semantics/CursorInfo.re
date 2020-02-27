@@ -435,7 +435,7 @@ module Pat = {
       | ListNil(NotInHole) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
       | NumLit(NotInHole, _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Num), ctx)))
+        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Int), ctx)))
       | BoolLit(NotInHole, _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Bool), ctx)))
       | Inj(NotInHole, _, _) =>
@@ -633,9 +633,9 @@ module Exp = {
           skel1,
           skel2,
         ) =>
-        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Num)) {
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Int)) {
         | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Num)
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Int)
         }
       | BinOp(_, And | Or, skel1, skel2) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Bool)) {

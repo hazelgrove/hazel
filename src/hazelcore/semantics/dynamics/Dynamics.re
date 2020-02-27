@@ -106,7 +106,7 @@ module Pat = {
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
-    | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
+    | NumLit(NotInHole, n) => Expands(NumLit(n), Int, ctx, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
     | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
@@ -540,8 +540,8 @@ module Exp = {
       } else {
         DoesNotMatch;
       }
-    | (NumLit(_), Cast(d, Num, Hole)) => matches(dp, d)
-    | (NumLit(_), Cast(d, Hole, Num)) => matches(dp, d)
+    | (NumLit(_), Cast(d, Int, Hole)) => matches(dp, d)
+    | (NumLit(_), Cast(d, Hole, Int)) => matches(dp, d)
     | (NumLit(_), _) => DoesNotMatch
     | (Inj(side1, dp), Inj(_, side2, d)) =>
       switch (side1, side2) {
@@ -938,14 +938,14 @@ module Exp = {
     | BinOp(NotInHole, Plus as op, skel1, skel2)
     | BinOp(NotInHole, Times as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
-      switch (ana_expand_skel(ctx, delta, skel1, seq, Num)) {
+      switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
-        switch (ana_expand_skel(ctx, delta, skel2, seq, Num)) {
+        switch (ana_expand_skel(ctx, delta, skel2, seq, Int)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d2, ty2, delta) =>
-          let dc1 = DHExp.cast(d1, ty1, Num);
-          let dc2 = DHExp.cast(d2, ty2, Num);
+          let dc1 = DHExp.cast(d1, ty1, Int);
+          let dc2 = DHExp.cast(d2, ty2, Int);
           switch (DHExp.of_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
@@ -1031,7 +1031,7 @@ module Exp = {
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
-    | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
+    | NumLit(NotInHole, n) => Expands(NumLit(n), Int, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
@@ -1727,7 +1727,7 @@ module Evaluator = {
     switch (ty) {
     | Hole => Hole
     | Bool
-    | Num
+    | Int
     | Unit
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)

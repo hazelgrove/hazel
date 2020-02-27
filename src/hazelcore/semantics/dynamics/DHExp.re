@@ -11,9 +11,9 @@ type bin_num_op =
 
 let of_op = (op: UHExp.operator): option((bin_num_op, HTyp.t)) =>
   switch (op) {
-  | Minus => Some((Minus, Num))
-  | Plus => Some((Plus, Num))
-  | Times => Some((Times, Num))
+  | Minus => Some((Minus, Int))
+  | Plus => Some((Plus, Int))
+  | Times => Some((Times, Int))
   | LessThan => Some((LessThan, Bool))
   | GreaterThan => Some((GreaterThan, Bool))
   | Equals => Some((Equals, Bool))
