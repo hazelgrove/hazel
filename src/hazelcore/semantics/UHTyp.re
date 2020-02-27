@@ -22,6 +22,7 @@ and operand =
   | Hole
   | Unit
   | Int
+  | Float
   | Bool
   | Parenthesized(t)
   | List(t);
@@ -42,6 +43,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Hole
   | Unit
   | Int
+  | Float
   | Bool
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
@@ -69,6 +71,7 @@ let contract = (ty: HTyp.t): t => {
     | Hole => mk_operand(Hole)
     | Unit => mk_operand(Unit)
     | Int => mk_operand(Int)
+    | Float => mk_operand(Float)
     | Bool => mk_operand(Bool)
     | Arrow(ty1, ty2) =>
       mk_seq_operand(
@@ -118,6 +121,7 @@ and expand_operand =
   | Hole => Hole
   | Unit => Unit
   | Int => Int
+  | Float => Float
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
