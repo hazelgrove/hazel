@@ -787,6 +787,7 @@ h1 {
   left: 0;
   z-index: var(--contenteditable-z);
   color: transparent;
+  width: 100%;
 }
 .code.contenteditable:focus {
   outline: 0px;
