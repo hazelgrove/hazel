@@ -3,7 +3,7 @@ open ViewUtil;
 type term_data = {
   has_cursor: bool,
   shape: TermShape.t,
-  family: TermFamily.t,
+  sort: TermSort.t,
 };
 
 type t =
@@ -41,8 +41,8 @@ let mk_Text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
   Text({caret, steps, length});
 let mk_Term =
-    (~has_cursor=false, ~shape: TermShape.t, ~family: TermFamily.t, ()): t =>
-  Term({has_cursor, shape, family});
+    (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
+  Term({has_cursor, shape, sort});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});
 let mk_ClosedChild = (~is_inline: bool, ()) =>
