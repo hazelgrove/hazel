@@ -4,7 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-open ViewUtil;
+//open ViewUtil;
 
 module Action = {
   [@deriving sexp]
@@ -162,29 +162,33 @@ let apply_action =
     {...new_model, undo_history: new_history};
   | SelectionChange =>
     if (! state.setting_caret^) {
-      let anchor_node = Dom_html.window##getSelection##.anchorNode;
-      let row_col =
-        switch (anchor_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
-        | None =>
-          // anchor_node is text node
-          let row =
-            anchor_node
-            |> JSUtil.force_get_closest_elem
-            |> JSUtil.get_id
-            |> row_of_row_text_id
-            |> Option.get;
-          let col = Dom_html.window##getSelection##.anchorOffset;
-          (row, col);
-        | Some(elem) =>
-          // anchor_node is contenteditable element.
-          // anchor_offset = n means is on nth child
-          // of contenteditable, in particular on a <br>.
-          let row = elem |> JSUtil.get_id |> row_of_row_eol_id |> Option.get;
-          (row, 0);
-        };
-      let rev_path = CaretMap.set_caret_rowcol(~state, row_col);
+      let rev_path = CaretMap.revpath_of_anchor();
       let path = CursorPath.rev(rev_path);
       schedule_action(Action.EditAction(MoveTo(path)));
+      /*
+       let row_col =
+         switch (anchor_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
+         | None =>
+           // anchor_node is text node
+           let row =
+             anchor_node
+             |> JSUtil.force_get_closest_elem
+             |> JSUtil.get_id
+             |> row_of_row_text_id
+             |> Option.get;
+           let col = Dom_html.window##getSelection##.anchorOffset;
+           (row, col);
+         | Some(elem) =>
+           // anchor_node is contenteditable element.
+           // anchor_offset = n means is on nth child
+           // of contenteditable, in particular on a <br>.
+           let row = elem |> JSUtil.get_id |> row_of_row_eol_id |> Option.get;
+           (row, 0);
+         };
+       let rev_path = CaretMap.set_caret_rowcol(~state, row_col);
+       let path = CursorPath.rev(rev_path);
+       schedule_action(Action.EditAction(MoveTo(path)));
+       */
     };
     model;
   };

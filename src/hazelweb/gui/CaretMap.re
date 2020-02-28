@@ -38,73 +38,75 @@ let lookup_rowcol_after = row_col =>
 
 let lookup_revpath = rev_path => Hashtbl.find(revpath_to_rowcol, rev_path);
 
-let set_caret_row_text = (~state: State.t, (row, col)) => {
-  let row_elem = JSUtil.force_get_elem_by_id(ViewUtil.row_text_id(row));
-  let row_text =
-    Js.Opt.get(
-      (row_elem: Js.t(Dom_html.element) :> Js.t(Dom.node))##.firstChild, () =>
-      assert(false)
-    );
-  state.setting_caret := true;
-  JSUtil.set_caret(row_text, col);
-};
+/*
+ let set_caret_row_text = (~state: State.t, (row, col)) => {
+   let row_elem = JSUtil.force_get_elem_by_id(ViewUtil.row_text_id(row));
+   let row_text =
+     Js.Opt.get(
+       (row_elem: Js.t(Dom_html.element) :> Js.t(Dom.node))##.firstChild, () =>
+       assert(false)
+     );
+   state.setting_caret := true;
+   JSUtil.set_caret(row_text, col);
+ };
 
-let set_caret_row_eol = (~state: State.t, row) => {
-  let contenteditable = (
-    JSUtil.force_get_elem_by_id("contenteditable"): Js.t(Dom_html.element) :>
-      Js.t(Dom.node)
-  );
-  let anchor_offset = 2 * row + 1;
-  state.setting_caret := true;
-  JSUtil.set_caret(contenteditable, anchor_offset);
-};
+ let set_caret_row_eol = (~state: State.t, row) => {
+   let contenteditable = (
+     JSUtil.force_get_elem_by_id("contenteditable"): Js.t(Dom_html.element) :>
+       Js.t(Dom.node)
+   );
+   let anchor_offset = 2 * row + 1;
+   state.setting_caret := true;
+   JSUtil.set_caret(contenteditable, anchor_offset);
+ };
 
-let set_caret_rowcol = (~state, (row, col) as row_col) => {
-  let set_caret_row_text = set_caret_row_text(~state);
-  let set_caret_row_eol = set_caret_row_eol(~state);
-  switch (lookup_rowcol_before(row_col), lookup_rowcol_after(row_col)) {
-  | (None, None) =>
-    failwith(
-      Printf.sprintf("No caret position found near (%d, %d)", row, col),
-    )
-  | (Some(((next_row, next_col), rev_path)), None)
-  | (None, Some(((next_row, next_col), rev_path))) =>
-    set_caret_row_text((next_row, next_col));
-    rev_path;
-  | (Some(((next_row, next_col), rev_path)), Some(((row_after, _), _)))
-      when row_after != row =>
-    switch (rev_path) {
-    | (OnText(0), _) => set_caret_row_eol(next_row)
-    | _ => set_caret_row_text((next_row, next_col))
-    };
-    rev_path;
-  | (Some(((row_before, _), _)), Some(((next_row, next_col), rev_path)))
-      when row_before != row =>
-    switch (rev_path) {
-    | (OnText(0), _) => set_caret_row_eol(next_row)
-    | _ => set_caret_row_text((next_row, next_col))
-    };
-    rev_path;
-  // row_before == row_after
-  | (
-      Some(((_, col_before), (cursor_before, rev_steps) as rev_path_before)),
-      Some(((_, col_after), (cursor_after, _) as rev_path_after)),
-    ) =>
-    switch (cursor_before, cursor_after) {
-    | (OnText(_), OnText(_)) =>
-      set_caret_row_text(row_col);
-      (OnText(col - col_before), rev_steps);
-    | _ =>
-      if (col - col_before >= col_after - col) {
-        set_caret_row_text((row, col_before));
-        rev_path_before;
-      } else {
-        set_caret_row_text((row, col_after));
-        rev_path_after;
+  let set_caret_rowcol = (~state, (row, col) as row_col) => {
+    let set_caret_row_text = set_caret_row_text(~state);
+    let set_caret_row_eol = set_caret_row_eol(~state);
+    switch (lookup_rowcol_before(row_col), lookup_rowcol_after(row_col)) {
+    | (None, None) =>
+      failwith(
+        Printf.sprintf("No caret position found near (%d, %d)", row, col),
+      )
+    | (Some(((next_row, next_col), rev_path)), None)
+    | (None, Some(((next_row, next_col), rev_path))) =>
+      set_caret_row_text((next_row, next_col));
+      rev_path;
+    | (Some(((next_row, next_col), rev_path)), Some(((row_after, _), _)))
+        when row_after != row =>
+      switch (rev_path) {
+      | (OnText(0), _) => set_caret_row_eol(next_row)
+      | _ => set_caret_row_text((next_row, next_col))
+      };
+      rev_path;
+    | (Some(((row_before, _), _)), Some(((next_row, next_col), rev_path)))
+        when row_before != row =>
+      switch (rev_path) {
+      | (OnText(0), _) => set_caret_row_eol(next_row)
+      | _ => set_caret_row_text((next_row, next_col))
+      };
+      rev_path;
+    // row_before == row_after
+    | (
+        Some(((_, col_before), (cursor_before, rev_steps) as rev_path_before)),
+        Some(((_, col_after), (cursor_after, _) as rev_path_after)),
+      ) =>
+      switch (cursor_before, cursor_after) {
+      | (OnText(_), OnText(_)) =>
+        set_caret_row_text(row_col);
+        (OnText(col - col_before), rev_steps);
+      | _ =>
+        if (col - col_before >= col_after - col) {
+          set_caret_row_text((row, col_before));
+          rev_path_before;
+        } else {
+          set_caret_row_text((row, col_after));
+          rev_path_after;
+        }
       }
-    }
+    };
   };
-};
+  */
 
 let is_empty_line = ((row, _) as row_col, (cursor, _)) =>
   switch ((cursor: CursorPosition.t)) {
@@ -116,14 +118,16 @@ let is_empty_line = ((row, _) as row_col, (cursor, _)) =>
   | _ => false
   };
 
-let set_caret_revpath = (~state, rev_path) => {
-  let (row, _) as row_col = lookup_revpath(rev_path);
-  if (is_empty_line(row_col, rev_path)) {
-    set_caret_row_eol(~state, row);
-  } else {
-    set_caret_row_text(~state, row_col);
-  };
-};
+/*
+ let set_caret_revpath = (~state, rev_path) => {
+   let (row, _) as row_col = lookup_revpath(rev_path);
+   if (is_empty_line(row_col, rev_path)) {
+     set_caret_row_eol(~state, row);
+   } else {
+     set_caret_row_text(~state, row_col);
+   };
+ };
+ */
 
 let anchor_of_revpath = rev_path => {
   let (row, col) as row_col = lookup_revpath(rev_path);
@@ -138,5 +142,58 @@ let anchor_of_revpath = rev_path => {
       JSUtil.force_get_elem_by_id(ViewUtil.row_text_id(row))
       |> JSUtil.force_get_first_child_node;
     (anchor_node, col);
+  };
+};
+
+let revpath_of_anchor = () => {
+  let anchor_node = Dom_html.window##getSelection##.anchorNode;
+  let (row, col) as row_col =
+    switch (anchor_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
+    | None =>
+      // anchor_node is text node in a row-text element
+      let row =
+        anchor_node
+        |> JSUtil.force_get_closest_elem
+        |> JSUtil.get_id
+        |> ViewUtil.row_of_row_text_id
+        |> Option.get;
+      let col = Dom_html.window##getSelection##.anchorOffset;
+      (row, col);
+    | Some(elem) =>
+      // anchor_node is contenteditable element.
+      // anchor_offset = n means is on nth child
+      // of contenteditable, in particular on a <br>.
+      let row =
+        elem |> JSUtil.get_id |> ViewUtil.row_of_row_eol_id |> Option.get;
+      (row, 0);
+    };
+  switch (lookup_rowcol(row_col)) {
+  | Some(rev_path) => rev_path
+  | None =>
+    switch (lookup_rowcol_before(row_col), lookup_rowcol_after(row_col)) {
+    | (None, None) =>
+      failwith(
+        Printf.sprintf("No caret position found near (%d, %d)", row, col),
+      )
+    | (Some((_, rev_path)), None)
+    | (None, Some((_, rev_path))) => rev_path
+    | (Some((_, rev_path)), Some(((row_after, _), _)))
+        when row_after != row => rev_path
+    | (Some(((row_before, _), _)), Some((_, rev_path)))
+        when row_before != row => rev_path
+    // row_before == row_after
+    | (
+        Some((
+          (_, col_before),
+          (cursor_before, rev_steps) as rev_path_before,
+        )),
+        Some(((_, col_after), (cursor_after, _) as rev_path_after)),
+      ) =>
+      switch (cursor_before, cursor_after) {
+      | (OnText(_), OnText(_)) => (OnText(col - col_before), rev_steps)
+      | _ =>
+        col - col_before >= col_after - col ? rev_path_before : rev_path_after
+      }
+    }
   };
 };

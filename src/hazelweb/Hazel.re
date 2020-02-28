@@ -51,7 +51,10 @@ let create =
         let rev_path = (cursor, List.rev(steps));
         if (state.changing_cards^) {
           state.changing_cards := false;
-          CaretMap.set_caret_revpath(~state, rev_path);
+          let (anchor_node, offset) = CaretMap.anchor_of_revpath(rev_path);
+          //CaretMap.set_caret_revpath(~state, rev_path);
+          state.setting_caret := true;
+          JSUtil.set_caret(anchor_node, offset);
         } else if (model.is_cell_focused) {
           let (expected_node, expected_offset) =
             CaretMap.anchor_of_revpath(rev_path);
