@@ -24,6 +24,10 @@ let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
   };
 };
 
+let get_id = elem => Js.to_string(elem##.id);
+let has_id = (id: string, elem: Js.t(Dom_html.element)): bool =>
+  id == (elem |> get_id);
+
 let has_attr = (attr: string, elem: Js.t(Dom_html.element)): bool =>
   Js.Opt.test(elem##getAttribute(Js.string(attr)));
 
@@ -137,13 +141,7 @@ let get_selection_anchor = () => {
 
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
 
-let set_caret = (anchor_parent, offset) => {
-  let anchor_node =
-    Js.Opt.get(
-      (anchor_parent: Js.t(Dom_html.element) :> Js.t(Dom.node))##.firstChild,
-      () =>
-      assert(false)
-    );
+let set_caret = (anchor_node, offset) => {
   let go = () => {
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
@@ -232,10 +230,16 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
-let force_get_first_child_elem = elem => {
+let force_get_first_child_node = elem => {
   let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
-  let first_child = Js.Opt.get(node##.firstChild, () => assert(false));
-  Js.Opt.get(Dom_html.CoerceTo.element(first_child), () => assert(false));
+  Js.Opt.get(node##.firstChild, () => assert(false));
+};
+
+let force_get_first_child_elem = elem => {
+  let first_child_node = elem |> force_get_first_child_node;
+  Js.Opt.get(Dom_html.CoerceTo.element(first_child_node), () =>
+    assert(false)
+  );
 };
 
 let force_get_last_child_elem = elem => {

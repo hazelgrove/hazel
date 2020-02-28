@@ -7,6 +7,22 @@ type op_path = (CursorPath.steps, OpIndex.t);
 
 let cell_id = "cell";
 
+let row_text_id = row => "row-text-" ++ string_of_int(row);
+let row_eol_id = row => "row-eol-" ++ string_of_int(row);
+
+let row_of_row_text_id = s =>
+  if (!Re.Str.string_match(Re.Str.regexp("^row-text-\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(int_of_string(Re.Str.matched_group(1, s)));
+  };
+let row_of_row_eol_id = s =>
+  if (!Re.Str.string_match(Re.Str.regexp("^row-eol-\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(int_of_string(Re.Str.matched_group(1, s)));
+  };
+
 let text_id = steps =>
   "text__" ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps));
 let path_id = path =>

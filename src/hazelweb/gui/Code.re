@@ -19,360 +19,159 @@ module Contenteditable = {
   let leading_whitespace = whitespace(~clss=[leading_whitespace_cls]);
   let trailing_whitespace = whitespace(~clss=["trailing-whitespace"]);
 
+  let merge_text_nodes = (vs: list(Vdom.Node.t)): list(Vdom.Node.t) => {
+    vs
+    |> List.fold_left(
+         ((text_so_far, rev_merged), v) => {
+           switch (text_so_far, v) {
+           | (None, Vdom.Node.Text(s)) => (Some(s), rev_merged)
+           | (Some(text_so_far), Text(s)) => (
+               Some(text_so_far ++ s),
+               rev_merged,
+             )
+           | (None, _) => (None, [v, ...rev_merged])
+           | (Some(text_so_far), _) => (
+               None,
+               [v, Vdom.Node.Text(text_so_far), ...rev_merged],
+             )
+           }
+         },
+         (None, []),
+       )
+    |> (
+      fun
+      | (None, vs) => vs
+      | (Some(text), vs) => [Vdom.Node.Text(text), ...vs]
+    )
+    |> List.rev;
+  };
+
+  let tag_rows = (vs: list(Vdom.Node.t)): list(Vdom.Node.t) => {
+    Vdom.(
+      vs
+      |> List.fold_left(
+           ((row, rev_tagged), v: Vdom.Node.t) =>
+             switch (v) {
+             | Text(_) as text => (
+                 row,
+                 [
+                   Node.span([Attr.id(row_text_id(row))], [text]),
+                   ...rev_tagged,
+                 ],
+               )
+             | Element(elem) when Node.Element.tag(elem) == "br" =>
+               let new_elem =
+                 Node.Element.map_attrs(
+                   elem,
+                   ~f=List.cons(Attr.id(row_eol_id(row))),
+                 );
+               (row + 1, [Node.Element(new_elem), ...rev_tagged]);
+             | _ => (row, [v, ...rev_tagged])
+             },
+           (0, []),
+         )
+      |> snd
+      |> List.rev
+    );
+  };
+
   let view_of_layout =
       (
         ~inject: Update.Action.t => Vdom.Event.t,
         ~show_contenteditable: bool,
-        ~width: int,
         l: TermLayout.t,
       )
       : Vdom.Node.t => {
     open Vdom;
-
-    let caret_position_Op = (~side: Side.t, ~has_caret: bool) => {
-      Node.span(
+    let row = ref(0);
+    let col = ref(0);
+    let rec go = (~rev_steps, ~indent, l: TermLayout.t): list(Vdom.Node.t) => {
+      let go' = go(~rev_steps, ~indent);
+      switch (l) {
+      | Text(s) =>
+        col := col^ + StringUtil.utf8_length(s);
+        [Node.text(s)];
+      | Linebreak =>
+        row := row^ + 1;
+        col := indent;
         [
-          Attr.classes([
-            "caret-position",
-            "Op",
-            Side.to_string(side),
-            ...has_caret ? ["has-caret"] : [],
-          ]),
-        ],
-        // TODO: Once we figure out contenteditable cursor use `Node.text("")`
-        [Node.text(UnicodeConstants.zwsp)],
-      );
-    };
-
-    let caret_position_Delim =
-        (~index: DelimIndex.t, ~side: Side.t, ~has_caret: bool) => {
-      Node.span(
-        [
-          Attr.classes([
-            "caret-position",
-            "Delim",
-            Side.to_string(side),
-            ...has_caret ? ["has-caret"] : [],
-          ]),
-          Attr.create("index", string_of_int(index)),
-        ],
-        [Node.text(UnicodeConstants.zwsp)],
-      );
-    };
-
-    let caret_position_EmptyLine = (~has_caret: bool) =>
-      Node.span(
-        [
-          Attr.classes([
-            "caret-position-EmptyLine",
-            ...has_caret ? ["has-caret"] : [],
-          ]),
-        ],
-        [Node.text(UnicodeConstants.zwsp)],
-      );
-
-    let found_linebreak = ref(false);
-    l
-    |> Layout.make_of_layout({
-         imp_of_string: s => [Node.text(s)],
-         imp_append: (@),
-         imp_newline: (~last_col, ~indent) => {
-           found_linebreak := true;
-           [
-             trailing_whitespace(width - last_col),
-             Node.br([]),
-             leading_whitespace(indent),
-           ];
-         },
-         imp_of_annot: (annot: TermAnnot.t, vs) =>
-           switch (annot) {
-           | Step(step) => [
-               Node.span([Attr.create("step", string_of_int(step))], vs),
-             ]
-           | Delim({caret, index}) => [
-               caret_position_Delim(
-                 ~index,
-                 ~side=Before,
-                 ~has_caret=caret == Some(Before),
-               ),
-               Node.span(
-                 [
-                   Attr.classes(["code-delim"]),
-                   Attr.create("index", string_of_int(index)),
-                   contenteditable_false,
-                 ],
-                 vs,
-               ),
-               caret_position_Delim(
-                 ~index,
-                 ~side=After,
-                 ~has_caret=caret == Some(After),
-               ),
-             ]
-           | Op({caret}) => [
-               caret_position_Op(
-                 ~side=Before,
-                 ~has_caret=caret == Some(Before),
-               ),
-               Node.span([contenteditable_false], vs),
-               caret_position_Op(
-                 ~side=After,
-                 ~has_caret=caret == Some(After),
-               ),
-             ]
-           | EmptyLine({has_caret}) => [
-               Node.span(
-                 [Attr.classes(["EmptyLine"])],
-                 [caret_position_EmptyLine(~has_caret)],
-               ),
-             ]
-           | SpaceOp => [
-               Node.span(
-                 [contenteditable_false, Attr.classes(["SpaceOp"])],
-                 vs,
-               ),
-             ]
-           | Text(_) => [Node.span([Attr.classes(["code-text"])], vs)]
-           | Padding => [
-               Node.span(
-                 [contenteditable_false, Attr.classes(["Padding"])],
-                 vs,
-               ),
-             ]
-           | Indent => [
-               Node.span(
-                 [
-                   contenteditable_false,
-                   Attr.classes([leading_whitespace_cls]),
-                 ],
-                 vs,
-               ),
-             ]
-           | UserNewline => []
-           | OpenChild(_)
-           | ClosedChild(_)
-           | HoleLabel(_)
-           | DelimGroup
-           | LetLine
-           | Term(_) => vs
-           },
-         t_of_imp: (~last_col, vs) => {
-           let vs =
-             found_linebreak^
-               ? vs : vs @ [trailing_whitespace(width - last_col)];
-           Node.div(
-             [
-               // TODO clean up attrs
-               Attr.id("contenteditable"),
-               Attr.classes(
-                 ["code", "contenteditable"]
-                 @ (show_contenteditable ? [] : ["hiddencontenteditable"]),
-               ),
-               Attr.create("contenteditable", "true"),
-               Attr.on("drop", _ => Event.Prevent_default),
-               Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-               Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-             ],
-             vs,
-           );
-         },
-       });
-  };
-
-  /**
-   * Use sparingly. Queries DOM using selector whose size
-   * is linear in length of path.
-   */
-  let caret_position_of_path = ((steps, cursor): CursorPath.t) => {
-    let (cursor_selector, anchor_offset) =
-      switch (cursor) {
-      | OnText(j) => (".code-text", j)
-      | OnDelim(index, side) => (
-          Printf.sprintf(
-            ".code-delim[index=%d] .caret-position.%s",
-            index,
-            Side.to_string(side),
-          ),
-          side == Before ? 1 : 0,
-        )
-      | OnOp(side) => (
-          Printf.sprintf(
-            ".code-op .caret-position.%s",
-            Side.to_string(side),
-          ),
-          side == Before ? 1 : 0,
-        )
-      };
-    let selector =
-      Js.string(
-        StringUtil.cat(
-          (steps |> List.map(step => Printf.sprintf("[step=%d]", step)))
-          @ [cursor_selector],
-        ),
-      );
-    let anchor_parent =
-      JSUtil.force_get_elem_by_id("contenteditable")
-      |> JSUtil.force_query_selector(selector);
-    (anchor_parent, anchor_offset);
-  };
-
-  let has_cls = JSUtil.elem_has_cls;
-  let has_any_cls = (clss, elem) =>
-    clss |> List.exists(cls => elem |> has_cls(cls));
-
-  let steps_of_caret_position =
-      (elem: Js.t(Dom_html.element)): CursorPath.steps => {
-    let steps = ref([]);
-    let ancestor = ref(elem);
-    // TODO use better root condition
-    while (!(ancestor^ |> has_cls("code"))) {
-      switch (ancestor^ |> JSUtil.get_attr("step")) {
-      | None => ()
-      | Some(step) =>
-        let step = int_of_string(step);
-        steps := [step, ...steps^];
-      };
-      ancestor := ancestor^ |> JSUtil.force_get_parent_elem;
-    };
-    steps^;
-  };
-
-  let schedule_move_or_transport =
-      (
-        ~schedule_action: Update.Action.t => unit,
-        ~setting_caret: ref(bool),
-        anchor_offset: int,
-        anchor_parent: Js.t(Dom_html.element),
-      )
-      : unit => {
-    let set_caret = (anchor_parent, anchor_offset) => {
-      setting_caret := true;
-      JSUtil.set_caret(anchor_parent, anchor_offset);
-    };
-
-    let rec get_last_nonstep_descendant = elem =>
-      if (elem |> JSUtil.has_attr("step")) {
-        elem |> JSUtil.force_get_last_child_elem |> get_last_nonstep_descendant;
-      } else {
-        elem;
-      };
-
-    /**
-     * Transport to last caret position
-     * preceding elem in pre-order traversal
-     */
-    let rec transport_prev = elem =>
-      if (elem |> has_cls("code")) {
-        JSUtil.log("Caret position not found");
-        ();
-      } else {
-        let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
-        switch (node |> JSUtil.get_prev_sibling_elem) {
-        | None =>
-          let parent = elem |> JSUtil.force_get_parent_elem;
-          transport_prev(parent);
-        | Some(prev) =>
-          let prev = prev |> get_last_nonstep_descendant;
-          if (prev |> has_cls("caret-position")) {
-            let anchor_offset = prev |> has_cls("Before") ? 1 : 0;
-            set_caret(prev, anchor_offset);
-          } else if (prev |> has_cls("code-text")) {
-            let anchor_offset = prev |> JSUtil.inner_text |> String.length;
-            set_caret(prev, anchor_offset);
-          } else {
-            transport_prev(prev);
-          };
-        };
-      };
-
-    let rec get_first_nonstep_descendant = elem =>
-      if (elem |> JSUtil.has_attr("step")) {
-        elem
-        |> JSUtil.force_get_first_child_elem
-        |> get_first_nonstep_descendant;
-      } else {
-        elem;
-      };
-
-    /**
-     * Transport to next caret position
-     * following elem in post-order traversal
-     */
-    let rec transport_next = elem =>
-      if (elem |> has_cls("code")) {
-        JSUtil.log("Caret position not found");
-        ();
-      } else {
-        let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
-        switch (node |> JSUtil.get_next_sibling_elem) {
-        | None =>
-          let parent = elem |> JSUtil.force_get_parent_elem;
-          transport_next(parent);
-        | Some(next) =>
-          let next = next |> get_first_nonstep_descendant;
-          if (next |> has_cls("caret-position")) {
-            let anchor_offset = next |> has_cls("Before") ? 1 : 0;
-            set_caret(next, anchor_offset);
-          } else if (next |> has_cls("code-text")) {
-            set_caret(next, 0);
-          } else {
-            transport_next(next);
-          };
-        };
-      };
-
-    if (anchor_parent |> has_cls("caret-position")) {
-      if (anchor_parent |> has_cls("has-caret")) {
-        let transport =
-          anchor_parent |> has_cls("Before")
-            ? transport_prev : transport_next;
-        transport(anchor_parent);
-      } else if (anchor_parent |> has_cls("Before") && anchor_offset == 0) {
-        set_caret(anchor_parent, 1);
-      } else if (anchor_parent |> has_cls("After") && anchor_offset == 1) {
-        set_caret(anchor_parent, 0);
-      } else {
-        let cursor: CursorPosition.t = {
-          let side: Side.t =
-            anchor_parent |> has_cls("Before") ? Before : After;
-          if (anchor_parent |> has_cls("Delim")) {
-            let index =
-              int_of_string(anchor_parent |> JSUtil.force_get_attr("index"));
-            OnDelim(index, side);
-          } else {
-            OnOp(side);
-          };
-        };
-        let steps = steps_of_caret_position(anchor_parent);
-        schedule_action(Update.Action.EditAction(MoveTo((steps, cursor))));
-      };
-    } else if (anchor_parent |> has_cls("caret-position-EmptyLine")) {
-      if (anchor_parent |> has_cls("has-caret")) {
-        let transport = anchor_offset == 0 ? transport_prev : transport_next;
-        transport(anchor_parent);
-      } else {
-        let steps = steps_of_caret_position(anchor_parent);
-        schedule_action(
-          Update.Action.EditAction(MoveTo((steps, OnText(0)))),
+          Node.br([]),
+          Node.text(StringUtil.replicat(indent, UnicodeConstants.nbsp)),
+        ];
+      | Align(l) => go(~rev_steps, ~indent=col^, l)
+      | Cat(l1, l2) =>
+        let vs1 = go'(l1);
+        let vs2 = go'(l2);
+        vs1 @ vs2;
+      | Annot(Step(step), l) =>
+        go(~rev_steps=[step, ...rev_steps], ~indent, l)
+      | Annot(Delim({index, _}), l) =>
+        let col_before = col^;
+        let vs = go'(l);
+        let col_after = col^;
+        CaretMap.add(
+          (row^, col_before),
+          (CursorPosition.OnDelim(index, Before), rev_steps),
         );
+        CaretMap.add(
+          (row^, col_after),
+          (CursorPosition.OnDelim(index, After), rev_steps),
+        );
+        vs;
+      | Annot(Op(_), l) =>
+        let col_before = col^;
+        let vs = go'(l);
+        let col_after = col^;
+        CaretMap.add(
+          (row^, col_before),
+          (CursorPosition.OnOp(Before), rev_steps),
+        );
+        CaretMap.add(
+          (row^, col_after),
+          (CursorPosition.OnOp(After), rev_steps),
+        );
+        vs;
+      | Annot(Text(_), l) =>
+        let col_before = col^;
+        let vs = go'(l);
+        let col_after = col^;
+        CaretMap.add(
+          (row^, col_before),
+          (CursorPosition.OnText(0), rev_steps),
+        );
+        CaretMap.add(
+          (row^, col_after),
+          (CursorPosition.OnText(col_after - col_before), rev_steps),
+        );
+        vs;
+      | Annot(EmptyLine(_), l) =>
+        CaretMap.add((row^, col^), (CursorPosition.OnText(0), rev_steps));
+        go'(l);
+      | Annot(_, l) => go'(l)
       };
-    } else if (anchor_parent |> has_cls("code-text")) {
-      let cursor = CursorPosition.OnText(anchor_offset);
-      let steps = steps_of_caret_position(anchor_parent);
-      schedule_action(Update.Action.EditAction(MoveTo((steps, cursor))));
-    } else if (anchor_parent
-               |> has_any_cls(["Padding", "SpaceOp", "code-delim", "code-op"])) {
-      let n = {
-        let s = Js.Opt.get(anchor_parent##.textContent, () => assert(false));
-        s##.length;
-      };
-      let transport = anchor_offset * 2 <= n ? transport_prev : transport_next;
-      transport(anchor_parent);
-    } else if (anchor_parent |> has_cls("trailing-whitespace")) {
-      transport_prev(anchor_parent);
-    } else if (anchor_parent |> has_cls("leading-whitespace")) {
-      transport_next(anchor_parent);
     };
+    let vs =
+      l |> go(~indent=0, ~rev_steps=[]) |> merge_text_nodes |> tag_rows;
+    Node.div(
+      [
+        Attr.id("contenteditable"),
+        Attr.classes(
+          ["code", "contenteditable"]
+          @ (
+            if (show_contenteditable) {
+              [];
+            } else {
+              ["hiddencontenteditable"];
+            }
+          ),
+        ),
+        Attr.create("contenteditable", "true"),
+        Attr.on("drop", _ => Event.Prevent_default),
+        Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+        Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+      ],
+      vs,
+    );
   };
 };
 
@@ -558,7 +357,6 @@ let editor_view_of_layout =
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
       ~show_contenteditable: bool,
-      ~width: int,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -596,7 +394,7 @@ let editor_view_of_layout =
          )
     };
   (
-    Contenteditable.view_of_layout(~inject, ~width, ~show_contenteditable, l),
+    Contenteditable.view_of_layout(~inject, ~show_contenteditable, l),
     Presentation.view_of_layout(l),
   );
 };
@@ -630,13 +428,6 @@ let editor_view_of_exp =
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(
-      ~inject,
-      ~width,
-      ~path?,
-      ~ci?,
-      ~show_contenteditable,
-      l,
-    )
+    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
   };
 };

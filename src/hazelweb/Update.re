@@ -4,6 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
+open ViewUtil;
 
 module Action = {
   [@deriving sexp]
@@ -25,94 +26,105 @@ module Action = {
     | BlurCell
     | FocusWindow
     | Redo
-    | Undo;
+    | Undo
+    | SelectionChange;
 };
 
-[@deriving sexp]
-type timestamp = {
-  year: int,
-  month: int,
-  day: int,
-  hours: int,
-  minutes: int,
-  seconds: int,
-  milliseconds: int,
-};
+/*
+ [@deriving sexp]
+ type timestamp = {
+   year: int,
+   month: int,
+   day: int,
+   hours: int,
+   minutes: int,
+   seconds: int,
+   milliseconds: int,
+ };
 
-[@deriving sexp]
-type timestamped_action = (timestamp, Action.t);
+ [@deriving sexp]
+ type timestamped_action = (timestamp, Action.t);
 
-let get_current_timestamp = (): timestamp => {
-  let date = {
-    %js
-    new Js.date_now;
+ let get_current_timestamp = (): timestamp => {
+   let date = {
+     %js
+     new Js.date_now;
+   };
+   {
+     year: date##getFullYear,
+     month: date##getMonth,
+     day: date##getDay,
+     hours: date##getHours,
+     minutes: date##getMinutes,
+     seconds: date##getSeconds,
+     milliseconds: date##getMilliseconds,
+   };
+ };
+
+ let mk_timestamped_action = (a: Action.t) => (get_current_timestamp(), a);
+
+ let log_action = (action: Action.t): unit => {
+   // log interesting actions
+   switch (action) {
+   | EditAction(_)
+   | ToggleLeftSidebar
+   | ToggleRightSidebar
+   | LoadExample(_)
+   | LoadCardstack(_)
+   | NextCard
+   | PrevCard
+   | SetComputeResults(_)
+   | SetShowContenteditable(_)
+   | SetShowPresentation(_)
+   | SelectHoleInstance(_)
+   | InvalidVar(_)
+   | FocusCell
+   | BlurCell
+   | FocusWindow
+   | MoveToHole(_)
+   | Undo
+   | Redo =>
+     Logger.append(
+       Sexp.to_string(
+         sexp_of_timestamped_action(mk_timestamped_action(action)),
+       ),
+     )
+   | SelectionChange => ()
+   };
+ };
+ */
+
+let perform_edit_action = (a: EditAction.t, model) =>
+  switch (model |> Model.perform_edit_action(a)) {
+  | new_model => new_model
+  | exception Program.FailedAction =>
+    JSUtil.log("[Program.FailedAction]");
+    model;
+  | exception Program.CursorEscaped =>
+    JSUtil.log("[Program.CursorEscaped]");
+    model;
+  | exception Program.MissingCursorInfo =>
+    JSUtil.log("[Program.MissingCursorInfo]");
+    model;
+  | exception Program.InvalidInput =>
+    JSUtil.log("[Program.InvalidInput");
+    model;
+  | exception Program.DoesNotExpand =>
+    JSUtil.log("[Program.DoesNotExpand]");
+    model;
   };
-  {
-    year: date##getFullYear,
-    month: date##getMonth,
-    day: date##getDay,
-    hours: date##getHours,
-    minutes: date##getMinutes,
-    seconds: date##getSeconds,
-    milliseconds: date##getMilliseconds,
-  };
-};
-
-let mk_timestamped_action = (a: Action.t) => (get_current_timestamp(), a);
-
-let log_action = (action: Action.t, _: State.t): unit => {
-  /* log interesting actions */
-  switch (action) {
-  | EditAction(_)
-  | ToggleLeftSidebar
-  | ToggleRightSidebar
-  | LoadExample(_)
-  | LoadCardstack(_)
-  | NextCard
-  | PrevCard
-  | SetComputeResults(_)
-  | SetShowContenteditable(_)
-  | SetShowPresentation(_)
-  | SelectHoleInstance(_)
-  | InvalidVar(_)
-  | FocusCell
-  | BlurCell
-  | FocusWindow
-  | MoveToHole(_)
-  | Undo
-  | Redo =>
-    Logger.append(
-      Sexp.to_string(
-        sexp_of_timestamped_action(mk_timestamped_action(action)),
-      ),
-    )
-  };
-};
 
 let apply_action =
-    (model: Model.t, action: Action.t, state: State.t, ~schedule_action as _)
+    (
+      model: Model.t,
+      action: Action.t,
+      state: State.t,
+      ~schedule_action: Action.t => unit,
+    )
     : Model.t => {
-  log_action(action, state);
+  // log_action(action);
   switch (action) {
-  | EditAction(a) =>
-    switch (model |> Model.perform_edit_action(a)) {
-    | new_model => new_model
-    | exception Program.FailedAction =>
-      JSUtil.log("[Program.FailedAction]");
-      model;
-    | exception Program.CursorEscaped =>
-      JSUtil.log("[Program.CursorEscaped]");
-      model;
-    | exception Program.MissingCursorInfo =>
-      JSUtil.log("[Program.MissingCursorInfo]");
-      model;
-    | exception Program.InvalidInput =>
-      JSUtil.log("[Program.InvalidInput");
-      model;
-    | exception Program.DoesNotExpand =>
-      JSUtil.log("[Program.DoesNotExpand]");
-      model;
-    }
+  | EditAction(a) => model |> perform_edit_action(a)
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
@@ -148,5 +160,32 @@ let apply_action =
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.put_program(Program.mk(new_edit_state));
     {...new_model, undo_history: new_history};
+  | SelectionChange =>
+    if (! state.setting_caret^) {
+      let anchor_node = Dom_html.window##getSelection##.anchorNode;
+      let row_col =
+        switch (anchor_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
+        | None =>
+          // anchor_node is text node
+          let row =
+            anchor_node
+            |> JSUtil.force_get_closest_elem
+            |> JSUtil.get_id
+            |> row_of_row_text_id
+            |> Option.get;
+          let col = Dom_html.window##getSelection##.anchorOffset;
+          (row, col);
+        | Some(elem) =>
+          // anchor_node is contenteditable element.
+          // anchor_offset = n means is on nth child
+          // of contenteditable, in particular on a <br>.
+          let row = elem |> JSUtil.get_id |> row_of_row_eol_id |> Option.get;
+          (row, 0);
+        };
+      let rev_path = CaretMap.set_caret_rowcol(~state, row_col);
+      let path = CursorPath.rev(rev_path);
+      schedule_action(Action.EditAction(MoveTo(path)));
+    };
+    model;
   };
 };
