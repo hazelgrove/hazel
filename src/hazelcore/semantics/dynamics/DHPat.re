@@ -9,6 +9,7 @@ type t =
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | Var(Var.t)
   | NumLit(int)
+  | FloatLit(float)
   | BoolLit(bool)
   | Inj(InjSide.t, t)
   | ListNil
@@ -32,6 +33,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | NonEmptyHole(_, _, _, _)
   | Wild
   | NumLit(_)
+  | FloatLit(_)
   | BoolLit(_)
   | Triv
   | ListNil
