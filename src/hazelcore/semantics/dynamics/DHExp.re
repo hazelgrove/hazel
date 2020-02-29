@@ -5,6 +5,9 @@ type bin_num_op =
   | Minus
   | Plus
   | Times
+  | FMinus
+  | FPlus
+  | FTimes
   | LessThan
   | GreaterThan
   | Equals;
@@ -14,6 +17,9 @@ let of_op = (op: UHExp.operator): option((bin_num_op, HTyp.t)) =>
   | Minus => Some((Minus, Int))
   | Plus => Some((Plus, Int))
   | Times => Some((Times, Int))
+  | FMinus => Some((FMinus, Float))
+  | FPlus => Some((FPlus, Float))
+  | FTimes => Some((FTimes, Float))
   | LessThan => Some((LessThan, Bool))
   | GreaterThan => Some((GreaterThan, Bool))
   | Equals => Some((Equals, Bool))
@@ -29,6 +35,9 @@ let to_op = (bno: bin_num_op): UHExp.operator =>
   | Minus => Minus
   | Plus => Plus
   | Times => Times
+  | FMinus => FMinus
+  | FPlus => FPlus
+  | FTimes => FTimes
   | LessThan => LessThan
   | GreaterThan => GreaterThan
   | Equals => Equals
@@ -54,6 +63,7 @@ type t =
   | Ap(t, t)
   | BoolLit(bool)
   | NumLit(int)
+  | FloatLit(float)
   | BinNumOp(bin_num_op, t, t)
   | And(t, t)
   | Or(t, t)
@@ -81,6 +91,7 @@ let constructor_string = (d: t): string =>
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | NumLit(_) => "NumLit"
+  | FloatLit(_) => "FloatLit"
   | BinNumOp(_, _, _) => "BinNumOp"
   | And(_, _) => "And"
   | Or(_, _) => "Or"

@@ -63,6 +63,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   /* outer nodes - text */
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | NumLit(_, n) => CursorPosition.text_cursors(IntUtil.num_digits(n))
+  | FloatLit(_, f) => CursorPosition.text_cursors(FloatUtil.num_digits(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
@@ -133,6 +134,7 @@ and is_before_zoperand =
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, Var(_))
   | CursorE(cursor, NumLit(_))
+  | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
@@ -180,6 +182,8 @@ and is_after_zoperand =
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorE(cursor, NumLit(_, n)) =>
     cursor == OnText(IntUtil.num_digits(n))
+  | CursorE(cursor, FloatLit(_, f)) =>
+    cursor == OnText(FloatUtil.num_digits(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
@@ -229,6 +233,7 @@ and place_before_operand = operand =>
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | Var(_)
   | NumLit(_)
+  | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Lam(_)
   | Inj(_)
@@ -263,6 +268,7 @@ and place_after_operand = operand =>
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | NumLit(_, n) => CursorE(OnText(IntUtil.num_digits(n)), operand)
+  | FloatLit(_, f) => CursorE(OnText(FloatUtil.num_digits(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
@@ -615,7 +621,7 @@ and move_cursor_left_zoperand =
       )
     }
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -841,7 +847,7 @@ and move_cursor_right_zoperand =
       ? Some(CaseZE(err, place_before(scrut), rules, Some(ann)))
       : Some(CaseZA(err, scrut, rules, ZTyp.place_before(ann)))
   | CursorE(_, ApPalette(_, _, _, _)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>

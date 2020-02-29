@@ -423,6 +423,7 @@ module Typ = {
       | Hole
       | Unit
       | Int
+      | Float
       | Bool => None
       | Parenthesized(body) =>
         switch (x) {
@@ -475,6 +476,7 @@ module Typ = {
       | Hole
       | Unit
       | Int
+      | Float
       | Bool => None
       | Parenthesized(body) =>
         switch (x) {
@@ -518,6 +520,7 @@ module Typ = {
     | Hole => [(TypHole, rev_steps |> List.rev), ...hs]
     | Unit
     | Int
+    | Float
     | Bool => hs
     | Parenthesized(body)
     | List(body) => hs |> holes(body, [0, ...rev_steps])
@@ -540,7 +543,7 @@ module Typ = {
     switch (zoperand) {
     | CursorT(_, Hole) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
-    | CursorT(_, Unit | Int | Bool) => no_holes
+    | CursorT(_, Unit | Int | Float | Bool) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
       let holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
@@ -580,6 +583,7 @@ module Pat = {
       | Wild(_)
       | Var(_, _, _)
       | NumLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -634,6 +638,7 @@ module Pat = {
       | Wild(_)
       | Var(_, _, _)
       | NumLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -692,6 +697,7 @@ module Pat = {
     | Var(InHole(_, u), _, _)
     | Var(_, InVarHole(_, u), _)
     | NumLit(InHole(_, u), _)
+    | FloatLit(InHole(_, u), _)
     | BoolLit(InHole(_, u), _)
     | ListNil(InHole(_, u)) => [
         (PatHole(u), rev_steps |> List.rev),
@@ -700,6 +706,7 @@ module Pat = {
     | Var(NotInHole, NotInVarHole, _)
     | Wild(NotInHole)
     | NumLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
     | ListNil(NotInHole) => hs
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
@@ -747,6 +754,7 @@ module Pat = {
       }
     | CursorP(_, Wild(err))
     | CursorP(_, NumLit(err, _))
+    | CursorP(_, FloatLit(err, _))
     | CursorP(_, BoolLit(err, _))
     | CursorP(_, ListNil(err)) =>
       switch (err) {
@@ -899,6 +907,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | NumLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -1075,6 +1084,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | NumLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -1232,6 +1242,7 @@ module Exp = {
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
     | NumLit(err, _)
+    | FloatLit(err, _)
     | BoolLit(err, _)
     | ListNil(err) => hs |> holes_err(err, rev_steps)
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
@@ -1419,6 +1430,7 @@ module Exp = {
         )
       }
     | CursorE(_, NumLit(err, _))
+    | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
     | CursorE(_, ListNil(err)) =>
       switch (err) {
