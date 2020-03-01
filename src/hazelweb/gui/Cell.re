@@ -49,6 +49,20 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let program = model |> Model.get_program;
+  let (row_numbers, contenteditable, presentation) =
+    model.is_cell_focused
+      ? Code.editor_view_of_exp(
+          ~inject,
+          ~path=program |> Program.get_path,
+          ~ci=program |> Program.get_cursor_info,
+          ~show_contenteditable=model.show_contenteditable,
+          program |> Program.get_uhexp,
+        )
+      : Code.editor_view_of_exp(
+          ~inject,
+          ~show_contenteditable=model.show_contenteditable,
+          program |> Program.get_uhexp,
+        );
   Vdom.(
     Node.div(
       [
@@ -94,28 +108,13 @@ let view =
           };
         }),
       ],
-      {
-        let (contenteditable, presentation) =
-          model.is_cell_focused
-            ? Code.editor_view_of_exp(
-                ~inject,
-                ~path=program |> Program.get_path,
-                ~ci=program |> Program.get_cursor_info,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
-              )
-            : Code.editor_view_of_exp(
-                ~inject,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
-              );
-        [
-          Node.div(
-            [Attr.id("code-container")],
-            [presentation, contenteditable],
-          ),
-        ];
-      },
+      [
+        row_numbers,
+        Node.div(
+          [Attr.id("code-container")],
+          [contenteditable, presentation],
+        ),
+      ],
     )
   );
 };

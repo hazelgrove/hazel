@@ -11,6 +11,8 @@
   --title-bar-color: #073f24;
   --page-padding: 15px;
 
+  --code-font-family: "Fira Mono", monospace;
+  --code-font-size: 14pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
@@ -34,6 +36,11 @@
   --code-radius: 4px;
   --child-border-thickness: 4px;
   --code-shadow-thickness: 1.5px;
+
+  --cell-padding: 10px;
+  --cell-border-thickness: 2px;
+  --cell-border-color: #CCC;
+  --cell-border-style: var(--cell-border-thickness) solid var(--cell-border-color);
 
   /* necessary for hiding portions of box shadows */
   --presentation-z: 0;
@@ -177,10 +184,6 @@ html, body {
   direction: rtl;
 }
 
-#collapsible-right-bar {
-
-}
-
 .sidebar {
   width: auto;
   height: 100%;
@@ -246,14 +249,6 @@ html, body {
   height: 100%;
 }
 
-#left-bar-body-padding {
-
-}
-
-#right-bar-body-padding {
-
-}
-
 .sidebar-body-padding-expanded {
   width: 28px;
 }
@@ -280,10 +275,6 @@ html, body {
   background-color: var(--title-bar-color);
 }
 
-.panel-title-bar {
-
-}
-
 .panel-body {
   flex-grow: 1;
   /* enable scroll */
@@ -292,10 +283,6 @@ html, body {
 }
 
 /* cursor inspector */
-
-.cursor-inspector-outer {
-
-}
 
 .cursor-OK.cursor-inspector {
   outline: 1px solid var(--title-bar-color);
@@ -744,10 +731,8 @@ h1 {
 }
 
 .code {
-  font-family: "Fira Mono", monospace;
-  // TODO probably unnecessary if we commit to nbsp
-  white-space: pre;
-  font-size: 14pt;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
 }
 .code.presentation {
@@ -791,6 +776,28 @@ h1 {
 }
 .code.contenteditable:focus {
   outline: 0px;
+}
+
+#row-numbers {
+  padding-left: 4px;
+  padding-right: 12px;
+  margin-right: 12px;
+}
+#row-numbers .row-number {
+  text-align: right;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
+  color: var(--cell-border-color);
+  min-width: 2ch;
+}
+
+#col-numbers {
+  position: absolute;
+  top: -2em;
+  left: 0;
+  color: transparent;
+  font-family: var(--code-font-family);
 }
 
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
@@ -1123,8 +1130,10 @@ h1 {
   width: auto;
   margin-top: 20px;
   background-color: white;
-  padding: 10px;
-  border: 2px solid #CCC;
+  padding: var(--cell-padding);
+  border: var(--cell-border-style);
+  display: flex;
+  flex-direction: row;
 }
 #cell:focus {
   outline: 0px;

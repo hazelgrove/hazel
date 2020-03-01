@@ -13,7 +13,7 @@ let rec range = (~lo=0, hi: int): list(int) =>
 
 let sublist = (~lo=0, hi: int, xs: list('a)): list('a) =>
   if (lo < 0 || hi > List.length(xs)) {
-    raise(Invalid_argument("GeneralUtil.sublist"));
+    raise(Invalid_argument("ListUtil.sublist"));
   } else {
     range(~lo, hi) |> List.map(n => List.nth(xs, n));
   };
