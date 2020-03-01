@@ -109,7 +109,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     JSUtil.log("move to~~");
   };
   let new_program = model |> get_program |> Program.perform_edit_action(a);
-  let cursor_path = new_program |> Program.get_path;
+
   let model' =
     model
     |> put_program(new_program)
@@ -127,7 +127,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
            );
          },
        );
-  {...model', cursor_path};
+  {...model', cursor_path: model |> get_program |> Program.get_path};
 };
 
 let move_to_hole = (u: MetaVar.t, model: t): t =>
@@ -159,6 +159,21 @@ let load_example = (model: t, e: UHExp.t): t =>
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(Cardstacks.load_cardstack(idx)) |> focus_cell;
 };
+
+let follow_cursor_path = (cursor_path: CursorPath.t, model: t): t => {
+  let ze = model |> get_program |> Program.get_zexp;
+  let new_ze =
+    switch (CursorPath.Exp.follow(cursor_path, ze |> ZExp.erase)) {
+    | None => ze
+    | Some(new_ze') => new_ze'
+    };
+  let (_, hty, meta) = model |> get_program |> Program.get_edit_state;
+  let new_program =
+    model |> get_program |> Program.put_edit_state((new_ze, hty, meta));
+  model |> put_program(new_program);
+  //put_z(new_cardstack, cardstacks);
+};
+
 let undo = (model: t): t => {
   let new_history = {
     let cur_group = ZList.prj_z(model.undo_history);
@@ -187,14 +202,17 @@ let undo = (model: t): t => {
     };
   };
   let cur_group' = ZList.prj_z(new_history);
-  //let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  let new_cardstacks =
-    ZList.prj_z(cur_group'.group_entries).cardstacks
-    |> Cardstacks.follow_cursor_path(model.cursor_path);
+  let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
+  /*   let new_cardstacks =
+       ZList.prj_z(cur_group'.group_entries).cardstacks
+       |> Cardstacks.follow_cursor_path(model.cursor_path); */
   //let new_model = model |> Model.put_program(Program.mk(new_edit_state));
 
   let model' = model |> put_cardstacks(new_cardstacks);
-  {...model', undo_history: new_history};
+  //{...model', undo_history: new_history};
+  let model_2 = {...model', undo_history: new_history};
+  follow_cursor_path(model.cursor_path, model_2);
+  //perform_edit_action(MoveTo(model.cursor_path), model_2);
 };
 
 let redo = (model: t): t => {
@@ -225,9 +243,10 @@ let redo = (model: t): t => {
     };
   };
   let cur_group' = ZList.prj_z(new_history);
-  let new_cardstacks =
-    ZList.prj_z(cur_group'.group_entries).cardstacks
-    |> Cardstacks.follow_cursor_path(model.cursor_path);
+  let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
   let model' = model |> put_cardstacks(new_cardstacks);
   {...model', undo_history: new_history};
+  //let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
+  /*   let model_2 = {...model', undo_history: new_history};
+       perform_edit_action(MoveTo(model.cursor_path), model_2); */
 };
