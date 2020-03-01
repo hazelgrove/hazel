@@ -32,7 +32,7 @@ type info = {
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
   info: option(info),
-  next_is_move_action: bool,
+  not_movement_agnostic: bool,
 };
 
 type undo_history_group = {
@@ -330,7 +330,7 @@ let set_success_join =
       | Some(edit_action) => {
           ...new_entry,
           info: Some({...new_info, edit_action}),
-          next_is_move_action: false,
+          not_movement_agnostic: false,
         }
       }
     };
@@ -1272,7 +1272,53 @@ let join_group =
     }
   };
 };
-
+let is_movement_agnostic = (action: Action.t): bool => {
+  switch (action) {
+  | MoveTo(_)
+  | MoveToBefore(_) => false
+  | MoveLeft
+  | MoveRight
+  | MoveToNextHole
+  | MoveToPrevHole
+  | UpdateApPalette(_)
+  | Delete
+  | Backspace
+  | Construct(_) => true
+  };
+};
+let update_move_action =
+    (undo_history: t, cardstacks: Cardstacks.t, action: Action.t): t => {
+  let prev_group = ZList.prj_z(undo_history);
+  let prev_entry = ZList.prj_z(prev_group.group_entries);
+  let new_group =
+    if (is_movement_agnostic(action)) {
+      {...prev_group, is_complete: true};
+    } else if (prev_entry.not_movement_agnostic) {
+      {
+        ...prev_group,
+        group_entries:
+          ZList.replace_z(
+            {cardstacks, info: None, not_movement_agnostic: true},
+            prev_group.group_entries,
+          ),
+        is_complete: true,
+      };
+    } else {
+      {
+        ...prev_group,
+        group_entries: (
+          ZList.prj_prefix(prev_group.group_entries),
+          {cardstacks, info: None, not_movement_agnostic: true},
+          [
+            ZList.prj_z(prev_group.group_entries),
+            ...ZList.prj_suffix(prev_group.group_entries),
+          ],
+        ),
+        is_complete: true,
+      };
+    };
+  ZList.replace_z(new_group, undo_history);
+};
 let push_edit_state =
     (
       undo_history: t,
@@ -1297,7 +1343,7 @@ let push_edit_state =
     let new_entry = {
       cardstacks: cur_cardstacks,
       info: Some(new_entry_info),
-      next_is_move_action: false,
+      not_movement_agnostic: false,
     };
     switch (join_group(prev_group, new_entry)) {
     | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
@@ -1312,18 +1358,11 @@ let push_edit_state =
   } else {
     /* if any cursor-moving action interupts the current edit,
        the current group becomes complete. */
-    let cur_entry = ZList.prj_z(prev_group.group_entries);
-
-    let prev_group' = {
-      ...prev_group,
-      group_entries:
-        ZList.replace_z(
-          {...cur_entry, next_is_move_action: true},
-          prev_group.group_entries,
-        ),
-      is_complete: true,
-    };
-    ZList.replace_z(prev_group', undo_history);
+    update_move_action(
+      undo_history,
+      cur_cardstacks,
+      action,
+    );
   };
 };
 
