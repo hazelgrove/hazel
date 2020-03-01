@@ -156,12 +156,12 @@ module Contenteditable = {
         [Attr.id("col-numbers")],
         ListUtil.range(width)
         |> List.map(i =>
-             Node.span(
+             Node.div(
                [
                  Attr.classes(["col-number"]),
                  Attr.create("col", string_of_int(i)),
                ],
-               [Node.text(UnicodeConstants.nbsp)],
+               [],
              )
            ),
       );

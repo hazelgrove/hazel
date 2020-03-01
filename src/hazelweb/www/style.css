@@ -794,10 +794,17 @@ h1 {
 
 #col-numbers {
   position: absolute;
-  top: -2em;
+  top: calc(-1 * (var(--cell-padding) + var(--cell-border-thickness)));
   left: 0;
-  color: transparent;
   font-family: var(--code-font-family);
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  height: var(--cell-border-thickness);
+}
+.col-number {
+  width: 1ch;
 }
 
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
