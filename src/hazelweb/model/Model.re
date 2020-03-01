@@ -26,6 +26,7 @@ let init = (): t => {
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
       info: None,
+      next_is_move_action: false,
     };
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
@@ -171,7 +172,6 @@ let follow_cursor_path = (cursor_path: CursorPath.t, model: t): t => {
   let new_program =
     model |> get_program |> Program.put_edit_state((new_ze, hty, meta));
   model |> put_program(new_program);
-  //put_z(new_cardstack, cardstacks);
 };
 
 let undo = (model: t): t => {
@@ -186,33 +186,48 @@ let undo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
+          ...new_group,
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
-          is_complete: new_group.is_complete,
         }; /* is_expanded=true because the selected group should be expanded*/
         ZList.replace_z(new_group', new_history);
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
+        ...cur_group,
         group_entries: new_group_entries,
         is_expanded: true,
-        is_complete: cur_group.is_complete,
       };
       ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };
   };
   let cur_group' = ZList.prj_z(new_history);
   let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  /*   let new_cardstacks =
-       ZList.prj_z(cur_group'.group_entries).cardstacks
-       |> Cardstacks.follow_cursor_path(model.cursor_path); */
-  //let new_model = model |> Model.put_program(Program.mk(new_edit_state));
-
   let model' = model |> put_cardstacks(new_cardstacks);
-  //{...model', undo_history: new_history};
-  let model_2 = {...model', undo_history: new_history};
-  follow_cursor_path(model.cursor_path, model_2);
-  //perform_edit_action(MoveTo(model.cursor_path), model_2);
+  if (ZList.prj_z(cur_group'.group_entries).next_is_move_action) {
+    JSUtil.log(
+      string_of_int(List.length(ZList.prj_prefix(cur_group'.group_entries)))
+      ++ " "
+      ++ string_of_int(
+           List.length(ZList.prj_suffix(cur_group'.group_entries)),
+         )
+      ++ "end",
+    );
+    follow_cursor_path(
+      model.cursor_path,
+      {...model', undo_history: new_history},
+    );
+  } else {
+    JSUtil.log(
+      string_of_int(List.length(ZList.prj_prefix(cur_group'.group_entries)))
+      ++ " "
+      ++ string_of_int(
+           List.length(ZList.prj_suffix(cur_group'.group_entries)),
+         )
+      ++ "not end",
+    );
+    {...model', undo_history: new_history};
+  };
 };
 
 let redo = (model: t): t => {
@@ -227,26 +242,35 @@ let redo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
+          ...new_group,
           group_entries: ZList.shift_end(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
-          is_complete: new_group.is_complete,
         }; /* is_expanded=true because this group should be expanded when redo*/
         ZList.replace_z(new_group', new_history);
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
+        ...cur_group,
         group_entries: new_group_entries,
         is_expanded: true,
-        is_complete: cur_group.is_complete,
       };
       ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };
   };
+  /*   let cur_group' = ZList.prj_z(new_history);
+       let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
+       let model' = model |> put_cardstacks(new_cardstacks);
+       {...model', undo_history: new_history};
+       //let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks; */
   let cur_group' = ZList.prj_z(new_history);
   let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
   let model' = model |> put_cardstacks(new_cardstacks);
-  {...model', undo_history: new_history};
-  //let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  /*   let model_2 = {...model', undo_history: new_history};
-       perform_edit_action(MoveTo(model.cursor_path), model_2); */
+  if (ZList.prj_z(cur_group'.group_entries).next_is_move_action) {
+    follow_cursor_path(
+      model.cursor_path,
+      {...model', undo_history: new_history},
+    );
+  } else {
+    {...model', undo_history: new_history};
+  };
 };

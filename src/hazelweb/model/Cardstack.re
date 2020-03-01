@@ -22,11 +22,6 @@ let put_program = (program, cardstack) => {
   cardstack |> put_z(new_zcard);
 };
 
-let put_zexp = (ze: ZExp.t, cardstack) => {
-  let new_zcard = cardstack |> get_z |> Card.put_zexp(ze);
-  cardstack |> put_z(new_zcard);
-};
-
 let has_prev = (cardstack: t): bool => {
   let (prefix, _, _) = cardstack.zcards;
   !ListUtil.is_empty(prefix);
