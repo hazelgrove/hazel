@@ -74,6 +74,7 @@ module Pat = {
     | Wild(InHole(TypeInconsistent as reason, u))
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
@@ -89,6 +90,7 @@ module Pat = {
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
@@ -107,6 +109,7 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Int, ctx, delta)
+    | FloatLit(NotInHole, n) => Expands(FloatLit(n), Float, ctx, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
     | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
@@ -283,6 +286,7 @@ module Pat = {
     | Wild(InHole(TypeInconsistent as reason, u))
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
@@ -299,6 +303,7 @@ module Pat = {
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
@@ -316,6 +321,7 @@ module Pat = {
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
     | NumLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _) => syn_expand_operand(ctx, delta, operand)
     | ListNil(NotInHole) =>
       switch (HTyp.matched_list(ty)) {
@@ -348,6 +354,7 @@ module Pat = {
     | Wild
     | Var(_)
     | NumLit(_)
+    | FloatLit(_)
     | BoolLit(_)
     | ListNil
     | Triv => (dp, hii)
@@ -426,6 +433,7 @@ module Exp = {
       Ap(d3, d4);
     | BoolLit(_)
     | NumLit(_)
+    | FloatLit(_)
     | ListNil(_)
     | Triv => d2
     | Cons(d3, d4) =>
@@ -543,6 +551,15 @@ module Exp = {
     | (NumLit(_), Cast(d, Int, Hole)) => matches(dp, d)
     | (NumLit(_), Cast(d, Hole, Int)) => matches(dp, d)
     | (NumLit(_), _) => DoesNotMatch
+    | (FloatLit(n1), FloatLit(n2)) =>
+      if (n1 == n2) {
+        Matches(Environment.empty);
+      } else {
+        DoesNotMatch;
+      }
+    | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
+    | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
+    | (FloatLit(_), _) => DoesNotMatch
     | (Inj(side1, dp), Inj(_, side2, d)) =>
       switch (side1, side2) {
       | (L, L)
@@ -641,6 +658,7 @@ module Exp = {
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
+    | FloatLit(_) => DoesNotMatch
     | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
@@ -695,6 +713,7 @@ module Exp = {
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
+    | FloatLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
     | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
@@ -749,6 +768,7 @@ module Exp = {
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
+    | FloatLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
     | ListNil(_) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
@@ -954,6 +974,25 @@ module Exp = {
           };
         }
       }
+    | BinOp(NotInHole, FMinus as op, skel1, skel2)
+    | BinOp(NotInHole, FPlus as op, skel1, skel2)
+    | BinOp(NotInHole, FTimes as op, skel1, skel2) =>
+      switch (ana_expand_skel(ctx, delta, skel1, seq, Float)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, ty1, delta) =>
+        switch (ana_expand_skel(ctx, delta, skel2, seq, Float)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d2, ty2, delta) =>
+          let dc1 = DHExp.cast(d1, ty1, Float);
+          let dc2 = DHExp.cast(d2, ty2, Float);
+          switch (DHExp.of_op(op)) {
+          | None => DoesNotExpand
+          | Some((op, ty)) =>
+            let d = DHExp.BinNumOp(op, dc1, dc2);
+            Expands(d, ty, delta);
+          };
+        }
+      }
     | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Bool)) {
       | DoesNotExpand => DoesNotExpand
@@ -978,6 +1017,7 @@ module Exp = {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
@@ -999,6 +1039,7 @@ module Exp = {
       };
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
@@ -1032,6 +1073,7 @@ module Exp = {
         };
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Int, delta)
+    | FloatLit(NotInHole, f) => Expands(FloatLit(f), Float, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
@@ -1265,6 +1307,9 @@ module Exp = {
     | BinOp(_, Minus | And | Or, _, _)
     | BinOp(_, Plus, _, _)
     | BinOp(_, Times, _, _)
+    | BinOp(_, FMinus, _, _)
+    | BinOp(_, FPlus, _, _)
+    | BinOp(_, FTimes, _, _)
     | BinOp(_, LessThan | GreaterThan | Equals, _, _)
     | BinOp(_, Space, _, _) =>
       switch (syn_expand_skel(ctx, delta, skel, seq)) {
@@ -1284,6 +1329,7 @@ module Exp = {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
@@ -1302,6 +1348,7 @@ module Exp = {
       };
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
@@ -1416,6 +1463,7 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | NumLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _) =>
       /* subsumption */
       syn_expand_operand(ctx, delta, operand)
@@ -1472,6 +1520,7 @@ module Exp = {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
+    | FloatLit(_)
     | ListNil(_)
     | Triv => (d, hii)
     | Let(dp, d1, d2) =>
@@ -1563,6 +1612,7 @@ module Exp = {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
+    | FloatLit(_)
     | ListNil(_)
     | Triv => (d, hii)
     | Let(dp, d1, d2) =>
@@ -1711,6 +1761,9 @@ module Evaluator = {
      5 = bad pattern match
      6 = Cast BV Hole Ground
    */
+  /* TODO
+     need to include the case for float point numbers?
+      */
 
   [@deriving sexp]
   type ground_cases =
@@ -1728,6 +1781,7 @@ module Evaluator = {
     | Hole => Hole
     | Bool
     | Int
+    | Float
     | Unit
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
@@ -1739,14 +1793,25 @@ module Evaluator = {
     | List(_) => grounded_List
     };
 
-  let eval_bin_num_op = (op: DHExp.bin_num_op, n1: int, n2: int): DHExp.t =>
+  let eval_bin_int_op =
+      (op: DHExp.bin_num_op, n1: int, n2: int): option(DHExp.t) =>
     switch (op) {
-    | Minus => NumLit(n1 - n2)
-    | Plus => NumLit(n1 + n2)
-    | Times => NumLit(n1 * n2)
-    | LessThan => BoolLit(n1 < n2)
-    | GreaterThan => BoolLit(n1 > n2)
-    | Equals => BoolLit(n1 == n2)
+    | Minus => Some(NumLit(n1 - n2))
+    | Plus => Some(NumLit(n1 + n2))
+    | Times => Some(NumLit(n1 * n2))
+    | LessThan => Some(BoolLit(n1 < n2))
+    | GreaterThan => Some(BoolLit(n1 > n2))
+    | Equals => Some(BoolLit(n1 == n2))
+    | _ => None
+    };
+
+  let eval_bin_float_op =
+      (op: DHExp.bin_num_op, f1: float, f2: float): option(DHExp.t) =>
+    switch (op) {
+    | FPlus => Some(FloatLit(f1 +. f2))
+    | FMinus => Some(FloatLit(f1 -. f2))
+    | FTimes => Some(FloatLit(f1 *. f2))
+    | _ => None
     };
 
   let rec evaluate = (d: DHExp.t): result =>
@@ -1801,6 +1866,7 @@ module Evaluator = {
     | ListNil(_)
     | BoolLit(_)
     | NumLit(_)
+    | FloatLit(_)
     | Triv => BoxedValue(d)
     | And(d1, d2) =>
       switch (evaluate(d1)) {
@@ -1844,7 +1910,22 @@ module Evaluator = {
       | BoxedValue(NumLit(n1) as d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(NumLit(n2)) => BoxedValue(eval_bin_num_op(op, n1, n2))
+        | BoxedValue(NumLit(n2)) =>
+          switch (eval_bin_int_op(op, n1, n2)) {
+          | Some(out) => BoxedValue(out)
+          | None => InvalidInput(5)
+          }
+        | BoxedValue(_) => InvalidInput(3)
+        | Indet(d2') => Indet(BinNumOp(op, d1', d2'))
+        }
+      | BoxedValue(FloatLit(f1) as d1') =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(FloatLit(f2)) =>
+          switch (eval_bin_float_op(op, f1, f2)) {
+          | Some(out) => BoxedValue(out)
+          | None => InvalidInput(5)
+          }
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinNumOp(op, d1', d2'))
         }
