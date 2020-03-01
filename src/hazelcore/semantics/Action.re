@@ -6,6 +6,9 @@ type operator_shape =
   | SMinus
   | SPlus
   | STimes
+  | SFMinus
+  | SFPlus
+  | SFTimes
   | SLessThan
   | SGreaterThan
   | SEquals
@@ -71,6 +74,9 @@ module Typ = {
     | SMinus
     | SPlus
     | STimes
+    | SFMinus
+    | SFPlus
+    | SFTimes
     | SAnd
     | SOr
     | SLessThan
@@ -297,7 +303,7 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Bool)) =>
+    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
     /* ( _ )<|  ==>  _| */
@@ -649,6 +655,9 @@ module Pat = {
     | SMinus
     | SPlus
     | STimes
+    | SFMinus
+    | SFPlus
+    | SFTimes
     | SLessThan
     | SGreaterThan
     | SEquals
@@ -722,6 +731,9 @@ module Pat = {
     | Some(NumLit(n)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.numlit(n)));
       Succeeded((zp, HTyp.Int, ctx, u_gen));
+    | Some(FloatLit(f)) =>
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
+      Succeeded((zp, HTyp.Float, ctx, u_gen));
     | Some(BoolLit(b)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
@@ -763,6 +775,7 @@ module Pat = {
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, ctx, u_gen));
     | Some(NumLit(_))
+    | Some(FloatLit(_))
     | Some(BoolLit(_)) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -1127,7 +1140,7 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
+        CursorP(OnDelim(_), Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1188,6 +1201,8 @@ module Pat = {
       syn_delete_text(ctx, u_gen, j, x)
     | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
       syn_delete_text(ctx, u_gen, j, string_of_int(n))
+    | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
+      syn_delete_text(ctx, u_gen, j, string_of_float(f))
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
@@ -1195,6 +1210,8 @@ module Pat = {
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_int(n))
+    | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
+      syn_backspace_text(ctx, u_gen, j, string_of_float(f))
     | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
@@ -1240,6 +1257,11 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
+    | (Construct(SOp(sop)), CursorP(OnText(j), FloatLit(_, f)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, string_of_float(f))
 
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
@@ -1254,6 +1276,8 @@ module Pat = {
       syn_insert_text(ctx, u_gen, (j, s), x)
     | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
+    | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
+      syn_insert_text(ctx, u_gen, (j, s), string_of_float(f))
     | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorP(_)) => Failed
@@ -1506,7 +1530,7 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
+        CursorP(OnDelim(_), Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1587,6 +1611,8 @@ module Pat = {
       ana_delete_text(ctx, u_gen, j, x, ty)
     | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
       ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
+      ana_delete_text(ctx, u_gen, j, string_of_float(f), ty)
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
@@ -1594,6 +1620,8 @@ module Pat = {
       ana_backspace_text(ctx, u_gen, j, x, ty)
     | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
+      ana_backspace_text(ctx, u_gen, j, string_of_float(f), ty)
     | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
@@ -1637,6 +1665,11 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
+    | (Construct(SOp(sop)), CursorP(OnText(j), FloatLit(_, f)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, string_of_float(f), ty)
 
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
@@ -1651,6 +1684,8 @@ module Pat = {
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
     | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
+    | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
+      ana_insert_text(ctx, u_gen, (j, s), string_of_float(f), ty)
     | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
     | (Construct(SChar(_)), CursorP(_)) => Failed
@@ -1740,6 +1775,9 @@ module Exp = {
     | SPlus => Some(Plus)
     | SMinus => Some(Minus)
     | STimes => Some(Times)
+    | SFPlus => Some(FPlus)
+    | SFMinus => Some(FMinus)
+    | SFTimes => Some(FTimes)
     | SLessThan => Some(LessThan)
     | SGreaterThan => Some(GreaterThan)
     | SEquals => Some(Equals)
@@ -1757,6 +1795,9 @@ module Exp = {
     | Minus => SMinus
     | Plus => SPlus
     | Times => STimes
+    | FMinus => SFMinus
+    | FPlus => SFPlus
+    | FTimes => SFTimes
     | LessThan => SLessThan
     | GreaterThan => SGreaterThan
     | Equals => SEquals
@@ -2024,6 +2065,9 @@ module Exp = {
     | Some(NumLit(n)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.numlit(n)));
       Succeeded(SynDone((ze, HTyp.Int, u_gen)));
+    | Some(FloatLit(f)) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
+      Succeeded(SynDone((ze, HTyp.Float, u_gen)));
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
@@ -2082,7 +2126,7 @@ module Exp = {
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(NumLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(NumLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -2872,7 +2916,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -2935,6 +2979,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, x)
     | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
       syn_delete_text(ctx, u_gen, j, string_of_int(n))
+    | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
+      syn_delete_text(ctx, u_gen, j, string_of_float(f))
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
@@ -2942,6 +2988,8 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_int(n))
+    | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
+      syn_backspace_text(ctx, u_gen, j, string_of_float(f))
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
@@ -3004,6 +3052,11 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
+    | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, string_of_float(f))
 
     | (
         Construct(SOp(SSpace)),
@@ -3058,6 +3111,8 @@ module Exp = {
       syn_insert_text(ctx, u_gen, (j, s), x)
     | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
+    | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
+      syn_insert_text(ctx, u_gen, (j, s), string_of_float(f))
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorE(_)) => Failed
@@ -3908,7 +3963,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3984,6 +4039,8 @@ module Exp = {
       ana_delete_text(ctx, u_gen, j, x, ty)
     | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
       ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
+      ana_delete_text(ctx, u_gen, j, string_of_float(f), ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
@@ -3991,6 +4048,8 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, x, ty)
     | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
+      ana_backspace_text(ctx, u_gen, j, string_of_float(f), ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
@@ -4048,6 +4107,8 @@ module Exp = {
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
     | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
+      ana_insert_text(ctx, u_gen, (j, s), string_of_float(f), ty)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
     | (Construct(SChar(_)), CursorE(_)) => Failed
@@ -4085,6 +4146,11 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
+    | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, string_of_float(f), ty)
 
     | (Construct(SAsc), LamZP(err, zp, None, body)) =>
       let new_zann = UHTyp.Hole |> ZTyp.place_before_operand |> ZOpSeq.wrap;

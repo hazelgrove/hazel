@@ -139,6 +139,9 @@ let mk_Unit = (~steps: CursorPath.steps, ()): t =>
 let mk_Num = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "Int") |> annot_Operand(~sort=Typ);
 
+let mk_Float = (~steps: CursorPath.steps, ()): t =>
+  DelimDoc.mk(~path=(steps, 0), "Float") |> annot_Operand(~sort=Typ);
+
 let mk_Bool = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "Bool") |> annot_Operand(~sort=Typ);
 
@@ -164,6 +167,11 @@ let mk_NumLit =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, n: int)
     : t =>
   mk_text(~steps, string_of_int(n)) |> annot_Operand(~sort, ~err);
+
+let mk_FloatLit =
+    (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, f: float)
+    : t =>
+  mk_text(~steps, string_of_float(f)) |> annot_Operand(~sort, ~err);
 
 let mk_BoolLit =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, b: bool)
@@ -485,6 +493,7 @@ module Typ = {
   let precedence_ty = (ty: HTyp.t): int =>
     switch (ty) {
     | Int
+    | Float
     | Bool
     | Hole
     | Unit
@@ -507,6 +516,7 @@ module Typ = {
       | Hole => mk_EmptyHole(~steps, "?")
       | Unit => mk_Unit(~steps, ())
       | Int => mk_Num(~steps, ())
+      | Float => mk_Float(~steps, ())
       | Bool => mk_Bool(~steps, ())
       | List(ty) =>
         Doc.hcats([
@@ -639,6 +649,7 @@ module Typ = {
     | Hole => mk_EmptyHole(~steps, "?")
     | Unit => mk_Unit(~steps, ())
     | Int => mk_Num(~steps, ())
+    | Float => mk_Float(~steps, ())
     | Bool => mk_Bool(~steps, ())
     | Parenthesized(body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
@@ -668,6 +679,7 @@ module Pat = {
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Pat);
   let mk_NumLit = mk_NumLit(~sort=Pat);
+  let mk_FloatLit = mk_FloatLit(~sort=Pat);
   let mk_BoolLit = mk_BoolLit(~sort=Pat);
   let mk_ListNil = mk_ListNil(~sort=Pat);
   let mk_Var = mk_Var(~sort=Pat);
@@ -701,6 +713,7 @@ module Pat = {
     | Wild(err) => mk_Wild(~err, ~steps)
     | Var(err, verr, x) => mk_Var(~steps, ~err, ~verr, x)
     | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
+    | FloatLit(err, f) => mk_FloatLit(~err, ~steps, f)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
     | ListNil(err) => mk_ListNil(~err, ~steps, ())
     | Parenthesized(body) =>
@@ -726,9 +739,12 @@ module Exp = {
       fun
       | UHExp.Space
       | Times
+      | FTimes
       | Cons => (empty(), empty())
       | Plus
       | Minus
+      | FPlus
+      | FMinus
       | LessThan
       | GreaterThan
       | Equals
@@ -739,6 +755,7 @@ module Exp = {
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Exp);
   let mk_NumLit = mk_NumLit(~sort=Exp);
+  let mk_FloatLit = mk_FloatLit(~sort=Exp);
   let mk_BoolLit = mk_BoolLit(~sort=Exp);
   let mk_ListNil = mk_ListNil(~sort=Exp);
   let mk_Var = mk_Var(~sort=Exp);
@@ -831,6 +848,7 @@ module Exp = {
     | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u))
     | Var(err, verr, x) => mk_Var(~err, ~verr, ~steps, x)
     | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
+    | FloatLit(err, f) => mk_FloatLit(~err, ~steps, f)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
     | ListNil(err) => mk_ListNil(~err, ~steps, ())
     | Lam(err, p, ann, body) =>
