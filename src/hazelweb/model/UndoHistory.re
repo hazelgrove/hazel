@@ -32,6 +32,7 @@ type info = {
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
   info: option(info),
+  next_is_move_action: bool,
 };
 
 type undo_history_group = {
@@ -329,6 +330,7 @@ let set_success_join =
       | Some(edit_action) => {
           ...new_entry,
           info: Some({...new_info, edit_action}),
+          next_is_move_action: false,
         }
       }
     };
@@ -1292,7 +1294,11 @@ let push_edit_state =
       next_is_empty_line,
       edit_action: NotSet,
     };
-    let new_entry = {cardstacks: cur_cardstacks, info: Some(new_entry_info)};
+    let new_entry = {
+      cardstacks: cur_cardstacks,
+      info: Some(new_entry_info),
+      next_is_move_action: false,
+    };
     switch (join_group(prev_group, new_entry)) {
     | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
     | Fail(prev_group', new_entry', is_complete_entry) =>
@@ -1306,7 +1312,17 @@ let push_edit_state =
   } else {
     /* if any cursor-moving action interupts the current edit,
        the current group becomes complete. */
-    let prev_group' = {...prev_group, is_complete: true};
+    let cur_entry = ZList.prj_z(prev_group.group_entries);
+
+    let prev_group' = {
+      ...prev_group,
+      group_entries:
+        ZList.replace_z(
+          {...cur_entry, next_is_move_action: true},
+          prev_group.group_entries,
+        ),
+      is_complete: true,
+    };
     ZList.replace_z(prev_group', undo_history);
   };
 };
