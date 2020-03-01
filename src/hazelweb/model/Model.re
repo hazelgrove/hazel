@@ -8,6 +8,7 @@ type t = {
   right_sidebar_open: bool,
   show_contenteditable: bool,
   show_presentation: bool,
+  cursor_path: CursorPath.t,
   all_hidden_history_expand: bool,
   undo_history: UndoHistory.t,
 };
@@ -33,9 +34,11 @@ let init = (): t => {
     };
     ([], undo_history_group, []);
   };
+  let cursor_path = cardstacks |> Cardstacks.get_program |> Program.get_path;
   {
     cardstacks,
     undo_history,
+    cursor_path,
     compute_results: true,
     selected_example: None,
     is_cell_focused: false,
@@ -88,19 +91,43 @@ let next_card = model => {
   |> focus_cell;
 };
 
+let is_move_to = (a: Action.t): bool =>
+  switch (a) {
+  | MoveTo(_)
+  | MoveToBefore(_) => true
+  | MoveLeft
+  | MoveRight
+  | MoveToNextHole
+  | MoveToPrevHole
+  | UpdateApPalette(_)
+  | Delete
+  | Backspace
+  | Construct(_) => false
+  };
 let perform_edit_action = (a: Action.t, model: t): t => {
+  if (is_move_to(a)) {
+    JSUtil.log("move to~~");
+  };
   let new_program = model |> get_program |> Program.perform_edit_action(a);
-  model
-  |> put_program(new_program)
-  |> put_undo_history(
-       {
-         let history = model |> get_undo_history;
-         let cardstacks = model |> get_cardstacks;
-         let new_cardstacks =
-           model |> put_program(new_program) |> get_cardstacks;
-         UndoHistory.push_edit_state(history, cardstacks, new_cardstacks, a);
-       },
-     );
+  let cursor_path = new_program |> Program.get_path;
+  let model' =
+    model
+    |> put_program(new_program)
+    |> put_undo_history(
+         {
+           let history = model |> get_undo_history;
+           let prev_cardstacks = model |> get_cardstacks;
+           let new_cardstacks =
+             model |> put_program(new_program) |> get_cardstacks;
+           UndoHistory.push_edit_state(
+             history,
+             prev_cardstacks,
+             new_cardstacks,
+             a,
+           );
+         },
+       );
+  {...model', cursor_path};
 };
 
 let move_to_hole = (u: MetaVar.t, model: t): t =>
@@ -160,11 +187,12 @@ let undo = (model: t): t => {
     };
   };
   let cur_group' = ZList.prj_z(new_history);
-  let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-
+  //let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
+  let new_cardstacks =
+    ZList.prj_z(cur_group'.group_entries).cardstacks
+    |> Cardstacks.follow_cursor_path(model.cursor_path);
   //let new_model = model |> Model.put_program(Program.mk(new_edit_state));
 
-  //let model' = update_cardstacks_state(model, new_cardstacks_state);
   let model' = model |> put_cardstacks(new_cardstacks);
   {...model', undo_history: new_history};
 };
@@ -197,8 +225,9 @@ let redo = (model: t): t => {
     };
   };
   let cur_group' = ZList.prj_z(new_history);
-  let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  //let model' = update_cardstacks_state(model, new_cardstacks_state);
+  let new_cardstacks =
+    ZList.prj_z(cur_group'.group_entries).cardstacks
+    |> Cardstacks.follow_cursor_path(model.cursor_path);
   let model' = model |> put_cardstacks(new_cardstacks);
   {...model', undo_history: new_history};
 };
