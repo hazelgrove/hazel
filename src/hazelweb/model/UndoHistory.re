@@ -202,10 +202,21 @@ let push_history_entry =
   is_expanded: false,
   is_complete,
 };
- 
-let cursor_jump = (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
-  
-}
+
+/* let cursor_jump = (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t, action: Action.t): bool => {
+     switch(action){
+     | MoveTo(_)
+     | MoveToBefore(_)
+     | MoveToNextHole
+     | MoveToPrevHole
+     | Construct(shape);
+     | MoveLeft
+     | MoveRight
+     | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
+     | Delete
+     | Backspace
+     }
+   } */
 let cursor_jump_after_delete =
     (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
   switch (cursor_pos1) {
