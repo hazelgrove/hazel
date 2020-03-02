@@ -85,18 +85,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Rule(_, _) => "match rule"
     };
   };
-  let is_op = (cursor_term: CursorInfo.cursor_term): bool => {
-    switch (cursor_term) {
-    | Exp(_, _)
-    | Pat(_, _)
-    | Typ(_, _) => false
-    | ExpOp(_, _)
-    | PatOp(_, _)
-    | TypOp(_, _) => true
-    | Line(_, _)
-    | Rule(_, _) => false
-    };
-  };
+  /*   let is_op = (cursor_term: CursorInfo.cursor_term): bool => {
+         switch (cursor_term) {
+         | Exp(_, _)
+         | Pat(_, _)
+         | Typ(_, _) => false
+         | ExpOp(_, _)
+         | PatOp(_, _)
+         | TypOp(_, _) => true
+         | Line(_, _)
+         | Rule(_, _) => false
+         };
+       }; */
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
     switch (undo_history_entry.info) {
@@ -105,86 +105,29 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       switch (info.edit_action) {
       | DeleteEdit(edit_detail) =>
         switch (edit_detail) {
-        | TermToHole(id, cursor_term) =>
-          Some(
-            "delete "
-            ++ display_string_of_cursor_term(cursor_term)
-            ++ " and get hole "
-            ++ string_of_int(id),
-          )
-        | TermToNotHole(cursor_term) =>
+        | Term(cursor_term) =>
           Some("delete " ++ display_string_of_cursor_term(cursor_term))
-        | Hole(id) => Some("delete hole " ++ string_of_int(id))
+        | Space => Some("delete space")
         | EmptyLine => Some("delete empty line")
-        | Edit =>
-          Some(
-            "edit "
-            ++ display_string_of_cursor_term(
-                 info.cursor_term_info.current_cursor_term,
-               ),
-          )
         | TypeAnn => Some("delete type annotation")
         }
-      | InsertEdit(edit_detail) =>
+      | ConstructEdit(edit_detail) =>
         switch (edit_detail) {
-        | Hole(first_id, second_id) =>
-          switch (second_id) {
-          | None => Some("insert hole " ++ string_of_int(first_id))
-          | Some(second) =>
-            Some(
-              "insert hole "
-              ++ string_of_int(first_id)
-              ++ " and hole "
-              ++ string_of_int(second),
-            )
-          }
+        | Space => Some("insert space")
         | EmptyLine => Some("insert new line")
-        | Edit(hole) =>
-          switch (hole) {
-          | Some(id) =>
-            Some(
-              "insert "
-              ++ display_string_of_cursor_term(
-                   info.cursor_term_info.current_cursor_term,
-                 )
-              ++ " into hole "
-              ++ string_of_int(id),
-            )
-          | None =>
-            if (is_op(info.cursor_term_info.current_cursor_term)) {
-              Some(
-                "insert "
-                ++ display_string_of_cursor_term(
-                     info.cursor_term_info.current_cursor_term,
-                   ),
-              );
-            } else {
-              Some(
-                "edit "
-                ++ display_string_of_cursor_term(
-                     info.cursor_term_info.current_cursor_term,
-                   ),
-              );
-            }
-          }
-        }
-      | Construct(structure) =>
-        switch (structure) {
         | LetBinding => Some("construct let binding")
         | CaseMatch => Some("construct case match")
         | TypeAnn => Some("insert type annotation")
-        | ShapeEdit(id_op, shape) =>
-          switch (id_op) {
-          | None => Some("insert " ++ Action.shape_to_string(shape))
-          | Some(id) =>
-            Some(
-              "insert "
-              ++ Action.shape_to_string(shape)
-              ++ " into hole "
-              ++ string_of_int(id),
-            )
-          }
+        | ShapeEdit(shape) =>
+          Some("insert " ++ Action.shape_to_string(shape))
         }
+      | EditVar =>
+        Some(
+          "edit "
+          ++ display_string_of_cursor_term(
+               info.cursor_term_info.current_cursor_term,
+             ),
+        )
       | CursorMove => None
       }
     };
@@ -326,10 +269,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | None => helper_func(tail, index + 1)
           | Some(info) =>
             if (info.edit_action == CursorMove) {
-              JSUtil.log(string_of_int(List.length(tail)));
               helper_func(tail, index + 1);
             } else {
-              JSUtil.log("return tail" ++ string_of_int(List.length(tail)));
               (Some((head, index)), tail);
             }
           }

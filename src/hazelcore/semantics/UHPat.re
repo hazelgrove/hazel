@@ -168,15 +168,15 @@ let text_operand =
     );
   };
 
-let operand_is_hole = (op: operand): option(MetaVar.t) => {
+let operand_is_hole = (op: operand): bool => {
   switch (op) {
-  | EmptyHole(num) => Some(num)
+  | EmptyHole(_) => true
   | Wild(_)
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
   | Parenthesized(_)
-  | Inj(_, _, _) => None
+  | Inj(_, _, _) => false
   };
 };
