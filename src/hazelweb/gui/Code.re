@@ -47,32 +47,28 @@ module Contenteditable = {
   };
 
   let tag_rows = (vs: list(Vdom.Node.t)): list(Vdom.Node.t) => {
-    Vdom.(
-      vs
-      |> List.fold_left(
-           ((row, rev_tagged), v: Vdom.Node.t) =>
-             switch (v) {
-             | Text(_) as text => (
-                 row,
-                 [
-                   Node.span([Attr.id(row_text_id(row))], [text]),
-                   ...rev_tagged,
-                 ],
-               )
-             | Element(elem) when Node.Element.tag(elem) == "br" =>
-               let new_elem =
-                 Node.Element.map_attrs(
-                   elem,
-                   ~f=List.cons(Attr.id(row_eol_id(row))),
-                 );
-               (row + 1, [Node.Element(new_elem), ...rev_tagged]);
-             | _ => (row, [v, ...rev_tagged])
-             },
-           (0, []),
-         )
-      |> snd
-      |> List.rev
-    );
+    open Vdom;
+    let tagged_row = vs => Node.span([Attr.classes(["code-row"])], vs);
+    vs
+    |> List.fold_left(
+         ((rev_untagged_row, rev_tagged_rows), node: Vdom.Node.t) =>
+           switch (node) {
+           | Element(elem) when Node.Element.tag(elem) == "br" =>
+             let new_tagged_row = tagged_row(List.rev(rev_untagged_row));
+             ([], [new_tagged_row, ...rev_tagged_rows]);
+           | _ => ([node, ...rev_untagged_row], rev_tagged_rows)
+           },
+         ([], []),
+       )
+    |> (
+      fun
+      | ([], rev_rows) => rev_rows
+      | ([_, ..._] as rev_untagged_row, rev_rows) => {
+          let last_row = tagged_row(List.rev(rev_untagged_row));
+          [last_row, ...rev_rows];
+        }
+    )
+    |> List.rev;
   };
 
   let view_of_layout =
@@ -117,7 +113,7 @@ module Contenteditable = {
           (row^, col_after),
           (CursorPosition.OnDelim(index, After), rev_steps),
         );
-        vs;
+        [Node.span([contenteditable_false], vs)];
       | Annot(Op(_), l) =>
         let col_before = col^;
         let vs = go'(l);
@@ -130,7 +126,7 @@ module Contenteditable = {
           (row^, col_after),
           (CursorPosition.OnOp(After), rev_steps),
         );
-        vs;
+        [Node.span([contenteditable_false], vs)];
       | Annot(Text(_), l) =>
         let col_before = col^;
         let vs = go'(l);
