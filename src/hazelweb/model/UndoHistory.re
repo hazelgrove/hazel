@@ -392,7 +392,7 @@ let cursor_jump_after_backspace =
 let group_edit_action =
     (
       prev_group: undo_history_group,
-      cardstacks: Cardstacks.t,
+      prev_cardstacks: Cardstacks.t,
       prev_action: Action.t,
     )
     : bool => {
@@ -423,7 +423,7 @@ let group_edit_action =
     | MoveToPrevHole => true
     | UpdateApPalette(_) => failwith("ApPalette is not implemented")
     };
-  is_edit_action && !cursor_jump(prev_group, cardstacks);
+  is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
 };
 
 let ontext_del =
@@ -974,16 +974,22 @@ let entry_to_start_a_group =
 };
 
 let join_group =
-    (prev_group: undo_history_group, new_entry_base: entry_base): group_result => {
+    (
+      prev_group: undo_history_group,
+      new_entry_base: entry_base,
+      prev_cardstacks: Cardstacks.t,
+    )
+    : group_result => {
   let prev_last_entry = ZList.prj_z(prev_group.group_entries);
   let prev_complete = prev_group.is_complete;
-  let (new_cursor_term_info, action, cardstacks) = new_entry_base;
+  let (new_cursor_term_info, action, _) = new_entry_base;
   switch (prev_last_entry.info, action) {
   | (None, _) => entry_to_start_a_group(prev_group, new_entry_base)
   | (Some(prev_entry_info), action') =>
     switch (prev_entry_info.previous_action, action') {
     | (prev_ac, Delete) =>
-      if (!group_edit_action(prev_group, cardstacks, prev_ac) || prev_complete) {
+      if (!group_edit_action(prev_group, prev_cardstacks, prev_ac)
+          || prev_complete) {
         entry_to_start_a_group(prev_group, new_entry_base);
       } else {
         let prev_cursor_pos =
@@ -1040,9 +1046,16 @@ let join_group =
         };
       }
     | (prev_ac, Backspace) =>
-      if (!group_edit_action(prev_group, cardstacks, prev_ac) || prev_complete) {
+      if (!group_edit_action(prev_group, prev_cardstacks, prev_ac)
+          || prev_complete) {
+        if (prev_complete) {
+          JSUtil.log("comp 1045");
+        } else {
+          JSUtil.log(" not comp 1045");
+        };
         entry_to_start_a_group(prev_group, new_entry_base);
       } else {
+        JSUtil.log("group");
         let prev_cursor_pos =
           get_cursor_pos(
             prev_entry_info.cursor_term_info.current_cursor_term,
@@ -1105,7 +1118,7 @@ let join_group =
           ~shape,
           ~prev_group,
           ~new_entry_base,
-          ~append_info=(prev_entry_info, cardstacks),
+          ~append_info=(prev_entry_info, prev_cardstacks),
           (),
         );
       }
@@ -1187,7 +1200,11 @@ let push_edit_state =
   };
   if (undoable_action(action)) {
     switch (
-      join_group(prev_group, (cursor_term_info, action, cur_cardstacks))
+      join_group(
+        prev_group,
+        (cursor_term_info, action, cur_cardstacks),
+        prev_cardstacks,
+      )
     ) {
     | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
     | Fail(prev_group', new_entry', is_complete_entry) =>
