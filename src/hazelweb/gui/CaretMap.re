@@ -145,28 +145,25 @@ let anchor_of_revpath = rev_path => {
   };
 };
 
-let revpath_of_anchor = () => {
-  let anchor_node = Dom_html.window##getSelection##.anchorNode;
-  let (row, col) as row_col =
-    switch (anchor_node |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
-    | None =>
-      // anchor_node is text node in a row-text element
-      let row =
-        anchor_node
-        |> JSUtil.force_get_closest_elem
-        |> JSUtil.get_id
-        |> ViewUtil.row_of_row_text_id
-        |> Option.get;
-      let col = Dom_html.window##getSelection##.anchorOffset;
-      (row, col);
-    | Some(elem) =>
-      // anchor_node is contenteditable element.
-      // anchor_offset = n means is on nth child
-      // of contenteditable, in particular on a <br>.
-      let row =
-        elem |> JSUtil.get_id |> ViewUtil.row_of_row_eol_id |> Option.get;
-      (row, 0);
+let revpath_of_anchor = (~col_width: float, ~row_height: float) => {
+  let (row, col) as row_col = {
+    let range = Dom_html.window##getSelection##getRangeAt(0);
+    let (caret_top, caret_left) = {
+      let rect: Js.t(Dom_html.clientRect) =
+        Js.Unsafe.meth_call(range, "getBoundingClientRect", [||]);
+      (Js.to_float(rect##.top), Js.to_float(rect##.left));
     };
+    let (code_top, code_left) = {
+      let code = JSUtil.force_get_elem_by_id("contenteditable");
+      let rect = code##getBoundingClientRect;
+      (Js.to_float(rect##.top), Js.to_float(rect##.left));
+    };
+    // TODO remove magic line height number
+    (
+      int_of_float((caret_top -. code_top) /. row_height),
+      int_of_float((caret_left -. code_left) /. col_width),
+    );
+  };
   switch (lookup_rowcol(row_col)) {
   | Some(rev_path) => rev_path
   | None =>

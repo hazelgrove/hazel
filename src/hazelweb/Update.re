@@ -162,7 +162,11 @@ let apply_action =
     {...new_model, undo_history: new_history};
   | SelectionChange =>
     if (! state.setting_caret^) {
-      let rev_path = CaretMap.revpath_of_anchor();
+      let rev_path =
+        CaretMap.revpath_of_anchor(
+          ~col_width=state.col_width^,
+          ~row_height=state.row_height^,
+        );
       let path = CursorPath.rev(rev_path);
       schedule_action(Action.EditAction(MoveTo(path)));
       /*

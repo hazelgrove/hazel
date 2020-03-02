@@ -11,7 +11,6 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  let setting_caret = ref(false);
   let _ =
     JSUtil.listen_to_t(
       Dom.Event.make("selectionchange"),
@@ -30,8 +29,28 @@ let on_startup = (~schedule_action, _) => {
       Js._true;
     });
   schedule_action(Update.Action.FocusCell);
+
+  let col_width = ref(0.0);
+  let row_height = ref(0.0);
+  let set_font_metrics = () => {
+    let specimen = JSUtil.force_get_elem_by_id("font-specimen");
+    let rect = specimen##getBoundingClientRect;
+    col_width := Js.to_float(rect##.right) -. Js.to_float(rect##.left);
+    row_height := Js.to_float(rect##.bottom) -. Js.to_float(rect##.top);
+  };
+  set_font_metrics();
+  Dom_html.window##.onresize :=
+    Dom_html.handler(_ => {
+      set_font_metrics();
+      Js._true;
+    });
   Async_kernel.Deferred.return(
-    State.{setting_caret, changing_cards: ref(false)},
+    State.{
+      setting_caret: ref(false),
+      changing_cards: ref(false),
+      col_width,
+      row_height,
+    },
   );
 };
 

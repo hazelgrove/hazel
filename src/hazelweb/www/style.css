@@ -764,6 +764,7 @@ h1 {
 
 #code-container {
   position: relative;
+  width: 100%;
 }
 .code.contenteditable {
   /* TODO consolidate #contenteditable vs .contenteditable */
@@ -778,33 +779,13 @@ h1 {
   outline: 0px;
 }
 
-#row-numbers {
-  padding-left: 4px;
-  padding-right: 12px;
-  margin-right: 12px;
-}
-#row-numbers .row-number {
-  text-align: right;
+#font-specimen {
+  position: fixed;
+  top: 0;
+  left: 100%;
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
-  color: var(--cell-border-color);
-  min-width: 2ch;
-}
-
-#col-numbers {
-  position: absolute;
-  top: calc(-1 * (var(--cell-padding) + var(--cell-border-thickness)));
-  left: 0;
-  font-family: var(--code-font-family);
-  height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: row;
-  height: var(--cell-border-thickness);
-}
-.col-number {
-  width: 1ch;
 }
 
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */

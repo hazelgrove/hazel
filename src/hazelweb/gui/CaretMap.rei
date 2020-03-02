@@ -17,7 +17,8 @@ let lookup_revpath: CursorPath.rev_t => (int, int);
 let anchor_of_revpath:
   CursorPath.rev_t => (Js_of_ocaml.Js.t(Js_of_ocaml.Dom.node), int);
 
-let revpath_of_anchor: unit => CursorPath.rev_t;
+let revpath_of_anchor:
+  (~col_width: float, ~row_height: float) => CursorPath.rev_t;
 
 /*
  let set_caret_rowcol: (~state: State.t, (int, int)) => CursorPath.rev_t;

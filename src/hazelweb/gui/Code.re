@@ -78,11 +78,10 @@ module Contenteditable = {
   let view_of_layout =
       (
         ~inject: Update.Action.t => Vdom.Event.t,
-        ~width: int,
         ~show_contenteditable: bool,
         l: TermLayout.t,
       )
-      : (Vdom.Node.t, Vdom.Node.t) => {
+      : Vdom.Node.t => {
     open Vdom;
     let row = ref(0);
     let col = ref(0);
@@ -151,68 +150,27 @@ module Contenteditable = {
       | Annot(_, l) => go'(l)
       };
     };
-    let col_numbers =
-      Node.div(
-        [Attr.id("col-numbers")],
-        ListUtil.range(width)
-        |> List.map(i =>
-             Node.div(
-               [
-                 Attr.classes(["col-number"]),
-                 Attr.create("col", string_of_int(i)),
-               ],
-               [],
-             )
-           ),
-      );
-    let (row_numbers, vs) = {
-      // must compute vs before row numbers to update row ref
-      let vs =
-        l |> go(~indent=0, ~rev_steps=[]) |> merge_text_nodes |> tag_rows;
-      let row_numbers =
-        Node.div(
-          [Attr.id("row-numbers")],
-          ListUtil.range(row^ + 1)
-          |> List.map(i =>
-               Node.div(
-                 [
-                   Attr.classes(["row-number"]),
-                   Attr.create("row", string_of_int(i)),
-                 ],
-                 [Node.text(string_of_int(i + 1))],
-               )
-             ),
-        );
-      (row_numbers, vs);
-    };
-    (
-      row_numbers,
-      Node.div(
-        [],
-        [
-          col_numbers,
-          Node.div(
-            [
-              Attr.id("contenteditable"),
-              Attr.classes(
-                ["code", "contenteditable"]
-                @ (
-                  if (show_contenteditable) {
-                    [];
-                  } else {
-                    ["hiddencontenteditable"];
-                  }
-                ),
-              ),
-              Attr.create("contenteditable", "true"),
-              Attr.on("drop", _ => Event.Prevent_default),
-              Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-              Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-            ],
-            vs,
+    let vs =
+      l |> go(~indent=0, ~rev_steps=[]) |> merge_text_nodes |> tag_rows;
+    Node.div(
+      [
+        Attr.id("contenteditable"),
+        Attr.classes(
+          ["code", "contenteditable"]
+          @ (
+            if (show_contenteditable) {
+              [];
+            } else {
+              ["hiddencontenteditable"];
+            }
           ),
-        ],
-      ),
+        ),
+        Attr.create("contenteditable", "true"),
+        Attr.on("drop", _ => Event.Prevent_default),
+        Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+        Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+      ],
+      vs,
     );
   };
 };
@@ -399,10 +357,9 @@ let editor_view_of_layout =
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
       ~show_contenteditable: bool,
-      ~width: int,
       l: TermLayout.t,
     )
-    : (Vdom.Node.t, Vdom.Node.t, Vdom.Node.t) => {
+    : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     switch (path) {
     | None => l
@@ -436,9 +393,10 @@ let editor_view_of_layout =
            l,
          )
     };
-  let (row_numbers, contenteditable) =
-    Contenteditable.view_of_layout(~inject, ~width, ~show_contenteditable, l);
-  (row_numbers, contenteditable, Presentation.view_of_layout(l));
+  (
+    Contenteditable.view_of_layout(~inject, ~show_contenteditable, l),
+    Presentation.view_of_layout(l),
+  );
 };
 
 let view_of_htyp = (~width=30, ~pos=0, ty: HTyp.t): Vdom.Node.t => {
@@ -462,7 +420,7 @@ let editor_view_of_exp =
       ~show_contenteditable: bool,
       e: UHExp.t,
     )
-    : (Vdom.Node.t, Vdom.Node.t, Vdom.Node.t) => {
+    : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
     |> TermDoc.Exp.mk(~enforce_inline=false)
@@ -470,13 +428,6 @@ let editor_view_of_exp =
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(
-      ~inject,
-      ~path?,
-      ~ci?,
-      ~width,
-      ~show_contenteditable,
-      l,
-    )
+    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
   };
 };

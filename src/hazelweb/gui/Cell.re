@@ -49,7 +49,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let program = model |> Model.get_program;
-  let (row_numbers, contenteditable, presentation) =
+  let (contenteditable, presentation) =
     model.is_cell_focused
       ? Code.editor_view_of_exp(
           ~inject,
@@ -109,11 +109,11 @@ let view =
         }),
       ],
       [
-        row_numbers,
         Node.div(
           [Attr.id("code-container")],
           [contenteditable, presentation],
         ),
+        Node.div([Attr.id("font-specimen")], [Node.text("x")]),
       ],
     )
   );
