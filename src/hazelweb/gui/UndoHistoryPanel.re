@@ -315,7 +315,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | [head, ...tail] =>
           switch (head.info) {
           | None => helper_func(tail, index + 1)
-          | Some(_) => (Some((head, index)), tail)
+          | Some(info) =>
+            if (info.edit_action == NotSet) {
+              JSUtil.log(string_of_int(List.length(tail)));
+              helper_func(tail, index + 1);
+            } else {
+              JSUtil.log("return tail" ++ string_of_int(List.length(tail)));
+              (Some((head, index)), tail);
+            }
           }
         };
       };
@@ -324,14 +331,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
       let (title, hidden_entries) =
-        clear_undisplay_entries([cur_entry, ...prev_entries]);
+        clear_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
       | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
-        let has_hidden_part =
-          switch (hidden_entries) {
-          | [] => false
-          | _ => true
+        let has_hidden_part = List.length(hidden_entries) > 0;
+        let title_class =
+          if (start_index != 0) {
+            prev_his_classes;
+          } else {
+            cur_his_classes;
           };
         if (group.is_expanded) {
           Vdom.(
@@ -341,7 +350,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* title entry */
                 Vdom.(
                   Node.div(
-                    [Attr.classes(cur_his_classes)],
+                    [Attr.classes(title_class)],
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,
@@ -387,7 +396,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ~has_hidden_part,
                         group_id,
                         start_index, /*elt_id*/
-                        cur_entry,
+                        title_entry,
                       ),
                     ],
                   )
