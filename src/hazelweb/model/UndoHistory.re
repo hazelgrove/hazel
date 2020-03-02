@@ -834,15 +834,15 @@ let construct_shape =
         set_fail_join(
           prev_group,
           new_entry,
-          Some(Construct(ShapeEdit(None, shape))),
-          true,
+          Some(InsertEdit(Edit(None))),
+          false,
         )
       | Some(hole_id) =>
         set_fail_join(
           prev_group,
           new_entry,
-          Some(Construct(ShapeEdit(Some(hole_id), shape))),
-          true,
+          Some(InsertEdit(Edit(Some(hole_id)))),
+          false,
         )
       }
     | Some(append_info') =>
@@ -1108,149 +1108,7 @@ let entry_to_start_a_group =
         }
       }
     | Construct(shape) =>
-      switch (shape) {
-      | SChar(_) =>
-        /* if previous is hole then combine else if previous is char then combine else start a new group */
-        switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-        | None =>
-          set_fail_join(
-            prev_group,
-            new_entry,
-            Some(InsertEdit(Edit(None))),
-            false,
-          )
-        | Some(hole_id) =>
-          set_fail_join(
-            prev_group,
-            new_entry,
-            Some(InsertEdit(Edit(Some(hole_id)))),
-            false,
-          )
-        }
-      | SLine =>
-        set_fail_join(
-          prev_group,
-          new_entry,
-          Some(InsertEdit(EmptyLine)),
-          false,
-        )
-      | SParenthesized
-      | SList
-      | SAsc
-      | SLam
-      | SListNil
-      | SInj(_)
-      | SLet
-      | SCase =>
-        switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-        | None =>
-          set_fail_join(
-            prev_group,
-            new_entry,
-            Some(Construct(ShapeEdit(None, shape))),
-            true,
-          )
-        | Some(hole_id) =>
-          set_fail_join(
-            prev_group,
-            new_entry,
-            Some(Construct(ShapeEdit(Some(hole_id), shape))),
-            true,
-          )
-        }
-      | SOp(shape') =>
-        switch (shape') {
-        | SMinus
-        | SPlus
-        | STimes
-        | SLessThan
-        | SGreaterThan
-        | SEquals
-        | SComma
-        | SArrow
-        | SVBar
-        | SCons
-        | SAnd
-        | SOr =>
-          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-          | None =>
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(InsertEdit(Edit(None))),
-              true,
-            )
-          | Some(hole_id) =>
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(InsertEdit(Edit(Some(hole_id)))),
-              true,
-            )
-          }
-        | SSpace =>
-          switch (new_entry_info.previous_cursor_term) {
-          | Exp(_, uexp_operand) =>
-            switch (uexp_operand) {
-            | Var(_, InVarHole(Keyword(k), _), _) =>
-              switch (k) {
-              | Let =>
-                switch (get_cursor_pos(new_entry_info.previous_cursor_term)) {
-                | OnText(pos) =>
-                  if (pos == 3) {
-                    set_fail_join(
-                      prev_group,
-                      new_entry,
-                      Some(Construct(LetBinding)),
-                      true,
-                    );
-                  } else {
-                    construct_holes(prev_group, new_entry);
-                  }
-                | OnDelim(_, _)
-                | OnOp(_) => construct_holes(prev_group, new_entry)
-                }
-
-              | Case =>
-                switch (get_cursor_pos(new_entry_info.previous_cursor_term)) {
-                | OnText(pos) =>
-                  if (pos == 4) {
-                    set_fail_join(
-                      prev_group,
-                      new_entry,
-                      Some(Construct(CaseMatch)),
-                      true,
-                    );
-                  } else {
-                    construct_holes(prev_group, new_entry);
-                  }
-                | OnDelim(_, _)
-                | OnOp(_) => construct_holes(prev_group, new_entry)
-                }
-              }
-            | EmptyHole(_)
-            | Var(_, _, _)
-            | NumLit(_, _)
-            | BoolLit(_, _)
-            | ListNil(_)
-            | Lam(_, _, _, _)
-            | Inj(_, _, _)
-            | Case(_, _, _, _)
-            | Parenthesized(_) => construct_holes(prev_group, new_entry)
-            | ApPalette(_, _, _, _) =>
-              failwith("ApPalette is not implemented")
-            }
-          | Pat(_, _)
-          | Typ(_, _)
-          | ExpOp(_, _)
-          | PatOp(_, _)
-          | TypOp(_, _)
-          | Line(_, _)
-          | Rule(_, _) => construct_holes(prev_group, new_entry)
-          }
-        }
-      | SApPalette(_) => failwith("ApPalette is not implemented")
-      }
+      construct_shape(~shape, ~prev_group, ~new_entry, ~new_entry_info, ())
     | MoveTo(_)
     | MoveToBefore(_)
     | MoveLeft
@@ -1423,171 +1281,18 @@ let join_group =
           }
         };
       }
-    | (prev_ac, Construct(shape_2)) =>
+    | (_, Construct(shape)) =>
       if (prev_complete) {
         entry_to_start_a_group(prev_group, new_entry);
       } else {
-        switch (shape_2) {
-        | SLine =>
-          if (action_is_Sline(prev_ac)) {
-            set_success_join(
-              prev_group,
-              new_entry,
-              Some(InsertEdit(EmptyLine)),
-              false,
-            );
-          } else {
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(InsertEdit(EmptyLine)),
-              false,
-            );
-          }
-        | SParenthesized
-        | SList
-        | SAsc
-        | SLam
-        | SListNil
-        | SInj(_)
-        | SLet
-        | SCase =>
-          /* if previous is hole then combine else start a new group */
-          switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
-          | None =>
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(Construct(ShapeEdit(None, shape_2))),
-              true,
-            )
-          | Some(hole_id) =>
-            set_success_join(
-              prev_group,
-              new_entry,
-              Some(Construct(ShapeEdit(Some(hole_id), shape_2))),
-              true,
-            )
-          }
-        | SChar(_) =>
-          /* if previous is hole then combine else if previous is char then combine else start a new group */
-          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-          | None =>
-            if (group_edit_action(prev_group, prev_cardstacks, prev_ac)) {
-              set_success_join(
-                prev_group,
-                new_entry,
-                Some(InsertEdit(Edit(get_insert_hole(prev_group)))),
-                false,
-              );
-            } else {
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(InsertEdit(Edit(get_insert_hole(prev_group)))),
-                false,
-              );
-            }
-          | Some(hole_id) =>
-            set_success_join(
-              prev_group,
-              new_entry,
-              Some(InsertEdit(Edit(Some(hole_id)))),
-              false,
-            )
-          }
-        | SOp(shape') =>
-          switch (shape') {
-          | SMinus
-          | SPlus
-          | STimes
-          | SLessThan
-          | SGreaterThan
-          | SEquals
-          | SComma
-          | SArrow
-          | SVBar
-          | SCons
-          | SAnd
-          | SOr =>
-            /* if previous is hole then combine else start a new group */
-            switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
-            | None =>
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(Construct(ShapeEdit(None, shape_2))),
-                true,
-              )
-            | Some(hole_id) =>
-              set_success_join(
-                prev_group,
-                new_entry,
-                Some(Construct(ShapeEdit(Some(hole_id), shape_2))),
-                true,
-              )
-            }
-          | SSpace =>
-            switch (prev_entry_info.current_cursor_term) {
-            | Exp(_, uexp_operand) =>
-              switch (uexp_operand) {
-              | Var(_, InVarHole(Keyword(k), _), _) =>
-                switch (k) {
-                | Let =>
-                  let prev_group' = {
-                    ...prev_group,
-                    group_entries:
-                      ZList.replace_z(
-                        {...prev_last_entry, info: None},
-                        prev_group.group_entries,
-                      ),
-                  };
-                  set_success_join(
-                    prev_group',
-                    new_entry,
-                    Some(Construct(LetBinding)),
-                    true,
-                  );
-                | Case =>
-                  let prev_group' = {
-                    ...prev_group,
-                    group_entries:
-                      ZList.replace_z(
-                        {...prev_last_entry, info: None},
-                        prev_group.group_entries,
-                      ),
-                  };
-                  set_success_join(
-                    prev_group',
-                    new_entry,
-                    Some(Construct(CaseMatch)),
-                    true,
-                  );
-                }
-              | EmptyHole(_)
-              | Var(_, _, _)
-              | NumLit(_, _)
-              | BoolLit(_, _)
-              | ListNil(_)
-              | Lam(_, _, _, _)
-              | Inj(_, _, _)
-              | Case(_, _, _, _)
-              | Parenthesized(_) => construct_holes(prev_group, new_entry)
-              | ApPalette(_, _, _, _) =>
-                failwith("ApPalette is not implemented")
-              }
-            | Pat(_, _)
-            | Typ(_, _)
-            | ExpOp(_, _)
-            | PatOp(_, _)
-            | TypOp(_, _)
-            | Line(_, _)
-            | Rule(_, _) => construct_holes(prev_group, new_entry)
-            }
-          }
-
-        | SApPalette(_) => failwith("ApPalette is not implemented")
-        };
+        construct_shape(
+          ~shape,
+          ~prev_group,
+          ~new_entry,
+          ~new_entry_info,
+          ~append_info=(prev_entry_info, prev_cardstacks),
+          (),
+        );
       }
     | (_, UpdateApPalette(_)) =>
       failwith("ApPalette is not implemented in undo_history")
