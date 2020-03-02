@@ -301,6 +301,20 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       } else {
         [];
       };
+    let clear_undisplay_entries = (entries:list(undo_history_entry)):(option((undo_history_entry,int)),list(undo_history_entry)) =>{
+      let rec helper_func = (entries:list(undo_history_entry),index:int):(option((undo_history_entry,int)),list(undo_history_entry)) => {
+        switch(entries){
+        | [] => (None,[])
+        | [head,...tail] => {
+          switch (head.info){
+          | None => helper_func(tail,index+1)
+          | Some(_) => (Some(head,index),tail)
+          }
+        }
+        }
+      };
+      helper_func(entries,0);
+    }
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
       switch (cur_entry.info) {
