@@ -236,6 +236,7 @@ let set_fail_join =
       | Some(edit_action) => {
           ...new_entry,
           info: Some({...new_info, edit_action}),
+          not_movement_agnostic: false,
         }
       }
     };
@@ -452,7 +453,7 @@ let group_edit_action =
     | MoveLeft
     | MoveRight
     | MoveToNextHole
-    | MoveToPrevHole => failwith("not doable action")
+    | MoveToPrevHole => true
     | UpdateApPalette(_) => failwith("ApPalette is not implemented")
     };
   is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
@@ -957,7 +958,11 @@ let construct_shape =
                     ...prev_group,
                     group_entries:
                       ZList.replace_z(
-                        {...prev_last_entry, info: None},
+                        {
+                          ...prev_last_entry,
+                          info: None,
+                          not_movement_agnostic: false,
+                        },
                         prev_group.group_entries,
                       ),
                   };
@@ -992,7 +997,11 @@ let construct_shape =
                     ...prev_group,
                     group_entries:
                       ZList.replace_z(
-                        {...prev_last_entry, info: None},
+                        {
+                          ...prev_last_entry,
+                          info: None,
+                          not_movement_agnostic: false,
+                        },
                         prev_group.group_entries,
                       ),
                   };
@@ -1337,49 +1346,72 @@ let join_group =
     }
   };
 };
-let is_movement_agnostic = (action: Action.t): bool => {
-  switch (action) {
-  | MoveTo(_)
-  | MoveToBefore(_) => false
-  | MoveLeft
-  | MoveRight
-  | MoveToNextHole
-  | MoveToPrevHole
-  | UpdateApPalette(_)
-  | Delete
-  | Backspace
-  | Construct(_) => true
-  };
-};
+/* let is_movement_agnostic = (action: Action.t): bool => {
+     switch (action) {
+     | MoveTo(_)
+     | MoveToBefore(_) => false
+     | MoveLeft
+     | MoveRight
+     | MoveToNextHole
+     | MoveToPrevHole
+     | UpdateApPalette(_)
+     | Delete
+     | Backspace
+     | Construct(_) => true
+     };
+   }; */
 let update_move_action =
-    (undo_history: t, cardstacks: Cardstacks.t, action: Action.t): t => {
+    (
+      undo_history: t,
+      cur_cardstacks: Cardstacks.t,
+      prev_cardstacks: Cardstacks.t,
+      action: Action.t,
+    )
+    : t => {
   let prev_group = ZList.prj_z(undo_history);
   let prev_entry = ZList.prj_z(prev_group.group_entries);
+  let (prev_cursor_term, prev_is_empty_line, next_is_empty_line) =
+    get_cursor_info(prev_cardstacks);
+  let (cur_cursor_term, _, _) = get_cursor_info(cur_cardstacks);
+  let new_entry_info = {
+    previous_action: action,
+    previous_cursor_term: prev_cursor_term,
+    current_cursor_term: cur_cursor_term,
+    prev_is_empty_line,
+    next_is_empty_line,
+    edit_action: NotSet,
+  };
   let new_group =
-    if (is_movement_agnostic(action)) {
-      {...prev_group, is_complete: true};
-    } else if (prev_entry.not_movement_agnostic) {
+    if (prev_entry.not_movement_agnostic) {
       {
         ...prev_group,
         group_entries:
           ZList.replace_z(
-            {cardstacks, info: None, not_movement_agnostic: true},
+            {
+              cardstacks: cur_cardstacks,
+              info: Some(new_entry_info),
+              not_movement_agnostic: true,
+            },
             prev_group.group_entries,
           ),
-        is_complete: true,
+        is_complete: cursor_jump(prev_group, cur_cardstacks),
       };
     } else {
       {
         ...prev_group,
         group_entries: (
           ZList.prj_prefix(prev_group.group_entries),
-          {cardstacks, info: None, not_movement_agnostic: true},
+          {
+            cardstacks: cur_cardstacks,
+            info: Some(new_entry_info),
+            not_movement_agnostic: true,
+          },
           [
             ZList.prj_z(prev_group.group_entries),
             ...ZList.prj_suffix(prev_group.group_entries),
           ],
         ),
-        is_complete: true,
+        is_complete: cursor_jump(prev_group, cur_cardstacks),
       };
     };
   ZList.replace_z(new_group, undo_history);
@@ -1421,18 +1453,24 @@ let push_edit_state =
       ([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
     };
   } else {
-    undo_history;
-    //{
-    /* if any cursor-moving action interupts the current edit,
-       the current group becomes complete. */
-    /* update_move_action(
-         undo_history,
-         cur_cardstacks,
-         action,
-       ); */
-    /*     let prev_group' = {...prev_group, is_complete: cursor_jump(prev_group,cur_cardstacks)};
-           ZList.replace_z(prev_group', undo_history); */
-    //};
+    update_move_action(
+      undo_history,
+      cur_cardstacks,
+      prev_cardstacks,
+      action,
+      //undo_history;
+      //{
+      /* if any cursor-moving action interupts the current edit,
+         the current group becomes complete. */
+      /* update_move_action(
+           undo_history,
+           cur_cardstacks,
+           action,
+         ); */
+      /*     let prev_group' = {...prev_group, is_complete: cursor_jump(prev_group,cur_cardstacks)};
+             ZList.replace_z(prev_group', undo_history); */
+      //};
+    );
   };
 };
 
