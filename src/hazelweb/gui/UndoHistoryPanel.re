@@ -118,7 +118,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | EmptyLine => Some("delete empty line")
         | Edit =>
           Some(
-            "edit " ++ display_string_of_cursor_term(info.current_cursor_term),
+            "edit "
+            ++ display_string_of_cursor_term(
+                 info.cursor_term_info.current_cursor_term,
+               ),
           )
         | TypeAnn => Some("delete type annotation")
         }
@@ -141,20 +144,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Some(id) =>
             Some(
               "insert "
-              ++ display_string_of_cursor_term(info.current_cursor_term)
+              ++ display_string_of_cursor_term(
+                   info.cursor_term_info.current_cursor_term,
+                 )
               ++ " into hole "
               ++ string_of_int(id),
             )
           | None =>
-            if (is_op(info.current_cursor_term)) {
+            if (is_op(info.cursor_term_info.current_cursor_term)) {
               Some(
                 "insert "
-                ++ display_string_of_cursor_term(info.current_cursor_term),
+                ++ display_string_of_cursor_term(
+                     info.cursor_term_info.current_cursor_term,
+                   ),
               );
             } else {
               Some(
                 "edit "
-                ++ display_string_of_cursor_term(info.current_cursor_term),
+                ++ display_string_of_cursor_term(
+                     info.cursor_term_info.current_cursor_term,
+                   ),
               );
             }
           }
@@ -176,7 +185,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             )
           }
         }
-      | NotSet => None
+      | CursorMove => None
       }
     };
   };
@@ -316,7 +325,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           switch (head.info) {
           | None => helper_func(tail, index + 1)
           | Some(info) =>
-            if (info.edit_action == NotSet) {
+            if (info.edit_action == CursorMove) {
               JSUtil.log(string_of_int(List.length(tail)));
               helper_func(tail, index + 1);
             } else {
