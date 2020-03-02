@@ -175,16 +175,45 @@ let push_history_entry =
   };
 };
 
-let cursor_jump =
-    (prev_group: undo_history_group, cur_cardstacks: Cardstacks.t): bool => {
-  let prev_step =
-    ZList.prj_z(prev_group.group_entries).cardstacks
-    |> Cardstacks.get_program
-    |> Program.get_steps;
-  let new_step = cur_cardstacks |> Cardstacks.get_program |> Program.get_steps;
-  prev_step != new_step;
+/* let cursor_jump =
+       (prev_group: undo_history_group, cur_cardstacks: Cardstacks.t): bool => {
+     let prev_step =
+       ZList.prj_z(prev_group.group_entries).cardstacks
+       |> Cardstacks.get_program
+       |> Program.get_steps;
+     let new_step = cur_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+     prev_step != new_step;
+   }; */
+let rec first_not_cursor_move =
+        (ls: list(undo_history_entry)): option(undo_history_entry) => {
+  switch (ls) {
+  | [] => None
+  | [head, ...tail] =>
+    if (head.not_movement_agnostic) {
+      first_not_cursor_move(tail);
+    } else {
+      Some(head);
+    }
+  };
 };
 
+let cursor_jump =
+    (prev_group: undo_history_group, cur_cardstacks: Cardstacks.t): bool => {
+  let prev_none_move_entry =
+    first_not_cursor_move([
+      ZList.prj_z(prev_group.group_entries),
+      ...ZList.prj_suffix(prev_group.group_entries),
+    ]);
+  switch (prev_none_move_entry) {
+  | None => true
+  | Some(entry') =>
+    let prev_step =
+      entry'.cardstacks |> Cardstacks.get_program |> Program.get_steps;
+    let new_step =
+      cur_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+    prev_step != new_step;
+  };
+};
 type group_result =
   | Success(undo_history_group)
   | Fail(undo_history_group, undo_history_entry, bool);
@@ -293,6 +322,7 @@ let get_initial_term_before_delete =
     (group: undo_history_group, new_cursor_term_info: cursor_term_info)
     : cursor_term => {
   let suffix = ZList.prj_suffix(group.group_entries);
+  JSUtil.log("suffix:" ++ string_of_int(List.length(suffix)));
   let rec max_len_term =
           (
             ls: list(undo_history_entry),
@@ -302,6 +332,32 @@ let get_initial_term_before_delete =
           : cursor_term => {
     switch (ls) {
     | [] => cursor_term
+    | [elt] =>
+      switch (elt.info) {
+      | None => cursor_term
+      | Some(info) =>
+        let len_cur =
+          cursor_term_len(info.cursor_term_info.current_cursor_term);
+        let len_prev =
+          cursor_term_len(info.cursor_term_info.previous_cursor_term);
+        let len_temp =
+          if (comp_len_lt(len_cur, len_prev)) {
+            len_prev;
+          } else {
+            len_cur;
+          };
+        let cursor_temp =
+          if (comp_len_lt(len_cur, len_prev)) {
+            info.cursor_term_info.previous_cursor_term;
+          } else {
+            info.cursor_term_info.current_cursor_term;
+          };
+        if (comp_len_lt(max_len, len_temp)) {
+          cursor_temp;
+        } else {
+          cursor_term;
+        };
+      }
     | [head, ...tail] =>
       switch (head.info) {
       | None => max_len_term(tail, max_len, cursor_term)
@@ -320,7 +376,11 @@ let get_initial_term_before_delete =
       }
     };
   };
-  max_len_term(suffix, Len(0), new_cursor_term_info.previous_cursor_term);
+  max_len_term(
+    suffix,
+    cursor_term_len(new_cursor_term_info.previous_cursor_term),
+    new_cursor_term_info.previous_cursor_term,
+  );
 };
 
 let cursor_jump_after_delete =
@@ -484,12 +544,8 @@ let ontext_del =
   } else if (new_action == Delete
              && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
-    set_fail_join(
-      prev_group,
-      new_entry_base,
-      None,
-      true,
-    );
+    JSUtil.log("487");
+    set_fail_join(prev_group, new_entry_base, None, true);
   } else if
     /* normal edit */
     (CursorInfo.is_empty_line(cursor_term_info.current_cursor_term)
@@ -515,9 +571,12 @@ let ontext_del =
     };
   } else {
     switch (prev_entry_info) {
-    | None => set_fail_join(prev_group, new_entry_base, Some(EditVar), false)
+    | None =>
+      JSUtil.log("520");
+      set_fail_join(prev_group, new_entry_base, Some(EditVar), false);
     | Some(_) =>
-      set_success_join(prev_group, new_entry_base, Some(EditVar), false)
+      JSUtil.log("523");
+      set_success_join(prev_group, new_entry_base, Some(EditVar), false);
     };
   };
 };
@@ -1144,8 +1203,14 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
     previous_action: action,
     edit_action: CursorMove,
   };
+  if (cursor_jump(prev_group, cardstacks)) {
+    JSUtil.log("jump~");
+  } else {
+    JSUtil.log("not jump~");
+  };
   let new_group =
     if (prev_entry.not_movement_agnostic) {
+      JSUtil.log("update new move~");
       {
         ...prev_group,
         group_entries:
@@ -1160,6 +1225,7 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
         is_complete: cursor_jump(prev_group, cardstacks),
       };
     } else {
+      JSUtil.log("new move~");
       {
         ...prev_group,
         group_entries: (
@@ -1188,6 +1254,7 @@ let push_edit_state =
       action: Action.t,
     )
     : t => {
+  JSUtil.log("push!");
   let prev_group = ZList.prj_z(undo_history);
   let (prev_cursor_term, prev_is_empty_line, next_is_empty_line) =
     get_cursor_info(prev_cardstacks);
