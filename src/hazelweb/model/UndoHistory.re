@@ -1,9 +1,4 @@
 type cursor_term = CursorInfo.cursor_term;
-type structure =
-  | LetBinding
-  | CaseMatch
-  | TypeAnn
-  | ShapeEdit(option(MetaVar.t), Action.shape);
 type delete_edit =
   | TermToHole(MetaVar.t, cursor_term)
   | TermToNotHole(cursor_term)
@@ -14,11 +9,15 @@ type delete_edit =
 type insert_edit =
   | Hole(MetaVar.t, option(MetaVar.t))
   | EmptyLine
-  | Edit(option(MetaVar.t));
+  | Edit(option(MetaVar.t))
+  | LetBinding
+  | CaseMatch
+  | TypeAnn
+  | ShapeEdit(option(MetaVar.t), Action.shape);
 type edit_action =
+  | EditVar
   | DeleteEdit(delete_edit)
   | InsertEdit(insert_edit)
-  | Construct(structure)
   | CursorMove;
 type cursor_term_info = {
   previous_cursor_term: cursor_term,
@@ -64,7 +63,6 @@ let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
     }
 
   | InsertEdit(_)
-  | Construct(_)
   | CursorMove => false
   };
 };
@@ -287,7 +285,6 @@ let get_initial_term_before_delete =
       | TypeAnn => new_cursor_term_info.previous_cursor_term
       }
     | InsertEdit(_)
-    | Construct(_)
     | CursorMove => new_cursor_term_info.previous_cursor_term
     };
 
@@ -316,7 +313,6 @@ let get_insert_hole = (group: undo_history_group): option(MetaVar.t) => {
       | Edit(hole) => hole
       }
     | DeleteEdit(_)
-    | Construct(_)
     | CursorMove => None
     };
   switch (List.rev(suffix)) {
@@ -716,7 +712,6 @@ let is_construct_hole = (edit_action): option(MetaVar.t) => {
     | EmptyLine
     | Edit(_) => None
     }
-  | Construct(_)
   | CursorMove => None
   };
 };
@@ -745,14 +740,14 @@ let construct_shape =
         set_fail_join(
           prev_group,
           new_entry_base,
-          Some(Construct(ShapeEdit(None, shape))),
+          Some(InsertEdit(ShapeEdit(None, shape))),
           true,
         )
       | Some(hole_id) =>
         set_fail_join(
           prev_group,
           new_entry_base,
-          Some(Construct(ShapeEdit(Some(hole_id), shape))),
+          Some(InsertEdit(ShapeEdit(Some(hole_id), shape))),
           true,
         )
       }
@@ -763,14 +758,14 @@ let construct_shape =
         set_fail_join(
           prev_group,
           new_entry_base,
-          Some(Construct(ShapeEdit(None, shape))),
+          Some(InsertEdit(ShapeEdit(None, shape))),
           true,
         )
       | Some(hole_id) =>
         set_success_join(
           prev_group,
           new_entry_base,
-          Some(Construct(ShapeEdit(Some(hole_id), shape))),
+          Some(InsertEdit(ShapeEdit(Some(hole_id), shape))),
           true,
         )
       };
@@ -902,7 +897,7 @@ let construct_shape =
                   set_fail_join(
                     prev_group,
                     new_entry_base,
-                    Some(Construct(LetBinding)),
+                    Some(InsertEdit(LetBinding)),
                     true,
                   )
                 | Some(_) =>
@@ -921,7 +916,7 @@ let construct_shape =
                   set_success_join(
                     prev_group',
                     new_entry_base,
-                    Some(Construct(LetBinding)),
+                    Some(InsertEdit(LetBinding)),
                     true,
                   );
                 };
@@ -941,7 +936,7 @@ let construct_shape =
                   set_fail_join(
                     prev_group,
                     new_entry_base,
-                    Some(Construct(CaseMatch)),
+                    Some(InsertEdit(CaseMatch)),
                     true,
                   )
                 | Some(_) =>
@@ -960,7 +955,7 @@ let construct_shape =
                   set_success_join(
                     prev_group',
                     new_entry_base,
-                    Some(Construct(CaseMatch)),
+                    Some(InsertEdit(CaseMatch)),
                     true,
                   );
                 };
