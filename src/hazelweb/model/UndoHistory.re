@@ -205,13 +205,13 @@ let push_history_entry =
 };
 
 let cursor_jump =
-    (prev_group: undo_history_group, prev_cardstacks: Cardstacks.t): bool => {
+    (prev_group: undo_history_group, cur_cardstacks: Cardstacks.t): bool => {
   let prev_step =
     ZList.prj_z(prev_group.group_entries).cardstacks
     |> Cardstacks.get_program
     |> Program.get_steps;
   let new_step =
-    prev_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+    cur_cardstacks |> Cardstacks.get_program |> Program.get_steps;
   prev_step != new_step;
 };
 
@@ -458,6 +458,33 @@ let group_edit_action =
     };
   is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
 };
+
+/* let at_end_of_cursor_term = (cursor_term):bool=> {
+  switch(cursor_term){
+    | Exp(pos, operand) => {
+      switch(pos)
+      switch(operand){
+      | EmptyHole(_) => 1
+      | Var(_, _, var) => Var.length(var)
+      | NumLit(_, num) => String.length(string_of_int(num))
+      | BoolLit(_, boolval) => if(boolval){4}else{5}
+      | ListNil(_)=> 1
+      | Lam(_, _, _, _) =>
+      | Inj(ErrStatus.t, InjSide.t, t)
+      | Case(ErrStatus.t, t, rules, option(UHTyp.t))
+      | Parenthesized(t)
+      | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+      }
+    }
+  | Pat(_, UHPat.operand)
+  | Typ(_, UHTyp.operand)
+  | ExpOp(_, UHExp.operator)
+  | PatOp(_, UHPat.operator)
+  | TypOp(_, UHTyp.operator)
+  | Line(_, UHExp.line)
+  | Rule(_, UHExp.rule);
+  }
+} */
 let ontext_del =
     (
       ~prev_group: undo_history_group,
@@ -477,13 +504,15 @@ let ontext_del =
     /* whether delete the previous empty line */
     switch (prev_entry_info) {
     | None =>
+      JSUtil.log("486 log");
       set_fail_join(
         prev_group,
         new_entry,
         Some(DeleteEdit(EmptyLine)),
         false,
-      )
+      );
     | Some(info) =>
+      JSUtil.log("495 log");
       if (edit_action_is_DeleteEmptyLine(info.edit_action)) {
         set_success_join(
           prev_group,
@@ -492,13 +521,14 @@ let ontext_del =
           false,
         );
       } else {
+        JSUtil.log("503 log");
         set_fail_join(
           prev_group,
           new_entry,
           Some(DeleteEdit(EmptyLine)),
           false,
         );
-      }
+      };
     };
   } else if (new_entry_info.previous_action == Backspace
              && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
@@ -591,14 +621,16 @@ let ondelim_undel =
     /* whether delete the previous empty line */
     switch (prev_entry_info) {
     | None =>
+      JSUtil.log("603 log");
       set_fail_join(
         prev_group,
         new_entry,
         Some(DeleteEdit(EmptyLine)),
         false,
-      )
+      );
     | Some(info) =>
       if (edit_action_is_DeleteEmptyLine(info.edit_action)) {
+        JSUtil.log("611 log");
         set_success_join(
           prev_group,
           new_entry,
@@ -606,6 +638,7 @@ let ondelim_undel =
           false,
         );
       } else {
+        JSUtil.log("620 log");
         set_fail_join(
           prev_group,
           new_entry,
