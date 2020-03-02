@@ -320,16 +320,16 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   };
 };
 
-let is_hole = (cursor_term: cursor_term): option(MetaVar.t) => {
+let is_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) => UHExp.operand_is_hole(exp)
   | Pat(_, pat) => UHPat.operand_is_hole(pat)
-  | Typ(_, _) // => UHTyp.operand_is_hole(typ)
+  | Typ(_, typ) => UHTyp.operand_is_hole(typ)
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
   | Line(_, _)
-  | Rule(_, _) => None
+  | Rule(_, _) => false
   };
 };
 

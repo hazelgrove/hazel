@@ -844,11 +844,10 @@ module Exp = {
   and follow_block =
       ((steps, cursor): t, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
-    | [] =>
-      None // no block level cursor
+    | [] => None // no block level cursor
     | [x, ...xs] =>
       switch (ZList.split_at(x, block)) {
-      | None =>None
+      | None => None
       | Some(split_lines) =>
         split_lines |> ZList.optmap_z(follow_line((xs, cursor)))
       }
@@ -861,8 +860,7 @@ module Exp = {
       |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
     | ([], EmptyLine | LetLine(_, _, _)) =>
       line |> ZExp.place_cursor_line(cursor)
-    | ([_, ..._], EmptyLine) =>
-      None
+    | ([_, ..._], EmptyLine) => None
     | ([x, ...xs], LetLine(p, ann, def)) =>
       switch (x) {
       | 0 =>
@@ -871,8 +869,7 @@ module Exp = {
         |> OptUtil.map(zp => ZExp.LetLineZP(zp, ann, def))
       | 1 =>
         switch (ann) {
-        | None =>
-          None
+        | None => None
         | Some(ann) =>
           ann
           |> Typ.follow((xs, cursor))
@@ -882,8 +879,7 @@ module Exp = {
         def
         |> follow((xs, cursor))
         |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
-      | _ =>
-        None
+      | _ => None
       }
     }
   and follow_opseq = (path: t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
@@ -892,8 +888,7 @@ module Exp = {
       ((steps, cursor): t, operator: UHExp.operator): option(ZExp.zoperator) =>
     switch (steps) {
     | [] => operator |> ZExp.place_cursor_operator(cursor)
-    | [_, ..._] =>
-      None
+    | [_, ..._] => None
     }
   and follow_operand =
       ((steps, cursor): t, operand: UHExp.operand): option(ZExp.zoperand) =>
@@ -905,16 +900,14 @@ module Exp = {
       | Var(_, _, _)
       | NumLit(_, _)
       | BoolLit(_, _)
-      | ListNil(_) =>
-        None
+      | ListNil(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
           body
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
-        | _ =>
-          None
+        | _ => None
         }
       | Lam(err, p, ann, body) =>
         switch (x) {
@@ -924,8 +917,7 @@ module Exp = {
           |> OptUtil.map(zp => ZExp.LamZP(err, zp, ann, body))
         | 1 =>
           switch (ann) {
-          | None =>
-            None
+          | None => None
           | Some(ann) =>
             ann
             |> Typ.follow((xs, cursor))
@@ -935,8 +927,7 @@ module Exp = {
           body
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody))
-        | _ =>
-          None
+        | _ => None
         }
       | Inj(err, side, body) =>
         switch (x) {
@@ -944,8 +935,7 @@ module Exp = {
           body
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.InjZ(err, side, zbody))
-        | _ =>
-          None
+        | _ => None
         }
       | Case(err, scrut, rules, ann) =>
         switch (x) {
@@ -1000,8 +990,7 @@ module Exp = {
         clause
         |> follow((xs, cursor))
         |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
-      | _ =>
-        None
+      | _ => None
       }
     };
 

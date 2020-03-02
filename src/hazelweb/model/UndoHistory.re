@@ -1,21 +1,20 @@
 type cursor_term = CursorInfo.cursor_term;
 type delete_edit =
   | Term(cursor_term)
-  | Hole(MetaVar.t)
+  | Space
   | EmptyLine
   | TypeAnn;
-type insert_edit =
-  | Hole(MetaVar.t, option(MetaVar.t))
+type construct_edit =
+  | Space
   | EmptyLine
-  | Edit(option(MetaVar.t))
   | LetBinding
   | CaseMatch
   | TypeAnn
-  | ShapeEdit(option(MetaVar.t), Action.shape);
+  | ShapeEdit(Action.shape);
 type edit_action =
   | EditVar
   | DeleteEdit(delete_edit)
-  | InsertEdit(insert_edit)
+  | ConstructEdit(construct_edit)
   | CursorMove;
 type cursor_term_info = {
   previous_cursor_term: cursor_term,
@@ -52,11 +51,12 @@ let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
   | DeleteEdit(edit_detail) =>
     switch (edit_detail) {
     | EmptyLine => true
-    | Hole(_)
+    | Term(_)
+    | Space
     | TypeAnn => false
     }
-
-  | InsertEdit(_)
+  | EditVar
+  | ConstructEdit(_)
   | CursorMove => false
   };
 };
@@ -236,57 +236,91 @@ let set_success_join =
   Success(push_history_entry(prev_group, new_entry, is_complete));
 };
 
-let construct_holes =
+let construct_space =
     (prev_group: undo_history_group, entry_base): group_result => {
-  let (new_cursor_term_info, _, _) = entry_base;
-  if (CursorInfo.is_empty_line(new_cursor_term_info.previous_cursor_term)) {
-    switch (CursorInfo.is_hole(new_cursor_term_info.current_cursor_term)) {
-    | None => failwith("impossible match")
-    | Some(hole_id) =>
-      set_fail_join(
-        prev_group,
-        entry_base,
-        Some(InsertEdit(Hole(hole_id, Some(hole_id - 1)))),
-        false,
-      )
-    };
-  } else {
-    switch (CursorInfo.is_hole(new_cursor_term_info.current_cursor_term)) {
-    | None => set_fail_join(prev_group, entry_base, None, false)
-    | Some(hole_id) =>
-      set_fail_join(
-        prev_group,
-        entry_base,
-        Some(InsertEdit(Hole(hole_id, None))),
-        false,
-      )
-    };
+  set_fail_join(prev_group, entry_base, Some(ConstructEdit(Space)), false);
+};
+type comp_len_typ =
+  | MaxLen
+  | Ignore
+  | Len(int);
+/* < */
+let comp_len_lt =
+    (cursor_len_1: comp_len_typ, cursor_len_2: comp_len_typ): bool => {
+  switch (cursor_len_1, cursor_len_2) {
+  | (_, MaxLen) => true
+  | (_, Ignore) => false
+  | (MaxLen, _) => false
+  | (Ignore, _) => true
+  | (Len(len1), Len(len2)) => len1 < len2
+  };
+};
+let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
+  switch (cursor_term) {
+  | Exp(_, operand) =>
+    switch (operand) {
+    | EmptyHole(_) => Ignore
+    | Var(_, _, var) => Len(Var.length(var))
+    | NumLit(_, num) => Len(String.length(string_of_int(num)))
+    | BoolLit(_, _)
+    | ListNil(_)
+    | Lam(_, _, _, _)
+    | Inj(_, _, _)
+    | Case(_, _, _, _)
+    | Parenthesized(_) => MaxLen
+    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
+    }
+  | Pat(_, operand) =>
+    switch (operand) {
+    | EmptyHole(_) => Ignore
+    | Wild(_) => Len(1)
+    | Var(_, _, var) => Len(Var.length(var))
+    | NumLit(_, num) => Len(String.length(string_of_int(num)))
+    | BoolLit(_, _)
+    | ListNil(_)
+    | Parenthesized(_)
+    | Inj(_, _, _) => MaxLen
+    }
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Line(_, _)
+  | Rule(_, _) => MaxLen
   };
 };
 let get_initial_term_before_delete =
     (group: undo_history_group, new_cursor_term_info: cursor_term_info)
     : cursor_term => {
   let suffix = ZList.prj_suffix(group.group_entries);
-  let delete_edit_info_filter = (info: info): cursor_term =>
-    switch (info.edit_action) {
-    | EditVar => info.cursor_term_info.previous_cursor_term
-    | DeleteEdit(_)
-    | InsertEdit(_)
-    | CursorMove => new_cursor_term_info.previous_cursor_term
+  let rec max_len_term =
+          (
+            ls: list(undo_history_entry),
+            max_len: comp_len_typ,
+            cursor_term: cursor_term,
+          )
+          : cursor_term => {
+    switch (ls) {
+    | [] => cursor_term
+    | [head, ...tail] =>
+      switch (head.info) {
+      | None => max_len_term(tail, max_len, cursor_term)
+      | Some(info) =>
+        let len_temp =
+          cursor_term_len(info.cursor_term_info.current_cursor_term);
+        if (comp_len_lt(max_len, len_temp)) {
+          max_len_term(
+            tail,
+            len_temp,
+            info.cursor_term_info.current_cursor_term,
+          );
+        } else {
+          max_len_term(tail, max_len, cursor_term);
+        };
+      }
     };
-
-  switch (List.rev(suffix)) {
-  | [] =>
-    switch (ZList.prj_z(group.group_entries).info) {
-    | None => new_cursor_term_info.previous_cursor_term
-    | Some(info) => delete_edit_info_filter(info)
-    }
-  | ls =>
-    switch (List.hd(ls).info) {
-    | None => new_cursor_term_info.previous_cursor_term
-    | Some(info) => delete_edit_info_filter(info)
-    }
   };
+  max_len_term(suffix, Len(0), new_cursor_term_info.previous_cursor_term);
 };
 
 let cursor_jump_after_delete =
@@ -456,52 +490,35 @@ let ontext_del =
       None,
       true,
     );
-  } else {
+  } else if
     /* normal edit */
-
-      if (CursorInfo.is_empty_line(cursor_term_info.current_cursor_term)) {
-        switch (prev_entry_info) {
-        | None =>
-          set_fail_join(
-            prev_group,
-            new_entry_base,
-            Some(
-              DeleteEdit(
-                Term(cursor_term_info.previous_cursor_term),
-              ),
-            ),
-            true,
-          )
-        | Some(_) =>
-          let initial_term =
-            get_initial_term_before_delete(prev_group, cursor_term_info);
-          set_success_join(
-            prev_group,
-            new_entry_base,
-            Some(DeleteEdit(Term(initial_term))),
-            true,
-          );
-        };
-      } else {
-        switch (prev_entry_info) {
-        | None =>
-          set_fail_join(
-            prev_group,
-            new_entry_base,
-            Some(EditVar),
-            false,
-          )
-        | Some(_) =>
-          set_success_join(
-            prev_group,
-            new_entry_base,
-            Some(EditVar),
-            false,
-          )
-        };
-      };
-
-    
+    (CursorInfo.is_empty_line(cursor_term_info.current_cursor_term)
+     || CursorInfo.is_hole(cursor_term_info.current_cursor_term)) {
+    switch (prev_entry_info) {
+    | None =>
+      JSUtil.log("fail combine 499");
+      set_fail_join(
+        prev_group,
+        new_entry_base,
+        Some(DeleteEdit(Term(cursor_term_info.previous_cursor_term))),
+        true,
+      );
+    | Some(_) =>
+      let initial_term =
+        get_initial_term_before_delete(prev_group, cursor_term_info);
+      set_success_join(
+        prev_group,
+        new_entry_base,
+        Some(DeleteEdit(Term(initial_term))),
+        true,
+      );
+    };
+  } else {
+    switch (prev_entry_info) {
+    | None => set_fail_join(prev_group, new_entry_base, Some(EditVar), false)
+    | Some(_) =>
+      set_success_join(prev_group, new_entry_base, Some(EditVar), false)
+    };
   };
 };
 let ondelim_undel =
@@ -544,21 +561,25 @@ let ondelim_undel =
     };
   } else {
     let (cursor_term_info, _, _) = new_entry_base;
-    switch (CursorInfo.is_hole(cursor_term_info.previous_cursor_term)) {
-    | Some(hole_id) =>
+    if (CursorInfo.is_hole(cursor_term_info.previous_cursor_term)) {
       if (CursorInfo.is_exp_inside(cursor_term_info.current_cursor_term)) {
         set_fail_join(prev_group, new_entry_base, None, true);
       } else {
         set_fail_join(
           prev_group,
           new_entry_base,
-          Some(DeleteEdit(Hole(hole_id))),
+          Some(DeleteEdit(Space)),
           true,
         );
-      }
-    | None =>
+      };
+    } else {
       /* move cursor to next term, just ignore this move */
-      set_fail_join(prev_group, new_entry_base, None, true)
+      set_fail_join(
+        prev_group,
+        new_entry_base,
+        None,
+        true,
+      );
     };
   };
 
@@ -573,56 +594,59 @@ let ondelim_del =
     : group_result => {
   let (cursor_term_info, _, _) = new_entry_base;
 
-  switch (CursorInfo.is_hole(cursor_term_info.previous_cursor_term)) {
-  | Some(_) =>
+  if (CursorInfo.is_hole(cursor_term_info.previous_cursor_term)) {
     /* move cursor in the hole */
-    set_fail_join(prev_group, new_entry_base, None, true)
-  | None =>
-    if (pos == 1 && has_typ_ann(cursor_term_info.previous_cursor_term)) {
-      /* num==1 is the position of ':' in an expression */
+    set_fail_join(
+      prev_group,
+      new_entry_base,
+      None,
+      true,
+    );
+  } else if (pos == 1 && has_typ_ann(cursor_term_info.previous_cursor_term)) {
+    /* num==1 is the position of ':' in an expression */
+    set_fail_join(
+      prev_group,
+      new_entry_base,
+      Some(DeleteEdit(TypeAnn)),
+      true,
+    );
+  } else {
+    /* delete and reach a hole */
+    switch (prev_entry_info) {
+    | None =>
+      JSUtil.log("fail combine 617");
       set_fail_join(
         prev_group,
         new_entry_base,
-        Some(DeleteEdit(TypeAnn)),
+        Some(DeleteEdit(Term(cursor_term_info.previous_cursor_term))),
         true,
       );
-    } else {
-        /* delete and reach a hole */
-        switch (prev_entry_info) {
-        | None =>
-          set_fail_join(
-            prev_group,
-            new_entry_base,
-            Some(
-              DeleteEdit(
-                Term(cursor_term_info.previous_cursor_term),
-              ),
-            ),
-            true,
-          )
-        | Some(_) =>
-          let initial_term =
-            get_initial_term_before_delete(prev_group, cursor_term_info);
-          set_success_join(
-            prev_group,
-            new_entry_base,
-            Some(DeleteEdit(Term(initial_term))),
-            true,
-          );
-        }
-    }
+    | Some(_) =>
+      let initial_term =
+        get_initial_term_before_delete(prev_group, cursor_term_info);
+      set_success_join(
+        prev_group,
+        new_entry_base,
+        Some(DeleteEdit(Term(initial_term))),
+        true,
+      );
+    };
   };
 };
-let is_construct_hole = (edit_action): option(MetaVar.t) => {
+let is_construct_space = (edit_action): bool => {
   switch (edit_action) {
-  | DeleteEdit(_) => None
-  | InsertEdit(insert_edit) =>
-    switch (insert_edit) {
-    | Hole(metavar, _) => Some(metavar)
+  | ConstructEdit(construct_edit) =>
+    switch (construct_edit) {
+    | Space => true
     | EmptyLine
-    | Edit(_) => None
+    | LetBinding
+    | CaseMatch
+    | TypeAnn
+    | ShapeEdit(_) => false
     }
-  | CursorMove => None
+  | DeleteEdit(_)
+  | EditVar
+  | CursorMove => false
   };
 };
 let construct_shape =
@@ -642,42 +666,31 @@ let construct_shape =
         ~append_info: option((info, Cardstacks.t)),
       )
       : group_result => {
-    let (cursor_term_info, _, _) = new_entry_base;
     switch (append_info) {
     | None =>
-      switch (CursorInfo.is_hole(cursor_term_info.previous_cursor_term)) {
-      | None =>
-        set_fail_join(
-          prev_group,
-          new_entry_base,
-          Some(InsertEdit(ShapeEdit(None, shape))),
-          true,
-        )
-      | Some(hole_id) =>
-        set_fail_join(
-          prev_group,
-          new_entry_base,
-          Some(InsertEdit(ShapeEdit(Some(hole_id), shape))),
-          true,
-        )
-      }
+      set_fail_join(
+        prev_group,
+        new_entry_base,
+        Some(ConstructEdit(ShapeEdit(shape))),
+        true,
+      )
+
     | Some(append_info') =>
       let (prev_info, _) = append_info';
-      switch (is_construct_hole(prev_info.edit_action)) {
-      | None =>
+      if (is_construct_space(prev_info.edit_action)) {
         set_fail_join(
           prev_group,
           new_entry_base,
-          Some(InsertEdit(ShapeEdit(None, shape))),
+          Some(ConstructEdit(ShapeEdit(shape))),
           true,
-        )
-      | Some(hole_id) =>
+        );
+      } else {
         set_success_join(
           prev_group,
           new_entry_base,
-          Some(InsertEdit(ShapeEdit(Some(hole_id), shape))),
+          Some(ConstructEdit(ShapeEdit(shape))),
           true,
-        )
+        );
       };
     };
   };
@@ -689,7 +702,7 @@ let construct_shape =
       set_fail_join(
         prev_group,
         new_entry_base,
-        Some(InsertEdit(EmptyLine)),
+        Some(ConstructEdit(EmptyLine)),
         false,
       )
     | Some(append_info') =>
@@ -698,14 +711,14 @@ let construct_shape =
         set_success_join(
           prev_group,
           new_entry_base,
-          Some(InsertEdit(EmptyLine)),
+          Some(ConstructEdit(EmptyLine)),
           false,
         );
       } else {
         set_fail_join(
           prev_group,
           new_entry_base,
-          Some(InsertEdit(EmptyLine)),
+          Some(ConstructEdit(EmptyLine)),
           false,
         );
       };
@@ -725,44 +738,22 @@ let construct_shape =
     /* if previous is hole then combine else if previous is char then combine else start a new group */
 
     switch (append_info) {
-    | None =>
-        set_fail_join(
-          prev_group,
-          new_entry_base,
-          Some(EditVar),
-          false,
-        )
+    | None => set_fail_join(prev_group, new_entry_base, Some(EditVar), false)
 
     | Some(append_info') =>
       let (prev_info, prev_cardstacks) = append_info';
-      switch (is_construct_hole(prev_info.edit_action)) {
-      | None =>
+      if (is_construct_space(prev_info.edit_action)) {
         if (group_edit_action(
               prev_group,
               prev_cardstacks,
               prev_info.previous_action,
             )) {
-          set_success_join(
-            prev_group,
-            new_entry_base,
-            Some(EditVar),
-            false,
-          );
+          set_success_join(prev_group, new_entry_base, Some(EditVar), false);
         } else {
-          set_fail_join(
-            prev_group,
-            new_entry_base,
-            Some(EditVar),
-            false,
-          );
-        }
-      | Some(_) =>
-        set_success_join(
-          prev_group,
-          new_entry_base,
-          Some(EditVar),
-          false,
-        )
+          set_fail_join(prev_group, new_entry_base, Some(EditVar), false);
+        };
+      } else {
+        set_success_join(prev_group, new_entry_base, Some(EditVar), false);
       };
     }
 
@@ -798,7 +789,7 @@ let construct_shape =
                   set_fail_join(
                     prev_group,
                     new_entry_base,
-                    Some(InsertEdit(LetBinding)),
+                    Some(ConstructEdit(LetBinding)),
                     true,
                   )
                 | Some(_) =>
@@ -817,15 +808,15 @@ let construct_shape =
                   set_success_join(
                     prev_group',
                     new_entry_base,
-                    Some(InsertEdit(LetBinding)),
+                    Some(ConstructEdit(LetBinding)),
                     true,
                   );
                 };
               } else {
-                construct_holes(prev_group, new_entry_base);
+                construct_space(prev_group, new_entry_base);
               }
             | OnDelim(_, _)
-            | OnOp(_) => construct_holes(prev_group, new_entry_base)
+            | OnOp(_) => construct_space(prev_group, new_entry_base)
             }
 
           | Case =>
@@ -837,7 +828,7 @@ let construct_shape =
                   set_fail_join(
                     prev_group,
                     new_entry_base,
-                    Some(InsertEdit(CaseMatch)),
+                    Some(ConstructEdit(CaseMatch)),
                     true,
                   )
                 | Some(_) =>
@@ -856,15 +847,15 @@ let construct_shape =
                   set_success_join(
                     prev_group',
                     new_entry_base,
-                    Some(InsertEdit(CaseMatch)),
+                    Some(ConstructEdit(CaseMatch)),
                     true,
                   );
                 };
               } else {
-                construct_holes(prev_group, new_entry_base);
+                construct_space(prev_group, new_entry_base);
               }
             | OnDelim(_, _)
-            | OnOp(_) => construct_holes(prev_group, new_entry_base)
+            | OnOp(_) => construct_space(prev_group, new_entry_base)
             }
           }
         | EmptyHole(_)
@@ -875,7 +866,7 @@ let construct_shape =
         | Lam(_, _, _, _)
         | Inj(_, _, _)
         | Case(_, _, _, _)
-        | Parenthesized(_) => construct_holes(prev_group, new_entry_base)
+        | Parenthesized(_) => construct_space(prev_group, new_entry_base)
         | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
         }
       | Pat(_, _)
@@ -884,7 +875,7 @@ let construct_shape =
       | PatOp(_, _)
       | TypOp(_, _)
       | Line(_, _)
-      | Rule(_, _) => construct_holes(prev_group, new_entry_base)
+      | Rule(_, _) => construct_space(prev_group, new_entry_base)
       };
     }
 
@@ -902,18 +893,14 @@ let entry_to_start_a_group =
       (~prev_group: undo_history_group, ~new_entry_base: entry_base)
       : group_result => {
     let (new_cursor_term_info, _, _) = new_entry_base;
-      /* delete and reach a hole */
-      set_fail_join(
-        prev_group,
-        new_entry_base,
-        Some(
-          DeleteEdit(
-            Term(new_cursor_term_info.previous_cursor_term),
-          ),
-        ),
-        true,
-      )
-
+    /* delete and reach a hole */
+    JSUtil.log("fail combine 897");
+    set_fail_join(
+      prev_group,
+      new_entry_base,
+      Some(DeleteEdit(Term(new_cursor_term_info.previous_cursor_term))),
+      true,
+    );
   };
   switch (action) {
   | Delete =>
@@ -1034,18 +1021,18 @@ let join_group =
         | OnOp(side) =>
           switch (side) {
           | Before =>
-              /* delete and reach a hole */
-              let initial_term =
-                get_initial_term_before_delete(
-                  prev_group,
-                  new_cursor_term_info,
-                );
-              set_success_join(
+            /* delete and reach a hole */
+            let initial_term =
+              get_initial_term_before_delete(
                 prev_group,
-                new_entry_base,
-                Some(DeleteEdit(Term(initial_term))),
-                true,
+                new_cursor_term_info,
               );
+            set_success_join(
+              prev_group,
+              new_entry_base,
+              Some(DeleteEdit(Term(initial_term))),
+              true,
+            );
           | After =>
             /* move cursor to next term, just ignore this move */
             set_fail_join(prev_group, new_entry_base, None, true)
@@ -1096,18 +1083,17 @@ let join_group =
             /* move cursor to next term, just ignore this move */
             set_fail_join(prev_group, new_entry_base, None, true)
           | After =>
-              let initial_term =
-                get_initial_term_before_delete(
-                  prev_group,
-                  new_cursor_term_info,
-                );
-              set_success_join(
+            let initial_term =
+              get_initial_term_before_delete(
                 prev_group,
-                new_entry_base,
-                Some(DeleteEdit(Term(initial_term))),
-                true,
+                new_cursor_term_info,
               );
-
+            set_success_join(
+              prev_group,
+              new_entry_base,
+              Some(DeleteEdit(Term(initial_term))),
+              true,
+            );
           }
         };
       }
@@ -1175,7 +1161,8 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
             ...ZList.prj_suffix(prev_group.group_entries),
           ],
         ),
-        is_complete: cursor_jump(prev_group, cardstacks),
+        is_complete:
+          cursor_jump(prev_group, cardstacks) || prev_group.is_complete,
       };
     };
   ZList.replace_z(new_group, undo_history);
