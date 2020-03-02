@@ -99,6 +99,7 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
+
 let is_empty_line = (cursor_term): bool => {
   switch (cursor_term) {
   | Line(_, line) => UHExp.is_empty_line(line)
