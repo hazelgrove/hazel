@@ -459,32 +459,6 @@ let group_edit_action =
   is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
 };
 
-/* let at_end_of_cursor_term = (cursor_term):bool=> {
-     switch(cursor_term){
-       | Exp(pos, operand) => {
-         switch(pos)
-         switch(operand){
-         | EmptyHole(_) => 1
-         | Var(_, _, var) => Var.length(var)
-         | NumLit(_, num) => String.length(string_of_int(num))
-         | BoolLit(_, boolval) => if(boolval){4}else{5}
-         | ListNil(_)=> 1
-         | Lam(_, _, _, _) =>
-         | Inj(ErrStatus.t, InjSide.t, t)
-         | Case(ErrStatus.t, t, rules, option(UHTyp.t))
-         | Parenthesized(t)
-         | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-         }
-       }
-     | Pat(_, UHPat.operand)
-     | Typ(_, UHTyp.operand)
-     | ExpOp(_, UHExp.operator)
-     | PatOp(_, UHPat.operator)
-     | TypOp(_, UHTyp.operator)
-     | Line(_, UHExp.line)
-     | Rule(_, UHExp.rule);
-     }
-   } */
 let ontext_del =
     (
       ~prev_group: undo_history_group,
@@ -1340,31 +1314,16 @@ let join_group =
     | (_, MoveRight)
     | (_, MoveToNextHole)
     | (_, MoveToPrevHole) =>
-      failwith(
-        "Impossible match. Not undoable actions will not be added into history",
-      )
+      failwith("Impossible match. Not undoable actions will not be pushed")
     }
   };
 };
-/* let is_movement_agnostic = (action: Action.t): bool => {
-     switch (action) {
-     | MoveTo(_)
-     | MoveToBefore(_) => false
-     | MoveLeft
-     | MoveRight
-     | MoveToNextHole
-     | MoveToPrevHole
-     | UpdateApPalette(_)
-     | Delete
-     | Backspace
-     | Construct(_) => true
-     };
-   }; */
+
 let update_move_action =
     (
       undo_history: t,
-      cur_cardstacks: Cardstacks.t,
       prev_cardstacks: Cardstacks.t,
+      cur_cardstacks: Cardstacks.t,
       action: Action.t,
     )
     : t => {
@@ -1453,24 +1412,7 @@ let push_edit_state =
       ([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
     };
   } else {
-    update_move_action(
-      undo_history,
-      cur_cardstacks,
-      prev_cardstacks,
-      action,
-      //undo_history;
-      //{
-      /* if any cursor-moving action interupts the current edit,
-         the current group becomes complete. */
-      /* update_move_action(
-           undo_history,
-           cur_cardstacks,
-           action,
-         ); */
-      /*     let prev_group' = {...prev_group, is_complete: cursor_jump(prev_group,cur_cardstacks)};
-             ZList.replace_z(prev_group', undo_history); */
-      //};
-    );
+    update_move_action(undo_history, prev_cardstacks, cur_cardstacks, action);
   };
 };
 
