@@ -422,7 +422,42 @@ let cursor_jump_after_backspace =
     }
   };
 };
-
+let group_edit_action =
+    (
+      prev_group: undo_history_group,
+      prev_cardstacks: Cardstacks.t,
+      action: Action.t,
+    )
+    : bool => {
+  let is_edit_action =
+    switch (action) {
+    | Delete
+    | Backspace => true
+    | Construct(shape) =>
+      switch (shape) {
+      | SChar(_) => true
+      | SList
+      | SParenthesized
+      | SAsc
+      | SLam
+      | SListNil
+      | SInj(_)
+      | SLet
+      | SLine
+      | SCase
+      | SOp(_)
+      | SApPalette(_) => false
+      }
+    | MoveTo(_)
+    | MoveToBefore(_)
+    | MoveLeft
+    | MoveRight
+    | MoveToNextHole
+    | MoveToPrevHole => failwith("not doable action")
+    | UpdateApPalette(_) => failwith("ApPalette is not implemented")
+    };
+  is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
+};
 let ontext_del =
     (
       ~prev_group: undo_history_group,
@@ -463,7 +498,7 @@ let ontext_del =
           Some(DeleteEdit(EmptyLine)),
           false,
         );
-      } 
+      }
     };
   } else if (new_entry_info.previous_action == Backspace
              && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
@@ -672,6 +707,298 @@ let ondelim_del =
         }
       };
     }
+  };
+};
+let is_construct_hole = (edit_action): option(MetaVar.t) => {
+  switch (edit_action) {
+  | DeleteEdit(_) => None
+  | InsertEdit(insert_edit) =>
+    switch (insert_edit) {
+    | Hole(metavar, _) => Some(metavar)
+    | EmptyLine
+    | Edit(_) => None
+    }
+  | Construct(_)
+  | NotSet => None
+  };
+};
+let construct_shape =
+    (
+      ~shape: Action.shape,
+      ~prev_group: undo_history_group,
+      ~new_entry: undo_history_entry,
+      ~new_entry_info: info,
+      ~append_info: option((info, Cardstacks.t))=?,
+      (),
+    )
+    : group_result => {
+  let insert_shape_helper =
+      (
+        ~shape: Action.shape,
+        ~prev_group: undo_history_group,
+        ~new_entry: undo_history_entry,
+        ~new_entry_info: info,
+        ~append_info: option((info, Cardstacks.t)),
+      )
+      : group_result => {
+    switch (append_info) {
+    | None =>
+      switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
+      | None =>
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(Construct(ShapeEdit(None, shape))),
+          true,
+        )
+      | Some(hole_id) =>
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(Construct(ShapeEdit(Some(hole_id), shape))),
+          true,
+        )
+      }
+    | Some(append_info') =>
+      let (prev_info, _) = append_info';
+      switch (is_construct_hole(prev_info.edit_action)) {
+      | None =>
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(Construct(ShapeEdit(None, shape))),
+          true,
+        )
+      | Some(hole_id) =>
+        set_success_join(
+          prev_group,
+          new_entry,
+          Some(Construct(ShapeEdit(Some(hole_id), shape))),
+          true,
+        )
+      };
+    };
+  };
+  switch (shape) {
+  | SLine =>
+    switch (append_info) {
+    | None =>
+      set_fail_join(
+        prev_group,
+        new_entry,
+        Some(InsertEdit(EmptyLine)),
+        false,
+      )
+    | Some(append_info') =>
+      let (prev_info, _) = append_info';
+      if (action_is_Sline(prev_info.previous_action)) {
+        set_success_join(
+          prev_group,
+          new_entry,
+          Some(InsertEdit(EmptyLine)),
+          false,
+        );
+      } else {
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(InsertEdit(EmptyLine)),
+          false,
+        );
+      };
+    }
+
+  | SParenthesized
+  | SList
+  | SAsc
+  | SLam
+  | SListNil
+  | SInj(_)
+  | SLet
+  | SCase =>
+    /* if previous is hole then combine else start a new group */
+    insert_shape_helper(
+      ~shape,
+      ~prev_group,
+      ~new_entry,
+      ~new_entry_info,
+      ~append_info,
+    )
+  | SChar(_) =>
+    /* if previous is hole then combine else if previous is char then combine else start a new group */
+
+    switch (append_info) {
+    | None =>
+      switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
+      | None =>
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(Construct(ShapeEdit(None, shape))),
+          true,
+        )
+      | Some(hole_id) =>
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(Construct(ShapeEdit(Some(hole_id), shape))),
+          true,
+        )
+      }
+    | Some(append_info') =>
+      let (prev_info, prev_cardstacks) = append_info';
+      switch (is_construct_hole(prev_info.edit_action)) {
+      | None =>
+        if (group_edit_action(
+              prev_group,
+              prev_cardstacks,
+              prev_info.previous_action,
+            )) {
+          set_success_join(
+            prev_group,
+            new_entry,
+            Some(InsertEdit(Edit(get_insert_hole(prev_group)))),
+            false,
+          );
+        } else {
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(InsertEdit(Edit(get_insert_hole(prev_group)))),
+            false,
+          );
+        }
+      | Some(hole_id) =>
+        set_success_join(
+          prev_group,
+          new_entry,
+          Some(InsertEdit(Edit(Some(hole_id)))),
+          false,
+        )
+      };
+    }
+
+  | SOp(shape') =>
+    switch (shape') {
+    | SMinus
+    | SPlus
+    | STimes
+    | SLessThan
+    | SGreaterThan
+    | SEquals
+    | SComma
+    | SArrow
+    | SVBar
+    | SCons
+    | SAnd
+    | SOr =>
+      /* if previous is hole then combine else start a new group */
+      insert_shape_helper(
+        ~shape,
+        ~prev_group,
+        ~new_entry,
+        ~new_entry_info,
+        ~append_info,
+      )
+    | SSpace =>
+      let prev_last_entry = ZList.prj_z(prev_group.group_entries);
+      switch (new_entry_info.previous_cursor_term) {
+      | Exp(_, uexp_operand) =>
+        switch (uexp_operand) {
+        | Var(_, InVarHole(Keyword(k), _), _) =>
+          switch (k) {
+          | Let =>
+            switch (get_cursor_pos(new_entry_info.previous_cursor_term)) {
+            | OnText(pos) =>
+              if (pos == 3) {
+                switch (append_info) {
+                | None =>
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(Construct(LetBinding)),
+                    true,
+                  )
+                | Some(_) =>
+                  let prev_group' = {
+                    ...prev_group,
+                    group_entries:
+                      ZList.replace_z(
+                        {...prev_last_entry, info: None},
+                        prev_group.group_entries,
+                      ),
+                  };
+                  set_success_join(
+                    prev_group',
+                    new_entry,
+                    Some(Construct(LetBinding)),
+                    true,
+                  );
+                };
+              } else {
+                construct_holes(prev_group, new_entry);
+              }
+            | OnDelim(_, _)
+            | OnOp(_) => construct_holes(prev_group, new_entry)
+            }
+
+          | Case =>
+            switch (get_cursor_pos(new_entry_info.previous_cursor_term)) {
+            | OnText(pos) =>
+              if (pos == 4) {
+                switch (append_info) {
+                | None =>
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(Construct(CaseMatch)),
+                    true,
+                  )
+                | Some(_) =>
+                  let prev_group' = {
+                    ...prev_group,
+                    group_entries:
+                      ZList.replace_z(
+                        {...prev_last_entry, info: None},
+                        prev_group.group_entries,
+                      ),
+                  };
+                  set_success_join(
+                    prev_group',
+                    new_entry,
+                    Some(Construct(CaseMatch)),
+                    true,
+                  );
+                };
+              } else {
+                construct_holes(prev_group, new_entry);
+              }
+            | OnDelim(_, _)
+            | OnOp(_) => construct_holes(prev_group, new_entry)
+            }
+          }
+        | EmptyHole(_)
+        | Var(_, _, _)
+        | NumLit(_, _)
+        | BoolLit(_, _)
+        | ListNil(_)
+        | Lam(_, _, _, _)
+        | Inj(_, _, _)
+        | Case(_, _, _, _)
+        | Parenthesized(_) => construct_holes(prev_group, new_entry)
+        | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+        }
+      | Pat(_, _)
+      | Typ(_, _)
+      | ExpOp(_, _)
+      | PatOp(_, _)
+      | TypOp(_, _)
+      | Line(_, _)
+      | Rule(_, _) => construct_holes(prev_group, new_entry)
+      };
+    }
+
+  | SApPalette(_) => failwith("ApPalette is not implemented")
   };
 };
 let entry_to_start_a_group =
@@ -935,42 +1262,7 @@ let entry_to_start_a_group =
     };
   };
 };
-let group_edit_action =
-    (
-      prev_group: undo_history_group,
-      prev_cardstacks: Cardstacks.t,
-      action: Action.t,
-    )
-    : bool => {
-  let is_edit_action =
-    switch (action) {
-    | Delete
-    | Backspace => true
-    | Construct(shape) =>
-      switch (shape) {
-      | SChar(_) => true
-      | SList
-      | SParenthesized
-      | SAsc
-      | SLam
-      | SListNil
-      | SInj(_)
-      | SLet
-      | SLine
-      | SCase
-      | SOp(_)
-      | SApPalette(_) => false
-      }
-    | MoveTo(_)
-    | MoveToBefore(_)
-    | MoveLeft
-    | MoveRight
-    | MoveToNextHole
-    | MoveToPrevHole => failwith("not doable action")
-    | UpdateApPalette(_) => failwith("ApPalette is not implemented")
-    };
-  is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
-};
+
 let join_group =
     (
       prev_group: undo_history_group,
@@ -1179,7 +1471,7 @@ let join_group =
           }
         | SChar(_) =>
           /* if previous is hole then combine else if previous is char then combine else start a new group */
-          switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
+          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
           | None =>
             if (group_edit_action(prev_group, prev_cardstacks, prev_ac)) {
               set_success_join(
