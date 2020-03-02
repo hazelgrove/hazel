@@ -163,7 +163,7 @@ html, body {
 }
 
 .collapsed-sidebar {
-  width: 24px;
+  width: 28px;
 }
 
 /* Set width to zero to have the sidebar "slide away" */
@@ -219,7 +219,6 @@ html, body {
 }
 
 #slidable-left-bar-body {
-  padding-left: 7px;
   direction: rtl;
 }
 

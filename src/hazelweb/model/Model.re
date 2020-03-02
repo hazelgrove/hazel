@@ -31,7 +31,7 @@ let init = (): t => {
     compute_results: true,
     selected_example: None,
     is_cell_focused: false,
-    left_sidebar_open: false,
+    left_sidebar_open: true,
     right_sidebar_open: true,
     show_contenteditable: false,
     show_presentation: false,

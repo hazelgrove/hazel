@@ -7,41 +7,174 @@ module KeyCombo = JSUtil.KeyCombo;
 open ViewUtil;
 open Sexplib.Std;
 
-let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
+type kc_info = {
+  action_fn: CursorInfo.t => Action.t,
+  description: string,
+};
+
+let kc_actions: Hashtbl.t(KeyCombo.t, kc_info) =
   [
-    (KeyCombo.Backspace, _ => Action.Backspace),
-    (Delete, _ => Action.Delete),
-    (ShiftTab, _ => Action.MoveToPrevHole),
-    (Tab, _ => Action.MoveToNextHole),
+    (
+      KeyCombo.Backspace,
+      {action_fn: _ => Action.Backspace, description: "Delete Character"},
+    ),
+    (
+      Delete,
+      {action_fn: _ => Action.Delete, description: "Delete Expression"},
+    ),
+    (
+      ShiftTab,
+      {
+        action_fn: _ => Action.MoveToPrevHole,
+        description: "Move to prev hole",
+      },
+    ),
+    (
+      Tab,
+      {
+        action_fn: _ => Action.MoveToNextHole,
+        description: "Move to next hole",
+      },
+    ),
     (
       KeyCombo.GT,
-      fun
-      | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
-      | _ => Action.Construct(SOp(SGreaterThan)),
+      {
+        action_fn:
+          fun
+          | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
+          | _ => Action.Construct(SOp(SGreaterThan)),
+        description: "Insert > Operator",
+      },
     ),
-    (Ampersand, _ => Action.Construct(SOp(SAnd))),
-    (VBar, _ => Action.Construct(SOp(SOr))),
-    (LeftParen, _ => Action.Construct(SParenthesized)),
-    (Colon, _ => Action.Construct(SAsc)),
-    (Equals, _ => Action.Construct(SOp(SEquals))),
-    (Enter, _ => Action.Construct(SLine)),
-    (Backslash, _ => Action.Construct(SLam)),
-    (Plus, _ => Action.Construct(SOp(SPlus))),
-    (Minus, _ => Action.Construct(SOp(SMinus))),
-    (Asterisk, _ => Action.Construct(SOp(STimes))),
-    (LT, _ => Action.Construct(SOp(SLessThan))),
-    (Space, _ => Action.Construct(SOp(SSpace))),
-    (Comma, _ => Action.Construct(SOp(SComma))),
+    (
+      Ampersand,
+      {
+        action_fn: _ => Action.Construct(SOp(SAnd)),
+        description: "Insert & operator",
+      },
+    ),
+    (
+      VBar,
+      {
+        action_fn: _ => Action.Construct(SOp(SOr)),
+        description: "Insert | operator",
+      },
+    ),
+    (
+      LeftParen,
+      {
+        action_fn: _ => Action.Construct(SParenthesized),
+        description: "Parenthesize expression",
+      },
+    ),
+    (
+      Colon,
+      {
+        action_fn: _ => Action.Construct(SAsc),
+        description: "Create a tuple",
+      },
+    ),
+    (
+      Equals,
+      {
+        action_fn: _ => Action.Construct(SOp(SEquals)),
+        description: "Insert = operator",
+      },
+    ),
+    (
+      Enter,
+      {
+        action_fn: _ => Action.Construct(SLine),
+        description: "Create new line",
+      },
+    ),
+    (
+      Backslash,
+      {
+        action_fn: _ => Action.Construct(SLam),
+        description: "Insert Lambda expression",
+      },
+    ),
+    (
+      Plus,
+      {
+        action_fn: _ => Action.Construct(SOp(SPlus)),
+        description: "Insert + operator",
+      },
+    ),
+    (
+      Minus,
+      {
+        action_fn: _ => Action.Construct(SOp(SMinus)),
+        description: "Insert - operator",
+      },
+    ),
+    (
+      Asterisk,
+      {
+        action_fn: _ => Action.Construct(SOp(STimes)),
+        description: "Insert * operator",
+      },
+    ),
+    (
+      LT,
+      {
+        action_fn: _ => Action.Construct(SOp(SLessThan)),
+        description: "Insert < operator",
+      },
+    ),
+    (
+      Space,
+      {
+        action_fn: _ => Action.Construct(SOp(SSpace)),
+        description: "Separate terms",
+      },
+    ),
+    (
+      Comma,
+      {
+        action_fn: _ => Action.Construct(SOp(SComma)),
+        description: "Construct , operator",
+      },
+    ),
     (
       LeftBracket,
-      fun
-      | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
-      | _ => Action.Construct(SListNil),
+      {
+        action_fn:
+          fun
+          | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
+          | _ => Action.Construct(SListNil),
+        description: "Insert a list",
+      },
     ),
-    (Semicolon, _ => Action.Construct(SOp(SCons))),
-    (Alt_L, _ => Action.Construct(SInj(L))),
-    (Alt_R, _ => Action.Construct(SInj(R))),
-    (Alt_C, _ => Action.Construct(SCase)),
+    (
+      Semicolon,
+      {
+        action_fn: _ => Action.Construct(SOp(SCons)),
+        description: "Cons operator",
+      },
+    ),
+    (
+      Alt_L,
+      {
+        action_fn: _ => Action.Construct(SInj(L)),
+        description: "Left injection",
+      },
+    ),
+    (
+      Alt_R,
+      {
+        action_fn: _ => Action.Construct(SInj(R)),
+        description: "Right injection",
+      },
+    ),
+    (
+      Alt_C,
+      {
+        action_fn: _ => Action.Construct(SCase),
+        description: "Insert case statement",
+      },
+    ),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
@@ -71,15 +204,12 @@ let view =
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
             | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
             | Some(kc) =>
+              let action_fn = Hashtbl.find(kc_actions, kc).action_fn;
               prevent_stop_inject(
                 Update.Action.EditAction(
-                  Hashtbl.find(
-                    kc_actions,
-                    kc,
-                    program |> Program.get_cursor_info,
-                  ),
+                  program |> Program.get_cursor_info |> action_fn,
                 ),
-              )
+              );
             | None =>
               switch (JSUtil.is_single_key(evt)) {
               | None => Event.Ignore
