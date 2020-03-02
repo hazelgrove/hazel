@@ -210,8 +210,7 @@ let cursor_jump =
     ZList.prj_z(prev_group.group_entries).cardstacks
     |> Cardstacks.get_program
     |> Program.get_steps;
-  let new_step =
-    cur_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+  let new_step = cur_cardstacks |> Cardstacks.get_program |> Program.get_steps;
   prev_step != new_step;
 };
 
@@ -460,37 +459,36 @@ let group_edit_action =
 };
 
 /* let at_end_of_cursor_term = (cursor_term):bool=> {
-  switch(cursor_term){
-    | Exp(pos, operand) => {
-      switch(pos)
-      switch(operand){
-      | EmptyHole(_) => 1
-      | Var(_, _, var) => Var.length(var)
-      | NumLit(_, num) => String.length(string_of_int(num))
-      | BoolLit(_, boolval) => if(boolval){4}else{5}
-      | ListNil(_)=> 1
-      | Lam(_, _, _, _) =>
-      | Inj(ErrStatus.t, InjSide.t, t)
-      | Case(ErrStatus.t, t, rules, option(UHTyp.t))
-      | Parenthesized(t)
-      | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-      }
-    }
-  | Pat(_, UHPat.operand)
-  | Typ(_, UHTyp.operand)
-  | ExpOp(_, UHExp.operator)
-  | PatOp(_, UHPat.operator)
-  | TypOp(_, UHTyp.operator)
-  | Line(_, UHExp.line)
-  | Rule(_, UHExp.rule);
-  }
-} */
+     switch(cursor_term){
+       | Exp(pos, operand) => {
+         switch(pos)
+         switch(operand){
+         | EmptyHole(_) => 1
+         | Var(_, _, var) => Var.length(var)
+         | NumLit(_, num) => String.length(string_of_int(num))
+         | BoolLit(_, boolval) => if(boolval){4}else{5}
+         | ListNil(_)=> 1
+         | Lam(_, _, _, _) =>
+         | Inj(ErrStatus.t, InjSide.t, t)
+         | Case(ErrStatus.t, t, rules, option(UHTyp.t))
+         | Parenthesized(t)
+         | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+         }
+       }
+     | Pat(_, UHPat.operand)
+     | Typ(_, UHTyp.operand)
+     | ExpOp(_, UHExp.operator)
+     | PatOp(_, UHPat.operator)
+     | TypOp(_, UHTyp.operator)
+     | Line(_, UHExp.line)
+     | Rule(_, UHExp.rule);
+     }
+   } */
 let ontext_del =
     (
       ~prev_group: undo_history_group,
       ~new_entry: undo_history_entry,
       ~new_entry_info: info,
-      ~pos: CharIndex.t,
       ~adjacent_is_empty_line: bool,
       ~prev_entry_info: option(info)=?,
       (),
@@ -498,9 +496,11 @@ let ontext_del =
     : group_result => {
   let prev_cursor_pos = get_cursor_pos(new_entry_info.previous_cursor_term);
   let new_cursor_pos = get_cursor_pos(new_entry_info.current_cursor_term);
+
   if (CursorInfo.is_empty_line(new_entry_info.previous_cursor_term)
       || adjacent_is_empty_line
-      && pos == 0) {
+      && new_entry_info.previous_cursor_term
+      == new_entry_info.current_cursor_term) {
     /* whether delete the previous empty line */
     switch (prev_entry_info) {
     | None =>
@@ -1077,12 +1077,11 @@ let entry_to_start_a_group =
     switch (new_entry_info.previous_action) {
     | Delete =>
       switch (prev_cursor_pos) {
-      | OnText(pos) =>
+      | OnText(_) =>
         ontext_del(
           ~prev_group,
           ~new_entry,
           ~new_entry_info,
-          ~pos,
           ~adjacent_is_empty_line=new_entry_info.next_is_empty_line,
           (),
         )
@@ -1109,12 +1108,11 @@ let entry_to_start_a_group =
       }
     | Backspace =>
       switch (prev_cursor_pos) {
-      | OnText(pos) =>
+      | OnText(_) =>
         ontext_del(
           ~prev_group,
           ~new_entry,
           ~new_entry_info,
-          ~pos,
           ~adjacent_is_empty_line=new_entry_info.prev_is_empty_line,
           (),
         )
@@ -1178,12 +1176,11 @@ let join_group =
         let prev_cursor_pos =
           get_cursor_pos(prev_entry_info.current_cursor_term);
         switch (prev_cursor_pos) {
-        | OnText(pos) =>
+        | OnText(_) =>
           ontext_del(
             ~prev_group,
             ~new_entry,
             ~new_entry_info,
-            ~pos,
             ~adjacent_is_empty_line=new_entry_info.next_is_empty_line,
             ~prev_entry_info,
             (),
@@ -1249,12 +1246,11 @@ let join_group =
         let prev_cursor_pos =
           get_cursor_pos(prev_entry_info.current_cursor_term);
         switch (prev_cursor_pos) {
-        | OnText(pos) =>
+        | OnText(_) =>
           ontext_del(
             ~prev_group,
             ~new_entry,
             ~new_entry_info,
-            ~pos,
             ~adjacent_is_empty_line=new_entry_info.prev_is_empty_line,
             ~prev_entry_info,
             (),
