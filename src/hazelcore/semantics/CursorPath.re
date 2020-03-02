@@ -845,13 +845,10 @@ module Exp = {
       ((steps, cursor): t, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
     | [] =>
-      //JSUtil.log("follow_block 1~");
       None // no block level cursor
     | [x, ...xs] =>
       switch (ZList.split_at(x, block)) {
-      | None =>
-        //JSUtil.log("follow_block~2");
-        None
+      | None =>None
       | Some(split_lines) =>
         split_lines |> ZList.optmap_z(follow_line((xs, cursor)))
       }
@@ -865,7 +862,6 @@ module Exp = {
     | ([], EmptyLine | LetLine(_, _, _)) =>
       line |> ZExp.place_cursor_line(cursor)
     | ([_, ..._], EmptyLine) =>
-      //JSUtil.log("follow_line~1");
       None
     | ([x, ...xs], LetLine(p, ann, def)) =>
       switch (x) {
@@ -876,7 +872,6 @@ module Exp = {
       | 1 =>
         switch (ann) {
         | None =>
-          //JSUtil.log("follow_line~2");
           None
         | Some(ann) =>
           ann
@@ -888,7 +883,6 @@ module Exp = {
         |> follow((xs, cursor))
         |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
       | _ =>
-        //JSUtil.log("follow_line~3");
         None
       }
     }
@@ -899,7 +893,6 @@ module Exp = {
     switch (steps) {
     | [] => operator |> ZExp.place_cursor_operator(cursor)
     | [_, ..._] =>
-      //JSUtil.log("follow_op~");
       None
     }
   and follow_operand =
@@ -913,7 +906,6 @@ module Exp = {
       | NumLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) =>
-        //JSUtil.log("follow_Listnil~");
         None
       | Parenthesized(body) =>
         switch (x) {
@@ -922,7 +914,6 @@ module Exp = {
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
         | _ =>
-          //JSUtil.log("follow_()~");
           None
         }
       | Lam(err, p, ann, body) =>
@@ -934,7 +925,6 @@ module Exp = {
         | 1 =>
           switch (ann) {
           | None =>
-            //JSUtil.log("follow_lam~1");
             None
           | Some(ann) =>
             ann
@@ -946,7 +936,6 @@ module Exp = {
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody))
         | _ =>
-          //JSUtil.log("follow_lam~2");
           None
         }
       | Inj(err, side, body) =>
@@ -956,7 +945,6 @@ module Exp = {
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.InjZ(err, side, zbody))
         | _ =>
-          //JSUtil.log("follow_inj~");
           None
         }
       | Case(err, scrut, rules, ann) =>
@@ -1013,7 +1001,6 @@ module Exp = {
         |> follow((xs, cursor))
         |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
       | _ =>
-        //JSUtil.log("follow_rule~");
         None
       }
     };

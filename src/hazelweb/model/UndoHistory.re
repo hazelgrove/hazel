@@ -4,7 +4,6 @@ type delete_edit =
   | TermToNotHole(cursor_term)
   | Hole(MetaVar.t)
   | EmptyLine
-  | Edit
   | TypeAnn;
 type insert_edit =
   | Hole(MetaVar.t, option(MetaVar.t))
@@ -58,7 +57,6 @@ let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
     | TermToHole(_, _)
     | TermToNotHole(_)
     | Hole(_)
-    | Edit
     | TypeAnn => false
     }
 
@@ -275,15 +273,8 @@ let get_initial_term_before_delete =
   let suffix = ZList.prj_suffix(group.group_entries);
   let delete_edit_info_filter = (info: info): cursor_term =>
     switch (info.edit_action) {
-    | DeleteEdit(edit_detail) =>
-      switch (edit_detail) {
-      | Edit => info.cursor_term_info.previous_cursor_term
-      | EmptyLine
-      | TermToHole(_, _)
-      | TermToNotHole(_)
-      | Hole(_)
-      | TypeAnn => new_cursor_term_info.previous_cursor_term
-      }
+    | EditVar => info.cursor_term_info.previous_cursor_term
+    | DeleteEdit(_)
     | InsertEdit(_)
     | CursorMove => new_cursor_term_info.previous_cursor_term
     };
@@ -528,14 +519,14 @@ let ontext_del =
           set_fail_join(
             prev_group,
             new_entry_base,
-            Some(DeleteEdit(Edit)),
+            Some(EditVar),
             false,
           )
         | Some(_) =>
           set_success_join(
             prev_group,
             new_entry_base,
-            Some(DeleteEdit(Edit)),
+            Some(EditVar),
             false,
           )
         };
