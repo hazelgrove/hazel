@@ -25,7 +25,7 @@ type info = {
   previous_action: Action.t,
   previous_cursor_term: cursor_term,
   current_cursor_term: cursor_term,
-  prev_is_empty_line: bool, /* who's mpty line */
+  prev_is_empty_line: bool,
   next_is_empty_line: bool,
   edit_action,
 };
@@ -218,6 +218,16 @@ let push_history_entry =
      | Backspace
      }
    } */
+let cursor_jump =
+    (prev_group: undo_history_group, prev_cardstacks: Cardstacks.t): bool => {
+  let prev_step =
+    ZList.prj_z(prev_group.group_entries).cardstacks
+    |> Cardstacks.get_program
+    |> Program.get_steps;
+  let new_step =
+    prev_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+  prev_step == new_step;
+};
 let cursor_jump_after_delete =
     (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
   switch (cursor_pos1) {
@@ -719,7 +729,7 @@ let entry_to_start_a_group =
     | Delete =>
       switch (prev_cursor_pos) {
       | OnText(pos) =>
-        ontext_del(
+        ontext_delontext_del(
           ~jump_judge_func=cursor_jump_after_delete,
           ~prev_group,
           ~new_entry,
