@@ -63,35 +63,35 @@ let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
   | NotSet => false
   };
 };
-let action_is_Schar = (action: Action.t): bool => {
-  switch (action) {
-  | MoveTo(_)
-  | MoveToBefore(_)
-  | MoveLeft
-  | MoveRight
-  | MoveToNextHole
-  | MoveToPrevHole
-  | UpdateApPalette(_)
-  | Delete
-  | Backspace => false
-  | Construct(shape) =>
-    switch (shape) {
-    | SList
-    | SParenthesized
-    | SAsc
-    | SLam
-    | SListNil
-    | SInj(_)
-    | SLet
-    | SLine
-    | SCase
-    | SOp(_) => false
-    | SApPalette(_) =>
-      failwith("ApPalette is not implemented in undo_history")
-    | SChar(_) => true
-    }
-  };
-};
+/* let action_is_Schar = (action: Action.t): bool => {
+     switch (action) {
+     | MoveTo(_)
+     | MoveToBefore(_)
+     | MoveLeft
+     | MoveRight
+     | MoveToNextHole
+     | MoveToPrevHole
+     | UpdateApPalette(_)
+     | Delete
+     | Backspace => false
+     | Construct(shape) =>
+       switch (shape) {
+       | SList
+       | SParenthesized
+       | SAsc
+       | SLam
+       | SListNil
+       | SInj(_)
+       | SLet
+       | SLine
+       | SCase
+       | SOp(_) => false
+       | SApPalette(_) =>
+         failwith("ApPalette is not implemented in undo_history")
+       | SChar(_) => true
+       }
+     };
+   }; */
 
 let action_is_Sline = (action: Action.t): bool => {
   switch (action) {
@@ -204,20 +204,6 @@ let push_history_entry =
   is_complete,
 };
 
-/* let cursor_jump = (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t, action: Action.t): bool => {
-     switch(action){
-     | MoveTo(_)
-     | MoveToBefore(_)
-     | MoveToNextHole
-     | MoveToPrevHole
-     | Construct(shape);
-     | MoveLeft
-     | MoveRight
-     | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
-     | Delete
-     | Backspace
-     }
-   } */
 let cursor_jump =
     (prev_group: undo_history_group, prev_cardstacks: Cardstacks.t): bool => {
   let prev_step =
@@ -226,73 +212,7 @@ let cursor_jump =
     |> Program.get_steps;
   let new_step =
     prev_cardstacks |> Cardstacks.get_program |> Program.get_steps;
-  prev_step == new_step;
-};
-let cursor_jump_after_delete =
-    (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
-  switch (cursor_pos1) {
-  | OnText(pos1) =>
-    if (pos1 != 0) {
-      switch (cursor_pos2) {
-      | OnText(pos2) => pos2 == 0
-      | OnDelim(_, side) =>
-        switch (side) {
-        | Before => true
-        | After => failwith("impossible jump")
-        }
-      | OnOp(side) =>
-        switch (side) {
-        | Before => true
-        | After => failwith("impossible jump")
-        }
-      };
-    } else {
-      false;
-    }
-  | OnDelim(_, side) =>
-    switch (side) {
-    | Before => false
-    | After => true
-    }
-  | OnOp(side) =>
-    switch (side) {
-    | Before => false
-    | After => true
-    }
-  };
-};
-let cursor_jump_after_backspace =
-    (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
-  switch (cursor_pos1) {
-  | OnText(pos1) =>
-    if (pos1 == 0) {
-      switch (cursor_pos2) {
-      | OnText(_) => true
-      | OnDelim(_, side) =>
-        switch (side) {
-        | Before => failwith("impossible jump")
-        | After => true
-        }
-      | OnOp(side) =>
-        switch (side) {
-        | Before => failwith("impossible jump")
-        | After => true
-        }
-      };
-    } else {
-      false;
-    }
-  | OnDelim(_, side) =>
-    switch (side) {
-    | Before => true
-    | After => false
-    }
-  | OnOp(side) =>
-    switch (side) {
-    | Before => true
-    | After => false
-    }
-  };
+  prev_step != new_step;
 };
 
 type group_result =
@@ -436,10 +356,75 @@ let get_insert_hole = (group: undo_history_group): option(MetaVar.t) => {
     }
   };
 };
+let cursor_jump_after_delete =
+    (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
+  switch (cursor_pos1) {
+  | OnText(pos1) =>
+    if (pos1 != 0) {
+      switch (cursor_pos2) {
+      | OnText(pos2) => pos2 == 0
+      | OnDelim(_, side) =>
+        switch (side) {
+        | Before => true
+        | After => failwith("impossible jump")
+        }
+      | OnOp(side) =>
+        switch (side) {
+        | Before => true
+        | After => failwith("impossible jump")
+        }
+      };
+    } else {
+      false;
+    }
+  | OnDelim(_, side) =>
+    switch (side) {
+    | Before => false
+    | After => true
+    }
+  | OnOp(side) =>
+    switch (side) {
+    | Before => false
+    | After => true
+    }
+  };
+};
+let cursor_jump_after_backspace =
+    (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
+  switch (cursor_pos1) {
+  | OnText(pos1) =>
+    if (pos1 == 0) {
+      switch (cursor_pos2) {
+      | OnText(_) => true
+      | OnDelim(_, side) =>
+        switch (side) {
+        | Before => failwith("impossible jump")
+        | After => true
+        }
+      | OnOp(side) =>
+        switch (side) {
+        | Before => failwith("impossible jump")
+        | After => true
+        }
+      };
+    } else {
+      false;
+    }
+  | OnDelim(_, side) =>
+    switch (side) {
+    | Before => true
+    | After => false
+    }
+  | OnOp(side) =>
+    switch (side) {
+    | Before => true
+    | After => false
+    }
+  };
+};
 
 let ontext_del =
     (
-      ~jump_judge_func,
       ~prev_group: undo_history_group,
       ~new_entry: undo_history_entry,
       ~new_entry_info: info,
@@ -478,9 +463,14 @@ let ontext_del =
           Some(DeleteEdit(EmptyLine)),
           false,
         );
-      }
+      } 
     };
-  } else if (jump_judge_func(prev_cursor_pos, new_cursor_pos)) {
+  } else if (new_entry_info.previous_action == Backspace
+             && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
+    /* jump to next term */
+    set_fail_join(prev_group, new_entry, None, true);
+  } else if (new_entry_info.previous_action == Delete
+             && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
     set_fail_join(prev_group, new_entry, None, true);
   } else {
@@ -552,7 +542,6 @@ let ontext_del =
     };
   };
 };
-
 let ondelim_undel =
     (
       ~prev_group: undo_history_group,
@@ -729,8 +718,7 @@ let entry_to_start_a_group =
     | Delete =>
       switch (prev_cursor_pos) {
       | OnText(pos) =>
-        ontext_delontext_del(
-          ~jump_judge_func=cursor_jump_after_delete,
+        ontext_del(
           ~prev_group,
           ~new_entry,
           ~new_entry_info,
@@ -763,7 +751,6 @@ let entry_to_start_a_group =
       switch (prev_cursor_pos) {
       | OnText(pos) =>
         ontext_del(
-          ~jump_judge_func=cursor_jump_after_backspace,
           ~prev_group,
           ~new_entry,
           ~new_entry_info,
@@ -948,8 +935,48 @@ let entry_to_start_a_group =
     };
   };
 };
+let group_edit_action =
+    (
+      prev_group: undo_history_group,
+      prev_cardstacks: Cardstacks.t,
+      action: Action.t,
+    )
+    : bool => {
+  let is_edit_action =
+    switch (action) {
+    | Delete
+    | Backspace => true
+    | Construct(shape) =>
+      switch (shape) {
+      | SChar(_) => true
+      | SList
+      | SParenthesized
+      | SAsc
+      | SLam
+      | SListNil
+      | SInj(_)
+      | SLet
+      | SLine
+      | SCase
+      | SOp(_)
+      | SApPalette(_) => false
+      }
+    | MoveTo(_)
+    | MoveToBefore(_)
+    | MoveLeft
+    | MoveRight
+    | MoveToNextHole
+    | MoveToPrevHole => failwith("not doable action")
+    | UpdateApPalette(_) => failwith("ApPalette is not implemented")
+    };
+  is_edit_action && !cursor_jump(prev_group, prev_cardstacks);
+};
 let join_group =
-    (prev_group: undo_history_group, new_entry: undo_history_entry)
+    (
+      prev_group: undo_history_group,
+      new_entry: undo_history_entry,
+      prev_cardstacks: Cardstacks.t,
+    )
     : group_result => {
   let prev_last_entry = ZList.prj_z(prev_group.group_entries);
   let prev_complete = prev_group.is_complete;
@@ -959,15 +986,17 @@ let join_group =
   | (Some(prev_entry_info), Some(new_entry_info)) =>
     switch (prev_entry_info.previous_action, new_entry_info.previous_action) {
     | (prev_ac, Delete) =>
-      if (prev_ac != Delete || prev_complete) {
+      if (!group_edit_action(prev_group, prev_cardstacks, prev_ac)
+          || prev_complete) {
+        JSUtil.log("complete!");
         entry_to_start_a_group(prev_group, new_entry);
       } else {
+        JSUtil.log("not complete!");
         let prev_cursor_pos =
           get_cursor_pos(prev_entry_info.current_cursor_term);
         switch (prev_cursor_pos) {
         | OnText(pos) =>
           ontext_del(
-            ~jump_judge_func=cursor_jump_after_delete,
             ~prev_group,
             ~new_entry,
             ~new_entry_info,
@@ -1030,7 +1059,8 @@ let join_group =
         };
       }
     | (prev_ac, Backspace) =>
-      if (prev_ac != Backspace || prev_complete) {
+      if (!group_edit_action(prev_group, prev_cardstacks, prev_ac)
+          || prev_complete) {
         entry_to_start_a_group(prev_group, new_entry);
       } else {
         let prev_cursor_pos =
@@ -1038,7 +1068,6 @@ let join_group =
         switch (prev_cursor_pos) {
         | OnText(pos) =>
           ontext_del(
-            ~jump_judge_func=cursor_jump_after_backspace,
             ~prev_group,
             ~new_entry,
             ~new_entry_info,
@@ -1152,7 +1181,7 @@ let join_group =
           /* if previous is hole then combine else if previous is char then combine else start a new group */
           switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
           | None =>
-            if (action_is_Schar(prev_ac)) {
+            if (group_edit_action(prev_group, prev_cardstacks, prev_ac)) {
               set_success_join(
                 prev_group,
                 new_entry,
@@ -1355,7 +1384,7 @@ let push_edit_state =
       info: Some(new_entry_info),
       not_movement_agnostic: false,
     };
-    switch (join_group(prev_group, new_entry)) {
+    switch (join_group(prev_group, new_entry, cur_cardstacks)) {
     | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
     | Fail(prev_group', new_entry', is_complete_entry) =>
       let new_group = {
@@ -1366,13 +1395,18 @@ let push_edit_state =
       ([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
     };
   } else {
+    undo_history;
+    //{
     /* if any cursor-moving action interupts the current edit,
        the current group becomes complete. */
-    update_move_action(
-      undo_history,
-      cur_cardstacks,
-      action,
-    );
+    /* update_move_action(
+         undo_history,
+         cur_cardstacks,
+         action,
+       ); */
+    /*     let prev_group' = {...prev_group, is_complete: cursor_jump(prev_group,cur_cardstacks)};
+           ZList.replace_z(prev_group', undo_history); */
+    //};
   };
 };
 
