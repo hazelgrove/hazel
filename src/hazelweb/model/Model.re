@@ -22,10 +22,18 @@ let cardstack_info = [
 let init = (): t => {
   let cardstacks = Cardstacks.mk(cardstack_info);
   let undo_history = {
+    let (cursor_term, prev_is_empty_line, next_is_empty_line) =
+      UndoHistory.get_cursor_info(cardstacks);
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
-      info: None,
-      not_movement_agnostic: false,
+      cursor_term_info: {
+        previous_cursor_term: cursor_term,
+        current_cursor_term: cursor_term,
+        prev_is_empty_line,
+        next_is_empty_line,
+      },
+      previous_action: Construct(SOp(SSpace)),
+      edit_action: Ignore,
     };
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
