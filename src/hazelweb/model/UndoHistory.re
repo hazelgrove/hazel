@@ -607,7 +607,7 @@ let ontext_del =
       prev_group,
       new_entry_base,
       Ignore,
-      true,
+      false,
     );
   } else if (new_action == Delete
              && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
@@ -616,7 +616,7 @@ let ontext_del =
       prev_group,
       new_entry_base,
       Ignore,
-      true,
+      false,
     );
   } else if (CursorInfo.is_empty_line(cursor_term_info.current_cursor_term)
              || CursorInfo.is_hole(cursor_term_info.current_cursor_term)) {
@@ -726,7 +726,7 @@ let ondelim_undel =
         prev_group,
         new_entry_base,
         Ignore,
-        true,
+        false,
       );
     };
   };
@@ -1086,7 +1086,7 @@ let entry_to_start_a_group =
         )
       | After =>
         /* move cursor to next term, just ignore this move */
-        set_success_join(prev_group, new_entry_base, Ignore, true)
+        set_success_join(prev_group, new_entry_base, Ignore, false)
       }
     }
   | Backspace =>
@@ -1123,7 +1123,7 @@ let entry_to_start_a_group =
       switch (side) {
       | Before =>
         /* move cursor to next term, just ignore this move */
-        set_success_join(prev_group, new_entry_base, Ignore, true)
+        set_success_join(prev_group, new_entry_base, Ignore, false)
       | After =>
         set_fail_join(
           prev_group,
@@ -1225,7 +1225,7 @@ let join_group =
           };
         | After =>
           /* move cursor to next term, just ignore this move */
-          set_success_join(prev_group, new_entry_base, Ignore, true)
+          set_success_join(prev_group, new_entry_base, Ignore, false)
         }
       };
     }
@@ -1269,7 +1269,7 @@ let join_group =
         switch (side) {
         | Before =>
           /* move cursor to next term, just ignore this move */
-          set_success_join(prev_group, new_entry_base, Ignore, true)
+          set_success_join(prev_group, new_entry_base, Ignore, false)
         | After =>
           let initial_term =
             get_original_term(prev_group, new_cursor_term_info);
