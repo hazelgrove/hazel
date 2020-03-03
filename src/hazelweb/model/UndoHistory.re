@@ -40,6 +40,7 @@ type undo_history_group = {
      the current group becomes complete.
      Next action will start a new group */
   is_complete: bool,
+  prev_is_complete: bool,
 };
 
 type t = ZList.t(undo_history_group, undo_history_group);
@@ -61,6 +62,20 @@ let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
   };
 };
 
+let edit_action_is_DeleteSpace = (edit_action: edit_action): bool => {
+  switch (edit_action) {
+  | DeleteEdit(edit_detail) =>
+    switch (edit_detail) {
+    | Space => true
+    | Term(_)
+    | EmptyLine
+    | TypeAnn => false
+    }
+  | EditVar
+  | ConstructEdit(_)
+  | CursorMove => false
+  };
+};
 let action_is_Sline = (action: Action.t): bool => {
   switch (action) {
   | MoveTo(_)
@@ -172,6 +187,7 @@ let push_history_entry =
     ),
     is_expanded: false,
     is_complete,
+    prev_is_complete: is_complete,
   };
 };
 
@@ -266,8 +282,49 @@ let set_success_join =
 };
 
 let construct_space =
-    (prev_group: undo_history_group, entry_base): group_result => {
-  set_fail_join(prev_group, entry_base, Some(ConstructEdit(Space)), false);
+    (prev_group: undo_history_group, new_entry_base): group_result => {
+  //let prev_entry = ZList.prj_z(prev_group.group_entries);
+  switch (
+    first_not_cursor_move([
+      ZList.prj_z(prev_group.group_entries),
+      ...ZList.prj_suffix(prev_group.group_entries),
+    ])
+  ) {
+  | None =>
+    set_fail_join(
+      prev_group,
+      new_entry_base,
+      Some(ConstructEdit(Space)),
+      false,
+    )
+  | Some(prev_entry) =>
+    switch (prev_entry.info) {
+    | None =>
+      set_fail_join(
+        prev_group,
+        new_entry_base,
+        Some(ConstructEdit(Space)),
+        false,
+      )
+    | Some(info) =>
+      if (edit_action_is_DeleteSpace(info.edit_action)) {
+        set_success_join(
+          prev_group,
+          new_entry_base,
+          Some(ConstructEdit(Space)),
+          false,
+        );
+      } else {
+        set_fail_join(
+          prev_group,
+          new_entry_base,
+          Some(ConstructEdit(Space)),
+          false,
+        );
+      }
+    }
+  // set_fail_join(prev_group, entry_base, Some(ConstructEdit(Space)), false);
+  };
 };
 type comp_len_typ =
   | MaxLen
@@ -544,8 +601,12 @@ let ontext_del =
   } else if (new_action == Delete
              && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
-    JSUtil.log("487");
-    set_fail_join(prev_group, new_entry_base, None, true);
+    set_fail_join(
+      prev_group,
+      new_entry_base,
+      None,
+      true,
+    );
   } else if
     /* normal edit */
     (CursorInfo.is_empty_line(cursor_term_info.current_cursor_term)
@@ -624,12 +685,31 @@ let ondelim_undel =
       if (CursorInfo.is_exp_inside(cursor_term_info.current_cursor_term)) {
         set_fail_join(prev_group, new_entry_base, None, true);
       } else {
-        set_fail_join(
-          prev_group,
-          new_entry_base,
-          Some(DeleteEdit(Space)),
-          true,
-        );
+        switch (prev_entry_info) {
+        | None =>
+          set_fail_join(
+            prev_group,
+            new_entry_base,
+            Some(DeleteEdit(Space)),
+            false,
+          )
+        | Some(info) =>
+          if (edit_action_is_DeleteSpace(info.edit_action)) {
+            set_success_join(
+              prev_group,
+              new_entry_base,
+              Some(DeleteEdit(Space)),
+              false,
+            );
+          } else {
+            set_fail_join(
+              prev_group,
+              new_entry_base,
+              Some(DeleteEdit(Space)),
+              false,
+            );
+          }
+        };
       };
     } else {
       /* move cursor to next term, just ignore this move */
@@ -1222,7 +1302,8 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
             },
             prev_group.group_entries,
           ),
-        is_complete: cursor_jump(prev_group, cardstacks),
+        is_complete:
+          cursor_jump(prev_group, cardstacks) || prev_group.prev_is_complete,
       };
     } else {
       JSUtil.log("new move~");
@@ -1242,6 +1323,7 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
         ),
         is_complete:
           cursor_jump(prev_group, cardstacks) || prev_group.is_complete,
+        prev_is_complete: prev_group.is_complete,
       };
     };
   ZList.replace_z(new_group, undo_history);
@@ -1279,6 +1361,7 @@ let push_edit_state =
         group_entries: ([], new_entry', []),
         is_expanded: false,
         is_complete: is_complete_entry,
+        prev_is_complete: is_complete_entry,
       };
       ([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
     };
