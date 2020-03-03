@@ -3303,62 +3303,229 @@ module Exp = {
            u_gen',
          ));
        }; */
-    | (_, CaseZE(_, _, _) | CaseZR(_, _, _)) => Failed
-    /* TODO(hannah): fix
-       | (_, CaseZE(_, zscrut, rules, Some(uty) as ann)) =>
-         switch (Statics.Exp.syn(ctx, ZExp.erase(zscrut))) {
-         | None => Failed
-         | Some(ty1) =>
-           switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
-           | Failed => Failed
-           | CursorEscaped(side) =>
-             syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-           | Succeeded((zscrut, ty1, u_gen)) =>
-             let ty = UHTyp.expand(uty);
-             let (rules, u_gen) =
-               Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-             let new_ze =
-               ZExp.ZBlock.wrap(CaseZE(NotInHole, zscrut, rules, ann));
-             Succeeded(SynDone((new_ze, ty, u_gen)));
-           }
-         }
-       | (_, CaseZR(_, scrut, zrules, Some(ann))) =>
-         switch (Statics.Exp.syn(ctx, scrut)) {
-         | None => Failed
-         | Some(pat_ty) =>
-           let clause_ty = ann |> UHTyp.expand;
-           switch (
-             ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, clause_ty)
-           ) {
-           | Failed => Failed
-           | CursorEscaped(side) =>
-             syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-           | Succeeded((new_zrules, u_gen)) =>
-             let new_ze =
-               ZExp.ZBlock.wrap(
-                 CaseZR(NotInHole, scrut, new_zrules, Some(ann)),
-               );
-             Succeeded(SynDone((new_ze, clause_ty, u_gen)));
-           };
-         }
-       | (_, CaseZA(_, scrut, rules, zann)) =>
-         switch (Statics.Exp.syn(ctx, scrut)) {
-         | None => Failed
-         | Some(ty1) =>
-           switch (Typ.perform(a, zann)) {
-           | Failed => Failed
-           | CursorEscaped(side) =>
-             syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-           | Succeeded(zann) =>
-             let ty = UHTyp.expand(ZTyp.erase(zann));
-             let (rules, u_gen) =
-               Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-             let new_ze =
-               ZExp.ZBlock.wrap(CaseZA(NotInHole, scrut, rules, zann));
-             Succeeded(SynDone((new_ze, ty, u_gen)));
-           }
-         }
-       */
+    /* TODO(hannah): fix */
+    | (_, CaseZE(_, zscrut, rules)) =>
+      switch (Statics.Exp.syn(ctx, ZExp.erase(zscrut))) {
+      | None => Failed
+      | Some(ty1) =>
+        switch (syn_perform(ctx, a, (zscrut, ty1, u_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
+        | Succeeded((zscrut, ty1, u_gen)) =>
+          let (rules, u_gen, rule_types, common_type) =
+            Statics.Exp.syn_fix_holes_rules(ctx, u_gen, rules, ty1);
+          switch (common_type) {
+          | None =>
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                ZExp.set_err_status_zoperand(
+                  InHole(InconsistentBranches(rule_types), u),
+                  zoperand,
+                ),
+              );
+            Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          | Some(ty) =>
+            let new_ze = ZExp.ZBlock.wrap(CaseZE(NotInHole, zscrut, rules));
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          };
+        }
+      }
+    | (_, CaseZR(_, scrut, zrules)) =>
+      switch (Statics.Exp.syn(ctx, scrut)) {
+      | None => Failed
+      | Some(pat_ty) =>
+        switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
+        | Succeeded((new_zrules, common_ty, u_gen)) =>
+          switch (common_ty) {
+          | None =>
+            /*  I am not so sure that this part is correct */
+            let (_, u_gen, rule_types, _) =
+              Statics.Exp.syn_fix_holes_rules(
+                ctx,
+                u_gen,
+                ZExp.erase_zrules(zrules),
+                pat_ty,
+              );
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                ZExp.set_err_status_zoperand(
+                  InHole(InconsistentBranches(rule_types), u),
+                  zoperand,
+                ),
+              );
+            Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          | Some(ty) =>
+            let new_ze =
+              ZExp.ZBlock.wrap(CaseZR(NotInHole, scrut, new_zrules));
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          }
+        }
+      }
+    };
+  }
+  and syn_perform_rules =
+      (
+        ctx: Contexts.t,
+        a: t,
+        (
+          (prefix, zrule, suffix) as zrules: ZExp.zrules,
+          u_gen: MetaVarGen.t,
+        ),
+        pat_ty: HTyp.t,
+      )
+      : Outcome.t((ZExp.zrules, option(HTyp.t), MetaVarGen.t)) => {
+    let escape = (side: Side.t) => {
+      let move_cursor =
+        switch (side) {
+        | Before => ZExp.move_cursor_left_zrules
+        | After => ZExp.move_cursor_right_zrules
+        };
+      zrules
+      |> move_cursor
+      |> OptUtil.map_default(~default=Outcome.CursorEscaped(side), new_zrules =>
+           Succeeded((
+             new_zrules,
+             Statics.Exp.syn_rules(
+               ctx,
+               ZExp.erase_zrules(new_zrules),
+               pat_ty,
+             ),
+             u_gen,
+           ))
+         );
+    };
+
+    switch (a, zrule) {
+    /* Invalid cursor positions */
+    | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
+
+    /* Movement handled at top level */
+    | (
+        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
+        MoveRight,
+        _,
+      ) =>
+      failwith("unimplemented")
+
+    /* Backspace & Delete */
+
+    | (Backspace, CursorR(OnDelim(_, Before as side), _))
+    | (Delete, CursorR(OnDelim(_, After as side), _)) => escape(side)
+
+    // Delete before delim == Backspace after delim
+    | (Delete, CursorR(OnDelim(k, Before), rule)) =>
+      let new_zrules =
+        zrules |> ZList.replace_z(ZExp.CursorR(OnDelim(k, After), rule));
+      syn_perform_rules(ctx, Backspace, (new_zrules, u_gen), pat_ty);
+    | (Backspace, CursorR(OnDelim(_, After), _)) =>
+      switch (prefix |> ListUtil.split_last, suffix) {
+      | (None, []) =>
+        let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+        let new_zrules = ([], new_zrule, []);
+        let common_ty =
+          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+        Succeeded((new_zrules, common_ty, u_gen));
+      | (_, [suffix_hd, ...new_suffix]) =>
+        let new_zrule = suffix_hd |> ZExp.place_before_rule;
+        let new_zrules = (prefix, new_zrule, new_suffix);
+        let common_ty =
+          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+        Succeeded((new_zrules, common_ty, u_gen));
+      | (Some((new_prefix, prefix_last)), _) =>
+        let new_zrule = prefix_last |> ZExp.place_after_rule;
+        let new_zrules = (new_prefix, new_zrule, suffix);
+        let common_ty =
+          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+        Succeeded((new_zrules, common_ty, u_gen));
+      }
+
+    /* Construction */
+
+    | (Construct(SOp(SSpace)), CursorR(OnDelim(_, After), _))
+        when !ZExp.is_after_zrule(zrule) =>
+      escape(After)
+
+    | (Construct(SLine), RuleZP(zp, _)) when zp |> ZPat.is_before =>
+      let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+      let new_zrules = (
+        prefix,
+        new_zrule,
+        [zrule |> ZExp.erase_zrule, ...suffix],
+      );
+      let common_ty =
+        Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+      Succeeded((new_zrules, common_ty, u_gen));
+    | (Construct(SLine), RuleZP(zp, _)) when zp |> ZPat.is_after =>
+      let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+      let new_zrules = (
+        prefix @ [zrule |> ZExp.erase_zrule],
+        new_zrule,
+        suffix,
+      );
+      let common_ty =
+        Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+      Succeeded((new_zrules, common_ty, u_gen));
+    | (Construct(SLine), RuleZE(_, zclause)) when zclause |> ZExp.is_after =>
+      let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+      let new_zrules = (
+        prefix @ [zrule |> ZExp.erase_zrule],
+        new_zrule,
+        suffix,
+      );
+      let common_ty =
+        Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+      Succeeded((new_zrules, common_ty, u_gen));
+
+    | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_, side), _))
+        when !ZExp.is_before_zrule(zrule) && !ZExp.is_after_zrule(zrule) =>
+      switch (escape(side)) {
+      | Failed
+      | CursorEscaped(_) => Failed
+      | Succeeded((zrules, _, u_gen)) =>
+        syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)
+      }
+    | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
+
+    /* Zipper */
+    | (_, RuleZP(zp, clause)) =>
+      switch (Pat.ana_perform(ctx, u_gen, a, zp, pat_ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(side)
+      | Succeeded((new_zp, ctx, u_gen)) =>
+        let (clause, _, u_gen) =
+          Statics.Exp.syn_fix_holes(ctx, u_gen, clause);
+        let new_zrules =
+          zrules |> ZList.replace_z(ZExp.RuleZP(new_zp, clause));
+        let common_ty =
+          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
+        Succeeded((new_zrules, common_ty, u_gen));
+      }
+
+    | (_, RuleZE(p, zclause)) =>
+      switch (Statics.Pat.ana(ctx, p, pat_ty)) {
+      | None => Failed
+      | Some(ctx) =>
+        switch (syn_perform(ctx, a, (zclause, pat_ty, u_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) => escape(side)
+        | Succeeded((new_zclause, _, u_gen)) =>
+          let new_zrules =
+            zrules |> ZList.replace_z(ZExp.RuleZE(p, new_zclause));
+          let common_ty =
+            Statics.Exp.syn_rules(
+              ctx,
+              ZExp.erase_zrules(new_zrules),
+              pat_ty,
+            );
+          Succeeded((new_zrules, common_ty, u_gen));
+        }
+      }
     };
   }
   and ana_perform_rules =
