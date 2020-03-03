@@ -155,12 +155,14 @@ let page_view =
   let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
   let layout =
     lazy(
-      switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
-      | None => Layout.Text("layout FAILED") // TODO
+      switch (
+        Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
+      ) {
+      | None => Pretty.Layout.Text("layout FAILED") // TODO
       | Some(l) => l
       }
     );
-  let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
+  let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
       [Attr.id("root")],
