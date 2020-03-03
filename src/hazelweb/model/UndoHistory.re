@@ -76,6 +76,23 @@ let edit_action_is_DeleteSpace = (edit_action: edit_action): bool => {
   | CursorMove => false
   };
 };
+
+let edit_action_is_ConstructSpace = (edit_action: edit_action): bool => {
+  switch (edit_action) {
+  | ConstructEdit(edit_detail) =>
+    switch (edit_detail) {
+    | Space => true
+    | EmptyLine
+    | LetBinding
+    | CaseMatch
+    | TypeAnn
+    | ShapeEdit(_) => false
+    }
+  | EditVar
+  | DeleteEdit(_)
+  | CursorMove => false
+  };
+};
 let action_is_Sline = (action: Action.t): bool => {
   switch (action) {
   | MoveTo(_)
@@ -291,23 +308,25 @@ let construct_space =
     ])
   ) {
   | None =>
+    JSUtil.log("294");
     set_fail_join(
       prev_group,
       new_entry_base,
       Some(ConstructEdit(Space)),
       false,
-    )
+    );
   | Some(prev_entry) =>
     switch (prev_entry.info) {
     | None =>
+      JSUtil.log("304");
       set_fail_join(
         prev_group,
         new_entry_base,
         Some(ConstructEdit(Space)),
         false,
-      )
+      );
     | Some(info) =>
-      if (edit_action_is_DeleteSpace(info.edit_action)) {
+      if (edit_action_is_ConstructSpace(info.edit_action)) {
         set_success_join(
           prev_group,
           new_entry_base,
@@ -315,6 +334,7 @@ let construct_space =
           false,
         );
       } else {
+        JSUtil.log("320");
         set_fail_join(
           prev_group,
           new_entry_base,
