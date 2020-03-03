@@ -31,6 +31,7 @@ let init = (): t => {
       group_entries: ([], undo_history_entry, []),
       is_expanded: false,
       is_complete: true,
+      prev_is_complete: true,
     };
     ([], undo_history_group, []);
   };
