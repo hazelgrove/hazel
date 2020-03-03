@@ -99,59 +99,50 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        }; */
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
-    switch (undo_history_entry.info) {
-    | None => None
-    | Some(info) =>
-      switch (info.edit_action) {
-      | DeleteEdit(edit_detail) =>
-        switch (edit_detail) {
-        | Term(cursor_term) =>
-          Some("delete " ++ display_string_of_cursor_term(cursor_term))
-        | Space => Some("delete space")
-        | EmptyLine => Some("delete empty line")
-        | TypeAnn => Some("delete type annotation")
-        }
-      | ConstructEdit(edit_detail) =>
-        switch (edit_detail) {
-        | Space => Some("insert space")
-        | EmptyLine => Some("insert new line")
-        | LetBinding => Some("construct let binding")
-        | CaseMatch => Some("construct case match")
-        | TypeAnn => Some("insert type annotation")
-        | ShapeEdit(shape) =>
-          Some("insert " ++ Action.shape_to_string(shape))
-        }
-      | EditVar =>
-        Some(
-          "edit "
-          ++ display_string_of_cursor_term(
-               info.cursor_term_info.current_cursor_term,
-             ),
-        )
-      | CursorMove => None
+    switch (undo_history_entry.edit_action) {
+    | DeleteEdit(edit_detail) =>
+      switch (edit_detail) {
+      | Term(cursor_term) =>
+        Some("delete " ++ display_string_of_cursor_term(cursor_term))
+      | Space => Some("delete space")
+      | EmptyLine => Some("delete empty line")
+      | TypeAnn => Some("delete type annotation")
       }
+    | ConstructEdit(edit_detail) =>
+      switch (edit_detail) {
+      | Space => Some("insert space")
+      | EmptyLine => Some("insert new line")
+      | LetBinding => Some("construct let binding")
+      | CaseMatch => Some("construct case match")
+      | TypeAnn => Some("insert type annotation")
+      | ShapeEdit(shape) => Some("insert " ++ Action.shape_to_string(shape))
+      }
+    | EditVar =>
+      Some(
+        "edit "
+        ++ display_string_of_cursor_term(
+             undo_history_entry.cursor_term_info.current_cursor_term,
+           ),
+      )
+    | Ignore => None
     };
   };
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
-    switch (undo_history_entry.info) {
-    | None => Vdom.(Node.div([], [])) /* entry in initial state should not be displayed */
-    | Some(_) =>
-      switch (display_string_of_history_entry(undo_history_entry)) {
-      | None => Vdom.(Node.div([], []))
-      | Some(str) =>
-        Vdom.(
-          Node.div(
-            [
-              Attr.classes(["the-hidden-history-entry"]),
-              Attr.on_click(_ =>
-                inject(Update.Action.ShiftHistory(group_id, elt_id))
-              ),
-            ],
-            [Node.text(str)],
-          )
+    switch (display_string_of_history_entry(undo_history_entry)) {
+    | None => Vdom.(Node.div([], []))
+    | Some(str) =>
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes(["the-hidden-history-entry"]),
+            Attr.on_click(_ =>
+              inject(Update.Action.ShiftHistory(group_id, elt_id))
+            ),
+          ],
+          [Node.text(str)],
         )
-      }
+      )
     };
   };
 
@@ -191,44 +182,40 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    switch (undo_history_entry.info) {
-    | None => Vdom.(Node.div([], [])) /* entry in the initial state should not be displayed */
-    | Some(_) =>
-      switch (display_string_of_history_entry(undo_history_entry)) {
-      | None => Vdom.(Node.div([], []))
-      | Some(str) =>
-        Vdom.(
-          Node.div(
-            [
-              Attr.classes([
-                "the-history-title",
-                "always-display-history-entry",
-              ]),
-            ],
-            [
-              Node.div(
-                [Attr.classes(["the-history-title-entry"])],
-                [
-                  Node.span(
-                    [
-                      Attr.classes(["the-history-title-txt"]),
-                      Attr.on_click(_ =>
-                        inject(Update.Action.ShiftHistory(group_id, elt_id))
-                      ),
-                    ],
-                    [Node.text(str)],
-                  ),
-                  history_entry_tab_icon(
-                    group_id,
-                    has_hidden_part,
-                    is_expanded,
-                  ),
-                ],
-              ),
-            ],
-          )
+    switch (display_string_of_history_entry(undo_history_entry)) {
+    | None => Vdom.(Node.div([], []))
+    | Some(str) =>
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes([
+              "the-history-title",
+              "always-display-history-entry",
+            ]),
+          ],
+          [
+            Node.div(
+              [Attr.classes(["the-history-title-entry"])],
+              [
+                Node.span(
+                  [
+                    Attr.classes(["the-history-title-txt"]),
+                    Attr.on_click(_ =>
+                      inject(Update.Action.ShiftHistory(group_id, elt_id))
+                    ),
+                  ],
+                  [Node.text(str)],
+                ),
+                history_entry_tab_icon(
+                  group_id,
+                  has_hidden_part,
+                  is_expanded,
+                ),
+              ],
+            ),
+          ],
         )
-      }
+      )
     };
   };
 
@@ -265,14 +252,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         switch (entries) {
         | [] => (None, [])
         | [head, ...tail] =>
-          switch (head.info) {
-          | None => helper_func(tail, index + 1)
-          | Some(info) =>
-            if (info.edit_action == CursorMove) {
-              helper_func(tail, index + 1);
-            } else {
-              (Some((head, index)), tail);
-            }
+          if (head.edit_action == Ignore) {
+            helper_func(tail, index + 1);
+          } else {
+            (Some((head, index)), tail);
           }
         };
       };
