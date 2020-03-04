@@ -196,6 +196,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     } else {
       Vdom.(Node.div([], []));
     };
+
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (
@@ -242,6 +243,24 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let clear_undisplay_entries =
+      (entries: list(undo_history_entry))
+      : (option((undo_history_entry, int)), list(undo_history_entry)) => {
+    let rec helper_func =
+            (entries: list(undo_history_entry), index: int)
+            : (option((undo_history_entry, int)), list(undo_history_entry)) => {
+      switch (entries) {
+      | [] => (None, [])
+      | [head, ...tail] =>
+        if (head.edit_action == Ignore) {
+          helper_func(tail, index + 1);
+        } else {
+          (Some((head, index)), tail);
+        }
+      };
+    };
+    helper_func(entries, 0);
+  };
   let group_view =
       (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
     /* if the group containning selected history entry, it should be splited into different css styles */
@@ -263,27 +282,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       } else {
         [];
       };
-    let clear_undisplay_entries =
-        (entries: list(undo_history_entry))
-        : (option((undo_history_entry, int)), list(undo_history_entry)) => {
-      let rec helper_func =
-              (entries: list(undo_history_entry), index: int)
-              : (
-                  option((undo_history_entry, int)),
-                  list(undo_history_entry),
-                ) => {
-        switch (entries) {
-        | [] => (None, [])
-        | [head, ...tail] =>
-          if (head.edit_action == Ignore) {
-            helper_func(tail, index + 1);
-          } else {
-            (Some((head, index)), tail);
-          }
-        };
-      };
-      helper_func(entries, 0);
-    };
+
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
       let (title, hidden_entries) =
