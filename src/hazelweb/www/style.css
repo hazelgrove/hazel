@@ -1396,7 +1396,22 @@ h1 {
   overflow-anchor: auto;
   background-color: lightgoldenrodyellow;
 }
-
+.timestamp-wrapper{
+ background: #FEFEEA;
+ width: 100%;
+ border: 1px outset #ffffff;
+}
+.timestamp-txt {
+  width: 20%;
+  background-color:grey;
+  border-radius: 10%;
+  text-align: center;
+  color: white; 
+  margin:0 auto;
+  margin-top:10px;
+  margin-bottom:10px;
+  
+}
 
 .always-display-history-entry {
   border: 1px outset #ffffff;

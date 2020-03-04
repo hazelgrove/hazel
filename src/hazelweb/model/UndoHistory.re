@@ -33,9 +33,14 @@ type undo_history_entry = {
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
+  timestamp: float,
+  display_timestamp:bool,
 };
 
-type t = ZList.t(undo_history_group, undo_history_group);
+type t = {
+  history:ZList.t(undo_history_group, undo_history_group),
+  last_display_timestamp:float,
+}
 
 type entry_base = (cursor_term_info, Action.t, Cardstacks.t);
 
@@ -116,6 +121,8 @@ let push_history_entry =
       ],
     ),
     is_expanded: false,
+    timestamp: Unix.time(),
+
   };
 };
 
@@ -1113,17 +1120,27 @@ let push_edit_state =
     ) {
     | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
     | Fail(prev_group', new_entry') =>
+      let timestamp=Unix.time();
       let new_group = {
         group_entries: ([], new_entry', []),
         is_expanded: false,
+        timestamp,
+        display_timestamp: timestamp - undo_history.last_display_timestamp > 60,
       };
-      ([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
+      {
+        history:([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
+        last_display_timestamp: if(new_group.display_timestamp)timestamp else undo_history.last_display_timestamp,
+      }
     };
   } else {
-    update_move_action(
+    let new_group = update_move_action(
       undo_history,
       (cursor_term_info, action, cur_cardstacks),
     );
+    {
+      history: new_group,
+      last_display_timestamp: if()
+    }
   };
 };
 

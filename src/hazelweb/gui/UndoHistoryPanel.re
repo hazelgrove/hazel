@@ -172,7 +172,34 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
-
+  let timestamp_view = (undo_history_group: undo_history_group, is_edit: bool) => {
+    let hour = Unix.localtime(undo_history_group.timestamp).tm_hour;
+    let min = Unix.localtime(undo_history_group.timestamp).tm_min;
+    let sec = Unix.localtime(undo_history_group.timestamp).tm_sec;
+    if ((hour * 60 * 60 + min * 60 + sec) mod 60 == 0 && !is_edit) {
+      Vdom.(
+        Node.div(
+          [Attr.classes(["timestamp-wrapper"])],
+          [
+            Node.div(
+              [Attr.classes(["timestamp-txt"])],
+              [
+                Node.text(
+                  string_of_int(hour)
+                  ++ ":"
+                  ++ string_of_int(min)
+                  ++ ":"
+                  ++ string_of_int(sec),
+                ),
+              ],
+            ),
+          ],
+        )
+      );
+    } else {
+      Vdom.(Node.div([], []));
+    };
+  };
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (
@@ -195,7 +222,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
           [
             Node.div(
-              [Attr.classes(["the-history-title-entry"])],
+              [],
               [
                 Node.span(
                   [
@@ -278,8 +305,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         if (group.is_expanded) {
           Vdom.(
             Node.div(
-              [Attr.classes(["the-history-group"])],
+              [],
               [
+                timestamp_view(group, is_cur_group),
                 /* title entry */
                 Vdom.(
                   Node.div(
@@ -318,8 +346,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           /* if the group is not expanded, only title entry is displayed */
           Vdom.(
             Node.div(
-              [Attr.classes(["the-history-group"])],
+              [],
               [
+                timestamp_view(group, is_cur_group),
                 Vdom.(
                   Node.div(
                     [Attr.classes(cur_his_classes)],
@@ -352,8 +381,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           if (group.is_expanded) {
             Vdom.(
               Node.div(
-                [Attr.classes(["the-history-group"])],
+                [],
                 [
+                  timestamp_view(group, is_cur_group),
                   /* the history title entry */
                   Vdom.(
                     Node.div(
@@ -424,8 +454,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           } else {
             Vdom.(
               Node.div(
-                [Attr.classes(["the-history-group"])],
+                [],
                 [
+                  timestamp_view(group, is_cur_group),
                   Vdom.(
                     Node.div(
                       [Attr.classes(suc_his_classes)],
@@ -448,8 +479,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           if (group.is_expanded) {
             Vdom.(
               Node.div(
-                [Attr.classes(["the-history-group"])],
+                [],
                 [
+                  timestamp_view(group, is_cur_group),
                   /* title entry */
                   Vdom.(
                     Node.div(
@@ -488,8 +520,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             /* if the group is not expanded, only title entry is displayed */
             Vdom.(
               Node.div(
-                [Attr.classes(["the-history-group"])],
+                [],
                 [
+                  timestamp_view(group, is_cur_group),
                   Vdom.(
                     Node.div(
                       [Attr.classes(cur_his_classes)],
@@ -511,8 +544,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         } else if (group.is_expanded) {
           Vdom.(
             Node.div(
-              [Attr.classes(["the-history-group"])],
+              [],
               [
+                timestamp_view(group, is_cur_group),
                 /* title entry */
                 Vdom.(
                   Node.div(
@@ -551,8 +585,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           /* if the group is not expanded, only title entry is displayed */
           Vdom.(
             Node.div(
-              [Attr.classes(["the-history-group"])],
+              [],
               [
+                timestamp_view(group, is_cur_group),
                 Vdom.(
                   Node.div(
                     [Attr.classes(prev_his_classes)],
