@@ -338,7 +338,7 @@ module Exp = {
               def_doc
               |> pad_child(
                    ~inline_padding=(space(), space()),
-                   ~enforce_inline,
+                   ~enforce_inline=false,
                  ),
               Delim.mk("in"),
             ]),
