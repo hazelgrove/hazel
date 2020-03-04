@@ -91,7 +91,7 @@ type cursor_term =
   | Rule(CursorPosition.t, UHExp.rule);
 
 // TODO refactor into variants
-// based on term family and shape
+// based on term sort and shape
 [@deriving sexp]
 type t = {
   typed,

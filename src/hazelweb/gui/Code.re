@@ -2,6 +2,7 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
+open Pretty;
 open ViewUtil;
 
 type annot = TermAnnot.t;
@@ -21,7 +22,7 @@ let clss_of_verr: VarErrStatus.t => list(cls) =
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
-let family_clss: TermFamily.t => list(cls) =
+let sort_clss: TermSort.t => list(cls) =
   fun
   | Typ => ["Typ"]
   | Pat => ["Pat"]
@@ -99,7 +100,12 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
       "left: " ++ string_of_float(from_left) ++ "0%;",
     );
   Vdom.Node.span(
-    [Vdom.Attr.id("caret"), contenteditable_false, left_attr],
+    [
+      Vdom.Attr.id("caret"),
+      contenteditable_false,
+      left_attr,
+      Vdom.Attr.classes(["blink"]),
+    ],
     [],
   );
 };
@@ -357,14 +363,14 @@ let presentation_of_layout =
 
     | Annot(Step(_), l) => go(l)
 
-    | Annot(Term({has_cursor, shape, family}), l) => [
+    | Annot(Term({has_cursor, shape, sort}), l) => [
         Node.span(
           [
             Attr.classes(
               List.concat([
                 ["Term"],
                 cursor_clss(has_cursor),
-                family_clss(family),
+                sort_clss(sort),
                 shape_clss(shape),
                 open_child_clss(
                   l |> TermLayout.has_inline_OpenChild,
@@ -418,37 +424,40 @@ let presentation_of_layout =
   );
 };
 
-let editor_view_of_layout =
+let view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~path: option(CursorPath.t)=?,
-      ~ci: option(CursorInfo.t)=?,
+      ~show_contenteditable: bool,
+      l: TermLayout.t,
+    )
+    : (Vdom.Node.t, Vdom.Node.t) => (
+  contenteditable_of_layout(~inject, ~show_contenteditable, l),
+  presentation_of_layout(~inject, l),
+);
+
+let focused_view_of_layout =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~path: CursorPath.t,
+      ~ci: CursorInfo.t,
       ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
+  let (steps, _) = path;
   let l =
-    switch (path) {
-    | None => l
-    | Some((steps, _) as path) =>
-      switch (l |> TermLayout.find_and_decorate_caret(~path)) {
-      | None =>
-        JSUtil.log(
-          Js.string(Sexplib.Sexp.to_string_hum(TermLayout.sexp_of_t(l))),
-        );
-        failwith(__LOC__ ++ ": could not find caret");
-      | Some(l) =>
-        switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
-        | None => failwith(__LOC__ ++ ": could not find cursor")
-        | Some(l) => l
-        }
+    switch (l |> TermLayout.find_and_decorate_caret(~path)) {
+    | None => failwith(__LOC__ ++ ": could not find caret")
+    | Some(l) =>
+      switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
+      | None => failwith(__LOC__ ++ ": could not find cursor")
+      | Some(l) => l
       }
     };
   let l =
-    switch (ci) {
-    | None
-    | Some({uses: None, _}) => l
-    | Some({uses: Some(uses), _}) =>
+    switch (ci.uses) {
+    | None => l
+    | Some(uses) =>
       uses
       |> List.fold_left(
            (l, use) =>
@@ -464,10 +473,7 @@ let editor_view_of_layout =
            l,
          )
     };
-  (
-    contenteditable_of_layout(~inject, ~show_contenteditable, l),
-    presentation_of_layout(~inject, l),
-  );
+  view_of_layout(~inject, ~show_contenteditable, l);
 };
 
 let view_of_htyp =
@@ -483,24 +489,37 @@ let view_of_htyp =
   };
 };
 
-let editor_view_of_exp =
+let focused_view =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~width=80,
       ~pos=0,
-      ~path: option(CursorPath.t)=?,
-      ~ci: option(CursorInfo.t)=?,
+      ~path: CursorPath.t,
+      ~ci: CursorInfo.t,
       ~show_contenteditable: bool,
-      e: UHExp.t,
+      doc: TermDoc.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
-  let l =
-    e
-    |> TermDoc.Exp.mk(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
+  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
+    focused_view_of_layout(~inject, ~path, ~ci, ~show_contenteditable, l)
+  };
+};
+
+let view =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~width=80,
+      ~pos=0,
+      ~show_contenteditable: bool,
+      doc: TermDoc.t,
+    )
+    : (Vdom.Node.t, Vdom.Node.t) => {
+  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_exp on layout failure")
+  | Some(l) => view_of_layout(~inject, ~show_contenteditable, l)
   };
 };

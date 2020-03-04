@@ -34,6 +34,13 @@ let on_startup = (~schedule_action, _) => {
   );
 };
 
+let restart_caret_animation = () => {
+  let caret = JSUtil.force_get_elem_by_id("caret");
+  caret##.classList##remove(Js.string("blink"));
+  caret##focus;
+  caret##.classList##add(Js.string("blink"));
+};
+
 let create =
     (
       model: Incr.t(Model.t),
@@ -48,6 +55,7 @@ let create =
       (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
         let path = model |> Model.get_program |> Program.get_path;
         if (state.changing_cards^) {
+          state.changing_cards := false;
           let (anchor_node, anchor_offset) =
             path |> Code.caret_position_of_path;
           state.setting_caret := true;
@@ -56,12 +64,14 @@ let create =
           let (expected_node, expected_offset) =
             path |> Code.caret_position_of_path;
           let (actual_node, actual_offset) = JSUtil.get_selection_anchor();
-          if (actual_node == expected_node && actual_offset == expected_offset) {
+          if (actual_node === expected_node
+              && actual_offset === expected_offset) {
             state.setting_caret := false;
           } else {
             state.setting_caret := true;
             JSUtil.set_caret(expected_node, expected_offset);
           };
+          restart_caret_animation();
         };
       },
     model,
