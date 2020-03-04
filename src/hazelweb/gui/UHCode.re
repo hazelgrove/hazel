@@ -5,8 +5,6 @@ module Vdom = Virtual_dom.Vdom;
 open Pretty;
 open ViewUtil;
 
-type annot = UHAnnot.t;
-
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
 let clss_of_err: ErrStatus.t => list(cls) =
@@ -129,7 +127,7 @@ let contenteditable_of_layout =
       // TODO: Once we figure out content-editable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
-  let record: Layout.text(annot, list(Node.t), Node.t) = {
+  let record: Layout.text(UHAnnot.t, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
      * element either with contenteditable set to false or
      * annotated with the appropriate path-related metadata.
