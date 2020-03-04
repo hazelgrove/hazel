@@ -42,10 +42,7 @@ let init = (): t => {
       timestamp,
       display_timestamp: false,
     };
-    {
-      groups: ([], undo_history_group, []),
-      last_display_timestamp: timestamp,
-    };
+    {groups: ([], undo_history_group, []), last_timestamp: timestamp};
   };
   {
     cardstacks,
