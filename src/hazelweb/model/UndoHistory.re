@@ -112,6 +112,7 @@ let push_history_entry =
     (prev_group: undo_history_group, new_entry: undo_history_entry)
     : undo_history_group => {
   {
+    ...prev_group,
     group_entries: (
       [],
       new_entry,
@@ -121,8 +122,6 @@ let push_history_entry =
       ],
     ),
     is_expanded: false,
-    timestamp: Unix.time(),
-    display_timestamp: false,
   };
 };
 
@@ -1119,20 +1118,15 @@ let push_edit_state =
       )
     ) {
     | Success(new_group) =>
-      let new_group' = {
-        ...new_group,
-        display_timestamp:
-          new_group.timestamp -. undo_history.last_display_timestamp > 5.,
-      };
+      /*       let new_group' = {
+                 ...new_group,
+                 display_timestamp:
+                   new_group.timestamp -. undo_history.last_display_timestamp > 5.,
+               }; */
       {
-        groups: ([], new_group', ZList.prj_suffix(undo_history.groups)),
-        last_display_timestamp:
-          if (new_group'.display_timestamp) {
-            new_group'.timestamp;
-          } else {
-            undo_history.last_display_timestamp;
-          },
-      };
+        ...undo_history,
+        groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+      }
 
     | Fail(prev_group', new_entry') =>
       let timestamp = Unix.time();
