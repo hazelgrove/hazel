@@ -38,6 +38,7 @@ let init = (): t => {
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
       is_expanded: false,
+      timestamp: Unix.time(),
     };
     ([], undo_history_group, []);
   };
@@ -146,19 +147,6 @@ let load_cardstack = (model, idx) => {
   model |> map_cardstacks(Cardstacks.load_cardstack(idx)) |> focus_cell;
 };
 
-/* let follow_cursor_path = (cursor_path: CursorPath.t, model: t): t => {
-     let ze = model |> get_program |> Program.get_zexp;
-     let new_ze =
-       switch (CursorPath.Exp.follow(cursor_path, ze |> ZExp.erase)) {
-       | None => ze
-       | Some(new_ze') => new_ze'
-       };
-     let (_, hty, meta) = model |> get_program |> Program.get_edit_state;
-     let new_program =
-       model |> get_program |> Program.put_edit_state((new_ze, hty, meta));
-     model |> put_program(new_program);
-   }; */
-
 let undo = (model: t): t => {
   let new_history = {
     let cur_group = ZList.prj_z(model.undo_history);
@@ -171,6 +159,7 @@ let undo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
+          ...new_group,
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because the selected group should be expanded*/
@@ -178,6 +167,7 @@ let undo = (model: t): t => {
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
+        ...cur_group,
         group_entries: new_group_entries,
         is_expanded: true,
       };
@@ -202,6 +192,7 @@ let redo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
+          ...new_group,
           group_entries: ZList.shift_end(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
@@ -209,6 +200,7 @@ let redo = (model: t): t => {
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
+        ...cur_group,
         group_entries: new_group_entries,
         is_expanded: true,
       };
