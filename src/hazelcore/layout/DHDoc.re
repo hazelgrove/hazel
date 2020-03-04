@@ -414,7 +414,9 @@ module Exp = {
           hcats([space(), mk(~show_casts, ~enforce_inline=true, dclause)]),
           hcats([
             linebreak(),
-            mk(~show_casts, ~enforce_inline=false, dclause),
+            indent_and_align(
+              mk(~show_casts, ~enforce_inline=false, dclause),
+            ),
           ]),
         ]),
       ])
