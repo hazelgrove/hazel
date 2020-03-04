@@ -4,17 +4,17 @@ type delete_edit =
   | Space
   | EmptyLine
   | TypeAnn;
-type construct_edit =
-  | Space
-  | EmptyLine
-  | LetBinding
-  | CaseMatch
-  | TypeAnn
-  | ShapeEdit(Action.shape);
+/* type construct_edit =
+   | Space
+   | EmptyLine
+   | LetBinding
+   | CaseMatch
+   | TypeAnn
+   | ShapeEdit(Action.shape); */
 type edit_action =
   | EditVar
   | DeleteEdit(delete_edit)
-  | ConstructEdit(construct_edit)
+  | ConstructEdit(Action.shape)
   | Ignore; /* cursor move and init state */
 
 type cursor_term_info = {
@@ -179,33 +179,22 @@ let group_edit_action =
     }
   | (EditVar, ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
-    | LetBinding
-    | CaseMatch => true
-    | Space
-    | EmptyLine
-    | TypeAnn
-    | ShapeEdit(_) => false
+    | SLet
+    | SCase => true
+    | _ => false
     }
   | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
     switch (delete_edit_1, delete_edit_2) {
     | (Space, Space)
     | (EmptyLine, EmptyLine) => true
-    | (Space, _)
-    | (EmptyLine, _)
-    | (Term(_), _)
-    | (TypeAnn, _) => false
+    | (_, _) => false
     }
   | (DeleteEdit(_), _) => false
   | (ConstructEdit(construct_edit_1), ConstructEdit(construct_edit_2)) =>
     switch (construct_edit_1, construct_edit_2) {
-    | (Space, Space)
-    | (EmptyLine, EmptyLine) => true
-    | (Space, _)
-    | (EmptyLine, _)
-    | (LetBinding, _)
-    | (CaseMatch, _)
-    | (TypeAnn, _)
-    | (ShapeEdit(_), _) => false
+    | (SOp(SSpace), SOp(SSpace))
+    | (SLine, SLine) => true
+    | (_, _) => false
     }
   | (ConstructEdit(_), _) => false
   };
@@ -260,14 +249,9 @@ let group_entry =
         }
       | (ConstructEdit(construct_edit_1), ConstructEdit(construct_edit_2)) =>
         switch (construct_edit_1, construct_edit_2) {
-        | (Space, Space)
-        | (EmptyLine, EmptyLine) => true
-        | (Space, _)
-        | (EmptyLine, _)
-        | (LetBinding, _)
-        | (CaseMatch, _)
-        | (TypeAnn, _)
-        | (ShapeEdit(_), _) => false
+        | (SOp(SSpace), SOp(SSpace))
+        | (SLine, SLine) => true
+        | (_, _) => false
         }
       | (EditVar, _)
       | (DeleteEdit(_), _)
@@ -507,7 +491,7 @@ let construct_space =
     prev_group,
     cardstacks_before,
     new_entry_base,
-    ConstructEdit(Space),
+    ConstructEdit(SOp(SSpace)),
   );
 
 let is_delete_emptylines =
@@ -741,13 +725,7 @@ let join_group =
 
   | Construct(shape) =>
     switch (shape) {
-    | SLine =>
-      set_join_result(
-        prev_group,
-        cardstacks_before,
-        new_entry_base,
-        ConstructEdit(EmptyLine),
-      )
+    | SLine
     | SParenthesized
     | SList
     | SAsc
@@ -760,12 +738,12 @@ let join_group =
         prev_group,
         cardstacks_before,
         new_entry_base,
-        ConstructEdit(ShapeEdit(shape)),
+        ConstructEdit(shape),
       )
     | SChar(_) =>
       set_join_result(prev_group, cardstacks_before, new_entry_base, EditVar)
-    | SOp(shape') =>
-      switch (shape') {
+    | SOp(op) =>
+      switch (op) {
       | SMinus
       | SPlus
       | STimes
@@ -782,7 +760,7 @@ let join_group =
           prev_group,
           cardstacks_before,
           new_entry_base,
-          ConstructEdit(ShapeEdit(shape)),
+          ConstructEdit(shape),
         )
 
       | SSpace =>
@@ -798,7 +776,7 @@ let join_group =
                   if (group_entry(
                         prev_group,
                         cardstacks_before,
-                        ConstructEdit(LetBinding),
+                        ConstructEdit(SLet),
                       )) {
                     let prev_group' = {
                       ...prev_group,
@@ -811,13 +789,13 @@ let join_group =
                     set_success_join(
                       prev_group',
                       new_entry_base,
-                      ConstructEdit(LetBinding),
+                      ConstructEdit(SLet),
                     );
                   } else {
                     set_fail_join(
                       prev_group,
                       new_entry_base,
-                      ConstructEdit(LetBinding),
+                      ConstructEdit(SLet),
                     );
                   };
                 } else {
@@ -839,7 +817,7 @@ let join_group =
                   if (group_entry(
                         prev_group,
                         cardstacks_before,
-                        ConstructEdit(LetBinding),
+                        ConstructEdit(SCase),
                       )) {
                     let prev_group' = {
                       ...prev_group,
@@ -852,13 +830,13 @@ let join_group =
                     set_success_join(
                       prev_group',
                       new_entry_base,
-                      ConstructEdit(CaseMatch),
+                      ConstructEdit(SCase),
                     );
                   } else {
                     set_fail_join(
                       prev_group,
                       new_entry_base,
-                      ConstructEdit(CaseMatch),
+                      ConstructEdit(SCase),
                     );
                   };
                 } else {
