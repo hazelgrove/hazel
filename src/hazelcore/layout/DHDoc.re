@@ -32,7 +32,7 @@ let pad_child =
     Doc.(
       hcats([
         linebreak(),
-        Doc.indent_and_align(child(~enforce_inline=false)),
+        indent_and_align(child(~enforce_inline=false)),
         linebreak(),
       ])
     );
@@ -78,15 +78,13 @@ module Delim = {
   let arrow_Rule = mk(UnicodeConstants.caseArrowSym);
 
   let open_Cast = mk("<");
+  let arrow_Cast = mk(UnicodeConstants.castArrowSym);
   let close_Cast = mk(">");
 
   let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
-  let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
-
-  let cast_arrow = mk(UnicodeConstants.castArrowSym);
-
-  let failed_cast_arrow =
+  let arrow_FailedCast =
     mk(UnicodeConstants.castArrowSym) |> Doc.annot(DHAnnot.FailedCastDelim);
+  let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
 let mk_EmptyHole = (u, i) =>
@@ -354,7 +352,7 @@ module Exp = {
               Delim.open_FailedCast,
               hseps([
                 Typ.mk(~enforce_inline=true, ty1),
-                Delim.failed_cast_arrow,
+                Delim.arrow_FailedCast,
                 Typ.mk(~enforce_inline=true, ty2),
               ]),
               Delim.close_FailedCast,
