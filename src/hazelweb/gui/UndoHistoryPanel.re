@@ -681,10 +681,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ],
         [
           Node.div(
-            [Attr.classes(["undo-button-txt"])],
-            [Node.text("Undo")],
+            [Attr.classes(["undo-redo-button-txt"])],
+            [Node.text("undo ")],
           ),
-          Node.div([Attr.classes(["undo-button", "redo-undo-icon"])], []),
+          Icons.undo(["redo-undo-icon"]),
         ],
       )
     );
@@ -697,10 +697,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Attr.on_click(_ => inject(Update.Action.Redo)),
         ],
         [
-          Node.div([Attr.classes(["redo-button", "redo-undo-icon"])], []),
+          Icons.redo(["redo-undo-icon"]),
           Node.div(
-            [Attr.classes(["redo-button-txt"])],
-            [Node.text("Redo")],
+            [Attr.classes(["undo-redo-button-txt"])],
+            [Node.text(" redo")],
           ),
         ],
       )

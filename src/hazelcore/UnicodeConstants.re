@@ -10,6 +10,8 @@ let user_newline = "↵"; // U+21B5 "Downwards arrow with corner leftwards"
 let left_triangle = "◀"; // U+25C0 "Black left-pointing triangle"
 let right_triangle = "▶"; // U+25B6 "Black right-pointing triangle"
 
+let redo = "⮫";
+let undo = "⮪";
 // NOTE: Using string escapes to avoid invisible unicode characters in source code
 let nbsp = "\xC2\xA0"; // UTF-8 encoding for U+00A0 "No-break space"
 let zwsp = "\xE2\x80\x8B"; // UTF-8 encoding for U+200B "Zero-width space"
