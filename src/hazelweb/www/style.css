@@ -762,8 +762,6 @@ h1 {
 
 .code {
   font-family: "Fira Mono", monospace;
-  // TODO probably unnecessary if we commit to nbsp
-  white-space: pre;
   font-size: 14pt;
   line-height: var(--code-line-height);
 }
@@ -794,8 +792,12 @@ h1 {
   display: inline;
 }
 
-.code-container {
+#code-container {
   position: relative;
+  font-family: "Fira Mono", monospace;
+  font-size: 14pt;
+  line-height: var(--code-line-height);
+  width: 80ch;
 }
 .contenteditable {
   background-color: lightgray;
@@ -1140,8 +1142,6 @@ h1 {
 }
 
 #cell {
-  opacity: 0.99;
-  /*background-color: transparent;*/
   position: relative;
   width: auto;
   margin-top: 20px;
