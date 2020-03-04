@@ -419,33 +419,40 @@ let presentation_of_layout =
   );
 };
 
-let editor_view_of_layout =
+let view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~path: option(CursorPath.t)=?,
-      ~ci: option(CursorInfo.t)=?,
+      ~show_contenteditable: bool,
+      l: TermLayout.t,
+    )
+    : (Vdom.Node.t, Vdom.Node.t) => (
+  contenteditable_of_layout(~inject, ~show_contenteditable, l),
+  presentation_of_layout(~inject, l),
+);
+
+let focused_view_of_layout =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~path: CursorPath.t,
+      ~ci: CursorInfo.t,
       ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
+  let (steps, _) = path;
   let l =
-    switch (path) {
-    | None => l
-    | Some((steps, _) as path) =>
-      switch (l |> TermLayout.find_and_decorate_caret(~path)) {
-      | None => failwith(__LOC__ ++ ": could not find caret")
-      | Some(l) =>
-        switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
-        | None => failwith(__LOC__ ++ ": could not find cursor")
-        | Some(l) => l
-        }
+    switch (l |> TermLayout.find_and_decorate_caret(~path)) {
+    | None => failwith(__LOC__ ++ ": could not find caret")
+    | Some(l) =>
+      switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
+      | None => failwith(__LOC__ ++ ": could not find cursor")
+      | Some(l) => l
       }
     };
   let l =
-    switch (ci) {
-    | None
-    | Some({uses: None, _}) => l
-    | Some({uses: Some(uses), _}) =>
+    switch (ci.uses) {
+    | None => l
+    | Some(uses) =>
       uses
       |> List.fold_left(
            (l, use) =>
@@ -461,10 +468,7 @@ let editor_view_of_layout =
            l,
          )
     };
-  (
-    contenteditable_of_layout(~inject, ~show_contenteditable, l),
-    presentation_of_layout(~inject, l),
-  );
+  view_of_layout(~inject, ~show_contenteditable, l);
 };
 
 let view_of_htyp =
@@ -480,24 +484,37 @@ let view_of_htyp =
   };
 };
 
-let editor_view_of_exp =
+let focused_view =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~width=80,
       ~pos=0,
-      ~path: option(CursorPath.t)=?,
-      ~ci: option(CursorInfo.t)=?,
+      ~path: CursorPath.t,
+      ~ci: CursorInfo.t,
       ~show_contenteditable: bool,
-      e: UHExp.t,
+      doc: TermDoc.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
-  let l =
-    e
-    |> TermDoc.Exp.mk(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
+  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
+    focused_view_of_layout(~inject, ~path, ~ci, ~show_contenteditable, l)
+  };
+};
+
+let view =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~width=80,
+      ~pos=0,
+      ~show_contenteditable: bool,
+      doc: TermDoc.t,
+    )
+    : (Vdom.Node.t, Vdom.Node.t) => {
+  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_exp on layout failure")
+  | Some(l) => view_of_layout(~inject, ~show_contenteditable, l)
   };
 };
