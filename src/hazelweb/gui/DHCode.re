@@ -1,4 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
+open Pretty;
 
 let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
   open Vdom;

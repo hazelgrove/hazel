@@ -32,7 +32,7 @@ let annot_Case = (~err: ErrStatus.t) =>
   Doc.annot(TermAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
-  Doc.(hcats([indent |> annot_Indent, align(d)]));
+  Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
 let mk_text = (~steps: CursorPath.steps, text: string): t =>
   Doc.text(text)

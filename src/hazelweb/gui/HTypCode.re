@@ -1,4 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
+open Pretty;
 
 let view_of_layout =
   Layout.make_of_layout(

@@ -34,6 +34,9 @@ let fail = () => t_of_t'(Fail);
 let empty = () => text("");
 let space = () => text(Unicode.nbsp); // TODO: param to hsep
 
+let indent = () => text(Unicode.nbsp ++ Unicode.nbsp);
+let indent_and_align = doc => t_of_t'(Cat(indent(), align(doc)));
+
 let hcat = (x, y) => t_of_t'(Cat(x, y));
 let hcats: list(t('annot)) => t('annot) =
   fun
@@ -58,3 +61,18 @@ let choices: list(t('annot)) => t('annot) =
   fun
   | [] => fail()
   | [doc, ...docs] => List.fold_left(choice, doc, docs);
+
+let map_t': 'a 'b. (t'('a) => t'('b), t('a)) => t('b) =
+  (f, d) => t_of_t'(f(d.doc));
+
+let rec map_annot: 'a 'b. ('a => 'b, t('a)) => t('b) =
+  (f, d) =>
+    d
+    |> map_t'(
+         fun
+         | (Text(_) | Linebreak | Fail) as d' => d'
+         | Annot(annot, d) => Annot(f(annot), map_annot(f, d))
+         | Align(d) => Align(map_annot(f, d))
+         | Cat(d1, d2) => Cat(map_annot(f, d1), map_annot(f, d2))
+         | Choice(d1, d2) => Choice(map_annot(f, d1), map_annot(f, d2)),
+       );
