@@ -62,6 +62,11 @@ module Delim = {
   let open_Lam = mk(".{");
   let close_Lam = mk("}");
 
+  let fix_FixF = mk("fix");
+  let colon_FixF = mk(":");
+  let open_FixF = mk(".{");
+  let close_FixF = mk("}");
+
   let open_Inj = (inj_side: InjSide.t) =>
     mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
   let close_Inj = mk(")");
@@ -369,7 +374,20 @@ module Exp = {
             Delim.close_Lam,
           ])
           |> no_cast;
-        | FixF(_) => failwith("unimplemented")
+        | FixF(x, ty, dbody) =>
+          let doc_body = (~enforce_inline) =>
+            go(~enforce_inline, dbody) |> mk_cast;
+          hcats([
+            Delim.fix_FixF,
+            space(),
+            text(x),
+            Delim.colon_FixF,
+            Typ.mk(~enforce_inline=true, ty),
+            Delim.open_FixF,
+            doc_body |> pad_child(~enforce_inline),
+            Delim.close_FixF,
+          ])
+          |> no_cast;
         };
       parenthesize
         ? (
