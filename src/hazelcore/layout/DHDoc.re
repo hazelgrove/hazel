@@ -305,19 +305,23 @@ module Exp = {
         | Pair(d1, d2) =>
           mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2))) |> no_cast
         | Case(dscrut, drs, _) =>
-          vseps(
-            List.concat([
-              [
-                hseps([
-                  Delim.open_Case,
-                  mk_cast(go(~enforce_inline=true, dscrut)),
-                ]),
-              ],
-              drs |> List.map(mk_rule(~show_casts)),
-              [Delim.close_Case],
-            ]),
-          )
-          |> no_cast
+          if (enforce_inline) {
+            fail() |> no_cast;
+          } else {
+            vseps(
+              List.concat([
+                [
+                  hseps([
+                    Delim.open_Case,
+                    mk_cast(go(~enforce_inline=true, dscrut)),
+                  ]),
+                ],
+                drs |> List.map(mk_rule(~show_casts)),
+                [Delim.close_Case],
+              ]),
+            )
+            |> no_cast;
+          }
         | Cast(d, _ty1, ty2) =>
           let (doc, _) = go'(d);
           (doc, Some(ty2));
