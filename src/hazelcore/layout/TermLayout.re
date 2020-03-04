@@ -1,7 +1,8 @@
+open Pretty;
+
 [@deriving sexp]
 type annot = TermAnnot.t;
 
-[@deriving sexp]
 type t = Layout.t(annot);
 
 // TODO shouldn't need this, refactor to use option
@@ -313,7 +314,7 @@ let path_after = (l: t): option(CursorPath.t) => {
 
 let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) => {
   let rec go = (indent, current_row, current_col, l: t): PathSearchResult.t => {
-    let metrics = Layout.metrics(l);
+    let metrics = Metrics.metrics(l);
     let end_row = current_row + metrics.height - 1;
     let end_col =
       (metrics.height == 1 ? current_col : indent) + metrics.last_width;
@@ -331,7 +332,7 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
       | Linebreak => Transport(row == end_row ? After : Before)
       | Align(l) => l |> go(current_col, current_row, current_col)
       | Cat(l1, l2) =>
-        let metrics1 = Layout.metrics(l1);
+        let metrics1 = Metrics.metrics(l1);
         let mid_row = current_row + metrics1.height - 1;
         let mid_col =
           (metrics1.height == 1 ? current_col : indent) + metrics1.last_width;

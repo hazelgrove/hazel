@@ -804,6 +804,8 @@ h1 {
   margin: calc(0.1 * var(--code-line-height) * 1em) 0;
   height: calc(0.8 * var(--code-line-height) * 1em);
   width: 2px;
+}
+#caret.blink {
   -webkit-animation: 1s blink step-end infinite;
   -moz-animation: 1s blink step-end infinite;
   -ms-animation: 1s blink step-end infinite;
@@ -873,7 +875,7 @@ h1 {
 }
 
 .Cursor.Term::before {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   content: "";
@@ -1012,7 +1014,7 @@ h1 {
 }
 
 .Cursor .DelimGroup {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);

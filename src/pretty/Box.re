@@ -1,7 +1,4 @@
-open Sexplib.Std;
-
 // Invariant for HBox: all but last element must be height <= 1
-[@deriving sexp]
 type t('annot) =
   | Text(string)
   | HBox(list(t('annot))) // note: due to alignment, HBox([]) is not a zero (or maybe it is?)
