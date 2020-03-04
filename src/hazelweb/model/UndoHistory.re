@@ -39,7 +39,7 @@ type undo_history_group = {
 
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
-  last_display_timestamp: float,
+  last_timestamp: float,
 };
 
 type entry_base = (cursor_term_info, Action.t, Cardstacks.t);
@@ -1121,11 +1121,11 @@ let push_edit_state =
       /*       let new_group' = {
                  ...new_group,
                  display_timestamp:
-                   new_group.timestamp -. undo_history.last_display_timestamp > 5.,
+                   new_group.timestamp -. undo_history.last_timestamp > 5.,
                }; */
       {
-        ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+        last_timestamp: Unix.time(),
       }
 
     | Fail(prev_group', new_entry') =>
@@ -1134,8 +1134,7 @@ let push_edit_state =
         group_entries: ([], new_entry', []),
         is_expanded: false,
         timestamp,
-        display_timestamp:
-          timestamp -. undo_history.last_display_timestamp > 5.,
+        display_timestamp: timestamp -. undo_history.last_timestamp > 5.,
       };
       {
         groups: (
@@ -1143,12 +1142,7 @@ let push_edit_state =
           new_group,
           [prev_group', ...ZList.prj_suffix(undo_history.groups)],
         ),
-        last_display_timestamp:
-          if (new_group.display_timestamp) {
-            timestamp;
-          } else {
-            undo_history.last_display_timestamp;
-          },
+        last_timestamp: timestamp,
       };
     };
   } else {
