@@ -1444,22 +1444,11 @@ h1 {
   border-top: 10px solid white;
 }
 
-.all-history-tab-icon-close, .undo-button {
+.all-history-tab-icon-close {
 border-bottom: 8px solid transparent;
 border-top: 8px solid transparent;
 border-right: 10px solid white;
 }
-.redo-button {
-  border-bottom: 8px solid transparent;
-  border-top: 8px solid transparent;
-  border-left: 10px solid white;
-}
-.redo-undo-icon {
-  display: table-cell;
-  margin-left: 10px; 
-  margin-right: 10px;
-}
-
 
 .history_button_bar {
   text-transform: uppercase;
@@ -1469,23 +1458,28 @@ border-right: 10px solid white;
   background-color: #678a61;
   display: table;
 }
+
 .history-button {
   cursor: pointer;
-  margin-right: 5px; 
-  display: inline-table; 
+  margin-left: 5px; 
+  margin-right: 10px;
+  display: inline-block;
+  vertical-align: middle;
 }
-.undo-button-txt {
+.redo-undo-icon {
  
- display: table-cell;
- padding-right: 15px;
- vertical-align: center;
+  color: white;
+  display: inline-block;
+  vertical-align: middle;
+  font-weight: 1000;
+  margin-left: 5px;
+  margin-right: 5px;
 }
 
-.redo-button-txt {
- 
-  display: table-cell;
-  padding-left: 15px;
-  vertical-align: center;
+.undo-redo-button-txt {
+  color: white;
+  display: inline-block;
+  vertical-align: middle;
  }
 
 

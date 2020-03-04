@@ -527,7 +527,8 @@ let ontext_delete =
   } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
              || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
     /* delete the whole term */
-    let initial_term = get_original_deleted_term(prev_group, new_cursor_term_info);
+    let initial_term =
+      get_original_deleted_term(prev_group, new_cursor_term_info);
     set_join_result(
       prev_group,
       cardstacks_before,
@@ -606,7 +607,8 @@ let ondelim_delete =
     );
   } else {
     /* delete the whole term */
-    let initial_term = get_original_deleted_term(prev_group, new_cursor_term_info);
+    let initial_term =
+      get_original_deleted_term(prev_group, new_cursor_term_info);
     set_join_result(
       prev_group,
       cardstacks_before,
