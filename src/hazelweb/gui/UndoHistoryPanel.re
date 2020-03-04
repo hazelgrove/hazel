@@ -243,7 +243,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     let clear_undisplay_entries =
         (entries: list(undo_history_entry))
         : (option((undo_history_entry, int)), list(undo_history_entry)) => {
-      JSUtil.log("not show~~" ++ string_of_int(List.length(entries)));
       let rec helper_func =
               (entries: list(undo_history_entry), index: int)
               : (
@@ -267,11 +266,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       let (title, hidden_entries) =
         clear_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
-      | None =>
-        JSUtil.log("not show 272");
-        Vdom.(Node.div([], []));
+      | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
-        JSUtil.log("show274");
         let has_hidden_part = List.length(hidden_entries) > 0;
         let title_class =
           if (start_index != 0) {
@@ -347,11 +343,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       let (title, hidden_entries) =
         clear_undisplay_entries(suc_entries @ [cur_entry] @ prev_entries);
       switch (title) {
-      | None =>
-        JSUtil.log("not show352");
-        Vdom.(Node.div([], []));
+      | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
-        JSUtil.log("355show");
         /* title entry is in suc_entries */
         let has_hidden_part = List.length(hidden_entries) > 0;
         if (start_index + 1 <= List.length(suc_entries)) {

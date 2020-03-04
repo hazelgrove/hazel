@@ -233,7 +233,6 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
 let get_original_term =
     (group: undo_history_group, new_cursor_term_info: cursor_term_info)
     : cursor_term => {
-  let suffix = ZList.prj_suffix(group.group_entries);
   let rec max_len_term =
           (
             ls: list(undo_history_entry),
@@ -289,7 +288,10 @@ let get_original_term =
     };
   };
   max_len_term(
-    suffix,
+    [
+      ZList.prj_z(group.group_entries),
+      ...ZList.prj_suffix(group.group_entries),
+    ],
     cursor_term_len(new_cursor_term_info.previous_cursor_term),
     new_cursor_term_info.previous_cursor_term,
   );
@@ -556,11 +558,19 @@ let ontext_del =
   } else if (new_action == Backspace
              && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
-    set_fail_join(prev_group, new_entry_base, Ignore);
+    set_success_join(
+      prev_group,
+      new_entry_base,
+      Ignore,
+    );
   } else if (new_action == Delete
              && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
-    set_fail_join(prev_group, new_entry_base, Ignore);
+    set_success_join(
+      prev_group,
+      new_entry_base,
+      Ignore,
+    );
   } else if (CursorInfo.is_empty_line(
                new_cursor_term_info.current_cursor_term,
              )
