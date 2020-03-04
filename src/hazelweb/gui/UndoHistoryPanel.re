@@ -27,7 +27,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | NumLit(_, num) => "number: " ++ string_of_int(num)
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
-    | Lam(_, _, _, _) => "lambada function"
+    | Lam(_, _, _, _) => "lambada function!!!"
     | Inj(_, side, _) =>
       switch (side) {
       | L => "left injection"
@@ -42,7 +42,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let pat_str = (pat: UHPat.operand): string => {
     switch (pat) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
-    | Wild(_) => "I don't know its meaning"
+    | Wild(_) => "wild card"
     | Var(_, _, var_str) => "var: " ++ var_str
     | NumLit(_, num) => "number: " ++ string_of_int(num)
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
@@ -99,12 +99,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
-      | Space => Some("insert space")
-      | EmptyLine => Some("insert new line")
-      | LetBinding => Some("construct let binding")
-      | CaseMatch => Some("construct case match")
-      | TypeAnn => Some("insert type annotation")
-      | ShapeEdit(shape) => Some("insert " ++ Action.shape_to_string(shape))
+      | SLet => Some("construct let binding")
+      | SCase => Some("construct case match")
+      | SLam => Some("construct lambda")
+      | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
       }
     | EditVar =>
       Some(
