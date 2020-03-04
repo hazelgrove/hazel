@@ -1,3 +1,7 @@
+module Result_ = Result;
+open Core_kernel;
+module Result = Result_;
+
 type context_inspector = {
   prev_state: option(HoleInstance.t),
   next_state: option(HoleInstance.t),
@@ -27,7 +31,9 @@ let get_zexp = program => {
   let (ze, _, _) = program |> get_edit_state;
   ze;
 };
-let get_uhexp = program => program |> get_zexp |> ZExp.erase;
+
+let _erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
+let get_uhexp = program => program |> get_zexp |> _erase;
 
 let get_path = program => program |> get_zexp |> CursorPath.Exp.of_z;
 let get_steps = program => {
@@ -40,11 +46,15 @@ let get_u_gen = program => {
   u_gen;
 };
 
-// TODO memoize
 exception MissingCursorInfo;
+let _cursor_info =
+  Memo.general(
+    ~cache_size_bound=1000,
+    CursorInfo.Exp.syn_cursor_info(Contexts.empty),
+  );
 let get_cursor_info = (program: t) => {
   let ze = program |> get_zexp;
-  switch (CursorInfo.Exp.syn_cursor_info(Contexts.empty, ze)) {
+  switch (_cursor_info(ze)) {
   | None => raise(MissingCursorInfo)
   | Some(ci) =>
     /* uncomment to see where variable is used
@@ -58,29 +68,33 @@ let get_cursor_info = (program: t) => {
   };
 };
 
-// TODO memoize
 exception DoesNotExpand;
-let get_expansion = (program: t): DHExp.t => {
-  let e = program |> get_uhexp;
-  switch (Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty, e)) {
+let _expand =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty),
+  );
+let get_expansion = (program: t): DHExp.t =>
+  switch (program |> get_uhexp |> _expand) {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) => d
   };
-};
 
 exception InvalidInput;
+let _evaluate =
+  Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
-  Dynamics.(
-    switch (program |> get_expansion |> Evaluator.evaluate) {
-    | InvalidInput(_) => raise(InvalidInput)
-    | BoxedValue(d) =>
-      let (d_renumbered, hii) = Exp.renumber([], HoleInstanceInfo.empty, d);
-      (d_renumbered, hii, BoxedValue(d_renumbered));
-    | Indet(d) =>
-      let (d_renumbered, hii) = Exp.renumber([], HoleInstanceInfo.empty, d);
-      (d_renumbered, hii, Indet(d_renumbered));
-    }
-  );
+  switch (program |> get_expansion |> _evaluate) {
+  | InvalidInput(_) => raise(InvalidInput)
+  | BoxedValue(d) =>
+    let (d_renumbered, hii) =
+      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+    (d_renumbered, hii, BoxedValue(d_renumbered));
+  | Indet(d) =>
+    let (d_renumbered, hii) =
+      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+    (d_renumbered, hii, Indet(d_renumbered));
+  };
 
 let get_selected_instance = program => program.selected_instance;
 let put_selected_instance = ((u, i) as inst, program) => {
@@ -119,4 +133,14 @@ let move_to_hole = (u, program) => {
   | Some(hole_steps) =>
     program |> perform_edit_action(MoveToBefore(hole_steps))
   };
+};
+
+let _doc =
+  Memo.general(
+    ~cache_size_bound=1000,
+    UHDoc.Exp.mk(~steps=[], ~enforce_inline=false),
+  );
+let get_doc = program => {
+  let e = program |> get_uhexp;
+  _doc(e);
 };
