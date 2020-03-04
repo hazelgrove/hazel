@@ -38,8 +38,6 @@ let init = (): t => {
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
       is_expanded: false,
-      is_complete: true,
-      prev_is_complete: true,
     };
     ([], undo_history_group, []);
   };
@@ -173,7 +171,6 @@ let undo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
-          ...new_group,
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because the selected group should be expanded*/
@@ -181,7 +178,6 @@ let undo = (model: t): t => {
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
-        ...cur_group,
         group_entries: new_group_entries,
         is_expanded: true,
       };
@@ -206,7 +202,6 @@ let redo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
-          ...new_group,
           group_entries: ZList.shift_end(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
@@ -214,18 +209,12 @@ let redo = (model: t): t => {
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
-        ...cur_group,
         group_entries: new_group_entries,
         is_expanded: true,
       };
       ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };
   };
-  /*   let cur_group' = ZList.prj_z(new_history);
-       let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-       let model' = model |> put_cardstacks(new_cardstacks);
-       {...model', undo_history: new_history};
-       //let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks; */
   let cur_group' = ZList.prj_z(new_history);
   let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
   let model' = model |> put_cardstacks(new_cardstacks);
