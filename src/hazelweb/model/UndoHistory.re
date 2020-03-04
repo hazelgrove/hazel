@@ -104,11 +104,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
 };
 
 let push_history_entry =
-    (
-      prev_group: undo_history_group,
-      new_entry: undo_history_entry,
-      is_complete,
-    )
+    (prev_group: undo_history_group, new_entry: undo_history_entry)
     : undo_history_group => {
   {
     group_entries: (
@@ -120,8 +116,6 @@ let push_history_entry =
       ],
     ),
     is_expanded: false,
-    is_complete,
-    prev_is_complete: is_complete,
   };
 };
 
@@ -158,35 +152,24 @@ let cursor_jump =
 
 type group_result =
   | Success(undo_history_group)
-  | Fail(undo_history_group, undo_history_entry, bool);
+  | Fail(undo_history_group, undo_history_entry);
 
 let set_fail_join =
-    (
-      prev_group: undo_history_group,
-      entry_base,
-      new_edit_action: edit_action,
-      is_complete_entry: bool,
-    )
+    (prev_group: undo_history_group, entry_base, new_edit_action: edit_action)
     : group_result => {
   let (cursor_term_info, action, cardstacks) = entry_base;
 
-  let prev_group' = {...prev_group, is_complete: true};
   let new_entry = {
     cardstacks,
     cursor_term_info,
     previous_action: action,
     edit_action: new_edit_action,
   };
-  Fail(prev_group', new_entry, is_complete_entry);
+  Fail(prev_group, new_entry);
 };
 
 let set_success_join =
-    (
-      prev_group: undo_history_group,
-      entry_base,
-      new_edit_action: edit_action,
-      is_complete: bool,
-    )
+    (prev_group: undo_history_group, entry_base, new_edit_action: edit_action)
     : group_result => {
   let (cursor_term_info, action, cardstacks) = entry_base;
   let new_entry = {
@@ -195,7 +178,7 @@ let set_success_join =
     previous_action: action,
     edit_action: new_edit_action,
   };
-  Success(push_history_entry(prev_group, new_entry, is_complete));
+  Success(push_history_entry(prev_group, new_entry));
 };
 
 type comp_len_typ =
@@ -522,11 +505,8 @@ let group_entry =
       | (ConstructEdit(_), _) => false
       }
     };
-  /* !prev_group.is_complete */
   can_group_edit_action
   && can_group_action
-  /*   || !cursor_jump(prev_group, prev_cardstacks)
-       && false; */
   && (!cursor_jump(prev_group, prev_cardstacks) || ignore_cursor_jump);
 };
 let construct_space =
@@ -538,14 +518,9 @@ let construct_space =
         ZList.prj_z(prev_group.group_entries).previous_action,
         ConstructEdit(Space),
       )) {
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      ConstructEdit(Space),
-      false,
-    );
+    set_success_join(prev_group, new_entry_base, ConstructEdit(Space));
   } else {
-    set_fail_join(prev_group, new_entry_base, ConstructEdit(Space), false);
+    set_fail_join(prev_group, new_entry_base, ConstructEdit(Space));
   };
 let ontext_del =
     (
@@ -580,39 +555,19 @@ let ontext_del =
       } else {
         JSUtil.log("528");
       };
-      set_fail_join(
-        prev_group,
-        new_entry_base,
-        DeleteEdit(EmptyLine),
-        false,
-      );
+      set_fail_join(prev_group, new_entry_base, DeleteEdit(EmptyLine));
     } else {
       JSUtil.log("535");
-      set_success_join(
-        prev_group,
-        new_entry_base,
-        DeleteEdit(EmptyLine),
-        false,
-      );
+      set_success_join(prev_group, new_entry_base, DeleteEdit(EmptyLine));
     };
   } else if (new_action == Backspace
              && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
-    set_fail_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-      false,
-    );
+    set_fail_join(prev_group, new_entry_base, Ignore);
   } else if (new_action == Delete
              && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
     /* jump to next term */
-    set_fail_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-      false,
-    );
+    set_fail_join(prev_group, new_entry_base, Ignore);
   } else if (CursorInfo.is_empty_line(cursor_term_info.current_cursor_term)
              || CursorInfo.is_hole(cursor_term_info.current_cursor_term)) {
     if (set_new_group
@@ -627,7 +582,6 @@ let ontext_del =
         prev_group,
         new_entry_base,
         DeleteEdit(Term(cursor_term_info.previous_cursor_term)),
-        true,
       );
     } else {
       let initial_term = get_original_term(prev_group, cursor_term_info);
@@ -635,7 +589,6 @@ let ontext_del =
         prev_group,
         new_entry_base,
         DeleteEdit(Term(initial_term)),
-        true,
       );
     };
   } else if (set_new_group
@@ -646,9 +599,9 @@ let ontext_del =
                     prev_last_entry.previous_action,
                     EditVar,
                   )) {
-    set_fail_join(prev_group, new_entry_base, EditVar, false);
+    set_fail_join(prev_group, new_entry_base, EditVar);
   } else {
-    set_success_join(prev_group, new_entry_base, EditVar, false);
+    set_success_join(prev_group, new_entry_base, EditVar);
   };
 };
 let ondelim_undel =
@@ -676,26 +629,16 @@ let ondelim_undel =
                DeleteEdit(EmptyLine),
              )) {
       JSUtil.log("619");
-      set_fail_join(
-        prev_group,
-        new_entry_base,
-        DeleteEdit(EmptyLine),
-        false,
-      );
+      set_fail_join(prev_group, new_entry_base, DeleteEdit(EmptyLine));
     } else {
       JSUtil.log("627");
-      set_success_join(
-        prev_group,
-        new_entry_base,
-        DeleteEdit(EmptyLine),
-        false,
-      );
+      set_success_join(prev_group, new_entry_base, DeleteEdit(EmptyLine));
     };
   } else {
     let (cursor_term_info, _, _) = new_entry_base;
     if (CursorInfo.is_hole(cursor_term_info.previous_cursor_term)) {
       if (CursorInfo.is_exp_inside(cursor_term_info.current_cursor_term)) {
-        set_success_join(prev_group, new_entry_base, Ignore, false);
+        set_success_join(prev_group, new_entry_base, Ignore);
       } else if (group_entry(
                    prev_group,
                    prev_cardstacks,
@@ -705,15 +648,10 @@ let ondelim_undel =
         JSUtil.log(
           "679 len" ++ string_of_int(ZList.length(prev_group.group_entries)),
         );
-        set_success_join(
-          prev_group,
-          new_entry_base,
-          DeleteEdit(Space),
-          false,
-        );
+        set_success_join(prev_group, new_entry_base, DeleteEdit(Space));
       } else {
         JSUtil.log("687");
-        set_fail_join(prev_group, new_entry_base, DeleteEdit(Space), false);
+        set_fail_join(prev_group, new_entry_base, DeleteEdit(Space));
       };
     } else {
       /* move cursor to next term, just ignore this move */
@@ -721,7 +659,6 @@ let ondelim_undel =
         prev_group,
         new_entry_base,
         Ignore,
-        false,
       );
     };
   };
@@ -744,7 +681,6 @@ let ondelim_del =
       prev_group,
       new_entry_base,
       Ignore,
-      false,
     );
   } else if (pos == 1 && has_typ_ann(cursor_term_info.previous_cursor_term)) {
     /* num==1 is the position of ':' in an expression */
@@ -752,7 +688,6 @@ let ondelim_del =
       prev_group,
       new_entry_base,
       DeleteEdit(TypeAnn),
-      true,
     );
   } else if (set_new_group
              || !
@@ -766,7 +701,6 @@ let ondelim_del =
       prev_group,
       new_entry_base,
       DeleteEdit(Term(cursor_term_info.previous_cursor_term)),
-      true,
     );
   } else {
     let initial_term = get_original_term(prev_group, cursor_term_info);
@@ -774,7 +708,6 @@ let ondelim_del =
       prev_group,
       new_entry_base,
       DeleteEdit(Term(initial_term)),
-      true,
     );
   };
 };
@@ -815,19 +748,9 @@ let construct_shape =
                prev_last_entry.previous_action,
                ConstructEdit(EmptyLine),
              )) {
-      set_fail_join(
-        prev_group,
-        new_entry_base,
-        ConstructEdit(EmptyLine),
-        false,
-      );
+      set_fail_join(prev_group, new_entry_base, ConstructEdit(EmptyLine));
     } else {
-      set_success_join(
-        prev_group,
-        new_entry_base,
-        ConstructEdit(EmptyLine),
-        false,
-      );
+      set_success_join(prev_group, new_entry_base, ConstructEdit(EmptyLine));
     }
 
   | SParenthesized
@@ -850,14 +773,12 @@ let construct_shape =
         prev_group,
         new_entry_base,
         ConstructEdit(ShapeEdit(shape)),
-        true,
       );
     } else {
       set_success_join(
         prev_group,
         new_entry_base,
         ConstructEdit(ShapeEdit(shape)),
-        true,
       );
     }
   | SChar(_) =>
@@ -870,9 +791,9 @@ let construct_shape =
                prev_last_entry.previous_action,
                EditVar,
              )) {
-      set_fail_join(prev_group, new_entry_base, EditVar, false);
+      set_fail_join(prev_group, new_entry_base, EditVar);
     } else {
-      set_success_join(prev_group, new_entry_base, EditVar, false);
+      set_success_join(prev_group, new_entry_base, EditVar);
     }
 
   | SOp(shape') =>
@@ -902,14 +823,12 @@ let construct_shape =
           prev_group,
           new_entry_base,
           ConstructEdit(ShapeEdit(shape)),
-          true,
         );
       } else {
         set_success_join(
           prev_group,
           new_entry_base,
           ConstructEdit(ShapeEdit(shape)),
-          true,
         );
       }
     | SSpace =>
@@ -934,7 +853,6 @@ let construct_shape =
                     prev_group,
                     new_entry_base,
                     ConstructEdit(LetBinding),
-                    true,
                   );
                 } else {
                   let prev_group' = {
@@ -949,7 +867,6 @@ let construct_shape =
                     prev_group',
                     new_entry_base,
                     ConstructEdit(LetBinding),
-                    true,
                   );
                 };
               } else {
@@ -976,7 +893,6 @@ let construct_shape =
                     prev_group,
                     new_entry_base,
                     ConstructEdit(CaseMatch),
-                    true,
                   );
                 } else {
                   let prev_group' = {
@@ -991,7 +907,6 @@ let construct_shape =
                     prev_group',
                     new_entry_base,
                     ConstructEdit(CaseMatch),
-                    true,
                   );
                 };
               } else {
@@ -1077,11 +992,10 @@ let entry_to_start_a_group =
           prev_group,
           new_entry_base,
           DeleteEdit(Term(new_cursor_term_info.previous_cursor_term)),
-          true,
         )
       | After =>
         /* move cursor to next term, just ignore this move */
-        set_success_join(prev_group, new_entry_base, Ignore, false)
+        set_success_join(prev_group, new_entry_base, Ignore)
       }
     }
   | Backspace =>
@@ -1118,13 +1032,12 @@ let entry_to_start_a_group =
       switch (side) {
       | Before =>
         /* move cursor to next term, just ignore this move */
-        set_success_join(prev_group, new_entry_base, Ignore, false)
+        set_success_join(prev_group, new_entry_base, Ignore)
       | After =>
         set_fail_join(
           prev_group,
           new_entry_base,
           DeleteEdit(Term(new_cursor_term_info.previous_cursor_term)),
-          true,
         )
       }
     }
@@ -1155,13 +1068,9 @@ let join_group =
     )
     : group_result => {
   let prev_last_entry = ZList.prj_z(prev_group.group_entries);
-  /*   let prev_complete = prev_group.is_complete; */
   let (new_cursor_term_info, action, _) = new_entry_base;
   switch (prev_last_entry.previous_action, action) {
   | (prev_ac, Delete) =>
-    /*     if (prev_complete) {
-             entry_to_start_a_group(prev_group, prev_cardstacks, new_entry_base);
-           } else { */
     let prev_cursor_pos =
       get_cursor_pos(prev_last_entry.cursor_term_info.current_cursor_term);
     switch (prev_cursor_pos) {
@@ -1208,26 +1117,21 @@ let join_group =
             prev_group,
             new_entry_base,
             DeleteEdit(Term(initial_term)),
-            true,
           );
         } else {
           set_fail_join(
             prev_group,
             new_entry_base,
             DeleteEdit(Term(initial_term)),
-            true,
           );
         };
       | After =>
         /* move cursor to next term, just ignore this move */
-        set_success_join(prev_group, new_entry_base, Ignore, false)
+        set_success_join(prev_group, new_entry_base, Ignore)
       }
     };
 
   | (prev_ac, Backspace) =>
-    /*     if (prev_complete) {
-             entry_to_start_a_group(prev_group, prev_cardstacks, new_entry_base);
-           } else { */
     let prev_cursor_pos =
       get_cursor_pos(prev_last_entry.cursor_term_info.current_cursor_term);
     switch (prev_cursor_pos) {
@@ -1264,7 +1168,7 @@ let join_group =
       switch (side) {
       | Before =>
         /* move cursor to next term, just ignore this move */
-        set_success_join(prev_group, new_entry_base, Ignore, false)
+        set_success_join(prev_group, new_entry_base, Ignore)
       | After =>
         let initial_term =
           get_original_term(prev_group, new_cursor_term_info);
@@ -1278,23 +1182,18 @@ let join_group =
             prev_group,
             new_entry_base,
             DeleteEdit(Term(initial_term)),
-            true,
           );
         } else {
           set_fail_join(
             prev_group,
             new_entry_base,
             DeleteEdit(Term(initial_term)),
-            true,
           );
         };
       }
     };
 
   | (_, Construct(shape)) =>
-    /*     if (prev_complete) {
-             entry_to_start_a_group(prev_group, prev_cardstacks, new_entry_base);
-           } else { */
     construct_shape(
       ~shape,
       ~prev_group,
@@ -1331,8 +1230,6 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
         ...prev_group,
         group_entries:
           ZList.replace_z(new_entry_info, prev_group.group_entries),
-        is_complete:
-          cursor_jump(prev_group, cardstacks) || prev_group.prev_is_complete,
       };
     } else {
       {
@@ -1345,9 +1242,6 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
             ...ZList.prj_suffix(prev_group.group_entries),
           ],
         ),
-        is_complete:
-          cursor_jump(prev_group, cardstacks) || prev_group.is_complete,
-        prev_is_complete: prev_group.is_complete,
       };
     };
   ZList.replace_z(new_group, undo_history);
@@ -1380,12 +1274,10 @@ let push_edit_state =
       )
     ) {
     | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
-    | Fail(prev_group', new_entry', is_complete_entry) =>
+    | Fail(prev_group', new_entry') =>
       let new_group = {
         group_entries: ([], new_entry', []),
         is_expanded: false,
-        is_complete: is_complete_entry,
-        prev_is_complete: is_complete_entry,
       };
       ([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
     };
