@@ -85,18 +85,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Rule(_, _) => "match rule"
     };
   };
-  /*   let is_op = (cursor_term: CursorInfo.cursor_term): bool => {
-         switch (cursor_term) {
-         | Exp(_, _)
-         | Pat(_, _)
-         | Typ(_, _) => false
-         | ExpOp(_, _)
-         | PatOp(_, _)
-         | TypOp(_, _) => true
-         | Line(_, _)
-         | Rule(_, _) => false
-         };
-       }; */
+
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
     switch (undo_history_entry.edit_action) {
@@ -172,26 +161,36 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
-  let timestamp_view = (undo_history_group: undo_history_group, is_edit: bool) => {
-    let hour = Unix.localtime(undo_history_group.timestamp).tm_hour;
-    let min = Unix.localtime(undo_history_group.timestamp).tm_min;
-    let sec = Unix.localtime(undo_history_group.timestamp).tm_sec;
-    if ((hour * 60 * 60 + min * 60 + sec) mod 60 == 0 && !is_edit) {
+  let timestamp_view = (undo_history_group: undo_history_group, is_edit: bool) =>
+    if (undo_history_group.display_timestamp && !is_edit) {
+      let hour = Unix.localtime(undo_history_group.timestamp).tm_hour;
+      let str_hour =
+        if (hour < 10) {
+          "0" ++ string_of_int(hour);
+        } else {
+          string_of_int(hour);
+        };
+      let min = Unix.localtime(undo_history_group.timestamp).tm_min;
+      let str_min =
+        if (min < 10) {
+          "0" ++ string_of_int(min);
+        } else {
+          string_of_int(min);
+        };
+      let sec = Unix.localtime(undo_history_group.timestamp).tm_sec;
+      let str_sec =
+        if (sec < 10) {
+          "0" ++ string_of_int(sec);
+        } else {
+          string_of_int(sec);
+        };
       Vdom.(
         Node.div(
           [Attr.classes(["timestamp-wrapper"])],
           [
             Node.div(
               [Attr.classes(["timestamp-txt"])],
-              [
-                Node.text(
-                  string_of_int(hour)
-                  ++ ":"
-                  ++ string_of_int(min)
-                  ++ ":"
-                  ++ string_of_int(sec),
-                ),
-              ],
+              [Node.text(str_hour ++ ":" ++ str_min ++ ":" ++ str_sec)],
             ),
           ],
         )
@@ -199,7 +198,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     } else {
       Vdom.(Node.div([], []));
     };
-  };
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (
@@ -644,10 +642,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
   let history_view = (model: Model.t) => {
-    let (suc_groups, cur_group, prev_groups) = model.undo_history;
+    let (suc_groups, cur_group, prev_groups) = model.undo_history.groups;
     /*if the initial entry is the only history entry */
-    if (ZList.length(model.undo_history) <= 1
-        && ZList.length(ZList.prj_z(model.undo_history).group_entries) <= 1) {
+    if (ZList.length(model.undo_history.groups) <= 1
+        && ZList.length(
+             ZList.prj_z(model.undo_history.groups).group_entries,
+           )
+        <= 1) {
       Vdom.(
         Node.div(
           [Attr.classes(["the-history"])],

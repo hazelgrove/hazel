@@ -34,13 +34,13 @@ type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
   timestamp: float,
-  display_timestamp:bool,
+  display_timestamp: bool,
 };
 
 type t = {
-  history:ZList.t(undo_history_group, undo_history_group),
-  last_display_timestamp:float,
-}
+  groups: ZList.t(undo_history_group, undo_history_group),
+  last_display_timestamp: float,
+};
 
 type entry_base = (cursor_term_info, Action.t, Cardstacks.t);
 
@@ -122,7 +122,7 @@ let push_history_entry =
     ),
     is_expanded: false,
     timestamp: Unix.time(),
-
+    display_timestamp: false,
   };
 };
 
@@ -1061,7 +1061,7 @@ let join_group =
 };
 
 let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
-  let prev_group = ZList.prj_z(undo_history);
+  let prev_group = ZList.prj_z(undo_history.groups);
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   let (cursor_term_info, action, cardstacks) = new_entry_base;
   let new_entry_info = {
@@ -1090,7 +1090,7 @@ let update_move_action = (undo_history: t, new_entry_base: entry_base): t => {
         ),
       };
     };
-  ZList.replace_z(new_group, undo_history);
+  {...undo_history, groups: ZList.replace_z(new_group, undo_history.groups)};
 };
 let push_edit_state =
     (
@@ -1100,7 +1100,7 @@ let push_edit_state =
       action: Action.t,
     )
     : t => {
-  let prev_group = ZList.prj_z(undo_history);
+  let prev_group = ZList.prj_z(undo_history.groups);
   let (prev_cursor_term, prev_is_empty_line, next_is_empty_line) =
     get_cursor_info(prev_cardstacks);
   let (cur_cursor_term, _, _) = get_cursor_info(cur_cardstacks);
@@ -1118,29 +1118,50 @@ let push_edit_state =
         prev_cardstacks,
       )
     ) {
-    | Success(new_group) => ([], new_group, ZList.prj_suffix(undo_history))
+    | Success(new_group) =>
+      let new_group' = {
+        ...new_group,
+        display_timestamp:
+          new_group.timestamp -. undo_history.last_display_timestamp > 5.,
+      };
+      {
+        groups: ([], new_group', ZList.prj_suffix(undo_history.groups)),
+        last_display_timestamp:
+          if (new_group'.display_timestamp) {
+            new_group'.timestamp;
+          } else {
+            undo_history.last_display_timestamp;
+          },
+      };
+
     | Fail(prev_group', new_entry') =>
-      let timestamp=Unix.time();
+      let timestamp = Unix.time();
       let new_group = {
         group_entries: ([], new_entry', []),
         is_expanded: false,
         timestamp,
-        display_timestamp: timestamp - undo_history.last_display_timestamp > 60,
+        display_timestamp:
+          timestamp -. undo_history.last_display_timestamp > 5.,
       };
       {
-        history:([], new_group, [prev_group', ...ZList.prj_suffix(undo_history)]);
-        last_display_timestamp: if(new_group.display_timestamp)timestamp else undo_history.last_display_timestamp,
-      }
+        groups: (
+          [],
+          new_group,
+          [prev_group', ...ZList.prj_suffix(undo_history.groups)],
+        ),
+        last_display_timestamp:
+          if (new_group.display_timestamp) {
+            timestamp;
+          } else {
+            undo_history.last_display_timestamp;
+          },
+      };
     };
   } else {
-    let new_group = update_move_action(
+    update_move_action(
       undo_history,
       (cursor_term_info, action, cur_cardstacks),
     );
-    {
-      history: new_group,
-      last_display_timestamp: if()
-    }
   };
 };
 
@@ -1149,9 +1170,12 @@ let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
     ...group,
     is_expanded: expanded,
   };
-  (
-    List.map(hidden_group, ZList.prj_prefix(undo_history)),
-    hidden_group(ZList.prj_z(undo_history)),
-    List.map(hidden_group, ZList.prj_suffix(undo_history)),
-  );
+  {
+    ...undo_history,
+    groups: (
+      List.map(hidden_group, ZList.prj_prefix(undo_history.groups)),
+      hidden_group(ZList.prj_z(undo_history.groups)),
+      List.map(hidden_group, ZList.prj_suffix(undo_history.groups)),
+    ),
+  };
 };

@@ -193,13 +193,13 @@ let apply_action =
     model;
   | Undo => Model.undo(model)
   | Redo => Model.redo(model)
-  /* click the history panel to shift to the certain history entry */
+  /* click the groups panel to shift to the certain groups entry */
   | ShiftHistory(group_id, elt_id) =>
     /* shift to the group with group_id */
-    switch (ZList.shift_to(group_id, model.undo_history)) {
+    switch (ZList.shift_to(group_id, model.undo_history.groups)) {
     | None => failwith("Impossible match, because undo_history is non-empty")
-    | Some(new_history) =>
-      let cur_group = ZList.prj_z(new_history);
+    | Some(new_groups) =>
+      let cur_group = ZList.prj_z(new_groups);
       /* shift to the element with elt_id */
       switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
       | None => failwith("Impossible because group_entries is non-empty")
@@ -208,22 +208,25 @@ let apply_action =
         let new_model = model |> Model.put_cardstacks(new_cardstacks);
         {
           ...new_model,
-          undo_history:
-            ZList.replace_z(
-              {...cur_group, group_entries: new_group_entries},
-              new_history,
-            ),
+          undo_history: {
+            ...new_model.undo_history,
+            groups:
+              ZList.replace_z(
+                {...cur_group, group_entries: new_group_entries},
+                new_groups,
+              ),
+          },
         };
       };
     }
   | ToggleHistoryGroup(toggle_group_id) =>
-    let (suc_groups, _, _) = model.undo_history;
+    let (suc_groups, _, _) = model.undo_history.groups;
     let cur_group_id = List.length(suc_groups);
     /*shift to the toggle-target group and change its expanded state*/
-    switch (ZList.shift_to(toggle_group_id, model.undo_history)) {
+    switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
     | None => failwith("Impossible match, because undo_history is non-empty")
-    | Some(history) =>
-      let toggle_target_group = ZList.prj_z(history);
+    | Some(groups) =>
+      let toggle_target_group = ZList.prj_z(groups);
       /* change expanded state of the toggle target group after toggling */
       let after_toggle =
         ZList.replace_z(
@@ -231,13 +234,19 @@ let apply_action =
             ...toggle_target_group,
             is_expanded: !toggle_target_group.is_expanded,
           },
-          history,
+          groups,
         );
       /*shift back to the current group*/
       switch (ZList.shift_to(cur_group_id, after_toggle)) {
       | None =>
         failwith("Impossible match, because undo_history is non-empty")
-      | Some(new_history) => {...model, undo_history: new_history}
+      | Some(new_groups) => {
+          ...model,
+          undo_history: {
+            ...model.undo_history,
+            groups: new_groups,
+          },
+        }
       };
     };
   | ToggleHiddenHistoryAll =>
