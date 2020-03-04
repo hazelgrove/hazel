@@ -29,7 +29,11 @@ let labeled_checkbox =
           [],
         ),
         Node.label(
-          [Attr.for_(id), ...disabled ? [Attr.disabled] : []],
+          [
+            Attr.for_(id),
+            Attr.on_click(_ => on_change()),
+            ...disabled ? [Attr.disabled] : [],
+          ],
           [Node.text(label)],
         ),
       ],
@@ -49,6 +53,13 @@ let view =
             ~label="Compute results",
             ~on_change=() => inject(ToggleComputeResults),
             model.compute_results,
+          ),
+          labeled_checkbox(
+            ~id="show_fn_bodies",
+            ~label="Show function bodies",
+            ~on_change=() => inject(ToggleShowFnBodies),
+            ~disabled=!model.compute_results,
+            model.show_fn_bodies,
           ),
           labeled_checkbox(
             ~id="show_casts",

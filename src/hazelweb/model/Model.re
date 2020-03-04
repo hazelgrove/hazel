@@ -2,6 +2,7 @@ type t = {
   cardstacks: Cardstacks.t,
   /* UI state */
   compute_results: bool,
+  show_fn_bodies: bool,
   show_casts: bool,
   show_unevaluated_expansion: bool,
   selected_example: option(UHExp.t),
@@ -31,6 +32,7 @@ let init = (): t => {
     cardstacks,
     undo_history,
     compute_results: true,
+    show_fn_bodies: false,
     show_casts: false,
     show_unevaluated_expansion: false,
     selected_example: None,

@@ -228,6 +228,7 @@ module Exp = {
   let rec mk =
           (
             ~show_casts: bool,
+            ~show_fn_bodies: bool,
             ~parenthesize=false,
             ~enforce_inline: bool,
             d: DHExp.t,
@@ -314,7 +315,7 @@ module Exp = {
                     mk_cast(go(~enforce_inline=true, dscrut)),
                   ]),
                 ],
-                drs |> List.map(mk_rule(~show_casts)),
+                drs |> List.map(mk_rule(~show_fn_bodies, ~show_casts)),
                 [Delim.close_Case],
               ]),
             )
@@ -364,18 +365,22 @@ module Exp = {
           | _ => hcats([mk_cast(dcast_doc), cast_decoration]) |> no_cast
           };
         | Lam(dp, ty, dbody) =>
-          let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
-          hcats([
-            Delim.sym_Lam,
-            Pat.mk(~enforce_inline=true, dp),
-            Delim.colon_Lam,
-            Typ.mk(~enforce_inline=true, ty),
-            Delim.open_Lam,
-            doc_body |> pad_child(~enforce_inline),
-            Delim.close_Lam,
-          ])
-          |> no_cast;
+          if (show_fn_bodies) {
+            let doc_body = (~enforce_inline) =>
+              go(~enforce_inline, dbody) |> mk_cast;
+            hcats([
+              Delim.sym_Lam,
+              Pat.mk(~enforce_inline=true, dp),
+              Delim.colon_Lam,
+              Typ.mk(~enforce_inline=true, ty),
+              Delim.open_Lam,
+              doc_body |> pad_child(~enforce_inline),
+              Delim.close_Lam,
+            ])
+            |> no_cast;
+          } else {
+            text("<fn>") |> no_cast;
+          }
         | FixF(x, ty, dbody) =>
           let doc_body = (~enforce_inline) =>
             go(~enforce_inline, dbody) |> mk_cast;
@@ -400,7 +405,8 @@ module Exp = {
     };
     mk_cast(go(~parenthesize, ~enforce_inline, d));
   }
-  and mk_rule = (~show_casts, Rule(dp, dclause): DHExp.rule): t =>
+  and mk_rule =
+      (~show_casts, ~show_fn_bodies, Rule(dp, dclause): DHExp.rule): t =>
     Doc.(
       hcats([
         Delim.bar_Rule,
@@ -411,11 +417,19 @@ module Exp = {
            ),
         Delim.arrow_Rule,
         choices([
-          hcats([space(), mk(~show_casts, ~enforce_inline=true, dclause)]),
+          hcats([
+            space(),
+            mk(~show_casts, ~show_fn_bodies, ~enforce_inline=true, dclause),
+          ]),
           hcats([
             linebreak(),
             indent_and_align(
-              mk(~show_casts, ~enforce_inline=false, dclause),
+              mk(
+                ~show_casts,
+                ~show_fn_bodies,
+                ~enforce_inline=false,
+                dclause,
+              ),
             ),
           ]),
         ]),

@@ -43,7 +43,14 @@ let view =
             [
               Node.div(
                 [],
-                [DHCode.view(~show_casts=model.show_casts, ~width=30, d)],
+                [
+                  DHCode.view(
+                    ~show_fn_bodies=false,
+                    ~show_casts=model.show_casts,
+                    ~width=30,
+                    d,
+                  ),
+                ],
               ),
             ],
           )

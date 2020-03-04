@@ -35,9 +35,11 @@ let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
   Node.div([Attr.classes(["code", "DHCode"])], go(l));
 };
 
-let view = (~show_casts: bool, ~width=80, ~pos=0, d: DHExp.t): Vdom.Node.t => {
+let view =
+    (~show_casts: bool, ~show_fn_bodies: bool, ~width=80, ~pos=0, d: DHExp.t)
+    : Vdom.Node.t => {
   d
-  |> DHDoc.Exp.mk(~show_casts, ~enforce_inline=false)
+  |> DHDoc.Exp.mk(~show_casts, ~show_fn_bodies, ~enforce_inline=false)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")

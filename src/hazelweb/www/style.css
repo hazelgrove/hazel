@@ -658,7 +658,8 @@ html, body {
   align-items: center;
 }
 #OptionsPanel #show_unevaluated_expansion,
-#OptionsPanel #show_casts {
+#OptionsPanel #show_casts,
+#OptionsPanel #show_fn_bodies {
   position: relative;
   left: 2.5ch;
 }
