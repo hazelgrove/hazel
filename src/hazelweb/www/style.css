@@ -785,6 +785,10 @@ h1 {
   font-weight: bold;
 }
 
+.DHCode .Align {
+  display: inline-block;
+}
+
 .static-info .code {
   display: inline;
 }
