@@ -1,20 +1,18 @@
 open ViewUtil;
 open Pretty;
 
-type doc = Doc.t(TermAnnot.t);
+type doc = Doc.t(UHAnnot.t);
 
 let mk =
     (~caret: option(Side.t)=?, ~path: delim_path, delim_text: string): doc =>
-  Doc.text(delim_text) |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~path, ()));
+  Doc.text(delim_text) |> Doc.annot(UHAnnot.mk_Delim(~caret?, ~path, ()));
 
 let empty_hole_doc =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, hole_lbl: string)
     : doc =>
   Doc.text(hole_lbl)
-  |> Doc.annot(
-       TermAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}),
-     )
-  |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~path=(steps, 0), ()));
+  |> Doc.annot(UHAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}))
+  |> Doc.annot(UHAnnot.mk_Delim(~caret?, ~path=(steps, 0), ()));
 
 let open_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "[");
 let close_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), "]");

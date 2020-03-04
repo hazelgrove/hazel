@@ -123,7 +123,7 @@ let view =
         [
           Node.div(
             [Attr.classes(["inst"])],
-            // [Code.view_of_hole_instance(~inject, inst)],
+            // [UHCode.view_of_hole_instance(~inject, inst)],
             [],
           ),
           Node.div(
@@ -132,7 +132,7 @@ let view =
           ),
           Node.div(
             [Attr.classes(["path-var"])],
-            // [Code.view_of_Var(~inject, x)],
+            // [UHCode.view_of_Var(~inject, x)],
             [],
           ),
         ],
@@ -174,7 +174,7 @@ let view =
               Vdom.(
                 Node.div(
                   [Attr.classes(["trailing-inst"])],
-                  // [Code.view_of_hole_instance(~inject, inst)],
+                  // [UHCode.view_of_hole_instance(~inject, inst)],
                   [],
                 )
               ),
@@ -220,7 +220,7 @@ let view =
               [
                 Node.div(
                   [Attr.classes(["hii-summary-inst"])],
-                  // [Code.view_of_hole_instance(~inject, inst)],
+                  // [UHCode.view_of_hole_instance(~inject, inst)],
                   [],
                 ),
                 Node.text(" = hole "),

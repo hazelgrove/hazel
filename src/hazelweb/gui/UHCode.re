@@ -5,7 +5,7 @@ module Vdom = Virtual_dom.Vdom;
 open Pretty;
 open ViewUtil;
 
-type annot = TermAnnot.t;
+type annot = UHAnnot.t;
 
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
@@ -114,7 +114,7 @@ let contenteditable_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~show_contenteditable: bool,
-      l: TermLayout.t,
+      l: UHLayout.t,
     )
     : Vdom.Node.t => {
   open Vdom;
@@ -241,13 +241,13 @@ let caret_position_of_path =
   };
 
 let presentation_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: TermLayout.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, l: UHLayout.t): Vdom.Node.t => {
   open Vdom;
 
   let on_click_noneditable = on_click_noneditable(~inject);
   let on_click_text = on_click_text(~inject);
 
-  let rec go = (l: TermLayout.t): list(Node.t) =>
+  let rec go = (l: UHLayout.t): list(Node.t) =>
     switch (l) {
     | Text(str) => [Node.text(str)]
     | Cat(l1, l2) => go(l1) @ go(l2)
@@ -368,10 +368,10 @@ let presentation_of_layout =
                 sort_clss(sort),
                 shape_clss(shape),
                 open_child_clss(
-                  l |> TermLayout.has_inline_OpenChild,
-                  l |> TermLayout.has_para_OpenChild,
+                  l |> UHLayout.has_inline_OpenChild,
+                  l |> UHLayout.has_para_OpenChild,
                 ),
-                has_child_clss(l |> TermLayout.has_child),
+                has_child_clss(l |> UHLayout.has_child),
               ]),
             ),
           ],
@@ -404,7 +404,7 @@ let presentation_of_layout =
             Float.to_int(from_left /. 11.2),
           );
         };
-        switch (l |> TermLayout.path_of_caret_position(row, col)) {
+        switch (l |> UHLayout.path_of_caret_position(row, col)) {
         | None => Event.Many([])
         | Some(path) =>
           Event.Many([
@@ -425,17 +425,17 @@ let editor_view_of_layout =
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
       ~show_contenteditable: bool,
-      l: TermLayout.t,
+      l: UHLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     switch (path) {
     | None => l
     | Some((steps, _) as path) =>
-      switch (l |> TermLayout.find_and_decorate_caret(~path)) {
+      switch (l |> UHLayout.find_and_decorate_caret(~path)) {
       | None => failwith(__LOC__ ++ ": could not find caret")
       | Some(l) =>
-        switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
+        switch (l |> UHLayout.find_and_decorate_cursor(~steps)) {
         | None => failwith(__LOC__ ++ ": could not find cursor")
         | Some(l) => l
         }
@@ -450,7 +450,7 @@ let editor_view_of_layout =
       |> List.fold_left(
            (l, use) =>
              l
-             |> TermLayout.find_and_decorate_var_use(~steps=use)
+             |> UHLayout.find_and_decorate_var_use(~steps=use)
              |> OptUtil.get(() => {
                   failwith(
                     __LOC__
@@ -480,7 +480,7 @@ let editor_view_of_exp =
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
-    |> TermDoc.Exp.mk(~steps=[], ~enforce_inline=false)
+    |> UHDoc.Exp.mk(~steps=[], ~enforce_inline=false)
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")

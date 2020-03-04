@@ -1,35 +1,35 @@
 open Pretty;
 
-type t = Doc.t(TermAnnot.t);
+type t = Doc.t(UHAnnot.t);
 
 let empty = Doc.empty();
 let space = Doc.space();
-let indent: Doc.t(TermAnnot.t) =
+let indent: Doc.t(UHAnnot.t) =
   Doc.text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
 
-let annot_Indent = Doc.annot(TermAnnot.Indent);
-let annot_Padding = (d: Doc.t(TermAnnot.t)) =>
+let annot_Indent = Doc.annot(UHAnnot.Indent);
+let annot_Padding = (d: Doc.t(UHAnnot.t)) =>
   switch (d.doc) {
   | Text("") => d
-  | _ => Doc.annot(TermAnnot.Padding, d)
+  | _ => Doc.annot(UHAnnot.Padding, d)
   };
-let annot_DelimGroup = Doc.annot(TermAnnot.DelimGroup);
+let annot_DelimGroup = Doc.annot(UHAnnot.DelimGroup);
 let annot_OpenChild = (~is_inline) =>
-  Doc.annot(TermAnnot.mk_OpenChild(~is_inline, ()));
+  Doc.annot(UHAnnot.mk_OpenChild(~is_inline, ()));
 let annot_ClosedChild = (~is_inline) =>
-  Doc.annot(TermAnnot.mk_ClosedChild(~is_inline, ()));
-let annot_Step = step => Doc.annot(TermAnnot.Step(step));
+  Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
+let annot_Step = step => Doc.annot(UHAnnot.Step(step));
 let annot_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t) =>
   Doc.annot(
-    TermAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
+    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
   );
 let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole) =>
   Doc.annot(
-    TermAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
+    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
   );
 let annot_Case = (~err: ErrStatus.t) =>
-  Doc.annot(TermAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
+  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
@@ -37,7 +37,7 @@ let indent_and_align = (d: t): t =>
 let mk_text = (~steps: CursorPath.steps, text: string): t =>
   Doc.text(text)
   |> Doc.annot(
-       TermAnnot.mk_Text(~steps, ~length=StringUtil.utf8_length(text), ()),
+       UHAnnot.mk_Text(~steps, ~length=StringUtil.utf8_length(text), ()),
      );
 
 let pad_operator =
@@ -51,15 +51,15 @@ let pad_operator =
 };
 
 let mk_op = (~steps: CursorPath.steps, op_text: string, ()): t =>
-  Doc.text(op_text) |> Doc.annot(TermAnnot.mk_Op(~steps, ()));
+  Doc.text(op_text) |> Doc.annot(UHAnnot.mk_Op(~steps, ()));
 
-let mk_space_op = Doc.space() |> Doc.annot(TermAnnot.SpaceOp);
+let mk_space_op = Doc.space() |> Doc.annot(UHAnnot.SpaceOp);
 
 let user_newline =
   Doc.(
     hcats([
       space() |> annot_Padding,
-      text(UnicodeConstants.user_newline) |> annot(TermAnnot.UserNewline),
+      text(UnicodeConstants.user_newline) |> annot(UHAnnot.UserNewline),
     ])
   );
 
@@ -309,7 +309,7 @@ let mk_Rule =
     delim_group,
     clause |> pad_left_delimited_child(~is_open=true, ~inline_padding=space),
   ])
-  |> Doc.annot(TermAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
+  |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
 };
 
 let mk_LetLine =
@@ -392,9 +392,7 @@ let rec mk_BinOp =
       op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
       skel2_doc |> annot_OpenChild(~is_inline=true),
     ])
-    |> Doc.annot(
-         TermAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()),
-       );
+    |> Doc.annot(UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()));
   };
 };
 
@@ -440,7 +438,7 @@ let mk_NTuple =
              let comma_doc =
                Doc.text(",")
                |> Doc.annot(
-                    TermAnnot.mk_Op(~steps=steps @ [comma_index], ()),
+                    UHAnnot.mk_Op(~steps=steps @ [comma_index], ()),
                   )
                |> annot_Step(comma_index)
                |> annot_DelimGroup;
@@ -457,7 +455,7 @@ let mk_NTuple =
          );
     doc
     |> Doc.annot(
-         TermAnnot.mk_Term(~sort, ~shape=NTuple({comma_indices, err}), ()),
+         UHAnnot.mk_Term(~sort, ~shape=NTuple({comma_indices, err}), ()),
        );
   };
 };
@@ -611,11 +609,7 @@ module Exp = {
 
   let annot_SubBlock = (~hd_index: int) =>
     Doc.annot(
-      TermAnnot.mk_Term(
-        ~sort=Exp,
-        ~shape=SubBlock({hd_index: hd_index}),
-        (),
-      ),
+      UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
     );
 
   let rec mk =
@@ -659,8 +653,7 @@ module Exp = {
     switch (line) {
     | EmptyLine =>
       // TODO: Once we figure out contenteditable cursors, use `mk_text(~steps, "")`
-      mk_text(~steps, UnicodeConstants.zwsp)
-      |> Doc.annot(TermAnnot.EmptyLine)
+      mk_text(~steps, UnicodeConstants.zwsp) |> Doc.annot(UHAnnot.EmptyLine)
     | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
@@ -670,7 +663,7 @@ module Exp = {
              Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
            );
       let def = mk_child(~enforce_inline, ~steps, ~child_step=2, def);
-      mk_LetLine(~steps, p, ann, def) |> Doc.annot(TermAnnot.LetLine);
+      mk_LetLine(~steps, p, ann, def) |> Doc.annot(UHAnnot.LetLine);
     }
   and mk_opseq =
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHExp.opseq): t =>

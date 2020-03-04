@@ -70,7 +70,7 @@ let string_of_layout: 'annot. t('annot) => string =
     make_of_layout(record, layout);
   };
 
-/* TODO got weird type inference error, see specialized instance in TermLayout
+/* TODO got weird type inference error, see specialized instance in UHLayout
    let rec find_and_decorate_Annot =
            (decorate: ('annot, t('annot)) => decorate_result('annot), l: t('annot))
            : option(t('annot)) => {
