@@ -55,7 +55,9 @@ module Delim = {
 let empty_ = Doc.empty();
 let space_ = Doc.space();
 
-let annot_Indent = Doc.annot(UHAnnot.Indent);
+let indent_and_align_ = doc =>
+  Doc.(hcat(annot(UHAnnot.Indent, indent()), align(doc)));
+
 let annot_Padding = (d: Doc.t(UHAnnot.t)) =>
   switch (d.doc) {
   | Text("") => d
@@ -130,7 +132,7 @@ let pad_child =
     |> annot_child(~is_inline=true);
   };
   let para_choice = child_doc =>
-    child_doc |> indent_and_align |> annot_child(~is_inline=false);
+    child_doc |> indent_and_align_ |> annot_child(~is_inline=false);
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
@@ -158,7 +160,7 @@ let pad_left_delimited_child =
     hcats([inline_padding |> annot_Padding, child_doc])
     |> annot_child(~is_inline=true);
   let para_choice = child_doc =>
-    child_doc |> indent_and_align |> annot_child(~is_inline=false);
+    child_doc |> indent_and_align_ |> annot_child(~is_inline=false);
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>

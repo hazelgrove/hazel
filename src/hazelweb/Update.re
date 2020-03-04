@@ -164,7 +164,10 @@ let apply_action =
       let id = closest_elem |> JSUtil.force_get_attr("id");
       let model_path = model |> Model.get_program |> Program.get_path;
       switch (path_of_path_id(id), steps_of_text_id(id)) {
-      | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
+      | (None, None) =>
+        JSUtil.log(closest_elem);
+        JSUtil.log(anchorNode);
+        failwith(__LOC__ ++ ": unexpected caret position");
       | (Some((_, cursor) as path), _) =>
         if (path == model_path) {
           switch (cursor) {
