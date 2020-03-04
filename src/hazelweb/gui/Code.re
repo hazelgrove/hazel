@@ -100,7 +100,12 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
       "left: " ++ string_of_float(from_left) ++ "0%;",
     );
   Vdom.Node.span(
-    [Vdom.Attr.id("caret"), contenteditable_false, left_attr],
+    [
+      Vdom.Attr.id("caret"),
+      contenteditable_false,
+      left_attr,
+      Vdom.Attr.classes(["blink"]),
+    ],
     [],
   );
 };
