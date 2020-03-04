@@ -161,8 +161,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
-  let timestamp_view = (undo_history_group: undo_history_group, is_edit: bool) =>
-    if (undo_history_group.display_timestamp && !is_edit) {
+  let timestamp_view = (undo_history_group: undo_history_group) =>
+    if (undo_history_group.display_timestamp) {
       let hour = Unix.localtime(undo_history_group.timestamp).tm_hour;
       let str_hour =
         if (hour < 10) {
@@ -305,7 +305,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group, is_cur_group),
                 /* title entry */
                 Vdom.(
                   Node.div(
@@ -337,6 +336,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ),
                   )
                 ),
+                timestamp_view(group),
               ],
             )
           );
@@ -346,7 +346,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group, is_cur_group),
                 Vdom.(
                   Node.div(
                     [Attr.classes(cur_his_classes)],
@@ -361,6 +360,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                   )
                 ),
+                timestamp_view(group),
               ],
             )
           );
@@ -381,7 +381,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group, is_cur_group),
                   /* the history title entry */
                   Vdom.(
                     Node.div(
@@ -446,6 +445,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ),
                     )
                   ),
+                  timestamp_view(group),
                 ],
               )
             );
@@ -454,7 +454,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group, is_cur_group),
                   Vdom.(
                     Node.div(
                       [Attr.classes(suc_his_classes)],
@@ -469,6 +468,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ],
                     )
                   ),
+                  timestamp_view(group),
                 ],
               )
             );
@@ -479,7 +479,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group, is_cur_group),
                   /* title entry */
                   Vdom.(
                     Node.div(
@@ -511,6 +510,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ),
                     )
                   ),
+                  timestamp_view(group),
                 ],
               )
             );
@@ -520,7 +520,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group, is_cur_group),
                   Vdom.(
                     Node.div(
                       [Attr.classes(cur_his_classes)],
@@ -535,6 +534,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ],
                     )
                   ),
+                  timestamp_view(group),
                 ],
               )
             );
@@ -544,7 +544,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group, is_cur_group),
                 /* title entry */
                 Vdom.(
                   Node.div(
@@ -576,6 +575,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ),
                   )
                 ),
+                timestamp_view(group),
               ],
             )
           );
@@ -585,7 +585,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group, is_cur_group),
                 Vdom.(
                   Node.div(
                     [Attr.classes(prev_his_classes)],
@@ -600,6 +599,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                   )
                 ),
+                timestamp_view(group),
               ],
             )
           );
