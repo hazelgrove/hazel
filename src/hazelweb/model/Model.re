@@ -27,8 +27,8 @@ let init = (): t => {
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
       cursor_term_info: {
-        previous_cursor_term: cursor_term,
-        current_cursor_term: cursor_term,
+        cursor_term_before: cursor_term,
+        cursor_term_after: cursor_term,
         prev_is_empty_line,
         next_is_empty_line,
       },
@@ -42,7 +42,7 @@ let init = (): t => {
       timestamp,
       display_timestamp: false,
     };
-    {groups: ([], undo_history_group, []), last_timestamp: timestamp};
+    {groups: ([], undo_history_group, []), latest_timestamp: timestamp};
   };
   {
     cardstacks,

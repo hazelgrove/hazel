@@ -110,7 +110,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Some(
         "edit "
         ++ display_string_of_cursor_term(
-             undo_history_entry.cursor_term_info.current_cursor_term,
+             undo_history_entry.cursor_term_info.cursor_term_after,
            ),
       )
     | Ignore => None
