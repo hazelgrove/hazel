@@ -27,7 +27,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | NumLit(_, num) => "number: " ++ string_of_int(num)
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
-    | Lam(_, _, _, _) => "lambada function!!!"
+    | Lam(_, _, _, _) => "lambada function"
     | Inj(_, side, _) =>
       switch (side) {
       | L => "left injection"
