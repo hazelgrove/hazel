@@ -310,6 +310,7 @@ type comp_len_typ =
 let comp_len_lt =
     (cursor_len_1: comp_len_typ, cursor_len_2: comp_len_typ): bool => {
   switch (cursor_len_1, cursor_len_2) {
+  | (MaxLen, MaxLen) => false
   | (_, MaxLen) => true
   | (_, Ignore) => false
   | (MaxLen, _) => false
@@ -348,7 +349,12 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | PatOp(_, _)
   | TypOp(_, _)
   | Rule(_, _) => MaxLen
-  | Line(_, _) => Ignore
+  | Line(_, line) =>
+    switch (line) {
+    | EmptyLine => Ignore
+    | LetLine(_, _, _)
+    | ExpLine(_) => MaxLen
+    }
   };
 };
 let get_original_term =
