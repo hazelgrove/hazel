@@ -35,6 +35,7 @@ type undo_history_group = {
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   latest_timestamp: float,
+  all_hidden_history_expand: bool,
 };
 
 type entry_base = (cursor_term_info, Action.t, Cardstacks.t);
@@ -904,6 +905,7 @@ let push_edit_state =
   | Success(new_group) =>
     if (ZList.prj_z(new_group.group_entries).edit_action != Ignore) {
       {
+        ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
         latest_timestamp: Unix.time(),
       };
@@ -923,6 +925,7 @@ let push_edit_state =
       display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
     };
     {
+      ...undo_history,
       groups: (
         [],
         new_group,
@@ -945,5 +948,6 @@ let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
       hidden_group(ZList.prj_z(undo_history.groups)),
       List.map(hidden_group, ZList.prj_suffix(undo_history.groups)),
     ),
+    all_hidden_history_expand: expanded,
   };
 };
