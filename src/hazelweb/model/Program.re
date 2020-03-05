@@ -113,6 +113,8 @@ let put_selected_instance = ((u, i) as inst, program) => {
   };
 };
 
+let get_context_inspector = program => program.context_inspector;
+
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
