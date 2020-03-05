@@ -1405,7 +1405,7 @@ h1 {
 }
 .timestamp-txt {
   width: 20%;
-  background-color:grey;
+  background-color:dimgrey;
   border-radius: 10%;
   text-align: center;
   color: white; 
@@ -1423,31 +1423,19 @@ h1 {
 .history-tab-icon {
   cursor: pointer;
   float: right;
-  width: 0;
-  height: 0;
+  font-weight: bolder;
 }
-.down-triangle {
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
-    border-top: 10px solid #558e62;
+.entry-tab-icon {
+    color: #558e62;
 }
 
-.left-triangle {
-  border-bottom: 8px solid transparent;
-  border-top: 8px solid transparent;
-  border-right: 10px solid #558e62;
+.all-history-tab-icon {
+  color: white;
+  display: inline-block;
+  vertical-align: middle;
 }
-
-.all-history-tab-icon-open {
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 10px solid white;
-}
-
-.all-history-tab-icon-close {
-border-bottom: 8px solid transparent;
-border-top: 8px solid transparent;
-border-right: 10px solid white;
+.all-history-tab-icon-wrapper {
+  float: right;
 }
 
 .history_button_bar {
@@ -1461,8 +1449,6 @@ border-right: 10px solid white;
 
 .history-button {
   cursor: pointer;
-  margin-left: 5px; 
-  margin-right: 10px;
   display: inline-block;
   vertical-align: middle;
 }

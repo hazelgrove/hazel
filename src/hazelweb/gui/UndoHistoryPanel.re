@@ -135,23 +135,22 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let history_entry_tab_icon =
       (group_id: int, has_hidden_part: bool, is_expanded: bool) => {
-    let icon_classes =
+    let icon =
       if (is_expanded) {
-        ["down-triangle", "history-tab-icon"];
+        Icons.down_arrow(["entry-tab-icon", "history-tab-icon"]);
       } else {
-        ["left-triangle", "history-tab-icon"];
+        Icons.left_arrow(["entry-tab-icon", "history-tab-icon"]);
       };
     if (has_hidden_part) {
       /* expand icon*/
       Vdom.(
         Node.div(
           [
-            Attr.classes(icon_classes),
             Attr.on_click(_ =>
               inject(Update.Action.ToggleHistoryGroup(group_id))
             ),
           ],
-          [],
+          [icon],
         )
       );
     } else {
@@ -707,21 +706,27 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
 
   let expand_button = (all_hidden_history_expand: bool) => {
-    let icon_classes =
+    let icon =
       if (all_hidden_history_expand) {
-        ["all-history-tab-icon-open", "history-tab-icon"];
+        Icons.down_arrow(["all-history-tab-icon", "history-tab-icon"]);
       } else {
-        ["all-history-tab-icon-close", "history-tab-icon"];
+        Icons.left_arrow(["all-history-tab-icon", "history-tab-icon"]);
       };
     Vdom.(
       Node.div(
         [
-          Attr.classes(icon_classes),
+          Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
           Attr.on_click(_ => inject(Update.Action.ToggleHiddenHistoryAll)),
         ],
-        [],
+        [icon],
       )
     );
+    /*     Vdom.(
+             Node.div(
+               [Attr.on_click(_ => inject(Update.Action.ToggleHiddenHistoryAll))],
+               [icon],
+             )
+           ); */
   };
 
   let button_bar_view = (all_hidden_history_expand: bool) =>
