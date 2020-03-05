@@ -8,7 +8,6 @@ type t = {
   right_sidebar_open: bool,
   show_contenteditable: bool,
   show_presentation: bool,
-  all_hidden_history_expand: bool,
   undo_history: UndoHistory.t,
 };
 
@@ -42,7 +41,11 @@ let init = (): t => {
       timestamp,
       display_timestamp: false,
     };
-    {groups: ([], undo_history_group, []), latest_timestamp: timestamp};
+    {
+      groups: ([], undo_history_group, []),
+      latest_timestamp: timestamp,
+      all_hidden_history_expand: false,
+    };
   };
   {
     cardstacks,
@@ -54,7 +57,6 @@ let init = (): t => {
     right_sidebar_open: true,
     show_contenteditable: false,
     show_presentation: false,
-    all_hidden_history_expand: false,
   };
 };
 

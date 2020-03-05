@@ -737,7 +737,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       [Attr.classes(["panel", "context-inspector-panel"])],
       [
         Panel.view_of_main_title_bar("history"),
-        button_bar_view(model.all_hidden_history_expand),
+        button_bar_view(model.undo_history.all_hidden_history_expand),
         Node.div(
           [Attr.classes(["panel-body", "context-inspector-body"])],
           [history_view(model)],
