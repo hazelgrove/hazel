@@ -35,6 +35,7 @@ let ui_elements = {
       ],
     )),
     `Panel(("Lists", [`Combo(LeftBracket), `Combo(Semicolon)])),
+    `Panel(("Injections", [`Combo(Alt_L), `Combo(Alt_R)])),
     `Panel((
       "Miscellaneous",
       [
@@ -44,8 +45,6 @@ let ui_elements = {
         `Combo(Backslash),
         `Combo(Space),
         `Combo(Comma),
-        `Combo(Alt_L),
-        `Combo(Alt_R),
         `Combo(Alt_C),
         `Combo(Delete),
         `Combo(Backspace),
