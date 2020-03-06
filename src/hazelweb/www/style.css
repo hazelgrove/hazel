@@ -166,6 +166,10 @@ html, body {
   width: 28px;
 }
 
+.collapsed-sidebar #slidable-left-bar-body {
+  width: 0px;
+}
+
 /* Set width to zero to have the sidebar "slide away" */
 #collapsible-left-bar {
   /* Need to reverse the text direction to make the left bar
