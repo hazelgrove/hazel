@@ -21,7 +21,10 @@ let ui_elements = {
       "Variables",
       [
         `Info("Enter variables directly"),
-        `Info("Type \"let\" to enter a let expression"),
+        `InfoAction((
+          "Type \"let\" to enter a let expression",
+          Action.Construct(SLet),
+        )),
       ],
     )),
     `Panel((
@@ -37,6 +40,20 @@ let ui_elements = {
     `Panel(("Lists", [`Combo(LeftBracket), `Combo(Semicolon)])),
     `Panel(("Injections", [`Combo(Alt_L), `Combo(Alt_R)])),
     `Panel((
+      "Type Ascription",
+      [
+        `InfoAction((
+          "Use Shift+N to insert a numeric type",
+          Action.Construct(SChar("N")),
+        )),
+        `InfoAction((
+          "Use Shift+B to insert a boolean type",
+          Action.Construct(SChar("B")),
+        )),
+        `Combo(Colon),
+      ],
+    )),
+    `Panel((
       "Miscellaneous",
       [
         `Combo(LeftParen),
@@ -48,7 +65,6 @@ let ui_elements = {
         `Combo(Alt_C),
         `Combo(Delete),
         `Combo(Backspace),
-        `Combo(Colon),
       ],
     )),
   ];
@@ -159,6 +175,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let panel_body_to_div = body => {
     switch (body) {
     | `Info(text) => info_button(true, text)
+    | `InfoAction(text, action) =>
+      info_button(is_action_allowed(action), text)
     | `Combo(combo) =>
       let info = Hashtbl.find(Cell.kc_actions, combo);
       let action = info.action_fn(cursor_info);
