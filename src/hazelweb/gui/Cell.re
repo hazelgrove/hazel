@@ -71,7 +71,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, kc_info) =
       Colon,
       {
         action_fn: _ => Action.Construct(SAsc),
-        description: "Create a tuple",
+        description: "Type ascription",
       },
     ),
     (
@@ -134,7 +134,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, kc_info) =
       Comma,
       {
         action_fn: _ => Action.Construct(SOp(SComma)),
-        description: "Construct , operator",
+        description: ", operator",
       },
     ),
     (
