@@ -34,6 +34,7 @@
   --code-radius: 4px;
   --child-border-thickness: 4px;
   --code-shadow-thickness: 1.5px;
+  --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
@@ -1095,7 +1096,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 0.5px var(--pat-bright-shadow-color);
+  box-shadow: var(--closed-child-shadow-shape) var(--pat-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
@@ -1114,7 +1115,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 0.5px var(--typ-bright-shadow-color);
+  box-shadow: var(--closed-child-shadow-shape) var(--typ-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
