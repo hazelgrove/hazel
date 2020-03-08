@@ -43,7 +43,11 @@ type t =
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
-  | Construct(shape);
+  | Construct(shape)
+  | SwapLeft
+  | SwapRight
+  | SwapUp
+  | SwapDown;
 
 module Outcome = {
   type t('success) =
@@ -154,7 +158,11 @@ module Typ = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_) 
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
