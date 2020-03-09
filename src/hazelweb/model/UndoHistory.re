@@ -83,6 +83,8 @@ let push_history_entry =
     /* if edit_action is Ignore, the successory history should not be cleared */
     if (prev_entry.edit_action == Ignore) {
       {
+        /* only store 1 cursor-move (Ignore) entry if there are consecutive cursor-move actions */
+
         ...prev_group,
         group_entries: ZList.replace_z(new_entry, prev_group.group_entries),
       };
@@ -115,13 +117,13 @@ let push_history_entry =
   };
 };
 
-let rec filter_prefix_ignore_entries =
+let rec drop_prefix_ignore_entries =
         (ls: list(undo_history_entry)): option(undo_history_entry) => {
   switch (ls) {
   | [] => None
   | [head, ...tail] =>
     if (head.edit_action == Ignore) {
-      filter_prefix_ignore_entries(tail);
+      drop_prefix_ignore_entries(tail);
     } else {
       Some(head);
     }
@@ -131,7 +133,7 @@ let rec filter_prefix_ignore_entries =
 let cursor_jump =
     (prev_group: undo_history_group, cardstacks_before: Cardstacks.t): bool => {
   switch (
-    filter_prefix_ignore_entries([
+    drop_prefix_ignore_entries([
       ZList.prj_z(prev_group.group_entries),
       ...ZList.prj_suffix(prev_group.group_entries),
     ])
@@ -186,13 +188,13 @@ let group_entry =
       new_edit_action: edit_action,
     )
     : bool => {
-  let prev_last_entry = ZList.prj_z(prev_group.group_entries);
+  let prev_entry = ZList.prj_z(prev_group.group_entries);
   let can_group_edit_action =
-    switch (prev_last_entry.edit_action, new_edit_action) {
+    switch (prev_entry.edit_action, new_edit_action) {
     | (Ignore, _) =>
       switch (
-        filter_prefix_ignore_entries([
-          prev_last_entry,
+        drop_prefix_ignore_entries([
+          prev_entry,
           ...ZList.prj_suffix(prev_group.group_entries),
         ])
       ) {
@@ -200,14 +202,13 @@ let group_entry =
       | Some(prev_entry) =>
         group_edit_action(prev_entry.edit_action, new_edit_action)
       }
-    | (_, _) =>
-      group_edit_action(prev_last_entry.edit_action, new_edit_action)
+    | (_, _) => group_edit_action(prev_entry.edit_action, new_edit_action)
     };
 
   let ignore_cursor_jump =
     switch (
-      filter_prefix_ignore_entries([
-        prev_last_entry,
+      drop_prefix_ignore_entries([
+        prev_entry,
         ...ZList.prj_suffix(prev_group.group_entries),
       ])
     ) {
@@ -216,7 +217,7 @@ let group_entry =
       switch (prev_entry.edit_action, new_edit_action) {
       | (Ignore, _) =>
         failwith(
-          "impossible match, Ignore edit action entries have been filtered",
+          "impossible match, prefix Ignore edit action entries have been filtered",
         )
       | (_, Ignore) => true
       | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
@@ -278,6 +279,7 @@ let set_join_result =
   } else {
     set_fail_join(prev_group, entry_base, edit_action);
   };
+
 type comp_len_typ =
   | MaxLen
   | Ignore
@@ -380,17 +382,12 @@ let get_original_deleted_term =
       if (head.edit_action == Ignore) {
         max_len_term(tail, max_len, cursor_term);
       } else {
-        let len_temp =
-          cursor_term_len(head.cursor_term_info.cursor_term_after);
-        if (comp_len_lt(max_len, len_temp)) {
-          max_len_term(
-            tail,
-            len_temp,
+        let larger_term =
+          comp_len_larger(
+            cursor_term,
             head.cursor_term_info.cursor_term_after,
           );
-        } else {
-          max_len_term(tail, max_len, cursor_term);
-        };
+        max_len_term(tail, cursor_term_len(larger_term), larger_term);
       }
     };
   };
@@ -537,7 +534,13 @@ let ontext_delete =
       DeleteEdit(Term(initial_term)),
     );
   } else {
-    set_join_result(prev_group, cardstacks_before, new_entry_base, EditVar);
+    /* edit the term */
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      EditVar,
+    );
   };
 };
 let ondelim_not_delete =
@@ -574,7 +577,7 @@ let ondelim_not_delete =
       );
     };
   } else {
-    /* move cursor to next term, just ignore this move */
+    /* move cursor to next term */
     set_success_join(
       prev_group,
       new_entry_base,
@@ -626,12 +629,12 @@ let join_group =
       cardstacks_before: Cardstacks.t,
     )
     : group_result => {
-  let prev_last_entry = ZList.prj_z(prev_group.group_entries);
+  let prev_entry = ZList.prj_z(prev_group.group_entries);
   let (new_cursor_term_info, action, _) = new_entry_base;
   switch (action) {
   | Delete =>
     let prev_cursor_pos =
-      get_cursor_pos(prev_last_entry.cursor_term_info.cursor_term_after);
+      get_cursor_pos(prev_entry.cursor_term_info.cursor_term_after);
     switch (prev_cursor_pos) {
     | OnText(_) =>
       ontext_delete(
@@ -672,7 +675,7 @@ let join_group =
 
   | Backspace =>
     let prev_cursor_pos =
-      get_cursor_pos(prev_last_entry.cursor_term_info.cursor_term_after);
+      get_cursor_pos(prev_entry.cursor_term_info.cursor_term_after);
     switch (prev_cursor_pos) {
     | OnText(_) =>
       ontext_delete(
@@ -771,7 +774,7 @@ let join_group =
                       ...prev_group,
                       group_entries:
                         ZList.replace_z(
-                          {...prev_last_entry, edit_action: Ignore},
+                          {...prev_entry, edit_action: Ignore},
                           prev_group.group_entries,
                         ),
                     };
@@ -812,7 +815,7 @@ let join_group =
                       ...prev_group,
                       group_entries:
                         ZList.replace_z(
-                          {...prev_last_entry, edit_action: Ignore},
+                          {...prev_entry, edit_action: Ignore},
                           prev_group.group_entries,
                         ),
                     };
@@ -840,26 +843,11 @@ let join_group =
                 construct_space(prev_group, cardstacks_before, new_entry_base)
               }
             }
-          | EmptyHole(_)
-          | Var(_, _, _)
-          | NumLit(_, _)
-          | BoolLit(_, _)
-          | ListNil(_)
-          | Lam(_, _, _, _)
-          | Inj(_, _, _)
-          | Case(_, _, _, _)
-          | Parenthesized(_) =>
-            construct_space(prev_group, cardstacks_before, new_entry_base)
           | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+          | _ =>
+            construct_space(prev_group, cardstacks_before, new_entry_base)
           }
-        | Pat(_, _)
-        | Typ(_, _)
-        | ExpOp(_, _)
-        | PatOp(_, _)
-        | TypOp(_, _)
-        | Line(_, _)
-        | Rule(_, _) =>
-          construct_space(prev_group, cardstacks_before, new_entry_base)
+        | _ => construct_space(prev_group, cardstacks_before, new_entry_base)
         }
       }
 
