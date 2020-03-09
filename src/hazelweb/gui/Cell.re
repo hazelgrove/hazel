@@ -25,8 +25,6 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Colon, _ => Action.Construct(SAsc)),
     (Equals, _ => Action.Construct(SOp(SEquals))),
     (Enter, _ => Action.Construct(SLine)),
-    (Shift_Enter, _ => Action.Construct(SSCommentLine)),
-    // Create "Enter + Shift" => Action.Construct(SSCommentLine)
     (Backslash, _ => Action.Construct(SLam)),
     (Plus, _ => Action.Construct(SOp(SPlus))),
     (Minus, _ => Action.Construct(SOp(SMinus))),
@@ -45,6 +43,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
     (Pound, _ => Action.Construct(SCommentLine)),
+    (Shift_Enter, _ => Action.Construct(SCommentLine)),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

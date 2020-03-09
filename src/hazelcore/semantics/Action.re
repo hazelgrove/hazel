@@ -2596,61 +2596,56 @@ module Exp = {
 
     /* Construction */
 
-    | (Construct(SSCommentLine), CursorL(_, EmptyLine)) =>
-      let new_zblock = (
-        [],
-        ZExp.CursorL(OnText(0), SubCommentLine("")),
-        [],
-      );
-      mk_result(u_gen, new_zblock);
+    // Construct "SCommentLine"
     | (Construct(SCommentLine), CursorL(_, EmptyLine)) =>
       let new_zblock = ([], ZExp.CursorL(OnText(0), CommentLine("")), []);
       mk_result(u_gen, new_zblock);
 
-    // - this can be moved down to syn_perform_line
-    // - add actions for modifying the comment text down in syn_perform_line
-    //
-    // - after you get Action.re done, consider how to change the styling of
-    //   comments so that they are lighter than the rest of the code
-    //   - use the Chrome inspector to see how CommentLine gets put in the DOM
-    //   - add appropriate styling for appropriate CSS selector in style.css
+    // Another way to construct "SCommentLine" (To create multi-lines)
+    //   # this is a mai|n comment
+    //         =>
+    //   # this is a mai
+    //   # n comment
     | (
-        Construct(SSCommentLine),
+        Construct(SCommentLine),
         CursorL(OnText(loca), CommentLine(comment)),
       ) =>
-      // Here's an example:
-      //   # this is a mai|n comment
-      //         =>
-      //   # this is a mai
-      //   $ n comment
       let com_bef = String.sub(comment, 0, loca);
       let com_aft = String.sub(comment, loca, String.length(comment) - loca);
       let new_zblock = (
         [UHExp.CommentLine(com_bef)],
-        ZExp.CursorL(OnText(0), SubCommentLine(com_aft)),
+        ZExp.CursorL(OnText(0), CommentLine(com_aft)),
         [],
       );
       mk_result(u_gen, new_zblock);
 
-    | (
-        Construct(SSCommentLine),
-        CursorL(OnText(loca), SubCommentLine(comment)),
-      ) =>
-      // Here's an example:
-      //   # the main comment
-      //   $ this is a mai|n comment
-      //         =>
-      //   $ this is a mai
-      //   $ n comment
+    // | (Construct(SSCommentLine), CursorL(_, EmptyLine)) =>
+    //   let new_zblock = (
+    //     [],
+    //     ZExp.CursorL(OnText(0), SubCommentLine("")),
+    //     [],
+    //   );
+    //   mk_result(u_gen, new_zblock);
 
-      let com_bef = String.sub(comment, 0, loca);
-      let com_aft = String.sub(comment, loca, String.length(comment) - loca);
-      let new_zblock = (
-        [UHExp.SubCommentLine(com_bef)],
-        ZExp.CursorL(OnText(0), SubCommentLine(com_aft)),
-        [],
-      );
-      mk_result(u_gen, new_zblock);
+    // | (
+    //     Construct(SSCommentLine),
+    //     CursorL(OnText(loca), SubCommentLine(comment)),
+    //   ) =>
+    //   // Here's an example:
+    //   //   # the main comment
+    //   //   $ this is a mai|n comment
+    //   //         =>
+    //   //   $ this is a mai
+    //   //   $ n comment
+
+    //   let com_bef = String.sub(comment, 0, loca);
+    //   let com_aft = String.sub(comment, loca, String.length(comment) - loca);
+    //   let new_zblock = (
+    //     [UHExp.SubCommentLine(com_bef)],
+    //     ZExp.CursorL(OnText(0), SubCommentLine(com_aft)),
+    //     [],
+    //   );
+    //   mk_result(u_gen, new_zblock);
 
     | (
         Construct(SChar(s)),
