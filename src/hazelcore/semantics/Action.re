@@ -2243,7 +2243,11 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2296,7 +2300,11 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
