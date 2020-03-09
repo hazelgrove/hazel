@@ -168,7 +168,7 @@ let set_caret = (anchorNode, offset) => {
 /* let scroll_anchor = (container_id, anchor_id) => {
      let container = Dom_html.document##getElementById(Js.string(container_id));
      let scroll_to = Dom_html.document##getElementById(Js.string(anchor_id));
-     container##scrollTop=scroll_to##offsetTop;
+     container##.scrollTop :=  scroll_to##.offsetTop;
    }; */
 let reset_caret = () => {
   let selection = Dom_html.window##getSelection;
