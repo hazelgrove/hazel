@@ -114,24 +114,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Ignore => None
     };
   };
-  let history_hidden_entry_view =
-      (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
-    switch (display_string_of_history_entry(undo_history_entry)) {
-    | None => Vdom.(Node.div([], []))
-    | Some(str) =>
-      Vdom.(
-        Node.div(
-          [
-            Attr.classes(["the-hidden-history-entry"]),
-            Attr.on_click(_ =>
-              inject(Update.Action.ShiftHistory(group_id, elt_id))
-            ),
-          ],
-          [Node.text(str)],
-        )
-      )
-    };
-  };
 
   let history_entry_tab_icon =
       (group_id: int, has_hidden_part: bool, is_expanded: bool) => {
@@ -242,7 +224,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let clear_undisplay_entries =
+  let history_hidden_entry_view =
+      (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
+    switch (display_string_of_history_entry(undo_history_entry)) {
+    | None => Vdom.(Node.div([], []))
+    | Some(str) =>
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes(["the-hidden-history-entry"]),
+            Attr.on_click(_ =>
+              inject(Update.Action.ShiftHistory(group_id, elt_id))
+            ),
+          ],
+          [Node.text(str)],
+        )
+      )
+    };
+  };
+
+  let drop_prefix_undisplay_entries =
       (entries: list(undo_history_entry))
       : (option((undo_history_entry, int)), list(undo_history_entry)) => {
     let rec helper_func =
@@ -285,7 +286,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
       let (title, hidden_entries) =
-        clear_undisplay_entries([cur_entry] @ prev_entries);
+        drop_prefix_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
       | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
@@ -364,7 +365,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       };
     | (suc_entries, cur_entry, prev_entries) =>
       let (title, hidden_entries) =
-        clear_undisplay_entries(suc_entries @ [cur_entry] @ prev_entries);
+        drop_prefix_undisplay_entries(
+          suc_entries @ [cur_entry] @ prev_entries,
+        );
       switch (title) {
       | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
@@ -681,7 +684,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         [
           Node.div(
             [Attr.classes(["undo-redo-button-txt"])],
-            [Node.text("undo ")],
+            [Node.text("undo")],
           ),
           Icons.undo(["redo-undo-icon"]),
         ],
@@ -699,7 +702,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Icons.redo(["redo-undo-icon"]),
           Node.div(
             [Attr.classes(["undo-redo-button-txt"])],
-            [Node.text(" redo")],
+            [Node.text("redo")],
           ),
         ],
       )
@@ -721,12 +724,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         [icon],
       )
     );
-    /*     Vdom.(
-             Node.div(
-               [Attr.on_click(_ => inject(Update.Action.ToggleHiddenHistoryAll))],
-               [icon],
-             )
-           ); */
   };
 
   let button_bar_view = (all_hidden_history_expand: bool) =>
