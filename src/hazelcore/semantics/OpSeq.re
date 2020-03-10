@@ -17,6 +17,19 @@ let mk =
 let wrap = (operand: 'operand): t('operand, _) =>
   OpSeq(Placeholder(0), S(operand, E));
 
+let wrap_operator =
+    (
+      ~err: ErrStatus.t=NotInHole,
+      left: 'operand,
+      op: 'operator,
+      right: 'operand,
+    )
+    : t('operand, 'operator) =>
+  OpSeq(
+    Skel.(BinOp(err, op, Placeholder(0), Placeholder(0))),
+    Seq.mk(left, [(op, right)]),
+  );
+
 let get_err_status =
     (
       ~get_err_status_operand: 'operand => ErrStatus.t,

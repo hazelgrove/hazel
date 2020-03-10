@@ -73,6 +73,9 @@ let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
     BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
   };
 
+let injection = (~err: ErrStatus.t=NotInHole, side: InjSide.t, x: t) =>
+  Inj(err, side, x);
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -152,6 +155,35 @@ and make_inconsistent_operand =
     let (set_p, u_gen) = p |> make_inconsistent(u_gen);
     (Parenthesized(set_p), u_gen);
   };
+
+let patterns_of_type =
+    (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) => {
+  let (hole1, u_gen) = u_gen |> new_EmptyHole;
+  let (hole2, u_gen) = u_gen |> new_EmptyHole;
+  let (hole3, u_gen) = u_gen |> new_EmptyHole;
+  let (hole4, u_gen) = u_gen |> new_EmptyHole;
+  let pattern =
+    OpSeq.(
+      switch (ty) {
+      | HTyp.Hole
+      | Unit
+      | Arrow(_, _) => []
+      | Num => [wrap(hole1), wrap(hole2)]
+      | Bool => List.map(b => wrap(boollit(b)), [true, false])
+      | Prod(_, _) => [
+          wrap_operator(hole1, Comma, hole2),
+          wrap_operator(hole3, Comma, hole4),
+        ]
+      | Sum(_, _) =>
+        List.map(
+          ((side, hole)) => wrap(injection(side, wrap(hole))),
+          InjSide.[(L, hole1), (R, hole2)],
+        )
+      | List(_) => [wrap(listnil()), wrap_operator(hole1, Cons, hole2)]
+      }
+    );
+  (pattern, u_gen);
+};
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
