@@ -20,7 +20,6 @@ type operator_shape =
 [@deriving sexp]
 type shape =
   | SCommentLine
-  | SSCommentLine
   | SList
   | SParenthesized
   | SChar(string)
@@ -262,8 +261,7 @@ module Typ = {
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_) |
-          SCommentLine |
-          SSCommentLine,
+          SCommentLine,
         ),
         _,
       ) =>
@@ -1143,7 +1141,6 @@ module Pat = {
     | (
         Construct(
           SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
-          SSCommentLine |
           SCommentLine,
         ) |
         UpdateApPalette(_),
@@ -1526,7 +1523,6 @@ module Pat = {
     | (
         Construct(
           SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
-          SSCommentLine |
           SCommentLine,
         ) |
         UpdateApPalette(_),
@@ -2478,7 +2474,7 @@ module Exp = {
         _,
         CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
         CursorL(OnText(_) | OnOp(_), LetLine(_)) |
-        CursorL(OnOp(_), CommentLine(_) | SubCommentLine(_)) |
+        CursorL(OnOp(_), CommentLine(_)) |
         CursorL(_, ExpLine(_)),
       ) =>
       Failed
@@ -2554,41 +2550,30 @@ module Exp = {
         fix_and_mk_result(u_gen, new_ze);
       }
 
-    | (Delete, CursorL(OnText(j), SubCommentLine(comment) as line))
-    | (Delete, CursorL(OnText(j), CommentLine(comment) as line)) =>
+    | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
       if (j == String.length(comment)) {
         escape(u_gen, After);
       } else {
         let new_zblock = {
           let new_comment = comment |> StringUtil.delete(j);
-          let new_line: UHExp.line =
-            switch (line) {
-            | CommentLine(_) => CommentLine(new_comment)
-            | _sub_comment_line => SubCommentLine(new_comment)
-            };
+          let new_line: UHExp.line = CommentLine(new_comment);
           ([], ZExp.CursorL(OnText(j), new_line), []);
         };
         mk_result(u_gen, new_zblock);
       }
 
-    | (Backspace, CursorL(OnDelim(_, After), SubCommentLine(_)))
     | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
       // just delete the commentline (need future modification)
       let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
       mk_result(u_gen, new_zblock);
 
-    | (Backspace, CursorL(OnText(j), SubCommentLine(comment) as line))
-    | (Backspace, CursorL(OnText(j), CommentLine(comment) as line)) =>
+    | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
       if (j == 0) {
         escape(u_gen, Before);
       } else {
         let new_zblock = {
           let new_comment = comment |> StringUtil.backspace(j);
-          let new_line: UHExp.line =
-            switch (line) {
-            | CommentLine(_) => CommentLine(new_comment)
-            | _sub_comment_line => SubCommentLine(new_comment)
-            };
+          let new_line: UHExp.line = CommentLine(new_comment);
           ([], ZExp.CursorL(OnText(j - 1), new_line), []);
         };
         mk_result(u_gen, new_zblock);
@@ -2601,67 +2586,28 @@ module Exp = {
       let new_zblock = ([], ZExp.CursorL(OnText(0), CommentLine("")), []);
       mk_result(u_gen, new_zblock);
 
-    // Another way to construct "SCommentLine" (To create multi-lines)
-    //   # this is a mai|n comment
-    //         =>
-    //   # this is a mai
-    //   # n comment
-    | (
-        Construct(SCommentLine),
-        CursorL(OnText(loca), CommentLine(comment)),
-      ) =>
-      let com_bef = String.sub(comment, 0, loca);
-      let com_aft = String.sub(comment, loca, String.length(comment) - loca);
-      let new_zblock = (
-        [UHExp.CommentLine(com_bef)],
-        ZExp.CursorL(OnText(0), CommentLine(com_aft)),
-        [],
-      );
-      mk_result(u_gen, new_zblock);
-
-    // | (Construct(SSCommentLine), CursorL(_, EmptyLine)) =>
-    //   let new_zblock = (
-    //     [],
-    //     ZExp.CursorL(OnText(0), SubCommentLine("")),
-    //     [],
-    //   );
-    //   mk_result(u_gen, new_zblock);
-
+    // // Another way to construct "SCommentLine" (To create multi-lines)
+    // //   # this is a mai|n comment
+    // //         =>
+    // //   # this is a mai
+    // //   # n comment
     // | (
-    //     Construct(SSCommentLine),
-    //     CursorL(OnText(loca), SubCommentLine(comment)),
+    //     Construct(SCommentLine),
+    //     CursorL(OnText(loca), CommentLine(comment)),
     //   ) =>
-    //   // Here's an example:
-    //   //   # the main comment
-    //   //   $ this is a mai|n comment
-    //   //         =>
-    //   //   $ this is a mai
-    //   //   $ n comment
-
     //   let com_bef = String.sub(comment, 0, loca);
     //   let com_aft = String.sub(comment, loca, String.length(comment) - loca);
     //   let new_zblock = (
-    //     [UHExp.SubCommentLine(com_bef)],
-    //     ZExp.CursorL(OnText(0), SubCommentLine(com_aft)),
+    //     [UHExp.CommentLine(com_bef)],
+    //     ZExp.CursorL(OnText(0), CommentLine(com_aft)),
     //     [],
     //   );
     //   mk_result(u_gen, new_zblock);
 
-    | (
-        Construct(SChar(s)),
-        CursorL(OnText(j), CommentLine(comment) as line),
-      )
-    | (
-        Construct(SChar(s)),
-        CursorL(OnText(j), SubCommentLine(comment) as line),
-      ) =>
+    | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
       let new_zblock = {
         let new_comment = comment |> StringUtil.insert(j, s);
-        let new_line: UHExp.line =
-          switch (line) {
-          | CommentLine(_) => CommentLine(new_comment)
-          | _sub_comment_line => SubCommentLine(new_comment)
-          };
+        let new_line: UHExp.line = CommentLine(new_comment);
         ([], ZExp.CursorL(OnText(j + 1), new_line), []);
       };
       mk_result(u_gen, new_zblock);
@@ -3015,7 +2961,7 @@ module Exp = {
 
     /* Invalid actions at operand level */
     | (Construct(SLine), CursorE(OnText(_), _))
-    | (Construct(SCommentLine | SSCommentLine), _) => Failed
+    | (Construct(SCommentLine), _) => Failed
 
     /* Movement */
     | (
@@ -4053,7 +3999,7 @@ module Exp = {
     | (Construct(SList), _) => Failed
 
     /* Invalid actions at the operand level */
-    | (Construct(SCommentLine | SSCommentLine), _) => Failed
+    | (Construct(SCommentLine), _) => Failed
 
     | _ when ZExp.is_inconsistent(zoperand) =>
       let err = zoperand |> ZExp.get_err_status_zoperand;

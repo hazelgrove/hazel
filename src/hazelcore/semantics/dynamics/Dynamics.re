@@ -820,7 +820,6 @@ module Exp = {
         LinesExpand(prelude, ctx, delta);
       }
     | EmptyLine
-    | SubCommentLine(_)
     | CommentLine(_) => LinesExpand(d => d, ctx, delta)
     | LetLine(p, ann, def) =>
       switch (ann) {

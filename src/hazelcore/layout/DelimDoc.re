@@ -54,5 +54,3 @@ let in_LetLine = (~caret=?, steps) => mk(~caret?, ~path=(steps, 3), "in");
 
 let open_CommentLine = (~caret=?, steps) =>
   mk(~caret?, ~path=(steps, 0), "#");
-let open_SubCommentLine = (~caret=?, steps) =>
-  mk(~caret?, ~path=(steps, 0), "*");

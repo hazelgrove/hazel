@@ -797,8 +797,7 @@ module Exp = {
     switch (line) {
     | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
     | EmptyLine
-    | CommentLine(_)
-    | SubCommentLine(_) => Some(ctx)
+    | CommentLine(_) => Some(ctx)
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty) =>
@@ -1356,8 +1355,7 @@ module Exp = {
         syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e);
       (ExpLine(e), ctx, u_gen);
     | EmptyLine
-    | CommentLine(_)
-    | SubCommentLine(_) => (line, ctx, u_gen)
+    | CommentLine(_) => (line, ctx, u_gen)
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty1) =>
