@@ -2841,16 +2841,16 @@ module Exp = {
     | (SwapLeft, ZOperand(zoperand, 
                           (A(operator, S(operand, new_prefix)), suffix)
                           )) => {
-                            let new_suffix = A(operator, S(operand, suffix));
-                            let new_zseq = ZOperand(zoperand, (new_prefix, new_suffix));
+                            let new_suffix = Seq.A(operator, S(operand, suffix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
                             Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
                           }
     | (SwapRight, ZOperand(_, (_, E))) => Failed
     | (SwapRight, ZOperand(zoperand, 
                           (prefix, A(operator, S(operand, new_suffix)))
                           )) => {
-                            let new_prefix = A(operator, S(operand, prefix));
-                            let new_zseq = ZOperand(zoperand, (new_prefix, new_suffix));
+                            let new_prefix = Seq.A(operator, S(operand, prefix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
                             Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
                           }
 
