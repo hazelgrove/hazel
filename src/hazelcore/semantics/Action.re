@@ -2409,7 +2409,7 @@ module Exp = {
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) => {
-          let new_zblock = (rest, zline, ([last] @ suffix));
+          let new_zblock = (rest, zline, ([last, ...suffix]));
           Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
         }
       }  
