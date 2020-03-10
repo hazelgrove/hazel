@@ -2404,6 +2404,26 @@ module Exp = {
 
     /* No construction handled at block level */
 
+    /* SwapUp and SwapDown is handled at block level */
+    | SwapUp => 
+      switch (ListUtil.split_last(prefix)) {
+      | None => Failed
+      | Some(rest, last) => {
+          let new_zblock = (rest, zline, ([last] @ suffix));
+          Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
+        }
+      }  
+    | SwapDown =>
+      switch (suffix) {
+      | [] => Failed
+      | [hd, ...tl] => {
+          let new_zblock = (([hd] @ prefix, zline, tl));
+          Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
+        }
+      }
+        
+                 // when prefix is not empty, use ListUtil.last to get the last line in prefix
+    
     /* Zipper */
     | _ =>
       switch (Statics.Exp.syn_lines(ctx, prefix)) {
