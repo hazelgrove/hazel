@@ -3322,7 +3322,7 @@ module Exp = {
               ZExp.ZBlock.wrap(
                 ZExp.set_err_status_zoperand(
                   InHole(InconsistentBranches(rule_types), u),
-                  zoperand,
+                  CaseZE(NotInHole, zscrut, rules),
                 ),
               );
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
@@ -3340,23 +3340,17 @@ module Exp = {
         | Failed => Failed
         | CursorEscaped(side) =>
           syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-        | Succeeded((new_zrules, common_ty, u_gen)) =>
-          switch (common_ty) {
+        | Succeeded((new_zrules, u_gen)) =>
+          let (new_zrules, rule_types, common_type, u_gen) =
+            Statics.Exp.syn_fix_holes_zrules(ctx, u_gen, new_zrules, pat_ty);
+          switch (common_type) {
           | None =>
-            /*  I am not so sure that this part is correct */
-            let (_, u_gen, rule_types, _) =
-              Statics.Exp.syn_fix_holes_rules(
-                ctx,
-                u_gen,
-                ZExp.erase_zrules(zrules),
-                pat_ty,
-              );
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_ze =
               ZExp.ZBlock.wrap(
                 ZExp.set_err_status_zoperand(
                   InHole(InconsistentBranches(rule_types), u),
-                  zoperand,
+                  CaseZR(NotInHole, scrut, new_zrules),
                 ),
               );
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
@@ -3364,7 +3358,7 @@ module Exp = {
             let new_ze =
               ZExp.ZBlock.wrap(CaseZR(NotInHole, scrut, new_zrules));
             Succeeded(SynDone((new_ze, ty, u_gen)));
-          }
+          };
         }
       }
     };
@@ -3379,7 +3373,7 @@ module Exp = {
         ),
         pat_ty: HTyp.t,
       )
-      : Outcome.t((ZExp.zrules, option(HTyp.t), MetaVarGen.t)) => {
+      : Outcome.t((ZExp.zrules, MetaVarGen.t)) => {
     let escape = (side: Side.t) => {
       let move_cursor =
         switch (side) {
@@ -3389,15 +3383,7 @@ module Exp = {
       zrules
       |> move_cursor
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(side), new_zrules =>
-           Succeeded((
-             new_zrules,
-             Statics.Exp.syn_rules(
-               ctx,
-               ZExp.erase_zrules(new_zrules),
-               pat_ty,
-             ),
-             u_gen,
-           ))
+           Succeeded((new_zrules, u_gen))
          );
     };
 
@@ -3428,21 +3414,15 @@ module Exp = {
       | (None, []) =>
         let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
         let new_zrules = ([], new_zrule, []);
-        let common_ty =
-          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-        Succeeded((new_zrules, common_ty, u_gen));
+        Succeeded((new_zrules, u_gen));
       | (_, [suffix_hd, ...new_suffix]) =>
         let new_zrule = suffix_hd |> ZExp.place_before_rule;
         let new_zrules = (prefix, new_zrule, new_suffix);
-        let common_ty =
-          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-        Succeeded((new_zrules, common_ty, u_gen));
+        Succeeded((new_zrules, u_gen));
       | (Some((new_prefix, prefix_last)), _) =>
         let new_zrule = prefix_last |> ZExp.place_after_rule;
         let new_zrules = (new_prefix, new_zrule, suffix);
-        let common_ty =
-          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-        Succeeded((new_zrules, common_ty, u_gen));
+        Succeeded((new_zrules, u_gen));
       }
 
     /* Construction */
@@ -3458,9 +3438,7 @@ module Exp = {
         new_zrule,
         [zrule |> ZExp.erase_zrule, ...suffix],
       );
-      let common_ty =
-        Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-      Succeeded((new_zrules, common_ty, u_gen));
+      Succeeded((new_zrules, u_gen));
     | (Construct(SLine), RuleZP(zp, _)) when zp |> ZPat.is_after =>
       let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
       let new_zrules = (
@@ -3468,9 +3446,7 @@ module Exp = {
         new_zrule,
         suffix,
       );
-      let common_ty =
-        Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-      Succeeded((new_zrules, common_ty, u_gen));
+      Succeeded((new_zrules, u_gen));
     | (Construct(SLine), RuleZE(_, zclause)) when zclause |> ZExp.is_after =>
       let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
       let new_zrules = (
@@ -3478,16 +3454,14 @@ module Exp = {
         new_zrule,
         suffix,
       );
-      let common_ty =
-        Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-      Succeeded((new_zrules, common_ty, u_gen));
+      Succeeded((new_zrules, u_gen));
 
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_, side), _))
         when !ZExp.is_before_zrule(zrule) && !ZExp.is_after_zrule(zrule) =>
       switch (escape(side)) {
       | Failed
       | CursorEscaped(_) => Failed
-      | Succeeded((zrules, _, u_gen)) =>
+      | Succeeded((zrules, u_gen)) =>
         syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)
       }
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
@@ -3502,9 +3476,7 @@ module Exp = {
           Statics.Exp.syn_fix_holes(ctx, u_gen, clause);
         let new_zrules =
           zrules |> ZList.replace_z(ZExp.RuleZP(new_zp, clause));
-        let common_ty =
-          Statics.Exp.syn_rules(ctx, ZExp.erase_zrules(new_zrules), pat_ty);
-        Succeeded((new_zrules, common_ty, u_gen));
+        Succeeded((new_zrules, u_gen));
       }
 
     | (_, RuleZE(p, zclause)) =>
@@ -3517,13 +3489,7 @@ module Exp = {
         | Succeeded((new_zclause, _, u_gen)) =>
           let new_zrules =
             zrules |> ZList.replace_z(ZExp.RuleZE(p, new_zclause));
-          let common_ty =
-            Statics.Exp.syn_rules(
-              ctx,
-              ZExp.erase_zrules(new_zrules),
-              pat_ty,
-            );
-          Succeeded((new_zrules, common_ty, u_gen));
+          Succeeded((new_zrules, u_gen));
         }
       }
     };
