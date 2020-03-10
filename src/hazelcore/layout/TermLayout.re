@@ -130,7 +130,6 @@ let find_and_decorate_caret =
                )
              | EmptyLine
              | CommentLine
-             | SubCommentLine
              | Term(_) => Skip
              | _ => Stop
              }
@@ -166,8 +165,7 @@ let find_and_decorate_caret =
              | Term(_)
              | DelimGroup
              | LetLine
-             | CommentLine
-             | SubCommentLine => Skip
+             | CommentLine => Skip
              | _ => Stop
              }
            )
@@ -274,7 +272,6 @@ let path_before = (l: t): option(CursorPath.t) => {
     | Annot(
         OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
         CommentLine |
-        SubCommentLine |
         Step(_) |
         Term(_),
         l,
@@ -304,7 +301,6 @@ let path_after = (l: t): option(CursorPath.t) => {
     | Annot(
         OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
         CommentLine |
-        SubCommentLine |
         Step(_) |
         Term(_),
         l,
@@ -365,7 +361,6 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
       | Annot(
           OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
           CommentLine |
-          SubCommentLine |
           Step(_) |
           Term(_),
           l,

@@ -858,9 +858,9 @@ module Exp = {
     | (_, ExpLine(opseq)) =>
       follow_opseq(path, opseq)
       |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
-    | ([], EmptyLine | LetLine(_) | CommentLine(_) | SubCommentLine(_)) =>
+    | ([], EmptyLine | LetLine(_) | CommentLine(_)) =>
       line |> ZExp.place_cursor_line(cursor)
-    | ([_, ..._], EmptyLine | CommentLine(_) | SubCommentLine(_)) => None
+    | ([_, ..._], EmptyLine | CommentLine(_)) => None
     | ([x, ...xs], LetLine(p, ann, def)) =>
       switch (x) {
       | 0 =>
@@ -1014,12 +1014,12 @@ module Exp = {
     | (_, ExpLine(opseq)) =>
       follow_steps_opseq(~side, steps, opseq)
       |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
-    | ([], EmptyLine | CommentLine(_) | SubCommentLine(_) | LetLine(_)) =>
+    | ([], EmptyLine | CommentLine(_) | LetLine(_)) =>
       switch (side) {
       | Before => Some(line |> ZExp.place_before_line)
       | After => Some(line |> ZExp.place_after_line)
       }
-    | ([_, ..._], EmptyLine | CommentLine(_) | SubCommentLine(_)) => None
+    | ([_, ..._], EmptyLine | CommentLine(_)) => None
     | ([x, ...xs], LetLine(p, ann, def)) =>
       switch (x) {
       | 0 =>
@@ -1205,8 +1205,7 @@ module Exp = {
       (line: UHExp.line, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (line) {
     | EmptyLine
-    | CommentLine(_)
-    | SubCommentLine(_) => hs
+    | CommentLine(_) => hs
     | LetLine(p, ann, def) =>
       hs
       |> holes(def, [2, ...rev_steps])
@@ -1319,7 +1318,7 @@ module Exp = {
   and holes_zline = (zline: ZExp.zline, rev_steps: rev_steps): zhole_list =>
     switch (zline) {
     | CursorL(OnOp(_), _) => no_holes
-    | CursorL(_, EmptyLine | CommentLine(_) | SubCommentLine(_)) => no_holes
+    | CursorL(_, EmptyLine | CommentLine(_)) => no_holes
     | CursorL(_, ExpLine(_)) => no_holes /* invalid cursor position */
     | CursorL(cursor, LetLine(p, ann, def)) =>
       let holes_p = Pat.holes(p, [0, ...rev_steps], []);

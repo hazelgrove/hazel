@@ -165,7 +165,6 @@ let contenteditable_of_layout =
       | HoleLabel(_)
       | DelimGroup
       | CommentLine
-      | SubCommentLine
       | LetLine
       | Step(_)
       | Term(_) => vs
@@ -285,10 +284,6 @@ let presentation_of_layout =
 
     | Annot(CommentLine, l) => [
         Node.span([Attr.classes(["CommentLine"])], go(l)),
-      ]
-
-    | Annot(SubCommentLine, l) => [
-        Node.span([Attr.classes(["SubCommentLine"])], go(l)),
       ]
 
     | Annot(UserNewline, l) => [

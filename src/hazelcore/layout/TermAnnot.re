@@ -34,7 +34,6 @@ type t =
   | EmptyLine
   | LetLine
   | CommentLine
-  | SubCommentLine
   | Step(int)
   | Term(term_data);
 

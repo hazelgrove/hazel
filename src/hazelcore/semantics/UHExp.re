@@ -52,7 +52,6 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | SubCommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
@@ -125,7 +124,6 @@ module Line = {
     switch (line) {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
     | CommentLine(_)
-    | SubCommentLine(_)
     | ExpLine(_)
     | EmptyLine
     | LetLine(_) => line
@@ -135,7 +133,6 @@ module Line = {
     fun
     | EmptyLine
     | CommentLine(_)
-    | SubCommentLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>

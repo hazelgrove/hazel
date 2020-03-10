@@ -816,19 +816,6 @@ module Exp = {
         comment_doc,
       ])
       |> Doc.annot(TermAnnot.CommentLine);
-    | SubCommentLine(comment) =>
-      let comment_doc =
-        if (comment |> StringUtil.is_empty) {
-          mk_text(~steps, UnicodeConstants.zwsp);
-        } else {
-          mk_text(~steps, comment);
-        };
-      Doc.hcats([
-        DelimDoc.open_SubCommentLine(steps),
-        Doc.space() |> annot_Padding,
-        comment_doc,
-      ])
-      |> Doc.annot(TermAnnot.SubCommentLine);
     | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
