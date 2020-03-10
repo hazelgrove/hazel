@@ -2408,7 +2408,7 @@ module Exp = {
     | SwapUp => 
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
-      | Some(rest, last) => {
+      | Some((rest, last)) => {
           let new_zblock = (rest, zline, ([last] @ suffix));
           Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
         }
@@ -3648,17 +3648,17 @@ module Exp = {
     /* No construction handled at block level */
     
     /* SwapUp and SwapDown is handled at block level */
-    | SwapUp => 
+    | (SwapUp, _) => 
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
-      | Some(rest, last) => {
+      | Some((rest, last)) => {
           let new_zblock = (rest, zline, ([last] @ suffix));
           Succeeded(
             AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty))
           )
         }
       }
-    | SwapDown =>
+    | (SwapDown, _) =>
       switch(suffix) {
       | [] => Failed
       | [hd, ...tl] => {
