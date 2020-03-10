@@ -2125,6 +2125,26 @@ module Exp = {
     (zlines, ctx, u_gen);
   };
 
+  let syn_fix_holes_zrules =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        zrules: ZExp.zrules,
+        pat_ty: HTyp.t,
+      )
+      : (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t) => {
+    let path = CursorPath.Exp.of_zrules(zrules);
+    let rules = ZExp.erase_zrules(zrules);
+    let (rules, u_gen, rule_types, common_type) =
+      syn_fix_holes_rules(ctx, u_gen, rules, pat_ty);
+    let zrules =
+      OptUtil.get(
+        _ => failwith("hole fix pass did not preserve paths"),
+        CursorPath.Exp.follow_rules(path, rules),
+      );
+    (zrules, rule_types, common_type, u_gen);
+  };
+
   let ana_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
       : (ZExp.t, MetaVarGen.t) => {

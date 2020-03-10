@@ -149,7 +149,7 @@ let _follow_steps_opseq =
          )
     }
   };
-
+  
 let holes_err =
     (
       ~hole_desc: MetaVar.t => hole_desc,
@@ -830,6 +830,11 @@ module Exp = {
       let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
       cons'(n, of_z(ze));
     }
+  and of_zrules = (zrules: ZExp.zrules): t => {
+    let prefix_len = List.length(ZList.prj_prefix(zrules));
+    let zrule = ZList.prj_z(zrules);
+    cons'(prefix_len, of_zrule(zrule));
+  }
   and of_zrule = (zrule: ZExp.zrule): t =>
     switch (zrule) {
     | CursorR(cursor, _) => ([], cursor)
@@ -963,6 +968,17 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
+      }
+    }
+  and follow_rules =
+      ((steps, cursor): t, rules: UHExp.rules): option(ZExp.zrules) =>
+    switch (steps) {
+    | [] => None
+    | [x, ...xs] =>
+      switch (ZList.split_at(x, rules)) {
+      | None => None
+      | Some(split_rules) =>
+        split_rules |> ZList.optmap_z(follow_rule((xs, cursor)))
       }
     }
   and follow_rule =
