@@ -2350,6 +2350,23 @@ module Exp = {
 
     /* Backspace & Delete */
 
+    | Backspace =>
+      switch (zline) {
+      | CursorL(OnDelim(_, After), CommentLine(comment)) =>
+        switch (prefix |> ListUtil.split_last) {
+        | Some((new_prefix, CommentLine(comment_pre))) =>
+          let new_zline =
+            ZExp.CursorL(OnText(0), CommentLine(comment_pre ++ comment));
+          let new_ze = (new_prefix, new_zline, suffix);
+          Succeeded(SynDone((new_ze, ty, u_gen)));
+        | _other_cases =>
+          let new_ze = (prefix, ZExp.CursorL(OnText(0), EmptyLine), suffix);
+          Succeeded(SynDone((new_ze, ty, u_gen)));
+        }
+      | _other_cases =>
+        syn_perform(ctx, Backspace, (zblock, ty, u_gen)) |> wrap_in_SynDone
+      }
+
     | Delete when ZExp.is_after_zline(zline) =>
       switch (zline |> ZExp.erase_zline, suffix) {
       | (_, []) => CursorEscaped(After)
@@ -2550,6 +2567,8 @@ module Exp = {
         fix_and_mk_result(u_gen, new_ze);
       }
 
+    | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) => Failed
+
     | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
       if (j == String.length(comment)) {
         escape(u_gen, After);
@@ -2561,11 +2580,6 @@ module Exp = {
         };
         mk_result(u_gen, new_zblock);
       }
-
-    | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
-      // just delete the commentline (need future modification)
-      let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
-      mk_result(u_gen, new_zblock);
 
     | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
       if (j == 0) {
@@ -2586,23 +2600,23 @@ module Exp = {
       let new_zblock = ([], ZExp.CursorL(OnText(0), CommentLine("")), []);
       mk_result(u_gen, new_zblock);
 
-    // // Another way to construct "SCommentLine" (To create multi-lines)
-    // //   # this is a mai|n comment
-    // //         =>
-    // //   # this is a mai
-    // //   # n comment
-    // | (
-    //     Construct(SCommentLine),
-    //     CursorL(OnText(loca), CommentLine(comment)),
-    //   ) =>
-    //   let com_bef = String.sub(comment, 0, loca);
-    //   let com_aft = String.sub(comment, loca, String.length(comment) - loca);
-    //   let new_zblock = (
-    //     [UHExp.CommentLine(com_bef)],
-    //     ZExp.CursorL(OnText(0), CommentLine(com_aft)),
-    //     [],
-    //   );
-    //   mk_result(u_gen, new_zblock);
+    // Another way to construct "SCommentLine" (To create multi-lines)
+    //   # this is a mai|n comment
+    //         =>
+    //   # this is a mai
+    //   # n comment
+    | (
+        Construct(SCommentLine),
+        CursorL(OnText(loca), CommentLine(comment)),
+      ) =>
+      let com_bef = String.sub(comment, 0, loca);
+      let com_aft = String.sub(comment, loca, String.length(comment) - loca);
+      let new_zblock = (
+        [UHExp.CommentLine(com_bef)],
+        ZExp.CursorL(OnText(0), CommentLine(com_aft)),
+        [],
+      );
+      mk_result(u_gen, new_zblock);
 
     | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
       let new_zblock = {
