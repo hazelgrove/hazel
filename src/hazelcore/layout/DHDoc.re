@@ -259,53 +259,53 @@ module Exp = {
         go'(~parenthesize=precedence(d1) >= precedence_op, d1),
         go'(~parenthesize=precedence(d2) > precedence_op, d2),
       );
-      let no_cast = doc => (doc, None);
-      let (doc, cast) =
+      let cast =
         switch (d) {
-        | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i) |> no_cast
+        | Cast(_, _, ty) => Some(ty)
+        | _ => None
+        };
+      let fdoc = (~enforce_inline) =>
+        switch (d) {
+        | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i)
         | NonEmptyHole(reason, u, i, _sigma, d) =>
-          go'(d)
-          |> mk_cast
-          |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-          |> no_cast
-        | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k) |> no_cast
+          go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+
+        | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
-          text(x) |> annot(DHAnnot.VarHole(Free, (u, i))) |> no_cast
-        | BoundVar(x) => text(x) |> no_cast
-        | Triv => Delim.triv |> no_cast
-        | BoolLit(b) => mk_BoolLit(b) |> no_cast
-        | NumLit(n) => mk_NumLit(n) |> no_cast
-        | ListNil(_) => Delim.list_nil |> no_cast
+          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+        | BoundVar(x) => text(x)
+        | Triv => Delim.triv
+        | BoolLit(b) => mk_BoolLit(b)
+        | NumLit(n) => mk_NumLit(n)
+        | ListNil(_) => Delim.list_nil
         | Inj(_, inj_side, d) =>
-          let child = (~enforce_inline) => go(~enforce_inline, d) |> mk_cast;
-          mk_Inj(inj_side, child |> pad_child(~enforce_inline)) |> no_cast;
+          let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
+          mk_Inj(inj_side, child |> pad_child(~enforce_inline));
         | Ap(d1, d2) =>
           let (doc1, doc2) =
             mk_left_associative_operands(precedence_Ap, d1, d2);
-          mk_Ap(mk_cast(doc1), mk_cast(doc2)) |> no_cast;
+          mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | BinNumOp(op, d1, d2) =>
           // TODO assumes all bin num ops are left associative
           let (doc1, doc2) =
             mk_left_associative_operands(precedence_bin_num_op(op), d1, d2);
-          hseps([mk_cast(doc1), mk_bin_num_op(op), mk_cast(doc2)])
-          |> no_cast;
+          hseps([mk_cast(doc1), mk_bin_num_op(op), mk_cast(doc2)]);
         | Cons(d1, d2) =>
           let (doc1, doc2) =
             mk_right_associative_operands(precedence_Cons, d1, d2);
-          mk_Cons(mk_cast(doc1), mk_cast(doc2)) |> no_cast;
+          mk_Cons(mk_cast(doc1), mk_cast(doc2));
         | And(d1, d2) =>
           let (doc1, doc2) =
             mk_right_associative_operands(precedence_And, d1, d2);
-          hseps([mk_cast(doc1), text("&&"), mk_cast(doc2)]) |> no_cast;
+          hseps([mk_cast(doc1), text("&&"), mk_cast(doc2)]);
         | Or(d1, d2) =>
           let (doc1, doc2) =
             mk_right_associative_operands(precedence_Or, d1, d2);
-          hseps([mk_cast(doc1), text("||"), mk_cast(doc2)]) |> no_cast;
-        | Pair(d1, d2) =>
-          mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2))) |> no_cast
+          hseps([mk_cast(doc1), text("||"), mk_cast(doc2)]);
+        | Pair(d1, d2) => mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
         | Case(dscrut, drs, _) =>
           if (enforce_inline) {
-            fail() |> no_cast;
+            fail();
           } else {
             vseps(
               List.concat([
@@ -318,12 +318,11 @@ module Exp = {
                 drs |> List.map(mk_rule(~show_fn_bodies, ~show_casts)),
                 [Delim.close_Case],
               ]),
-            )
-            |> no_cast;
+            );
           }
-        | Cast(d, _ty1, ty2) =>
+        | Cast(d, _, _) =>
           let (doc, _) = go'(d);
-          (doc, Some(ty2));
+          doc;
         | Let(dp, ddef, dbody) =>
           let def_doc = (~enforce_inline) =>
             go(~enforce_inline, ddef) |> mk_cast;
@@ -344,8 +343,7 @@ module Exp = {
               Delim.mk("in"),
             ]),
             mk_cast(go(~enforce_inline=false, dbody)),
-          ])
-          |> no_cast;
+          ]);
         | FailedCast(d, ty1, ty2) =>
           let (d_doc, d_cast) as dcast_doc = go'(d);
           let cast_decoration =
@@ -361,8 +359,8 @@ module Exp = {
             |> annot(DHAnnot.FailedCastDecoration);
           switch (d_cast) {
           | Some(ty1') when HTyp.eq(ty1, ty1') =>
-            hcats([d_doc, cast_decoration]) |> no_cast
-          | _ => hcats([mk_cast(dcast_doc), cast_decoration]) |> no_cast
+            hcats([d_doc, cast_decoration])
+          | _ => hcats([mk_cast(dcast_doc), cast_decoration])
           };
         | Lam(dp, ty, dbody) =>
           if (show_fn_bodies) {
@@ -376,10 +374,9 @@ module Exp = {
               Delim.open_Lam,
               doc_body |> pad_child(~enforce_inline),
               Delim.close_Lam,
-            ])
-            |> no_cast;
+            ]);
           } else {
-            text("<fn>") |> no_cast;
+            text("<fn>");
           }
         | FixF(x, ty, dbody) =>
           let doc_body = (~enforce_inline) =>
@@ -393,15 +390,17 @@ module Exp = {
             Delim.open_FixF,
             doc_body |> pad_child(~enforce_inline),
             Delim.close_FixF,
-          ])
-          |> no_cast;
+          ]);
         };
-      parenthesize
-        ? (
-          hcats([Delim.open_Parenthesized, doc, Delim.close_Parenthesized]),
-          cast,
-        )
-        : (doc, cast);
+      let doc =
+        parenthesize
+          ? hcats([
+              Delim.open_Parenthesized,
+              fdoc |> pad_child(~enforce_inline),
+              Delim.close_Parenthesized,
+            ])
+          : fdoc(~enforce_inline);
+      (doc, cast);
     };
     mk_cast(go(~parenthesize, ~enforce_inline, d));
   }
