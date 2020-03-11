@@ -42,6 +42,7 @@ let view =
               [
                 DHCode.view(
                   ~show_fn_bodies=false,
+                  ~show_case_clauses=false,
                   ~show_casts=model.show_casts,
                   ~width=30,
                   d,

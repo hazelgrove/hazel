@@ -229,6 +229,7 @@ module Exp = {
           (
             ~show_casts: bool,
             ~show_fn_bodies: bool,
+            ~show_case_clauses: bool,
             ~parenthesize=false,
             ~enforce_inline: bool,
             d: DHExp.t,
@@ -315,7 +316,14 @@ module Exp = {
                     mk_cast(go(~enforce_inline=true, dscrut)),
                   ]),
                 ],
-                drs |> List.map(mk_rule(~show_fn_bodies, ~show_casts)),
+                drs
+                |> List.map(
+                     mk_rule(
+                       ~show_fn_bodies,
+                       ~show_case_clauses,
+                       ~show_casts,
+                     ),
+                   ),
                 [Delim.close_Case],
               ]),
             );
@@ -406,33 +414,33 @@ module Exp = {
     mk_cast(go(~parenthesize, ~enforce_inline, d));
   }
   and mk_rule =
-      (~show_casts, ~show_fn_bodies, Rule(dp, dclause): DHExp.rule): t =>
-    Doc.(
-      hcats([
-        Delim.bar_Rule,
-        Pat.mk(dp)
-        |> pad_child(
-             ~inline_padding=(space(), space()),
-             ~enforce_inline=false,
-           ),
-        Delim.arrow_Rule,
-        choices([
-          hcats([
-            space(),
-            mk(~show_casts, ~show_fn_bodies, ~enforce_inline=true, dclause),
-          ]),
-          hcats([
-            linebreak(),
-            indent_and_align(
-              mk(
-                ~show_casts,
-                ~show_fn_bodies,
-                ~enforce_inline=false,
-                dclause,
-              ),
-            ),
-          ]),
-        ]),
-      ])
-    );
+      (
+        ~show_casts,
+        ~show_fn_bodies,
+        ~show_case_clauses,
+        Rule(dp, dclause): DHExp.rule,
+      )
+      : t => {
+    open Doc;
+    let mk' = mk(~show_casts, ~show_fn_bodies, ~show_case_clauses);
+    let hidden_clause =
+      annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
+    let clause_doc =
+      show_case_clauses
+        ? choices([
+            hcats([space(), mk'(~enforce_inline=true, dclause)]),
+            hcats([
+              linebreak(),
+              indent_and_align(mk'(~enforce_inline=false, dclause)),
+            ]),
+          ])
+        : hcat(choice(space(), linebreak()), hidden_clause);
+    hcats([
+      Delim.bar_Rule,
+      Pat.mk(dp)
+      |> pad_child(~inline_padding=(space(), space()), ~enforce_inline=false),
+      Delim.arrow_Rule,
+      clause_doc,
+    ]);
+  };
 };
