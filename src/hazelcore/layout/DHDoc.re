@@ -363,21 +363,22 @@ module Exp = {
           | _ => hcats([mk_cast(dcast_doc), cast_decoration])
           };
         | Lam(dp, ty, dbody) =>
-          if (show_fn_bodies) {
-            let doc_body = (~enforce_inline) =>
-              go(~enforce_inline, dbody) |> mk_cast;
-            hcats([
-              Delim.sym_Lam,
-              Pat.mk(~enforce_inline=true, dp),
-              Delim.colon_Lam,
-              Typ.mk(~enforce_inline=true, ty),
-              Delim.open_Lam,
-              doc_body |> pad_child(~enforce_inline),
-              Delim.close_Lam,
-            ]);
-          } else {
-            text("<fn>");
-          }
+          let body_doc =
+            show_fn_bodies
+              ? ((~enforce_inline) => mk_cast(go(~enforce_inline, dbody)))
+              : (
+                (~enforce_inline as _) =>
+                  annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis))
+              );
+          hcats([
+            Delim.sym_Lam,
+            Pat.mk(~enforce_inline=true, dp),
+            Delim.colon_Lam,
+            Typ.mk(~enforce_inline=true, ty),
+            Delim.open_Lam,
+            body_doc |> pad_child(~enforce_inline),
+            Delim.close_Lam,
+          ]);
         | FixF(x, ty, dbody) =>
           let doc_body = (~enforce_inline) =>
             go(~enforce_inline, dbody) |> mk_cast;

@@ -9,6 +9,9 @@ let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
     | Cat(l1, l2) => go(l1) @ go(l2)
     | Linebreak => [Node.br([])]
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
+    | Annot(Collapsed, l) => [
+        Node.span([Attr.classes(["Collapsed"])], go(l)),
+      ]
     | Annot(HoleLabel, l) => [
         Node.span([Attr.classes(["HoleLabel"])], go(l)),
       ]

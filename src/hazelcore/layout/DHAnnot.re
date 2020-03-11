@@ -1,5 +1,6 @@
 [@deriving sexp]
 type t =
+  | Collapsed
   | HoleLabel
   | Delim
   | EmptyHole(HoleInstance.t)

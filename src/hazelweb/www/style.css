@@ -888,6 +888,10 @@ h1 {
   margin: -1px;
 }
 
+.DHCode .Collapsed {
+  color: #999;
+}
+
 .OpenChild.Para {
   display: inline-flex;
   flex-direction: row;
