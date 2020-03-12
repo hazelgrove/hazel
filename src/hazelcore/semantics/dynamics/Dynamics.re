@@ -986,11 +986,7 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(
-        InHole((TypeInconsistent | InconsistentBranches(_)) as reason, u),
-        _,
-        _,
-      )
+    | Case(InHole(TypeInconsistent as reason, u), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
@@ -1014,6 +1010,45 @@ module Exp = {
     | Case(InHole(WrongLength, _), _, _)
     | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
       DoesNotExpand
+    | Case(
+        InHole(InconsistentBranches(rule_types) as reason, u),
+        scrut,
+        rules,
+      ) =>
+      switch (syn_expand(ctx, delta, scrut)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, pat_ty, delta) =>
+        let expand_rules =
+          List.fold_left2(
+            (b, r_t, r) =>
+              switch (b) {
+              | None => None
+              | Some((drs, delta)) =>
+                switch (ana_expand_rule(ctx, delta, r, pat_ty, r_t)) {
+                | None => None
+                | Some((dr, delta)) =>
+                  let drs = drs @ [dr];
+                  Some((drs, delta));
+                }
+              },
+            Some(([], delta)),
+            rule_types,
+            rules,
+          );
+        switch (expand_rules) {
+        | None => DoesNotExpand
+        | Some((drs, delta)) =>
+          let gamma = Contexts.gamma(ctx);
+          let sigma = id_env(gamma);
+          let delta =
+            MetaVarMap.extend_unique(
+              delta,
+              (u, (ExpressionHole, Hole, gamma)),
+            );
+          let d = DHExp.Case(d1, drs, 0);
+          Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+        };
+      }
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);

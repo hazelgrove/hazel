@@ -895,9 +895,29 @@ module Exp = {
     | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
     | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
     | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | Case(InHole(WrongLength, _), _, _)
     | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
       None
+    | Case(InHole(InconsistentBranches(rule_types), _), scrut, rules) =>
+      switch (syn(ctx, scrut)) {
+      | None => None
+      | Some(pat_ty) =>
+        List.fold_left2(
+          (ty, rule_type, rule) => {
+            switch (ty) {
+            | None => None
+            | Some(_) =>
+              switch (ana_rule(ctx, rule, pat_ty, rule_type)) {
+              | None => None
+              | Some(_) => Some(HTyp.Hole)
+              }
+            }
+          },
+          Some(HTyp.Hole),
+          rule_types,
+          rules,
+        )
+      }
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
       VarMap.lookup(Contexts.gamma(ctx), x)
