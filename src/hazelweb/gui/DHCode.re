@@ -1,7 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 open Pretty;
 
-let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
+let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
   open Vdom;
   let rec go = (l: DHLayout.t) =>
     switch (l) {
@@ -24,7 +24,17 @@ let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
     | Annot(VarHole(_), l) => [
         Node.span([Attr.classes(["InVarHole"])], go(l)),
       ]
-    | Annot(EmptyHole(_), l) => go(l)
+    | Annot(EmptyHole(inst), l) => [
+        Node.span(
+          [
+            Attr.classes(["EmptyHole"]),
+            Attr.on_click(_ =>
+              inject(Update.Action.SelectHoleInstance(inst))
+            ),
+          ],
+          go(l),
+        ),
+      ]
     | Annot(FailedCastDelim, l) => [
         Node.span([Attr.classes(["FailedCastDelim"])], go(l)),
       ]
@@ -40,6 +50,7 @@ let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
 
 let view =
     (
+      ~inject,
       ~show_casts: bool,
       ~show_fn_bodies: bool,
       ~show_case_clauses: bool,
@@ -59,5 +70,5 @@ let view =
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
-  |> view_of_layout;
+  |> view_of_layout(~inject);
 };

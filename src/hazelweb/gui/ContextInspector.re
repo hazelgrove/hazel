@@ -41,6 +41,7 @@ let view =
               [],
               [
                 DHCode.view(
+                  ~inject,
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
                   ~show_casts=model.show_casts,
@@ -230,16 +231,16 @@ let view =
 
     let prev_btn =
       switch (context_inspector.prev_state) {
-      | Some((u, i)) =>
+      | Some(inst) =>
         Node.div(
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(u, i))),
+            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance(u, i))] : [];
+                  ? [inject(SelectHoleInstance(inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -257,16 +258,16 @@ let view =
 
     let next_btn =
       switch (context_inspector.next_state) {
-      | Some((u, i)) =>
+      | Some(inst) =>
         Node.div(
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(u, i))),
+            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance(u, i))] : [];
+                  ? [inject(SelectHoleInstance(inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],

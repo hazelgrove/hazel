@@ -106,11 +106,11 @@ let perform_edit_action = (a: Action.t, model: t): t => {
      );
 };
 
-let move_to_hole = (u: MetaVar.t, model: t): t =>
-  model |> map_program(Program.move_to_hole(u));
-
-let select_hole_instance = (inst: HoleInstance.t, model: t): t =>
-  model |> map_program(Program.put_selected_instance(inst));
+let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
+  model
+  |> map_program(Program.put_selected_instance(inst))
+  |> map_program(Program.move_to_hole(u))
+  |> focus_cell;
 
 let toggle_left_sidebar = (model: t): t => {
   ...model,

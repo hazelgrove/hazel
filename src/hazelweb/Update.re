@@ -23,9 +23,8 @@ module Action = {
     | ToggleShowUnevaluatedExpansion
     | ToggleShowContenteditable
     | ToggleShowPresentation
-    | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
+    | SelectHoleInstance(HoleInstance.t)
     | InvalidVar(string)
-    | MoveToHole(MetaVar.t)
     | SelectionChange
     | FocusCell
     | BlurCell
@@ -88,7 +87,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusCell
   | BlurCell
   | FocusWindow
-  | MoveToHole(_)
   | Undo
   | Redo =>
     Logger.append(
@@ -156,9 +154,8 @@ let apply_action =
       ...model,
       show_presentation: !model.show_presentation,
     }
-  | SelectHoleInstance(u, i) => model |> Model.select_hole_instance((u, i))
+  | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
-  | MoveToHole(u) => model |> Model.move_to_hole(u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
     state.setting_caret := true;

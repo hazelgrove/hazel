@@ -140,6 +140,7 @@ let page_view =
               [Attr.classes(["result-view"])],
               [
                 DHCode.view(
+                  ~inject,
                   ~show_fn_bodies=model.show_fn_bodies,
                   ~show_case_clauses=model.show_case_clauses,
                   ~show_casts=model.show_casts,
