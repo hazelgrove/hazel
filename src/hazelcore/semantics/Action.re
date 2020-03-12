@@ -292,7 +292,7 @@ module Typ = {
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
-        ),
+        ) |
         SwapUp |
         SwapDown |
         SwapLeft |
