@@ -240,6 +240,28 @@ module Typ = {
       | Some(op) => Succeeded(construct_operator(op, zoperand, surround))
       }
 
+    /* SwapLeft and SwapRight is handled at block level */
+
+    /* invalid swap actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+    
+    | (SwapLeft, Zoperand(_, (E, _))) => Failed
+    | (SwapLeft, ZOperand(zoperand,
+                          (A(operator, S(operand, new_prefix)), suffix)
+                          )) => {
+                            let new_suffix = Seq.A(operator, S(operand, suffix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+                            Succeeded(mk_ZOpSeq(new_zseq))
+                          }
+    | (SwapRight, ZOperand(_, (_, E))) => Failed
+    | (SwapRight, Zoperand(zoperand,
+                          (prefix, A(operator S(operand, new_suffix)))
+                          )) => {
+                            let new_prefix = Seq.A(operator, S(operand, prefix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+                            Succeeded(mk_ZOpSeq(new_zseq))
+                          }
     /* Zipper */
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
       switch (perform_operand(a, zoperand)) {
@@ -271,6 +293,10 @@ module Typ = {
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
         ),
+        SwapUp |
+        SwapDown |
+        SwapLeft |
+        SwapRight,
         _,
       ) =>
       Failed
@@ -1160,7 +1186,11 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
-        UpdateApPalette(_),
+        UpdateApPalette(_) |
+        SwapUp |
+        SwapDown |
+        SwapLeft |
+        SwapRight
         _,
       ) =>
       Failed
