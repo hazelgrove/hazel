@@ -246,7 +246,7 @@ module Typ = {
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
     
-    | (SwapLeft, Zoperand(_, (E, _))) => Failed
+    | (SwapLeft, ZOperand(_, (E, _))) => Failed
     | (SwapLeft, ZOperand(zoperand,
                           (A(operator, S(operand, new_prefix)), suffix)
                           )) => {
@@ -255,7 +255,7 @@ module Typ = {
                             Succeeded(mk_ZOpSeq(new_zseq))
                           }
     | (SwapRight, ZOperand(_, (_, E))) => Failed
-    | (SwapRight, Zoperand(zoperand,
+    | (SwapRight, ZOperand(zoperand,
                           (prefix, A(operator S(operand, new_suffix)))
                           )) => {
                             let new_prefix = Seq.A(operator, S(operand, prefix));
