@@ -948,7 +948,11 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapUp
+    | SwapDown
+    | SwapLeft
+    | SwapRight =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -996,7 +1000,11 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapUp
+    | SwapDown
+    | SwapLeft
+    | SwapRight =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1022,6 +1030,10 @@ module Pat = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+    /* Invalid swap actions */
+    | (SwapUp, _)
+    | (SwapDown, _) => Failed
 
     /* Movement */
     | (
