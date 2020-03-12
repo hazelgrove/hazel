@@ -149,7 +149,7 @@ let _follow_steps_opseq =
          )
     }
   };
-  
+
 let holes_err =
     (
       ~hole_desc: MetaVar.t => hole_desc,
