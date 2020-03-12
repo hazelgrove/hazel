@@ -1190,7 +1190,7 @@ module Pat = {
         SwapUp |
         SwapDown |
         SwapLeft |
-        SwapRight
+        SwapRight,
         _,
       ) =>
       Failed
