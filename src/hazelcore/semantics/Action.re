@@ -3990,6 +3990,8 @@ module Exp = {
       Succeeded(AnaDone((new_zblock, u_gen)));
 
     /* SwapLeft and SwapRight actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
 
     | (SwapLeft, ZOperand(_, (E, _))) => Failed
     | (SwapLeft, ZOperand(zoperand,
