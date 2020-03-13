@@ -2796,6 +2796,7 @@ module Exp = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (SwapUp | SwapDown, _)
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
 
@@ -3019,7 +3020,8 @@ module Exp = {
     /* Invalid actions at expression level */
     | (Construct(SLine), CursorE(OnText(_), _))
     | (Construct(SList), _) => Failed
-
+    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) => Failed
+    
     /* Movement handled at top level */
     | (
         MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
