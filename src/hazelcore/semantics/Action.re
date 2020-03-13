@@ -2689,6 +2689,10 @@ module Exp = {
       };
     | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
 
+    /* Invalid swap actions */
+    | (SwapUp, _)
+    | (SwapDown, _) => Failed
+
     /* Zipper */
 
     | (_, ExpLineZ(zopseq)) =>
