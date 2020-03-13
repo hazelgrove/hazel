@@ -169,16 +169,14 @@ let patterns_of_type =
       | Unit
       | Arrow(_, _) => []
       | Num => [numlit(0), wild()] |> List.map(wrap)
-      | Bool => List.map(b => wrap(boollit(b)), [true, false])
+      | Bool => [true, false] |> List.map(b => wrap(boollit(b)))
       | Prod(_, _) => [
           wrap_operator(hole1, Comma, hole2),
           wrap_operator(hole3, Comma, hole4),
         ]
       | Sum(_, _) =>
-        List.map(
-          ((side, hole)) => wrap(injection(side, wrap(hole))),
-          InjSide.[(L, hole1), (R, hole2)],
-        )
+        InjSide.[(L, hole1), (R, hole2)]
+        |> List.map(((side, hole)) => wrap(injection(side, wrap(hole))))
       | List(_) => [wrap(listnil()), wrap_operator(hole1, Cons, hole2)]
       }
     );
