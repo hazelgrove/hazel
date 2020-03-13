@@ -454,7 +454,11 @@ module KeyCombo = {
     | Alt_C
     | Pound
     | Ctrl_Z
-    | Ctrl_Shift_Z;
+    | Ctrl_Shift_Z
+    | Alt_W
+    | Alt_S
+    | Alt_A
+    | Alt_D;
 
   let get_details =
     fun
@@ -484,7 +488,11 @@ module KeyCombo = {
     | Alt_R => Details.alt_R
     | Alt_C => Details.alt_C
     | Ctrl_Z => Details.ctrl_z
-    | Ctrl_Shift_Z => Details.ctrl_shift_z;
+    | Ctrl_Shift_Z => Details.ctrl_shift_z
+    | Alt_W => Details.alt_W
+    | Alt_S => Details.alt_S
+    | Alt_A => Details.alt_A
+    | Alt_D => Details.alt_D;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
