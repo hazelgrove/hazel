@@ -3750,7 +3750,7 @@ module Exp = {
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) => {
-          let new_zblock = (rest, zline, ([last] @ suffix));
+          let new_zblock = (rest, zline, ([last, ...suffix]));
           Succeeded(
             AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty))
           )
@@ -3840,6 +3840,7 @@ module Exp = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (SwapUp | SwapDown, _) => Failed
 
     /* Movement handled at top level */
     | (
@@ -3987,6 +3988,25 @@ module Exp = {
       };
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(AnaDone((new_zblock, u_gen)));
+
+    /* SwapLeft and SwapRight actions */
+
+    | (SwapLeft, ZOperand(_, (E, _))) => Failed
+    | (SwapLeft, ZOperand(zoperand,
+                          (A(operator, S(operand, new_prefix)), suffix)
+                          )) => {
+                            let new_suffix = Seq.A(operator, S(operand, suffix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+                            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+                          }
+    | (SwapRight, ZOperand(_, (_, E))) => Failed
+    | (SwapRight, ZOperand(zoperand,
+                          (prefix, A(operator, S(operand, new_suffix)))
+                          )) => {
+                            let new_prefix = Seq.A(operator, S(operand, prefix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+                            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+                          }
 
     /* Zipper */
 
