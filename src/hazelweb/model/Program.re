@@ -2,30 +2,12 @@ module Result_ = Result;
 open Core_kernel;
 module Result = Result_;
 
-type context_inspector = {
-  prev_state: option(HoleInstance.t),
-  next_state: option(HoleInstance.t),
-};
+type t = {edit_state: Statics.edit_state};
 
-type t = {
-  edit_state: Statics.edit_state,
-  selected_instance: option(HoleInstance.t),
-  context_inspector,
-  user_selected_instances: UserSelectedInstances.t,
-};
-
-let mk = (edit_state: Statics.edit_state): t => {
-  edit_state,
-  selected_instance: None,
-  context_inspector: {
-    prev_state: None,
-    next_state: None,
-  },
-  user_selected_instances: UserSelectedInstances.init,
-};
+let mk = (edit_state: Statics.edit_state): t => {edit_state: edit_state};
 
 let get_edit_state = program => program.edit_state;
-let put_edit_state = (edit_state, program) => {...program, edit_state};
+let put_edit_state = (edit_state, _program) => {edit_state: edit_state};
 
 let get_zexp = program => {
   let (ze, _, _) = program |> get_edit_state;
@@ -96,25 +78,6 @@ let get_result = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
-let get_selected_instance = program => program.selected_instance;
-let put_selected_instance = ((u, i) as inst, program) => {
-  let (_, hii, _) = program |> get_result;
-  {
-    ...program,
-    selected_instance: Some(inst),
-    user_selected_instances:
-      program.user_selected_instances |> UserSelectedInstances.update(inst),
-    context_inspector: {
-      prev_state: i > 0 ? Some((u, i - 1)) : None,
-      next_state:
-        i < HoleInstanceInfo.num_instances(hii, u) - 1
-          ? Some((u, i + 1)) : None,
-    },
-  };
-};
-
-let get_context_inspector = program => program.context_inspector;
-
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
@@ -146,3 +109,7 @@ let get_doc = program => {
   let e = program |> get_uhexp;
   _doc(e);
 };
+
+let _cursor_on_exp_hole =
+  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
+let cursor_on_exp_hole = program => program |> get_zexp |> _cursor_on_exp_hole;

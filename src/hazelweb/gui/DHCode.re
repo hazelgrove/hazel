@@ -54,7 +54,7 @@ let view =
       ~show_casts: bool,
       ~show_fn_bodies: bool,
       ~show_case_clauses: bool,
-      ~width=80,
+      ~width: int,
       ~pos=0,
       d: DHExp.t,
     )
@@ -72,3 +72,17 @@ let view =
      )
   |> view_of_layout(~inject);
 };
+
+let view_of_hole_instance =
+    (~inject, ~width: int, ~pos=0, (u, i): HoleInstance.t): Vdom.Node.t =>
+  view(
+    ~inject,
+    ~show_casts=false,
+    ~show_fn_bodies=false,
+    ~show_case_clauses=false,
+    ~width,
+    ~pos,
+    DHExp.EmptyHole(u, i, []),
+  );
+
+let view_of_var = x => Vdom.Node.text(x);

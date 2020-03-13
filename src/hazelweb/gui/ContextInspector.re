@@ -75,7 +75,7 @@ let view =
     let sigma =
       if (model.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
-        switch (program |> Program.get_selected_instance) {
+        switch (model |> Model.get_selected_hole_instance) {
         | None => Dynamics.Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
@@ -105,36 +105,28 @@ let view =
     };
   };
 
-  [@warning "-26"]
   let path_view_titlebar =
     Panel.view_of_other_title_bar("Closure above observed at ");
-  [@warning "-26"]
+
   let instructional_msg = msg =>
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
-  [@warning "-27"]
+
   let view_of_path_item = ((inst, x)) =>
     Node.div(
       [Attr.classes(["path-item"])],
       [
         Node.div(
           [Attr.classes(["inst"])],
-          // [UHCode.view_of_hole_instance(~inject, inst)],
-          [],
+          [DHCode.view_of_hole_instance(~inject, ~width=30, inst)],
         ),
         Node.div(
           [Attr.classes(["inst-var-separator"])],
           [Node.text("·")],
         ),
-        Node.div(
-          [Attr.classes(["path-var"])],
-          // [UHCode.view_of_Var(~inject, x)],
-          [],
-        ),
+        Node.div([Attr.classes(["path-var"])], [DHCode.view_of_var(x)]),
       ],
     );
 
-  [@warning "-26"]
-  [@warning "-27"]
   let path_view = (inst, path: InstancePath.t) => {
     let (titlebar_txt, path_area_children) =
       switch (path) {
@@ -163,8 +155,7 @@ let view =
             [
               Node.div(
                 [Attr.classes(["trailing-inst"])],
-                // [UHCode.view_of_hole_instance(~inject, inst)],
-                [],
+                [DHCode.view_of_hole_instance(~inject, ~width=30, inst)],
               ),
             ],
             path,
@@ -185,10 +176,8 @@ let view =
     );
   };
 
-  [@warning "-26"]
-  let hii_summary =
-      (hii, (u_, i_) as inst, context_inspector: Program.context_inspector) => {
-    let num_instances = HoleInstanceInfo.num_instances(hii, u_);
+  let hii_summary = (hii, (u, i) as inst) => {
+    let num_instances = HoleInstanceInfo.num_instances(hii, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -198,18 +187,17 @@ let view =
             [
               Node.div(
                 [Attr.classes(["hii-summary-inst"])],
-                // [UHCode.view_of_hole_instance(~inject, inst)],
-                [],
+                [DHCode.view_of_hole_instance(~inject, ~width=30, inst)],
               ),
               Node.text(" = hole "),
               Node.span(
                 [Attr.classes(["hole-name-normal-txt"])],
-                [Node.text(string_of_int(u_ + 1))],
+                [Node.text(string_of_int(u + 1))],
               ),
               Node.text(" instance "),
               Node.span(
                 [Attr.classes(["inst-number-normal-txt"])],
-                [Node.text(string_of_int(i_ + 1))],
+                [Node.text(string_of_int(i + 1))],
               ),
               Node.text(" of "),
               Node.span(
@@ -230,8 +218,7 @@ let view =
       "Next instance (" ++ KeyCombo.Details.name(next_key) ++ ")";
 
     let prev_btn =
-      switch (context_inspector.prev_state) {
-      | Some(inst) =>
+      if (i > 0) {
         Node.div(
           [
             Attr.create("title", prev_title),
@@ -240,25 +227,24 @@ let view =
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance(inst))] : [];
+                  ? [inject(SelectHoleInstance((u, i - 1)))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
           [Icons.left_arrow(["prev-instance", "has-prev", "noselect"])],
-        )
-      | None =>
+        );
+      } else {
         Node.div(
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
           ],
           [Icons.left_arrow(["prev-instance", "no-prev", "noselect"])],
-        )
+        );
       };
 
     let next_btn =
-      switch (context_inspector.next_state) {
-      | Some(inst) =>
+      if (i < num_instances - 1) {
         Node.div(
           [
             Attr.create("title", next_title),
@@ -267,20 +253,20 @@ let view =
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance(inst))] : [];
+                  ? [inject(SelectHoleInstance((u, i + 1)))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
           [Icons.right_arrow(["next-instance", "has-next", "noselect"])],
-        )
-      | None =>
+        );
+      } else {
         Node.div(
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
           ],
           [Icons.right_arrow(["next-instance", "no-next", "noselect"])],
-        )
+        );
       };
 
     let controls =
@@ -308,24 +294,23 @@ let view =
           switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
           | None => [
               instructional_msg(
-                "Move cursor to a hole, or click a hole instance in the result, to see  closures.",
+                "Move cursor to a hole, or click a hole instance in the result, to see closures.",
               ),
             ]
           | Some(u) =>
-            switch (program |> Program.get_selected_instance) {
+            switch (model |> Model.get_selected_hole_instance) {
+            | None => [
+                instructional_msg("Click on a hole instance in the result"),
+              ]
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
+                | None => raise(InvalidInstance)
                 | Some((_, path)) => [
                     path_view_titlebar,
-                    hii_summary(
-                      hii,
-                      inst,
-                      program |> Program.get_context_inspector,
-                    ),
+                    hii_summary(hii, inst),
                     path_view(inst, path),
                   ]
-                | None => raise(InvalidInstance)
                 };
               } else {
                 [
@@ -334,9 +319,6 @@ let view =
                   ),
                 ];
               }
-            | None => [
-                instructional_msg("Click on a hole instance in the result"),
-              ]
             }
           };
         Node.div([Attr.classes(["the-path-viewer"])], children);

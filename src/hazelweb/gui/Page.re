@@ -144,6 +144,7 @@ let page_view =
                   ~show_fn_bodies=model.show_fn_bodies,
                   ~show_case_clauses=model.show_case_clauses,
                   ~show_casts=model.show_casts,
+                  ~width=80,
                   model.show_unevaluated_expansion
                     ? program |> Program.get_expansion
                     : program |> Program.get_result |> Result.get_dhexp,
