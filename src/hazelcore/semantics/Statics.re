@@ -944,6 +944,7 @@ module Exp = {
         }
       };
     | Parenthesized(body) => syn(ctx, body)
+    | ListLit(_, opseq) => syn_opseq(ctx, opseq)
     }
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
@@ -1125,6 +1126,7 @@ module Exp = {
         }
       }
     | Parenthesized(body) => ana(ctx, body, ty)
+    | ListLit(_, opseq) => ana_opseq(ctx, opseq, ty)
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1548,6 +1550,10 @@ module Exp = {
       let (block, ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
       (Parenthesized(block), ty, u_gen);
+    | ListLit(err, opseq) =>
+      let (block, ty, u_gen) =
+        syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, opseq);
+      (ListLit(err, block), ty, u_gen);
     | Lam(_, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1947,6 +1953,10 @@ module Exp = {
       let (body, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
       (Parenthesized(body), u_gen);
+    | ListLit(err, opseq) =>
+      let (body, u_gen) =
+        ana_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, opseq, ty);
+      (ListLit(err, body), u_gen);
     | Lam(_, p, ann, def) =>
       switch (HTyp.matched_arrow(ty)) {
       | Some((ty1_given, ty2)) =>
