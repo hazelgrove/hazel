@@ -3643,6 +3643,8 @@ module Exp = {
       }
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
+    /* Invalid swap actions */
+    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) => Failed
     /* Zipper */
     | (_, RuleZP(zp, clause)) =>
       switch (Pat.ana_perform(ctx, u_gen, a, zp, pat_ty)) {
