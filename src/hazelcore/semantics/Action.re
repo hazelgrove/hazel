@@ -3997,7 +3997,8 @@ module Exp = {
                           )) => {
                             let new_suffix = Seq.A(operator, S(operand, suffix));
                             let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-                            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+                            Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+                            |> wrap_in_AnaDone;
                           }
     | (SwapRight, ZOperand(_, (_, E))) => Failed
     | (SwapRight, ZOperand(zoperand,
@@ -4005,7 +4006,8 @@ module Exp = {
                           )) => {
                             let new_prefix = Seq.A(operator, S(operand, prefix));
                             let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-                            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+                            Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+                            |> wrap_in_AnaDone;
                           }
 
     /* Zipper */
