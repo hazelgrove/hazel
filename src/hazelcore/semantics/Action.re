@@ -1414,6 +1414,7 @@ module Pat = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (SwapUp | SwapDown, _) => Failed
 
     /* Movement handled at top level */
     | (
@@ -1532,6 +1533,27 @@ module Pat = {
           construct_operator(u_gen, operator, zoperand, surround);
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
+
+    /* invalid swap actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+    
+    | (SwapLeft, ZOperand(_, (E, _))) => Failed
+    | (SwapLeft, ZOperand(zoperand,
+                          (A(operator, S(operand, new_prefix)), suffix)
+                          )) => {
+                            let new_suffix = Seq.A(operator, S(operand, suffix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+                            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+                          }
+    | (SwapRight, ZOperand(_, (_, E))) => Failed
+    | (SwapRight, ZOperand(zoperand,
+                          (prefix, A(operator, S(operand, new_suffix)))
+                          )) => {
+                            let new_prefix = Seq.A(operator, S(operand, prefix));
+                            let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+                            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+                          }
 
     /* Zipper */
     | (_, ZOperand(zoperand, (E, E))) =>
