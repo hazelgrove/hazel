@@ -2692,6 +2692,8 @@ module Exp = {
     /* Invalid swap actions */
     | (SwapUp, _)
     | (SwapDown, _) => Failed
+    | (SwapLeft, CursorL(_))
+    | (SwapRight, CursorL(_)) => Failed
 
     /* Zipper */
 
