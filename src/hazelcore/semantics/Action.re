@@ -1591,7 +1591,11 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
-        UpdateApPalette(_),
+        UpdateApPalette(_) |
+        SwapUp |
+        SwapDown |
+        SwapLeft |
+        SwapRight,
         _,
       ) =>
       Failed
