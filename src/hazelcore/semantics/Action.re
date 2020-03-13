@@ -4071,6 +4071,10 @@ module Exp = {
         ),
       ) =>
       Failed
+
+    /* Invalid swap actions */
+    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) => Failed
+
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
