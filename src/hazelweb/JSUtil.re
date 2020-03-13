@@ -420,6 +420,10 @@ module KeyCombo = {
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
+    let alt_W = alt(Key.the_key("w"));
+    let alt_S = alt(Key.the_key("s"));
+    let alt_A = alt(Key.the_key("a"));
+    let alt_D = alt(Key.the_key("d"));
   };
 
   [@deriving sexp]
