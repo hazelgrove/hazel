@@ -79,7 +79,10 @@ let view =
         | None => Dynamics.Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None => raise(InvalidInstance)
+          | None =>
+            // raise(InvalidInstance)
+            JSUtil.log("InvalidInstance");
+            Dynamics.Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
@@ -305,7 +308,9 @@ let view =
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None => raise(InvalidInstance)
+                | None =>
+                  // raise(InvalidInstance)
+                  [instructional_msg("Internal Error: invalid instance")]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),
