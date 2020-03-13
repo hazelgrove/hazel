@@ -218,7 +218,7 @@ let holes_skel =
   go(skel, hs);
 };
 
-let holes_opseq =
+let _holes_opseq =
     (
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
       ~hole_desc: MetaVar.t => hole_desc,
@@ -511,7 +511,9 @@ module Typ = {
 
   let rec holes =
           (uty: UHTyp.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
-    hs |> holes_opseq(~holes_operand, ~hole_desc, ~is_space, ~rev_steps, uty)
+    hs |> holes_opseq(uty, rev_steps)
+  and holes_opseq = (opseq: UHTyp.opseq, rev_steps: rev_steps, hs: hole_list) =>
+    _holes_opseq(~holes_operand, ~hole_desc, ~is_space, ~rev_steps, opseq, hs)
   and holes_operand =
       (operand: UHTyp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
@@ -676,14 +678,16 @@ module Pat = {
   let hole_desc = (u: MetaVar.t): hole_desc => PatHole(u);
 
   let rec holes = (p: UHPat.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
-    hs
-    |> holes_opseq(
-         ~holes_operand,
-         ~hole_desc,
-         ~is_space=UHPat.is_Space,
-         ~rev_steps,
-         p,
-       )
+    hs |> holes_opseq(rev_steps, p)
+  and holes_opseq = (rev_steps: rev_steps, opseq: UHPat.opseq, hs: hole_list) =>
+    _holes_opseq(
+      ~holes_operand,
+      ~hole_desc,
+      ~is_space=UHPat.is_Space,
+      ~rev_steps,
+      opseq,
+      hs,
+    )
   and holes_operand =
       (operand: UHPat.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
@@ -816,6 +820,7 @@ module Exp = {
     switch (zoperand) {
     | CursorE(cursor, _) => ([], cursor)
     | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
+    | ListLitZ(_, zopseq) => cons'(0, of_zopseq(zopseq))
     | LamZP(_, zp, _, _) => cons'(0, Pat.of_z(zp))
     | LamZA(_, _, zann, _) => cons'(1, Typ.of_z(zann))
     | LamZE(_, _, _, zdef) => cons'(2, of_z(zdef))
@@ -907,6 +912,14 @@ module Exp = {
           body
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
+        | _ => None
+        }
+      | ListLit(err, opseq) =>
+        switch (x) {
+        | 0 =>
+          opseq
+          |> follow_opseq((xs, cursor))
+          |> OptUtil.map(zopseq => ZExp.ListLitZ(err, zopseq))
         | _ => None
         }
       | Lam(err, p, ann, body) =>
@@ -1085,6 +1098,14 @@ module Exp = {
           |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
         | _ => None
         }
+      | ListLit(err, zopseq) =>
+        switch (x) {
+        | 0 =>
+          zopseq
+          |> follow_steps_opseq(~side, xs)
+          |> OptUtil.map(zopseq => ZExp.ListLitZ(err, zopseq))
+        | _ => None
+        }
       | Lam(err, p, ann, body) =>
         switch (x) {
         | 0 =>
@@ -1215,16 +1236,17 @@ module Exp = {
         }
       )
       |> Pat.holes(p, [0, ...rev_steps])
-    | ExpLine(opseq) =>
-      hs
-      |> holes_opseq(
-           ~holes_operand,
-           ~hole_desc,
-           ~is_space=UHExp.is_Space,
-           ~rev_steps,
-           opseq,
-         )
+    | ExpLine(opseq) => hs |> holes_opseq(opseq, rev_steps)
     }
+  and holes_opseq = (opseq: UHExp.opseq, rev_steps: rev_steps, hs: hole_list) =>
+    _holes_opseq(
+      ~holes_operand,
+      ~hole_desc,
+      ~is_space=UHExp.is_Space,
+      ~rev_steps,
+      opseq,
+      hs,
+    )
   and holes_operand =
       (operand: UHExp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
@@ -1235,6 +1257,10 @@ module Exp = {
     | BoolLit(err, _)
     | ListNil(err) => hs |> holes_err(err, rev_steps)
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
+    | ListLit(err, opseq) =>
+      hs
+      |> holes_opseq(opseq, [0, ...rev_steps])
+      |> holes_err(err, rev_steps)
     | Inj(err, _, body) =>
       hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
     | Lam(err, p, ann, body) =>
@@ -1526,6 +1552,8 @@ module Exp = {
       /* invalid cursor position */
       no_holes
     | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO[livelits] */
+    | CursorE(_, ListLit(_, _)) => no_holes
+    | ListLitZ(_, zopseq) => holes_zopseq(zopseq, [0, ...rev_steps])
     | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
     | LamZP(err, zp, ann, body) =>
       let holes_err =
