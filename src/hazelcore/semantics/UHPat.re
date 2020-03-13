@@ -168,7 +168,7 @@ let patterns_of_type =
       | HTyp.Hole
       | Unit
       | Arrow(_, _) => []
-      | Num => [wrap(hole1), wrap(hole2)]
+      | Num => [numlit(0), wild()] |> List.map(wrap)
       | Bool => List.map(b => wrap(boollit(b)), [true, false])
       | Prod(_, _) => [
           wrap_operator(hole1, Comma, hole2),
