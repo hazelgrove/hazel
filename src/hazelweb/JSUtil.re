@@ -419,11 +419,11 @@ module KeyCombo = {
     let alt_T = alt(Key.the_key("T"));
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
-    let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
-    let alt_W = alt(Key.the_key("w"));
-    let alt_S = alt(Key.the_key("s"));
-    let alt_A = alt(Key.the_key("a"));
-    let alt_D = alt(Key.the_key("d"));
+    let ctrl_shift_z = ctrl_shift(Key.the_key("Z"))
+    let ctrl_shift_left = ctrl_shift(Key.the_key("ArrowLeft"));
+    let ctrl_shift_right = ctrl_shift(Key.the_key("ArrowRight"));
+    let ctrl_shift_up = ctrl_shift(Key.the_key("ArrowUp"));
+    let ctrl_shift_down = ctrl_shift(Key.the_key("ArrowDown"));;
   };
 
   [@deriving sexp]
@@ -455,10 +455,10 @@ module KeyCombo = {
     | Pound
     | Ctrl_Z
     | Ctrl_Shift_Z
-    | Alt_W
-    | Alt_S
-    | Alt_A
-    | Alt_D;
+    | Ctrl_Shift_Left
+    | Ctrl_Shift_Right
+    | Ctrl_Shift_Up
+    | Ctrl_Shift_Down;
 
   let get_details =
     fun
@@ -489,10 +489,10 @@ module KeyCombo = {
     | Alt_C => Details.alt_C
     | Ctrl_Z => Details.ctrl_z
     | Ctrl_Shift_Z => Details.ctrl_shift_z
-    | Alt_W => Details.alt_W
-    | Alt_S => Details.alt_S
-    | Alt_A => Details.alt_A
-    | Alt_D => Details.alt_D;
+    | Ctrl_Shift_Left => Details.ctrl_shift_left
+    | Ctrl_Shift_Right => Details.ctrl_shift_right
+    | Ctrl_Shift_Up => Details.ctrl_shift_up
+    | Ctrl_Shift_Down => Details.ctrl_shift_down;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
