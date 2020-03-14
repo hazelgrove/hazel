@@ -246,16 +246,16 @@ module Typ = {
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
     
-    | (SwapLeft, ZOperand(_, (E, _))) => Failed
-    | (SwapLeft, ZOperand(zoperand,
+    | (SwapLeft, ZOperand(CursorT(_), (E, _))) => Failed
+    | (SwapLeft, ZOperand(CursorT(_) as zoperand,
                           (A(operator, S(operand, new_prefix)), suffix)
                           )) => {
                             let new_suffix = Seq.A(operator, S(operand, suffix));
                             let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
                             Succeeded(mk_ZOpSeq(new_zseq));
                           }
-    | (SwapRight, ZOperand(_, (_, E))) => Failed
-    | (SwapRight, ZOperand(zoperand,
+    | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
+    | (SwapRight, ZOperand(CursorT(_) as zoperand,
                           (prefix, A(operator, S(operand, new_suffix)))
                           )) => {
                             let new_prefix = Seq.A(operator, S(operand, prefix));
@@ -295,9 +295,7 @@ module Typ = {
           SApPalette(_),
         ) |
         SwapUp |
-        SwapDown |
-        SwapLeft |
-        SwapRight,
+        SwapDown,
         _,
       ) =>
       Failed
@@ -376,6 +374,9 @@ module Typ = {
       | None => Failed
       | Some(op) => Succeeded(construct_operator(op, zoperand, (E, E)))
       }
+
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorT(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
