@@ -420,10 +420,10 @@ module KeyCombo = {
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"))
-    let ctrl_shift_left = ctrl_shift(Key.the_key("ArrowLeft"));
-    let ctrl_shift_right = ctrl_shift(Key.the_key("ArrowRight"));
-    let ctrl_shift_up = ctrl_shift(Key.the_key("ArrowUp"));
-    let ctrl_shift_down = ctrl_shift(Key.the_key("ArrowDown"));
+    let ctrl_shift_left = ctrl_shift(Key.the_code("ArrowLeft"));
+    let ctrl_shift_right = ctrl_shift(Key.the_code("ArrowRight"));
+    let ctrl_shift_up = ctrl_shift(Key.the_code("ArrowUp"));
+    let ctrl_shift_down = ctrl_shift(Key.the_code("ArrowDown"));
   };
 
   [@deriving sexp]
