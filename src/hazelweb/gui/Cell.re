@@ -4,6 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
 module KeyCombo = JSUtil.KeyCombo;
+module MoveKey = JSUtil.MoveKey;
 open ViewUtil;
 open Sexplib.Std;
 
@@ -46,9 +47,39 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
+let move_caret = (~inject, move_key: MoveKey.t) => {
+  let next_position =
+    switch (move_key) {
+    | ArrowLeft => CaretMap.lookup_left()
+    | ArrowRight => CaretMap.lookup_right()
+    | ArrowUp => CaretMap.lookup_up()
+    | ArrowDown => CaretMap.lookup_down()
+    };
+  switch (next_position) {
+  | None =>
+    JSUtil.log("[CursorEscaped]");
+    Vdom.Event.Many([]);
+  | Some((_, rev_path)) =>
+    let path = CursorPath.rev(rev_path);
+    Vdom.Event.(
+      Many([
+        Prevent_default,
+        Stop_propagation,
+        inject(Update.Action.EditAction(MoveTo(path))),
+      ])
+    );
+  };
+};
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let program = model |> Model.get_program;
+  let prevent_stop_inject = a =>
+    Vdom.Event.Many([
+      Vdom.Event.Prevent_default,
+      Vdom.Event.Stop_propagation,
+      inject(a),
+    ]);
   Vdom.(
     Node.div(
       [
@@ -58,15 +89,10 @@ let view =
             ? Event.Many([]) : Event.Prevent_default
         ),
         Attr.on_keydown(evt => {
-          let prevent_stop_inject = a =>
-            Vdom.Event.Many([
-              Vdom.Event.Prevent_default,
-              Vdom.Event.Stop_propagation,
-              inject(a),
-            ]);
-          if (JSUtil.is_movement_key(evt)) {
-            Event.Many([]);
-          } else {
+          let key = JSUtil.get_key(evt);
+          switch (MoveKey.of_key(key)) {
+          | Some(move_key) => move_caret(~inject, move_key)
+          | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
             | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
@@ -90,7 +116,7 @@ let view =
                   ),
                 )
               }
-            };
+            }
           };
         }),
       ],

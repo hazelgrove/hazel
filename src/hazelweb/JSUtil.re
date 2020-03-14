@@ -589,6 +589,22 @@ let single_key_string: single_key => string =
     | Underscore => "_"
     };
 
+module MoveKey = {
+  type t =
+    | ArrowLeft
+    | ArrowRight
+    | ArrowUp
+    | ArrowDown;
+
+  let of_key =
+    fun
+    | "ArrowLeft" => Some(ArrowLeft)
+    | "ArrowRight" => Some(ArrowRight)
+    | "ArrowDown" => Some(ArrowDown)
+    | "ArrowUp" => Some(ArrowUp)
+    | _ => None;
+};
+
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {
     let key = get_key(evt);
