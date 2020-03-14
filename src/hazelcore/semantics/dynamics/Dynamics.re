@@ -1037,6 +1037,7 @@ module Exp = {
       let elt_ty = HTyp.Hole;
       Expands(ListNil(elt_ty), List(elt_ty), delta);
     | Parenthesized(body) => syn_expand(ctx, delta, body)
+    | ListLit(_, opseq) => syn_expand_opseq(ctx, delta, opseq)
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1328,6 +1329,7 @@ module Exp = {
         };
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
+    | ListLit(_, opseq) => ana_expand_opseq(ctx, delta, opseq, ty)
     | Lam(NotInHole, p, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => DoesNotExpand
