@@ -2016,16 +2016,12 @@ let syn_fix_holes_zpat =
       u_gen: MetaVarGen.t,
       zp: ZPat.t,
     )
-    : (
-        var_warns_deferrable(ZPat.t),
-        HTyp.t,
-        Contexts.t((HTyp.t, CursorPath.steps)),
-        MetaVarGen.t,
-      ) => {
+    : (ZPat.t, HTyp.t, Contexts.t((HTyp.t, CursorPath.steps)), MetaVarGen.t) => {
   let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ty, ctx, u_gen) = syn_fix_holes_pat(steps, ctx, u_gen, p);
-  let zp = pass_deferrable(p => CursorPath.follow_pat_or_fail(path, p), p);
+  let p = dummy_undefer(p, NoWarning);
+  let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ty, ctx, u_gen);
 };
 
@@ -2037,15 +2033,12 @@ let ana_fix_holes_zpat =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : (
-        var_warns_deferrable(ZPat.t),
-        Contexts.t((HTyp.t, CursorPath.steps)),
-        MetaVarGen.t,
-      ) => {
+    : (ZPat.t, Contexts.t((HTyp.t, CursorPath.steps)), MetaVarGen.t) => {
   let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ctx, u_gen) = ana_fix_holes_pat(steps, ctx, u_gen, p, ty);
-  let zp = pass_deferrable(p => CursorPath.follow_pat_or_fail(path, p), p);
+  let p = dummy_undefer(p, NoWarning);
+  let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ctx, u_gen);
 };
 

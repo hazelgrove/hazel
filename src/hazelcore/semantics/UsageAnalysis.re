@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open GeneralUtil;
 
 [@deriving sexp]
 type uses_list = list(CursorPath.steps);
@@ -105,3 +106,66 @@ and find_uses_opseq = (x: Var.t, opseq: UHExp.opseq, steps): (uses_list, int) =>
     let (uses, length) = find_uses_opseq(x, seq, steps);
     (uses @ find_uses_exp(x, e, steps @ [length]), length + 1);
   };
+
+type var_warns_deferrable('a) = ListDeferrable.t(VarWarnStatus.t, 'a, Var.t);
+include ListDeferrable;
+
+let rec reduce = (f: ('b, 'a, list('a)) => 'b, acc: 'b, xs: list('a)): 'b => {
+  switch (xs) {
+  | [] => acc
+  | [x, ...xs] => reduce(f, f(acc, x, xs), xs)
+  };
+};
+
+let rec ana_var_pat = (p: UHPat.t, block: UHExp.block): UHPat.t =>
+  switch (p) {
+  | Var(err, NotInVarHole, _, x) =>
+    Var(
+      err,
+      NotInVarHole,
+      if (UHExp.is_complete_block(block)) {
+        switch (find_uses_block(x, block)) {
+        | [] => VarWarnStatus.CritUnused
+        | [_, ..._] => VarWarnStatus.NoWarning
+        };
+      } else {
+        VarWarnStatus.NoWarning;
+      },
+      x,
+    )
+  | OpSeq(skel, opseq) => OpSeq(skel, ana_var_pat_seq(opseq, block))
+  | _ => p
+  }
+and ana_var_pat_seq = (seq: UHPat.opseq, block: UHExp.block): UHPat.opseq =>
+  switch (seq) {
+  | ExpOpExp(tm1, op, tm2) =>
+    ExpOpExp(ana_var_pat(tm1, block), op, ana_var_pat(tm2, block))
+  | SeqOpExp(seq, op, tm) =>
+    SeqOpExp(ana_var_pat_seq(seq, block), op, ana_var_pat(tm, block))
+  };
+
+let ana_var_block = (Block(lines, e): UHExp.block): UHExp.block => {
+  let rev_lines =
+    reduce(
+      (acc_lines: UHExp.lines, line: UHExp.line, lines: UHExp.lines) => {
+        let analyzed_line =
+          switch (line) {
+          | LetLine(p, ann, block) =>
+            UHExp.LetLine(ana_var_pat(p, Block(lines, e)), ann, block)
+          | _ => line
+          };
+        [analyzed_line, ...acc_lines];
+      },
+      [],
+      lines,
+    );
+  Block(List.rev(rev_lines), e);
+};
+
+let ana_var_zblock = zblock => {
+  let path = CursorPath.of_zblock(zblock);
+  let block = ZExp.erase_block(zblock);
+  let block = ana_var_block(block);
+  let zblock = CursorPath.follow_block_or_fail(path, block);
+  zblock;
+};

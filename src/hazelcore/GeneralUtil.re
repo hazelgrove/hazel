@@ -656,4 +656,13 @@ module ListDeferrable = {
     | Deferred(deferred, var_list) =>
       Deferred(warn_list => func(warn_list |> deferred), var_list)
     };
+
+  let dummy_undefer =
+      (deferrable: t('needed_t, 'deferred_t, 'target_t), dummy: 'needed_t)
+      : 'deferred_t =>
+    switch (deferrable) {
+    | NotDeferred(not_deferred) => not_deferred
+    | Deferred(deferred, target_list) =>
+      List.map(_ => dummy, target_list) |> deferred
+    };
 };
