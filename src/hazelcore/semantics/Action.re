@@ -295,9 +295,7 @@ module Typ = {
           SApPalette(_),
         ) |
         SwapUp |
-        SwapDown |
-        SwapLeft |
-        SwapRight,
+        SwapDown,
         _,
       ) =>
       Failed
