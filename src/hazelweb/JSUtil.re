@@ -290,6 +290,7 @@ module ModKeys = {
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
   let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
+  let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -375,6 +376,7 @@ module KeyCombo = {
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
     let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
+    let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -424,7 +426,7 @@ module KeyCombo = {
     let ctrl_shift_right = ctrl_shift(Key.the_code("ArrowRight"));
     let ctrl_shift_up = ctrl_shift(Key.the_code("ArrowUp"));
     let ctrl_shift_down = ctrl_shift(Key.the_code("ArrowDown"));
-    let ctrl_shift_l = ctrl_shift(Key.the_key("l"));
+    let ctrl_shift_l = ctrl_alt(Key.the_key("l"));
   };
 
   [@deriving sexp]
