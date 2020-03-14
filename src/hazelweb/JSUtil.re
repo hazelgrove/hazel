@@ -500,6 +500,14 @@ module KeyCombo = {
       Some(Pound);
     } else if (evt_matches(Details.ctrl_z)) {
       Some(Ctrl_Z);
+    } else if (evt_matches(Details.ctrl_shift_left)) {
+      Some(Ctrl_Shift_Left);
+    } else if (evt_matches(Details.ctrl_shift_right)) {
+      Some(Ctrl_Shift_Right);
+    } else if (evt_matches(Details.ctrl_shift_up)) {
+      Some(Ctrl_Shift_Up);
+    } else if (evt_matches(Details.ctrl_shift_down)) {
+      Some(Ctrl_Shift_Down);
     } else if (evt_matches(Details.ctrl_shift_z)) {
       Some(Ctrl_Shift_Z);
     } else if (evt_matches(Details.escape)) {
