@@ -421,12 +421,11 @@ module KeyCombo = {
     let alt_T = alt(Key.the_key("T"));
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
-    let ctrl_shift_z = ctrl_shift(Key.the_key("Z"))
-    let ctrl_shift_left = ctrl_shift(Key.the_code("ArrowLeft"));
-    let ctrl_shift_right = ctrl_shift(Key.the_code("ArrowRight"));
-    let ctrl_shift_up = ctrl_shift(Key.the_code("ArrowUp"));
-    let ctrl_shift_down = ctrl_shift(Key.the_code("ArrowDown"));
-    let ctrl_shift_l = ctrl_alt(Key.the_key("l"));
+    let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
+    let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
+    let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
+    let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
+    let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
   };
 
   [@deriving sexp]
@@ -458,11 +457,10 @@ module KeyCombo = {
     | Pound
     | Ctrl_Z
     | Ctrl_Shift_Z
-    | Ctrl_Shift_Left
-    | Ctrl_Shift_Right
-    | Ctrl_Shift_Up
-    | Ctrl_Shift_Down
-    | Ctrl_Shift_L;
+    | Ctrl_Alt_I
+    | Ctrl_Alt_K
+    | Ctrl_Alt_J
+    | Ctrl_Alt_L;
 
   let get_details =
     fun
@@ -493,11 +491,10 @@ module KeyCombo = {
     | Alt_C => Details.alt_C
     | Ctrl_Z => Details.ctrl_z
     | Ctrl_Shift_Z => Details.ctrl_shift_z
-    | Ctrl_Shift_Left => Details.ctrl_shift_left
-    | Ctrl_Shift_Right => Details.ctrl_shift_right
-    | Ctrl_Shift_Up => Details.ctrl_shift_up
-    | Ctrl_Shift_Down => Details.ctrl_shift_down
-    | Ctrl_Shift_L => Details.ctrl_shift_l;
+    | Ctrl_Alt_I => Details.ctrl_alt_i
+    | Ctrl_Alt_K => Details.ctrl_alt_k
+    | Ctrl_Alt_J => Details.ctrl_alt_j
+    | Ctrl_Alt_L => Details.ctrl_alt_l;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -505,14 +502,6 @@ module KeyCombo = {
       Some(Pound);
     } else if (evt_matches(Details.ctrl_z)) {
       Some(Ctrl_Z);
-    } else if (evt_matches(Details.ctrl_shift_left)) {
-      Some(Ctrl_Shift_Left);
-    } else if (evt_matches(Details.ctrl_shift_right)) {
-      Some(Ctrl_Shift_Right);
-    } else if (evt_matches(Details.ctrl_shift_up)) {
-      Some(Ctrl_Shift_Up);
-    } else if (evt_matches(Details.ctrl_shift_l)) {
-      Some(Ctrl_Shift_L);
     } else if (evt_matches(Details.ctrl_shift_z)) {
       Some(Ctrl_Shift_Z);
     } else if (evt_matches(Details.escape)) {
@@ -563,6 +552,14 @@ module KeyCombo = {
       Some(Alt_R);
     } else if (evt_matches(Details.alt_C)) {
       Some(Alt_C);
+    } else if (evt_matches(Details.ctrl_alt_i)) {
+      Some(Ctrl_Alt_I);
+    } else if (evt_matches(Details.ctrl_alt_k)) {
+      Some(Ctrl_Alt_K);
+    } else if (evt_matches(Details.ctrl_alt_j)) {
+      Some(Ctrl_Alt_J);
+    } else if (evt_matches(Details.ctrl_alt_l)) {
+      Some(Ctrl_Alt_L);
     } else {
       None;
     };

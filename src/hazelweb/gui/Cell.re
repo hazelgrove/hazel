@@ -42,10 +42,10 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_L, _ => Action.Construct(SInj(L))),
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
-    (Ctrl_Shift_Up, _ => Action.SwapUp),
-    (Ctrl_Shift_Down, _ => Action.SwapDown),
-    (Ctrl_Shift_L, _ => Action.SwapLeft),
-    (Ctrl_Shift_Right, _ => Action.SwapRight),
+    (Ctrl_Alt_I, _ => Action.SwapUp),
+    (Ctrl_Alt_K, _ => Action.SwapDown),
+    (Ctrl_Alt_J, _ => Action.SwapLeft),
+    (Ctrl_Alt_L, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
