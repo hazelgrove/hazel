@@ -28,8 +28,6 @@ let rec box_append =
     };
   };
 
-open Sexplib.Std;
-[@deriving sexp]
 type prebox('annot) = {
   initial_linebreak: bool,
   lines: list(t('annot)),
@@ -104,25 +102,25 @@ let rec prebox_of_layout = (layout: Layout.t('annot)): prebox('annot) => {
 };
 
 let box_of_layout = (layout: Layout.t('annot)): t('annot) => {
-  Printf.printf(
-    "box_of_layout:\n%s\n------\n%!",
-    Sexplib.Sexp.to_string_hum(
-      Layout.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<annot>"), layout),
-    ),
-  );
+  // Printf.printf(
+  //   "box_of_layout:\n%s\n------\n%!",
+  //   Sexplib.Sexp.to_string_hum(
+  //     Layout.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<annot>"), layout),
+  //   ),
+  // );
   let prebox = prebox_of_layout(layout);
-  Printf.printf(
-    "prebox:\n%s\n------\n%!",
-    Sexplib.Sexp.to_string_hum(
-      sexp_of_prebox(_ => Sexplib.Std.sexp_of_string("<annot>"), prebox),
-    ),
-  );
+  // Printf.printf(
+  //   "prebox:\n%s\n------\n%!",
+  //   Sexplib.Sexp.to_string_hum(
+  //     sexp_of_prebox(_ => Sexplib.Std.sexp_of_string("<annot>"), prebox),
+  //   ),
+  // );
   let flattened = Box.flatten(box_of_prebox(prebox));
-  Printf.printf(
-    "flattened:\n%s\n------\n%!",
-    Sexplib.Sexp.to_string_hum(
-      Box.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<annot>"), flattened),
-    ),
-  );
+  // Printf.printf(
+  //   "flattened:\n%s\n------\n%!",
+  //   Sexplib.Sexp.to_string_hum(
+  //     Box.sexp_of_t(_ => Sexplib.Std.sexp_of_string("<annot>"), flattened),
+  //   ),
+  // );
   flattened;
 };

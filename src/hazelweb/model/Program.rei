@@ -33,3 +33,5 @@ let perform_edit_action: (Action.t, t) => t;
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
+
+let get_doc: t => TermDoc.t;

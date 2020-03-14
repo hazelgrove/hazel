@@ -34,6 +34,13 @@ let on_startup = (~schedule_action, _) => {
   );
 };
 
+let restart_caret_animation = () => {
+  let caret = JSUtil.force_get_elem_by_id("caret");
+  caret##.classList##remove(Js.string("blink"));
+  caret##focus;
+  caret##.classList##add(Js.string("blink"));
+};
+
 let create =
     (
       model: Incr.t(Model.t),
@@ -64,6 +71,7 @@ let create =
             state.setting_caret := true;
             JSUtil.set_caret(expected_node, expected_offset);
           };
+          restart_caret_animation();
         };
       },
     model,
