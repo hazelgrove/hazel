@@ -424,6 +424,7 @@ module KeyCombo = {
     let ctrl_shift_right = ctrl_shift(Key.the_code("ArrowRight"));
     let ctrl_shift_up = ctrl_shift(Key.the_code("ArrowUp"));
     let ctrl_shift_down = ctrl_shift(Key.the_code("ArrowDown"));
+    let ctrl_shift_l = ctrl_shift(Key.the_key("l"));
   };
 
   [@deriving sexp]
@@ -458,7 +459,8 @@ module KeyCombo = {
     | Ctrl_Shift_Left
     | Ctrl_Shift_Right
     | Ctrl_Shift_Up
-    | Ctrl_Shift_Down;
+    | Ctrl_Shift_Down
+    | Ctrl_Shift_L;
 
   let get_details =
     fun
@@ -492,7 +494,8 @@ module KeyCombo = {
     | Ctrl_Shift_Left => Details.ctrl_shift_left
     | Ctrl_Shift_Right => Details.ctrl_shift_right
     | Ctrl_Shift_Up => Details.ctrl_shift_up
-    | Ctrl_Shift_Down => Details.ctrl_shift_down;
+    | Ctrl_Shift_Down => Details.ctrl_shift_down
+    | Ctrl_Shift_L => Details.ctrl_shift_l;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -506,8 +509,8 @@ module KeyCombo = {
       Some(Ctrl_Shift_Right);
     } else if (evt_matches(Details.ctrl_shift_up)) {
       Some(Ctrl_Shift_Up);
-    } else if (evt_matches(Details.ctrl_shift_down)) {
-      Some(Ctrl_Shift_Down);
+    } else if (evt_matches(Details.ctrl_shift_l)) {
+      Some(Ctrl_Shift_L);
     } else if (evt_matches(Details.ctrl_shift_z)) {
       Some(Ctrl_Shift_Z);
     } else if (evt_matches(Details.escape)) {

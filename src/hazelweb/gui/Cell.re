@@ -73,7 +73,7 @@ let view =
           } else {
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
-            | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
+            | Some(Ctrl_Shift_L) => prevent_stop_inject(Update.Action.Redo)
             | Some(kc) =>
               prevent_stop_inject(
                 Update.Action.EditAction(
