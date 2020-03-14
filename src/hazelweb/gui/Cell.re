@@ -44,7 +44,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_C, _ => Action.Construct(SCase)),
     (Ctrl_Shift_Up, _ => Action.SwapUp),
     (Ctrl_Shift_Down, _ => Action.SwapDown),
-    (Ctrl_Shift_Left, _ => Action.SwapLeft),
+    (Ctrl_Shift_L, _ => Action.SwapLeft),
     (Ctrl_Shift_Right, _ => Action.SwapRight),
   ]
   |> List.to_seq
@@ -73,7 +73,7 @@ let view =
           } else {
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
-            | Some(Ctrl_Shift_L) => prevent_stop_inject(Update.Action.Redo)
+            | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
             | Some(kc) =>
               prevent_stop_inject(
                 Update.Action.EditAction(
