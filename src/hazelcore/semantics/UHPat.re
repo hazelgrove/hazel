@@ -82,6 +82,8 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   (EmptyHole(u), u_gen);
 };
 
+let new_EmptyHoles = ListUtil.iterate(new_EmptyHole);
+
 let is_EmptyHole =
   fun
   | EmptyHole(_) => true
@@ -157,31 +159,49 @@ and make_inconsistent_operand =
   };
 
 let patterns_of_type =
-    (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) => {
-  let (hole1, u_gen) = u_gen |> new_EmptyHole;
-  let (hole2, u_gen) = u_gen |> new_EmptyHole;
-  let (hole3, u_gen) = u_gen |> new_EmptyHole;
-  let (hole4, u_gen) = u_gen |> new_EmptyHole;
-  let pattern =
-    OpSeq.(
-      switch (ty) {
-      | HTyp.Hole
-      | Unit
-      | Arrow(_, _) => []
-      | Num => [numlit(0), wild()] |> List.map(wrap)
-      | Bool => [true, false] |> List.map(b => wrap(boollit(b)))
-      | Prod(_, _) => [
-          wrap_operator(hole1, Comma, hole2),
-          wrap_operator(hole3, Comma, hole4),
-        ]
-      | Sum(_, _) =>
-        InjSide.[(L, hole1), (R, hole2)]
-        |> List.map(((side, hole)) => wrap(injection(side, wrap(hole))))
-      | List(_) => [wrap(listnil()), wrap_operator(hole1, Cons, hole2)]
-      }
-    );
-  (pattern, u_gen);
-};
+    (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) =>
+  OpSeq.(
+    switch (ty) {
+    | HTyp.Hole
+    | Unit
+    | Arrow(_, _) => ([], u_gen)
+    | Num => ([numlit(0), wild()] |> List.map(wrap), u_gen)
+    | Bool => ([true, false] |> List.map(b => wrap(boollit(b))), u_gen)
+    | Prod(_, _) =>
+      let prod_element_count = ty |> HTyp.get_prod_elements |> List.length;
+      let patternSkel =
+        ListUtil.range(prod_element_count)
+        |> List.map(i => Skel.Placeholder(i))
+        |> make_tuple(NotInHole);
+      let opseq_of_holes = u_gen => {
+        let (firstHole, u_gen) = u_gen |> new_EmptyHole;
+        let (holes, u_gen) = new_EmptyHoles(prod_element_count - 1, u_gen);
+        let opseq =
+          OpSeq(
+            patternSkel,
+            Seq.mk(firstHole, holes |> List.map(hole => (Comma, hole))),
+          );
+        (opseq, u_gen);
+      };
+
+      let (opseq1, u_gen) = opseq_of_holes(u_gen);
+      let (opseq2, u_gen) = opseq_of_holes(u_gen);
+      ([opseq1, opseq2], u_gen);
+    | Sum(_, _) =>
+      let (holes, u_gen) = new_EmptyHoles(2, u_gen);
+      let patterns =
+        List.map2(
+          (side, hole) => wrap(injection(side, wrap(hole))),
+          InjSide.[L, R],
+          holes,
+        );
+      (patterns, u_gen);
+    | List(_) =>
+      let (hole1, u_gen) = u_gen |> new_EmptyHole;
+      let (hole2, u_gen) = u_gen |> new_EmptyHole;
+      ([wrap(listnil()), wrap_operator(hole1, Cons, hole2)], u_gen);
+    }
+  );
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>

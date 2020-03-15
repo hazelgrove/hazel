@@ -226,3 +226,16 @@ let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
        [],
      )
   |> List.rev;
+
+let iterate = (f: 'x => ('y, 'x), times: int, start: 'x): (list('y), 'x) => {
+  let x = ref(start);
+  let ys = ref([]);
+
+  for (_ in times downto 0) {
+    let (y, new_x) = f(x^);
+    x := new_x;
+    ys := [y, ...ys^];
+  };
+
+  (ys^, x^);
+};
