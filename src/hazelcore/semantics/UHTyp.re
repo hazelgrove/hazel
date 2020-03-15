@@ -50,11 +50,8 @@ let unwrap_parentheses = (operand: operand): t =>
 /* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
   let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
-  let mk_seq_operand = (op, a, b) => {
-    let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
-    let seq = Seq.mk(a, [(op, b)]);
-    Parenthesized(OpSeq(skel, seq));
-  };
+  let mk_seq_operand = (op, a, b) =>
+    Parenthesized(OpSeq.wrap_operator(a, op, b));
   /* Save it for another day
      match (a, b) with
        | (OpSeq skelA opseqA, OpSeq skelB opseqB) ->

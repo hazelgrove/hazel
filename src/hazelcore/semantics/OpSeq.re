@@ -26,7 +26,7 @@ let wrap_operator =
     )
     : t('operand, 'operator) =>
   OpSeq(
-    Skel.(BinOp(err, op, Placeholder(0), Placeholder(0))),
+    Skel.(BinOp(err, op, Placeholder(0), Placeholder(1))),
     Seq.mk(left, [(op, right)]),
   );
 
