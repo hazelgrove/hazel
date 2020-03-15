@@ -81,7 +81,7 @@ let view =
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
-            JSUtil.log("InvalidInstance");
+            JSUtil.log("[InvalidInstance]");
             Dynamics.Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
@@ -310,7 +310,7 @@ let view =
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
                 | None =>
                   // raise(InvalidInstance)
-                  [instructional_msg("Internal Error: invalid instance")]
+                  [instructional_msg("Internal Error: [InvalidInstance]")]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),
