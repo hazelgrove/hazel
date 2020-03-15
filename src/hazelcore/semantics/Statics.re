@@ -397,7 +397,7 @@ module Pat = {
           seq,
           HTyp.Hole,
         );
-      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let (u, u_gen) = MetaVarGen.next_hole(u_gen);
       let skel =
         Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
       let ty = HTyp.Hole;
@@ -423,7 +423,7 @@ module Pat = {
     switch (operand) {
     | EmptyHole(_) =>
       if (renumber_empty_holes) {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (EmptyHole(u), Hole, ctx, u_gen);
       } else {
         (operand, HTyp.Hole, ctx, u_gen);
@@ -554,7 +554,7 @@ module Pat = {
             }
         )
       | _ =>
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let (opseq, _, ctx, u_gen) =
           syn_fix_holes_opseq(
             ctx,
@@ -608,7 +608,7 @@ module Pat = {
           seq,
           HTyp.Hole,
         );
-      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let (u, u_gen) = MetaVarGen.next_hole(u_gen);
       let skel =
         Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
       (skel, seq, ctx, u_gen);
@@ -649,7 +649,7 @@ module Pat = {
             seq,
             ty_list,
           );
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         let skel =
           Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Cons, skel1, skel2);
         (skel, seq, ctx, u_gen);
@@ -668,7 +668,7 @@ module Pat = {
     switch (operand) {
     | EmptyHole(_) =>
       if (renumber_empty_holes) {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (EmptyHole(u), ctx, u_gen);
       } else {
         (operand, ctx, u_gen);
@@ -686,7 +686,7 @@ module Pat = {
       if (HTyp.consistent(ty, ty')) {
         (UHPat.set_err_status_operand(NotInHole, operand'), ctx, u_gen);
       } else {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           UHPat.set_err_status_operand(InHole(TypeInconsistent, u), operand'),
           ctx,
@@ -697,7 +697,7 @@ module Pat = {
       switch (HTyp.matched_list(ty)) {
       | Some(_) => (ListNil(NotInHole), ctx, u_gen)
       | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (ListNil(InHole(TypeInconsistent, u)), ctx, u_gen);
       }
     | Parenthesized(p1) =>
@@ -714,7 +714,7 @@ module Pat = {
       | None =>
         let (p1, _, ctx, u_gen) =
           syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
       }
     };
@@ -1510,7 +1510,7 @@ module Exp = {
     switch (e) {
     | EmptyHole(_) =>
       if (renumber_empty_holes) {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (EmptyHole(u), Hole, u_gen);
       } else {
         (e, Hole, u_gen);
@@ -1523,7 +1523,7 @@ module Exp = {
         switch (var_err_status) {
         | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
         | NotInVarHole =>
-          let (u, u_gen) = MetaVarGen.next(u_gen);
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
           let reason: VarErrStatus.HoleReason.t =
             switch (Var.is_let(x), Var.is_case(x)) {
             | (true, _) => Keyword(Let)
@@ -1595,7 +1595,7 @@ module Exp = {
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (FreeLivelit(u, name), Hole, u_gen);
       | Some(livelit_defn) =>
         let (splice_map, u_gen) =
@@ -1830,7 +1830,7 @@ module Exp = {
             }
         )
       | _ =>
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let (opseq, _, u_gen) =
           syn_fix_holes_opseq(
             ctx,
@@ -1901,7 +1901,7 @@ module Exp = {
             seq,
             ty_list,
           );
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         let skel =
           Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
         (skel, seq, u_gen);
@@ -1935,7 +1935,7 @@ module Exp = {
     switch (e) {
     | EmptyHole(_) =>
       if (renumber_empty_holes) {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (EmptyHole(u), u_gen);
       } else {
         (e, u_gen);
@@ -1950,7 +1950,7 @@ module Exp = {
       if (HTyp.consistent(ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e), u_gen);
       } else {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e),
           u_gen,
@@ -1960,7 +1960,7 @@ module Exp = {
       switch (HTyp.matched_list(ty)) {
       | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
       | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (ListNil(InHole(TypeInconsistent, u)), u_gen);
       }
     | Parenthesized(body) =>
@@ -1988,7 +1988,7 @@ module Exp = {
           } else {
             let (e', _, u_gen) =
               syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let (u, u_gen) = MetaVarGen.next_hole(u_gen);
             (
               UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
               u_gen,
@@ -2010,7 +2010,7 @@ module Exp = {
       | None =>
         let (e', _, u_gen) =
           syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
           u_gen,
@@ -2034,7 +2034,7 @@ module Exp = {
         if (HTyp.consistent(ty, ty')) {
           (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
         } else {
-          let (u, u_gen) = MetaVarGen.next(u_gen);
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
           (
             UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
             u_gen,
@@ -2070,7 +2070,7 @@ module Exp = {
       } else {
         let (e', _, u_gen) =
           syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
           UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
           u_gen,

@@ -720,7 +720,7 @@ module Pat = {
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
     | Some(ExpandingKeyword(k)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let var =
         UHPat.var(
           ~var_err=InVarHole(Keyword(k), u),
@@ -729,7 +729,7 @@ module Pat = {
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
     | Some(LivelitName(lln)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let var =
         UHPat.var(
           ~var_err=InVarHole(Free, u),
@@ -778,12 +778,12 @@ module Pat = {
         }
       }
     | Some(ExpandingKeyword(k)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
       Succeeded((zp, ctx, u_gen));
     | Some(LivelitName(lln)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let var =
         UHPat.var(
           ~var_err=InVarHole(Free, u),
@@ -1687,7 +1687,7 @@ module Pat = {
       | None =>
         let (zbody, _, ctx, u_gen) =
           Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zoperand));
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let zp =
           ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
         Succeeded((zp, ctx, u_gen));
@@ -2055,7 +2055,7 @@ module Exp = {
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
     | Some(ExpandingKeyword(k)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let var =
         UHExp.var(
           ~var_err=InVarHole(Keyword(k), u),
@@ -2064,7 +2064,7 @@ module Exp = {
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
     | Some(LivelitName(lln)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let ze =
         ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.FreeLivelit(u, lln)));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
@@ -2079,7 +2079,7 @@ module Exp = {
         let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
         Succeeded(SynDone((ze, ty, u_gen)));
       | None =>
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let var = UHExp.var(~var_err=InVarHole(Free, u), x);
         let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
         Succeeded(SynDone((new_ze, Hole, u_gen)));
@@ -2106,7 +2106,7 @@ module Exp = {
         Failed;
       }
     | Some(ExpandingKeyword(k)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let var =
         UHExp.var(
           ~var_err=InVarHole(Keyword(k), u),
@@ -4183,7 +4183,7 @@ module Exp = {
             u_gen,
             ZExp.ZBlock.wrap(zoperand),
           );
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let new_ze =
           ZExp.ZBlock.wrap(InjZ(InHole(TypeInconsistent, u), side, zbody));
         Succeeded(AnaDone((new_ze, u_gen)));
@@ -4203,7 +4203,7 @@ module Exp = {
       | None =>
         let (body, _, u_gen) = Statics.Exp.syn_fix_holes(ctx, u_gen, body);
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let new_ze =
           ZExp.ZBlock.wrap(
             LamZP(
@@ -4329,7 +4329,7 @@ module Exp = {
                 Statics.Pat.ana_fix_holes(ctx, u_gen, p, ty1);
               let (body, _, u_gen) =
                 Statics.Exp.syn_fix_holes(ctx, u_gen, body);
-              let (u, u_gen) = u_gen |> MetaVarGen.next;
+              let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
               let new_ze =
                 ZExp.ZBlock.wrap(
                   LamZA(InHole(TypeInconsistent, u), p, zann, body),

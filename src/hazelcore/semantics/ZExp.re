@@ -460,7 +460,7 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
   | CaseZR(NotInHole | InHole(WrongLength, _), _, _, _)
   | CaseZA(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApLivelitZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
     (zoperand, u_gen);

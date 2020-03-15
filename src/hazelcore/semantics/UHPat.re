@@ -75,7 +75,7 @@ let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
+  let (u, u_gen) = MetaVarGen.next_hole(u_gen);
   (EmptyHole(u), u_gen);
 };
 
@@ -144,7 +144,7 @@ and make_inconsistent_operand =
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
     (set_operand, u_gen);
@@ -161,13 +161,13 @@ let text_operand =
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
   | LivelitName(lln) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     (
       var(~var_err=InVarHole(Free, u), LivelitName.strip_prefix(lln)),
       u_gen,
     );
   | ExpandingKeyword(kw) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     (
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,

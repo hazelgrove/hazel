@@ -101,7 +101,7 @@ let make_inconsistent =
     switch (skel, zseq) {
     | (Placeholder(_), ZOperator(_, _)) => assert(false)
     | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperator(zop, surround),
@@ -111,7 +111,7 @@ let make_inconsistent =
       let (zoperand, u_gen) = zoperand |> make_inconsistent_zoperand(u_gen);
       (skel, ZOperand(zoperand, surround), u_gen);
     | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperand(zoperand, surround),

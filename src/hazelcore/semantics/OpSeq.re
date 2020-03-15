@@ -66,7 +66,7 @@ let make_inconsistent =
       BinOp(InHole(WrongLength, _), op, skel1, skel2),
       seq,
     ) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
     (OpSeq(set_skel, seq), u_gen);
   };

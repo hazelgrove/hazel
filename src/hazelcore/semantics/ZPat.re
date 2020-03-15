@@ -58,7 +58,7 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
     (CursorP(cursor, operand), u_gen);
   | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> make_inconsistent(u_gen);
