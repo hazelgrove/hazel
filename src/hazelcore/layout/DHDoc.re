@@ -442,7 +442,7 @@ module Exp = {
               indent_and_align(mk'(~enforce_inline=false, dclause)),
             ]),
           ])
-        : hcat(choice(space(), linebreak()), hidden_clause);
+        : hcat(space(), hidden_clause);
     hcats([
       Delim.bar_Rule,
       Pat.mk(dp)
