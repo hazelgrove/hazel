@@ -198,11 +198,11 @@ module Exp = {
     | Inj(_)
     | EmptyHole(_)
     | Triv
-    | FailedCast(_) => precedence_const
+    | FailedCast(_)
+    | Lam(_) => precedence_const
     | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
     | FixF(_)
-    | Lam(_)
     | Case(_) => precedence_max
     | BinNumOp(op, _, _) => precedence_bin_num_op(op)
     | Ap(_) => precedence_Ap
@@ -372,35 +372,38 @@ module Exp = {
           | _ => hcats([mk_cast(dcast_doc), cast_decoration])
           };
         | Lam(dp, ty, dbody) =>
-          let body_doc =
-            show_fn_bodies
-              ? ((~enforce_inline) => mk_cast(go(~enforce_inline, dbody)))
-              : (
-                (~enforce_inline as _) =>
-                  annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis))
-              );
-          hcats([
-            Delim.sym_Lam,
-            Pat.mk(~enforce_inline=true, dp),
-            Delim.colon_Lam,
-            Typ.mk(~enforce_inline=true, ty),
-            Delim.open_Lam,
-            body_doc |> pad_child(~enforce_inline),
-            Delim.close_Lam,
-          ]);
+          if (show_fn_bodies) {
+            let body_doc = (~enforce_inline) =>
+              mk_cast(go(~enforce_inline, dbody));
+            hcats([
+              Delim.sym_Lam,
+              Pat.mk(~enforce_inline=true, dp),
+              Delim.colon_Lam,
+              Typ.mk(~enforce_inline=true, ty),
+              Delim.open_Lam,
+              body_doc |> pad_child(~enforce_inline),
+              Delim.close_Lam,
+            ]);
+          } else {
+            annot(DHAnnot.Collapsed, text("<fn>"));
+          }
         | FixF(x, ty, dbody) =>
-          let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
-          hcats([
-            Delim.fix_FixF,
-            space(),
-            text(x),
-            Delim.colon_FixF,
-            Typ.mk(~enforce_inline=true, ty),
-            Delim.open_FixF,
-            doc_body |> pad_child(~enforce_inline),
-            Delim.close_FixF,
-          ]);
+          if (show_fn_bodies) {
+            let doc_body = (~enforce_inline) =>
+              go(~enforce_inline, dbody) |> mk_cast;
+            hcats([
+              Delim.fix_FixF,
+              space(),
+              text(x),
+              Delim.colon_FixF,
+              Typ.mk(~enforce_inline=true, ty),
+              Delim.open_FixF,
+              doc_body |> pad_child(~enforce_inline),
+              Delim.close_FixF,
+            ]);
+          } else {
+            annot(DHAnnot.Collapsed, text("<fn>"));
+          }
         };
       let doc =
         parenthesize
