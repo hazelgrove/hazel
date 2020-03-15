@@ -3646,7 +3646,7 @@ let rec syn_perform_block =
           u_gen,
           e,
         );
-      let zblock = ZExp.BlockZL(zlines, e);
+      let zblock = ZExp.BlockZL(zlines, e) |> UsageAnalysis.ana_var_zblock;
       Succeeded((zblock, ty, u_gen));
     }
   | (
@@ -3675,7 +3675,11 @@ let rec syn_perform_block =
       | CursorEscaped(After) =>
         syn_perform_block(~steps, ~ci, ctx, MoveRight, (zblock, ty, u_gen))
       | Succeeded((E(ze), ty, u_gen)) =>
-        Succeeded((BlockZE(lines, ze), ty, u_gen))
+        Succeeded((
+          ZExp.BlockZE(lines, ze) |> UsageAnalysis.ana_var_zblock,
+          ty,
+          u_gen,
+        ))
       | Succeeded((B(zblock), _, u_gen)) =>
         switch (zblock) {
         | BlockZL((prefix, zline, suffix), e) =>

@@ -93,6 +93,8 @@ let view =
     got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
+  let got_duplicate_indicator =
+    got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
 
   let (ind1, ind2, err_state_b) =
     switch (model.cursor_info.typed) {
@@ -221,6 +223,10 @@ let view =
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | PatAnaDuplicated(expected_ty, _var) =>
+      let ind1 = expected_ty_indicator_pat(expected_ty);
+      let ind2 = got_duplicate_indicator;
+      (ind1, ind2, BindingError);
     | PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
@@ -228,6 +234,10 @@ let view =
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | PatSynDuplicated(_var) =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_duplicate_indicator;
       (ind1, ind2, BindingError);
     | OnLine =>
       /* TODO */

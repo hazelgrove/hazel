@@ -671,6 +671,11 @@ let var_err_clss: VarErrStatus.t => list(cls) =
       "InVarHole",
       "InVarHole_" ++ string_of_int(u),
       "Keyword",
+    ]
+  | InVarHole(Duplicate, u) => [
+      "InVarHole",
+      "InVarHole_" ++ string_of_int(u),
+      "Duplicate",
     ];
 
 let var_warn_clss: VarWarnStatus.t => list(cls) =
@@ -2290,7 +2295,7 @@ let rec snode_of_zpat =
           ~ap_err_status=NotInApHole,
           ~steps: CursorPath.steps,
           ~node: CursorInfo.node,
-          ~ctx: Contexts.t(CursorPath.steps),
+          ~ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           zp: ZPat.t,
         )
         : snode =>
@@ -2299,7 +2304,7 @@ let rec snode_of_zpat =
     let num_of_uses =
       switch (node) {
       | Pat(VarPat(_, uses)) => List.length(uses)
-      | _ => assert(false)
+      | _ => 0
       };
     mk_SBox(
       ~ap_err_status,
@@ -2391,7 +2396,7 @@ let rec snode_of_zblock =
           ~user_newlines: option(Model.user_newlines)=?,
           ~steps: CursorPath.steps=[],
           ~node: CursorInfo.node,
-          ~ctx: Contexts.t(CursorPath.steps),
+          ~ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           zblock: ZExp.zblock,
         )
         : snode =>
@@ -2500,7 +2505,7 @@ and snode_of_zline_item =
       ~user_newlines: option(Model.user_newlines)=?,
       ~steps: CursorPath.steps,
       ~node: CursorInfo.node,
-      ~ctx: Contexts.t(CursorPath.steps),
+      ~ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       zli: ZExp.zline,
     )
     : snode =>
@@ -2544,7 +2549,7 @@ and snode_of_zexp =
       ~ap_err_status=NotInApHole,
       ~steps: CursorPath.steps,
       ~node: CursorInfo.node,
-      ~ctx: Contexts.t(CursorPath.steps),
+      ~ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       ze: ZExp.t,
     ) =>
   switch (ze) {
@@ -2570,7 +2575,7 @@ and snode_of_zexp =
             ~ap_err_status,
             ~steps=steps @ [k],
             ~node: CursorInfo.node,
-            ~ctx: Contexts.t(CursorPath.steps),
+            ~ctx: Contexts.t((HTyp.t, CursorPath.steps)),
             ztm,
           )
         : snode_of_exp(

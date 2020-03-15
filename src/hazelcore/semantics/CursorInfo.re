@@ -64,16 +64,14 @@ type typed =
   /* none of the above and went through subsumption */
   | PatAnaKeyword(HTyp.t, Keyword.t)
   /* cursor is on a keyword */
-  | PatAnaDuplicated(HTyp.t)
-  /* cursor is on a variable with a duplicated name */
+  | PatAnaDuplicated(HTyp.t, Var.t)
   /*
    * # cursor in synthetic pattern position
    */
   | PatSynthesized(HTyp.t)
   /* cursor is on a keyword */
   | PatSynKeyword(Keyword.t)
-  /* cursor is on a variable with a duplicated name */
-  | PatSynDuplicated(HTyp.t)
+  | PatSynDuplicated(Var.t)
   /*
    * # cursor in type position
    */
@@ -408,12 +406,16 @@ let rec _ana_cursor_found_pat =
         ctx,
       )),
     )
+  | Var(NotInHole, InVarHole(Duplicate, _), _, x) =>
+    Some(
+      CursorNotOnDeferredVarPat((
+        PatAnaDuplicated(ty, x),
+        Pat(OtherPat(p)),
+        ctx,
+      )),
+    )
   | Wild(NotInHole)
   | ListNil(NotInHole) =>
-    Some(
-      CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
-    )
-  | Var(NotInHole, _, CritUnused, _) =>
     Some(
       CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
     )
@@ -561,6 +563,20 @@ let rec _syn_cursor_info_pat =
       CursorNotOnDeferredVarPat(
         mk_cursor_info(
           PatSynKeyword(k),
+          Pat(OtherPat(p)),
+          PatFrame(frame),
+          cursor,
+          ctx,
+          node_steps,
+          term_steps,
+        ),
+      ),
+    )
+  | CursorP(cursor, Var(_, InVarHole(Duplicate, _), _, x) as p) =>
+    Some(
+      CursorNotOnDeferredVarPat(
+        mk_cursor_info(
+          PatSynDuplicated(x),
           Pat(OtherPat(p)),
           PatFrame(frame),
           cursor,

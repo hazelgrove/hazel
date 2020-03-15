@@ -1883,7 +1883,8 @@ let empty_footer = () => {
   footer##.innerHTML := Js.string("");
 };
 
-let draw_box_var_def_indicator = (ctx: VarCtx.t(CursorPath.steps), x: Var.t) => {
+let draw_box_var_def_indicator =
+    (ctx: VarCtx.t((HTyp.t, CursorPath.steps)), x: Var.t) => {
   switch (VarMap.lookup_steps(ctx, x)) {
   | None => ()
   | Some(steps) =>

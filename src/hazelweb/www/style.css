@@ -1088,12 +1088,20 @@ button:disabled {
   border: 1px dashed #ce5f00;
 }
 
+.InVarHole.Duplicate {
+	font-weight: italic;
+}
+
 .InVarHole.Keyword {
 	font-weight: bold;
 }
 
 .Keyword .var {
 	font-style: normal;
+}
+
+.CritUnused {
+  color: red;
 }
 
 .result-view {
