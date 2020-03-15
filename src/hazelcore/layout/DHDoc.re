@@ -309,14 +309,19 @@ module Exp = {
           if (enforce_inline) {
             fail();
           } else {
+            let scrut_doc =
+              choices([
+                hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
+                hcats([
+                  linebreak(),
+                  indent_and_align(
+                    mk_cast(go(~enforce_inline=false, dscrut)),
+                  ),
+                ]),
+              ]);
             vseps(
               List.concat([
-                [
-                  hseps([
-                    Delim.open_Case,
-                    mk_cast(go(~enforce_inline=true, dscrut)),
-                  ]),
-                ],
+                [hcat(Delim.open_Case, scrut_doc)],
                 drs
                 |> List.map(
                      mk_rule(
@@ -334,7 +339,7 @@ module Exp = {
           doc;
         | Let(dp, ddef, dbody) =>
           let def_doc = (~enforce_inline) =>
-            go(~enforce_inline, ddef) |> mk_cast;
+            mk_cast(go(~enforce_inline, ddef));
           vseps([
             hcats([
               Delim.mk("let"),
