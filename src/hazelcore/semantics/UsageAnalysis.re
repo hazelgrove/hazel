@@ -68,7 +68,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(InHole(_), _, _, _)
-  | ApLivelit(_, _, _, _)
+  | ApLivelit(_, _, _, _, _)
   | FreeLivelit(_, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, body) =>

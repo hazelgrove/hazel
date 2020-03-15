@@ -882,7 +882,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(InHole(TypeInconsistent, _), _, _, _)
-    | ApLivelit(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
@@ -892,7 +892,7 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApLivelit(InHole(WrongLength, _), _, _, _) => None
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
       VarMap.lookup(Contexts.gamma(ctx), x)
@@ -925,7 +925,7 @@ module Exp = {
       }
     | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.expand(uty))
     | Case(NotInHole, _, _, None) => None
-    | ApLivelit(NotInHole, name, serialized_model, si) =>
+    | ApLivelit(_, NotInHole, name, serialized_model, si) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => None
@@ -1038,7 +1038,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(InHole(TypeInconsistent, _), _, _, _)
-    | ApLivelit(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
@@ -1051,7 +1051,7 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApLivelit(InHole(WrongLength, _), _, _, _) =>
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */
     | ListNil(NotInHole) =>
@@ -1062,7 +1062,7 @@ module Exp = {
     | Var(NotInHole, _, _)
     | NumLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ApLivelit(NotInHole, _, _, _)
+    | ApLivelit(_, NotInHole, _, _, _)
     | FreeLivelit(_, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
@@ -1591,7 +1591,7 @@ module Exp = {
         HTyp.Hole,
         u_gen,
       );
-    | ApLivelit(_, name, serialized_model, si) =>
+    | ApLivelit(llu, _, name, serialized_model, si) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None =>
@@ -1608,7 +1608,7 @@ module Exp = {
         let si = SpliceInfo.update_splice_map(si, splice_map);
         let expansion_ty = livelit_defn.expansion_ty;
         (
-          ApLivelit(NotInHole, name, serialized_model, si),
+          ApLivelit(llu, NotInHole, name, serialized_model, si),
           expansion_ty,
           u_gen,
         );
@@ -1631,8 +1631,9 @@ module Exp = {
           );
         let si = SpliceInfo.update_splice_map(init_splice_info, splice_map);
         let expansion_ty = livelit_defn.expansion_ty;
+        let (llu, u_gen) = MetaVarGen.next_livelit(u_gen);
         (
-          ApLivelit(NotInHole, name, init_serialized_model, si),
+          ApLivelit(llu, NotInHole, name, init_serialized_model, si),
           expansion_ty,
           u_gen,
         );
@@ -1943,7 +1944,7 @@ module Exp = {
     | Var(_, _, _)
     | NumLit(_, _)
     | BoolLit(_, _)
-    | ApLivelit(_, _, _, _)
+    | ApLivelit(_, _, _, _, _)
     | FreeLivelit(_, _) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

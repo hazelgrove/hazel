@@ -3347,14 +3347,14 @@ module Exp = {
         };
       | _ => Failed /* should never happen */
       }
-    | (_, ApLivelitZ(err, name, serialized_model, zsi)) =>
+    | (_, ApLivelitZ(llu, err, name, serialized_model, zsi)) =>
       let (ty, zblock) = ZSpliceInfo.prj_z(zsi);
       switch (ana_perform(ctx, a, (zblock, u_gen), ty)) {
       | Failed => Failed
       | CursorEscaped(_) => Failed /* TODO we need a better protocol for this */
       | Succeeded((zblock, u_gen)) =>
         let zsi = ZSpliceInfo.update_z(zsi, (ty, zblock));
-        let ze = ZExp.ApLivelitZ(err, name, serialized_model, zsi);
+        let ze = ZExp.ApLivelitZ(llu, err, name, serialized_model, zsi);
         Succeeded(SynDone((ZExp.ZBlock.wrap(ze), ty, u_gen)));
       };
     | (_, CaseZE(_, _, _, None) | CaseZR(_, _, _, None)) => Failed
@@ -3945,14 +3945,14 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_, _, _, _) |
+          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_, _, _, _, _) |
           FreeLivelit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApLivelit(_, _, _, _),
+          ApLivelit(_, _, _, _, _),
         ),
       ) =>
       Failed
@@ -4429,7 +4429,7 @@ module Exp = {
 
     /* Subsumption */
     | (PerformLivelitAction(_) | Construct(SListNil), _)
-    | (_, ApLivelitZ(_, _, _, _)) =>
+    | (_, ApLivelitZ(_, _, _, _, _)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     }
   and ana_perform_subsume =

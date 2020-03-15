@@ -780,7 +780,7 @@ module Exp = {
       };
     | CaseZA(_, _, rules, zann) =>
       Typ.cursor_info(~steps=steps @ [1 + List.length(rules)], ctx, zann)
-    | ApLivelitZ(_, _, _, zsi) =>
+    | ApLivelitZ(_, _, _, _, zsi) =>
       let (n, (ty, zblock)) = ZNatMap.prj_z_kv(zsi.zsplice_map);
       ana_cursor_info(~steps=steps @ [n], ctx, zblock, ty);
     };
@@ -954,7 +954,7 @@ module Exp = {
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
       | Case(InHole(TypeInconsistent, _), _, _, _)
-      | ApLivelit(InHole(TypeInconsistent, _), _, _, _) =>
+      | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _) =>
         let operand' =
           zoperand
           |> ZExp.erase_zoperand
@@ -970,13 +970,13 @@ module Exp = {
       | Lam(InHole(WrongLength, _), _, _, _)
       | Inj(InHole(WrongLength, _), _, _)
       | Case(InHole(WrongLength, _), _, _, _)
-      | ApLivelit(InHole(WrongLength, _), _, _, _) => None
+      | ApLivelit(_, InHole(WrongLength, _), _, _, _) => None
       /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
       | NumLit(NotInHole, _)
       | BoolLit(NotInHole, _)
-      | ApLivelit(NotInHole, _, _, _) =>
+      | ApLivelit(_, NotInHole, _, _, _) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
         | None => None
         | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx))
@@ -1013,7 +1013,7 @@ module Exp = {
     | CaseZE(InHole(WrongLength, _), _, _, _)
     | CaseZR(InHole(WrongLength, _), _, _, _)
     | CaseZA(InHole(WrongLength, _), _, _, _)
-    | ApLivelitZ(InHole(WrongLength, _), _, _, _) => None
+    | ApLivelitZ(_, InHole(WrongLength, _), _, _, _) => None
     | LamZP(InHole(TypeInconsistent, _), _, _, _)
     | LamZA(InHole(TypeInconsistent, _), _, _, _)
     | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -1021,7 +1021,7 @@ module Exp = {
     | CaseZE(InHole(TypeInconsistent, _), _, _, _)
     | CaseZR(InHole(TypeInconsistent, _), _, _, _)
     | CaseZA(InHole(TypeInconsistent, _), _, _, _)
-    | ApLivelitZ(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApLivelitZ(_, InHole(TypeInconsistent, _), _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     /* zipper not in hole */
     | LamZP(NotInHole, zp, ann, body) =>
@@ -1084,7 +1084,7 @@ module Exp = {
       }
     | CaseZA(NotInHole, _, rules, zann) =>
       Typ.cursor_info(~steps=steps @ [1 + List.length(rules)], ctx, zann)
-    | ApLivelitZ(NotInHole, _, _, _) =>
+    | ApLivelitZ(_, NotInHole, _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     }
   and ana_cursor_info_rule =

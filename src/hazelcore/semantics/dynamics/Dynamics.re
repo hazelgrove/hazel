@@ -1012,7 +1012,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApLivelit(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | DoesNotExpand => DoesNotExpand
@@ -1033,7 +1033,7 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApLivelit(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1114,7 +1114,7 @@ module Exp = {
         }
       };
     | Case(NotInHole, _, _, None) => DoesNotExpand
-    | ApLivelit(NotInHole, name, serialized_model, si) =>
+    | ApLivelit(_, NotInHole, name, serialized_model, si) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => DoesNotExpand
@@ -1368,7 +1368,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApLivelit(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | DoesNotExpand => DoesNotExpand
@@ -1386,7 +1386,7 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApLivelit(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1502,7 +1502,7 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | NumLit(NotInHole, _)
-    | ApLivelit(NotInHole, _, _, _) =>
+    | ApLivelit(_, NotInHole, _, _, _) =>
       /* subsumption */
       syn_expand_operand(ctx, delta, operand)
     }

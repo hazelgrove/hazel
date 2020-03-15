@@ -64,7 +64,13 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(ErrStatus.t, t, rules, option(UHTyp.t))
   | Parenthesized(t)
-  | ApLivelit(ErrStatus.t, LivelitName.t, SerializedModel.t, splice_info)
+  | ApLivelit(
+      MetaVar.t,
+      ErrStatus.t,
+      LivelitName.t,
+      SerializedModel.t,
+      splice_info,
+    )
   | FreeLivelit(MetaVar.t, LivelitName.t)
 and rules = list(rule)
 and rule =
@@ -224,7 +230,7 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(err, _, _, _)
-  | ApLivelit(err, _, _, _) => err
+  | ApLivelit(_, err, _, _, _) => err
   | FreeLivelit(_, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -247,7 +253,7 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
-  | ApLivelit(_, name, model, si) => ApLivelit(err, name, model, si)
+  | ApLivelit(u, _, name, model, si) => ApLivelit(u, err, name, model, si)
   | FreeLivelit(_, _) => operand
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -280,7 +286,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApLivelit(InHole(TypeInconsistent, _), _, _, _)
+  | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _)
   | FreeLivelit(_) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -290,7 +296,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _, _)
-  | ApLivelit(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

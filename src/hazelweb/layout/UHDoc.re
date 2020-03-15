@@ -811,7 +811,7 @@ module Exp = {
             mk_Case_ann(~err, ~steps, scrut, rules, ann);
           };
         }
-      | ApLivelit(_, lln, m, _) =>
+      | ApLivelit(_, _, lln, m, _) =>
         switch (VarMap.lookup(ctx, lln)) {
         | None => assert(false)
         | Some(svf) =>
