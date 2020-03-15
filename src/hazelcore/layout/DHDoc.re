@@ -1,7 +1,6 @@
 open Pretty;
 
-let _SHOW_FN_BODIES = false;
-
+[@deriving sexp]
 type t = Doc.t(DHAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;

@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 module WidthPosKey = {
   type t = (int, int);
   let hash = ((width, pos)) => 256 * 256 * width + pos;
@@ -10,10 +12,12 @@ type m('a) = (~width: int, ~pos: int) => m'('a);
 
 module M = Hashtbl.Make(WidthPosKey);
 
+[@deriving sexp]
 type t('annot) = {
-  mem: M.t(m'(Layout.t('annot))),
+  mem: [@sexp.opaque] M.t(m'(Layout.t('annot))),
   doc: t'('annot),
 }
+[@deriving sexp]
 and t'('annot) =
   | Text(string) // Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // associative
