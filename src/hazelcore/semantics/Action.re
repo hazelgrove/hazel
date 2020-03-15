@@ -5185,6 +5185,11 @@ and syn_perform_exp =
       let (block, ty2, u_gen) =
         Statics.syn_fix_holes_block(steps @ [2], ctx, u_gen, block);
       let ty = HTyp.Arrow(ty1, ty2);
+      let path = CursorPath.of_zpat(zp);
+      let p = ZPat.erase(zp);
+      let zp =
+        UsageAnalysis.ana_var_pat(p, block)
+        |> CursorPath.follow_pat_or_fail(path);
       let ze = ZExp.LamZP(NotInHole, zp, ann, block);
       Succeeded((E(ze), ty, u_gen));
     };
@@ -5233,6 +5238,8 @@ and syn_perform_exp =
         | CursorEscaped(After) =>
           syn_perform_exp(~steps, ~ci, ctx, MoveRight, edit_state)
         | Succeeded((zblock, ty2, u_gen)) =>
+          let block = ZExp.erase_block(zblock);
+          let p = UsageAnalysis.ana_var_pat(p, block);
           let ze = ZExp.LamZE(NotInHole, p, ann, zblock);
           Succeeded((E(ze), Arrow(ty1, ty2), u_gen));
         }
@@ -5420,6 +5427,11 @@ and syn_perform_exp =
               clause,
               ty,
             );
+          let path = CursorPath.of_zpat(zp);
+          let p = ZPat.erase(zp);
+          let zp =
+            UsageAnalysis.ana_var_pat(p, clause)
+            |> CursorPath.follow_pat_or_fail(path);
           let zrule = ZExp.RuleZP(zp, clause);
           let ze =
             ZExp.CaseZR(
@@ -5452,6 +5464,8 @@ and syn_perform_exp =
           | CursorEscaped(After) =>
             syn_perform_exp(~steps, ~ci, ctx, MoveRight, edit_state)
           | Succeeded((zclause, u_gen)) =>
+            let clause = ZExp.erase_block(zclause);
+            let p = UsageAnalysis.ana_var_pat(p, clause);
             let zrule = ZExp.RuleZE(p, zclause);
             let ze =
               ZExp.CaseZR(
