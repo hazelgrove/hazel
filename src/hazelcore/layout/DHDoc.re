@@ -44,7 +44,8 @@ module Delim = {
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
   let empty_hole = (u: MetaVar.t, i: MetaVarInst.t): t => {
-    let lbl = StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
+    let lbl =
+      StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
