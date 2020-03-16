@@ -40,8 +40,8 @@ type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_) 
-  | LetLineZP
-  | LetLineZA
+  | LetLineZP(_)
+  | LetLineZA(_)
   | ExpLineZ(_, ZOpertor(_)) 
   | ExpLineZ(_, ZOperand(CursorE(_), _))
   | ExpLineZ(_, ZOperand(LamZP(_), _))
