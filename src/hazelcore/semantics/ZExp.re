@@ -39,7 +39,7 @@ type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
 let is_cusorL = (line: zline): bool =>
   switch (line) {
-  | cursorL(_) => true
+  | CursorL(_) => true
   | _ => false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
