@@ -42,11 +42,11 @@ let line_can_be_swapped = (line: zline): bool =>
   | CursorL(_) 
   | LetLineZP(_)
   | LetLineZA(_)
-  | ExpLineZ(_, ZOpertor(_)) 
-  | ExpLineZ(_, ZOperand(CursorE(_), _))
-  | ExpLineZ(_, ZOperand(LamZP(_), _))
-  | ExpLineZ(_, ZOperand(LamZA(_), _))
-  | ExpLineZ(_, ZOperand(CaseZA(_), _))
+  | ExpLineZ(ZOpSeq(_, ZOpertor(_))) 
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZA(_), _)))
   | ApPaletteZ(_) => true
   | _ => false
   };
