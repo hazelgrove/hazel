@@ -42,7 +42,7 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = (u: MetaVar.t, i: MetaVarInst.t): t => {
+  let empty_hole = ((u, i): HoleInstance.t): t => {
     let lbl =
       StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
     Doc.text(lbl)
@@ -87,8 +87,9 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (u, i) =>
-  Delim.empty_hole(u, i) |> Doc.annot(DHAnnot.EmptyHole((u, i)));
+let mk_EmptyHole = (~selected=false, (u, i)) =>
+  Delim.empty_hole((u, i))
+  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
 let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
@@ -147,7 +148,7 @@ module Pat = {
     );
     let doc =
       switch (dp) {
-      | EmptyHole(u, i) => mk_EmptyHole(u, i)
+      | EmptyHole(u, i) => mk_EmptyHole((u, i))
       | NonEmptyHole(reason, u, i, dp) =>
         mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, k) => mk_Keyword(u, i, k)
@@ -232,6 +233,7 @@ module Exp = {
             ~show_case_clauses: bool,
             ~parenthesize=false,
             ~enforce_inline: bool,
+            ~selected_instance: option(HoleInstance.t),
             d: DHExp.t,
           )
           : t => {
@@ -267,7 +269,13 @@ module Exp = {
         };
       let fdoc = (~enforce_inline) =>
         switch (d) {
-        | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i)
+        | EmptyHole(u, i, _sigma) =>
+          let selected =
+            switch (selected_instance) {
+            | None => false
+            | Some((u', i')) => u == u' && i == i'
+            };
+          mk_EmptyHole(~selected, (u, i));
         | NonEmptyHole(reason, u, i, _sigma, d) =>
           go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
@@ -327,6 +335,7 @@ module Exp = {
                        ~show_fn_bodies,
                        ~show_case_clauses,
                        ~show_casts,
+                       ~selected_instance,
                      ),
                    ),
                 [Delim.close_Case],
@@ -426,11 +435,18 @@ module Exp = {
         ~show_casts,
         ~show_fn_bodies,
         ~show_case_clauses,
+        ~selected_instance,
         Rule(dp, dclause): DHExp.rule,
       )
       : t => {
     open Doc;
-    let mk' = mk(~show_casts, ~show_fn_bodies, ~show_case_clauses);
+    let mk' =
+      mk(
+        ~show_casts,
+        ~show_fn_bodies,
+        ~show_case_clauses,
+        ~selected_instance,
+      );
     let hidden_clause =
       annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
     let clause_doc =

@@ -24,10 +24,10 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(VarHole(_), l) => [
         Node.span([Attr.classes(["InVarHole"])], go(l)),
       ]
-    | Annot(EmptyHole(inst), l) => [
+    | Annot(EmptyHole(selected, inst), l) => [
         Node.span(
           [
-            Attr.classes(["EmptyHole"]),
+            Attr.classes(["EmptyHole", ...selected ? ["selected"] : []]),
             Attr.on_click(_ =>
               inject(Update.Action.SelectHoleInstance(inst))
             ),
@@ -54,6 +54,7 @@ let view =
       ~show_casts: bool,
       ~show_fn_bodies: bool,
       ~show_case_clauses: bool,
+      ~selected_instance: option(HoleInstance.t),
       ~width: int,
       ~pos=0,
       d: DHExp.t,
@@ -65,6 +66,7 @@ let view =
        ~show_fn_bodies,
        ~show_case_clauses,
        ~enforce_inline=false,
+       ~selected_instance,
      )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
@@ -74,12 +76,20 @@ let view =
 };
 
 let view_of_hole_instance =
-    (~inject, ~width: int, ~pos=0, (u, i): HoleInstance.t): Vdom.Node.t =>
+    (
+      ~inject,
+      ~width: int,
+      ~pos=0,
+      ~selected_instance,
+      (u, i): HoleInstance.t,
+    )
+    : Vdom.Node.t =>
   view(
     ~inject,
     ~show_casts=false,
     ~show_fn_bodies=false,
     ~show_case_clauses=false,
+    ~selected_instance,
     ~width,
     ~pos,
     DHExp.EmptyHole(u, i, []),

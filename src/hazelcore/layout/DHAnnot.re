@@ -1,9 +1,11 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type t =
   | Collapsed
   | HoleLabel
   | Delim
-  | EmptyHole(HoleInstance.t)
+  | EmptyHole(bool, HoleInstance.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
   | FailedCastDelim

@@ -1228,10 +1228,14 @@ h1 {
   vertical-align: top;
 }
 
-
 .DHCode .EmptyHole {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   cursor: pointer;
+  border: 1px solid transparent;
+}
+.DHCode .EmptyHole.selected {
+  box-sizing: border-box;
+  border: 1px solid var(--empty-hole-color);
 }
 
 .hole-instance {
