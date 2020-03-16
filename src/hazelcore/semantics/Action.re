@@ -2499,7 +2499,7 @@ module Exp = {
     /* No construction handled at block level */
 
     /* SwapUp and SwapDown is handled at block level */
-    | SwapUp => 
+    | SwapUp when ZExp.is_cursorL(zline) => 
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) => {
@@ -2507,7 +2507,7 @@ module Exp = {
           Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
         }
       }  
-    | SwapDown =>
+    | SwapDown when ZExp.is_cursorL(zline) =>
       switch (suffix) {
       | [] => Failed
       | [hd, ...tl] => {
