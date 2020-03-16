@@ -3645,8 +3645,25 @@ module Exp = {
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
     /* Invalid swap actions */
-    | (SwapUp | SwapDown, _) => Failed
     | (SwapLeft | SwapRight, CursorR(_)) => Failed
+
+    /* SwapUp and SwapDown actions */
+    | (SwapUp, CursorR(_) | RuleZP(_)) =>
+      switch (ListUtil.split_last(prefix)) {
+      | None => Failed
+      | Some((rest, last)) => {
+          let new_zrules = (rest, zline, ([last, ...suffix]));
+          Succeeded()
+        }
+      }
+    | (SwapDown, CursorR(_), RuleZP(_)) =>
+      switch (suffix) {
+      | [] => Failed
+      | [hd, ...tl] => {
+          let new_zrules = ((prefix @ [hd]), zline, tl);
+          Succeeded((new_zrules, u_gen))
+        }
+      }
 
     /* Zipper */
     | (_, RuleZP(zp, clause)) =>
