@@ -2515,8 +2515,6 @@ module Exp = {
           Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
         }
       }
-        
-                 // when prefix is not empty, use ListUtil.last to get the last line in prefix
     
     /* Zipper */
     | _ =>
@@ -2714,8 +2712,7 @@ module Exp = {
     | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
 
     /* Invalid swap actions */
-    | (SwapUp, _)
-    | (SwapDown, _) => Failed
+    | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
     | (SwapLeft, CursorL(_))
     | (SwapRight, CursorL(_)) => Failed
 
@@ -2822,7 +2819,7 @@ module Exp = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
-    | (SwapUp | SwapDown, _)
+    | (SwapUp | SwapDown, ZOperator(_)) => Failed
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
 
@@ -3046,7 +3043,7 @@ module Exp = {
     /* Invalid actions at expression level */
     | (Construct(SLine), CursorE(OnText(_), _))
     | (Construct(SList), _) => Failed
-    | (SwapUp | SwapDown, _) => Failed
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) => Failed
     
     /* Movement handled at top level */
     | (
