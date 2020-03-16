@@ -37,9 +37,10 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
-let is_CursorL = (line: zline): bool =>
+let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
-  | CursorL(_) => true
+  | CursorL(_) 
+  | ExpLineZ(_) => true
   | _ => false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
