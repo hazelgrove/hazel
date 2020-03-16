@@ -3653,7 +3653,7 @@ module Exp = {
       | None => Failed
       | Some((rest, last)) => {
           let new_zrules = (rest, zrule, ([last, ...suffix]));
-          Succeeded()
+          Succeeded((new_zrules, u_gen))
         }
       }
     | (SwapDown, CursorR(_) | RuleZP(_)) =>
