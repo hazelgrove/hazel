@@ -3652,7 +3652,7 @@ module Exp = {
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) => {
-          let new_zrules = (rest, zline, ([last, ...suffix]));
+          let new_zrules = (rest, zrule, ([last, ...suffix]));
           Succeeded()
         }
       }
@@ -3660,7 +3660,7 @@ module Exp = {
       switch (suffix) {
       | [] => Failed
       | [hd, ...tl] => {
-          let new_zrules = ((prefix @ [hd]), zline, tl);
+          let new_zrules = ((prefix @ [hd]), zrule, tl);
           Succeeded((new_zrules, u_gen))
         }
       }
