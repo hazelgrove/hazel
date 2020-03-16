@@ -3656,7 +3656,7 @@ module Exp = {
           Succeeded()
         }
       }
-    | (SwapDown, CursorR(_), RuleZP(_)) =>
+    | (SwapDown, CursorR(_) | RuleZP(_)) =>
       switch (suffix) {
       | [] => Failed
       | [hd, ...tl] => {
