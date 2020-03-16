@@ -227,15 +227,21 @@ let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
      )
   |> List.rev;
 
-let iterate = (f: 'x => ('y, 'x), times: int, start: 'x): (list('y), 'x) => {
-  let x = ref(start);
-  let ys = ref([]);
-
-  for (_ in times downto 0) {
-    let (y, new_x) = f(x^);
-    x := new_x;
-    ys := [y, ...ys^];
+// mapAccumL from Haskell
+let rec map_with_accumulator =
+        (f: ('acc, 'x) => ('acc, 'y), start: 'acc, xs: list('x))
+        : ('acc, list('y)) =>
+  switch (xs) {
+  | [] => (start, [])
+  | [x, ...xs] =>
+    let (new_acc, y) = f(start, x);
+    let (final, ys) = map_with_accumulator(f, new_acc, xs);
+    (final, [y, ...ys]);
   };
 
-  (ys^, x^);
+let iterate = (f: 'x => ('y, 'x), times: int, start: 'x): (list('y), 'x) => {
+  let swap = ((x, y)) => (y, x);
+  replicate(times, 0)
+  |> map_with_accumulator((x, _) => x |> f |> swap, start)
+  |> swap;
 };
