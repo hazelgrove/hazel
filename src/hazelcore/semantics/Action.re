@@ -3773,7 +3773,7 @@ module Exp = {
     /* No construction handled at block level */
     
     /* SwapUp and SwapDown is handled at block level */
-    | (SwapUp, _) => 
+    | (SwapUp, _) when ZExp.line_can_be_swapped(zline) => 
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) => {
@@ -3783,7 +3783,7 @@ module Exp = {
           )
         }
       }
-    | (SwapDown, _) =>
+    | (SwapDown, _) when ZExp.line_can_be_swapped(zline) =>
       switch(suffix) {
       | [] => Failed
       | [hd, ...tl] => {
@@ -3867,7 +3867,7 @@ module Exp = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
-    | (SwapUp | SwapDown, _) => Failed
+    | (SwapUp | SwapDown, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -4126,7 +4126,7 @@ module Exp = {
       Failed
 
     /* Invalid swap actions */
-    | (SwapUp | SwapDown, _) => Failed
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) => Failed
 
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
