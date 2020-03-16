@@ -166,27 +166,21 @@ let patterns_of_type =
     | Unit
     | Arrow(_, _) => ([], u_gen)
     | Num => ([numlit(0), wild()] |> List.map(wrap), u_gen)
-    | Bool => ([true, false] |> List.map(b => wrap(boollit(b))), u_gen)
+    | Bool => ([true, false] |> List.map(b => b |> boollit |> wrap), u_gen)
     | Prod(_, _) =>
       let prod_element_count = ty |> HTyp.get_prod_elements |> List.length;
       let patternSkel =
         ListUtil.range(prod_element_count)
         |> List.map(i => Skel.Placeholder(i))
         |> make_tuple(NotInHole);
-      let opseq_of_holes = u_gen => {
-        let (firstHole, u_gen) = u_gen |> new_EmptyHole;
-        let (holes, u_gen) = new_EmptyHoles(prod_element_count - 1, u_gen);
-        let opseq =
-          OpSeq(
-            patternSkel,
-            Seq.mk(firstHole, holes |> List.map(hole => (Comma, hole))),
-          );
-        (opseq, u_gen);
-      };
-
-      let (opseq1, u_gen) = opseq_of_holes(u_gen);
-      let (opseq2, u_gen) = opseq_of_holes(u_gen);
-      ([opseq1, opseq2], u_gen);
+      let (firstHole, u_gen) = u_gen |> new_EmptyHole;
+      let (holes, u_gen) = new_EmptyHoles(prod_element_count - 1, u_gen);
+      let opseq =
+        OpSeq(
+          patternSkel,
+          Seq.mk(firstHole, holes |> List.map(hole => (Comma, hole))),
+        );
+      ([opseq], u_gen);
     | Sum(_, _) =>
       let (holes, u_gen) = new_EmptyHoles(2, u_gen);
       let patterns =
