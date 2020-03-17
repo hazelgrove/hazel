@@ -69,7 +69,18 @@ let view =
               inject(a),
             ]);
           if (JSUtil.is_movement_key(evt)) {
-            Event.Many([]);
+            switch (KeyCombo.of_evt(evt)) {
+            | Some(Ctrl_Alt_J) => prevent_stop_inject(
+                Update.Action.EditAction(
+                  Hashtbl.find(
+                    kc_actions,
+                    kc,
+                    program |> Program.get_cursor_info,
+                  ),
+                ),
+              )
+            | _ => Event.Many([]);
+            };
           } else {
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)

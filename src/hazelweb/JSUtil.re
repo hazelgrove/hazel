@@ -424,7 +424,7 @@ module KeyCombo = {
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
     let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
     let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
-    let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
+    let ctrl_alt_j = ctrl_alt(Key.the_key("ArrowLeft"));
     let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
   };
 
