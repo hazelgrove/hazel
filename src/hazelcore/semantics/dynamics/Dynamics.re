@@ -1906,7 +1906,7 @@ module Evaluator = {
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           switch (d1') {
           | Cast(d1'', ty'', Hole) =>
-            if (HTyp.eq(ty'', ty')) {
+            if (ty'' == ty') {
               BoxedValue(d1'');
             } else {
               Indet(FailedCast(d1', ty, ty'));
@@ -1930,7 +1930,7 @@ module Evaluator = {
           BoxedValue(Cast(d1', ty, ty'))
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
-          if (HTyp.eq(ty, ty')) {
+          if (ty == ty') {
             result;
           } else {
             BoxedValue(Cast(d1', ty, ty'));
@@ -1948,7 +1948,7 @@ module Evaluator = {
         | (Hole, Ground) =>
           switch (d1') {
           | Cast(d1'', ty'', Hole) =>
-            if (HTyp.eq(ty'', ty')) {
+            if (ty'' == ty') {
               Indet(d1'');
             } else {
               Indet(FailedCast(d1', ty, ty'));
@@ -1970,7 +1970,7 @@ module Evaluator = {
           Indet(Cast(d1', ty, ty'))
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* it might be eq in this case, so remove cast if so */
-          if (HTyp.eq(ty, ty')) {
+          if (ty == ty') {
             result;
           } else {
             Indet(Cast(d1', ty, ty'));

@@ -101,7 +101,7 @@ let rec make_tuple: list(t) => t =
   | [d, ...ds] => Pair(d, make_tuple(ds));
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
-  if (HTyp.eq(t1, t2)) {
+  if (t1 == t2) {
     d;
   } else {
     Cast(d, t1, t2);
