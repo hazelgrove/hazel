@@ -75,13 +75,23 @@ let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> _evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
-    let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], NodeInstanceInfo.empty, d);
-    (d_renumbered, hii, BoxedValue(d_renumbered));
+    let (d_renumbered, hii, llii) =
+      Dynamics.Exp.renumber(
+        [],
+        NodeInstanceInfo.empty,
+        NodeInstanceInfo.empty,
+        d,
+      );
+    (d_renumbered, hii, llii, BoxedValue(d_renumbered));
   | Indet(d) =>
-    let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], NodeInstanceInfo.empty, d);
-    (d_renumbered, hii, Indet(d_renumbered));
+    let (d_renumbered, hii, llii) =
+      Dynamics.Exp.renumber(
+        [],
+        NodeInstanceInfo.empty,
+        NodeInstanceInfo.empty,
+        d,
+      );
+    (d_renumbered, hii, llii, Indet(d_renumbered));
   };
 
 exception FailedAction;

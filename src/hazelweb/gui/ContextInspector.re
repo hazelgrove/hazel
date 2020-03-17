@@ -75,7 +75,7 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (model.compute_results) {
-        let (_, hii, _) = program |> Program.get_result;
+        let (_, hii, _, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
         | None => Dynamics.Exp.id_env(ctx)
         | Some(inst) =>
@@ -313,7 +313,7 @@ let view =
         |> Program.get_cursor_info
         |> CursorInfo.get_ctx
         |> Contexts.gamma;
-      let (_, hii, _) = program |> Program.get_result;
+      let (_, hii, _, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {
         Node.div([], []);
       } else {

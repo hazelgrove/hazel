@@ -212,6 +212,7 @@ module Exp = {
     | Or(_) => precedence_Or
     | Pair(_) => precedence_Comma
     | NonEmptyHole(_, _, _, _, d) => precedence'(d)
+    | Scope(_, _, _, d) => precedence'(d)
     };
   };
 
@@ -281,6 +282,9 @@ module Exp = {
         | NonEmptyHole(reason, u, i, _sigma, d) =>
           go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
+        | Scope(_, _, _, d) =>
+          let (doc, _) = go'(d);
+          doc;
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))

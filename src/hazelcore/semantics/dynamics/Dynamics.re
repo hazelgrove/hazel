@@ -463,6 +463,10 @@ module Exp = {
       let d3' = subst_var(d1, x, d3);
       let sigma' = subst_var_env(d1, x, sigma);
       NonEmptyHole(reason, u, i, sigma', d3');
+    | Scope(su, si, sigma, d3) =>
+      let d3' = subst_var(d1, x, d3);
+      let sigma' = subst_var_env(d1, x, sigma);
+      Scope(su, si, sigma', d3');
     | Cast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       Cast(d', ty1, ty2);
@@ -543,6 +547,7 @@ module Exp = {
       Matches(env);
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
+    | (_, Scope(_, _, _, d)) => matches(dp, d)
     | (_, FailedCast(_, _, _)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
@@ -675,6 +680,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
+    | Scope(_, _, _, d) => matches_cast_Inj(side, dp, d, casts)
     | FailedCast(_, _, _) => Indet
     }
   and matches_cast_Pair =
@@ -730,6 +736,8 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
+    | Scope(_, _, _, d) =>
+      matches_cast_Pair(dp1, dp2, d, left_casts, right_casts)
     | FailedCast(_, _, _) => Indet
     }
   and matches_cast_Cons =
@@ -785,6 +793,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
+    | Scope(_, _, _, d) => matches_cast_Cons(dp1, dp2, d, elt_casts)
     | FailedCast(_, _, _) => Indet
     };
 
@@ -1552,196 +1561,219 @@ module Exp = {
   };
 
   let rec renumber_result_only =
-          (path: InstancePath.t, hii: NodeInstanceInfo.t, d: DHExp.t)
-          : (DHExp.t, NodeInstanceInfo.t) =>
+          (
+            path: InstancePath.t,
+            hii: NodeInstanceInfo.t,
+            sii: NodeInstanceInfo.t,
+            d: DHExp.t,
+          )
+          : (DHExp.t, NodeInstanceInfo.t, NodeInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
-    | Triv => (d, hii)
+    | Triv => (d, hii, sii)
     | Let(dp, d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Let(dp, d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (Let(dp, d1, d2), hii, sii);
     | FixF(x, ty, d1) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      (FixF(x, ty, d1), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (FixF(x, ty, d1), hii, sii);
     | Lam(x, ty, d1) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      (Lam(x, ty, d1), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (Lam(x, ty, d1), hii, sii);
     | Ap(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Ap(d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (Ap(d1, d2), hii, sii);
     | BinNumOp(op, d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (BinNumOp(op, d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (BinNumOp(op, d1, d2), hii, sii);
     | And(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (And(d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (And(d1, d2), hii, sii);
     | Or(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Or(d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (Or(d1, d2), hii, sii);
     | Inj(ty, side, d1) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      (Inj(ty, side, d1), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (Inj(ty, side, d1), hii, sii);
     | Pair(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Pair(d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (Pair(d1, d2), hii, sii);
     | Cons(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Cons(d1, d2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
+      (Cons(d1, d2), hii, sii);
     | Case(d1, rules, n) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-      (Case(d1, drules, n), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      let (drules, hii, sii) =
+        renumber_result_only_rules(path, hii, sii, rules);
+      (Case(d1, drules, n), hii, sii);
     | EmptyHole(u, _, sigma) =>
       let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (EmptyHole(u, i, sigma), hii);
+      (EmptyHole(u, i, sigma), hii, sii);
     | NonEmptyHole(reason, u, _, sigma, d1) =>
       let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      (NonEmptyHole(reason, u, i, sigma, d1), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (NonEmptyHole(reason, u, i, sigma, d1), hii, sii);
     | FreeVar(u, _, sigma, x) =>
       let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (FreeVar(u, i, sigma, x), hii);
+      (FreeVar(u, i, sigma, x), hii, sii);
     | Keyword(u, _, sigma, k) =>
       let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (Keyword(u, i, sigma, k), hii);
+      (Keyword(u, i, sigma, k), hii, sii);
     | FreeLivelit(u, _, sigma, name) =>
       let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (FreeLivelit(u, i, sigma, name), hii);
+      (FreeLivelit(u, i, sigma, name), hii, sii);
+    | Scope(su, _, sigma, d1) =>
+      let (si, sii) = NodeInstanceInfo.next(sii, su, sigma, path);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (Scope(su, si, sigma, d1), hii, sii);
     | Cast(d1, ty1, ty2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      (Cast(d1, ty1, ty2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (Cast(d1, ty1, ty2), hii, sii);
     | FailedCast(d1, ty1, ty2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      (FailedCast(d1, ty1, ty2), hii);
+      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
+      (FailedCast(d1, ty1, ty2), hii, sii);
     }
   and renumber_result_only_rules =
       (
         path: InstancePath.t,
         hii: NodeInstanceInfo.t,
+        sii: NodeInstanceInfo.t,
         rules: list(DHExp.rule),
       )
-      : (list(DHExp.rule), NodeInstanceInfo.t) =>
+      : (list(DHExp.rule), NodeInstanceInfo.t, NodeInstanceInfo.t) =>
     rules
     |> List.fold_left(
          (b, r: DHExp.rule) => {
-           let (rs, hii) = b;
+           let (rs, hii, sii) = b;
            switch (r) {
            | Rule(dp, d) =>
              let (dp, hii) = Pat.renumber_result_only(path, hii, dp);
-             let (d, hii) = renumber_result_only(path, hii, d);
-             (rs @ [DHExp.Rule(dp, d)], hii);
+             let (d, hii, sii) = renumber_result_only(path, hii, sii, d);
+             (rs @ [DHExp.Rule(dp, d)], hii, sii);
            };
          },
-         ([], hii),
+         ([], hii, sii),
        );
 
   let rec renumber_sigmas_only =
-          (path: InstancePath.t, hii: NodeInstanceInfo.t, d: DHExp.t)
-          : (DHExp.t, NodeInstanceInfo.t) =>
+          (
+            path: InstancePath.t,
+            hii: NodeInstanceInfo.t,
+            sii: NodeInstanceInfo.t,
+            d: DHExp.t,
+          )
+          : (DHExp.t, NodeInstanceInfo.t, NodeInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
-    | Triv => (d, hii)
+    | Triv => (d, hii, sii)
     | Let(dp, d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Let(dp, d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (Let(dp, d1, d2), hii, sii);
     | FixF(x, ty, d1) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      (FixF(x, ty, d1), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (FixF(x, ty, d1), hii, sii);
     | Lam(x, ty, d1) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      (Lam(x, ty, d1), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (Lam(x, ty, d1), hii, sii);
     | Ap(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Ap(d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (Ap(d1, d2), hii, sii);
     | BinNumOp(op, d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (BinNumOp(op, d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (BinNumOp(op, d1, d2), hii, sii);
     | And(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (And(d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (And(d1, d2), hii, sii);
     | Or(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Or(d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (Or(d1, d2), hii, sii);
     | Inj(ty, side, d1) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      (Inj(ty, side, d1), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (Inj(ty, side, d1), hii, sii);
     | Pair(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Pair(d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (Pair(d1, d2), hii, sii);
     | Cons(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Cons(d1, d2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
+      (Cons(d1, d2), hii, sii);
     | Case(d1, rules, n) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-      (Case(d1, rules, n), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      let (rules, hii, sii) =
+        renumber_sigmas_only_rules(path, hii, sii, rules);
+      (Case(d1, rules, n), hii, sii);
     | EmptyHole(u, i, sigma) =>
-      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
       let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (EmptyHole(u, i, sigma), hii);
+      (EmptyHole(u, i, sigma), hii, sii);
     | NonEmptyHole(reason, u, i, sigma, d1) =>
-      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
       let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      (NonEmptyHole(reason, u, i, sigma, d1), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (NonEmptyHole(reason, u, i, sigma, d1), hii, sii);
     | FreeVar(u, i, sigma, x) =>
-      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
       let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (FreeVar(u, i, sigma, x), hii);
+      (FreeVar(u, i, sigma, x), hii, sii);
     | Keyword(u, i, sigma, k) =>
-      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
       let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (Keyword(u, i, sigma, k), hii);
+      (Keyword(u, i, sigma, k), hii, sii);
     | FreeLivelit(u, i, sigma, name) =>
-      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
       let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (FreeLivelit(u, i, sigma, name), hii);
+      (FreeLivelit(u, i, sigma, name), hii, sii);
+    | Scope(su, si, sigma, d1) =>
+      let (sigma, hii, sii) = renumber_sigma(path, su, si, hii, sii, sigma);
+      let sii = NodeInstanceInfo.update_environment(sii, (su, si), sigma);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (Scope(su, si, sigma, d1), hii, sii);
     | Cast(d1, ty1, ty2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      (Cast(d1, ty1, ty2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (Cast(d1, ty1, ty2), hii, sii);
     | FailedCast(d1, ty1, ty2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      (FailedCast(d1, ty1, ty2), hii);
+      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
+      (FailedCast(d1, ty1, ty2), hii, sii);
     }
   and renumber_sigmas_only_rules =
       (
         path: InstancePath.t,
         hii: NodeInstanceInfo.t,
+        sii: NodeInstanceInfo.t,
         rules: list(DHExp.rule),
       )
-      : (list(DHExp.rule), NodeInstanceInfo.t) =>
+      : (list(DHExp.rule), NodeInstanceInfo.t, NodeInstanceInfo.t) =>
     rules
     |> List.fold_left(
          (b, r: DHExp.rule) => {
-           let (rs, hii) = b;
+           let (rs, hii, sii) = b;
            switch (r) {
            | Rule(dp, d) =>
              /* pattern holes don't have environments */
-             let (d, hii) = renumber_sigmas_only(path, hii, d);
-             (rs @ [DHExp.Rule(dp, d)], hii);
+             let (d, hii, sii) = renumber_sigmas_only(path, hii, sii, d);
+             (rs @ [DHExp.Rule(dp, d)], hii, sii);
            };
          },
-         ([], hii),
+         ([], hii, sii),
        )
   and renumber_sigma =
       (
@@ -1749,42 +1781,54 @@ module Exp = {
         u: MetaVar.t,
         i: MetaVarInst.t,
         hii: NodeInstanceInfo.t,
+        sii: NodeInstanceInfo.t,
         sigma: Environment.t,
       )
-      : (Environment.t, NodeInstanceInfo.t) => {
-    let (sigma, hii) =
+      : (Environment.t, NodeInstanceInfo.t, NodeInstanceInfo.t) => {
+    let (sigma, hii, sii) =
       List.fold_right(
-        (xd: (Var.t, DHExp.t), acc: (Environment.t, NodeInstanceInfo.t)) => {
+        (
+          xd: (Var.t, DHExp.t),
+          acc: (Environment.t, NodeInstanceInfo.t, NodeInstanceInfo.t),
+        ) => {
           let (x, d) = xd;
-          let (sigma_in, hii) = acc;
+          let (sigma_in, hii, sii) = acc;
           let path = [((u, i), x), ...path];
-          let (d, hii) = renumber_result_only(path, hii, d);
+          let (d, hii, sii) = renumber_result_only(path, hii, sii, d);
           let sigma_out = [(x, d), ...sigma_in];
-          (sigma_out, hii);
+          (sigma_out, hii, sii);
         },
         sigma,
-        ([], hii),
+        ([], hii, sii),
       );
 
     List.fold_right(
-      (xd: (Var.t, DHExp.t), acc: (Environment.t, NodeInstanceInfo.t)) => {
+      (
+        xd: (Var.t, DHExp.t),
+        acc: (Environment.t, NodeInstanceInfo.t, NodeInstanceInfo.t),
+      ) => {
         let (x, d) = xd;
-        let (sigma_in, hii) = acc;
+        let (sigma_in, hii, sii) = acc;
         let path = [((u, i), x), ...path];
-        let (d, hii) = renumber_sigmas_only(path, hii, d);
+        let (d, hii, sii) = renumber_sigmas_only(path, hii, sii, d);
         let sigma_out = [(x, d), ...sigma_in];
-        (sigma_out, hii);
+        (sigma_out, hii, sii);
       },
       sigma,
-      ([], hii),
+      ([], hii, sii),
     );
   };
 
   let renumber =
-      (path: InstancePath.t, hii: NodeInstanceInfo.t, d: DHExp.t)
-      : (DHExp.t, NodeInstanceInfo.t) => {
-    let (d, hii) = renumber_result_only(path, hii, d);
-    renumber_sigmas_only(path, hii, d);
+      (
+        path: InstancePath.t,
+        hii: NodeInstanceInfo.t,
+        sii: NodeInstanceInfo.t,
+        d: DHExp.t,
+      )
+      : (DHExp.t, NodeInstanceInfo.t, NodeInstanceInfo.t) => {
+    let (d, hii, sii) = renumber_result_only(path, hii, sii, d);
+    renumber_sigmas_only(path, hii, sii, d);
   };
 };
 
@@ -1984,6 +2028,12 @@ module Evaluator = {
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
     | FreeLivelit(_, _, _, _) => Indet(d)
+    | Scope(su, si, sigma, d1) =>
+      switch (evaluate(d1)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d1') => BoxedValue(Scope(su, si, sigma, d1'))
+      | Indet(d1') => Indet(Scope(su, si, sigma, d1'))
+      }
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
