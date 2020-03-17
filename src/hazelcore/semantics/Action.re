@@ -242,7 +242,6 @@ module Typ = {
 
     /* SwapLeft and SwapRight is handled at block level */
 
-    /* invalid swap actions */
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
     
@@ -2819,9 +2818,6 @@ module Exp = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
-    | (SwapUp | SwapDown, ZOperator(_)) => Failed
-    | (SwapLeft, ZOperator(_))
-    | (SwapRight, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -2934,7 +2930,11 @@ module Exp = {
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(SynDone((new_zblock, ty, u_gen)));
 
-    /* SwapLeft and SwapRight */
+    /* Swap actions */
+    | (SwapUp | SwapDown, ZOperator(_))
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
     | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
     | (SwapLeft, ZOperand(CursorE(_) as zoperand, 
                           (A(operator, S(operand, new_prefix)), suffix)
@@ -3043,7 +3043,6 @@ module Exp = {
     /* Invalid actions at expression level */
     | (Construct(SLine), CursorE(OnText(_), _))
     | (Construct(SList), _) => Failed
-    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) => Failed
     
     /* Movement handled at top level */
     | (
@@ -3379,8 +3378,10 @@ module Exp = {
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
 
-    /* Invalid SwapLeft and SwapRight actions */
+    /* Invalid Swap actions */
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) => Failed
     | (SwapLeft | SwapRight, CursorE(_)) => Failed
+
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
       switch (syn_perform(ctx, a, (zbody, ty, u_gen))) {
@@ -3884,7 +3885,6 @@ module Exp = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
-    | (SwapUp | SwapDown, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -4033,7 +4033,8 @@ module Exp = {
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(AnaDone((new_zblock, u_gen)));
 
-    /* SwapLeft and SwapRight actions */
+    /* Swap actions */
+    | (SwapUp | SwapDown, ZOperator(_))
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
 
@@ -4141,9 +4142,6 @@ module Exp = {
         ),
       ) =>
       Failed
-
-    /* Invalid swap actions */
-    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) => Failed
 
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
@@ -4453,7 +4451,8 @@ module Exp = {
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
 
-    /* Invalid SwapLeft and SwapRight actions */
+    /* Invalid Swap actions */
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) => Failed
     | (SwapLeft | SwapRight, CursorE(_)) => Failed
 
     /* Zipper Cases */
