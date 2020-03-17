@@ -1123,7 +1123,7 @@ module Exp = {
         }
       };
     | Case(NotInHole, _, _, None) => DoesNotExpand
-    | ApLivelit(_, NotInHole, name, serialized_model, si) =>
+    | ApLivelit(llu, NotInHole, name, serialized_model, si) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => DoesNotExpand
@@ -1153,7 +1153,13 @@ module Exp = {
           switch (elaboration_opt) {
           | None => DoesNotExpand
           | Some((elaboration, delta)) =>
-            Expands(elaboration, expansion_ty, delta)
+            let gamma = Contexts.gamma(ctx);
+            let sigma = id_env(gamma);
+            Expands(
+              LivelitHole(llu, 0, sigma, elaboration),
+              expansion_ty,
+              delta,
+            );
           };
         };
       };
