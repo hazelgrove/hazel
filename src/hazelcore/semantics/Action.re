@@ -1926,6 +1926,21 @@ module Exp = {
         ),
         u_gen,
       );
+    | (
+        [],
+        ExpLineZ(
+          ZOpSeq(_, ZOperator(zoperator, (inner_prefix, inner_suffix))),
+        ),
+        [],
+      ) =>
+      let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+      let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+      (
+        ZExp.ZBlock.wrap'(
+          mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+        ),
+        u_gen,
+      );
     | (prefix_lines, zline, suffix_lines) =>
       let (new_prefix_lines, u_gen) = {
         let (surround_prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
