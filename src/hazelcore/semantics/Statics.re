@@ -1087,7 +1087,7 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
-    | Case(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
+    | Case(InHole(TypeInconsistent, _), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
@@ -1100,7 +1100,7 @@ module Exp = {
     | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
     | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
     | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength, _), _, _)
+    | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
     | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */

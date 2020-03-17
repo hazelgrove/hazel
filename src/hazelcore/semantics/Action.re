@@ -3303,7 +3303,6 @@ module Exp = {
            u_gen',
          ));
        }; */
-    /* TODO(hannah): fix */
     | (_, CaseZE(_, zscrut, rules)) =>
       switch (Statics.Exp.syn(ctx, ZExp.erase(zscrut))) {
       | None => Failed

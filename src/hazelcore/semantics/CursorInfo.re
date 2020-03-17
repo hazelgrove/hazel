@@ -945,7 +945,7 @@ module Exp = {
       | ListNil(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
-      | Case(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
+      | Case(InHole(TypeInconsistent, _), _, _)
       | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
         let operand' =
           zoperand
@@ -961,7 +961,7 @@ module Exp = {
       | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
       | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
       | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | Case(InHole(WrongLength, _), _, _)
+      | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
       | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
         None
       /* not in hole */
@@ -1002,16 +1002,16 @@ module Exp = {
     | LamZA(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
     | LamZE(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
     | InjZ(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | CaseZE(InHole(WrongLength, _), _, _)
-    | CaseZR(InHole(WrongLength, _), _, _)
+    | CaseZE(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | CaseZR(InHole(WrongLength | InconsistentBranches(_), _), _, _)
     | ApPaletteZ(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
       None
     | LamZP(InHole(TypeInconsistent, _), _, _, _)
     | LamZA(InHole(TypeInconsistent, _), _, _, _)
     | LamZE(InHole(TypeInconsistent, _), _, _, _)
     | InjZ(InHole(TypeInconsistent, _), _, _)
-    | CaseZE(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
-    | CaseZR(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
+    | CaseZE(InHole(TypeInconsistent, _), _, _)
+    | CaseZR(InHole(TypeInconsistent, _), _, _)
     | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     /* zipper not in hole */
