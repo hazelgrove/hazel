@@ -366,24 +366,41 @@ module Exp = {
             ]),
             mk_cast(go(~enforce_inline=false, dbody)),
           ]);
-        | FailedCast(d, ty1, ty2) =>
-          let (d_doc, d_cast) as dcast_doc = go'(d);
+        | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+          let (d_doc, _) = go'(d);
           let cast_decoration =
             hcats([
               Delim.open_FailedCast,
               hseps([
                 Typ.mk(~enforce_inline=true, ty1),
                 Delim.arrow_FailedCast,
-                Typ.mk(~enforce_inline=true, ty2),
+                Typ.mk(~enforce_inline=true, ty3),
               ]),
               Delim.close_FailedCast,
             ])
             |> annot(DHAnnot.FailedCastDecoration);
-          switch (d_cast) {
-          | Some(ty1') when HTyp.eq(ty1, ty1') =>
-            hcats([d_doc, cast_decoration])
-          | _ => hcats([mk_cast(dcast_doc), cast_decoration])
-          };
+          hcats([d_doc, cast_decoration]);
+        | FailedCast(_d, _ty1, _ty2) =>
+          failwith("unexpected FailedCast without inner cast")
+        /*
+         let (d_doc, d_cast) as dcast_doc = go'(d);
+         let cast_decoration =
+           hcats([
+             Delim.open_FailedCast,
+             hseps([
+               Typ.mk(~enforce_inline=true, ty1),
+               Delim.arrow_FailedCast,
+               Typ.mk(~enforce_inline=true, ty2),
+             ]),
+             Delim.close_FailedCast,
+           ])
+           |> annot(DHAnnot.FailedCastDecoration);
+         switch (d_cast) {
+         | Some(ty1') when HTyp.eq(ty1, ty1') =>
+           hcats([d_doc, cast_decoration])
+         | _ => hcats([mk_cast(dcast_doc), cast_decoration])
+         };
+         */
         | Lam(dp, ty, dbody) =>
           if (show_fn_bodies) {
             let body_doc = (~enforce_inline) =>
