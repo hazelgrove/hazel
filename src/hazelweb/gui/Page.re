@@ -101,13 +101,8 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
-let page_view =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      model: Model.t,
-      ctx: Livelits.LivelitViewCtx.t,
-    )
-    : Vdom.Node.t => {
+let view =
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let card = model |> Model.get_card;
   let program = model |> Model.get_program;
   let cell_status =
@@ -133,7 +128,7 @@ let page_view =
                       [
                         {
                           let (_, ty, _) = program |> Program.get_edit_state;
-                          Code.view_of_htyp(~inject, ty);
+                          HTypCode.view(ty);
                         },
                       ],
                     ),
@@ -143,15 +138,34 @@ let page_view =
             ),
             Node.div(
               [Attr.classes(["result-view"])],
-              // [Code.view_of_result(~inject, model)],
-              [],
+              [
+                DHCode.view(
+                  ~inject,
+                  ~show_fn_bodies=model.show_fn_bodies,
+                  ~show_case_clauses=model.show_case_clauses,
+                  ~show_casts=model.show_casts,
+                  ~selected_instance=model |> Model.get_selected_hole_instance,
+                  ~width=80,
+                  model.show_unevaluated_expansion
+                    ? program |> Program.get_expansion
+                    : program |> Program.get_result |> Result.get_dhexp,
+                ),
+              ],
             ),
           ],
         )
       );
     };
   let e = program |> Program.get_uhexp;
-  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, ~ctx, e));
+  let doc =
+    lazy(
+      UHDoc.Exp.mk(
+        ~steps=[],
+        ~enforce_inline=false,
+        ~ctx=Livelits.initial_livelit_view_ctx,
+        e,
+      )
+    );
   let layout =
     lazy(
       switch (
@@ -211,7 +225,7 @@ let page_view =
                                ),
                              ], */
                         ),
-                        Cell.view(~inject, model, ctx),
+                        Cell.view(~inject, model),
                         cell_status,
                         cardstack_controls(~inject, model),
                       ],
@@ -249,7 +263,7 @@ let page_view =
               ~inject,
               model,
               [
-                CursorInspector.view(~inject, model),
+                CursorInspector.view(model),
                 ContextInspector.view(~inject, model),
                 OptionsPanel.view(~inject, model),
               ],
@@ -260,12 +274,3 @@ let page_view =
     )
   );
 };
-
-let view =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      model: Model.t,
-      ctx: Livelits.LivelitViewCtx.t,
-    )
-    : Vdom.Node.t =>
-  page_view(~inject, model, ctx);

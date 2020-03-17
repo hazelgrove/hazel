@@ -5,13 +5,12 @@ type err_state_b =
   | BindingError
   | OK;
 
-let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+let view = (model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(
         [Attr.classes(["infobar", "typebar"])],
-        [Code.view_of_htyp(~inject, ty)],
+        [HTypCode.view(ty)],
       )
     );
   let matched_ty_bar = (ty1, ty2) =>
@@ -19,12 +18,12 @@ let view =
       Node.div(
         [Attr.classes(["infobar", "matched-type-bar"])],
         [
-          Code.view_of_htyp(~inject, ty1),
+          HTypCode.view(ty1),
           Node.span(
             [Attr.classes(["matched-connective"])],
             [Node.text(" ▶ ")],
           ),
-          Code.view_of_htyp(~inject, ty2),
+          HTypCode.view(ty2),
         ],
       )
     );
