@@ -730,6 +730,8 @@ module Exp = {
       }
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+    | ListLitZ(_, zopseq) =>
+      syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)
     | LamZP(_, zp, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -981,6 +983,9 @@ module Exp = {
       | Parenthesized(body) =>
         Statics.Exp.ana(ctx, body, ty)
         |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
+      | ListLit(_, opseq) =>
+        Statics.Exp.ana_opseq(ctx, opseq, ty)
+        |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
       | Lam(NotInHole, _, ann, _) =>
         switch (HTyp.matched_arrow(ty)) {
         | None => None
@@ -998,6 +1003,8 @@ module Exp = {
     /* zipper cases */
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+    | ListLitZ(_, zopseq) =>
+      ana_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq, ty)
     /* zipper in hole */
     | LamZP(InHole(WrongLength, _), _, _, _)
     | LamZA(InHole(WrongLength, _), _, _, _)
