@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 /* types with holes */
 [@deriving sexp]
 type t =
@@ -6,8 +8,8 @@ type t =
   | Num
   | Bool
   | Arrow(t, t)
-  | Prod(t, t)
   | Sum(t, t)
+  | Prod(list(t))
   | List(t);
 
 // Prod(Num, Num)  ==  (Num, Num)
@@ -22,9 +24,11 @@ let rec consistent = (x, y) =>
   | (Num, Num) => true
   | (Bool, Bool) => true
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Prod(ty1, ty2), Prod(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
+  | (Prod(tys1), Prod(tys2)) =>
+    ListUtil.for_all2_op(consistent, tys1, tys2)
+    |> Option.value(~default=false)
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (_, _) => false
   };
@@ -44,16 +48,10 @@ let has_matched_arrow =
   | Arrow(_) => true
   | _ => false;
 
-let rec get_prod_elements: t => list(t) =
+let get_prod_elements: t => list(t) =
   fun
-  | Prod(ty1, ty2) => get_prod_elements(ty1) @ get_prod_elements(ty2)
+  | Prod(tys) => tys
   | _ as ty => [ty];
-
-let rec make_tuple: list(t) => t =
-  fun
-  | [] => failwith("make_tuple: expected at least 1 element")
-  | [ty] => ty
-  | [ty, ...tys] => Prod(ty, make_tuple(tys));
 
 /* matched sum types */
 let matched_sum =
