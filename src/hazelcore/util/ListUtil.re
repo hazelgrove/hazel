@@ -56,20 +56,6 @@ let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
     ([x, ...xs], [y, ...ys]);
   };
 
-let rec combine_with =
-        (f: ('a, 'b) => 'c, ty1: list('a), ty2: list('b))
-        : option(list('c)) => {
-  switch (ty1, ty2) {
-  | ([], []) => Some([])
-  | ([x, ...xs], [y, ...ys]) =>
-    Option.map(
-      combi_tail => [f(x, y), ...combi_tail],
-      combine_with(f, xs, ys),
-    )
-  | (_, _) => None
-  };
-};
-
 /* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */
