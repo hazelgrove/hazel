@@ -1,7 +1,6 @@
 open Pretty;
 
-let _SHOW_FN_BODIES = false;
-
+[@deriving sexp]
 type t = Doc.t(DHAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;
@@ -43,8 +42,9 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = (u: MetaVar.t, i: MetaVarInst.t): t => {
-    let lbl = StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
+  let empty_hole = ((u, i): HoleInstance.t): t => {
+    let lbl =
+      StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
@@ -87,8 +87,9 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (u, i) =>
-  Delim.empty_hole(u, i) |> Doc.annot(DHAnnot.EmptyHole((u, i)));
+let mk_EmptyHole = (~selected=false, (u, i)) =>
+  Delim.empty_hole((u, i))
+  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
 let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
@@ -147,7 +148,7 @@ module Pat = {
     );
     let doc =
       switch (dp) {
-      | EmptyHole(u, i) => mk_EmptyHole(u, i)
+      | EmptyHole(u, i) => mk_EmptyHole((u, i))
       | NonEmptyHole(reason, u, i, dp) =>
         mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, k) => mk_Keyword(u, i, k)
@@ -197,11 +198,11 @@ module Exp = {
     | Inj(_)
     | EmptyHole(_)
     | Triv
-    | FailedCast(_) => precedence_const
+    | FailedCast(_)
+    | Lam(_) => precedence_const
     | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
     | FixF(_)
-    | Lam(_)
     | Case(_) => precedence_max
     | BinNumOp(op, _, _) => precedence_bin_num_op(op)
     | Ap(_) => precedence_Ap
@@ -232,6 +233,7 @@ module Exp = {
             ~show_case_clauses: bool,
             ~parenthesize=false,
             ~enforce_inline: bool,
+            ~selected_instance: option(HoleInstance.t),
             d: DHExp.t,
           )
           : t => {
@@ -267,7 +269,13 @@ module Exp = {
         };
       let fdoc = (~enforce_inline) =>
         switch (d) {
-        | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i)
+        | EmptyHole(u, i, _sigma) =>
+          let selected =
+            switch (selected_instance) {
+            | None => false
+            | Some((u', i')) => u == u' && i == i'
+            };
+          mk_EmptyHole(~selected, (u, i));
         | NonEmptyHole(reason, u, i, _sigma, d) =>
           go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
@@ -308,20 +316,26 @@ module Exp = {
           if (enforce_inline) {
             fail();
           } else {
+            let scrut_doc =
+              choices([
+                hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
+                hcats([
+                  linebreak(),
+                  indent_and_align(
+                    mk_cast(go(~enforce_inline=false, dscrut)),
+                  ),
+                ]),
+              ]);
             vseps(
               List.concat([
-                [
-                  hseps([
-                    Delim.open_Case,
-                    mk_cast(go(~enforce_inline=true, dscrut)),
-                  ]),
-                ],
+                [hcat(Delim.open_Case, scrut_doc)],
                 drs
                 |> List.map(
                      mk_rule(
                        ~show_fn_bodies,
                        ~show_case_clauses,
                        ~show_casts,
+                       ~selected_instance,
                      ),
                    ),
                 [Delim.close_Case],
@@ -333,7 +347,7 @@ module Exp = {
           doc;
         | Let(dp, ddef, dbody) =>
           let def_doc = (~enforce_inline) =>
-            go(~enforce_inline, ddef) |> mk_cast;
+            mk_cast(go(~enforce_inline, ddef));
           vseps([
             hcats([
               Delim.mk("let"),
@@ -371,35 +385,38 @@ module Exp = {
           | _ => hcats([mk_cast(dcast_doc), cast_decoration])
           };
         | Lam(dp, ty, dbody) =>
-          let body_doc =
-            show_fn_bodies
-              ? ((~enforce_inline) => mk_cast(go(~enforce_inline, dbody)))
-              : (
-                (~enforce_inline as _) =>
-                  annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis))
-              );
-          hcats([
-            Delim.sym_Lam,
-            Pat.mk(~enforce_inline=true, dp),
-            Delim.colon_Lam,
-            Typ.mk(~enforce_inline=true, ty),
-            Delim.open_Lam,
-            body_doc |> pad_child(~enforce_inline),
-            Delim.close_Lam,
-          ]);
+          if (show_fn_bodies) {
+            let body_doc = (~enforce_inline) =>
+              mk_cast(go(~enforce_inline, dbody));
+            hcats([
+              Delim.sym_Lam,
+              Pat.mk(~enforce_inline=true, dp),
+              Delim.colon_Lam,
+              Typ.mk(~enforce_inline=true, ty),
+              Delim.open_Lam,
+              body_doc |> pad_child(~enforce_inline),
+              Delim.close_Lam,
+            ]);
+          } else {
+            annot(DHAnnot.Collapsed, text("<fn>"));
+          }
         | FixF(x, ty, dbody) =>
-          let doc_body = (~enforce_inline) =>
-            go(~enforce_inline, dbody) |> mk_cast;
-          hcats([
-            Delim.fix_FixF,
-            space(),
-            text(x),
-            Delim.colon_FixF,
-            Typ.mk(~enforce_inline=true, ty),
-            Delim.open_FixF,
-            doc_body |> pad_child(~enforce_inline),
-            Delim.close_FixF,
-          ]);
+          if (show_fn_bodies) {
+            let doc_body = (~enforce_inline) =>
+              go(~enforce_inline, dbody) |> mk_cast;
+            hcats([
+              Delim.fix_FixF,
+              space(),
+              text(x),
+              Delim.colon_FixF,
+              Typ.mk(~enforce_inline=true, ty),
+              Delim.open_FixF,
+              doc_body |> pad_child(~enforce_inline),
+              Delim.close_FixF,
+            ]);
+          } else {
+            annot(DHAnnot.Collapsed, text("<fn>"));
+          }
         };
       let doc =
         parenthesize
@@ -418,11 +435,18 @@ module Exp = {
         ~show_casts,
         ~show_fn_bodies,
         ~show_case_clauses,
+        ~selected_instance,
         Rule(dp, dclause): DHExp.rule,
       )
       : t => {
     open Doc;
-    let mk' = mk(~show_casts, ~show_fn_bodies, ~show_case_clauses);
+    let mk' =
+      mk(
+        ~show_casts,
+        ~show_fn_bodies,
+        ~show_case_clauses,
+        ~selected_instance,
+      );
     let hidden_clause =
       annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
     let clause_doc =
@@ -434,7 +458,7 @@ module Exp = {
               indent_and_align(mk'(~enforce_inline=false, dclause)),
             ]),
           ])
-        : hcat(choice(space(), linebreak()), hidden_clause);
+        : hcat(space(), hidden_clause);
     hcats([
       Delim.bar_Rule,
       Pat.mk(dp)

@@ -593,7 +593,7 @@ module Pat = {
       )
       : t =>
     switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u))
+    | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u + 1))
     | Wild(err) => mk_Wild(~err, ~steps)
     | Var(err, verr, x) => mk_Var(~steps, ~err, ~verr, x)
     | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
@@ -717,7 +717,7 @@ module Exp = {
       )
       : t =>
     switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u))
+    | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u + 1))
     | Var(err, verr, x) => mk_Var(~err, ~verr, ~steps, x)
     | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)

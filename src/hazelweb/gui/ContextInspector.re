@@ -45,6 +45,7 @@ let view =
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
                   ~show_casts=model.show_casts,
+                  ~selected_instance=model |> Model.get_selected_hole_instance,
                   ~width=30,
                   d,
                 ),
@@ -81,7 +82,7 @@ let view =
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
-            JSUtil.log("InvalidInstance");
+            JSUtil.log("[InvalidInstance]");
             Dynamics.Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
@@ -120,7 +121,14 @@ let view =
       [
         Node.div(
           [Attr.classes(["inst"])],
-          [DHCode.view_of_hole_instance(~inject, ~width=30, inst)],
+          [
+            DHCode.view_of_hole_instance(
+              ~inject,
+              ~width=30,
+              ~selected_instance=model |> Model.get_selected_hole_instance,
+              inst,
+            ),
+          ],
         ),
         Node.div(
           [Attr.classes(["inst-var-separator"])],
@@ -158,7 +166,15 @@ let view =
             [
               Node.div(
                 [Attr.classes(["trailing-inst"])],
-                [DHCode.view_of_hole_instance(~inject, ~width=30, inst)],
+                [
+                  DHCode.view_of_hole_instance(
+                    ~inject,
+                    ~width=30,
+                    ~selected_instance=
+                      model |> Model.get_selected_hole_instance,
+                    inst,
+                  ),
+                ],
               ),
             ],
             path,
@@ -190,7 +206,15 @@ let view =
             [
               Node.div(
                 [Attr.classes(["hii-summary-inst"])],
-                [DHCode.view_of_hole_instance(~inject, ~width=30, inst)],
+                [
+                  DHCode.view_of_hole_instance(
+                    ~inject,
+                    ~width=30,
+                    ~selected_instance=
+                      model |> Model.get_selected_hole_instance,
+                    inst,
+                  ),
+                ],
               ),
               Node.text(" = hole "),
               Node.span(
@@ -310,7 +334,7 @@ let view =
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
                 | None =>
                   // raise(InvalidInstance)
-                  [instructional_msg("Internal Error: invalid instance")]
+                  [instructional_msg("Internal Error: [InvalidInstance]")]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),
