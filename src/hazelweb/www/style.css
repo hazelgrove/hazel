@@ -34,6 +34,7 @@
   --code-radius: 4px;
   --child-border-thickness: 4px;
   --code-shadow-thickness: 1.5px;
+  --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
@@ -277,10 +278,6 @@ html, body {
   background-color: var(--title-bar-color);
 }
 
-.panel-title-bar {
-
-}
-
 .panel-body {
   flex-grow: 1;
   /* enable scroll */
@@ -289,10 +286,6 @@ html, body {
 }
 
 /* cursor inspector */
-
-.cursor-inspector-outer {
-
-}
 
 .cursor-OK.cursor-inspector {
   outline: 1px solid var(--title-bar-color);
@@ -659,13 +652,20 @@ html, body {
 
 /* options panel */
 
-.options-panel {
-  background-color: #EEE;
-  outline: 1px solid #444;
+#OptionsPanel .labeled-checkbox {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5ch;
+  align-items: center;
 }
-
-.options-panel .title-bar {
-  background-color: #444;
+#OptionsPanel #show_unevaluated_expansion,
+#OptionsPanel #show_casts,
+#OptionsPanel #show_fn_bodies {
+  position: relative;
+  left: 2.5ch;
+}
+#OptionsPanel label[disabled] {
+  opacity: 0.5;
 }
 
 /* page */
@@ -740,10 +740,29 @@ h1 {
   float: left;
 }
 
+.DHCode * {
+  border-radius: var(--code-radius);
+  line-height: var(--code-line-height);
+}
+.DHCode .CastDecoration,
+.DHCode .FailedCastDecoration {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+.DHCode .FailedCastDelim {
+  color: red;
+}
+.DHCode .CastDecoration {
+  background-color: rgba(150, 0, 255, 0.2);
+}
+.DHCode .FailedCastDecoration {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 .code {
   font-family: "Fira Mono", monospace;
-  // TODO probably unnecessary if we commit to nbsp
-  white-space: pre;
   font-size: 14pt;
   line-height: var(--code-line-height);
 }
@@ -766,12 +785,20 @@ h1 {
   font-weight: bold;
 }
 
+.DHCode .Align {
+  display: inline-block;
+}
+
 .static-info .code {
   display: inline;
 }
 
-.code-container {
+#code-container {
   position: relative;
+  font-family: "Fira Mono", monospace;
+  font-size: 14pt;
+  line-height: var(--code-line-height);
+  width: 80ch;
 }
 .contenteditable {
   background-color: lightgray;
@@ -859,6 +886,10 @@ h1 {
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;
+}
+
+.DHCode .Collapsed {
+  color: #999;
 }
 
 .OpenChild.Para {
@@ -1069,7 +1100,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 0.5px var(--pat-bright-shadow-color);
+  box-shadow: var(--closed-child-shadow-shape) var(--pat-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
@@ -1088,7 +1119,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 0.5px var(--typ-bright-shadow-color);
+  box-shadow: var(--closed-child-shadow-shape) var(--typ-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
@@ -1116,8 +1147,6 @@ h1 {
 }
 
 #cell {
-  opacity: 0.99;
-  /*background-color: transparent;*/
   position: relative;
   width: auto;
   margin-top: 20px;
@@ -1199,8 +1228,14 @@ h1 {
   vertical-align: top;
 }
 
-.EmptyHole {
-  border-bottom: 1px solid var(--empty-hole-color);
+.DHCode .EmptyHole {
+  /* border-bottom: 1px solid var(--empty-hole-color); */
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.DHCode .EmptyHole.selected {
+  box-sizing: border-box;
+  border: 1px solid var(--empty-hole-color);
 }
 
 .hole-instance {
@@ -1231,7 +1266,7 @@ h1 {
   border-bottom: 1px solid var(--empty-hole-color);
 }
 
-.SEmptyHole-num {
+.HoleLabel {
   vertical-align: text-bottom;
   font-size: 65%;
   color: #BBB;
@@ -1240,6 +1275,10 @@ h1 {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   margin-bottom: -3px;
   /* line-height: initial; */
+}
+.DHCode .CastDecoration .HoleLabel,
+.DHCode .FailedCastDecoration .HoleLabel {
+  color: #777;
 }
 
 .hole-inst-num {
