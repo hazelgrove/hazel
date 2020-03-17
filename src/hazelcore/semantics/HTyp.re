@@ -13,27 +13,6 @@ type t =
 // Prod(Num, Num)  ==  (Num, Num)
 // (Prod(Num, Num), Bool)  ==  (Num, Num, Bool)
 
-/* eqity */
-let rec eq = (ty1, ty2) =>
-  switch (ty1, ty2) {
-  | (Hole, Hole) => true
-  | (Hole, _) => false
-  | (Unit, Unit) => true
-  | (Unit, _) => false
-  | (Num, Num) => true
-  | (Num, _) => false
-  | (Bool, Bool) => true
-  | (Bool, _) => false
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
-  | (Arrow(_, _), _) => false
-  | (Prod(ty1, ty2), Prod(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
-  | (Prod(_, _), _) => false
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
-  | (Sum(_, _), _) => false
-  | (List(ty), List(ty')) => eq(ty, ty')
-  | (List(_), _) => false
-  };
-
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
