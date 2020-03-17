@@ -1377,14 +1377,7 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(
-        InHole(
-          TypeInconsistent as reason | InconsistentBranches(_) as reason,
-          u,
-        ),
-        _,
-        _,
-      )
+    | Case(InHole(TypeInconsistent as reason, u), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
@@ -1402,7 +1395,7 @@ module Exp = {
     | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
     | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
     | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength, _), _, _)
+    | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
     | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
       DoesNotExpand
     /* not in hole */
