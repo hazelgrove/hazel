@@ -97,14 +97,14 @@ let view =
       {
         let (contenteditable, presentation) =
           model.is_cell_focused
-            ? Code.focused_view(
+            ? UHCode.focused_view(
                 ~inject,
                 ~show_contenteditable=model.show_contenteditable,
                 ~path=program |> Program.get_path,
                 ~ci=program |> Program.get_cursor_info,
                 program |> Program.get_doc,
               )
-            : Code.view(
+            : UHCode.view(
                 ~inject,
                 ~show_contenteditable=model.show_contenteditable,
                 program |> Program.get_doc,
