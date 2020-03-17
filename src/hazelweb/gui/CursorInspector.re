@@ -103,7 +103,7 @@ let view = (model: Model.t): Vdom.Node.t => {
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        expected_ty == got_ty
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
@@ -132,7 +132,7 @@ let view = (model: Model.t): Vdom.Node.t => {
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        expected_ty == got_ty
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
@@ -213,7 +213,7 @@ let view = (model: Model.t): Vdom.Node.t => {
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        expected_ty == got_ty
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);

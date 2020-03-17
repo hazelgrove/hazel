@@ -366,7 +366,7 @@ module Exp = {
             ]),
             mk_cast(go(~enforce_inline=false, dbody)),
           ]);
-        | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+        | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when ty2 == ty2' =>
           let (d_doc, _) = go'(d);
           let cast_decoration =
             hcats([
@@ -396,7 +396,7 @@ module Exp = {
            ])
            |> annot(DHAnnot.FailedCastDecoration);
          switch (d_cast) {
-         | Some(ty1') when HTyp.eq(ty1, ty1') =>
+         | Some(ty1') when ty1 == ty1' =>
            hcats([d_doc, cast_decoration])
          | _ => hcats([mk_cast(dcast_doc), cast_decoration])
          };
