@@ -42,10 +42,10 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_L, _ => Action.Construct(SInj(L))),
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
-    (Ctrl_Alt_I, _ => Action.SwapUp),
-    (Ctrl_Alt_K, _ => Action.SwapDown),
-    (Ctrl_Alt_J, _ => Action.SwapLeft),
-    (Ctrl_Alt_L, _ => Action.SwapRight),
+    (Ctrl_Alt_Up, _ => Action.SwapUp),
+    (Ctrl_Alt_Down, _ => Action.SwapDown),
+    (Ctrl_Alt_Left, _ => Action.SwapLeft),
+    (Ctrl_Alt_Right, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
@@ -70,7 +70,8 @@ let view =
             ]);
           if (JSUtil.is_movement_key(evt)) {
             switch (KeyCombo.of_evt(evt)) {
-            | Some(Ctrl_Alt_J) => prevent_stop_inject(
+            | Some(Ctrl_Alt_Up | Ctrl_Alt_Down 
+                  | Ctrl_Alt_Left | Ctrl_Alt_Right as kc) => prevent_stop_inject(
                 Update.Action.EditAction(
                   Hashtbl.find(
                     kc_actions,
