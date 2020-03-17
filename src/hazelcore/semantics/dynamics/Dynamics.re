@@ -342,8 +342,8 @@ module Pat = {
     };
 
   let rec renumber_result_only =
-          (path: InstancePath.t, hii: HoleInstanceInfo.t, dp: DHPat.t)
-          : (DHPat.t, HoleInstanceInfo.t) =>
+          (path: InstancePath.t, hii: NodeInstanceInfo.t, dp: DHPat.t)
+          : (DHPat.t, NodeInstanceInfo.t) =>
     switch (dp) {
     | Wild
     | Var(_)
@@ -353,18 +353,18 @@ module Pat = {
     | Triv => (dp, hii)
     | EmptyHole(u, _) =>
       let sigma = Environment.empty;
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (EmptyHole(u, i), hii);
     | NonEmptyHole(reason, u, _, dp1) =>
       /* TODO: see above */
       let sigma = Environment.empty;
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       let (dp1, hii) = renumber_result_only(path, hii, dp1);
       (NonEmptyHole(reason, u, i, dp1), hii);
     | Keyword(u, _, k) =>
       /* TODO: see above */
       let sigma = Environment.empty;
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, k), hii);
     | Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only(path, hii, dp1);
@@ -1552,8 +1552,8 @@ module Exp = {
   };
 
   let rec renumber_result_only =
-          (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-          : (DHExp.t, HoleInstanceInfo.t) =>
+          (path: InstancePath.t, hii: NodeInstanceInfo.t, d: DHExp.t)
+          : (DHExp.t, NodeInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
@@ -1602,20 +1602,20 @@ module Exp = {
       let (drules, hii) = renumber_result_only_rules(path, hii, rules);
       (Case(d1, drules, n), hii);
     | EmptyHole(u, _, sigma) =>
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (EmptyHole(u, i, sigma), hii);
     | NonEmptyHole(reason, u, _, sigma, d1) =>
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (NonEmptyHole(reason, u, i, sigma, d1), hii);
     | FreeVar(u, _, sigma, x) =>
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (FreeVar(u, i, sigma, x), hii);
     | Keyword(u, _, sigma, k) =>
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, sigma, k), hii);
     | FreeLivelit(u, _, sigma, name) =>
-      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (FreeLivelit(u, i, sigma, name), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -1627,10 +1627,10 @@ module Exp = {
   and renumber_result_only_rules =
       (
         path: InstancePath.t,
-        hii: HoleInstanceInfo.t,
+        hii: NodeInstanceInfo.t,
         rules: list(DHExp.rule),
       )
-      : (list(DHExp.rule), HoleInstanceInfo.t) =>
+      : (list(DHExp.rule), NodeInstanceInfo.t) =>
     rules
     |> List.fold_left(
          (b, r: DHExp.rule) => {
@@ -1646,8 +1646,8 @@ module Exp = {
        );
 
   let rec renumber_sigmas_only =
-          (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-          : (DHExp.t, HoleInstanceInfo.t) =>
+          (path: InstancePath.t, hii: NodeInstanceInfo.t, d: DHExp.t)
+          : (DHExp.t, NodeInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
@@ -1697,24 +1697,24 @@ module Exp = {
       (Case(d1, rules, n), hii);
     | EmptyHole(u, i, sigma) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
       (EmptyHole(u, i, sigma), hii);
     | NonEmptyHole(reason, u, i, sigma, d1) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (NonEmptyHole(reason, u, i, sigma, d1), hii);
     | FreeVar(u, i, sigma, x) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeVar(u, i, sigma, x), hii);
     | Keyword(u, i, sigma, k) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
       (Keyword(u, i, sigma, k), hii);
     | FreeLivelit(u, i, sigma, name) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeLivelit(u, i, sigma, name), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
@@ -1726,10 +1726,10 @@ module Exp = {
   and renumber_sigmas_only_rules =
       (
         path: InstancePath.t,
-        hii: HoleInstanceInfo.t,
+        hii: NodeInstanceInfo.t,
         rules: list(DHExp.rule),
       )
-      : (list(DHExp.rule), HoleInstanceInfo.t) =>
+      : (list(DHExp.rule), NodeInstanceInfo.t) =>
     rules
     |> List.fold_left(
          (b, r: DHExp.rule) => {
@@ -1748,13 +1748,13 @@ module Exp = {
         path: InstancePath.t,
         u: MetaVar.t,
         i: MetaVarInst.t,
-        hii: HoleInstanceInfo.t,
+        hii: NodeInstanceInfo.t,
         sigma: Environment.t,
       )
-      : (Environment.t, HoleInstanceInfo.t) => {
+      : (Environment.t, NodeInstanceInfo.t) => {
     let (sigma, hii) =
       List.fold_right(
-        (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+        (xd: (Var.t, DHExp.t), acc: (Environment.t, NodeInstanceInfo.t)) => {
           let (x, d) = xd;
           let (sigma_in, hii) = acc;
           let path = [((u, i), x), ...path];
@@ -1767,7 +1767,7 @@ module Exp = {
       );
 
     List.fold_right(
-      (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+      (xd: (Var.t, DHExp.t), acc: (Environment.t, NodeInstanceInfo.t)) => {
         let (x, d) = xd;
         let (sigma_in, hii) = acc;
         let path = [((u, i), x), ...path];
@@ -1781,8 +1781,8 @@ module Exp = {
   };
 
   let renumber =
-      (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-      : (DHExp.t, HoleInstanceInfo.t) => {
+      (path: InstancePath.t, hii: NodeInstanceInfo.t, d: DHExp.t)
+      : (DHExp.t, NodeInstanceInfo.t) => {
     let (d, hii) = renumber_result_only(path, hii, d);
     renumber_sigmas_only(path, hii, d);
   };

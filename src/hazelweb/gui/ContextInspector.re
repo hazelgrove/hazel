@@ -79,7 +79,7 @@ let view =
         switch (model |> Model.get_selected_hole_instance) {
         | None => Dynamics.Exp.id_env(ctx)
         | Some(inst) =>
-          switch (HoleInstanceInfo.lookup(hii, inst)) {
+          switch (NodeInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
@@ -196,7 +196,7 @@ let view =
   };
 
   let hii_summary = (hii, (u, i) as inst) => {
-    let num_instances = HoleInstanceInfo.num_instances(hii, u);
+    let num_instances = NodeInstanceInfo.num_instances(hii, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -331,7 +331,7 @@ let view =
               ]
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
-                switch (HoleInstanceInfo.lookup(hii, inst)) {
+                switch (NodeInstanceInfo.lookup(hii, inst)) {
                 | None =>
                   // raise(InvalidInstance)
                   [instructional_msg("Internal Error: [InvalidInstance]")]

@@ -118,7 +118,7 @@ let get_selected_hole_instance = model =>
     Some((u, i));
   };
 
-let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
+let select_hole_instance = ((u, _) as inst: NodeInstance.t, model: t): t =>
   model
   |> map_program(Program.move_to_hole(u))
   |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))

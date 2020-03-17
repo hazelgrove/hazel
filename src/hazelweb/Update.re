@@ -23,7 +23,7 @@ module Action = {
     | ToggleShowUnevaluatedExpansion
     | ToggleShowContenteditable
     | ToggleShowPresentation
-    | SelectHoleInstance(HoleInstance.t)
+    | SelectHoleInstance(NodeInstance.t)
     | InvalidVar(string)
     | SelectionChange
     | FocusCell

@@ -19,7 +19,7 @@ let next =
 };
 
 let update_environment =
-    (hii: t, inst: HoleInstance.t, sigma: Environment.t): t => {
+    (hii: t, inst: NodeInstance.t, sigma: Environment.t): t => {
   let (u, i) = inst;
   let (_, hii) =
     MetaVarMap.update_with(
@@ -58,7 +58,7 @@ let default_instance = (hii: t, u: MetaVar.t): option((MetaVar.t, int)) =>
   };
 
 let lookup =
-    (hii: t, inst: HoleInstance.t): option((Environment.t, InstancePath.t)) => {
+    (hii: t, inst: NodeInstance.t): option((Environment.t, InstancePath.t)) => {
   let (u, i) = inst;
   switch (MetaVarMap.lookup(hii, u)) {
   | Some(envs) =>

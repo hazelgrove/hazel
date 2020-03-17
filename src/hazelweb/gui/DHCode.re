@@ -54,7 +54,7 @@ let view =
       ~show_casts: bool,
       ~show_fn_bodies: bool,
       ~show_case_clauses: bool,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_instance: option(NodeInstance.t),
       ~width: int,
       ~pos=0,
       d: DHExp.t,
@@ -81,7 +81,7 @@ let view_of_hole_instance =
       ~width: int,
       ~pos=0,
       ~selected_instance,
-      (u, i): HoleInstance.t,
+      (u, i): NodeInstance.t,
     )
     : Vdom.Node.t =>
   view(

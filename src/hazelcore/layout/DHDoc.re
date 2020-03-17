@@ -42,7 +42,7 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): HoleInstance.t): t => {
+  let empty_hole = ((u, i): NodeInstance.t): t => {
     let lbl =
       StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
     Doc.text(lbl)
@@ -234,7 +234,7 @@ module Exp = {
             ~show_case_clauses: bool,
             ~parenthesize=false,
             ~enforce_inline: bool,
-            ~selected_instance: option(HoleInstance.t),
+            ~selected_instance: option(NodeInstance.t),
             d: DHExp.t,
           )
           : t => {

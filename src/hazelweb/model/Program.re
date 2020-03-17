@@ -76,11 +76,11 @@ let get_result = (program: t): Result.t =>
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Dynamics.Exp.renumber([], NodeInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Dynamics.Exp.renumber([], NodeInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
