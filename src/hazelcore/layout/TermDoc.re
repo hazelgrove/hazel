@@ -190,6 +190,19 @@ let mk_Parenthesized =
   |> annot_Operand(~family);
 };
 
+let mk_ListLit =
+    (
+      ~family: TermFamily.t,
+      ~err: ErrStatus.t,
+      ~steps: CursorPath.steps,
+      body: formatted_child,
+    )
+    : t => {
+  let open_group = DelimDoc.open_List(steps) |> annot_DelimGroup;
+  let close_group = DelimDoc.close_List(steps) |> annot_DelimGroup;
+  Doc.hcats([open_group, body |> pad_open_child, close_group])
+  |> annot_Operand(~family, ~err);
+};
 let mk_List = (~steps: CursorPath.steps, body: formatted_child): t => {
   let open_group = DelimDoc.open_List(steps) |> annot_DelimGroup;
   let close_group = DelimDoc.close_List(steps) |> annot_DelimGroup;
@@ -751,6 +764,7 @@ module Exp = {
   let mk_ListNil = mk_ListNil(~family=Exp);
   let mk_Var = mk_Var(~family=Exp);
   let mk_Parenthesized = mk_Parenthesized(~family=Exp);
+  let mk_ListLit = mk_ListLit(~family=Exp);
   let mk_Inj = mk_Inj(~family=Exp);
   let mk_NTuple =
     mk_NTuple(
@@ -853,6 +867,15 @@ module Exp = {
     | Inj(err, inj_side, body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
       mk_Inj(~err, ~steps, ~inj_side, body);
+    | ListLit(err, opseq) =>
+      let body =
+        mk_child(
+          ~enforce_inline,
+          ~steps,
+          ~child_step=0,
+          UHExp.Block.wrap'(opseq),
+        );
+      mk_ListLit(~steps, ~err, body);
     | Parenthesized(body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
       mk_Parenthesized(~steps, body);
