@@ -463,10 +463,10 @@ module Exp = {
       let d3' = subst_var(d1, x, d3);
       let sigma' = subst_var_env(d1, x, sigma);
       NonEmptyHole(reason, u, i, sigma', d3');
-    | Scope(su, si, sigma, d3) =>
+    | LivelitHole(su, si, sigma, d3) =>
       let d3' = subst_var(d1, x, d3);
       let sigma' = subst_var_env(d1, x, sigma);
-      Scope(su, si, sigma', d3');
+      LivelitHole(su, si, sigma', d3');
     | Cast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       Cast(d', ty1, ty2);
@@ -547,7 +547,7 @@ module Exp = {
       Matches(env);
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
-    | (_, Scope(_, _, _, d)) => matches(dp, d)
+    | (_, LivelitHole(_, _, _, d)) => matches(dp, d)
     | (_, FailedCast(_, _, _)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
@@ -680,7 +680,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | Scope(_, _, _, d) => matches_cast_Inj(side, dp, d, casts)
+    | LivelitHole(_, _, _, d) => matches_cast_Inj(side, dp, d, casts)
     | FailedCast(_, _, _) => Indet
     }
   and matches_cast_Pair =
@@ -736,7 +736,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | Scope(_, _, _, d) =>
+    | LivelitHole(_, _, _, d) =>
       matches_cast_Pair(dp1, dp2, d, left_casts, right_casts)
     | FailedCast(_, _, _) => Indet
     }
@@ -793,7 +793,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | Scope(_, _, _, d) => matches_cast_Cons(dp1, dp2, d, elt_casts)
+    | LivelitHole(_, _, _, d) => matches_cast_Cons(dp1, dp2, d, elt_casts)
     | FailedCast(_, _, _) => Indet
     };
 
@@ -1632,10 +1632,10 @@ module Exp = {
     | FreeLivelit(u, _, sigma, name) =>
       let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
       (FreeLivelit(u, i, sigma, name), hii, sii);
-    | Scope(su, _, sigma, d1) =>
+    | LivelitHole(su, _, sigma, d1) =>
       let (si, sii) = NodeInstanceInfo.next(sii, su, sigma, path);
       let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (Scope(su, si, sigma, d1), hii, sii);
+      (LivelitHole(su, si, sigma, d1), hii, sii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
       (Cast(d1, ty1, ty2), hii, sii);
@@ -1742,11 +1742,11 @@ module Exp = {
       let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
       let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeLivelit(u, i, sigma, name), hii, sii);
-    | Scope(su, si, sigma, d1) =>
+    | LivelitHole(su, si, sigma, d1) =>
       let (sigma, hii, sii) = renumber_sigma(path, su, si, hii, sii, sigma);
       let sii = NodeInstanceInfo.update_environment(sii, (su, si), sigma);
       let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (Scope(su, si, sigma, d1), hii, sii);
+      (LivelitHole(su, si, sigma, d1), hii, sii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
       (Cast(d1, ty1, ty2), hii, sii);
@@ -2028,11 +2028,11 @@ module Evaluator = {
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
     | FreeLivelit(_, _, _, _) => Indet(d)
-    | Scope(su, si, sigma, d1) =>
+    | LivelitHole(su, si, sigma, d1) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d1') => BoxedValue(Scope(su, si, sigma, d1'))
-      | Indet(d1') => Indet(Scope(su, si, sigma, d1'))
+      | BoxedValue(d1') => BoxedValue(LivelitHole(su, si, sigma, d1'))
+      | Indet(d1') => Indet(LivelitHole(su, si, sigma, d1'))
       }
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
