@@ -1,43 +1,41 @@
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
-let checkbox =
+let labeled_checkbox =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      id: string,
-      text: string,
-      default: bool,
-      action: bool => Update.Action.t,
+      ~id: string,
+      ~label: string,
+      ~on_change: unit => Vdom.Event.t,
+      ~disabled=false,
+      checked: bool,
     )
     : Vdom.Node.t => {
+  let checkbox_id = id ++ "_checkbox";
   Vdom.(
     Node.div(
-      [],
+      [Attr.id(id), Attr.classes(["labeled-checkbox"])],
       [
         Node.input(
-          (
-            if (default) {
-              [Attr.checked];
-            } else {
-              [];
-            }
-          )
-          @ [
-            Attr.type_("checkbox"),
-            Attr.id(id),
-            Attr.on_change((evt, _) => {
-              let target =
-                JSUtil.force_opt(
-                  Js_of_ocaml.Dom_html.CoerceTo.input(
-                    JSUtil.force_opt(evt##.target),
-                  ),
-                );
-              let checked = Js_of_ocaml.Js.to_bool(target##.checked);
-              inject(action(checked));
-            }),
-          ],
+          [
+            [
+              Attr.id(checkbox_id),
+              Attr.type_("checkbox"),
+              Attr.on_change((_, _) => on_change()),
+            ],
+            checked ? [Attr.checked] : [],
+            disabled ? [Attr.disabled] : [],
+          ]
+          |> List.concat,
           [],
         ),
-        Node.label([Attr.for_(id)], [Node.text(text)]),
+        Node.label(
+          [
+            Attr.for_(id),
+            Attr.on_click(_ => on_change()),
+            ...disabled ? [Attr.disabled] : [],
+          ],
+          [Node.text(label)],
+        ),
       ],
     )
   );
@@ -48,31 +46,46 @@ let view =
   let compute_results_checkbox =
     Vdom.(
       Node.div(
-        [],
+        [Attr.id("OptionsPanel")],
         [
-          checkbox(
-            ~inject,
-            "compute_results",
-            "Compute Results",
+          labeled_checkbox(
+            ~id="compute_results",
+            ~label="Compute results",
+            ~on_change=() => inject(ToggleComputeResults),
             model.compute_results,
-            checked =>
-            Update.Action.SetComputeResults(checked)
           ),
-          checkbox(
-            ~inject,
-            "show_contenteditable",
-            "Show Content Editable (Debugging)",
+          labeled_checkbox(
+            ~id="show_fn_bodies",
+            ~label="Show function bodies",
+            ~on_change=() => inject(ToggleShowFnBodies),
+            ~disabled=!model.compute_results,
+            model.show_fn_bodies,
+          ),
+          labeled_checkbox(
+            ~id="show_casts",
+            ~label="Show casts",
+            ~on_change=() => inject(ToggleShowCasts),
+            ~disabled=!model.compute_results,
+            model.show_casts,
+          ),
+          labeled_checkbox(
+            ~id="show_unevaluated_expansion",
+            ~label="Show unevaluated expansion",
+            ~on_change=() => inject(ToggleShowUnevaluatedExpansion),
+            ~disabled=!model.compute_results,
+            model.show_unevaluated_expansion,
+          ),
+          labeled_checkbox(
+            ~id="show_contenteditable",
+            ~label="Show contenteditable (debugging)",
+            ~on_change=() => inject(ToggleShowUnevaluatedExpansion),
             model.show_contenteditable,
-            checked =>
-            Update.Action.SetShowContentEditable(checked)
           ),
-          checkbox(
-            ~inject,
-            "show_presentation",
-            "Show Presentation (Debugging)",
+          labeled_checkbox(
+            ~id="show_presentation",
+            ~label="Show presentation (debugging)",
+            ~on_change=() => inject(ToggleShowPresentation),
             model.show_presentation,
-            checked =>
-            Update.Action.SetShowPresentation(checked)
           ),
         ],
       )

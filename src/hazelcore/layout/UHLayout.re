@@ -1,7 +1,7 @@
 open Pretty;
 
 [@deriving sexp]
-type annot = TermAnnot.t;
+type annot = UHAnnot.t;
 
 type t = Layout.t(annot);
 
@@ -93,7 +93,7 @@ let rec follow_steps_and_decorate =
   | [] => decorate(l)
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Annot((annot: TermAnnot.t, l: t) => {
+    |> find_and_decorate_Annot((annot: UHAnnot.t, l: t) => {
          switch (annot) {
          | Step(step) when step == next_step =>
            l
@@ -125,7 +125,7 @@ let find_and_decorate_caret =
                Return(
                  l
                  |> Layout.annot(
-                      TermAnnot.Text({...text_data, caret: Some(j)}),
+                      UHAnnot.Text({...text_data, caret: Some(j)}),
                     ),
                )
              | EmptyLine
@@ -140,7 +140,7 @@ let find_and_decorate_caret =
                Return(
                  l
                  |> Layout.annot(
-                      TermAnnot.Op({...op_data, caret: Some(side)}),
+                      UHAnnot.Op({...op_data, caret: Some(side)}),
                     ),
                )
              | _ => Stop
@@ -154,10 +154,7 @@ let find_and_decorate_caret =
                  ? Return(
                      l
                      |> Layout.annot(
-                          TermAnnot.Delim({
-                            ...delim_data,
-                            caret: Some(side),
-                          }),
+                          UHAnnot.Delim({...delim_data, caret: Some(side)}),
                         ),
                    )
                  : Stop
@@ -174,7 +171,7 @@ let find_and_decorate_caret =
 let rec find_and_decorate_Term =
         (
           ~steps: CursorPath.steps,
-          ~decorate_Term: (TermAnnot.term_data, t) => t,
+          ~decorate_Term: (UHAnnot.term_data, t) => t,
           l: t,
         )
         : option(t) => {
@@ -220,7 +217,7 @@ let rec find_and_decorate_Term =
 
 let find_and_decorate_cursor =
   find_and_decorate_Term(~decorate_Term=(term_data, l) =>
-    l |> Layout.annot(TermAnnot.Term({...term_data, has_cursor: true}))
+    l |> Layout.annot(UHAnnot.Term({...term_data, has_cursor: true}))
   );
 
 let find_and_decorate_var_use =
@@ -229,7 +226,7 @@ let find_and_decorate_var_use =
     | {shape: Var(var_data), _} =>
       l
       |> Layout.annot(
-           TermAnnot.Term({
+           UHAnnot.Term({
              ...term_data,
              shape: Var({...var_data, show_use: true}),
            }),
