@@ -2507,9 +2507,11 @@ module Exp = {
         }
       }  
     | SwapDown when ZExp.line_can_be_swapped(zline) =>
-      switch (suffix) {
-      | [] => Failed
-      | [hd, ...tl] => {
+      switch (suffix, zline) {
+      | ([], _) => Failed
+      /* avoid swap down for the Let line if it is second to last */
+      | ([single_line], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) => Failed
+      | ([hd, ...tl], _) => {
           let new_zblock = ((prefix @ [hd]), zline, tl);
           Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)))
         }
