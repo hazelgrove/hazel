@@ -3804,9 +3804,11 @@ module Exp = {
         }
       }
     | (SwapDown, _) when ZExp.line_can_be_swapped(zline) =>
-      switch(suffix) {
-      | [] => Failed
-      | [hd, ...tl] => {
+      switch(suffix, zline) {
+      | ([], _) => Failed
+      /* avoid swap down fot the Let line if it is second to last */
+      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) => Failed
+      | ([hd, ...tl], _) => {
           let new_zblock = ((prefix @ [hd]), zline, tl);
           Succeeded(
             AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty))
