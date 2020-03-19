@@ -12,7 +12,7 @@ type t =
   | Indent
   | Padding
   | HoleLabel({len: int})
-  | CaretPosition
+  | CursorPosition(CursorPosition.t)
   | Text({
       length: int,
       caret: option(int),
