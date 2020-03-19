@@ -3,45 +3,42 @@ open Pretty;
 type t = Doc.t(UHAnnot.t);
 
 module Delim = {
-  let mk =
-      (~caret: option(Side.t)=?, ~index: DelimIndex.t, delim_text: string): t =>
-    Doc.text(delim_text) |> Doc.annot(UHAnnot.mk_Delim(~caret?, ~index, ()));
+  let mk = (delim_text: string): t =>
+    Doc.text(delim_text) |> Doc.annot(UHAnnot.Delim);
 
-  let empty_hole_doc = (~caret: option(Side.t)=?, hole_lbl: string): t =>
+  let empty_hole_doc = (hole_lbl: string): t =>
     Doc.text(hole_lbl)
     |> Doc.annot(
          UHAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}),
        )
-    |> Doc.annot(UHAnnot.mk_Delim(~caret?, ~index=0, ()));
+    |> Doc.annot(UHAnnot.Delim);
 
-  let open_List = (~caret=?, ()) => mk(~caret?, ~index=0, "[");
-  let close_List = (~caret=?, ()) => mk(~caret?, ~index=1, "]");
+  let open_List = () => mk("[");
+  let close_List = () => mk("]");
 
-  let open_Parenthesized = (~caret=?, ()) => mk(~caret?, ~index=0, "(");
-  let close_Parenthesized = (~caret=?, ()) => mk(~caret?, ~index=1, ")");
+  let open_Parenthesized = () => mk("(");
+  let close_Parenthesized = () => mk(")");
 
-  let open_Inj = (~caret=?, inj_side: InjSide.t) =>
-    mk(~caret?, ~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
-  let close_Inj = (~caret=?, ()) => mk(~caret?, ~index=1, ")");
+  let open_Inj = (inj_side: InjSide.t) =>
+    mk("inj[" ++ InjSide.to_string(inj_side) ++ "](");
+  let close_Inj = () => mk(")");
 
-  let sym_Lam = (~caret=?, ()) =>
-    mk(~caret?, ~index=0, UnicodeConstants.lamSym);
-  let colon_Lam = (~caret=?, ()) => mk(~caret?, ~index=1, ":");
-  let open_Lam = (~caret=?, ()) => mk(~caret?, ~index=2, ".{");
-  let close_Lam = (~caret=?, ()) => mk(~caret?, ~index=3, "}");
+  let sym_Lam = () => mk(UnicodeConstants.lamSym);
+  let colon_Lam = () => mk(":");
+  let open_Lam = () => mk(".{");
+  let close_Lam = () => mk("}");
 
-  let open_Case = (~caret=?, ()) => mk(~caret?, ~index=0, "case");
-  let close_Case = (~caret=?, ()) => mk(~caret?, ~index=1, "end");
-  let close_Case_ann = (~caret=?, ()) => mk(~caret?, ~index=1, "end :");
+  let open_Case = () => mk("case");
+  let close_Case = () => mk("end");
+  let close_Case_ann = () => mk("end :");
 
-  let bar_Rule = (~caret=?, ()) => mk(~caret?, ~index=0, "|");
-  let arrow_Rule = (~caret=?, ()) =>
-    mk(~caret?, ~index=1, UnicodeConstants.caseArrowSym);
+  let bar_Rule = () => mk("|");
+  let arrow_Rule = () => mk(UnicodeConstants.caseArrowSym);
 
-  let let_LetLine = (~caret=?, ()) => mk(~caret?, ~index=0, "let");
-  let colon_LetLine = (~caret=?, ()) => mk(~caret?, ~index=1, ":");
-  let eq_LetLine = (~caret=?, ()) => mk(~caret?, ~index=2, "=");
-  let in_LetLine = (~caret=?, ()) => mk(~caret?, ~index=3, "in");
+  let let_LetLine = () => mk("let");
+  let colon_LetLine = () => mk(":");
+  let eq_LetLine = () => mk("=");
+  let in_LetLine = () => mk("in");
 };
 
 let empty_ = Doc.empty();
@@ -77,12 +74,10 @@ let annot_Case = (~err: ErrStatus.t) =>
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
-let mk_text = (s: string): t =>
-  Doc.text(s)
-  |> Doc.annot(UHAnnot.mk_Text(~length=StringUtil.utf8_length(s), ()));
+let mk_text = (s: string): t => Doc.text(s) |> Doc.annot(UHAnnot.mk_Text());
 
 let mk_cursor_position = cursor =>
-  Doc.annot(UHAnnot.CursorPosition(cursor), empty_);
+  Doc.annot(UHAnnot.CursorPosition({has_cursor: false, cursor}), empty_);
 
 let mk_leaf_delim = d =>
   Doc.hcats([
@@ -109,14 +104,14 @@ let pad_operator =
 };
 
 let mk_op = (op_text: string): t =>
-  Doc.text(op_text) |> Doc.annot(UHAnnot.mk_Op());
+  Doc.text(op_text) |> Doc.annot(UHAnnot.Op);
 
-let mk_space_op = Doc.space() |> Doc.annot(UHAnnot.SpaceOp);
+let mk_space_op = Doc.annot(UHAnnot.SpaceOp, space_);
 
 let user_newline =
   Doc.(
     hcats([
-      space() |> annot_Padding,
+      space_ |> annot_Padding,
       text(UnicodeConstants.user_newline) |> annot(UHAnnot.UserNewline),
     ])
   );
@@ -130,7 +125,7 @@ type formatted_child =
 let pad_child =
     (
       ~is_open: bool,
-      ~cursor_positions as
+      ~bordering_cursor_positions as
         (lcursor, rcursor): (CursorPosition.t, CursorPosition.t),
       ~inline_padding: (t, t)=(empty_, empty_),
       child: formatted_child,
@@ -237,13 +232,13 @@ let pad_left_delimited_child =
 };
 
 let mk_Unit = (): t =>
-  mk_leaf_delim(Delim.mk(~index=0, "()")) |> annot_Operand(~sort=Typ);
+  mk_leaf_delim(Delim.mk("()")) |> annot_Operand(~sort=Typ);
 
 let mk_Num = (): t =>
-  mk_leaf_delim(Delim.mk(~index=0, "Num")) |> annot_Operand(~sort=Typ);
+  mk_leaf_delim(Delim.mk("Num")) |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (): t =>
-  mk_leaf_delim(Delim.mk(~index=0, "Bool")) |> annot_Operand(~sort=Typ);
+  mk_leaf_delim(Delim.mk("Bool")) |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
@@ -253,7 +248,7 @@ let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   mk_leaf_delim(Delim.empty_hole_doc(hole_lbl)) |> annot_Operand(~sort);
 
 let mk_Wild = (~err: ErrStatus.t): t =>
-  mk_leaf_delim(Delim.mk(~index=0, "_")) |> annot_Operand(~sort=Pat, ~err);
+  mk_leaf_delim(Delim.mk("_")) |> annot_Operand(~sort=Pat, ~err);
 
 let mk_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
@@ -266,7 +261,7 @@ let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
-  mk_leaf_delim(Delim.mk(~index=0, "[]")) |> annot_Operand(~sort, ~err);
+  mk_leaf_delim(Delim.mk("[]")) |> annot_Operand(~sort, ~err);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group =
@@ -285,7 +280,10 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
     open_group,
     body
     |> pad_open_child(
-         ~cursor_positions=(OnDelim(0, After), OnDelim(1, Before)),
+         ~bordering_cursor_positions=(
+           OnDelim(0, After),
+           OnDelim(1, Before),
+         ),
        ),
     close_group,
   ])
@@ -303,7 +301,10 @@ let mk_List = (body: formatted_child): t => {
     open_group,
     body
     |> pad_open_child(
-         ~cursor_positions=(OnDelim(0, After), OnDelim(1, Before)),
+         ~bordering_cursor_positions=(
+           OnDelim(0, After),
+           OnDelim(1, Before),
+         ),
        ),
     close_group,
   ])
@@ -331,7 +332,10 @@ let mk_Inj =
     open_group,
     body
     |> pad_open_child(
-         ~cursor_positions=(OnDelim(0, After), OnDelim(1, Before)),
+         ~bordering_cursor_positions=(
+           OnDelim(0, After),
+           OnDelim(1, Before),
+         ),
        ),
     close_group,
   ])
@@ -357,7 +361,10 @@ let mk_Lam =
           lam_delim,
           p
           |> pad_closed_child(
-               ~cursor_positions=(OnDelim(0, After), OnDelim(2, Before)),
+               ~bordering_cursor_positions=(
+                 OnDelim(0, After),
+                 OnDelim(2, Before),
+               ),
              ),
           open_delim,
         ])
@@ -368,12 +375,18 @@ let mk_Lam =
           lam_delim,
           p
           |> pad_closed_child(
-               ~cursor_positions=(OnDelim(0, After), OnDelim(1, Before)),
+               ~bordering_cursor_positions=(
+                 OnDelim(0, After),
+                 OnDelim(1, Before),
+               ),
              ),
           colon_delim,
           ann
           |> pad_closed_child(
-               ~cursor_positions=(OnDelim(1, After), OnDelim(2, Before)),
+               ~bordering_cursor_positions=(
+                 OnDelim(1, After),
+                 OnDelim(2, Before),
+               ),
              ),
           open_delim,
         ]);
@@ -387,7 +400,10 @@ let mk_Lam =
     open_group,
     body
     |> pad_open_child(
-         ~cursor_positions=(OnDelim(2, After), OnDelim(3, Before)),
+         ~bordering_cursor_positions=(
+           OnDelim(2, After),
+           OnDelim(3, Before),
+         ),
        ),
     close_group,
   ])
@@ -473,7 +489,10 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
       p
       |> pad_closed_child(
            ~inline_padding=(space_, space_),
-           ~cursor_positions=(OnDelim(0, After), OnDelim(1, Before)),
+           ~bordering_cursor_positions=(
+             OnDelim(0, After),
+             OnDelim(1, Before),
+           ),
          ),
       Delim.arrow_Rule(),
     ])
@@ -505,7 +524,10 @@ let mk_LetLine =
           p
           |> pad_closed_child(
                ~inline_padding=(space_, space_),
-               ~cursor_positions=(OnDelim(0, After), OnDelim(2, Before)),
+               ~bordering_cursor_positions=(
+                 OnDelim(0, After),
+                 OnDelim(2, Before),
+               ),
              ),
           eq_delim,
         ])
@@ -517,13 +539,19 @@ let mk_LetLine =
           p
           |> pad_closed_child(
                ~inline_padding=(space_, space_),
-               ~cursor_positions=(OnDelim(0, After), OnDelim(1, Before)),
+               ~bordering_cursor_positions=(
+                 OnDelim(0, After),
+                 OnDelim(1, Before),
+               ),
              ),
           colon_delim,
           ann
           |> pad_closed_child(
                ~inline_padding=(space_, space_),
-               ~cursor_positions=(OnDelim(1, After), OnDelim(2, Before)),
+               ~bordering_cursor_positions=(
+                 OnDelim(1, After),
+                 OnDelim(2, Before),
+               ),
              ),
           eq_delim,
         ]);
@@ -538,7 +566,10 @@ let mk_LetLine =
     def
     |> pad_open_child(
          ~inline_padding=(space_, space_),
-         ~cursor_positions=(OnDelim(2, After), OnDelim(3, Before)),
+         ~bordering_cursor_positions=(
+           OnDelim(2, After),
+           OnDelim(3, Before),
+         ),
        ),
     close_group,
   ]);
@@ -570,12 +601,14 @@ let rec mk_BinOp =
     mk_operand(~enforce_inline, operand) |> annot_Step(n);
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-    let op_doc = mk_operator(op) |> annot_Step(op_index) |> annot_DelimGroup;
+    let op_doc = mk_operator(op) |> annot_DelimGroup;
     let skel1_doc = go(skel1);
     let skel2_doc = go(skel2);
     Doc.hcats([
       skel1_doc |> annot_OpenChild(~is_inline=true),
-      op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
+      op_doc
+      |> pad_operator(~inline_padding=inline_padding_of_operator(op))
+      |> annot_Step(op_index),
       skel2_doc |> annot_OpenChild(~is_inline=true),
     ])
     |> Doc.annot(UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()));
@@ -620,7 +653,7 @@ let mk_NTuple =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
              let comma_doc =
                Doc.text(",")
-               |> Doc.annot(UHAnnot.mk_Op())
+               |> Doc.annot(UHAnnot.Op)
                |> annot_Step(comma_index)
                |> annot_DelimGroup;
              let doc =

@@ -123,15 +123,11 @@ let find_and_decorate_caret =
              switch (annot) {
              | EmptyLine(_) =>
                Return(
-                 l |> Layout.annot(UHAnnot.mk_EmptyLine(~has_caret=true, ())),
-               )
-             | Text(text_data) =>
-               Return(
                  l
-                 |> Layout.annot(
-                      UHAnnot.Text({...text_data, caret: Some(j)}),
-                    ),
+                 |> Layout.annot(UHAnnot.mk_EmptyLine(~has_cursor=true, ())),
                )
+             | Text(_) =>
+               Return(l |> Layout.annot(UHAnnot.Text({cursor: Some(j)})))
              | Term(_) => Skip
              | _ => Stop
              }
@@ -139,23 +135,34 @@ let find_and_decorate_caret =
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Op(_) =>
-               Return(l |> Layout.annot(UHAnnot.Op({caret: Some(side)})))
+             | CursorPosition({cursor: OnOp(side') as cursor', _})
+                 when side' == side =>
+               Return(
+                 l
+                 |> Layout.annot(
+                      UHAnnot.CursorPosition({
+                        has_cursor: true,
+                        cursor: cursor',
+                      }),
+                    ),
+               )
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Delim({index, _} as delim_data) =>
-               index == k
-                 ? Return(
-                     l
-                     |> Layout.annot(
-                          UHAnnot.Delim({...delim_data, caret: Some(side)}),
-                        ),
-                   )
-                 : Stop
+             | CursorPosition({cursor: OnDelim(k', side') as cursor', _})
+                 when k' == k && side' == side =>
+               Return(
+                 l
+                 |> Layout.annot(
+                      UHAnnot.CursorPosition({
+                        has_cursor: true,
+                        cursor: cursor',
+                      }),
+                    ),
+               )
              | Term(_)
              | DelimGroup
              | LetLine => Skip
