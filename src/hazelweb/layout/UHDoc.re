@@ -698,6 +698,7 @@ module Exp = {
         ~steps: CursorPath.steps,
         ~enforce_inline: bool,
         ~ctx: Livelits.LivelitViewCtx.t,
+        ~llii: NodeInstanceInfo.t,
         e: UHExp.t,
       )
       : t => {
@@ -811,11 +812,16 @@ module Exp = {
             mk_Case_ann(~err, ~steps, scrut, rules, ann);
           };
         }
-      | ApLivelit(_, _, lln, m, _) =>
+      | ApLivelit(llu, _, lln, m, _) =>
         switch (VarMap.lookup(ctx, lln)) {
         | None => assert(false)
         | Some(svf) =>
-          mk_ApLivelit(~steps, lln, svf(m, _ => Vdom.Event.Ignore))
+          let inst_opt = NodeInstanceInfo.default_instance(llii, llu);
+          let env_opt =
+            inst_opt
+            |> OptUtil.and_then(NodeInstanceInfo.lookup(llii))
+            |> OptUtil.map(fst);
+          mk_ApLivelit(~steps, lln, svf(m, env_opt, _ => Vdom.Event.Ignore));
         }
       | FreeLivelit(_, lln) => mk_FreeLivelit(~steps, lln)
       }

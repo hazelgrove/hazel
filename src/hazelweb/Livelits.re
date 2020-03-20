@@ -32,7 +32,7 @@ module type LIVELIT = {
 
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
-  let view: (model, trigger) => LivelitView.t;
+  let view: (model, option(Environment.t), trigger) => LivelitView.t;
   let expand: model => UHExp.t;
 };
 
@@ -215,7 +215,7 @@ module CheckboxLivelit: LIVELIT = {
   let init_model = SpliceGenCmd.return(false);
   let update = (m, _) => SpliceGenCmd.return(!m);
 
-  let view = (m, trig) => {
+  let view = (m, _, trig) => {
     let checked_state = m ? [Vdom.Attr.checked] : [];
     let input_elt =
       Vdom.(
@@ -339,7 +339,8 @@ module CheckboxLivelit: LIVELIT = {
 
 type trigger_serialized = SerializedAction.t => Vdom.Event.t;
 type serialized_view_fn_t =
-  (SerializedModel.t, trigger_serialized) => LivelitView.t;
+  (SerializedModel.t, option(Environment.t), trigger_serialized) =>
+  LivelitView.t;
 
 module LivelitViewCtx = {
   type t = VarMap.t_(serialized_view_fn_t);
@@ -381,8 +382,8 @@ module LivelitAdapter = (L: LIVELIT) => {
         L.expand(L.model_of_sexp(serialized_model)),
     };
 
-  let serialized_view_fn = (serialized_model, update_fn) =>
-    L.view(L.model_of_sexp(serialized_model), action =>
+  let serialized_view_fn = (serialized_model, env, update_fn) =>
+    L.view(L.model_of_sexp(serialized_model), env, action =>
       update_fn(L.sexp_of_action(action))
     );
 

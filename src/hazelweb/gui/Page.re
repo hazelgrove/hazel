@@ -157,12 +157,14 @@ let view =
       );
     };
   let e = program |> Program.get_uhexp;
+  let (_, _, llii, _) = program |> Program.get_result;
   let doc =
     lazy(
       UHDoc.Exp.mk(
         ~steps=[],
         ~enforce_inline=false,
         ~ctx=Livelits.initial_livelit_view_ctx,
+        ~llii,
         e,
       )
     );

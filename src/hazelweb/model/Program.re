@@ -69,9 +69,10 @@ let get_expansion = (program: t): DHExp.t =>
   };
 
 exception InvalidInput;
-let _evaluate =
+let _evaluate = {
   Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
+};
+let get_result = (program: t): Result.t => {
   switch (program |> get_expansion |> _evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
@@ -93,6 +94,7 @@ let get_result = (program: t): Result.t =>
       );
     (d_renumbered, hii, llii, Indet(d_renumbered));
   };
+};
 
 exception FailedAction;
 exception CursorEscaped;
@@ -122,18 +124,21 @@ let move_to_hole = (u, program) => {
   };
 };
 
-let _doc =
+let _doc = llii => {
   Memo.general(
     ~cache_size_bound=1000,
     UHDoc.Exp.mk(
       ~steps=[],
       ~enforce_inline=false,
       ~ctx=Livelits.initial_livelit_view_ctx,
+      ~llii,
     ),
   );
+};
 let get_doc = program => {
   let e = program |> get_uhexp;
-  _doc(e);
+  let (_, _, llii, _) = program |> get_result;
+  _doc(llii, e);
 };
 
 let _cursor_on_exp_hole =
