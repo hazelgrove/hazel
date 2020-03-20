@@ -28,3 +28,8 @@ let test = (opt: option(_)): bool =>
   | None => false
   | Some(_) => true
   };
+let and_then = (f: 'a => 'b, opt: option('a)): 'b =>
+  switch (opt) {
+  | None => None
+  | Some(a) => f(a)
+  };
