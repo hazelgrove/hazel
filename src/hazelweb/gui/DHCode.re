@@ -15,6 +15,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(HoleLabel, l) => [
         Node.span([Attr.classes(["HoleLabel"])], go(l)),
       ]
+    | Annot(FreeLivelitLabel, l) => [
+        Node.span([Attr.classes(["FreeLivelitLabel"])], go(l)),
+      ]
     | Annot(Delim, l) => [
         Node.span([Attr.classes(["code-delim"])], go(l)),
       ]
@@ -35,6 +38,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
           go(l),
         ),
       ]
+    | Annot(FreeLivelit(_), l) => [Node.span([], go(l))]
     | Annot(FailedCastDelim, l) => [
         Node.span([Attr.classes(["FailedCastDelim"])], go(l)),
       ]

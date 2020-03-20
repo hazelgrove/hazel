@@ -38,16 +38,28 @@ let pad_child =
   enforce_inline ? inline_choice : Doc.choice(inline_choice, para_choice);
 };
 
+let inst_label = ((u, i): NodeInstance.t): string => {
+  StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
+};
+
 module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): NodeInstance.t): t => {
-    let lbl =
-      StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
+  let empty_hole = (inst: NodeInstance.t): t => {
+    let lbl = inst_label(inst);
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
+  };
+
+  let free_livelit = (lln: LivelitName.t, inst: NodeInstance.t): t => {
+    let lbl = inst_label(inst);
+    let lbldoc =
+      Doc.text(lbl)
+      |> Doc.annot(DHAnnot.FreeLivelitLabel)
+      |> Doc.annot(DHAnnot.Delim);
+    Doc.(hcats([text(lln), lbldoc]));
   };
 
   let list_nil = mk("[]");
@@ -90,6 +102,10 @@ module Delim = {
 let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
+
+let mk_FreeLivelit = (lln, u, i) =>
+  Delim.free_livelit(lln, (u, i))
+  |> Doc.annot(DHAnnot.FreeLivelit(lln, (u, i)));
 
 let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
@@ -271,7 +287,7 @@ module Exp = {
         };
       let fdoc = (~enforce_inline) =>
         switch (d) {
-        | FreeLivelit(_) => failwith("unimplemented")
+        | FreeLivelit(u, i, _sigma, lln) => mk_FreeLivelit(lln, u, i)
         | EmptyHole(u, i, _sigma) =>
           let selected =
             switch (selected_instance) {
