@@ -652,15 +652,16 @@ let mk_NTuple =
              let comma_index =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
              let comma_doc =
-               Doc.text(",")
-               |> Doc.annot(UHAnnot.Op)
+               Doc.hcats([
+                 Doc.text(",") |> Doc.annot(UHAnnot.Op),
+                 mk_cursor_position(OnOp(After)),
+               ])
                |> annot_Step(comma_index)
                |> annot_DelimGroup;
              let doc =
                Doc.hcats([
                  tuple,
                  comma_doc,
-                 mk_cursor_position(OnOp(After)),
                  space_ |> annot_Padding,
                  elem_doc |> annot_OpenChild(~is_inline=true),
                ]);
