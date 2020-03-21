@@ -2878,6 +2878,7 @@ module Exp = {
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
+          ListLit(_, _) |
           ApPalette(_),
         ),
       ) =>
@@ -2981,6 +2982,23 @@ module Exp = {
           }
         };
       let new_ze = e |> place_cursor;
+      Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+    | (Backspace, CursorE(OnDelim(k, After), ListLit(_, opseq) as operand)) =>
+      let place_cursor =
+        switch (operand) {
+        | Lam(_) =>
+          switch (k) {
+          | 0
+          | 2 => ZExp.place_before
+          | _three => ZExp.place_after
+          }
+        | _ =>
+          switch (k) {
+          | 0 => ZExp.place_before
+          | _one => ZExp.place_after
+          }
+        };
+      let new_ze = UHExp.Block.wrap'(opseq) |> place_cursor;
       Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
 
     /* TODO consider deletion of type ascription on case */
@@ -3232,6 +3250,15 @@ module Exp = {
         syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
       | Succeeded((new_zbody, new_ty, u_gen)) =>
         let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
+        Succeeded(SynDone((new_ze, new_ty, u_gen)));
+      }
+    | (_, ListLitZ(_, zopseq)) =>
+      switch (syn_perform(ctx, a, (ZExp.ZBlock.wrap'(zopseq), ty, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
+      | Succeeded((new_zopseq, new_ty, u_gen)) =>
+        let new_ze = new_zopseq;
         Succeeded(SynDone((new_ze, new_ty, u_gen)));
       }
     | (_, LamZP(_, zp, ann, body)) =>
@@ -3914,6 +3941,7 @@ module Exp = {
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
+          ListLit(_, _) |
           ApPalette(_),
         ),
       ) =>
@@ -4034,6 +4062,25 @@ module Exp = {
           }
         };
       let new_ze = e |> place_cursor;
+      Succeeded(
+        AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+      );
+    | (Backspace, CursorE(OnDelim(k, After), ListLit(_, opseq) as operand)) =>
+      let place_cursor =
+        switch (operand) {
+        | Lam(_) =>
+          switch (k) {
+          | 0
+          | 2 => ZExp.place_before
+          | _three => ZExp.place_after
+          }
+        | _ =>
+          switch (k) {
+          | 0 => ZExp.place_before
+          | _one => ZExp.place_after
+          }
+        };
+      let new_ze = UHExp.Block.wrap'(opseq) |> place_cursor;
       Succeeded(
         AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
       );
@@ -4234,6 +4281,15 @@ module Exp = {
         ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
       | Succeeded((zbody, u_gen)) =>
         let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(zbody));
+        Succeeded(AnaDone((new_ze, u_gen)));
+      }
+    | (_, ListLitZ(_, zopseq)) =>
+      switch (ana_perform(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
+      | Succeeded((new_zopseq, u_gen)) =>
+        let new_ze = new_zopseq;
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     | (_, LamZP(_, zp, ann, body)) =>
