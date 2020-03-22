@@ -561,21 +561,20 @@ let ondelim_not_delete =
       DeleteEdit(EmptyLine),
     );
   } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-    if (CursorInfo.is_exp_inside(new_cursor_term_info.cursor_term_after)) {
-      /* move the cursor to the outer structure */
-      set_success_join(
-        prev_group,
-        new_entry_base,
-        Ignore,
-      );
-    } else {
-      set_join_result(
-        prev_group,
-        cardstacks_before,
-        new_entry_base,
-        DeleteEdit(Space),
-      );
-    };
+    /*     if (CursorInfo.is_exp_inside(new_cursor_term_info.cursor_term_after)) {
+             /* move the cursor to the outer structure */
+             set_success_join(
+               prev_group,
+               new_entry_base,
+               Ignore,
+             );
+           } else */
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(Space),
+    );
   } else {
     /* move cursor to next term */
     set_success_join(
