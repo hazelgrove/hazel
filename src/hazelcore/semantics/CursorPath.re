@@ -46,7 +46,8 @@ type hole_desc =
   | TypHole
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t)
-  | LivelitHole(MetaVar.t);
+  | LivelitHole(MetaVar.t)
+  | ApLivelit(MetaVar.t);
 
 [@deriving sexp]
 type hole_list = list((hole_desc, steps));
@@ -1267,19 +1268,21 @@ module Exp = {
          )
       |> holes(scrut, [0, ...rev_steps])
       |> holes_err(err, rev_steps)
-    | ApLivelit(_, err, _, _, psi) =>
+    | ApLivelit(llu, err, _, _, psi) =>
       let splice_map = psi.splice_map;
       let splice_order = psi.splice_order;
-      List.fold_right(
-        (i, hs) =>
-          switch (NatMap.lookup(splice_map, i)) {
-          | None => hs
-          | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
-          },
-        splice_order,
-        hs,
-      )
-      |> holes_err(err, rev_steps);
+      let updated =
+        List.fold_right(
+          (i, hs) =>
+            switch (NatMap.lookup(splice_map, i)) {
+            | None => hs
+            | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
+            },
+          splice_order,
+          hs,
+        )
+        |> holes_err(err, rev_steps);
+      [(ApLivelit(llu), rev_steps |> List.rev), ...updated];
     | FreeLivelit(u, _) => [(LivelitHole(u), rev_steps |> List.rev), ...hs]
     }
   and holes_rule =
@@ -1778,15 +1781,26 @@ let append = ((appendee_steps, appendee_cursor): t, steps): t => (
   appendee_cursor,
 );
 
-let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
+let steps_to_hole =
+    (hole_list: hole_list, kind: TaggedNodeInstance.kind, u: MetaVar.t)
+    : option(steps) =>
   switch (
     List.find_opt(
       ((hole_desc, _)) =>
-        switch (hole_desc) {
-        | ExpHole(u')
-        | PatHole(u') => MetaVar.eq(u, u')
-        | TypHole => false
-        | LivelitHole(u') => MetaVar.eq(u, u')
+        switch (kind) {
+        | Hole =>
+          switch (hole_desc) {
+          | ExpHole(u')
+          | PatHole(u') => MetaVar.eq(u, u')
+          | ApLivelit(_)
+          | TypHole => false
+          | LivelitHole(u') => MetaVar.eq(u, u')
+          }
+        | Livelit =>
+          switch (hole_desc) {
+          | ApLivelit(llu') => MetaVar.eq(u, llu')
+          | _ => false
+          }
         },
       hole_list,
     )
@@ -1795,18 +1809,29 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   | Some((_, steps)) => Some(steps)
   };
 
-let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
+let steps_to_hole_z =
+    (zhole_list: zhole_list, kind: TaggedNodeInstance.kind, u: MetaVar.t)
+    : option(steps) => {
   let {holes_before, hole_selected, holes_after} = zhole_list;
-  switch (steps_to_hole(holes_before, u)) {
+  let backup_plan = () => steps_to_hole(holes_after, kind, u);
+  switch (steps_to_hole(holes_before, kind, u)) {
   | Some(_) as res => res
   | None =>
     switch (hole_selected) {
     | Some((ExpHole(u'), path))
     | Some((PatHole(u'), path))
     | Some((LivelitHole(u'), path)) =>
-      MetaVar.eq(u, u') ? Some(path) : steps_to_hole(holes_after, u)
+      switch (kind) {
+      | Hole => MetaVar.eq(u, u') ? Some(path) : backup_plan()
+      | Livelit => backup_plan()
+      }
+    | Some((ApLivelit(llu'), path)) =>
+      switch (kind) {
+      | Hole => backup_plan()
+      | Livelit => MetaVar.eq(u, llu') ? Some(path) : backup_plan()
+      }
     | Some((TypHole, _))
-    | None => steps_to_hole(holes_after, u)
+    | None => backup_plan()
     }
   };
 };

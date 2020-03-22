@@ -45,7 +45,7 @@ let view =
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
                   ~show_casts=model.show_casts,
-                  ~selected_instance=model |> Model.get_selected_hole_instance,
+                  ~selected_instance=model |> Model.get_selected_instance,
                   ~width=30,
                   d,
                 ),
@@ -75,17 +75,22 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (model.compute_results) {
-        let (_, hii, _, _) = program |> Program.get_result;
-        switch (model |> Model.get_selected_hole_instance) {
+        let (_, hii, llii, _) = program |> Program.get_result;
+        switch (model |> Model.get_selected_instance) {
         | None => Dynamics.Exp.id_env(ctx)
-        | Some(inst) =>
-          switch (NodeInstanceInfo.lookup(hii, inst)) {
+        | Some((kind, inst)) =>
+          let mii =
+            switch (kind) {
+            | Hole => hii
+            | Livelit => llii
+            };
+          switch (NodeInstanceInfo.lookup(mii, inst)) {
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
             Dynamics.Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
-          }
+          };
         };
       } else {
         Dynamics.Exp.id_env(ctx);
@@ -122,10 +127,10 @@ let view =
         Node.div(
           [Attr.classes(["inst"])],
           [
-            DHCode.view_of_hole_instance(
+            DHCode.view_of_instance(
               ~inject,
               ~width=30,
-              ~selected_instance=model |> Model.get_selected_hole_instance,
+              ~selected_instance=model |> Model.get_selected_instance,
               inst,
             ),
           ],
@@ -167,11 +172,10 @@ let view =
               Node.div(
                 [Attr.classes(["trailing-inst"])],
                 [
-                  DHCode.view_of_hole_instance(
+                  DHCode.view_of_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance=model |> Model.get_selected_instance,
                     inst,
                   ),
                 ],
@@ -195,8 +199,13 @@ let view =
     );
   };
 
-  let hii_summary = (hii, (u, i) as inst) => {
+  let hii_summary = (hii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
     let num_instances = NodeInstanceInfo.num_instances(hii, u);
+    let kindstr =
+      switch (kind) {
+      | Hole => "hole"
+      | Livelit => "livelit application"
+      };
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -207,16 +216,15 @@ let view =
               Node.div(
                 [Attr.classes(["hii-summary-inst"])],
                 [
-                  DHCode.view_of_hole_instance(
+                  DHCode.view_of_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance=model |> Model.get_selected_instance,
                     inst,
                   ),
                 ],
               ),
-              Node.text(" = hole "),
+              Node.text(Printf.sprintf(" = %s ", kindstr)),
               Node.span(
                 [Attr.classes(["hole-name-normal-txt"])],
                 [Node.text(string_of_int(u + 1))],
@@ -250,11 +258,11 @@ let view =
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectInstance(kind, inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance((u, i - 1)))] : [];
+                  ? [inject(SelectInstance(kind, (u, i - 1)))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -276,11 +284,11 @@ let view =
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectInstance(kind, inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance((u, i + 1)))] : [];
+                  ? [inject(SelectInstance(kind, (u, i + 1)))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -313,31 +321,36 @@ let view =
         |> Program.get_cursor_info
         |> CursorInfo.get_ctx
         |> Contexts.gamma;
-      let (_, hii, _, _) = program |> Program.get_result;
+      let (_, hii, llii, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {
         Node.div([], []);
       } else {
         let children =
-          switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
+          switch (program |> Program.get_zexp |> ZExp.cursor_on_inst) {
           | None => [
               instructional_msg(
                 "Move cursor to a hole, or click a hole instance in the result, to see closures.",
               ),
             ]
-          | Some(u) =>
-            switch (model |> Model.get_selected_hole_instance) {
+          | Some((kind, u)) =>
+            switch (model |> Model.get_selected_instance) {
             | None => [
                 instructional_msg("Click on a hole instance in the result"),
               ]
-            | Some((u', _) as inst) =>
-              if (MetaVar.eq(u, u')) {
-                switch (NodeInstanceInfo.lookup(hii, inst)) {
+            | Some((kind', (u', _) as inst)) =>
+              if (kind == kind' && MetaVar.eq(u, u')) {
+                let mii =
+                  switch (kind) {
+                  | Hole => hii
+                  | Livelit => llii
+                  };
+                switch (NodeInstanceInfo.lookup(mii, inst)) {
                 | None =>
                   // raise(InvalidInstance)
                   [instructional_msg("Internal Error: [InvalidInstance]")]
                 | Some((_, path)) => [
                     path_view_titlebar,
-                    hii_summary(hii, inst),
+                    hii_summary(mii, (kind, inst)),
                     path_view(inst, path),
                   ]
                 };

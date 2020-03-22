@@ -23,7 +23,7 @@ module Action = {
     | ToggleShowUnevaluatedExpansion
     | ToggleShowContenteditable
     | ToggleShowPresentation
-    | SelectHoleInstance(NodeInstance.t)
+    | SelectInstance(TaggedNodeInstance.kind, NodeInstance.t)
     | InvalidVar(string)
     | SelectionChange
     | FocusCell
@@ -82,7 +82,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleShowUnevaluatedExpansion
   | ToggleShowContenteditable
   | ToggleShowPresentation
-  | SelectHoleInstance(_)
+  | SelectInstance(_)
   | InvalidVar(_)
   | FocusCell
   | BlurCell
@@ -154,7 +154,8 @@ let apply_action =
       ...model,
       show_presentation: !model.show_presentation,
     }
-  | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
+  | SelectInstance(kind, inst) =>
+    model |> Model.select_instance((kind, inst))
   | InvalidVar(_) => model
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>

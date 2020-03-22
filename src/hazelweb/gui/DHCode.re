@@ -32,7 +32,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
           [
             Attr.classes(["EmptyHole", ...selected ? ["selected"] : []]),
             Attr.on_click(_ =>
-              inject(Update.Action.SelectHoleInstance(inst))
+              inject(
+                Update.Action.SelectInstance(TaggedNodeInstance.Hole, inst),
+              )
             ),
           ],
           go(l),
@@ -58,7 +60,7 @@ let view =
       ~show_casts: bool,
       ~show_fn_bodies: bool,
       ~show_case_clauses: bool,
-      ~selected_instance: option(NodeInstance.t),
+      ~selected_instance: option(TaggedNodeInstance.t),
       ~width: int,
       ~pos=0,
       d: DHExp.t,
@@ -79,7 +81,7 @@ let view =
   |> view_of_layout(~inject);
 };
 
-let view_of_hole_instance =
+let view_of_instance =
     (
       ~inject,
       ~width: int,

@@ -251,7 +251,7 @@ module Exp = {
             ~show_case_clauses: bool,
             ~parenthesize=false,
             ~enforce_inline: bool,
-            ~selected_instance: option(NodeInstance.t),
+            ~selected_instance: option(TaggedNodeInstance.t),
             d: DHExp.t,
           )
           : t => {
@@ -292,7 +292,8 @@ module Exp = {
           let selected =
             switch (selected_instance) {
             | None => false
-            | Some((u', i')) => u == u' && i == i'
+            | Some((kind, (u', i'))) =>
+              kind == TaggedNodeInstance.Hole && u == u' && i == i'
             };
           mk_EmptyHole(~selected, (u, i));
         | NonEmptyHole(reason, u, i, _sigma, d) =>

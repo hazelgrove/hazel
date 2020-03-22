@@ -35,11 +35,12 @@ let init = (): t => {
     let si = UserSelectedInstances.init;
     switch (
       compute_results,
-      cardstacks |> Cardstacks.get_program |> Program.cursor_on_exp_hole,
+      cardstacks |> Cardstacks.get_program |> Program.cursor_on_inst,
     ) {
     | (false, _)
     | (_, None) => si
-    | (true, Some(u)) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    | (true, Some((kind, u))) =>
+      si |> UserSelectedInstances.insert_or_update((kind, (u, 0)))
     };
   };
   {
@@ -107,21 +108,22 @@ let map_selected_instances =
   selected_instances: f(model.selected_instances),
 };
 
-let get_selected_hole_instance = model =>
-  switch (model |> get_program |> Program.cursor_on_exp_hole) {
+let get_selected_instance = model =>
+  switch (model |> get_program |> Program.cursor_on_inst) {
   | None => None
-  | Some(u) =>
+  | Some((kind, u)) =>
     let i =
       model.selected_instances
-      |> UserSelectedInstances.lookup(u)
+      |> UserSelectedInstances.lookup(kind, u)
       |> Option.get;
-    Some((u, i));
+    Some((kind, (u, i)));
   };
 
-let select_hole_instance = ((u, _) as inst: NodeInstance.t, model: t): t =>
+let select_instance =
+    ((kind, (u, _)) as tni: TaggedNodeInstance.t, model: t): t =>
   model
-  |> map_program(Program.move_to_hole(u))
-  |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
+  |> map_program(Program.move_to_node(kind, u))
+  |> map_selected_instances(UserSelectedInstances.insert_or_update(tni))
   |> focus_cell;
 
 let perform_edit_action = (a: Action.t, model: t): t => {
@@ -131,12 +133,12 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
         ? si : UserSelectedInstances.init;
-    switch (model.compute_results, new_program |> Program.cursor_on_exp_hole) {
+    switch (model.compute_results, new_program |> Program.cursor_on_inst) {
     | (false, _)
     | (_, None) => si
-    | (true, Some(u)) =>
-      switch (si |> UserSelectedInstances.lookup(u)) {
-      | None => si |> UserSelectedInstances.insert_or_update((u, 0))
+    | (true, Some((kind, u))) =>
+      switch (si |> UserSelectedInstances.lookup(kind, u)) {
+      | None => si |> UserSelectedInstances.insert_or_update((kind, (u, 0)))
       | Some(_) => si
       }
     };

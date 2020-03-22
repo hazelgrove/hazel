@@ -26,9 +26,9 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
 
-exception HoleNotFound;
-let move_to_hole: (MetaVar.t, t) => t;
+exception NodeNotFound;
+let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => t;
 
 let get_doc: t => UHDoc.t;
 
-let cursor_on_exp_hole: t => option(MetaVar.t);
+let cursor_on_inst: t => option((TaggedNodeInstance.kind, MetaVar.t));

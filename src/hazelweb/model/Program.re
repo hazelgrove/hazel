@@ -113,12 +113,12 @@ let perform_edit_action = (a, program) => {
   };
 };
 
-exception HoleNotFound;
-let move_to_hole = (u, program) => {
+exception NodeNotFound;
+let move_to_node = (kind, u, program) => {
   let (ze, _, _) = program |> get_edit_state;
   let holes = CursorPath.Exp.holes(ZExp.erase(ze), [], []);
-  switch (CursorPath.steps_to_hole(holes, u)) {
-  | None => raise(HoleNotFound)
+  switch (CursorPath.steps_to_hole(holes, kind, u)) {
+  | None => raise(NodeNotFound)
   | Some(hole_steps) =>
     program |> perform_edit_action(MoveToBefore(hole_steps))
   };
@@ -141,6 +141,6 @@ let get_doc = program => {
   _doc(llii, e);
 };
 
-let _cursor_on_exp_hole =
-  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
-let cursor_on_exp_hole = program => program |> get_zexp |> _cursor_on_exp_hole;
+let _cursor_on_inst =
+  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_inst);
+let cursor_on_inst = program => program |> get_zexp |> _cursor_on_inst;

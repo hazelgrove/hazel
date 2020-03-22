@@ -990,24 +990,24 @@ and move_cursor_right_zrule =
     | Some(zclause) => Some(RuleZE(p, zclause))
     };
 
-let rec cursor_on_EmptyHole = ze => cursor_on_EmptyHole_zblock(ze)
-and cursor_on_EmptyHole_zblock = ((_, zline, _)) =>
-  cursor_on_EmptyHole_zline(zline)
-and cursor_on_EmptyHole_zline =
+let rec cursor_on_inst = ze => cursor_on_inst_zblock(ze)
+and cursor_on_inst_zblock = ((_, zline, _)) => cursor_on_inst_zline(zline)
+and cursor_on_inst_zline =
   fun
   | CursorL(_) => None
-  | ExpLineZ(zopseq) => cursor_on_EmptyHole_zopseq(zopseq)
+  | ExpLineZ(zopseq) => cursor_on_inst_zopseq(zopseq)
   | LetLineZP(_)
   | LetLineZA(_) => None
-  | LetLineZE(_, _, ze) => cursor_on_EmptyHole(ze)
-and cursor_on_EmptyHole_zopseq =
+  | LetLineZE(_, _, ze) => cursor_on_inst(ze)
+and cursor_on_inst_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => None
-  | ZOpSeq(_, ZOperand(zoperand, _)) =>
-    cursor_on_EmptyHole_zoperand(zoperand)
-and cursor_on_EmptyHole_zoperand =
+  | ZOpSeq(_, ZOperand(zoperand, _)) => cursor_on_inst_zoperand(zoperand)
+and cursor_on_inst_zoperand =
   fun
-  | CursorE(_, EmptyHole(u)) => Some(u)
+  | CursorE(_, EmptyHole(u)) => Some((TaggedNodeInstance.Hole, u))
+  | CursorE(_, ApLivelit(llu, _, _, _, _)) =>
+    Some((TaggedNodeInstance.Livelit, llu))
   | CursorE(_)
   | LamZP(_)
   | LamZA(_)
@@ -1015,11 +1015,11 @@ and cursor_on_EmptyHole_zoperand =
   | LamZE(_, _, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
-  | CaseZE(_, ze, _, _) => cursor_on_EmptyHole(ze)
+  | CaseZE(_, ze, _, _) => cursor_on_inst(ze)
   | ApLivelitZ(_) => failwith("unimplemented")
-  | CaseZR(_, _, (_, zrule, _), _) => cursor_on_EmptyHole_zrule(zrule)
-and cursor_on_EmptyHole_zrule =
+  | CaseZR(_, _, (_, zrule, _), _) => cursor_on_inst_zrule(zrule)
+and cursor_on_inst_zrule =
   fun
   | CursorR(_)
   | RuleZP(_) => None
-  | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+  | RuleZE(_, ze) => cursor_on_inst(ze);
