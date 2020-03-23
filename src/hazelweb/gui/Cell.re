@@ -70,8 +70,11 @@ let view =
             ]);
           if (JSUtil.is_movement_key(evt)) {
             switch (KeyCombo.of_evt(evt)) {
-            | Some(Ctrl_Alt_Up as kc | Ctrl_Alt_Down as kc | 
-                    Ctrl_Alt_Left as kc | Ctrl_Alt_Right as kc) => prevent_stop_inject(
+            | Some(
+                Ctrl_Alt_Up as kc | Ctrl_Alt_Down as kc | Ctrl_Alt_Left as kc |
+                Ctrl_Alt_Right as kc,
+              ) =>
+              prevent_stop_inject(
                 Update.Action.EditAction(
                   Hashtbl.find(
                     kc_actions,
@@ -80,7 +83,7 @@ let view =
                   ),
                 ),
               )
-            | _ => Event.Many([]);
+            | _ => Event.Many([])
             };
           } else {
             switch (KeyCombo.of_evt(evt)) {
