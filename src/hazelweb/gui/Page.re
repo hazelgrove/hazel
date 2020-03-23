@@ -157,7 +157,7 @@ let page_view =
       );
     };
   let e = program |> Program.get_uhexp;
-  let doc = lazy(UHDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
+  let doc = lazy(UHDoc.Exp.mk(~enforce_inline=false, e));
   let layout =
     lazy(
       switch (

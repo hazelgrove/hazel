@@ -22,8 +22,8 @@ let on_startup = (~schedule_action, _) => {
       JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
     schedule_action(
       Update.Action.UpdateFontMetrics({
-        row_height: rect##.bottom - rect##.top,
-        col_width: rect##.right - rect##.left,
+        row_height: rect##.bottom -. rect##.top,
+        col_width: rect##.right -. rect##.left,
       }),
     );
   };
@@ -56,29 +56,6 @@ let create =
   let%map model = model;
   Component.create(
     ~apply_action=Update.apply_action(model),
-    ~on_display=
-      (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
-        let path = model |> Model.get_program |> Program.get_path;
-        if (state.changing_cards^) {
-          state.changing_cards := false;
-          let (anchor_node, anchor_offset) =
-            path |> UHCode.caret_position_of_path;
-          state.setting_caret := true;
-          JSUtil.set_caret(anchor_node, anchor_offset);
-        } else if (model.is_cell_focused) {
-          let (expected_node, expected_offset) =
-            path |> UHCode.caret_position_of_path;
-          let (actual_node, actual_offset) = JSUtil.get_selection_anchor();
-          if (actual_node === expected_node
-              && actual_offset === expected_offset) {
-            state.setting_caret := false;
-          } else {
-            state.setting_caret := true;
-            JSUtil.set_caret(expected_node, expected_offset);
-          };
-          restart_caret_animation();
-        };
-      },
     model,
     Page.view(~inject, model),
   );

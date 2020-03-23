@@ -7,3 +7,8 @@ let toggle =
   fun
   | Before => After
   | After => Before;
+
+let to_string =
+  fun
+  | Before => "Before"
+  | After => "After";

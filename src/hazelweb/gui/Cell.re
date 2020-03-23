@@ -47,51 +47,60 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let move_caret = (~inject, move_key: MoveKey.t) => {
-  let next_position =
-    switch (move_key) {
-    | ArrowLeft => CaretMap.lookup_left()
-    | ArrowRight => CaretMap.lookup_right()
-    | ArrowUp => CaretMap.lookup_up()
-    | ArrowDown => CaretMap.lookup_down()
+let move_cursor = (~font_metrics: option(FontMetrics.t), move_key, zmap) => {
+  let moved = zmap |> ZCursorMap.move(move_key);
+  if (moved) {
+    let ((row, col), _) = zmap |> ZCursorMap.get_cursor;
+    let caret_elem = JSUtil.force_get_elem_by_id("caret");
+    switch (font_metrics) {
+    | None => caret_elem##.style##.visibility := Js.string("hidden")
+    | Some({row_height, col_width}) =>
+      JSUtil.force_get_elem_by_cls("Cursor")##.classList##remove(
+        Js.string("Cursor"),
+      );
+      caret_elem##.style##.top :=
+        Js.string(string_of_float(float_of_int(row) *. row_height) ++ "0px");
+      caret_elem##.style##.left :=
+        Js.string(string_of_float(float_of_int(col) *. col_width) ++ "0px");
+      caret_elem##.style##.visibility := Js.string("visible");
+      caret_elem##focus;
     };
-  switch (next_position) {
-  | None =>
+  } else {
     JSUtil.log("[CursorEscaped]");
-    Vdom.Event.Many([]);
-  | Some((_, rev_path)) =>
-    let path = CursorPath.rev(rev_path);
-    Vdom.Event.(
-      Many([
-        Prevent_default,
-        Stop_propagation,
-        inject(Update.Action.EditAction(MoveTo(path))),
-      ])
-    );
   };
 };
 
-let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
-  let program = model |> Model.get_program;
+let view = (~inject, model) => {
+  open Vdom;
   let prevent_stop_inject = a =>
-    Vdom.Event.Many([
-      Vdom.Event.Prevent_default,
-      Vdom.Event.Stop_propagation,
-      inject(a),
-    ]);
-  Vdom.(
-    Node.div(
-      [
-        Attr.id(cell_id),
-        Attr.on_keypress(evt =>
-          JSUtil.is_movement_key(evt)
-            ? Event.Many([]) : Event.Prevent_default
-        ),
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+
+  let program = model |> Model.get_program;
+  let (evt_handlers, code_view) =
+    if (model.is_cell_focused) {
+      let (zmap, view) =
+        program
+        |> Program.get_doc
+        |> UHCode.focused_view(
+             ~inject,
+             ~path=program |> Program.get_path,
+             ~ci=program |> Program.get_cursor_info,
+           );
+      let attrs = [
+        Attr.on_keyup(evt => {
+          switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+          | None => Event.Many([])
+          | Some(_) =>
+            let (_, rev_path) = zmap |> ZCursorMap.get_cursor;
+            let path = CursorPath.rev(rev_path);
+            prevent_stop_inject(Update.Action.EditAction(MoveTo(path)));
+          }
+        }),
         Attr.on_keydown(evt => {
-          let key = JSUtil.get_key(evt);
-          switch (MoveKey.of_key(key)) {
-          | Some(move_key) => move_caret(~inject, move_key)
+          switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+          | Some(move_key) =>
+            move_cursor(~font_metrics=model.font_metrics, move_key, zmap);
+            Event.Prevent_default;
           | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
@@ -117,31 +126,21 @@ let view =
                 )
               }
             }
-          };
+          }
         }),
-      ],
-      {
-        let (contenteditable, presentation) =
-          model.is_cell_focused
-            ? UHCode.focused_view(
-                ~inject,
-                ~show_contenteditable=model.show_contenteditable,
-                ~path=program |> Program.get_path,
-                ~ci=program |> Program.get_cursor_info,
-                program |> Program.get_doc,
-              )
-            : UHCode.view(
-                ~inject,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_doc,
-              );
-        [
-          Node.div(
-            [Attr.id("code-container")],
-            [presentation, contenteditable],
-          ),
-        ];
-      },
-    )
+      ];
+      (attrs, view);
+    } else {
+      // TODO set up click handlers
+      let (_cmap, view) =
+        UHCode.unfocused_view(~inject, program |> Program.get_doc);
+      ([], view);
+    };
+  Node.div(
+    [Attr.id(cell_id), ...evt_handlers],
+    [
+      Node.div([Attr.id("font-specimen")], [Node.text("x")]),
+      Node.div([Attr.id("code-container")], [code_view]),
+    ],
   );
 };
