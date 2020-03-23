@@ -590,6 +590,7 @@ let single_key_string: single_key => string =
     };
 
 module MoveKey = {
+  [@deriving sexp]
   type t =
     | ArrowLeft
     | ArrowRight

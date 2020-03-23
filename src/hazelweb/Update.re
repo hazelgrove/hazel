@@ -28,7 +28,8 @@ module Action = {
     | BlurCell
     | FocusWindow
     | Redo
-    | Undo;
+    | Undo
+    | UpdateFontMetrics(FontMetrics.t);
 };
 
 [@deriving sexp]
@@ -86,7 +87,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | BlurCell
   | FocusWindow
   | Undo
-  | Redo =>
+  | Redo
+  | UpdateFontMetrics(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -169,5 +171,6 @@ let apply_action =
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.put_program(Program.mk(new_edit_state));
     {...new_model, undo_history: new_history};
+  | UpdateFontMetrics(metrics) => {...model, font_metrics: Some(metrics)}
   };
 };

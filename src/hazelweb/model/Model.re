@@ -14,6 +14,7 @@ type t = {
   right_sidebar_open: bool,
   show_contenteditable: bool,
   show_presentation: bool,
+  font_metrics: option(FontMetrics.t),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -57,6 +58,7 @@ let init = (): t => {
     right_sidebar_open: true,
     show_contenteditable: false,
     show_presentation: false,
+    font_metrics: None,
   };
 };
 
