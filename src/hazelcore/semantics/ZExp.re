@@ -968,14 +968,13 @@ and cursor_on_EmptyHole_zoperand =
   | CursorE(_, EmptyHole(u)) => Some(u)
   | CursorE(_)
   | LamZP(_)
-  | LamZA(_)
-  | CaseZA(_) => None
+  | LamZA(_) => None
   | LamZE(_, _, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
-  | CaseZE(_, ze, _, _) => cursor_on_EmptyHole(ze)
+  | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
   | ApPaletteZ(_) => failwith("unimplemented")
-  | CaseZR(_, _, (_, zrule, _), _) => cursor_on_EmptyHole_zrule(zrule)
+  | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
 and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)
