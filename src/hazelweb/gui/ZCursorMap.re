@@ -13,7 +13,7 @@ let move = (move_key: MoveKey.t, zmap) => {
   let (row, col) = zmap.z;
   switch (move_key) {
   | ArrowLeft =>
-    switch (zmap.map |> CursorMap.find_before_within_row(row, col)) {
+    switch (zmap.map |> CursorMap.find_before_within_row(zmap.z)) {
     | Some((row_col, _)) =>
       zmap.z = row_col;
       true;
@@ -27,7 +27,7 @@ let move = (move_key: MoveKey.t, zmap) => {
       }
     }
   | ArrowRight =>
-    switch (zmap.map |> CursorMap.find_after_within_row(row, col)) {
+    switch (zmap.map |> CursorMap.find_after_within_row(zmap.z)) {
     | Some((row_col, _)) =>
       zmap.z = row_col;
       true;
@@ -40,6 +40,23 @@ let move = (move_key: MoveKey.t, zmap) => {
         true;
       }
     }
-  | _ => failwith("unimplemented")
+  | ArrowUp =>
+    if (row <= 0) {
+      false;
+    } else {
+      let (row_col, _) =
+        zmap.map |> CursorMap.find_nearest_within_row((row - 1, col));
+      zmap.z = row_col;
+      true;
+    }
+  | ArrowDown =>
+    if (row > CursorMap.num_rows(zmap.map)) {
+      false;
+    } else {
+      let (row_col, _) =
+        zmap.map |> CursorMap.find_nearest_within_row((row + 1, col));
+      zmap.z = row_col;
+      true;
+    }
   };
 };

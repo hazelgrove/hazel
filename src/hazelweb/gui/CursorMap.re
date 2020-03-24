@@ -68,14 +68,34 @@ let end_of_row = (row, cmap) =>
     | (col, rev_path) => ((row, col), rev_path)
   );
 
-let find_before_within_row = (row, col, cmap) =>
+let find_before_within_row = ((row, col), cmap) =>
   cmap
   |> RowMap.find(row)
   |> ColMap.find_before(col)
   |> Option.map(((col, rev_path)) => ((row, col), rev_path));
 
-let find_after_within_row = (row, col, cmap) =>
+let find_after_within_row = ((row, col), cmap) =>
   cmap
   |> RowMap.find(row)
   |> ColMap.find_after(col)
   |> Option.map(((col, rev_path)) => ((row, col), rev_path));
+
+let find_nearest_within_row = ((row, col), cmap) => {
+  let col_map = cmap |> RowMap.find(row);
+  switch (
+    col_map |> ColMap.find_before_eq(col),
+    col_map |> ColMap.find_after_eq(col),
+  ) {
+  | (None, None) =>
+    failwith(
+      "CursorMap has row with no caret positions: " ++ string_of_int(row),
+    )
+  | (Some((nearest_col, rev_path)), None)
+  | (None, Some((nearest_col, rev_path))) => ((row, nearest_col), rev_path)
+  | (Some((col', rev_path)), _) when col' == col => ((row, col), rev_path)
+  | (Some((col_before, rev_path_before)), Some((col_after, rev_path_after))) =>
+    col - col_before <= col_after - col
+      ? ((row, col_before), rev_path_before)
+      : ((row, col_after), rev_path_after)
+  };
+};
