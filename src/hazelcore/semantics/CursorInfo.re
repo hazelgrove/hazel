@@ -946,7 +946,7 @@ module Exp = {
       | Var(InHole(TypeInconsistent, _), _, _)
       | NumLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
-      | ListNil(InHole(TypeInconsistent, _))
+      // | ListNil(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
       | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -962,7 +962,7 @@ module Exp = {
       | Var(InHole(WrongLength, _), _, _)
       | NumLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
-      | ListNil(InHole(WrongLength, _))
+      // | ListNil(InHole(WrongLength, _))
       | Lam(InHole(WrongLength, _), _, _, _)
       | Inj(InHole(WrongLength, _), _, _)
       | Case(InHole(WrongLength, _), _, _, _)
@@ -977,15 +977,16 @@ module Exp = {
         | None => None
         | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx))
         }
-      | ListNil(NotInHole)
+      // | ListNil(NotInHole)
       | Inj(NotInHole, _, _)
       | Case(NotInHole, _, _, _) => Some(mk(Analyzed(ty), ctx))
       | Parenthesized(body) =>
         Statics.Exp.ana(ctx, body, ty)
         |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
-      | ListLit(_, opseq) =>
+      | ListLit(_, Some(opseq)) =>
         Statics.Exp.ana_opseq(ctx, opseq, ty)
         |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
+      | ListLit(_, None) => None
       | Lam(NotInHole, _, ann, _) =>
         switch (HTyp.matched_arrow(ty)) {
         | None => None

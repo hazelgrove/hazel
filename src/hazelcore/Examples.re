@@ -39,7 +39,7 @@ let map_example: UHExp.t = {
       case(
         Block.wrap(var("xs")),
         [
-          Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(listnil())),
+          // Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(listnil())),
           Rule(
             UHPat.(Seq.mk(var("y"), [(Cons, var("ys"))]) |> mk_OpSeq_pat),
             Block.wrap'(
@@ -167,16 +167,16 @@ let qsort_example: UHExp.t = {
       case(
         Block.wrap(var("xs")),
         [
-          Rule(
-            OpSeq.wrap(UHPat.listnil()),
-            Block.wrap(
-              Parenthesized(
-                Block.wrap'(
-                  Seq.mk(listnil(), [(Comma, listnil())]) |> mk_OpSeq_exp,
-                ),
-              ),
-            ),
-          ),
+          // Rule(
+          //   OpSeq.wrap(UHPat.listnil()),
+          //   Block.wrap(
+          //     Parenthesized(
+          //       Block.wrap'(
+          //         Seq.mk(listnil(), [(Comma, listnil())]) |> mk_OpSeq_exp,
+          //       ),
+          //     ),
+          //   ),
+          // ),
           Rule(
             UHPat.(Seq.mk(var("y"), [(Cons, var("ys"))]) |> mk_OpSeq_pat),
             [
@@ -296,7 +296,7 @@ let qsort_example: UHExp.t = {
                       (Cons, numlit(3)),
                       (Cons, numlit(1)),
                       (Cons, numlit(7)),
-                      (Cons, listnil()),
+                      // (Cons, listnil()),
                     ],
                   )
                   |> mk_OpSeq_exp,

@@ -904,8 +904,9 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | NumLit(_, _)
-      | BoolLit(_, _)
-      | ListNil(_) => None
+      | BoolLit(_, _) =>
+        // | ListNil(_)
+        None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -914,7 +915,7 @@ module Exp = {
           |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
         | _ => None
         }
-      | ListLit(err, opseq) =>
+      | ListLit(err, Some(opseq)) =>
         switch (x) {
         | 0 =>
           opseq
@@ -922,6 +923,7 @@ module Exp = {
           |> OptUtil.map(zopseq => ZExp.ListLitZ(err, zopseq))
         | _ => None
         }
+      | ListLit(_, None) => None
       | Lam(err, p, ann, body) =>
         switch (x) {
         | 0 =>
@@ -1088,8 +1090,9 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | NumLit(_, _)
-      | BoolLit(_, _)
-      | ListNil(_) => None
+      | BoolLit(_, _) =>
+        // | ListNil(_)
+        None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -1098,14 +1101,15 @@ module Exp = {
           |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
         | _ => None
         }
-      | ListLit(err, zopseq) =>
+      | ListLit(err, Some(opseq)) =>
         switch (x) {
         | 0 =>
-          zopseq
+          opseq
           |> follow_steps_opseq(~side, xs)
           |> OptUtil.map(zopseq => ZExp.ListLitZ(err, zopseq))
         | _ => None
         }
+      | ListLit(_, None) => None
       | Lam(err, p, ann, body) =>
         switch (x) {
         | 0 =>
@@ -1254,13 +1258,15 @@ module Exp = {
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
     | NumLit(err, _)
-    | BoolLit(err, _)
-    | ListNil(err) => hs |> holes_err(err, rev_steps)
+    | BoolLit(err, _) =>
+      // | ListNil(err)
+      hs |> holes_err(err, rev_steps)
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
-    | ListLit(err, opseq) =>
+    | ListLit(err, Some(opseq)) =>
       hs
       |> holes_opseq(opseq, [0, ...rev_steps])
       |> holes_err(err, rev_steps)
+    | ListLit(_, None) => []
     | Inj(err, _, body) =>
       hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
     | Lam(err, p, ann, body) =>
@@ -1445,8 +1451,9 @@ module Exp = {
         )
       }
     | CursorE(_, NumLit(err, _))
-    | CursorE(_, BoolLit(err, _))
-    | CursorE(_, ListNil(err)) =>
+    | CursorE(_, BoolLit(err, _)) =>
+      // | CursorE(_, ListNil(err))
+
       switch (err) {
       | NotInHole => no_holes
       | InHole(_, u) =>

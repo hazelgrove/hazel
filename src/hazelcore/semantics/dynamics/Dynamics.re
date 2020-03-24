@@ -979,7 +979,7 @@ module Exp = {
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
+    // | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
@@ -1000,7 +1000,7 @@ module Exp = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
@@ -1033,11 +1033,15 @@ module Exp = {
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
-    | ListNil(NotInHole) =>
-      let elt_ty = HTyp.Hole;
-      Expands(ListNil(elt_ty), List(elt_ty), delta);
+    // | ListNil(NotInHole) =>
+    //   let elt_ty = HTyp.Hole;
+    //   Expands(ListNil(elt_ty), List(elt_ty), delta);
     | Parenthesized(body) => syn_expand(ctx, delta, body)
-    | ListLit(_, opseq) => syn_expand_opseq(ctx, delta, opseq)
+    | ListLit(_, opseq) =>
+      switch (opseq) {
+      | Some(opseq_) => syn_expand_opseq(ctx, delta, opseq_)
+      | None => DoesNotExpand
+      }
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1286,7 +1290,7 @@ module Exp = {
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
+    // | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
@@ -1304,7 +1308,7 @@ module Exp = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
@@ -1329,7 +1333,11 @@ module Exp = {
         };
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
-    | ListLit(_, opseq) => ana_expand_opseq(ctx, delta, opseq, ty)
+    | ListLit(_, opseq) =>
+      switch (opseq) {
+      | Some(opseq_) => ana_expand_opseq(ctx, delta, opseq_, ty)
+      | None => DoesNotExpand
+      }
     | Lam(NotInHole, p, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => DoesNotExpand
@@ -1410,11 +1418,11 @@ module Exp = {
           Expands(d, ty, delta);
         }
       }
-    | ListNil(NotInHole) =>
-      switch (HTyp.matched_list(ty)) {
-      | None => DoesNotExpand
-      | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
-      }
+    // | ListNil(NotInHole) =>
+    //   switch (HTyp.matched_list(ty)) {
+    //   | None => DoesNotExpand
+    //   | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
+    //   }
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | NumLit(NotInHole, _)

@@ -854,7 +854,7 @@ module Exp = {
     | Var(err, verr, x) => mk_Var(~err, ~verr, ~steps, x)
     | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
-    | ListNil(err) => mk_ListNil(~err, ~steps, ())
+    // | ListNil(err) => mk_ListNil(~err, ~steps, ())
     | Lam(err, p, ann, body) =>
       let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
       let ann =
@@ -867,7 +867,7 @@ module Exp = {
     | Inj(err, inj_side, body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
       mk_Inj(~err, ~steps, ~inj_side, body);
-    | ListLit(err, opseq) =>
+    | ListLit(err, Some(opseq)) =>
       let body =
         mk_child(
           ~enforce_inline,
@@ -876,6 +876,7 @@ module Exp = {
           UHExp.Block.wrap'(opseq),
         );
       mk_ListLit(~steps, ~err, body);
+    | ListLit(err, None) => mk_ListNil(~err, ~steps, ())
     | Parenthesized(body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
       mk_Parenthesized(~steps, body);
