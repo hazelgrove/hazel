@@ -78,3 +78,66 @@ let has_matched_list =
   | Hole => true
   | List(_) => true
   | _ => false;
+
+/* complete (i.e. does not have any holes) */
+let rec complete =
+  fun
+  | Hole => false
+  | Unit => true
+  | Num => true
+  | Bool => true
+  | Arrow(ty1, ty2) =>
+    if (complete(ty1)) {
+      complete(ty2);
+    } else {
+      false;
+    }
+  | Prod(ty1, ty2) =>
+    if (complete(ty1)) {
+      complete(ty2);
+    } else {
+      false;
+    }
+  | Sum(ty1, ty2) =>
+    if (complete(ty1)) {
+      complete(ty2);
+    } else {
+      false;
+    }
+  | List(ty) => complete(ty);
+
+let rec join = (ty1, ty2) =>
+  switch (ty1, ty2) {
+  | (_, Hole) => Some(ty1)
+  | (Hole, _) => Some(ty2)
+  | (Unit, Unit) => Some(ty1)
+  | (Unit, _) => None
+  | (Num, Num) => Some(ty1)
+  | (Num, _) => None
+  | (Bool, Bool) => Some(ty1)
+  | (Bool, _) => None
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+    | _ => None
+    }
+  | (Arrow(_), _) => None
+  | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
+    | _ => None
+    }
+  | (Prod(_), _) => None
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
+  | (Sum(_), _) => None
+  | (List(ty), List(ty')) =>
+    switch (join(ty, ty')) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
+  | (List(_), _) => None
+  };
