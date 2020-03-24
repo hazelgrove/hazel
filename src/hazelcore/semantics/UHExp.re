@@ -59,8 +59,8 @@ and operand =
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
-  | ListNil(ErrStatus.t)
-  | ListLit(ErrStatus.t, opseq)
+  // | ListNil(ErrStatus.t)
+  | ListLit(ErrStatus.t, option(opseq))
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(ErrStatus.t, t, rules, option(UHTyp.t))
@@ -119,7 +119,7 @@ let case =
     : operand =>
   Case(err, scrut, rules, ann);
 
-let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
+// let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
 module Line = {
   let prune_empty_hole = (line: line): line =>
@@ -222,7 +222,7 @@ and get_err_status_operand =
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
-  | ListNil(err)
+  // | ListNil(err)
   | ListLit(err, _)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
@@ -245,7 +245,7 @@ and set_err_status_operand = (err, operand) =>
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
-  | ListNil(_) => ListNil(err)
+  // | ListNil(_) => ListNil(err)
   | ListLit(_, opseq) => ListLit(err, opseq)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
@@ -278,7 +278,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
+  // | ListNil(InHole(TypeInconsistent, _))
   | ListLit(InHole(TypeInconsistent, _), _)
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -288,7 +288,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
+  // | ListNil(NotInHole | InHole(WrongLength, _))
   | ListLit(NotInHole | InHole(WrongLength, _), _)
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)

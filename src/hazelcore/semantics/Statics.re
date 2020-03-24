@@ -879,7 +879,7 @@ module Exp = {
     | Var(InHole(TypeInconsistent, _), _, _)
     | NumLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
+    // | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -889,7 +889,7 @@ module Exp = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
@@ -900,7 +900,7 @@ module Exp = {
     | Var(NotInHole, InVarHole(_), _) => Some(Hole)
     | NumLit(NotInHole, _) => Some(Num)
     | BoolLit(NotInHole, _) => Some(Bool)
-    | ListNil(NotInHole) => Some(List(Hole))
+    // | ListNil(NotInHole) => Some(List(Hole))
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -944,7 +944,8 @@ module Exp = {
         }
       };
     | Parenthesized(body) => syn(ctx, body)
-    | ListLit(_, opseq) => syn_opseq(ctx, opseq)
+    | ListLit(_, Some(opseq)) => syn_opseq(ctx, opseq)
+    | ListLit(_, None) => None
     }
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
@@ -1035,7 +1036,7 @@ module Exp = {
     | Var(InHole(TypeInconsistent, _), _, _)
     | NumLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
+    // | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -1048,18 +1049,18 @@ module Exp = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */
-    | ListNil(NotInHole) =>
-      switch (HTyp.matched_list(ty)) {
-      | None => None
-      | Some(_) => Some()
-      }
+    // // | ListNil(NotInHole) =>
+    //   switch (HTyp.matched_list(ty)) {
+    //   | None => None
+    //   | Some(_) => Some()
+    //   }
     | Var(NotInHole, _, _)
     | NumLit(NotInHole, _)
     | BoolLit(NotInHole, _) =>
@@ -1126,7 +1127,8 @@ module Exp = {
         }
       }
     | Parenthesized(body) => ana(ctx, body, ty)
-    | ListLit(_, opseq) => ana_opseq(ctx, opseq, ty)
+    | ListLit(_, Some(opseq)) => ana_opseq(ctx, opseq, ty)
+    | ListLit(_, None) => None
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1545,15 +1547,16 @@ module Exp = {
       };
     | NumLit(_, _) => (e_nih, Num, u_gen)
     | BoolLit(_, _) => (e_nih, Bool, u_gen)
-    | ListNil(_) => (e_nih, List(Hole), u_gen)
+    // | ListNil(_) => (e_nih, List(Hole), u_gen)
     | Parenthesized(body) =>
       let (block, ty, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
       (Parenthesized(block), ty, u_gen);
-    | ListLit(err, opseq) =>
+    | ListLit(err, Some(opseq)) =>
       let (block, ty, u_gen) =
         syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, opseq);
-      (ListLit(err, block), ty, u_gen);
+      (ListLit(err, Some(block)), ty, u_gen);
+    | ListLit(_, None) => (e_nih, List(Hole), u_gen)
     | Lam(_, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1930,6 +1933,7 @@ module Exp = {
       }
     | Var(_, _, _)
     | NumLit(_, _)
+    | ListLit(_, None)
     | BoolLit(_, _) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -1942,21 +1946,21 @@ module Exp = {
           u_gen,
         );
       };
-    | ListNil(_) =>
-      switch (HTyp.matched_list(ty)) {
-      | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
-      | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (ListNil(InHole(TypeInconsistent, u)), u_gen);
-      }
+    // | ListNil(_) =>
+    //   switch (HTyp.matched_list(ty)) {
+    //   | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
+    //   | None =>
+    //     let (u, u_gen) = MetaVarGen.next(u_gen);
+    //     (ListNil(InHole(TypeInconsistent, u)), u_gen);
+    //   }
     | Parenthesized(body) =>
       let (body, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
       (Parenthesized(body), u_gen);
-    | ListLit(err, opseq) =>
+    | ListLit(err, Some(opseq)) =>
       let (body, u_gen) =
         ana_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, opseq, ty);
-      (ListLit(err, body), u_gen);
+      (ListLit(err, Some(body)), u_gen);
     | Lam(_, p, ann, def) =>
       switch (HTyp.matched_arrow(ty)) {
       | Some((ty1_given, ty2)) =>
