@@ -12,9 +12,6 @@ type t =
   | Prod(list(t))
   | List(t);
 
-// Prod(Num, Num)  ==  (Num, Num)
-// (Prod(Num, Num), Bool)  ==  (Num, Num, Bool)
-
 /* eqity
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
@@ -37,7 +34,7 @@ let rec consistent = (x, y) =>
   | (Arrow(_, _), _) => false
   | (Sum(_, _), _) => false
   | (Prod(tys1), Prod(tys2)) =>
-    ListUtil.for_all2_op(consistent, tys1, tys2)
+    ListUtil.for_all2_opt(consistent, tys1, tys2)
     |> Option.value(~default=false)
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
@@ -97,24 +94,10 @@ let rec complete =
   | Unit => true
   | Num => true
   | Bool => true
-  | Arrow(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | Prod(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | Sum(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
+  | Arrow(ty1, ty2)
+  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Prod(tys) =>
+    tys |> ListUtil.for_all_opt(complete) |> Option.value(~default=false)
   | List(ty) => complete(ty);
 
 let rec join = (ty1, ty2) =>
@@ -127,24 +110,19 @@ let rec join = (ty1, ty2) =>
   | (Num, _) => None
   | (Bool, Bool) => Some(ty1)
   | (Bool, _) => None
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
-    switch (join(ty1, ty1'), join(ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
-    | _ => None
-    }
-  | (Prod(_), _) => None
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    switch (join(ty1, ty1'), join(ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
-    }
   | (Sum(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    List.map2(join, tys1, tys2)
+    |> OptUtil.sequence
+    |> Option.map(joinedTypes => Prod(joinedTypes))
+  | (Prod(_), _) => None
   | (List(ty), List(ty')) =>
     switch (join(ty, ty')) {
     | Some(ty) => Some(List(ty))
@@ -152,4 +130,3 @@ let rec join = (ty1, ty2) =>
     }
   | (List(_), _) => None
   };
-  

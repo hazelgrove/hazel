@@ -28,3 +28,6 @@ let test = (opt: option(_)): bool =>
   | None => false
   | Some(_) => true
   };
+
+let sequence = (l: list(option('a))): option(list('a)) =>
+  List.fold_left(map2((xs, x) => [x, ...xs]), Some([]), l);

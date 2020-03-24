@@ -37,7 +37,13 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
     opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys])
   };
 
-let for_all2_op =
+let for_all_opt = (f: 'a => bool, xs: list('a)): option(bool) =>
+  switch (List.for_all(f, xs)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
+let for_all2_opt =
     (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
   switch (List.for_all2(f, xs, ys)) {
   | b => Some(b)
