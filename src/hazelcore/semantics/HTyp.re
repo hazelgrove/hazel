@@ -26,16 +26,22 @@ let rec consistent = (x, y) =>
   | (Hole, _)
   | (_, Hole) => true
   | (Unit, Unit) => true
+  | (Unit, _) => false
   | (Num, Num) => true
+  | (Num, _) => false
   | (Bool, Bool) => true
+  | (Bool, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
+  | (Arrow(_, _), _) => false
+  | (Sum(_, _), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     ListUtil.for_all2_op(consistent, tys1, tys2)
     |> Option.value(~default=false)
+  | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
-  | (_, _) => false
+  | (List(_), _) => false
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
