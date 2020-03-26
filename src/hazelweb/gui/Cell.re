@@ -47,24 +47,31 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
+let paint_cursor = (~font_metrics: option(FontMetrics.t), zmap) => {
+  let ((row, col), _) = zmap |> ZCursorMap.get_cursor;
+  let caret_elem = JSUtil.force_get_elem_by_id("caret");
+  switch (font_metrics) {
+  | None => caret_elem##.style##.visibility := Js.string("hidden")
+  | Some({row_height, col_width}) =>
+    caret_elem##.style##.top :=
+      Js.string(string_of_float(float_of_int(row) *. row_height) ++ "0px");
+    caret_elem##.style##.left :=
+      Js.string(string_of_float(float_of_int(col) *. col_width) ++ "0px");
+    caret_elem##.style##.visibility := Js.string("visible");
+    caret_elem##focus;
+  };
+};
+
 let move_cursor = (~font_metrics: option(FontMetrics.t), move_key, zmap) => {
   let moved = zmap |> ZCursorMap.move(move_key);
   if (moved) {
-    let ((row, col), _) = zmap |> ZCursorMap.get_cursor;
-    let caret_elem = JSUtil.force_get_elem_by_id("caret");
-    switch (font_metrics) {
-    | None => caret_elem##.style##.visibility := Js.string("hidden")
-    | Some({row_height, col_width}) =>
-      JSUtil.force_get_elem_by_cls("Cursor")##.classList##remove(
-        Js.string("Cursor"),
-      );
-      caret_elem##.style##.top :=
-        Js.string(string_of_float(float_of_int(row) *. row_height) ++ "0px");
-      caret_elem##.style##.left :=
-        Js.string(string_of_float(float_of_int(col) *. col_width) ++ "0px");
-      caret_elem##.style##.visibility := Js.string("visible");
-      caret_elem##focus;
-    };
+    font_metrics
+    |> Option.iter(_ => {
+         JSUtil.force_get_elem_by_cls("Cursor")##.classList##remove(
+           Js.string("Cursor"),
+         )
+       });
+    paint_cursor(~font_metrics, zmap);
   } else {
     JSUtil.log("[CursorEscaped]");
   };
@@ -76,7 +83,7 @@ let view = (~inject, model) => {
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
 
   let program = model |> Model.get_program;
-  let (key_handlers, code_view) =
+  let (key_handlers, code_view, on_display) =
     if (model.is_cell_focused) {
       let (zmap, view) =
         program
@@ -129,25 +136,31 @@ let view = (~inject, model) => {
           }
         }),
       ];
-      (key_handlers, view);
+      let on_display = (_, ~schedule_action as _) => {
+        paint_cursor(~font_metrics=model.font_metrics, zmap);
+      };
+      (key_handlers, view, on_display);
     } else {
       // TODO set up click handlers
       let (_cmap, view) =
         UHCode.unfocused_view(~inject, program |> Program.get_doc);
-      ([], view);
+      let on_display = (_, ~schedule_action as _) => ();
+      ([], view, on_display);
     };
-  Node.div(
-    [
-      Attr.id(cell_id),
-      // necessary to make cell focusable
-      Attr.create("tabindex", "0"),
-      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-      ...key_handlers,
-    ],
-    [
-      Node.div([Attr.id("font-specimen")], [Node.text("x")]),
-      Node.div([Attr.id("code-container")], [code_view]),
-    ],
-  );
+  let view =
+    Node.div(
+      [
+        Attr.id(cell_id),
+        // necessary to make cell focusable
+        Attr.create("tabindex", "0"),
+        Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+        Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+        ...key_handlers,
+      ],
+      [
+        Node.div([Attr.id("font-specimen")], [Node.text("x")]),
+        Node.div([Attr.id("code-container")], [code_view]),
+      ],
+    );
+  (on_display, view);
 };

@@ -250,9 +250,14 @@ let _view_of_layout =
   (
     z^,
     CursorMap.Builder.build(builder),
-    Vdom.Node.div(
-      [Vdom.Attr.classes(["code", "presentation"])],
-      go(~indent=0, ~rev_steps=[], l),
+    Vdom.(
+      Node.div(
+        [Attr.classes(["code", "presentation"])],
+        [
+          Node.div([Attr.id("caret"), Attr.classes(["blink"])], []),
+          ...go(~indent=0, ~rev_steps=[], l),
+        ],
+      )
     ),
   );
 };

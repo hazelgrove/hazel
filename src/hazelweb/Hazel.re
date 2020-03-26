@@ -54,9 +54,11 @@ let create =
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
+  let (on_display, view) = Page.view(~inject, model);
   Component.create(
     ~apply_action=Update.apply_action(model),
+    ~on_display,
     model,
-    Page.view(~inject, model),
+    view,
   );
 };
