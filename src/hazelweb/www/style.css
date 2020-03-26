@@ -815,6 +815,15 @@ h1 {
   outline: 0px;
 }
 
+#font-specimen {
+  position: fixed;
+  top: 0;
+  left: 100%;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
+}
+
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
 #caret {
   z-index: var(--caret-z);
