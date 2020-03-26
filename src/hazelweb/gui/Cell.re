@@ -76,7 +76,7 @@ let view = (~inject, model) => {
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
 
   let program = model |> Model.get_program;
-  let (evt_handlers, code_view) =
+  let (key_handlers, code_view) =
     if (model.is_cell_focused) {
       let (zmap, view) =
         program
@@ -86,7 +86,7 @@ let view = (~inject, model) => {
              ~path=program |> Program.get_path,
              ~ci=program |> Program.get_cursor_info,
            );
-      let attrs = [
+      let key_handlers = [
         Attr.on_keyup(evt => {
           switch (MoveKey.of_key(JSUtil.get_key(evt))) {
           | None => Event.Many([])
@@ -129,7 +129,7 @@ let view = (~inject, model) => {
           }
         }),
       ];
-      (attrs, view);
+      (key_handlers, view);
     } else {
       // TODO set up click handlers
       let (_cmap, view) =
@@ -137,7 +137,14 @@ let view = (~inject, model) => {
       ([], view);
     };
   Node.div(
-    [Attr.id(cell_id), ...evt_handlers],
+    [
+      Attr.id(cell_id),
+      // necessary to make cell focusable
+      Attr.create("tabindex", "0"),
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+      ...key_handlers,
+    ],
     [
       Node.div([Attr.id("font-specimen")], [Node.text("x")]),
       Node.div([Attr.id("code-container")], [code_view]),
