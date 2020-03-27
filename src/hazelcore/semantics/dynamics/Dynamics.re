@@ -8,6 +8,29 @@ module Pat = {
     | Expands(DHPat.t, HTyp.t, Contexts.t, Delta.t)
     | DoesNotExpand;
 
+  let option_of_expand_result =
+    fun
+    | DoesNotExpand => None
+    | Expands(pat, ty, ctx, delta) => Some((pat, ty, ctx, delta));
+
+  let expand_result_of_option =
+    fun
+    | None => DoesNotExpand
+    | Some((pat, ty, ctx, delta)) => Expands(pat, ty, ctx, delta);
+
+  module Let_syntax = {
+    let bind =
+        (
+          x: expand_result,
+          ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => expand_result,
+        )
+        : expand_result =>
+      switch (x) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
+      };
+  };
+
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
     syn_expand_opseq(ctx, delta, p)
@@ -33,17 +56,42 @@ module Pat = {
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
     | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, ty1, ctx, delta) =>
-        switch (syn_expand_skel(ctx, delta, skel2, seq)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, ty2, ctx, delta) =>
-          let dp = DHPat.Pair(dp1, dp2);
-          Expands(dp, Prod(ty1, ty2), ctx, delta);
-        }
+    | BinOp(NotInHole, Comma, _, _) =>
+      switch (UHPat.get_tuple_elements(skel)) {
+      | [skel1, skel2, ...tail] =>
+        let%bind (dp1, ty1, ctx, delta) =
+          syn_expand_skel(ctx, delta, skel1, seq);
+        let%bind (dp2, ty2, ctx, delta) =
+          syn_expand_skel(ctx, delta, skel2, seq);
+        tail
+        |> ListUtil.map_with_accumulator_opt(
+             ((dp_acc, ctx, delta), skel) => {
+               syn_expand_skel(ctx, delta, skel, seq)
+               |> option_of_expand_result
+               |> Option.map(((dp, ty, ctx, delta)) =>
+                    ((DHPat.Pair(dp_acc, dp), ctx, delta), ty)
+                  )
+             },
+             (DHPat.Pair(dp1, dp2), ctx, delta),
+           )
+        |> Option.map((((dp_acc, ctx, delta), tys)) =>
+             (dp_acc, HTyp.Prod(tys), ctx, delta)
+           )
+        |> expand_result_of_option;
+      | _ =>
+        raise(Invalid_argument("Encountered tuple type with 0 elements!"))
       }
+    // | BinOp(NotInHole, Comma, skel1, skel2) =>
+    //   switch (syn_expand_skel(ctx, delta, skel1, seq)) {
+    //   | DoesNotExpand => DoesNotExpand
+    //   | Expands(dp1, ty1, ctx, delta) =>
+    //     switch (syn_expand_skel(ctx, delta, skel2, seq)) {
+    //     | DoesNotExpand => DoesNotExpand
+    //     | Expands(dp2, ty2, ctx, delta) =>
+    //       let dp = DHPat.Pair(dp1, dp2);
+    //       Expands(dp, Prod(ty1, ty2), ctx, delta);
+    //     }
+    //   }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
       | DoesNotExpand => DoesNotExpand
@@ -565,10 +613,12 @@ module Exp = {
         | Matches(env2) => Matches(Environment.union(env1, env2))
         }
       }
-    | (Pair(dp1, dp2), Cast(d, Prod(tyL1, tyR1), Prod(tyL2, tyR2))) =>
-      matches_cast_Pair(dp1, dp2, d, [(tyL1, tyL2)], [(tyR1, tyR2)])
-    | (Pair(_, _), Cast(d, Hole, Prod(_, _))) => matches(dp, d)
-    | (Pair(_, _), Cast(d, Prod(_, _), Hole)) => matches(dp, d)
+    | (Pair(dp1, dp2), Cast(d, Prod([head1, tail1]), Prod([head2, tail2]))) =>
+      matches_cast_Pair(dp1, dp2, d, [(head1, head2)], [(tail1, tail2)])
+    | (Pair(_, _), Cast(d, Prod([]), Prod(_)))
+    | (Pair(_, _), Cast(d, Prod(_), Prod([]))) => raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+    | (Pair(_, _), Cast(d, Hole, Prod(_)))
+    | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
     | (Pair(_, _), _) => DoesNotMatch
     | (Triv, Triv) => Matches(Environment.empty)
     | (Triv, Cast(d, Hole, Unit)) => matches(dp, d)

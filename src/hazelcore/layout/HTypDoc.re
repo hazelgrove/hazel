@@ -15,7 +15,7 @@ let precedence = (ty: HTyp.t): int =>
   | Hole
   | Unit
   | List(_) => precedence_const
-  | Prod(_, _) => precedence_Prod
+  | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
@@ -71,10 +71,20 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         ]),
         d2,
       ]);
-    | Prod(ty1, ty2) =>
-      let (d1, d2) =
-        mk_right_associative_operands(precedence_Prod, ty1, ty2);
-      hcats([d1, hcats([text(","), choices([linebreak(), space()])]), d2]);
+    | Prod([]) =>
+      raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+    | Prod([head, ...tail]) =>
+      [
+        mk'(~parenthesize=precedence(head) >= precedence_Prod, head),
+        ...tail
+           |> List.map(ty =>
+                mk'(~parenthesize=precedence(ty) > precedence_Prod, ty)
+              ),
+      ]
+      |> ListUtil.join(
+           hcats([text(","), choices([linebreak(), space()])]),
+         )
+      |> hcats
     | Sum(ty1, ty2) =>
       let (d1, d2) = mk_right_associative_operands(precedence_Sum, ty1, ty2);
       hcats([

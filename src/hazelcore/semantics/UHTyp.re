@@ -49,7 +49,6 @@ let unwrap_parentheses = (operand: operand): t =>
 
 /* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
-  let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
   let mk_seq_operand = (op, a, b) => {
     let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
     let seq = Seq.mk(a, [(op, b)]);
@@ -66,22 +65,29 @@ let contract = (ty: HTyp.t): t => {
      */
   let rec contract_to_operand: HTyp.t => operand =
     fun
-    | Hole => mk_operand(Hole)
-    | Unit => mk_operand(Unit)
-    | Num => mk_operand(Num)
-    | Bool => mk_operand(Bool)
+    | Hole => Hole
+    | Unit => Unit
+    | Num => Num
+    | Bool => Bool
     | Arrow(ty1, ty2) =>
       mk_seq_operand(
         Arrow,
         contract_to_operand(ty1),
         contract_to_operand(ty2),
       )
-    | Prod(ty1, ty2) =>
-      mk_seq_operand(
-        Prod,
-        contract_to_operand(ty1),
-        contract_to_operand(ty2),
-      )
+    | Prod(_) => failwith("unimplemented")
+    // | Prod(tys) =>
+    //   switch (List.map(contract_to_operand, tys)) {
+    //   | [] =>
+    //     raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+    //   | [head, ...tail] =>
+    //     Parenthesized(
+    //       tail
+    //       |> List.map(operand => (Prod, operand))
+    //       |> Seq.mk(head)
+    //       |> OpSeq.mk(~associate=Associator.Typ.associate),
+    //     )
+    //   }
     | Sum(ty1, ty2) =>
       mk_seq_operand(
         Sum,
@@ -104,10 +110,10 @@ and expand_skel = (skel, seq) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
     Arrow(ty1, ty2);
-  | BinOp(_, Prod, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    Prod(ty1, ty2);
+  | BinOp(_, Prod, _, _) =>
+    Prod(
+      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
+    )
   | BinOp(_, Sum, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
