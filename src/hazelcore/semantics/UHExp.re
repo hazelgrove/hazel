@@ -180,12 +180,12 @@ let rec get_tuple_elements: skel => list(skel) =
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
 
-let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
+let rec make_tuple =
+        (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
   | [] => failwith("make_tuple: expected at least 1 element")
   | [skel] => skel
-  | [skel, ...skels] =>
-    BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
+  | [skel, ...skels] => BinOp(err, Comma, skel, make_tuple(skels))
   };
 
 /* helper function for constructing a new empty hole */
