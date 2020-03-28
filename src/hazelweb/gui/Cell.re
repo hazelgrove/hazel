@@ -58,7 +58,9 @@ let paint_cursor = (~font_metrics: option(FontMetrics.t), zmap) => {
     caret_elem##.style##.left :=
       Js.string(string_of_float(float_of_int(col) *. col_width) ++ "0px");
     caret_elem##.style##.visibility := Js.string("visible");
+    caret_elem##.classList##remove(Js.string("blink"));
     caret_elem##focus;
+    caret_elem##.classList##add(Js.string("blink"));
   };
 };
 
