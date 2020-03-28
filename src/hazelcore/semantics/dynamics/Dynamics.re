@@ -75,23 +75,12 @@ module Pat = {
              (DHPat.Pair(dp1, dp2), ctx, delta),
            )
         |> Option.map((((dp_acc, ctx, delta), tys)) =>
-             (dp_acc, HTyp.Prod(tys), ctx, delta)
+             (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), ctx, delta)
            )
         |> expand_result_of_option;
       | _ =>
         raise(Invalid_argument("Encountered tuple type with 0 elements!"))
       }
-    // | BinOp(NotInHole, Comma, skel1, skel2) =>
-    //   switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-    //   | DoesNotExpand => DoesNotExpand
-    //   | Expands(dp1, ty1, ctx, delta) =>
-    //     switch (syn_expand_skel(ctx, delta, skel2, seq)) {
-    //     | DoesNotExpand => DoesNotExpand
-    //     | Expands(dp2, ty2, ctx, delta) =>
-    //       let dp = DHPat.Pair(dp1, dp2);
-    //       Expands(dp, Prod(ty1, ty2), ctx, delta);
-    //     }
-    //   }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
       | DoesNotExpand => DoesNotExpand
@@ -613,10 +602,19 @@ module Exp = {
         | Matches(env2) => Matches(Environment.union(env1, env2))
         }
       }
-    | (Pair(dp1, dp2), Cast(d, Prod([head1, tail1]), Prod([head2, tail2]))) =>
-      matches_cast_Pair(dp1, dp2, d, [(head1, head2)], [(tail1, tail2)])
-    | (Pair(_, _), Cast(d, Prod([]), Prod(_)))
-    | (Pair(_, _), Cast(d, Prod(_), Prod([]))) => raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+    | (
+        Pair(dp1, dp2),
+        Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
+      ) =>
+      matches_cast_Pair(
+        dp1,
+        dp2,
+        d,
+        [(head1, head2)],
+        List.combine(tail1, tail2),
+      )
+    | (Pair(_, _), Cast(_, Prod(_), Prod(_))) =>
+      raise(Invalid_argument("Encountered tuple type with 0 elements!"))
     | (Pair(_, _), Cast(d, Hole, Prod(_)))
     | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
     | (Pair(_, _), _) => DoesNotMatch
@@ -721,16 +719,18 @@ module Exp = {
         | Matches(env2) => Matches(Environment.union(env1, env2))
         }
       }
-    | Cast(d', Prod(tyL1, tyR1), Prod(tyL2, tyR2)) =>
+    | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
       matches_cast_Pair(
         dp1,
         dp2,
         d',
-        [(tyL1, tyL2), ...left_casts],
-        [(tyR1, tyR2), ...right_casts],
+        [(head1, head2), ...left_casts],
+        List.combine(tail1, tail2) @ right_casts,
       )
-    | Cast(d', Prod(_, _), Hole)
-    | Cast(d', Hole, Prod(_, _)) =>
+    | Cast(_, Prod(_), Prod(_)) =>
+      raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+    | Cast(d', Prod(_), Hole)
+    | Cast(d', Hole, Prod(_)) =>
       matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
@@ -816,6 +816,26 @@ module Exp = {
   type expand_result =
     | Expands(DHExp.t, HTyp.t, Delta.t)
     | DoesNotExpand;
+
+  let option_of_expand_result =
+    fun
+    | DoesNotExpand => None
+    | Expands(pat, ty, delta) => Some((pat, ty, delta));
+
+  let expand_result_of_option =
+    fun
+    | None => DoesNotExpand
+    | Some((pat, ty, delta)) => Expands(pat, ty, delta);
+
+  module Let_syntax = {
+    let bind =
+        (x: expand_result, ~f: ((DHExp.t, HTyp.t, Delta.t)) => expand_result)
+        : expand_result =>
+      switch (x) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(dp, ty, delta) => f((dp, ty, delta))
+      };
+  };
 
   let id_env = (ctx: VarCtx.t): Environment.t =>
     VarMap.map(
@@ -959,17 +979,28 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (syn_expand_skel(ctx, delta, skel2, seq)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d2, ty2, delta) =>
-          let d = DHExp.Pair(d1, d2);
-          let ty = HTyp.Prod(ty1, ty2);
-          Expands(d, ty, delta);
-        }
+    | BinOp(NotInHole, Comma, _, _) =>
+      switch (UHExp.get_tuple_elements(skel)) {
+      | [skel1, skel2, ...tail] =>
+        let%bind (dp1, ty1, delta) = syn_expand_skel(ctx, delta, skel1, seq);
+        let%bind (dp2, ty2, delta) = syn_expand_skel(ctx, delta, skel2, seq);
+        tail
+        |> ListUtil.map_with_accumulator_opt(
+             ((dp_acc, delta), skel) => {
+               syn_expand_skel(ctx, delta, skel, seq)
+               |> option_of_expand_result
+               |> Option.map(((dp, ty, delta)) =>
+                    ((DHExp.Pair(dp_acc, dp), delta), ty)
+                  )
+             },
+             (DHExp.Pair(dp1, dp2), delta),
+           )
+        |> Option.map((((dp_acc, delta), tys)) =>
+             (dp_acc, HTyp.Prod([ty1, ty2, ...tys]), delta)
+           )
+        |> expand_result_of_option;
+      | _ =>
+        raise(Invalid_argument("Encountered tuple type with 0 elements!"))
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
@@ -1770,7 +1801,8 @@ module Evaluator = {
 
   let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
   let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
-  let grounded_Prod = NotGroundOrHole(Prod(Hole, Hole));
+  let grounded_Prod = length =>
+    NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
   let grounded_List = NotGroundOrHole(List(Hole));
 
   let ground_cases_of = (ty: HTyp.t): ground_cases =>
@@ -1781,11 +1813,15 @@ module Evaluator = {
     | Unit
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
-    | Prod(Hole, Hole)
     | List(Hole) => Ground
+    | Prod(tys) =>
+      if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
+        Ground;
+      } else {
+        tys |> List.length |> grounded_Prod;
+      }
     | Arrow(_, _) => grounded_Arrow
     | Sum(_, _) => grounded_Sum
-    | Prod(_, _) => grounded_Prod
     | List(_) => grounded_List
     };
 
