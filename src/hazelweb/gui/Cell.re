@@ -158,7 +158,7 @@ let view = (~inject, model) => {
         ...key_handlers,
       ],
       [
-        Node.div([Attr.id("font-specimen")], [Node.text("x")]),
+        Node.div([Attr.id("font-specimen")], [Node.text("X")]),
         Node.div([Attr.id("code-container")], [code_view]),
       ],
     );
