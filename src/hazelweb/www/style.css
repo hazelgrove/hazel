@@ -11,6 +11,7 @@
   --title-bar-color: #073f24;
   --page-padding: 15px;
 
+  --code-font-size: 14pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
@@ -763,7 +764,7 @@ h1 {
 
 .code {
   font-family: "Fira Mono", monospace;
-  font-size: 14pt;
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
 }
 .code.presentation * {
@@ -796,7 +797,7 @@ h1 {
 #code-container {
   position: relative;
   font-family: "Fira Mono", monospace;
-  font-size: 14pt;
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
   width: 80ch;
 }
