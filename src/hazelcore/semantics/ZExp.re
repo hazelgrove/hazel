@@ -48,7 +48,12 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZA(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ApPaletteZ(_), _))) => true
-  | _ => false
+  | LetLineZE(_)
+  | ExpLine(ZOpSeq(_, ZOperand(LamZE(_), _)))
+  | ExpLine(ZOpSeq(_, ZOperand(InjZ(_), _))) 
+  | ExpLine(ZOpSeq(_, ZOperand(CaseZE(_), _))) 
+  | ExpLine(ZOpSeq(_, ZOperand(CaseZR(_), _))
+  | ExpLine(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _))) ) => false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
