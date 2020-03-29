@@ -2531,10 +2531,11 @@ module Exp = {
       /* avoid swap down for the Let line if it is second to last */
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
-      /* doesn't perform syn_fix_holes_z when second to last is EmptyLine to avoid generating a new hole */
+      /** doesn't perform syn_fix_holes_z when second to last line
+       *  is EmptyLine to avoid generating a new hole */
       | ([last], CursorL(_, EmptyLine)) => 
         let new_zblock = (prefix @ [last], zline, []) |> ZExp.prune_empty_hole_lines;
-        Succeeded(SynDone(new_zblock, ty, u_gen));
+        Succeeded(SynDone((new_zblock, ty, u_gen)));
       | ([hd, ...tl], _) =>
         let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
