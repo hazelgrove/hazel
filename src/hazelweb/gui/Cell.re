@@ -47,6 +47,24 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
+let restart_animation = caret_elem => {
+  caret_elem##.classList##remove(Js.string("blink"));
+  // necessary to trigger reflow
+  let _ = caret_elem##getBoundingClientRect;
+  caret_elem##.classList##add(Js.string("blink"));
+};
+
+let scroll_into_view_if_needed = caret_elem => {
+  let page_rect =
+    JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+  if (caret_rect##.top < page_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > page_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
+};
+
 let paint_cursor = (~font_metrics: option(FontMetrics.t), zmap) => {
   let ((row, col), _) = zmap |> ZCursorMap.get_cursor;
   let caret_elem = JSUtil.force_get_elem_by_id("caret");
@@ -58,9 +76,8 @@ let paint_cursor = (~font_metrics: option(FontMetrics.t), zmap) => {
     caret_elem##.style##.left :=
       Js.string(string_of_float(float_of_int(col) *. col_width) ++ "0px");
     caret_elem##.style##.visibility := Js.string("visible");
-    caret_elem##.classList##remove(Js.string("blink"));
-    caret_elem##focus;
-    caret_elem##.classList##add(Js.string("blink"));
+    restart_animation(caret_elem);
+    scroll_into_view_if_needed(caret_elem);
   };
 };
 
