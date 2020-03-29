@@ -613,24 +613,24 @@ let single_key_string: single_key => string =
 
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {
-    switch (KeyCombo.of_evt(evt)) {
-    | Some(Ctrl_Alt_Up | Ctrl_Alt_Down | Ctrl_Alt_Left | Ctrl_Alt_Right) => false
-    | Some(_)
-    | None => {
-      let key = get_key(evt);
-      switch (key) {
-      | "ArrowLeft"
-      | "ArrowRight"
-      | "ArrowUp"
-      | "ArrowDown"
-      | "PageUp"
-      | "PageDown"
-      | "Home"
-      | "End" => true
-      | _ => false
-      };
+    let key = get_key(evt);
+    switch (key) {
+    | "ArrowLeft"
+    | "ArrowRight"
+    | "ArrowUp"
+    | "ArrowDown" => {
+      switch (KeyCombo.of_evt(evt)) {
+      | Some(Ctrl_Alt_Up | Ctrl_Alt_Down | Ctrl_Alt_Left | Ctrl_Alt_Down) => false
+      | Some(_)
+      | None => true
       }
     }
+    | "PageUp"
+    | "PageDown"
+    | "Home"
+    | "End" => true
+    | _ => false
+    };
   };
 
 type div_element = Js.t(Dom_html.divElement);
