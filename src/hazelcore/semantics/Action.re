@@ -2520,7 +2520,7 @@ module Exp = {
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) =>
-        let new_zblock = (rest, zline, [last, ...suffix]);
+        let new_zblock = (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
@@ -2532,7 +2532,7 @@ module Exp = {
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
       | ([hd, ...tl], _) =>
-        let new_zblock = (prefix @ [hd], zline, tl);
+        let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
@@ -3823,7 +3823,7 @@ module Exp = {
       switch (ListUtil.split_last(prefix)) {
       | None => Failed
       | Some((rest, last)) =>
-        let new_zblock = (rest, zline, [last, ...suffix]);
+        let new_zblock = (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
@@ -3835,7 +3835,7 @@ module Exp = {
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
       | ([hd, ...tl], _) =>
-        let new_zblock = (prefix @ [hd], zline, tl);
+        let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
