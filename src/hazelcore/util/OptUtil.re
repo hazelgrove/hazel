@@ -23,6 +23,11 @@ let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
   | None => if_absent()
   | Some(a) => a
   };
+let get_default = (~default: 'a, opt: option('a)): 'a =>
+  switch (opt) {
+  | None => default
+  | Some(a) => a
+  };
 let test = (opt: option(_)): bool =>
   switch (opt) {
   | None => false
