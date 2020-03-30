@@ -14,7 +14,10 @@ let rec drop = (delta, n) =>
     if (n === y) {
       Some((delta', a));
     } else {
-      drop(delta', n);
+      switch (drop(delta', n)) {
+      | None => None
+      | Some((delta'', a'')) => Some(([(y, a), ...delta''], a''))
+      };
     }
   };
 
