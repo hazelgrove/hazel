@@ -801,6 +801,7 @@ h1 {
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
   width: 80ch;
+  cursor: text;
 }
 .contenteditable {
   background-color: lightgray;
