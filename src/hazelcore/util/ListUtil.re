@@ -85,6 +85,17 @@ let rec drop = (n: int, xs: list('a)) =>
     xs;
   };
 
+let rec drop_first = (x: 'a, xs: list('a)) =>
+  switch (xs) {
+  | [] => []
+  | [x', ...tl] =>
+    if (x == x') {
+      tl;
+    } else {
+      [x', ...drop_first(x, tl)];
+    }
+  };
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []
