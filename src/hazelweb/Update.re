@@ -171,6 +171,6 @@ let apply_action =
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.put_program(Program.mk(new_edit_state));
     {...new_model, undo_history: new_history};
-  | UpdateFontMetrics(metrics) => {...model, font_metrics: Some(metrics)}
+  | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
   };
 };
