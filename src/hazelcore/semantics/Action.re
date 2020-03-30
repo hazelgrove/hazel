@@ -2531,9 +2531,6 @@ module Exp = {
       /* avoid swap down for the Let line if it is second to last */
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
-      | ([last], CursorL(_, EmptyLine)) => 
-        let new_zblock = (prefix @ [last], zline, []) |> ZExp.prune_empty_hole_lines;
-        Succeeded(SynDone((new_zblock, ty, u_gen)));
       | ([hd, ...tl], _) =>
         let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
@@ -3837,9 +3834,6 @@ module Exp = {
       /* avoid swap down for the Let line if it is second to last */
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
-      | ([last], CursorL(_, EmptyLine)) =>
-        let new_zblock = (prefix @ [last], zline, []) |> ZExp.prune_empty_hole_lines;
-        Succeeded(AnaDone(new_zblock, u_gen));
       | ([hd, ...tl], _) =>
         let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
