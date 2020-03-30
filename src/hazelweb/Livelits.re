@@ -36,78 +36,58 @@ module type LIVELIT = {
   let expand: model => UHExp.t;
 };
 
-/*
-  module PairPalette: PALETTE = {
-    let name = "$pair";
-    let expansion_ty = HTyp.(Arrow(Arrow(Hole, Arrow(Hole, Hole)), Hole));
+module PairLivelit: LIVELIT = {
+  let name = "$pair";
+  let expansion_ty = HTyp.(Prod(Hole, Hole));
 
-    type model = (int, int);
-    let init_model = (0, 0); /* TODO Fix me */
-    type model_updater = model => unit;
+  [@deriving sexp]
+  type model = (int, int);
+  [@deriving sexp]
+  type action = unit;
+  type trigger = action => Vdom.Event.t;
 
-    let view = ((leftID, rightID), model_updater) =>
-      MultiLine(
-        HTMLWithCells.Bind(
-          HTMLWithCells.NewCellFor(leftID),
-          left_cell_div =>
-            HTMLWithCells.Bind(
-              HTMLWithCells.NewCellFor(rightID),
-              right_cell_div =>
-                HTMLWithCells.Ret(
-                  Html5.(
-                    div(
-                      ~a=[a_class(["inline-div"])],
-                      [left_cell_div, right_cell_div],
-                    )
-                  ),
+  let init_model =
+    SpliceGenCmd.bind(SpliceGenCmd.new_splice, leftID =>
+      SpliceGenCmd.bind(SpliceGenCmd.new_splice, rightID =>
+        SpliceGenCmd.return((leftID, rightID))
+      )
+    );
+  let update = (m, _) => SpliceGenCmd.return(m);
+
+  let view = ((leftID, rightID), _, _) =>
+    LivelitView.MultiLine(
+      VdomWithSplices.Bind(
+        VdomWithSplices.NewSpliceFor(leftID),
+        left_cell_div =>
+          VdomWithSplices.Bind(
+            VdomWithSplices.NewSpliceFor(rightID),
+            right_cell_div =>
+              VdomWithSplices.Ret(
+                Vdom.(
+                  Node.div(
+                    [Attr.classes(["inline-div"])],
+                    [left_cell_div, right_cell_div],
+                  )
                 ),
-            ),
-        ),
-      );
-
-    let expand = ((leftID, rightID)) => {
-      let to_uhvar = id =>
-        UHExp.(
-          Tm(
-            NotInHole,
-            Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id)),
-          )
-        );
-      let fVarName = "f";
-      let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
-      let apOpSeq =
-        UHExp.(
-          Seq.(
-            operand_op_seq(
-              Tm(NotInHole, Var(NotInVarHole, fVarName)),
-              Space,
-              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
-            )
-          )
-        );
-      UHExp.(
-        Tm(
-          NotInHole,
-          Lam(
-            fVarPat,
-            None,
-            Tm(
-              NotInHole,
-              UHExp.OpSeq(Associator.Exp.associate(apOpSeq), apOpSeq),
-            ),
+              ),
           ),
-        )
+      ),
+    );
+
+  let expand = ((leftID, rightID)) => {
+    let to_uhvar = id =>
+      UHExp.(
+        Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id))
       );
-    };
-
-    /* sprintf/sscanf are magical and treat string literals specially -
-       attempt to factor out the format string at your own peril */
-    let serialize = ((leftID, rightID)) =>
-      sprintf("(%d,%d)", leftID, rightID);
-    let deserialize = serialized =>
-      sscanf(serialized, "(%d,%d)", (leftID, rightID) => (leftID, rightID));
+    let pair_seq =
+      Seq.mk(to_uhvar(leftID), [(UHExp.Comma, to_uhvar(rightID))]);
+    UHExp.Block.wrap'(
+      OpSeq.mk(~associate=Associator.Exp.associate, pair_seq),
+    );
   };
+};
 
+/*
   module ColorPalette: PALETTE = {
     let name = "$color";
     let expansion_ty =
@@ -391,9 +371,13 @@ module LivelitAdapter = (L: LIVELIT) => {
 };
 
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
+module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
   LivelitContexts.extend(
-    empty_livelit_contexts,
+    LivelitContexts.extend(
+      empty_livelit_contexts,
+      PairLivelitAdapter.contexts_entry,
+    ),
     CheckboxLivelitAdapter.contexts_entry,
   );
