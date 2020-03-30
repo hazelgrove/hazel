@@ -195,7 +195,7 @@ let page_view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [Attr.classes(["flex-wrapper"])],
               [
                 Node.div(
-                  [Attr.classes(["page-area"])],
+                  [Attr.id("page-area")],
                   [
                     Node.div(
                       [Attr.classes(["page"])],

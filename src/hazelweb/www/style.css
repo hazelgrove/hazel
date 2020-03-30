@@ -145,7 +145,7 @@ html, body {
   flex-direction: column;
 }
 
-.page-area {
+#page-area {
   flex-grow: 1;
   /* enable scroll */
   height: 0px;
@@ -835,6 +835,7 @@ h1 {
   margin: calc(0.1 * var(--code-line-height) * 1em) 0;
   height: calc(0.8 * var(--code-line-height) * 1em);
   width: 2px;
+  pointer-events: none;
 }
 #caret.blink {
   -webkit-animation: 1s blink step-end infinite;

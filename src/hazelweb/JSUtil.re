@@ -215,6 +215,15 @@ let force_get_elem_by_id = id => {
   );
 };
 
+let get_elem_by_cls = cls =>
+  switch (
+    Dom_html.document##getElementsByClassName(Js.string(cls))
+    |> Dom.list_of_nodeList
+  ) {
+  | [] => None
+  | [elem, ..._] => Some(elem)
+  };
+
 let force_get_elem_by_cls = cls =>
   switch (
     Dom_html.document##getElementsByClassName(Js.string(cls))
