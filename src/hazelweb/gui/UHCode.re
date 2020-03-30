@@ -26,7 +26,7 @@ let sort_clss: TermSort.t => list(cls) =
   | Pat => ["Pat"]
   | Exp => ["Exp"];
 
-let shape_clss: TermShape.t => list(cls) =
+let shape_clss: UHAnnot.term_shape => list(cls) =
   fun
   | Rule => ["Rule"]
   | Case({err}) => ["Case", ...clss_of_err(err)]
@@ -114,124 +114,6 @@ let caret_of_side: Side.t => Vdom.Node.t =
   fun
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
-
-let contenteditable_of_layout =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      ~show_contenteditable: bool,
-      l: UHLayout.t,
-    )
-    : Vdom.Node.t => {
-  open Vdom;
-  let caret_position = (path: CursorPath.t): Node.t =>
-    Node.span(
-      [Attr.id(path_id(path))],
-      // TODO: Once we figure out content-editable cursor use `Node.text("")`
-      [Node.text(UnicodeConstants.zwsp)],
-    );
-  let record: Layout.text(UHAnnot.t, list(Node.t), Node.t) = {
-    /* All DOM text nodes are expected to be wrapped in an
-     * element either with contenteditable set to false or
-     * annotated with the appropriate path-related metadata.
-     * cf SelectionChange clause in Update.apply_action
-     */
-    imp_of_annot: (annot, vs) =>
-      switch (annot) {
-      | Delim({path: (steps, index), _}) =>
-        let path_before: CursorPath.t = (steps, OnDelim(index, Before));
-        let path_after: CursorPath.t = (steps, OnDelim(index, After));
-        [
-          caret_position(path_before),
-          Node.span([contenteditable_false], vs),
-          caret_position(path_after),
-        ];
-      | Op({steps, _}) =>
-        let path_before: CursorPath.t = (steps, OnOp(Before));
-        let path_after: CursorPath.t = (steps, OnOp(After));
-        [
-          caret_position(path_before),
-          Node.span([contenteditable_false], vs),
-          caret_position(path_after),
-        ];
-      | EmptyLine => [Node.span([Attr.classes(["EmptyLine"])], vs)]
-      | SpaceOp => [
-          Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
-        ]
-      | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
-      | Padding => [
-          Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
-        ]
-      | Indent => [
-          Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
-        ]
-      | UserNewline => []
-      | Term({shape, _}) =>
-        switch (shape) {
-        | ApLivelit({lln, llview, steps}) =>
-          switch (llview) {
-          | Inline(view, _) => [
-              Node.span(
-                [],
-                [
-                  Node.span(
-                    [Attr.id(text_id(steps))],
-                    [Node.text(lln), view],
-                  ),
-                ],
-              ),
-            ]
-          | MultiLine(_) =>
-            failwith(__LOC__ ++ ": Multiline livelits not yet supported")
-          }
-        | _ => vs
-        }
-      | OpenChild(_)
-      | ClosedChild(_)
-      | HoleLabel(_)
-      | DelimGroup
-      | LetLine
-      | Step(_) => vs
-      },
-    imp_append: (vs1, vs2) => vs1 @ vs2,
-    imp_of_string: str => [Node.text(str)],
-    imp_newline: indent => [
-      Node.br([]),
-      Node.span(
-        [contenteditable_false],
-        [
-          Node.text(
-            String.concat(
-              "",
-              ListUtil.replicate(indent, UnicodeConstants.nbsp),
-            ),
-          ),
-        ],
-      ),
-    ],
-    t_of_imp: vs =>
-      Node.div(
-        [
-          Attr.id("contenteditable"),
-          Attr.classes(
-            ["code", "contenteditable"]
-            @ (
-              if (show_contenteditable) {
-                [];
-              } else {
-                ["hiddencontenteditable"];
-              }
-            ),
-          ),
-          Attr.create("contenteditable", "true"),
-          Attr.on("drop", _ => Event.Prevent_default),
-          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-        ],
-        vs,
-      ),
-  };
-  Layout.make_of_layout(record, l);
-};
 
 let caret_position_of_path =
     ((steps, cursor) as path: CursorPath.t): (Js.t(Dom.node), int) =>
@@ -443,22 +325,190 @@ let presentation_of_layout =
   );
 };
 
-let view_of_layout =
+let rec contenteditable_of_layout =
+        (
+          ~inject: Update.Action.t => Vdom.Event.t,
+          ~show_contenteditable: bool,
+          ~width: int,
+          ~pos: int,
+          l: UHLayout.t,
+        )
+        : Vdom.Node.t => {
+  open Vdom;
+  let caret_position = (path: CursorPath.t): Node.t =>
+    Node.span(
+      [Attr.id(path_id(path))],
+      // TODO: Once we figure out content-editable cursor use `Node.text("")`
+      [Node.text(UnicodeConstants.zwsp)],
+    );
+  let record: Layout.text(UHAnnot.t, list(Node.t), Node.t) = {
+    /* All DOM text nodes are expected to be wrapped in an
+     * element either with contenteditable set to false or
+     * annotated with the appropriate path-related metadata.
+     * cf SelectionChange clause in Update.apply_action
+     */
+    imp_of_annot: (annot, vs) =>
+      switch (annot) {
+      | Delim({path: (steps, index), _}) =>
+        let path_before: CursorPath.t = (steps, OnDelim(index, Before));
+        let path_after: CursorPath.t = (steps, OnDelim(index, After));
+        [
+          caret_position(path_before),
+          Node.span([contenteditable_false], vs),
+          caret_position(path_after),
+        ];
+      | Op({steps, _}) =>
+        let path_before: CursorPath.t = (steps, OnOp(Before));
+        let path_after: CursorPath.t = (steps, OnOp(After));
+        [
+          caret_position(path_before),
+          Node.span([contenteditable_false], vs),
+          caret_position(path_after),
+        ];
+      | EmptyLine => [Node.span([Attr.classes(["EmptyLine"])], vs)]
+      | SpaceOp => [
+          Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
+        ]
+      | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
+      | Padding => [
+          Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
+        ]
+      | Indent => [
+          Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
+        ]
+      | UserNewline => []
+      | Term({shape, _}) =>
+        switch (shape) {
+        | ApLivelit({lln, llview, splice_docs, steps}) =>
+          switch (llview) {
+          | Inline(view, _) => [
+              Node.span(
+                [],
+                [
+                  Node.span(
+                    [Attr.id(text_id(steps))],
+                    [Node.text(lln), view],
+                  ),
+                ],
+              ),
+            ]
+          | MultiLine(vdom_with_splices) =>
+            let rec fill_splices =
+                    (vdom_with_splices: Livelits.VdomWithSplices.t)
+                    : Vdom.Node.t => {
+              switch (vdom_with_splices) {
+              | NewSpliceFor(splice_name) =>
+                let splice_doc_opt = NatMap.lookup(splice_docs, splice_name);
+                switch (splice_doc_opt) {
+                | None =>
+                  failwith(
+                    "Invalid splice name " ++ string_of_int(splice_name),
+                  )
+                | Some(splice_doc) =>
+                  // TODO splice recursion should respect the contenteditable vs presentation
+                  // distinction - this only does contenteditable
+                  fst(
+                    view(
+                      ~inject,
+                      ~show_contenteditable,
+                      ~width,
+                      ~pos,
+                      splice_doc,
+                    ),
+                  )
+                };
+              | Bind(vdom_with_splices, f) =>
+                let vdom = fill_splices(vdom_with_splices);
+                fill_splices(f(vdom));
+              | Ret(vdom) => vdom
+              };
+            };
+            [fill_splices(vdom_with_splices)];
+          }
+        | _ => vs
+        }
+      | OpenChild(_)
+      | ClosedChild(_)
+      | HoleLabel(_)
+      | DelimGroup
+      | LetLine
+      | Step(_) => vs
+      },
+    imp_append: (vs1, vs2) => vs1 @ vs2,
+    imp_of_string: str => [Node.text(str)],
+    imp_newline: indent => [
+      Node.br([]),
+      Node.span(
+        [contenteditable_false],
+        [
+          Node.text(
+            String.concat(
+              "",
+              ListUtil.replicate(indent, UnicodeConstants.nbsp),
+            ),
+          ),
+        ],
+      ),
+    ],
+    t_of_imp: vs =>
+      Node.div(
+        [
+          Attr.id("contenteditable"),
+          Attr.classes(
+            ["code", "contenteditable"]
+            @ (
+              if (show_contenteditable) {
+                [];
+              } else {
+                ["hiddencontenteditable"];
+              }
+            ),
+          ),
+          Attr.create("contenteditable", "true"),
+          Attr.on("drop", _ => Event.Prevent_default),
+          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+        ],
+        vs,
+      ),
+  };
+  Layout.make_of_layout(record, l);
+}
+and view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~show_contenteditable: bool,
+      ~width: int,
+      ~pos: int,
       l: UHLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => (
-  contenteditable_of_layout(~inject, ~show_contenteditable, l),
+  contenteditable_of_layout(~inject, ~show_contenteditable, ~width, ~pos, l),
   presentation_of_layout(~inject, l),
-);
+)
+and view =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~width=80,
+      ~pos=0,
+      ~show_contenteditable: bool,
+      doc: UHDoc.t,
+    )
+    : (Vdom.Node.t, Vdom.Node.t) => {
+  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_exp on layout failure")
+  | Some(l) => view_of_layout(~inject, ~show_contenteditable, ~width, ~pos, l)
+  };
+};
 
 let focused_view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~path: CursorPath.t,
       ~ci: CursorInfo.t,
+      ~width: int,
+      ~pos: int,
       ~show_contenteditable: bool,
       l: UHLayout.t,
     )
@@ -492,7 +542,7 @@ let focused_view_of_layout =
            l,
          )
     };
-  view_of_layout(~inject, ~show_contenteditable, l);
+  view_of_layout(~inject, ~show_contenteditable, ~width, ~pos, l);
 };
 
 let focused_view =
@@ -510,22 +560,14 @@ let focused_view =
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    focused_view_of_layout(~inject, ~path, ~ci, ~show_contenteditable, l)
-  };
-};
-
-let view =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      ~width=80,
-      ~pos=0,
-      ~show_contenteditable: bool,
-      doc: UHDoc.t,
+    focused_view_of_layout(
+      ~inject,
+      ~path,
+      ~ci,
+      ~width,
+      ~pos,
+      ~show_contenteditable,
+      l,
     )
-    : (Vdom.Node.t, Vdom.Node.t) => {
-  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
-  switch (l) {
-  | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) => view_of_layout(~inject, ~show_contenteditable, l)
   };
 };

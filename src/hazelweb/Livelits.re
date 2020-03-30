@@ -7,17 +7,17 @@ module Vdom = Virtual_dom.Vdom;
 
 type div_type = Vdom.Node.t;
 
-/* module HTMLWithCells = {
-     type m_html_with_cells =
-       | NewCellFor(SpliceInfo.splice_name)
-       | Bind(m_html_with_cells, div_type => m_html_with_cells)
-       | Ret(div_type);
-   }; */
+module VdomWithSplices = {
+  type t =
+    | NewSpliceFor(SpliceInfo.splice_name)
+    | Bind(t, div_type => t)
+    | Ret(div_type);
+};
 
 module LivelitView = {
   type t =
     | Inline(div_type, int)
-    | MultiLine(div_type);
+    | MultiLine(VdomWithSplices.t);
 };
 
 module type LIVELIT = {

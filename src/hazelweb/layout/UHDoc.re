@@ -74,27 +74,28 @@ let annot_Step = step => Doc.annot(UHAnnot.Step(step));
 let annot_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t) =>
   Doc.annot(
-    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
+    UHAnnot.mk_Term(~sort, ~shape=UHAnnot.mk_Var(~err, ~verr, ()), ()),
   );
 let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole) =>
   Doc.annot(
-    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
+    UHAnnot.mk_Term(~sort, ~shape=UHAnnot.mk_Operand(~err, ()), ()),
   );
 let annot_Case = (~err: ErrStatus.t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let annot_FreeLivelit =
-  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=TermShape.FreeLivelit, ()));
+  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=UHAnnot.FreeLivelit, ()));
 let annot_ApLivelit =
     (
       lln: LivelitName.t,
       llview: Livelits.LivelitView.t,
+      splice_docs: NatMap.t(t),
       steps: CursorPath.steps,
     ) =>
   Doc.annot(
     UHAnnot.mk_Term(
       ~sort=Exp,
-      ~shape=TermShape.mk_ApLivelit(~lln, ~llview, ~steps),
+      ~shape=UHAnnot.mk_ApLivelit(~lln, ~llview, ~splice_docs, ~steps),
       (),
     ),
   );
@@ -374,28 +375,6 @@ let mk_Rule =
 
 let mk_FreeLivelit = (~steps: CursorPath.steps, lln: LivelitName.t): t =>
   annot_FreeLivelit(mk_text(~steps, lln));
-
-let mk_ApLivelit =
-    (
-      ~steps: CursorPath.steps,
-      lln: LivelitName.t,
-      llview: Livelits.LivelitView.t,
-    )
-    : t =>
-  switch (llview) {
-  | Inline(_, width) =>
-    annot_ApLivelit(
-      lln,
-      llview,
-      steps,
-      Doc.hcats([
-        mk_text(~steps, lln),
-        mk_text(~steps, String.make(width, ' ')),
-      ]),
-    )
-  | MultiLine(_) =>
-    failwith(__LOC__ ++ ": No support for multiline views yet")
-  };
 
 let mk_LetLine =
     (
@@ -812,7 +791,7 @@ module Exp = {
             mk_Case_ann(~err, ~steps, scrut, rules, ann);
           };
         }
-      | ApLivelit(llu, _, lln, m, _) =>
+      | ApLivelit(llu, _, lln, m, splice_info) =>
         switch (VarMap.lookup(ctx, lln)) {
         | None => assert(false)
         | Some(svf) =>
@@ -821,10 +800,38 @@ module Exp = {
             inst_opt
             |> OptUtil.and_then(NodeInstanceInfo.lookup(llii))
             |> OptUtil.map(fst);
-          mk_ApLivelit(~steps, lln, svf(m, env_opt, _ => Vdom.Event.Ignore));
+          let llview = svf(m, env_opt, _ => Vdom.Event.Ignore);
+          mk_ApLivelit(~steps, lln, llview, splice_info);
         }
       | FreeLivelit(_, lln) => mk_FreeLivelit(~steps, lln)
       }
+    and mk_ApLivelit =
+        (
+          ~steps: CursorPath.steps,
+          lln: LivelitName.t,
+          llview: Livelits.LivelitView.t,
+          splice_info: UHExp.splice_info,
+        )
+        : t => {
+      let spaceholder =
+        switch (llview) {
+        | Inline(_, width) => String.make(width, ' ')
+        | MultiLine(_) => "" // TODO multiline spaceholders
+        };
+      let splice_map = splice_info.splice_map;
+      let splice_docs =
+        NatMap.map(
+          ((_, se)) => mk_block(~steps, ~enforce_inline, se),
+          splice_map,
+        );
+      annot_ApLivelit(
+        lln,
+        llview,
+        splice_docs,
+        steps,
+        Doc.hcats([mk_text(~steps, lln), mk_text(~steps, spaceholder)]),
+      );
+    }
     and mk_rule = (~steps: CursorPath.steps, Rule(p, clause): UHExp.rule): t => {
       let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);
       let clause =
