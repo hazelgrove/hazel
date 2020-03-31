@@ -11,24 +11,29 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("selectionchange"),
-      Dom_html.document,
-      _ => {
-        let anchorNode = Dom_html.window##getSelection##.anchorNode;
-        let contenteditable = JSUtil.force_get_elem_by_id("contenteditable");
-        if (JSUtil.div_contains_node(contenteditable, anchorNode)) {
-          schedule_action(Update.Action.SelectionChange);
-        };
-      },
-    );
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
       schedule_action(Update.Action.FocusWindow);
       Js._true;
     });
   schedule_action(Update.Action.FocusCell);
+  let update_font_metrics = () => {
+    let rect =
+      JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
+    schedule_action(
+      Update.Action.UpdateFontMetrics({
+        row_height: rect##.bottom -. rect##.top,
+        col_width: rect##.right -. rect##.left,
+      }),
+    );
+  };
+  update_font_metrics();
+  Dom_html.window##.onresize :=
+    Dom_html.handler(_ => {
+      update_font_metrics();
+      Js._true;
+    });
+
   Async_kernel.Deferred.return(
     State.{setting_caret: ref(false), changing_cards: ref(false)},
   );
@@ -49,32 +54,11 @@ let create =
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
+  let (on_display, view) = Page.view(~inject, model);
   Component.create(
     ~apply_action=Update.apply_action(model),
-    ~on_display=
-      (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
-        let path = model |> Model.get_program |> Program.get_path;
-        if (state.changing_cards^) {
-          state.changing_cards := false;
-          let (anchor_node, anchor_offset) =
-            path |> UHCode.caret_position_of_path;
-          state.setting_caret := true;
-          JSUtil.set_caret(anchor_node, anchor_offset);
-        } else if (model.is_cell_focused) {
-          let (expected_node, expected_offset) =
-            path |> UHCode.caret_position_of_path;
-          let (actual_node, actual_offset) = JSUtil.get_selection_anchor();
-          if (actual_node === expected_node
-              && actual_offset === expected_offset) {
-            state.setting_caret := false;
-          } else {
-            state.setting_caret := true;
-            JSUtil.set_caret(expected_node, expected_offset);
-          };
-          restart_caret_animation();
-        };
-      },
+    ~on_display,
     model,
-    Page.view(~inject, model),
+    view,
   );
 };

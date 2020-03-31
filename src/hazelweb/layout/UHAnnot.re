@@ -1,29 +1,22 @@
-open ViewUtil;
 module Doc = Pretty.Doc;
 
 type t =
   | Indent
   | Padding
   | HoleLabel({len: int})
-  | Text({
-      steps: CursorPath.steps,
-      length: int,
-      caret: option(int),
+  | CursorPosition({
+      has_cursor: bool,
+      cursor: CursorPosition.t,
     })
-  | Delim({
-      path: delim_path,
-      caret: option(Side.t),
-    })
-  | Op({
-      steps: CursorPath.steps,
-      caret: option(Side.t),
-    })
+  | Text({cursor: option(int)})
+  | Delim
+  | Op
   | SpaceOp
   | UserNewline
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | DelimGroup
-  | EmptyLine
+  | EmptyLine({has_cursor: bool})
   | LetLine
   | Step(int)
   | Term(term_data)
@@ -46,7 +39,6 @@ and term_shape =
       lln: LivelitName.t,
       llview: Livelits.LivelitView.t,
       splice_docs: NatMap.t(Doc.t(t)),
-      steps: CursorPath.steps,
     })
   | BinOp({
       op_index: int,
@@ -74,17 +66,12 @@ let mk_ApLivelit =
       ~lln: LivelitName.t,
       ~llview: Livelits.LivelitView.t,
       ~splice_docs: NatMap.t(Doc.t(t)),
-      ~steps: CursorPath.steps,
     ) =>
-  ApLivelit({lln, llview, splice_docs, steps});
+  ApLivelit({lln, llview, splice_docs});
 
-let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>
-  Delim({caret, path});
-let mk_Op = (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ()): t =>
-  Op({caret, steps});
-let mk_Text =
-    (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
-  Text({caret, steps, length});
+let mk_Text = (~cursor: option(int)=?, ()): t => Text({cursor: cursor});
+let mk_EmptyLine = (~has_cursor=false, ()) =>
+  EmptyLine({has_cursor: has_cursor});
 let mk_Term =
     (~has_cursor=false, ~shape: term_shape, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});

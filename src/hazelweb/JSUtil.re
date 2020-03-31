@@ -215,6 +215,15 @@ let force_get_elem_by_id = id => {
   );
 };
 
+let get_elem_by_cls = cls =>
+  switch (
+    Dom_html.document##getElementsByClassName(Js.string(cls))
+    |> Dom.list_of_nodeList
+  ) {
+  | [] => None
+  | [elem, ..._] => Some(elem)
+  };
+
 let force_get_elem_by_cls = cls =>
   switch (
     Dom_html.document##getElementsByClassName(Js.string(cls))
@@ -592,6 +601,23 @@ let single_key_string: single_key => string =
     | Letter(x) => x
     | Underscore => "_"
     };
+
+module MoveKey = {
+  [@deriving sexp]
+  type t =
+    | ArrowLeft
+    | ArrowRight
+    | ArrowUp
+    | ArrowDown;
+
+  let of_key =
+    fun
+    | "ArrowLeft" => Some(ArrowLeft)
+    | "ArrowRight" => Some(ArrowRight)
+    | "ArrowDown" => Some(ArrowDown)
+    | "ArrowUp" => Some(ArrowUp)
+    | _ => None;
+};
 
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {

@@ -115,154 +115,160 @@ let caret_of_side: Side.t => Vdom.Node.t =
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
 
-let caret_position_of_path =
-    ((steps, cursor) as path: CursorPath.t): (Js.t(Dom.node), int) =>
-  switch (cursor) {
-  | OnOp(side)
-  | OnDelim(_, side) =>
-    let anchor_parent = (
-      JSUtil.force_get_elem_by_id(path_id(path)): Js.t(Dom_html.element) :>
-        Js.t(Dom.node)
-    );
-    (
-      Js.Opt.get(anchor_parent##.firstChild, () =>
-        failwith(__LOC__ ++ ": Found caret position without child text")
-      ),
-      switch (side) {
-      | Before => 1
-      | After => 0
-      },
-    );
-  | OnText(j) =>
-    let anchor_parent = (
-      JSUtil.force_get_elem_by_id(text_id(steps)): Js.t(Dom_html.element) :>
-        Js.t(Dom.node)
-    );
-    (
-      Js.Opt.get(anchor_parent##.firstChild, () =>
-        failwith(__LOC__ ++ ": Found Text node without child text")
-      ),
-      j,
-    );
-  };
+let _view_of_layout =
+    (~inject as _: Update.Action.t => Vdom.Event.t, l: UHLayout.t)
+    : (option(((int, int), CursorPath.rev_t)), CursorMap.t, Vdom.Node.t) => {
+  let row = ref(0);
+  let col = ref(0);
+  let z = ref(None);
+  let builder = CursorMap.Builder.init();
 
-let presentation_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: UHLayout.t): Vdom.Node.t => {
-  open Vdom;
-
-  let on_click_noneditable = on_click_noneditable(~inject);
-  let on_click_text = on_click_text(~inject);
-
-  let rec go = (l: UHLayout.t): list(Node.t) =>
+  let rec go = (~rev_steps, ~indent, l: UHLayout.t): list(Vdom.Node.t) => {
+    open Vdom;
+    let go' = go(~rev_steps, ~indent);
     switch (l) {
-    | Text(str) => [Node.text(str)]
-    | Cat(l1, l2) => go(l1) @ go(l2)
-    | Linebreak => [Node.br([])]
-    | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
-
-    // TODO adjust width to num digits, use visibility none
-    | Annot(HoleLabel(_), l) => [
-        Node.span([Attr.classes(["HoleLabel"])], go(l)),
+    | Text(s) =>
+      col := col^ + StringUtil.utf8_length(s);
+      [Node.text(s)];
+    | Linebreak =>
+      row := row^ + 1;
+      col := indent;
+      [Node.br([])];
+    | Align(l) => [
+        Node.div(
+          [Attr.classes(["Align"])],
+          go(~rev_steps, ~indent=col^, l),
+        ),
       ]
+    | Cat(l1, l2) =>
+      let vs1 = go'(l1);
+      let vs2 = go'(l2);
+      vs1 @ vs2;
+
+    | Annot(Step(step), l) =>
+      go(~rev_steps=[step, ...rev_steps], ~indent, l)
+
+    | Annot(CursorPosition({has_cursor, cursor}), _) =>
+      if (has_cursor) {
+        z := Some(((row^, col^), (cursor, rev_steps)));
+      };
+      builder |> CursorMap.Builder.add((row^, col^), (cursor, rev_steps));
+      [];
+
+    | Annot(Text({cursor}), l) =>
+      let col_before = col^;
+      let vs = go'(l);
+      let col_after = col^;
+      builder
+      |> CursorMap.Builder.add(
+           (row^, col_before),
+           (CursorPosition.OnText(0), rev_steps),
+         );
+      builder
+      |> CursorMap.Builder.add(
+           (row^, col_after),
+           (CursorPosition.OnText(col_after - col_before), rev_steps),
+         );
+      switch (cursor) {
+      | None => ()
+      | Some(j) =>
+        z :=
+          Some((
+            (row^, col_before + j),
+            (CursorPosition.OnText(j), rev_steps),
+          ))
+      };
+      [Node.span([Attr.classes(["code-text"])], vs)];
+
+    | Annot(EmptyLine({has_cursor}), l) =>
+      if (has_cursor) {
+        z := Some(((row^, col^), (CursorPosition.OnText(0), rev_steps)));
+      };
+      builder
+      |> CursorMap.Builder.add(
+           (row^, col^),
+           (CursorPosition.OnText(0), rev_steps),
+         );
+      go'(l);
 
     | Annot(DelimGroup, l) => [
-        Node.span([Attr.classes(["DelimGroup"])], go(l)),
+        Node.span([Attr.classes(["DelimGroup"])], go'(l)),
       ]
     | Annot(LetLine, l) => [
-        Node.span([Attr.classes(["LetLine"])], go(l)),
-      ]
-    | Annot(EmptyLine, l) => [
-        Node.span([Attr.classes(["EmptyLine"])], go(l)),
-      ]
-    | Annot(Padding, l) => [
-        Node.span(
-          [contenteditable_false, Attr.classes(["Padding"])],
-          go(l),
-        ),
-      ]
-    | Annot(Indent, l) => [
-        Node.span(
-          [contenteditable_false, Attr.classes(["Indent"])],
-          go(l),
-        ),
+        Node.span([Attr.classes(["LetLine"])], go'(l)),
       ]
 
+    | Annot(Padding, l) => [
+        Node.span([Attr.classes(["Padding"])], go'(l)),
+      ]
+    | Annot(Indent, l) => [Node.span([Attr.classes(["Indent"])], go'(l))]
+
+    | Annot(HoleLabel(_), l) => [
+        Node.span([Attr.classes(["HoleLabel"])], go'(l)),
+      ]
     | Annot(UserNewline, l) => [
-        Node.span([Attr.classes(["UserNewline"])], go(l)),
+        Node.span([Attr.classes(["UserNewline"])], go'(l)),
       ]
 
     | Annot(OpenChild({is_inline}), l) => [
         Node.span(
           [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
-          go(l),
+          go'(l),
         ),
       ]
     | Annot(ClosedChild({is_inline}), l) => [
         Node.span(
           [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
-          go(l),
+          go'(l),
         ),
       ]
 
-    | Annot(Delim({path: (steps, delim_index), caret}), l) =>
-      let attrs = {
-        let path_before: CursorPath.t = (
-          steps,
-          OnDelim(delim_index, Before),
-        );
-        let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
-        [
-          Attr.on_click(on_click_noneditable(path_before, path_after)),
-          Attr.classes(["code-delim"]),
-        ];
-      };
-      let children =
-        switch (caret) {
-        | None => go(l)
-        | Some(side) => [caret_of_side(side), ...go(l)]
-        };
-      [Node.span(attrs, children)];
+    | Annot(Delim, l) => [
+        Node.span([Attr.classes(["code-delim"])], go'(l)),
+      ]
 
-    | Annot(Op({steps, caret}), l) =>
-      let attrs = {
-        let path_before: CursorPath.t = (steps, OnOp(Before));
-        let path_after: CursorPath.t = (steps, OnOp(After));
-        [
-          Attr.on_click(on_click_noneditable(path_before, path_after)),
-          Attr.classes(["code-op"]),
-        ];
-      };
-      let children =
-        switch (caret) {
-        | None => go(l)
-        | Some(side) => [caret_of_side(side), ...go(l)]
-        };
-      [Node.span(attrs, children)];
+    | Annot(Op, l) => [Node.span([Attr.classes(["code-op"])], go'(l))]
 
-    | Annot(SpaceOp, l) => go(l)
+    | Annot(SpaceOp, l) => go'(l)
 
-    | Annot(Text({caret, length, steps}), l) =>
-      let attrs = [
-        Attr.on_click(on_click_text(steps, length)),
-        Attr.classes(["code-text"]),
-      ];
-      let children =
-        switch (caret) {
-        | None => go(l)
-        | Some(char_index) =>
-          let from_left =
-            if (length == 0) {
-              0.0;
-            } else {
-              let index = float_of_int(char_index);
-              let length = float_of_int(length);
-              100.0 *. index /. length;
+    | Annot(Term({shape: ApLivelit({lln, llview, splice_docs}), _}), _) =>
+      switch (llview) {
+      | Inline(view, _) => [
+          Node.span([], [Node.span([], [Node.text(lln), view])]),
+        ]
+      | MultiLine(vdom_with_splices) =>
+        let rec fill_splices =
+                (vdom_with_splices: Livelits.VdomWithSplices.t): Vdom.Node.t => {
+          switch (vdom_with_splices) {
+          | NewSpliceFor(splice_name) =>
+            let splice_doc_opt = NatMap.lookup(splice_docs, splice_name);
+            switch (splice_doc_opt) {
+            | None =>
+              failwith("Invalid splice name " ++ string_of_int(splice_name))
+            | Some(_splice_doc) =>
+              // TODO splice recursion should respect the contenteditable vs presentation
+              // distinction - this only does contenteditable
+
+              /* TODO restore
+                 view(
+                   ~inject,
+                   ~show_contenteditable,
+                   ~width,
+                   ~pos,
+                   splice_doc,
+                 ),
+                 */
+              Vdom.Node.div([], [])
+            // ^ @d: not an issue anymore
             };
-          [caret_from_left(from_left), ...go(l)];
+          | Bind(vdom_with_splices, f) =>
+            let vdom = fill_splices(vdom_with_splices);
+            fill_splices(f(vdom));
+          | Ret(vdom) => vdom
+          };
         };
-      [Node.span(attrs, children)];
-
-    | Annot(Step(_), l) => go(l)
+        [fill_splices(vdom_with_splices)];
+      }
 
     | Annot(Term({has_cursor, shape, sort}), l) => [
         Node.span(
@@ -281,225 +287,31 @@ let presentation_of_layout =
               ]),
             ),
           ],
-          go(l),
+          go'(l),
         ),
       ]
     };
-  Node.div(
-    [
-      Attr.classes(["code", "presentation"]),
-      contenteditable_false,
-      Attr.on_click(evt => {
-        let (row, col) = {
-          let elem =
-            Js.Opt.get(
-              Dom_html.CoerceTo.element(
-                Js.Opt.get(evt##.currentTarget, () =>
-                  failwith(__LOC__ ++ ": no current target")
-                ),
-              ),
-              () =>
-              failwith(__LOC__ ++ ": current target not an element")
-            );
-          let rect = elem##getBoundingClientRect;
-          let from_left = float_of_int(evt##.clientX) -. rect##.left;
-          let from_top = float_of_int(evt##.clientY) -. rect##.top;
-          // TODO systematize magic numbers
-          (
-            Float.to_int(from_top /. 27.27),
-            Float.to_int(from_left /. 11.2),
-          );
-        };
-        switch (l |> UHLayout.path_of_caret_position(row, col)) {
-        | None => Event.Many([])
-        | Some(path) =>
-          Event.Many([
-            inject(Update.Action.EditAction(MoveTo(path))),
-            inject(Update.Action.FocusCell),
-            Event.Prevent_default,
-          ])
-        };
-      }),
-    ],
-    go(l),
+  };
+
+  (
+    z^,
+    CursorMap.Builder.build(builder),
+    Vdom.(
+      Node.div(
+        [Attr.classes(["code", "presentation"])],
+        [
+          Node.div([Attr.id("caret"), Attr.classes(["blink"])], []),
+          ...go(~indent=0, ~rev_steps=[], l),
+        ],
+      )
+    ),
   );
 };
 
-let rec contenteditable_of_layout =
-        (
-          ~inject: Update.Action.t => Vdom.Event.t,
-          ~show_contenteditable: bool,
-          ~width: int,
-          ~pos: int,
-          l: UHLayout.t,
-        )
-        : Vdom.Node.t => {
-  open Vdom;
-  let caret_position = (path: CursorPath.t): Node.t =>
-    Node.span(
-      [Attr.id(path_id(path))],
-      // TODO: Once we figure out content-editable cursor use `Node.text("")`
-      [Node.text(UnicodeConstants.zwsp)],
-    );
-  let record: Layout.text(UHAnnot.t, list(Node.t), Node.t) = {
-    /* All DOM text nodes are expected to be wrapped in an
-     * element either with contenteditable set to false or
-     * annotated with the appropriate path-related metadata.
-     * cf SelectionChange clause in Update.apply_action
-     */
-    imp_of_annot: (annot, vs) =>
-      switch (annot) {
-      | Delim({path: (steps, index), _}) =>
-        let path_before: CursorPath.t = (steps, OnDelim(index, Before));
-        let path_after: CursorPath.t = (steps, OnDelim(index, After));
-        [
-          caret_position(path_before),
-          Node.span([contenteditable_false], vs),
-          caret_position(path_after),
-        ];
-      | Op({steps, _}) =>
-        let path_before: CursorPath.t = (steps, OnOp(Before));
-        let path_after: CursorPath.t = (steps, OnOp(After));
-        [
-          caret_position(path_before),
-          Node.span([contenteditable_false], vs),
-          caret_position(path_after),
-        ];
-      | EmptyLine => [Node.span([Attr.classes(["EmptyLine"])], vs)]
-      | SpaceOp => [
-          Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
-        ]
-      | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
-      | Padding => [
-          Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
-        ]
-      | Indent => [
-          Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
-        ]
-      | UserNewline => []
-      | Term({shape, _}) =>
-        switch (shape) {
-        | ApLivelit({lln, llview, splice_docs, steps}) =>
-          switch (llview) {
-          | Inline(view, _) => [
-              Node.span(
-                [],
-                [
-                  Node.span(
-                    [Attr.id(text_id(steps))],
-                    [Node.text(lln), view],
-                  ),
-                ],
-              ),
-            ]
-          | MultiLine(vdom_with_splices) =>
-            let rec fill_splices =
-                    (vdom_with_splices: Livelits.VdomWithSplices.t)
-                    : Vdom.Node.t => {
-              switch (vdom_with_splices) {
-              | NewSpliceFor(splice_name) =>
-                let splice_doc_opt = NatMap.lookup(splice_docs, splice_name);
-                switch (splice_doc_opt) {
-                | None =>
-                  failwith(
-                    "Invalid splice name " ++ string_of_int(splice_name),
-                  )
-                | Some(splice_doc) =>
-                  // TODO splice recursion should respect the contenteditable vs presentation
-                  // distinction - this only does contenteditable
-                  fst(
-                    view(
-                      ~inject,
-                      ~show_contenteditable,
-                      ~width,
-                      ~pos,
-                      splice_doc,
-                    ),
-                  )
-                };
-              | Bind(vdom_with_splices, f) =>
-                let vdom = fill_splices(vdom_with_splices);
-                fill_splices(f(vdom));
-              | Ret(vdom) => vdom
-              };
-            };
-            [fill_splices(vdom_with_splices)];
-          }
-        | _ => vs
-        }
-      | OpenChild(_)
-      | ClosedChild(_)
-      | HoleLabel(_)
-      | DelimGroup
-      | LetLine
-      | Step(_) => vs
-      },
-    imp_append: (vs1, vs2) => vs1 @ vs2,
-    imp_of_string: str => [Node.text(str)],
-    imp_newline: indent => [
-      Node.br([]),
-      Node.span(
-        [contenteditable_false],
-        [
-          Node.text(
-            String.concat(
-              "",
-              ListUtil.replicate(indent, UnicodeConstants.nbsp),
-            ),
-          ),
-        ],
-      ),
-    ],
-    t_of_imp: vs =>
-      Node.div(
-        [
-          Attr.id("contenteditable"),
-          Attr.classes(
-            ["code", "contenteditable"]
-            @ (
-              if (show_contenteditable) {
-                [];
-              } else {
-                ["hiddencontenteditable"];
-              }
-            ),
-          ),
-          Attr.create("contenteditable", "true"),
-          Attr.on("drop", _ => Event.Prevent_default),
-          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-        ],
-        vs,
-      ),
-  };
-  Layout.make_of_layout(record, l);
-}
-and view_of_layout =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      ~show_contenteditable: bool,
-      ~width: int,
-      ~pos: int,
-      l: UHLayout.t,
-    )
-    : (Vdom.Node.t, Vdom.Node.t) => (
-  contenteditable_of_layout(~inject, ~show_contenteditable, ~width, ~pos, l),
-  presentation_of_layout(~inject, l),
-)
-and view =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      ~width=80,
-      ~pos=0,
-      ~show_contenteditable: bool,
-      doc: UHDoc.t,
-    )
-    : (Vdom.Node.t, Vdom.Node.t) => {
-  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
-  switch (l) {
-  | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) => view_of_layout(~inject, ~show_contenteditable, ~width, ~pos, l)
-  };
+let unfocused_view_of_layout =
+    (~inject: Update.Action.t => Vdom.Event.t, l: UHLayout.t) => {
+  let (_, cursor_map, view) = _view_of_layout(~inject, l);
+  (cursor_map, view);
 };
 
 let focused_view_of_layout =
@@ -507,12 +319,8 @@ let focused_view_of_layout =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~path: CursorPath.t,
       ~ci: CursorInfo.t,
-      ~width: int,
-      ~pos: int,
-      ~show_contenteditable: bool,
       l: UHLayout.t,
-    )
-    : (Vdom.Node.t, Vdom.Node.t) => {
+    ) => {
   let (steps, _) = path;
   let l =
     switch (l |> UHLayout.find_and_decorate_caret(~path)) {
@@ -542,7 +350,9 @@ let focused_view_of_layout =
            l,
          )
     };
-  view_of_layout(~inject, ~show_contenteditable, ~width, ~pos, l);
+  let (z, map, view) = _view_of_layout(~inject, l);
+  let zmap = ZCursorMap.mk(~z=Option.get(z), ~map);
+  (zmap, view);
 };
 
 let focused_view =
@@ -552,22 +362,27 @@ let focused_view =
       ~pos=0,
       ~path: CursorPath.t,
       ~ci: CursorInfo.t,
-      ~show_contenteditable: bool,
       doc: UHDoc.t,
     )
-    : (Vdom.Node.t, Vdom.Node.t) => {
+    : (ZCursorMap.t, Vdom.Node.t) => {
   let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) =>
-    focused_view_of_layout(
-      ~inject,
-      ~path,
-      ~ci,
-      ~width,
-      ~pos,
-      ~show_contenteditable,
-      l,
+  | Some(l) => focused_view_of_layout(~inject, ~path, ~ci, l)
+  };
+};
+
+let unfocused_view =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~width=80,
+      ~pos=0,
+      doc: UHDoc.t,
     )
+    : (CursorMap.t, Vdom.Node.t) => {
+  let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_exp on layout failure")
+  | Some(l) => unfocused_view_of_layout(~inject, l)
   };
 };

@@ -128,7 +128,6 @@ let _doc = llii => {
   Memo.general(
     ~cache_size_bound=1000,
     UHDoc.Exp.mk(
-      ~steps=[],
       ~enforce_inline=false,
       ~ctx=Livelits.initial_livelit_view_ctx,
       ~llii,

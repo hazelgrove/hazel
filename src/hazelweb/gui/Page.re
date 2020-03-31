@@ -101,59 +101,57 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
-let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
+  open Vdom;
   let card = model |> Model.get_card;
   let program = model |> Model.get_program;
   let cell_status =
     if (!model.compute_results) {
-      Vdom.Node.div([], []);
+      Node.div([], []);
     } else {
-      Vdom.(
-        Node.div(
-          [],
-          [
-            Node.div(
-              [Attr.classes(["cell-status"])],
-              [
-                Node.div(
-                  [Attr.classes(["type-indicator"])],
-                  [
-                    Node.div(
-                      [Attr.classes(["type-label"])],
-                      [Node.text("Result of type: ")],
-                    ),
-                    Node.div(
-                      [Attr.classes(["htype-view"])],
-                      [
-                        {
-                          let (_, ty, _) = program |> Program.get_edit_state;
-                          HTypCode.view(ty);
-                        },
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            Node.div(
-              [Attr.classes(["result-view"])],
-              [
-                DHCode.view(
-                  ~inject,
-                  ~show_fn_bodies=model.show_fn_bodies,
-                  ~show_case_clauses=model.show_case_clauses,
-                  ~show_casts=model.show_casts,
-                  ~selected_instance=model |> Model.get_selected_instance,
-                  ~width=80,
-                  model.show_unevaluated_expansion
-                    ? program |> Program.get_expansion
-                    : program |> Program.get_result |> Result.get_dhexp,
-                ),
-              ],
-            ),
-          ],
-        )
+      Node.div(
+        [],
+        [
+          Node.div(
+            [Attr.classes(["cell-status"])],
+            [
+              Node.div(
+                [Attr.classes(["type-indicator"])],
+                [
+                  Node.div(
+                    [Attr.classes(["type-label"])],
+                    [Node.text("Result of type: ")],
+                  ),
+                  Node.div(
+                    [Attr.classes(["htype-view"])],
+                    [
+                      {
+                        let (_, ty, _) = program |> Program.get_edit_state;
+                        HTypCode.view(ty);
+                      },
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["result-view"])],
+            [
+              DHCode.view(
+                ~inject,
+                ~show_fn_bodies=model.show_fn_bodies,
+                ~show_case_clauses=model.show_case_clauses,
+                ~show_casts=model.show_casts,
+                ~selected_instance=model |> Model.get_selected_instance,
+                ~width=80,
+                model.show_unevaluated_expansion
+                  ? program |> Program.get_expansion
+                  : program |> Program.get_result |> Result.get_dhexp,
+              ),
+            ],
+          ),
+        ],
       );
     };
   let e = program |> Program.get_uhexp;
@@ -161,7 +159,6 @@ let view =
   let doc =
     lazy(
       UHDoc.Exp.mk(
-        ~steps=[],
         ~enforce_inline=false,
         ~ctx=Livelits.initial_livelit_view_ctx,
         ~llii,
@@ -178,7 +175,8 @@ let view =
       }
     );
   let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
-  Vdom.(
+  let (on_display, cell_view) = Cell.view(~inject, model);
+  let page_view =
     Node.div(
       [Attr.id("root")],
       [
@@ -206,7 +204,7 @@ let view =
               [Attr.classes(["flex-wrapper"])],
               [
                 Node.div(
-                  [Attr.classes(["page-area"])],
+                  [Attr.id("page-area")],
                   [
                     Node.div(
                       [Attr.classes(["page"])],
@@ -227,7 +225,7 @@ let view =
                                ),
                              ], */
                         ),
-                        Cell.view(~inject, model),
+                        cell_view,
                         cell_status,
                         cardstack_controls(~inject, model),
                       ],
@@ -273,6 +271,6 @@ let view =
           ],
         ),
       ],
-    )
-  );
+    );
+  (on_display, page_view);
 };
