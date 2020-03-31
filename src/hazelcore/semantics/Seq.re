@@ -254,3 +254,34 @@ let t_of_operator_and_surround =
     )
     : t('operand, 'operator) =>
   affix_seq(A(operator, prefix), suffix);
+
+let rec make_skel_str' =
+        (
+          string_of_op: 'op => string,
+          seq: t('operand, 'op),
+          counter: ref(int),
+          ph_map: Hashtbl.t(int, 'operand),
+        )
+        : string =>
+  switch (seq) {
+  | S(hd, E) =>
+    let n = counter^;
+    Hashtbl.add(ph_map, n, hd);
+    string_of_int(n);
+  | S(hd, A(op, seq)) =>
+    let n = counter^;
+    counter := n + 1;
+    Hashtbl.add(ph_map, n, hd);
+    let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
+    let op_str = string_of_op(op);
+    string_of_int(n) ++ op_str ++ skel_str;
+  };
+
+let make_skel_str =
+    (seq: t('operand, 'op), string_of_op: 'op => string)
+    : (string, Hashtbl.t(int, 'operand)) => {
+  let counter = ref(0);
+  let ph_map = Hashtbl.create(8);
+  let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
+  (skel_str, ph_map);
+};
