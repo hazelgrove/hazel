@@ -80,6 +80,7 @@ let find_after_within_row = ((row, col), cmap) =>
   |> ColMap.find_after(col)
   |> Option.map(((col, rev_path)) => ((row, col), rev_path));
 
+// TODO standardize whether CursorMap is aware of text cursor positions
 let find_nearest_within_row = ((row, col), cmap) => {
   let col_map = cmap |> RowMap.find(row);
   switch (
@@ -93,6 +94,16 @@ let find_nearest_within_row = ((row, col), cmap) => {
   | (Some((nearest_col, rev_path)), None)
   | (None, Some((nearest_col, rev_path))) => ((row, nearest_col), rev_path)
   | (Some((col', rev_path)), _) when col' == col => ((row, col), rev_path)
+  | (
+      Some((col_before, (CursorPosition.OnText(_), rev_steps_before))),
+      Some((_, (CursorPosition.OnText(_), rev_steps_after))),
+    )
+      when
+        rev_steps_before === rev_steps_after
+        || rev_steps_before == rev_steps_after => (
+      (row, col),
+      (OnText(col - col_before), rev_steps_before),
+    )
   | (Some((col_before, rev_path_before)), Some((col_after, rev_path_after))) =>
     col - col_before <= col_after - col
       ? ((row, col_before), rev_path_before)
