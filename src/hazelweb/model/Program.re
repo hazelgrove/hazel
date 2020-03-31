@@ -124,20 +124,19 @@ let move_to_node = (kind, u, program) => {
   };
 };
 
-let _doc = llii => {
-  Memo.general(
-    ~cache_size_bound=1000,
+let _doc =
+  Memo.general(~cache_size_bound=1000, ((llii, e)) =>
     UHDoc.Exp.mk(
       ~enforce_inline=false,
       ~ctx=Livelits.initial_livelit_view_ctx,
       ~llii,
-    ),
+      e,
+    )
   );
-};
 let get_doc = program => {
   let e = program |> get_uhexp;
   let (_, _, llii, _) = program |> get_result;
-  _doc(llii, e);
+  _doc((llii, e));
 };
 
 let _cursor_on_inst =
