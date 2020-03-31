@@ -772,7 +772,7 @@ module Pat = {
     op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
   and mk_operand = (~enforce_inline: bool, operand: UHPat.operand): t =>
     switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(hole_lbl(u))
+    | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
     | Wild(err) => mk_Wild(~err)
     | Var(err, verr, x) => mk_Var(~err, ~verr, x)
     | NumLit(err, n) => mk_NumLit(~err, n)
@@ -887,7 +887,7 @@ module Exp = {
         ? mk_space_op : mk_op(UHExp.string_of_operator(op))
     and mk_operand = (~enforce_inline: bool, operand: UHExp.operand): t =>
       switch (operand) {
-      | EmptyHole(u) => mk_EmptyHole(hole_lbl(u))
+      | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
       | Var(err, verr, x) => mk_Var(~err, ~verr, x)
       | NumLit(err, n) => mk_NumLit(~err, n)
       | BoolLit(err, b) => mk_BoolLit(~err, b)
