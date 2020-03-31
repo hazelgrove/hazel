@@ -12,6 +12,22 @@ type t =
   | Prod(list(t))
   | List(t);
 
+let precedence_const = 0;
+let precedence_Prod = 1;
+let precedence_Sum = 2;
+let precedence_Arrow = 3;
+let precedence = (ty: t): int =>
+  switch (ty) {
+  | Num
+  | Bool
+  | Hole
+  | Unit
+  | List(_) => precedence_const
+  | Prod(_) => precedence_Prod
+  | Sum(_, _) => precedence_Sum
+  | Arrow(_, _) => precedence_Arrow
+  };
+
 /* eqity
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
