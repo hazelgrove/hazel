@@ -278,8 +278,9 @@ and place_after_operand = operand =>
   | Case(_, _, _, None) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
-  | ApLivelit(_, _, _, _, _)
-  | FreeLivelit(_, _) => CursorE(OnText(0), operand)
+  | ApLivelit(_, _, llname, _, _)
+  | FreeLivelit(_, llname) =>
+    CursorE(OnText(LivelitName.length(llname)), operand)
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
