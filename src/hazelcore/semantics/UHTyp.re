@@ -22,16 +22,6 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let unwrap_parentheses = (operand: operand): t =>
-  switch (operand) {
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  | List(_) => OpSeq.wrap(operand)
-  | Parenthesized(p) => p
-  };
-
 let parse = s => {
   let lexbuf = Lexing.from_string(s);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
@@ -41,57 +31,55 @@ let associate = (seq: seq) => {
   let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
   parse(skel_str);
 };
-
-/* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
-  let mk_seq_operand = (op, a, b) => {
-    let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
-    let seq = Seq.mk(a, [(op, b)]);
-    Parenthesized(OpSeq(skel, seq));
+  let rec mk_seq_operand = (ty, op, ty1, ty2) =>
+    Seq.seq_op_seq(
+      contract_to_seq(
+        ~parenthesize=HTyp.precedence(ty1) >= HTyp.precedence(ty),
+        ty1,
+      ),
+      op,
+      contract_to_seq(
+        ~parenthesize=HTyp.precedence(ty1) > HTyp.precedence(ty),
+        ty2,
+      ),
+    )
+  and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
+    let seq =
+      switch (ty) {
+      | Hole => Seq.wrap(Hole)
+      | Unit => Seq.wrap(Unit)
+      | Num => Seq.wrap(Num)
+      | Bool => Seq.wrap(Bool)
+      | Arrow(ty1, ty2) => mk_seq_operand(ty, Arrow, ty1, ty2)
+      | Prod([]) =>
+        raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+      | Prod([head, ...tail]) =>
+        tail
+        |> List.map(ty =>
+             contract_to_seq(
+               ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
+               ty,
+             )
+           )
+        |> List.fold_left(
+             (seq1, seq2) => Seq.seq_op_seq(seq1, Prod, seq2),
+             contract_to_seq(
+               ~parenthesize=HTyp.precedence(head) >= HTyp.precedence_Prod,
+               head,
+             ),
+           )
+      | Sum(ty1, ty2) => mk_seq_operand(ty, Sum, ty1, ty2)
+      | List(ty1) =>
+        Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
+      };
+    if (parenthesize) {
+      Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
+    } else {
+      seq;
+    };
   };
-  /* Save it for another day
-     match (a, b) with
-       | (OpSeq skelA opseqA, OpSeq skelB opseqB) ->
-       | (OpSeq skelA opseqA, _) ->
-       | (_, OpSeq skelB opseqB) ->
-       | (_, _) ->
-         OpSeq (Skel.BinOp NotInHole op' ?? ??) (Seq.ExpOpExp a op' b)
-     end
-     */
-  let rec contract_to_operand: HTyp.t => operand =
-    fun
-    | Hole => Hole
-    | Unit => Unit
-    | Num => Num
-    | Bool => Bool
-    | Arrow(ty1, ty2) =>
-      mk_seq_operand(
-        Arrow,
-        contract_to_operand(ty1),
-        contract_to_operand(ty2),
-      )
-    | Prod(_) => failwith("unimplemented")
-    // | Prod(tys) =>
-    //   switch (List.map(contract_to_operand, tys)) {
-    //   | [] =>
-    //     raise(Invalid_argument("Encountered tuple type with 0 elements!"))
-    //   | [head, ...tail] =>
-    //     Parenthesized(
-    //       tail
-    //       |> List.map(operand => (Prod, operand))
-    //       |> Seq.mk(head)
-    //       |> OpSeq.mk(~associate=Operator.Typ.associate),
-    //     )
-    //   }
-    | Sum(ty1, ty2) =>
-      mk_seq_operand(
-        Sum,
-        contract_to_operand(ty1),
-        contract_to_operand(ty2),
-      )
-    | List(ty1) => List(OpSeq.wrap(ty1 |> contract_to_operand));
-
-  ty |> contract_to_operand |> unwrap_parentheses;
+  ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
 let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
