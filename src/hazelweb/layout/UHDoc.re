@@ -960,7 +960,7 @@ module Exp = {
         lln,
         llview,
         splice_docs,
-        Doc.hcats([mk_text(lln), mk_text(spaceholder)]),
+        Doc.hcats([mk_text(lln), Doc.text(spaceholder)]),
       );
     }
     and mk_rule = (Rule(p, clause): UHExp.rule): t => {
