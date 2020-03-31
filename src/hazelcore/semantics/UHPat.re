@@ -1,28 +1,8 @@
 open Sexplib.Std;
 
+include Operator.Pat;
+
 exception FreeVarInPat;
-
-[@deriving sexp]
-type operator =
-  | Comma
-  | Space
-  | Cons;
-
-let string_of_operator =
-  fun
-  | Comma => ","
-  | Space => " "
-  | Cons => "::";
-
-let is_Space =
-  fun
-  | Space => true
-  | _ => false;
-
-let is_Comma =
-  fun
-  | Comma => true
-  | _ => false;
 
 [@deriving sexp]
 type t = opseq
@@ -167,3 +147,13 @@ let text_operand =
       u_gen,
     );
   };
+
+let parse = s => {
+  let lexbuf = Lexing.from_string(s);
+  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
+};
+
+let associate = (seq: seq) => {
+  let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
+  parse(skel_str);
+};

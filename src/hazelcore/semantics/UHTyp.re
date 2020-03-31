@@ -1,19 +1,4 @@
-[@deriving sexp]
-type operator =
-  | Arrow
-  | Prod
-  | Sum;
-
-let string_of_operator =
-  fun
-  | Arrow => UnicodeConstants.typeArrowSym
-  | Prod => ","
-  | Sum => "|";
-
-let is_Prod =
-  fun
-  | Prod => true
-  | _ => false;
+include Operator.Typ;
 
 [@deriving sexp]
 type t = opseq
@@ -46,6 +31,16 @@ let unwrap_parentheses = (operand: operand): t =>
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
+
+let parse = s => {
+  let lexbuf = Lexing.from_string(s);
+  SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
+};
+
+let associate = (seq: seq) => {
+  let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
+  parse(skel_str);
+};
 
 /* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
@@ -85,7 +80,7 @@ let contract = (ty: HTyp.t): t => {
     //       tail
     //       |> List.map(operand => (Prod, operand))
     //       |> Seq.mk(head)
-    //       |> OpSeq.mk(~associate=Associator.Typ.associate),
+    //       |> OpSeq.mk(~associate=Operator.Typ.associate),
     //     )
     //   }
     | Sum(ty1, ty2) =>
