@@ -135,10 +135,10 @@ let focused_view = (~inject, ~font_metrics: FontMetrics.t, program) => {
 
   let removed_term_indicator = ref(false);
   let move_cursor = move_key => {
-    let (_, (_, rev_steps)) = zmap |> ZCursorMap.get_cursor;
+    let (_, (_, rev_steps)) = zmap.z;
     let moved = zmap |> ZCursorMap.move(move_key);
     if (moved) {
-      let (new_row_col, (_, new_rev_steps)) = zmap |> ZCursorMap.get_cursor;
+      let (new_row_col, (_, new_rev_steps)) = zmap.z;
       if (! removed_term_indicator^) {
         if (new_rev_steps != rev_steps) {
           JSUtil.force_get_elem_by_cls("Cursor")##.classList##remove(
@@ -160,7 +160,7 @@ let focused_view = (~inject, ~font_metrics: FontMetrics.t, program) => {
       switch (MoveKey.of_key(JSUtil.get_key(evt))) {
       | None => Event.Many([])
       | Some(_) =>
-        let (_, rev_path) = zmap |> ZCursorMap.get_cursor;
+        let (_, rev_path) = zmap.z;
         let path = CursorPath.rev(rev_path);
         prevent_stop_inject(Update.Action.EditAction(MoveTo(path)));
       }
@@ -199,7 +199,10 @@ let focused_view = (~inject, ~font_metrics: FontMetrics.t, program) => {
     }),
   ];
 
-  let on_display = (_, ~schedule_action as _) => paint_cursor(zmap.z);
+  let on_display = (_, ~schedule_action as _) => {
+    let (row_col, _) = zmap.z;
+    paint_cursor(row_col);
+  };
 
   (key_handlers, view, on_display);
 };

@@ -115,7 +115,7 @@ let caret_of_side: Side.t => Vdom.Node.t =
 
 let _view_of_layout =
     (~inject as _: Update.Action.t => Vdom.Event.t, l: UHLayout.t)
-    : (option((int, int)), CursorMap.t, Vdom.Node.t) => {
+    : (option(((int, int), CursorPath.rev_t)), CursorMap.t, Vdom.Node.t) => {
   let row = ref(0);
   let col = ref(0);
   let z = ref(None);
@@ -148,7 +148,7 @@ let _view_of_layout =
 
     | Annot(CursorPosition({has_cursor, cursor}), _) =>
       if (has_cursor) {
-        z := Some((row^, col^));
+        z := Some(((row^, col^), (cursor, rev_steps)));
       };
       builder |> CursorMap.Builder.add((row^, col^), (cursor, rev_steps));
       [];
@@ -169,13 +169,18 @@ let _view_of_layout =
          );
       switch (cursor) {
       | None => ()
-      | Some(j) => z := Some((row^, col_before + j))
+      | Some(j) =>
+        z :=
+          Some((
+            (row^, col_before + j),
+            (CursorPosition.OnText(j), rev_steps),
+          ))
       };
       [Node.span([Attr.classes(["code-text"])], vs)];
 
     | Annot(EmptyLine({has_cursor}), l) =>
       if (has_cursor) {
-        z := Some((row^, col^));
+        z := Some(((row^, col^), (CursorPosition.OnText(0), rev_steps)));
       };
       builder
       |> CursorMap.Builder.add(
