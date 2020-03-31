@@ -624,8 +624,10 @@ and move_cursor_left_zoperand =
         ),
       )
     }
-  | CursorE(_, ApLivelit(_, _, _, _, _) | FreeLivelit(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
+  | CursorE(
+      OnDelim(_),
+      Var(_) | BoolLit(_) | NumLit(_) | ApLivelit(_) | FreeLivelit(_),
+    ) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -858,8 +860,10 @@ and move_cursor_right_zoperand =
     k == 0
       ? Some(CaseZE(err, place_before(scrut), rules, Some(ann)))
       : Some(CaseZA(err, scrut, rules, ZTyp.place_before(ann)))
-  | CursorE(_, ApLivelit(_, _, _, _, _) | FreeLivelit(_, _)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
+  | CursorE(
+      OnDelim(_),
+      Var(_) | BoolLit(_) | NumLit(_) | ApLivelit(_) | FreeLivelit(_),
+    ) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
