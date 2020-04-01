@@ -4,7 +4,7 @@ all: dev
 
 deps:
 	opam install \
-		dune reason utop rtop \
+		dune reason=3.5.2 utop rtop \
 		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib
 
 dev:
@@ -21,10 +21,10 @@ echo-html:
 	@echo "$(HTML_DIR)/index.html"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" $(make echo-html)
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
 
 win-firefox:
-	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" $(make echo-html)
+	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
 
 repl:
 	dune utop src/hazelcore

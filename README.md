@@ -1,142 +1,85 @@
-# Hazel
+# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: master](https://img.shields.io/travis/hazelgrove/hazel/master?label=build:%20master)](https://travis-ci.org/hazelgrove/hazel)
+
+[![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
 website](http://hazel.org/).
 
+You can try Hazel online with either the
+[stable](https://hazel.org/build/master/index.html) or
+[development](https://hazel.org/build/dev/index.html) version.
+
+### Demo
+
+- [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
+
+### Screenshot
+
+![Screenshot of Hazel](hazel-screenshot.png)
+
+Note that this screenshot is of the `master` (i.e., stable) branch circa 2019.
+Hazel is under rapid development, so this screenshot may not reflect the most
+recent version.
+
+<!-- TODO: screenshot with a hole -->
+<!-- TODO: animated gif -->
+
 ## Building and Running Hazel
 
-### Build Status
+### Short version
 
-- Development branch (`dev`):
-  [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=dev)](https://travis-ci.org/hazelgrove/hazel)
+If you already have `ocaml` version 4.08.1 and least version 2.0 of `opam`
+installed, you can build Hazel by running the following commands.
 
-- Stable branch (`master`):
-  [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=master)](https://travis-ci.org/hazelgrove/hazel)
+- `git clone git@github.com:hazelgrove/hazel.git`
+- `cd hazel`
+- `make deps`
+- `make dev`
 
-### Prerequisites
+To run Hazel, run the command `make echo-html`, which will display a filename.
+Then use your preferred browser to open that file.
+
+### Long Version
+
+If you are unfamiliar with `ocaml` or `opam`, do not have them installed, or
+just get stuck, we recommend you follow the step-by-step installation
+instructions contained in [INSTALL.md](INSTALL.md).
+
+## Contributing
+
+### Learning ReasonML
+
+This link lets you type OCaml and see what the corresponding ReasonML syntax is:
+<https://reasonml.github.io/en/try>.
+
+This is useful if you are trying to figure out the ReasonML syntax for something
+that you know the OCaml syntax for.
+
+### Suggested Extensions for VS Code
+
+Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
+are a few extensions that might be helpful.
+
+- These extensions provide support for editing ReasonML and Dune source code:
+
+  - [reason-vscode](https://marketplace.visualstudio.com/items?itemName=jaredly.reason-vscode)
+  - [Dune](https://marketplace.visualstudio.com/items?itemName=maelvalais.dune)
+
+- Due to Reason's poor parse errors, unbalanced parentheses can be difficult
+  to find.  The following extensions help with that.
+
+  - [Bracket Pair Colorizer 2](https://marketplace.visualstudio.com/items?itemName=coenraads.bracket-pair-colorizer-2)
+  - [Indenticator](https://marketplace.visualstudio.com/items?itemName=sirtori.indenticator)
+  - [indent-rainbow](https://marketplace.visualstudio.com/items?itemName=oderwat.indent-rainbow)
+
+### Build System Details
 
 Hazel is implemented in Reason (a dialect of OCaml) and is compiled to
-Javascript for the web browser via the `js_of_ocaml` compiler.  An easy way to
-install both Reason and the necessary libraries is to use
-[opam](https://opam.ocaml.org/) and the following steps.
+Javascript for the web browser via the `js_of_ocaml` compiler.
 
-- If you do not have `opam` installed, install it using the instructions in the
-  [Installing `opam`](#installing-opam) section of this document.
-
-- Update the list of available `opam` packages:
-
-  ```sh
-  opam update
-  ```
-
-- Install OCaml 4.08.1 (some older versions such as may also work, but see the
-  ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
-  why we do not use newer versions).
-
-  ```sh
-  opam switch create 4.08.1
-  ```
-
-- Run the Makefile in the `hazel` root folder to install the necessary OCaml
-  dependencies:
-
-  ```sh
-  make deps
-  ```
-
-#### Installing `opam`
-
-- If you are on Windows:
-
-  - Go the to Microsoft Store, and search for and install "Ubuntu".  This will
-    install the Windows Subsystem for Linux and the Ubuntu Linux distribution.
-
-  - From the start menu or taskbar, open the "Ubuntu" application.  This will
-    open a Bash/Linux shell.
-
-- In the shell, run the following three commands:
-
-  ```sh
-  sudo add-apt-repository ppa:avsm/ppa
-  ```
-
-  ```sh
-  sudo apt update
-  ```
-
-  ```sh
-  sudo apt install m4 opam
-  ```
-
-- Check that the `opam` install worked by running:
-
-  ```sh
-  opam --version
-  ```
-
-  It should report at version 2.0 or greater.  If you have a version before
-  that, the following instructions may not work.
-
-- Initialize `opam`, by running:
-
-  - If you are on windows:
-
-    ```sh
-    opam init --disable-sandboxing
-    ```
-
-  - On any other platform:
-
-    ```sh
-    opam init
-    ```
-
-- Enable `opam` for the current shell with the following:
-
-  ```sh
-  eval $(opam env)
-  ```
-
-### Compiling
-
-You can now build the application with:
-
-```sh
-make release
-```
-
-The `make release` command does three things:
-
-1. Generates some parsers using `menhir`.
-2. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
-3. Compiles the OCaml bytecode to JavaScript
-   (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
-
-If something weird is going on, it sometimes helps to do a `make clean`.
-
-### Running
-
-Once Hazel is compiled, you can see it in action by opening
-`_build/default/src/hazelweb/www/index.html` in your browser.
-
-The command `make echo-html` echos that path to the terminal, so that you don't
-have to remember it.
-
-Thus you can launch Hazel with `BROWSER $(make echo-html)` where (depending on
-your installed operating system and browser) `BROWSER` is one of:
-
-- `firefox`,
-- `chrome`,
-- `chrome-browser`,
-- `chromium`, or
-- `chromium-browser`.
-
-For Window's users, the path to the browser may not be so easy to type, so the
-commands `make win-firefox` and `make win-chrome` will launch Hazel in the
-browser.
-
-### Debugging
+Though, `make` targets are provided as a convenience, they mostly translate to
+`dune` commands.
 
 Invoking `make` by itself is equivalent to invoking `make dev`. With these
 commands we pass additional flags to `js_of_ocaml` that cause the insertion of
@@ -147,5 +90,9 @@ files. This is useful for debugging purposes.
 `@src/fmt` alias is for). This ensures code from all contributors follows the
 same style.
 
-You can also run `make repl` to get a REPL in which you can play with the core
-Hazel functions.
+The `make dev` and `make release` commands do three things:
+
+1. Generate some parsers using `menhir`.
+2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
+3. Compile the OCaml bytecode to JavaScript
+   (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.

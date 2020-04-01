@@ -1,9 +1,10 @@
 module HoleReason = {
   /* Variable: reason */
+  // TODO rename Keyword to ExpandingKeyword
   [@deriving sexp]
   type t =
     | Free
-    | Keyword(Keyword.t)
+    | Keyword(ExpandingKeyword.t)
     | Duplicate;
 };
 

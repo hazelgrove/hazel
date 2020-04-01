@@ -59,7 +59,7 @@ let make_sidebar =
                 Attr.classes(["sidebar-tab"]),
                 Attr.on_click(on_toggle),
               ],
-              [sidebar_open ? tab_opened_icon() : tab_closed_icon()],
+              [sidebar_open ? tab_opened_icon : tab_closed_icon],
             ),
           ],
         ),
@@ -67,33 +67,33 @@ let make_sidebar =
     )
   );
 
-let left = (~inject, sidebar_open, left_panels) => {
+let left = (~inject, model: Model.t, left_panels) => {
   make_sidebar(
     left_panels,
     "collapsible-left-bar",
     "left-tab",
-    SvgShapes.left_arrow(["sidebar-tab-icon"]),
-    SvgShapes.right_arrow(["sidebar-tab-icon"]),
+    Icons.left_arrow(["sidebar-tab-icon"]),
+    Icons.right_arrow(["sidebar-tab-icon"]),
     "slidable-left-bar-body",
     "left-bar-body-padding",
     "left-bar-body",
-    sidebar_open,
+    model.left_sidebar_open,
     ~on_toggle=_ =>
     inject(Update.Action.ToggleLeftSidebar)
   );
 };
 
-let right = (~inject, sidebar_open, right_panels) => {
+let right = (~inject, model: Model.t, right_panels) => {
   make_sidebar(
     right_panels,
     "collapsible-right-bar",
     "right-tab",
-    SvgShapes.right_arrow(["sidebar-tab-icon"]),
-    SvgShapes.left_arrow(["sidebar-tab-icon"]),
+    Icons.right_arrow(["sidebar-tab-icon"]),
+    Icons.left_arrow(["sidebar-tab-icon"]),
     "slidable-right-bar-body",
     "right-bar-body-padding",
     "right-bar-body",
-    sidebar_open,
+    model.right_sidebar_open,
     ~on_toggle=_ =>
     inject(Update.Action.ToggleRightSidebar)
   );

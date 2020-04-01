@@ -1,6 +1,5 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
-module ZList = GeneralUtil.ZList;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
@@ -27,10 +26,13 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   );
 
 let cardstacks_select =
-    (~inject: Update.Action.t => Vdom.Event.t, cardstacks: list(CardStack.t)) => {
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      cardstacks: list(CardstackInfo.t),
+    ) => {
   let cardstack_options =
     List.mapi(
-      (i, cardstack: CardStack.t) => {
+      (i, cardstack: CardstackInfo.t) => {
         let example_idx = string_of_int(i);
         Vdom.(
           Node.option(
@@ -45,7 +47,7 @@ let cardstacks_select =
     Node.select(
       [
         Attr.on_change((_, example_idx) =>
-          inject(Update.Action.LoadCardStack(int_of_string(example_idx)))
+          inject(Update.Action.LoadCardstack(int_of_string(example_idx)))
         ),
       ],
       cardstack_options,
@@ -54,9 +56,8 @@ let cardstacks_select =
 };
 
 let prev_card_button = (~inject, model: Model.t) => {
-  let cardstack = Model.cardstack_state_of(model);
-  let show_prev =
-    ZList.prefix_length(cardstack.zcards) > 0 ? [] : [Vdom.Attr.disabled];
+  let cardstack = model |> Model.get_cardstack;
+  let show_prev = Cardstack.has_prev(cardstack) ? [] : [Vdom.Attr.disabled];
   Vdom.(
     Node.button(
       [
@@ -70,9 +71,8 @@ let prev_card_button = (~inject, model: Model.t) => {
 };
 
 let next_card_button = (~inject, model: Model.t) => {
-  let cardstack = Model.cardstack_state_of(model);
-  let show_next =
-    ZList.suffix_length(cardstack.zcards) > 0 ? [] : [Vdom.Attr.disabled];
+  let cardstack = model |> Model.get_cardstack;
+  let show_next = Cardstack.has_next(cardstack) ? [] : [Vdom.Attr.disabled];
   Vdom.(
     Node.button(
       [
@@ -103,11 +103,12 @@ let cardstack_controls = (~inject, model: Model.t) =>
 
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
-  let card = Model.card_of(model);
+  let card = model |> Model.get_card;
+  let program = model |> Model.get_program;
   let cell_status =
-    switch (model.result_state) {
-    | ResultsDisabled => Vdom.Node.div([], [])
-    | Result(_) =>
+    if (!model.compute_results) {
+      Vdom.Node.div([], []);
+    } else {
       Vdom.(
         Node.div(
           [],
@@ -126,8 +127,8 @@ let page_view =
                       [Attr.classes(["htype-view"])],
                       [
                         {
-                          let (_, ty, _) = Model.edit_state_of(model);
-                          Code.view_of_htyp(~inject, ty);
+                          let (_, ty, _) = program |> Program.get_edit_state;
+                          HTypCode.view(ty);
                         },
                       ],
                     ),
@@ -137,12 +138,36 @@ let page_view =
             ),
             Node.div(
               [Attr.classes(["result-view"])],
-              [Code.view_of_result(~inject, model)],
+              [
+                DHCode.view(
+                  ~inject,
+                  ~show_fn_bodies=model.show_fn_bodies,
+                  ~show_case_clauses=model.show_case_clauses,
+                  ~show_casts=model.show_casts,
+                  ~selected_instance=model |> Model.get_selected_hole_instance,
+                  ~width=80,
+                  model.show_unevaluated_expansion
+                    ? program |> Program.get_expansion
+                    : program |> Program.get_result |> Result.get_dhexp,
+                ),
+              ],
             ),
           ],
         )
-      )
+      );
     };
+  let e = program |> Program.get_uhexp;
+  let doc = lazy(UHDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
+  let layout =
+    lazy(
+      switch (
+        Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
+      ) {
+      | None => Pretty.Layout.Text("layout FAILED") // TODO
+      | Some(l) => l
+      }
+    );
+  let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -154,7 +179,7 @@ let page_view =
               [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
               [Node.text("Hazel")],
             ),
-            cardstacks_select(~inject, model.cardstacks),
+            cardstacks_select(~inject, Model.cardstack_info),
           ],
         ),
         Node.div(
@@ -163,7 +188,7 @@ let page_view =
             /*
              Sidebar.left(
                ~inject,
-               false,
+               model,
                [ActionPanel.view(~inject, model)] //the_history_panel,
              ),
              */
@@ -178,7 +203,7 @@ let page_view =
                       [
                         Node.div(
                           [Attr.classes(["card-caption"])],
-                          [card.caption],
+                          [card.info.caption],
                           /* [
                                Node.text("Hazel is an experiment in "),
                                Node.strong(
@@ -201,55 +226,26 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
-                          let doc = DocOfTerm.doc_of_block(~steps=[], block);
-                          Printf.printf(
-                            "doc sexp: %s\n",
-                            Sexplib.Sexp.to_string(
-                              DocOfTerm.sexp_of_doc(doc),
-                            ),
-                          );
-                          switch (
-                            LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)
-                          ) {
-                          | None => Printf.printf("layout FAILED\n")
-                          | Some(layout) =>
-                            Printf.printf(
-                              "layout sexp: %s\n",
-                              Sexplib.Sexp.to_string(
-                                Layout.sexp_of_t(
-                                  DocOfTerm.sexp_of_tag,
-                                  layout,
-                                ),
-                              ),
-                            );
-                            Printf.printf(
-                              "%s\n",
-                              layout |> Layout.string_of_layout,
-                            );
-                          };
-                          Event.Ignore;
-                        }),
-                      ],
-                      [Node.text("Serialize layout")],
-                    ),
-                    Node.button(
-                      [
-                        Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
-                          JSUtil.log(
-                            Js.string(
-                              Sexplib.Sexp.to_string(
-                                UHExp.sexp_of_block(block),
-                              ),
-                            ),
-                          );
+                          let e = program |> Program.get_uhexp;
+                          JSUtil.log(Js.string(Serialize.string_of_exp(e)));
                           Event.Ignore;
                         }),
                       ],
                       [Node.text("Serialize to console")],
+                    ),
+                    Node.div(
+                      [
+                        Attr.style(
+                          Css_gen.(
+                            white_space(`Pre) @> font_family(["monospace"])
+                          ),
+                        ),
+                      ],
+                      if (!model.show_presentation) {
+                        [];
+                      } else {
+                        [JSUtil.vdom_of_box(Lazy.force(box))];
+                      },
                     ),
                   ],
                 ),
@@ -257,9 +253,9 @@ let page_view =
             ),
             Sidebar.right(
               ~inject,
-              true,
+              model,
               [
-                CursorInspector.view(~inject, model),
+                CursorInspector.view(model),
                 ContextInspector.view(~inject, model),
                 OptionsPanel.view(~inject, model),
               ],

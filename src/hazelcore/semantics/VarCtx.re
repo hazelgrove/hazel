@@ -1,3 +1,3 @@
 [@deriving sexp]
-type t('data) = VarMap.t_('data);
+type t = VarMap.t_((HTyp.t, CursorPath.steps));
 include VarMap;
