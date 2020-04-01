@@ -20,6 +20,10 @@ type t =
   | LetLine
   | Step(int)
   | Term(term_data)
+  | LivelitView({
+      llview: Livelits.LivelitView.t,
+      splice_docs: NatMap.t(Doc.t(t)),
+    })
 and term_data = {
   has_cursor: bool,
   shape: term_shape,
@@ -35,11 +39,7 @@ and term_shape =
     })
   | Operand({err: ErrStatus.t})
   | FreeLivelit
-  | ApLivelit({
-      lln: LivelitName.t,
-      llview: Livelits.LivelitView.t,
-      splice_docs: NatMap.t(Doc.t(t)),
-    })
+  | ApLivelit
   | BinOp({
       op_index: int,
       err: ErrStatus.t,
@@ -60,14 +60,6 @@ let mk_Var =
   Var({err, verr, show_use});
 
 let mk_Operand = (~err: ErrStatus.t=NotInHole, ()) => Operand({err: err});
-
-let mk_ApLivelit =
-    (
-      ~lln: LivelitName.t,
-      ~llview: Livelits.LivelitView.t,
-      ~splice_docs: NatMap.t(Doc.t(t)),
-    ) =>
-  ApLivelit({lln, llview, splice_docs});
 
 let mk_Text = (~cursor: option(int)=?, ()): t => Text({cursor: cursor});
 let mk_EmptyLine = (~has_cursor=false, ()) =>

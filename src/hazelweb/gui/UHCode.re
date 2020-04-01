@@ -36,7 +36,7 @@ let shape_clss: UHAnnot.term_shape => list(cls) =
     @ (show_use ? ["show-use"] : [])
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | FreeLivelit => ["FreeLivelit"]
-  | ApLivelit(_) => ["ApLivelit"]
+  | ApLivelit => ["ApLivelit"]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];
@@ -166,11 +166,11 @@ let _view_of_layout =
 
     | Annot(SpaceOp, l) => go'(l)
 
-    | Annot(Term({shape: ApLivelit({lln, llview, splice_docs}), _}), _) =>
+    | Annot(LivelitView({llview, splice_docs}), l) =>
+      // necessary to update row and col
+      let _ = go'(l);
       switch (llview) {
-      | Inline(view, _) => [
-          Node.span([], [Node.span([], [Node.text(lln), view])]),
-        ]
+      | Inline(view, _) => [view]
       | MultiLine(vdom_with_splices) =>
         let rec fill_splices =
                 (vdom_with_splices: Livelits.VdomWithSplices.t): Vdom.Node.t => {
@@ -181,9 +181,6 @@ let _view_of_layout =
             | None =>
               failwith("Invalid splice name " ++ string_of_int(splice_name))
             | Some(_splice_doc) =>
-              // TODO splice recursion should respect the contenteditable vs presentation
-              // distinction - this only does contenteditable
-
               /* TODO restore
                  view(
                    ~inject,
@@ -194,7 +191,6 @@ let _view_of_layout =
                  ),
                  */
               Vdom.Node.div([], [])
-            // ^ @d: not an issue anymore
             };
           | Bind(vdom_with_splices, f) =>
             let vdom = fill_splices(vdom_with_splices);
@@ -203,7 +199,7 @@ let _view_of_layout =
           };
         };
         [fill_splices(vdom_with_splices)];
-      }
+      };
 
     | Annot(Term({has_cursor, shape, sort}), l) => [
         Node.span(

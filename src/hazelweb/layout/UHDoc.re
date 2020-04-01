@@ -76,18 +76,7 @@ let annot_Case = (~err: ErrStatus.t) =>
 let annot_FreeLivelit =
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=UHAnnot.FreeLivelit, ()));
 let annot_ApLivelit =
-    (
-      lln: LivelitName.t,
-      llview: Livelits.LivelitView.t,
-      splice_docs: NatMap.t(t),
-    ) =>
-  Doc.annot(
-    UHAnnot.mk_Term(
-      ~sort=Exp,
-      ~shape=UHAnnot.mk_ApLivelit(~lln, ~llview, ~splice_docs),
-      (),
-    ),
-  );
+  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=UHAnnot.ApLivelit, ()));
 
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
@@ -530,6 +519,28 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
 let mk_FreeLivelit = (lln: LivelitName.t): t =>
   annot_FreeLivelit(mk_text(lln));
 
+let mk_ApLivelit =
+    (
+      lln: LivelitName.t,
+      llview: Livelits.LivelitView.t,
+      splice_docs: NatMap.t(t),
+    )
+    : t => {
+  let lln_doc = mk_text(lln);
+  let llview_doc = {
+    let spaceholder =
+      switch (llview) {
+      | Inline(_, width) => String.make(width, ' ')
+      | MultiLine(_) => "" // TODO multiline spaceholders
+      };
+    Doc.annot(
+      UHAnnot.LivelitView({llview, splice_docs}),
+      Doc.text(spaceholder),
+    );
+  };
+  annot_ApLivelit(Doc.hcats([lln_doc, llview_doc]));
+};
+
 let mk_LetLine =
     (p: formatted_child, ann: option(formatted_child), def: formatted_child)
     : t => {
@@ -927,6 +938,7 @@ module Exp = {
             mk_Case_ann(~err, scrut, rules, ann);
           };
         }
+      | FreeLivelit(_, lln) => mk_FreeLivelit(lln)
       | ApLivelit(llu, _, lln, m, splice_info) =>
         switch (VarMap.lookup(ctx, lln)) {
         | None => assert(false)
@@ -937,32 +949,12 @@ module Exp = {
             |> OptUtil.and_then(NodeInstanceInfo.lookup(llii))
             |> OptUtil.map(fst);
           let llview = svf(m, env_opt, _ => Vdom.Event.Ignore);
-          mk_ApLivelit(lln, llview, splice_info);
+          let splice_docs =
+            splice_info.splice_map
+            |> NatMap.map(((_, se)) => mk_block(~enforce_inline, se));
+          mk_ApLivelit(lln, llview, splice_docs);
         }
-      | FreeLivelit(_, lln) => mk_FreeLivelit(lln)
       }
-    and mk_ApLivelit =
-        (
-          lln: LivelitName.t,
-          llview: Livelits.LivelitView.t,
-          splice_info: UHExp.splice_info,
-        )
-        : t => {
-      let spaceholder =
-        switch (llview) {
-        | Inline(_, width) => String.make(width, ' ')
-        | MultiLine(_) => "" // TODO multiline spaceholders
-        };
-      let splice_map = splice_info.splice_map;
-      let splice_docs =
-        NatMap.map(((_, se)) => mk_block(~enforce_inline, se), splice_map);
-      annot_ApLivelit(
-        lln,
-        llview,
-        splice_docs,
-        Doc.hcats([mk_text(lln), Doc.text(spaceholder)]),
-      );
-    }
     and mk_rule = (Rule(p, clause): UHExp.rule): t => {
       let p = Pat.mk_child(~enforce_inline=false, ~child_step=0, p);
       let clause = mk_child(~enforce_inline=false, ~child_step=1, clause);

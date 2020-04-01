@@ -209,7 +209,7 @@ module CheckboxLivelit: LIVELIT = {
         )
       );
     let view_span = Vdom.Node.span([], [input_elt]);
-    LivelitView.Inline(view_span, /* TODO! */ 7);
+    LivelitView.Inline(view_span, /* TODO! */ 1);
   };
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
