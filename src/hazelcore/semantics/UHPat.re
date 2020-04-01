@@ -1,7 +1,6 @@
 open Sexplib.Std;
 
 exception FreeVarInPat;
-exception DuplicatedVarInPat;
 
 [@deriving sexp]
 type operator =

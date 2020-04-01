@@ -101,7 +101,8 @@ module Pat = {
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
     | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-    | Var(NotInHole, InVarHole(Duplicate, _), _, _) => DoesNotExpand
+    | Var(NotInHole, InVarHole(Duplicate, u), _, x) =>
+      Expands(Duplicate(u, 0, x), Hole, ctx, delta)
     | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, _, x) =>
@@ -310,7 +311,8 @@ module Pat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-    | Var(NotInHole, InVarHole(Duplicate, _), _, _) => DoesNotExpand
+    | Var(NotInHole, InVarHole(Duplicate, u), _, x) =>
+      Expands(Duplicate(u, 0, x), ty, ctx, delta)
     | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, _, x) =>
@@ -368,6 +370,10 @@ module Pat = {
       let sigma = Environment.empty;
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, k), hii);
+    | Duplicate(u, _, k) =>
+      let sigma = Environment.empty;
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (Duplicate(u, i, k), hii);
     | Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only(path, hii, dp1);
       (Inj(side, dp1), hii);
@@ -514,6 +520,7 @@ module Exp = {
     | (NonEmptyHole(_, _, _, _), _) => Indet
     | (Wild, _) => Matches(Environment.empty)
     | (Keyword(_, _, _), _) => DoesNotMatch
+    | (Duplicate(_, _, _), _) => DoesNotMatch
     | (Var(x), _) =>
       let env = Environment.extend(Environment.empty, (x, d));
       Matches(env);
@@ -1031,7 +1038,7 @@ module Exp = {
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
-        | Duplicate => assert(false)
+        | Duplicate => raise(UHExp.DuplicateVarInExp)
         };
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
@@ -1328,7 +1335,7 @@ module Exp = {
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
         | Keyword(k) => Keyword(u, 0, sigma, k)
-        | Duplicate => assert(false)
+        | Duplicate => raise(UHExp.DuplicateVarInExp)
         };
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)

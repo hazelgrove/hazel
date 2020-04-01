@@ -95,6 +95,10 @@ let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
 
+let mk_Duplicate = (u, i, x) =>
+  Doc.text(Var.to_string(x))
+  |> Doc.annot(DHAnnot.VarHole(Duplicate, (u, i)));
+
 let mk_NumLit = n => Doc.text(string_of_int(n));
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
@@ -125,6 +129,7 @@ module Pat = {
     | NonEmptyHole(_)
     | Wild
     | Keyword(_)
+    | Duplicate(_)
     | Var(_)
     | NumLit(_)
     | BoolLit(_)
@@ -152,6 +157,7 @@ module Pat = {
       | NonEmptyHole(reason, u, i, dp) =>
         mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, k) => mk_Keyword(u, i, k)
+      | Duplicate(u, i, x) => mk_Duplicate(u, i, x)
       | Var(x) => Doc.text(x)
       | Wild => Delim.wild
       | Triv => Delim.triv

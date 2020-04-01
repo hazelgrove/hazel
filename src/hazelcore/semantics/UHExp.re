@@ -1,5 +1,7 @@
 open Sexplib.Std;
 
+exception DuplicateVarInExp;
+
 [@deriving sexp]
 type operator =
   | Space

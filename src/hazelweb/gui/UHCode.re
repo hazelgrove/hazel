@@ -15,6 +15,7 @@ let clss_of_err: ErrStatus.t => list(cls) =
 let clss_of_verr: VarErrStatus.t => list(cls) =
   fun
   | NotInVarHole => []
+  | InVarHole(Duplicate, _) => ["InVarHole", "Duplicate"]
   | InVarHole(_) => ["InVarHole"];
 
 let clss_of_vwarn: VarWarnStatus.t => list(cls) =
