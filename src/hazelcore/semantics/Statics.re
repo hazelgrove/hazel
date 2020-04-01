@@ -379,7 +379,7 @@ module Pat = {
           : (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
     let var_set =
       if (var_set == VarSet.empty) {
-        UHPat.get_variables(p);
+        UHPat.get_duplicate_variables(p);
       } else {
         var_set;
       };
@@ -563,7 +563,7 @@ module Pat = {
       : (UHPat.t, Contexts.t, MetaVarGen.t) => {
     let var_set =
       if (var_set == VarSet.empty) {
-        UHPat.get_variables(p);
+        UHPat.get_duplicate_variables(p);
       } else {
         var_set;
       };

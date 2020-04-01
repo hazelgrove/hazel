@@ -181,3 +181,34 @@ and add_variables_operand = (var_set: VarSet.t, operand: operand): VarSet.t =>
   | Parenthesized(p) => add_variables_opseq(var_set, p)
   | _ => var_set
   };
+
+let rec get_duplicate_variables =
+        (~var_set: VarSet.t=VarSet.empty, p: t): VarSet.t => {
+  let (_, dup_var_set) =
+    get_duplicate_variables_opseq(var_set, VarSet.empty, p);
+  dup_var_set;
+}
+and get_duplicate_variables_opseq =
+    (var_set: VarSet.t, dup_var_set: VarSet.t, OpSeq(_, seq): opseq)
+    : (VarSet.t, VarSet.t) =>
+  seq
+  |> Seq.operands
+  |> List.fold_left(
+       ((var_set, dup_var_set)) =>
+         get_duplicate_variables_operand(var_set, dup_var_set),
+       (var_set, dup_var_set),
+     )
+and get_duplicate_variables_operand =
+    (var_set: VarSet.t, dup_var_set: VarSet.t, operand: operand)
+    : (VarSet.t, VarSet.t) =>
+  switch (operand) {
+  | Var(_, _, _, x) =>
+    if (VarSet.mem(x, var_set)) {
+      (var_set, VarSet.add(x, dup_var_set));
+    } else {
+      (VarSet.add(x, var_set), dup_var_set);
+    }
+  | Inj(_, _, p) => get_duplicate_variables_opseq(var_set, dup_var_set, p)
+  | Parenthesized(p) => get_duplicate_variables_opseq(var_set, dup_var_set, p)
+  | _ => (var_set, dup_var_set)
+  };

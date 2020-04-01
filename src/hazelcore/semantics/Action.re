@@ -2470,7 +2470,9 @@ module Exp = {
             ) {
             | None => Failed
             | Some(new_ty) =>
-              let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
+              let new_ze =
+                (prefix @ inner_prefix, new_zline, inner_suffix)
+                |> UsageAnalysis.ana_var_zblock;
               Succeeded(SynDone((new_ze, new_ty, u_gen)));
             }
           | [_, ..._] =>
