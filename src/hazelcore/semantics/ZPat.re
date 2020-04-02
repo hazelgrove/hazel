@@ -266,3 +266,15 @@ and move_cursor_right_zoperand =
     | Some(zp) => Some(InjZ(err, side, zp))
     | None => Some(CursorP(OnDelim(1, Before), Inj(err, side, erase(zp))))
     };
+
+let rec cursor_on_Var = p => cursor_on_Var_zopseq(p)
+and cursor_on_Var_zopseq: zopseq => option(Var.t) =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) => cursor_on_Var_zoperand(zoperand)
+and cursor_on_Var_zoperand =
+  fun
+  | CursorP(_, Var(_, _, _, x)) => Some(x)
+  | CursorP(_) => None
+  | ParenthesizedZ(p) => cursor_on_Var(p)
+  | InjZ(_, _, p) => cursor_on_Var(p);

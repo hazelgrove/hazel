@@ -159,3 +159,14 @@ let ana_var_zblock = zblock => {
   let zblock = CursorPath.Exp.follow_or_fail(path, block);
   zblock;
 };
+
+let rec go_to_next_usage = (~found=false, cur_steps, uses) =>
+  switch (found, uses) {
+  | (_, []) => None
+  | (false, [use, ...uses]) =>
+    go_to_next_usage(~found=use == cur_steps, cur_steps, uses)
+  | (true, [use, ..._]) => Some(use)
+  };
+
+let go_to_prev_usage = (cur_steps, uses) =>
+  go_to_next_usage(cur_steps, List.rev(uses));

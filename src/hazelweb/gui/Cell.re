@@ -43,6 +43,9 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
     (Alt_LeftBracket, _ => Action.GoToDefinition),
+    (Alt_RightBracket, _ => Action.GoToFirstUsage),
+    (Alt_N, _ => Action.GoToNextUsage),
+    (Alt_P, _ => Action.GoToPrevUsage),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

@@ -35,6 +35,9 @@ type shape =
 [@deriving sexp]
 type t =
   | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | MoveTo(CursorPath.t)
   | MoveToBefore(CursorPath.steps)
   | MoveLeft
@@ -153,6 +156,9 @@ module Typ = {
            Succeeded(z)
          )
     | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage
     | Construct(_)
     | Delete
     | Backspace
@@ -171,7 +177,7 @@ module Typ = {
     switch (a, zseq) {
     /* Invalid actions at the type level */
     | (
-        UpdateApPalette(_) | GoToDefinition |
+        UpdateApPalette(_) |
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
@@ -180,6 +186,10 @@ module Typ = {
       )
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
+    /* Variable-based navigation handled at top level */
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement handled at top level */
     | (
@@ -258,7 +268,7 @@ module Typ = {
     switch (a, zoperand) {
     /* Invalid actions at the type level */
     | (
-        UpdateApPalette(_) | GoToDefinition |
+        UpdateApPalette(_) |
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
@@ -271,6 +281,10 @@ module Typ = {
     | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
     | (_, CursorT(cursor, operand))
         when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
+      Failed
+
+    /* Variable-based navigation handled at top level */
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
       Failed
 
     /* Movement handled at top level */
@@ -938,6 +952,9 @@ module Pat = {
       | Some(zp) => mk_syn_result(ctx, u_gen, zp)
       }
     | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage
     | Construct(_)
     | Delete
     | Backspace
@@ -987,6 +1004,9 @@ module Pat = {
       | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
       }
     | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage
     | Construct(_)
     | Delete
     | Backspace
@@ -1017,6 +1037,10 @@ module Pat = {
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
 
+    /* Variable-based navigation handled at top level */
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
+
     /* Movement */
     | (
         MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
@@ -1024,9 +1048,6 @@ module Pat = {
         _,
       ) =>
       syn_move(ctx, u_gen, a, zopseq)
-
-    /* Variable-based naviation handled at top level */
-    | (GoToDefinition, _) => Failed
 
     /* Deletion */
 
@@ -1150,6 +1171,10 @@ module Pat = {
       ) =>
       Failed
 
+    /* Variable-based navigation handled at top level */
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
+
     /* Movement */
     | (
         MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
@@ -1157,9 +1182,6 @@ module Pat = {
         _,
       ) =>
       syn_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand))
-
-    /* Variable-based naviation handled at top level */
-    | (GoToDefinition, _) => Failed
 
     /* Backspace and Delete */
 
@@ -1351,6 +1373,10 @@ module Pat = {
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
 
+    /* Variable-based navigation handled at top level */
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
+
     /* Movement handled at top level */
     | (
         MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
@@ -1358,9 +1384,6 @@ module Pat = {
         _,
       ) =>
       ana_move(ctx, u_gen, a, zopseq, ty)
-
-    /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
 
     /* Deletion */
 
@@ -1536,7 +1559,8 @@ module Pat = {
       Failed
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* switch to synthesis if in a hole */
     | (_, _) when ZPat.is_inconsistent(ZOpSeq.wrap(zoperand)) =>
@@ -2264,6 +2288,9 @@ module Exp = {
            Succeeded(SynDone((ze, ty, u_gen)))
          )
     | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage
     | Construct(_)
     | Delete
     | Backspace
@@ -2318,6 +2345,9 @@ module Exp = {
            Succeeded(AnaDone((ze, u_gen)))
          )
     | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage
     | Construct(_)
     | Delete
     | Backspace
@@ -2329,6 +2359,85 @@ module Exp = {
       )
     };
 
+  let syn_go_to =
+      (ctx: Contexts.t, a: t, (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t))
+      : Outcome.t(syn_success) =>
+    switch (CursorInfo.Exp.syn_cursor_info(Contexts.empty, ze)) {
+    | None => Failed
+    | Some(ci) =>
+      switch (a) {
+      | GoToDefinition =>
+        switch (ZExp.cursor_on_Var(ze)) {
+        | None => Failed
+        | Some(x) =>
+          switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
+          | None => Failed
+          | Some(steps) =>
+            syn_move(ctx, MoveToBefore(steps), (ze, ty, u_gen))
+          }
+        }
+      | GoToFirstUsage =>
+        // from binding site to first usage
+        switch (ZExp.cursor_on_VarPat(ze)) {
+        | None => Failed
+        | Some(_) =>
+          switch (ci.uses) {
+          | None
+          | Some([]) => Failed
+          | Some([steps_of_usage, ..._]) =>
+            syn_move(ctx, MoveToBefore(steps_of_usage), (ze, ty, u_gen))
+          }
+        }
+      | GoToNextUsage
+      | GoToPrevUsage =>
+        let (cur_steps, _) = CursorPath.Exp.of_z(ze);
+        switch (ZExp.cursor_on_Var(ze)) {
+        | None => Failed
+        | Some(x) =>
+          switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
+          | None => Failed
+          | Some(def_steps) =>
+            switch (syn_move(ctx, MoveToBefore(def_steps), (ze, ty, u_gen))) {
+            | (Failed | CursorEscaped(_) | Succeeded(SynExpands(_))) as err => err
+            | Succeeded(SynDone((ze, ty, u_gen))) =>
+              switch (CursorInfo.Exp.syn_cursor_info(Contexts.empty, ze)) {
+              | None => Failed
+              | Some(ci) =>
+                switch (ci.uses) {
+                | None
+                | Some([]) => Failed
+                | Some(uses) =>
+                  let result_steps =
+                    switch (a) {
+                    | GoToNextUsage =>
+                      UsageAnalysis.go_to_next_usage(cur_steps, uses)
+                    | GoToPrevUsage =>
+                      UsageAnalysis.go_to_prev_usage(cur_steps, uses)
+                    | _ => assert(false)
+                    };
+                  switch (result_steps) {
+                  | None => Failed
+                  | Some(result_steps) =>
+                    syn_move(
+                      ctx,
+                      MoveToBefore(result_steps),
+                      (ze, ty, u_gen),
+                    )
+                  };
+                }
+              }
+            }
+          }
+        };
+      | _ =>
+        failwith(
+          __LOC__
+          ++ ": expected goto action, got "
+          ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
+        )
+      }
+    };
+
   let rec syn_perform =
           (
             ctx: Contexts.t,
@@ -2336,39 +2445,21 @@ module Exp = {
             (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
           )
           : Outcome.t(syn_done) =>
-    switch (a) {
-    /* variable-based navigation handled at top level*/
-    | GoToDefinition =>
-      switch (ZExp.cursor_on_Var(ze)) {
-      | None => Failed
-      | Some(x) =>
-        switch (CursorInfo.Exp.syn_cursor_info(Contexts.empty, ze)) {
-        | None => Failed
-        | Some(ci) =>
-          switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
-          | None => Failed
-          | Some(steps) =>
-            syn_perform(ctx, MoveToBefore(steps), (ze, ty, u_gen))
-          }
-        }
-      }
-    | _ =>
-      switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
-      | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
-        let (zcase, u_gen) =
-          zcase_of_scrut_and_suffix(Syn, u_gen, subject, suffix);
-        let new_ze =
-          (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
-          |> ZExp.prune_empty_hole_lines;
-        Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-      | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
-        let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-        let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
-        let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-        Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-      }
+    switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
+    | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
+      let (zcase, u_gen) =
+        zcase_of_scrut_and_suffix(Syn, u_gen, subject, suffix);
+      let new_ze =
+        (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
+        |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
+      let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+      let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
+      let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
     }
   and syn_perform_block =
       (
@@ -2389,6 +2480,12 @@ module Exp = {
     | MoveToNextHole
     | MoveLeft
     | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
+
+    /* Variable-based navigation handled at top level */
+    | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage => syn_go_to(ctx, a, (zblock, ty, u_gen))
 
     /* Backspace & Delete */
 
@@ -2527,7 +2624,8 @@ module Exp = {
       Failed
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement */
     | (MoveTo(path), _) =>
@@ -2744,7 +2842,8 @@ module Exp = {
     | (UpdateApPalette(_), ZOperator(_)) => Failed
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement handled at top level */
     | (
@@ -2950,7 +3049,8 @@ module Exp = {
     | (Construct(SList), _) => Failed
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement handled at top level */
     | (
@@ -3469,7 +3569,8 @@ module Exp = {
     | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement handled at top level */
     | (
@@ -3758,7 +3859,8 @@ module Exp = {
     | (UpdateApPalette(_), ZOperator(_)) => Failed
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement handled at top level */
     | (
@@ -4017,7 +4119,8 @@ module Exp = {
       };
 
     /* Variable-based navigation handled at top level */
-    | (GoToDefinition, _) => Failed
+    | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+      Failed
 
     /* Movement */
     | (

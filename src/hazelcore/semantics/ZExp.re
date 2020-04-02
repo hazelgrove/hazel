@@ -1030,3 +1030,14 @@ and cursor_on_Var_zrule =
   | CursorR(_)
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_Var(ze);
+
+let rec cursor_on_VarPat = ze => cursor_on_VarPat_zblock(ze)
+and cursor_on_VarPat_zblock = ((_, zline, _)) =>
+  cursor_on_VarPat_zline(zline)
+and cursor_on_VarPat_zline =
+  fun
+  | CursorL(_)
+  | ExpLineZ(_)
+  | LetLineZA(_) => None
+  | LetLineZP(p, _, _) => ZPat.cursor_on_Var(p)
+  | LetLineZE(_, _, ze) => cursor_on_VarPat(ze);

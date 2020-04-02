@@ -447,6 +447,9 @@ module KeyCombo = {
     let alt_T = alt(Key.the_letter_code("T"));
     let alt_F = alt(Key.the_letter_code("F"));
     let alt_LeftBracket = alt(Key.the_key("["));
+    let alt_RightBracket = alt(Key.the_key("]"));
+    let alt_N = alt(Key.the_key("n"));
+    let alt_P = alt(Key.the_key("p"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
   };
@@ -478,6 +481,9 @@ module KeyCombo = {
     | Alt_R
     | Alt_C
     | Alt_LeftBracket
+    | Alt_RightBracket
+    | Alt_N
+    | Alt_P
     | Pound
     | Ctrl_Z
     | Ctrl_Shift_Z;
@@ -510,6 +516,9 @@ module KeyCombo = {
     | Alt_R => Details.alt_R
     | Alt_C => Details.alt_C
     | Alt_LeftBracket => Details.alt_LeftBracket
+    | Alt_RightBracket => Details.alt_RightBracket
+    | Alt_N => Details.alt_N
+    | Alt_P => Details.alt_P
     | Ctrl_Z => Details.ctrl_z
     | Ctrl_Shift_Z => Details.ctrl_shift_z;
 
@@ -571,6 +580,12 @@ module KeyCombo = {
       Some(Alt_C);
     } else if (evt_matches(Details.alt_LeftBracket)) {
       Some(Alt_LeftBracket);
+    } else if (evt_matches(Details.alt_RightBracket)) {
+      Some(Alt_RightBracket);
+    } else if (evt_matches(Details.alt_N)) {
+      Some(Alt_N);
+    } else if (evt_matches(Details.alt_P)) {
+      Some(Alt_P);
     } else {
       None;
     };

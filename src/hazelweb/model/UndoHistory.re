@@ -39,6 +39,9 @@ let undoable_action = (action: Action.t): bool => {
   | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
-  | GoToDefinition => false
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage => false
   };
 };
