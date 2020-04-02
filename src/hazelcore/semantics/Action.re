@@ -3837,6 +3837,7 @@ module Exp = {
     | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
       switch (ListUtil.split_last(prefix), suffix) {
       | (None, _) => Failed
+      /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
       | (Some((rest, EmptyLine)), []) =>
         let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
         let new_zblock = (rest, zline, UHExp.Block.wrap(new_hole)) |> ZExp.prune_empty_hole_lines;
