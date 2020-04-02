@@ -2533,7 +2533,7 @@ module Exp = {
         Failed
       | ([last], CursorL(_, EmptyLine)) => {
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-        let new_zblock = (prefix @ [last], new_hole, []) |> ZExp.prune_empty_hole_lines;
+        let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
@@ -3843,7 +3843,7 @@ module Exp = {
         Failed
       | ([last], CursorL(_, EmptyLine)) => {
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-        let new_zblock = (prefix @ [last], new_hole, []) |> ZExp.prune_empty_hole_lines;
+        let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock)),
         );
