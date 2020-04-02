@@ -3845,7 +3845,7 @@ module Exp = {
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
         Succeeded(
-          SynDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock)),
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock)),
         );
       }
       | ([hd, ...tl], _) =>
