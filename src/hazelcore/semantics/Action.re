@@ -2532,7 +2532,7 @@ module Exp = {
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
       | ([last], CursorL(_, EmptyLine)) => {
-        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole(u_gen);
+        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         let new_zblock = (prefix @ [last], new_hole, []) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
@@ -3841,6 +3841,13 @@ module Exp = {
       /* avoid swap down for the Let line if it is second to last */
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
+      | ([last], CursorL(_, EmptyLine)) => {
+        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        let new_zblock = (prefix @ [last], new_hole, []) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      }
       | ([hd, ...tl], _) =>
         let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
