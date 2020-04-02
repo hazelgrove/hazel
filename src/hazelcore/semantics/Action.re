@@ -2531,6 +2531,7 @@ module Exp = {
       /* avoid swap down for the Let line if it is second to last */
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
+      /* handle corner case when the second to last line is an EmptyLine */
       | ([last], CursorL(_, EmptyLine)) => {
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
@@ -3841,11 +3842,12 @@ module Exp = {
       /* avoid swap down for the Let line if it is second to last */
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
+      /* handle corner case when the second to last line is an EmptyLine */
       | ([last], CursorL(_, EmptyLine)) => {
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
         Succeeded(
-          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock)),
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
       }
       | ([hd, ...tl], _) =>
