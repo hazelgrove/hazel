@@ -2517,9 +2517,16 @@ module Exp = {
 
     /* SwapUp and SwapDown is handled at block level */
     | SwapUp when ZExp.line_can_be_swapped(zline) =>
-      switch (ListUtil.split_last(prefix)) {
-      | None => Failed
-      | Some((rest, last)) =>
+      switch (ListUtil.split_last(prefix), suffix) {
+      | (None, _) => Failed
+      /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
+      | (Some((rest, EmptyLine)), []) => 
+        let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let new_zblock = (rest, zline, UHExp.Block.wrap(new_hole)) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      | (Some((rest, last)), _) =>
         let new_zblock = (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
@@ -3828,9 +3835,15 @@ module Exp = {
 
     /* SwapUp and SwapDown is handled at block level */
     | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
-      switch (ListUtil.split_last(prefix)) {
-      | None => Failed
-      | Some((rest, last)) =>
+      switch (ListUtil.split_last(prefix), suffix) {
+      | (None, _) => Failed
+      | (Some((rest, EmptyLine)), []) =>
+        let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let new_zblock = (rest, zline, UHExp.Block.wrap(new_hole)) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      | (Some((rest, last)), _) =>
         let new_zblock = (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
