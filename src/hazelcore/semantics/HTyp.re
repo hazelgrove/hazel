@@ -4,7 +4,6 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Hole
-  | Unit
   | Num
   | Bool
   | Arrow(t, t)
@@ -21,7 +20,7 @@ let precedence = (ty: t): int =>
   | Num
   | Bool
   | Hole
-  | Unit
+  | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -38,8 +37,6 @@ let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
-  | (Unit, Unit) => true
-  | (Unit, _) => false
   | (Num, Num) => true
   | (Num, _) => false
   | (Bool, Bool) => true
@@ -107,21 +104,17 @@ let has_matched_list =
 let rec complete =
   fun
   | Hole => false
-  | Unit => true
   | Num => true
   | Bool => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
-  | Prod(tys) =>
-    tys |> ListUtil.for_all_opt(complete) |> Option.value(~default=false)
+  | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
 let rec join = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (_, Hole) => Some(ty1)
   | (Hole, _) => Some(ty2)
-  | (Unit, Unit) => Some(ty1)
-  | (Unit, _) => None
   | (Num, Num) => Some(ty1)
   | (Num, _) => None
   | (Bool, Bool) => Some(ty1)
@@ -139,8 +132,9 @@ let rec join = (ty1, ty2) =>
     }
   | (Sum(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    List.map2(join, tys1, tys2)
-    |> OptUtil.sequence
+    ListUtil.map2_opt(join, tys1, tys2)
+    |> Option.map(OptUtil.sequence)
+    |> Option.join
     |> Option.map(joinedTypes => Prod(joinedTypes))
   | (Prod(_), _) => None
   | (List(ty), List(ty')) =>
