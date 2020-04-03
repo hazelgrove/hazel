@@ -35,7 +35,6 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   let doc =
     switch (ty) {
     | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
-    | Unit => text("()")
     | Num => text("Num")
     | Bool => text("Bool")
     | List(ty) =>
@@ -54,8 +53,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         ]),
         d2,
       ]);
-    | Prod([]) =>
-      raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+    | Prod([]) => text("()")
     | Prod([head, ...tail]) =>
       [
         mk'(

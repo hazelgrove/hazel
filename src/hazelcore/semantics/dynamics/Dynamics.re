@@ -79,7 +79,7 @@ module Pat = {
            )
         |> expand_result_of_option;
       | _ =>
-        raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+        raise(Invalid_argument("Encountered tuple pattern type with 0 elements!"))
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
@@ -613,14 +613,12 @@ module Exp = {
         [(head1, head2)],
         List.combine(tail1, tail2),
       )
-    | (Pair(_, _), Cast(_, Prod(_), Prod(_))) =>
-      raise(Invalid_argument("Encountered tuple type with 0 elements!"))
     | (Pair(_, _), Cast(d, Hole, Prod(_)))
     | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
     | (Pair(_, _), _) => DoesNotMatch
     | (Triv, Triv) => Matches(Environment.empty)
-    | (Triv, Cast(d, Hole, Unit)) => matches(dp, d)
-    | (Triv, Cast(d, Unit, Hole)) => matches(dp, d)
+    | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
+    | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
     | (Triv, _) => DoesNotMatch
     | (ListNil, ListNil(_)) => Matches(Environment.empty)
     | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
@@ -719,6 +717,7 @@ module Exp = {
         | Matches(env2) => Matches(Environment.union(env1, env2))
         }
       }
+    | Cast(d', Prod([]), Prod([])) => matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
     | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
       matches_cast_Pair(
         dp1,
@@ -727,8 +726,6 @@ module Exp = {
         [(head1, head2), ...left_casts],
         List.combine(tail1, tail2) @ right_casts,
       )
-    | Cast(_, Prod(_), Prod(_)) =>
-      raise(Invalid_argument("Encountered tuple type with 0 elements!"))
     | Cast(d', Prod(_), Hole)
     | Cast(d', Hole, Prod(_)) =>
       matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
@@ -1000,7 +997,7 @@ module Exp = {
            )
         |> expand_result_of_option;
       | _ =>
-        raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+        raise(Invalid_argument("Encountered tuple pattern type with 0 elements!"))
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
@@ -1810,7 +1807,6 @@ module Evaluator = {
     | Hole => Hole
     | Bool
     | Num
-    | Unit
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
     | List(Hole) => Ground

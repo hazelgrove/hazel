@@ -48,12 +48,10 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole)
-      | Unit => Seq.wrap(Unit)
       | Num => Seq.wrap(Num)
       | Bool => Seq.wrap(Bool)
       | Arrow(ty1, ty2) => mk_seq_operand(ty, Arrow, ty1, ty2)
-      | Prod([]) =>
-        raise(Invalid_argument("Encountered tuple type with 0 elements!"))
+      | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
         |> List.map(ty =>
@@ -105,7 +103,7 @@ and expand_skel = (skel, seq) =>
 and expand_operand =
   fun
   | Hole => Hole
-  | Unit => Unit
+  | Unit => Prod([])
   | Num => Num
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
