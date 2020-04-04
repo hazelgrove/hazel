@@ -48,71 +48,6 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
 let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
-let on_click_noneditable =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      path_before: CursorPath.t,
-      path_after: CursorPath.t,
-      evt,
-    )
-    : Vdom.Event.t =>
-  switch (Js.Opt.to_option(evt##.target)) {
-  | None => inject(Update.Action.EditAction(MoveTo(path_before)))
-  | Some(target) =>
-    let from_left =
-      float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-    let from_right =
-      target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-    let path = from_left <= from_right ? path_before : path_after;
-    inject(Update.Action.EditAction(MoveTo(path)));
-  };
-
-let on_click_text =
-    (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      steps: CursorPath.steps,
-      length: int,
-      evt,
-    )
-    : Vdom.Event.t =>
-  switch (Js.Opt.to_option(evt##.target)) {
-  | None => inject(Update.Action.EditAction(MoveToBefore(steps)))
-  | Some(target) =>
-    let from_left =
-      float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-    let from_right =
-      target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-    let char_index =
-      floor(
-        from_left /. (from_left +. from_right) *. float_of_int(length) +. 0.5,
-      )
-      |> int_of_float;
-    inject(Update.Action.EditAction(MoveTo((steps, OnText(char_index)))));
-  };
-
-let caret_from_left = (from_left: float): Vdom.Node.t => {
-  assert(0.0 <= from_left && from_left <= 100.0);
-  let left_attr =
-    Vdom.Attr.create(
-      "style",
-      "left: " ++ string_of_float(from_left) ++ "0%;",
-    );
-  Vdom.Node.span(
-    [
-      Vdom.Attr.id("caret"),
-      contenteditable_false,
-      left_attr,
-      Vdom.Attr.classes(["blink"]),
-    ],
-    [],
-  );
-};
-
-let caret_of_side: Side.t => Vdom.Node.t =
-  fun
-  | Before => caret_from_left(0.0)
-  | After => caret_from_left(100.0);
-
 let _view_of_layout =
     (~inject as _: Update.Action.t => Vdom.Event.t, l: UHLayout.t)
     : (option(((int, int), CursorPath.rev_t)), CursorMap.t, Vdom.Node.t) => {
@@ -266,40 +201,6 @@ let _view_of_layout =
     ),
   );
 };
-
-/*
-       Attr.on_click(evt => {
-         let (row, col) = {
-           let elem =
-             Js.Opt.get(
-               Dom_html.CoerceTo.element(
-                 Js.Opt.get(evt##.currentTarget, () =>
-                   failwith(__LOC__ ++ ": no current target")
-                 ),
-               ),
-               () =>
-               failwith(__LOC__ ++ ": current target not an element")
-             );
-           let rect = elem##getBoundingClientRect;
-           let from_left = float_of_int(evt##.clientX) -. rect##.left;
-           let from_top = float_of_int(evt##.clientY) -. rect##.top;
-           // TODO systematize magic numbers
-           (
-             Float.to_int(from_top /. 27.27),
-             Float.to_int(from_left /. 11.2),
-           );
-         };
-         switch (l |> UHLayout.path_of_caret_position(row, col)) {
-         | None => Event.Many([])
-         | Some(path) =>
-           Event.Many([
-             inject(Update.Action.EditAction(MoveTo(path))),
-             inject(Update.Action.FocusCell),
-             Event.Prevent_default,
-           ])
-         };
-       }),
- */
 
 let unfocused_view_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: UHLayout.t) => {
