@@ -43,7 +43,8 @@ type t =
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
-  | Construct(shape);
+  | Construct(shape)
+  | SplitCases;
 
 module Outcome = {
   type t('success) =
@@ -154,7 +155,8 @@ module Typ = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SplitCases =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -169,7 +171,7 @@ module Typ = {
     switch (a, zseq) {
     /* Invalid actions at the type level */
     | (
-        UpdateApPalette(_) |
+        UpdateApPalette(_) | SplitCases |
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
@@ -256,7 +258,7 @@ module Typ = {
     switch (a, zoperand) {
     /* Invalid actions at the type level */
     | (
-        UpdateApPalette(_) |
+        UpdateApPalette(_) | SplitCases |
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
@@ -938,7 +940,8 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SplitCases =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -986,7 +989,8 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SplitCases =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1011,7 +1015,7 @@ module Pat = {
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
     /* Invalid actions */
-    | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
     /* Movement */
     | (
@@ -1138,7 +1142,8 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
-        UpdateApPalette(_),
+        UpdateApPalette(_) |
+        SplitCases,
         _,
       ) =>
       Failed
@@ -1339,7 +1344,7 @@ module Pat = {
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
     /* Invalid actions */
-    | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -1517,7 +1522,8 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
-        UpdateApPalette(_),
+        UpdateApPalette(_) |
+        SplitCases,
         _,
       ) =>
       Failed
@@ -2250,7 +2256,8 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SplitCases =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2303,7 +2310,8 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SplitCases =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2585,7 +2593,10 @@ module Exp = {
       let new_zline = ZExp.LetLineZA(zp |> ZPat.erase, zty, def);
       fix_and_mk_result(u_gen, ([], new_zline, []));
 
-    | (Construct(_) | UpdateApPalette(_), CursorL(OnDelim(_, side), _))
+    | (
+        Construct(_) | UpdateApPalette(_) | SplitCases,
+        CursorL(OnDelim(_, side), _),
+      )
         when !ZExp.is_before_zline(zline) && !ZExp.is_after_zline(zline) =>
       let move_cursor =
         switch (side) {
@@ -2596,7 +2607,7 @@ module Exp = {
       | None => Failed
       | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
       };
-    | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
+    | (Construct(_) | UpdateApPalette(_) | SplitCases, CursorL(_)) => Failed
 
     /* Zipper */
 
@@ -2700,7 +2711,7 @@ module Exp = {
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
     /* Invalid actions */
-    | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -3181,7 +3192,7 @@ module Exp = {
             };
           | None => Failed
           }; */
-    | (UpdateApPalette(_), CursorE(_)) => Failed
+    | (UpdateApPalette(_) | SplitCases, CursorE(_)) => Failed
 
     | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
         when !ZExp.is_after_zoperand(zoperand) =>
@@ -3500,7 +3511,11 @@ module Exp = {
       | Succeeded((zrules, u_gen)) =>
         ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, clause_ty)
       }
-    | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
+    | (
+        Construct(_) | UpdateApPalette(_) | SplitCases,
+        CursorR(OnDelim(_), _),
+      ) =>
+      Failed
 
     /* Zipper */
     | (_, RuleZP(zp, clause)) =>
@@ -3699,7 +3714,7 @@ module Exp = {
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
     /* Invalid actions */
-    | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -4394,7 +4409,10 @@ module Exp = {
       }
 
     /* Subsumption */
-    | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
+    | (
+        UpdateApPalette(_) | Construct(SApPalette(_) | SListNil) | SplitCases,
+        _,
+      )
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     }
