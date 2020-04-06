@@ -416,7 +416,11 @@ let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => 
     Doc.hcat(mk_cursor_position(OnDelim(0, Before)), Delim.open_Case())
     |> annot_DelimGroup;
   let close_group =
-    Doc.hcat(Delim.close_Case(), mk_cursor_position(OnDelim(1, After)))
+    Doc.hcats([
+      mk_cursor_position(OnDelim(1, Before)),
+      Delim.close_Case(),
+      mk_cursor_position(OnDelim(1, After)),
+    ])
     |> annot_DelimGroup;
   Doc.(
     vseps(
@@ -452,6 +456,7 @@ let mk_Case_ann =
   let close_group = {
     let end_delim = Delim.close_Case_ann();
     Doc.hcats([
+      mk_cursor_position(OnDelim(1, Before)),
       end_delim,
       ann
       |> pad_left_delimited_child(
