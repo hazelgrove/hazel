@@ -72,7 +72,11 @@ let view =
     | Cat(l1, l2) => go(l1) @ go(l2)
 
     | Annot(CursorPosition({has_cursor, _}), _) =>
-      has_cursor ? [caret_from_left(0.0)] : []
+      has_cursor
+        ? [
+          Node.span([Attr.id("caret-container")], [caret_from_left(0.0)]),
+        ]
+        : []
 
     | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
 
