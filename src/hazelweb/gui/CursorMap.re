@@ -27,6 +27,16 @@ module ColMap = {
     map |> find_first_opt(c => Int.compare(c, col) > 0);
   let find_after_eq = (col, map) =>
     map |> find_first_opt(c => Int.compare(c, col) >= 0);
+
+  let log_sexp = col_map =>
+    col_map
+    |> iter((col, rev_path) => {
+         JSUtil.log("col = " ++ Sexplib.Sexp.to_string(Col.sexp_of_t(col)));
+         JSUtil.log(
+           "rev_path = "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_rev_t(rev_path)),
+         );
+       });
 };
 
 type t = RowMap.t(ColMap.t(CursorPath.rev_t));
