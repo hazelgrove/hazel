@@ -16,7 +16,10 @@ type t =
       has_cursor: bool,
       cursor: CursorPosition.t,
     })
-  | Text({cursor: option(int)})
+  | Text({
+      len: int,
+      has_cursor: option(int),
+    })
   | Delim
   | Op
   | SpaceOp
@@ -24,14 +27,14 @@ type t =
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | DelimGroup
-  | EmptyLine({has_cursor: bool})
+  // TODO remove param, use CursorPosition
+  | EmptyLine
   | LetLine
   | Step(int)
   | Term(term_data);
 
-let mk_Text = (~cursor: option(int)=?, ()): t => Text({cursor: cursor});
-let mk_EmptyLine = (~has_cursor=false, ()) =>
-  EmptyLine({has_cursor: has_cursor});
+let mk_Text = (~has_cursor: option(int)=?, ~len: int, ()): t =>
+  Text({has_cursor, len});
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});

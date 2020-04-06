@@ -2,12 +2,20 @@ module Result_ = Result;
 open Core_kernel;
 module Result = Result_;
 
-type t = {edit_state: Statics.edit_state};
+type t = {
+  width: int,
+  edit_state: Statics.edit_state,
+};
 
-let mk = (edit_state: Statics.edit_state): t => {edit_state: edit_state};
+let mk = (~width: int, edit_state: Statics.edit_state): t => {
+  width,
+  edit_state,
+};
+
+let get_width = program => program.width;
 
 let get_edit_state = program => program.edit_state;
-let put_edit_state = (edit_state, _program) => {edit_state: edit_state};
+let put_edit_state = (edit_state, program) => {...program, edit_state};
 
 let get_zexp = program => {
   let (ze, _, _) = program |> get_edit_state;
@@ -35,19 +43,10 @@ let _cursor_info =
     CursorInfo.Exp.syn_cursor_info(Contexts.empty),
   );
 let get_cursor_info = (program: t) => {
-  let ze = program |> get_zexp;
-  switch (_cursor_info(ze)) {
-  | None => raise(MissingCursorInfo)
-  | Some(ci) =>
-    /* uncomment to see where variable is used
-           switch (ci.node) {
-           | Pat(VarPat(_, uses)) =>
-             JSUtil.log_sexp(UsageAnalysis.sexp_of_uses_list(uses))
-           | _ => JSUtil.log("not varpat")
-           };
-       */
-    ci
-  };
+  program
+  |> get_zexp
+  |> _cursor_info
+  |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
 exception DoesNotExpand;
@@ -105,6 +104,76 @@ let _doc =
 let get_doc = program => {
   let e = program |> get_uhexp;
   _doc(e);
+};
+
+let get_layout = program => {
+  let width = program |> get_width;
+  program
+  |> get_doc
+  |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
+  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+};
+
+let decorate_caret = (path, l) =>
+  l
+  |> UHLayout.find_and_decorate_caret(~path)
+  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find caret"));
+let decorate_cursor = (steps, l) =>
+  l
+  |> UHLayout.find_and_decorate_cursor(~steps)
+  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
+let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
+  switch (ci.uses) {
+  | None => l
+  | Some(uses) =>
+    uses
+    |> List.fold(~init=l, ~f=(l: UHLayout.t, use) =>
+         l
+         |> UHLayout.find_and_decorate_var_use(~steps=use)
+         |> OptUtil.get(() => {
+              failwith(
+                __LOC__
+                ++ ": could not find var use"
+                ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+              )
+            })
+       )
+  };
+
+let get_decorated_layout = program => {
+  let (steps, _) as path = program |> get_path;
+  let ci = program |> get_cursor_info;
+  program
+  |> get_layout
+  |> decorate_caret(path)
+  |> decorate_cursor(steps)
+  |> decorate_var_uses(ci);
+};
+
+let get_cursor_map_z = program => {
+  let path = program |> get_path;
+  // TODO figure out how to consolidate decoration
+  program
+  |> get_layout
+  |> decorate_caret(path)
+  |> CursorMap.of_layout
+  |> (
+    fun
+    | (_, None) => failwith(__LOC__ ++ ": no cursor found")
+    | (map, Some(z)) => (map, z)
+  );
+};
+
+let get_cursor_map = program => program |> get_cursor_map_z |> fst;
+
+let perform_move_action = (move_key, program) => {
+  let (cmap, z) = program |> get_cursor_map_z;
+  switch (cmap |> CursorMap.move(move_key, z)) {
+  | None => raise(CursorEscaped)
+  | Some((_, rev_path)) =>
+    let path = CursorPath.rev(rev_path);
+    program |> perform_edit_action(MoveTo(path));
+  };
 };
 
 let _cursor_on_exp_hole =

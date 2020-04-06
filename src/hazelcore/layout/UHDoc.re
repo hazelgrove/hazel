@@ -74,7 +74,8 @@ let annot_Case = (~err: ErrStatus.t) =>
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
-let mk_text = (s: string): t => Doc.text(s) |> Doc.annot(UHAnnot.mk_Text());
+let mk_text = (s: string): t =>
+  Doc.text(s) |> Doc.annot(UHAnnot.mk_Text(~len=String.length(s), ()));
 
 let mk_cursor_position = cursor =>
   Doc.annot(UHAnnot.CursorPosition({has_cursor: false, cursor}), empty_);
@@ -840,7 +841,7 @@ module Exp = {
     switch (line) {
     | EmptyLine =>
       // TODO: Once we figure out contenteditable cursors, use `mk_text("")`
-      Doc.empty() |> Doc.annot(UHAnnot.mk_EmptyLine())
+      mk_cursor_position(OnText(0)) |> Doc.annot(UHAnnot.EmptyLine)
     | ExpLine(opseq) => mk_opseq(~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline, ~child_step=0, p);

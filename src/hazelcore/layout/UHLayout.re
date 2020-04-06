@@ -121,13 +121,21 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | EmptyLine(_) =>
+             | CursorPosition({cursor: OnText(_), _} as data) =>
                Return(
                  l
-                 |> Layout.annot(UHAnnot.mk_EmptyLine(~has_cursor=true, ())),
+                 |> Layout.annot(
+                      UHAnnot.CursorPosition({...data, has_cursor: true}),
+                    ),
                )
-             | Text(_) =>
-               Return(l |> Layout.annot(UHAnnot.Text({cursor: Some(j)})))
+             | Text(text_data) =>
+               Return(
+                 l
+                 |> Layout.annot(
+                      UHAnnot.Text({...text_data, has_cursor: Some(j)}),
+                    ),
+               )
+             | EmptyLine
              | Term(_) => Skip
              | _ => Stop
              }

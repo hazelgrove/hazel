@@ -2,9 +2,18 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 
-module RowMap = Map.Make(Int);
+module Row = {
+  type t = int;
+  let compare = Int.compare;
+};
+module RowMap = Map.Make(Row);
+
+module Col = {
+  type t = int;
+  let compare = Int.compare;
+};
 module ColMap = {
-  include Map.Make(Int);
+  include Map.Make(Col);
 
   let find_before = (col, map) =>
     map |> find_last_opt(c => Int.compare(c, col) < 0);
@@ -18,31 +27,68 @@ module ColMap = {
 };
 
 type t = RowMap.t(ColMap.t(CursorPath.rev_t));
-type binding = ((int, int), CursorPath.rev_t);
+type binding = ((Row.t, Col.t), CursorPath.rev_t);
 
-module Builder: {
-  type cmap = t;
-  type t;
-  let init: unit => t;
-  let add: ((int, int), CursorPath.rev_t, t) => unit;
-  let build: t => cmap;
-} = {
-  type cmap = t;
-  type t = ref(cmap);
+let of_layout = (l: UHLayout.t): (t, option(binding)) => {
+  let row = ref(0);
+  let col = ref(0);
+  let z = ref(None);
+  let rec go = (~indent, ~rev_steps, l: UHLayout.t) => {
+    let go' = go(~indent, ~rev_steps);
+    switch (l) {
+    | Text(s) =>
+      col := col^ + StringUtil.utf8_length(s);
+      RowMap.empty;
+    | Linebreak =>
+      row := row^ + 1;
+      col := indent;
+      RowMap.empty;
+    | Align(l) => go(~indent=col^, ~rev_steps, l)
+    | Cat(l1, l2) =>
+      let map1 = go'(l1);
+      let map2 = go'(l2);
+      RowMap.union(
+        (_, col_map1, col_map2) => {
+          Some(ColMap.union((_, _, _) => None, col_map1, col_map2))
+        },
+        map1,
+        map2,
+      );
 
-  let init = () => ref(RowMap.empty);
+    | Annot(Step(step), l) =>
+      go(~rev_steps=[step, ...rev_steps], ~indent, l)
 
-  let add = ((row, col), rev_path, builder) => {
-    let col_map =
-      switch (builder^ |> RowMap.find_opt(row)) {
-      | None => ColMap.empty
-      | Some(map) => map
+    | Annot(CursorPosition({has_cursor, cursor}), _) =>
+      if (has_cursor) {
+        z := Some(((row^, col^), (cursor, rev_steps)));
       };
-    builder :=
-      builder^ |> RowMap.add(row, col_map |> ColMap.add(col, rev_path));
-  };
+      RowMap.singleton(row^, ColMap.singleton(col^, (cursor, rev_steps)));
 
-  let build = builder => builder^;
+    | Annot(Text({has_cursor, _}), l) =>
+      switch (has_cursor) {
+      | None => ()
+      | Some(j) => z := Some(((row^, col^ + j), (OnText(j), rev_steps)))
+      };
+      let col_before = col^;
+      let _ = go'(l);
+      let col_after = col^;
+      RowMap.singleton(
+        row^,
+        ColMap.(
+          empty
+          |> add(col_before, (CursorPosition.OnText(0), rev_steps))
+          |> add(
+               col_after,
+               (CursorPosition.OnText(col_after - col_before), rev_steps),
+             )
+        ),
+      );
+
+    | Annot(_, l) => go'(l)
+    };
+  };
+  let map = go(~indent=0, ~rev_steps=[], l);
+  (map, z^);
 };
 
 let num_rows = cmap => RowMap.cardinal(cmap);
@@ -108,5 +154,32 @@ let find_nearest_within_row = ((row, col), cmap) => {
     col - col_before <= col_after - col
       ? ((row, col_before), rev_path_before)
       : ((row, col_after), rev_path_after)
+  };
+};
+
+let move = (move_key: JSUtil.MoveKey.t, z: binding, map: t): option(binding) => {
+  let ((row, col), (pos, rev_steps)) = z;
+  switch (move_key) {
+  | ArrowLeft =>
+    switch (pos, map |> find_before_within_row((row, col))) {
+    | (OnText(j), _) when j > 0 =>
+      Some(((row, col - 1), (OnText(j - 1), rev_steps)))
+    | (_, Some(z)) => Some(z)
+    | (_, None) => row == 0 ? None : Some(map |> end_of_row(row - 1))
+    }
+  | ArrowRight =>
+    switch (pos, map |> find_after_within_row((row, col))) {
+    | (OnText(j), Some((_, (OnText(_), rev_steps_after))))
+        when rev_steps === rev_steps_after || rev_steps == rev_steps_after =>
+      Some(((row, col + 1), (OnText(j + 1), rev_steps)))
+    | (_, Some(z)) => Some(z)
+    | (_, None) =>
+      row == num_rows(map) - 1 ? None : Some(map |> start_of_row(row + 1))
+    }
+  | ArrowUp =>
+    row <= 0 ? None : Some(map |> find_nearest_within_row((row - 1, col)))
+  | ArrowDown =>
+    row >= num_rows(map) - 1
+      ? None : Some(map |> find_nearest_within_row((row + 1, col)))
   };
 };
