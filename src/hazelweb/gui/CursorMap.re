@@ -1,14 +1,17 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+open Sexplib.Std;
 
 module Row = {
+  [@deriving sexp]
   type t = int;
   let compare = Int.compare;
 };
 module RowMap = Map.Make(Row);
 
 module Col = {
+  [@deriving sexp]
   type t = int;
   let compare = Int.compare;
 };
@@ -27,6 +30,7 @@ module ColMap = {
 };
 
 type t = RowMap.t(ColMap.t(CursorPath.rev_t));
+[@deriving sexp]
 type binding = ((Row.t, Col.t), CursorPath.rev_t);
 
 let of_layout = (l: UHLayout.t): (t, option(binding)) => {
