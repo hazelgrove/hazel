@@ -1,28 +1,8 @@
 open Sexplib.Std;
 
+include Operator.Pat;
+
 exception FreeVarInPat;
-
-[@deriving sexp]
-type operator =
-  | Comma
-  | Space
-  | Cons;
-
-let string_of_operator =
-  fun
-  | Comma => ","
-  | Space => " "
-  | Cons => "::";
-
-let is_Space =
-  fun
-  | Space => true
-  | _ => false;
-
-let is_Comma =
-  fun
-  | Comma => true
-  | _ => false;
 
 [@deriving sexp]
 type t = opseq
@@ -65,12 +45,12 @@ let rec get_tuple_elements: skel => list(skel) =
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
 
-let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
+let rec make_tuple =
+        (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
   | [] => failwith("make_tuple: expected at least 1 element")
   | [skel] => skel
-  | [skel, ...skels] =>
-    BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
+  | [skel, ...skels] => BinOp(err, Comma, skel, make_tuple(skels))
   };
 
 let injection = (~err: ErrStatus.t=NotInHole, side: InjSide.t, x: t) =>
@@ -158,44 +138,44 @@ and make_inconsistent_operand =
     (Parenthesized(set_p), u_gen);
   };
 
-let patterns_of_type =
-    (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) =>
-  OpSeq.(
-    switch (ty) {
-    | HTyp.Hole
-    | Unit
-    | Arrow(_, _) => ([], u_gen)
-    | Num => ([numlit(0), wild()] |> List.map(wrap), u_gen)
-    | Bool => ([true, false] |> List.map(b => b |> boollit |> wrap), u_gen)
-    | Prod(_, _) =>
-      let prod_element_count = ty |> HTyp.get_prod_elements |> List.length;
-      let patternSkel =
-        ListUtil.range(prod_element_count)
-        |> List.map(i => Skel.Placeholder(i))
-        |> make_tuple(NotInHole);
-      let (firstHole, u_gen) = u_gen |> new_EmptyHole;
-      let (holes, u_gen) = new_EmptyHoles(prod_element_count - 1, u_gen);
-      let opseq =
-        OpSeq(
-          patternSkel,
-          Seq.mk(firstHole, holes |> List.map(hole => (Comma, hole))),
-        );
-      ([opseq], u_gen);
-    | Sum(_, _) =>
-      let (holes, u_gen) = new_EmptyHoles(2, u_gen);
-      let patterns =
-        List.map2(
-          (side, hole) => wrap(injection(side, wrap(hole))),
-          InjSide.[L, R],
-          holes,
-        );
-      (patterns, u_gen);
-    | List(_) =>
-      let (hole1, u_gen) = u_gen |> new_EmptyHole;
-      let (hole2, u_gen) = u_gen |> new_EmptyHole;
-      ([wrap(listnil()), wrap_operator(hole1, Cons, hole2)], u_gen);
-    }
-  );
+// let patterns_of_type =
+//     (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) =>
+//   OpSeq.(
+//     switch (ty) {
+//     | HTyp.Hole
+//     | Unit
+//     | Arrow(_, _) => ([], u_gen)
+//     | Num => ([numlit(0), wild()] |> List.map(wrap), u_gen)
+//     | Bool => ([true, false] |> List.map(b => b |> boollit |> wrap), u_gen)
+//     | Prod(_, _) =>
+//       let prod_element_count = ty |> HTyp.get_prod_elements |> List.length;
+//       let patternSkel =
+//         ListUtil.range(prod_element_count)
+//         |> List.map(i => Skel.Placeholder(i))
+//         |> make_tuple(NotInHole);
+//       let (firstHole, u_gen) = u_gen |> new_EmptyHole;
+//       let (holes, u_gen) = new_EmptyHoles(prod_element_count - 1, u_gen);
+//       let opseq =
+//         OpSeq(
+//           patternSkel,
+//           Seq.mk(firstHole, holes |> List.map(hole => (Comma, hole))),
+//         );
+//       ([opseq], u_gen);
+//     | Sum(_, _) =>
+//       let (holes, u_gen) = new_EmptyHoles(2, u_gen);
+//       let patterns =
+//         List.map2(
+//           (side, hole) => wrap(injection(side, wrap(hole))),
+//           InjSide.[L, R],
+//           holes,
+//         );
+//       (patterns, u_gen);
+//     | List(_) =>
+//       let (hole1, u_gen) = u_gen |> new_EmptyHole;
+//       let (hole2, u_gen) = u_gen |> new_EmptyHole;
+//       ([wrap(listnil()), wrap_operator(hole1, Cons, hole2)], u_gen);
+//     }
+//   );
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
@@ -211,3 +191,13 @@ let text_operand =
       u_gen,
     );
   };
+
+let parse = s => {
+  let lexbuf = Lexing.from_string(s);
+  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
+};
+
+let associate = (seq: seq) => {
+  let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
+  parse(skel_str);
+};

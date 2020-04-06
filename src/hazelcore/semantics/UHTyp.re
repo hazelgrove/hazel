@@ -1,19 +1,4 @@
-[@deriving sexp]
-type operator =
-  | Arrow
-  | Prod
-  | Sum;
-
-let string_of_operator =
-  fun
-  | Arrow => UnicodeConstants.typeArrowSym
-  | Prod => ","
-  | Sum => "|";
-
-let is_Prod =
-  fun
-  | Prod => true
-  | _ => false;
+include Operator.Typ;
 
 [@deriving sexp]
 type t = opseq
@@ -37,57 +22,62 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let unwrap_parentheses = (operand: operand): t =>
-  switch (operand) {
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  | List(_) => OpSeq.wrap(operand)
-  | Parenthesized(p) => p
-  };
+let parse = s => {
+  let lexbuf = Lexing.from_string(s);
+  SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
+};
 
-/* TODO fix this to only parenthesize when necessary */
+let associate = (seq: seq) => {
+  let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
+  parse(skel_str);
+};
 let contract = (ty: HTyp.t): t => {
-  let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
-  let mk_seq_operand = (op, a, b) =>
-    Parenthesized(OpSeq.wrap_operator(a, op, b));
-  /* Save it for another day
-     match (a, b) with
-       | (OpSeq skelA opseqA, OpSeq skelB opseqB) ->
-       | (OpSeq skelA opseqA, _) ->
-       | (_, OpSeq skelB opseqB) ->
-       | (_, _) ->
-         OpSeq (Skel.BinOp NotInHole op' ?? ??) (Seq.ExpOpExp a op' b)
-     end
-     */
-  let rec contract_to_operand: HTyp.t => operand =
-    fun
-    | Hole => mk_operand(Hole)
-    | Unit => mk_operand(Unit)
-    | Num => mk_operand(Num)
-    | Bool => mk_operand(Bool)
-    | Arrow(ty1, ty2) =>
-      mk_seq_operand(
-        Arrow,
-        contract_to_operand(ty1),
-        contract_to_operand(ty2),
-      )
-    | Prod(ty1, ty2) =>
-      mk_seq_operand(
-        Prod,
-        contract_to_operand(ty1),
-        contract_to_operand(ty2),
-      )
-    | Sum(ty1, ty2) =>
-      mk_seq_operand(
-        Sum,
-        contract_to_operand(ty1),
-        contract_to_operand(ty2),
-      )
-    | List(ty1) => List(OpSeq.wrap(ty1 |> contract_to_operand));
-
-  ty |> contract_to_operand |> unwrap_parentheses;
+  let rec mk_seq_operand = (ty, op, ty1, ty2) =>
+    Seq.seq_op_seq(
+      contract_to_seq(
+        ~parenthesize=HTyp.precedence(ty1) >= HTyp.precedence(ty),
+        ty1,
+      ),
+      op,
+      contract_to_seq(
+        ~parenthesize=HTyp.precedence(ty1) > HTyp.precedence(ty),
+        ty2,
+      ),
+    )
+  and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
+    let seq =
+      switch (ty) {
+      | Hole => Seq.wrap(Hole)
+      | Num => Seq.wrap(Num)
+      | Bool => Seq.wrap(Bool)
+      | Arrow(ty1, ty2) => mk_seq_operand(ty, Arrow, ty1, ty2)
+      | Prod([]) => Seq.wrap(Unit)
+      | Prod([head, ...tail]) =>
+        tail
+        |> List.map(ty =>
+             contract_to_seq(
+               ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
+               ty,
+             )
+           )
+        |> List.fold_left(
+             (seq1, seq2) => Seq.seq_op_seq(seq1, Prod, seq2),
+             contract_to_seq(
+               ~parenthesize=HTyp.precedence(head) >= HTyp.precedence_Prod,
+               head,
+             ),
+           )
+      | Sum(ty1, ty2) => mk_seq_operand(ty, Sum, ty1, ty2)
+      | List(ty1) =>
+        Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
+      };
+    if (parenthesize) {
+      Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
+    } else {
+      seq;
+    };
+  };
+  ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
 let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
@@ -101,10 +91,10 @@ and expand_skel = (skel, seq) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
     Arrow(ty1, ty2);
-  | BinOp(_, Prod, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    Prod(ty1, ty2);
+  | BinOp(_, Prod, _, _) =>
+    Prod(
+      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
+    )
   | BinOp(_, Sum, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
@@ -113,7 +103,7 @@ and expand_skel = (skel, seq) =>
 and expand_operand =
   fun
   | Hole => Hole
-  | Unit => Unit
+  | Unit => Prod([])
   | Num => Num
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)

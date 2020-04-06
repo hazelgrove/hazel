@@ -89,7 +89,7 @@ module Typ = {
 
   let mk_ZOpSeq =
     ZOpSeq.mk(
-      ~associate=Associator.Typ.associate,
+      ~associate=UHTyp.associate,
       ~erase_zoperand=ZTyp.erase_zoperand,
       ~erase_zoperator=ZTyp.erase_zoperator,
     );
@@ -663,7 +663,7 @@ module Pat = {
 
   let mk_ZOpSeq =
     ZOpSeq.mk(
-      ~associate=Associator.Pat.associate,
+      ~associate=UHPat.associate,
       ~erase_zoperand=ZPat.erase_zoperand,
       ~erase_zoperator=ZPat.erase_zoperator,
     );
@@ -1773,10 +1773,10 @@ module Exp = {
     |> Seq.operators
     |> List.exists(op => op == UHExp.Comma);
 
-  let mk_OpSeq = OpSeq.mk(~associate=Associator.Exp.associate);
+  let mk_OpSeq = OpSeq.mk(~associate=UHExp.associate);
   let mk_ZOpSeq =
     ZOpSeq.mk(
-      ~associate=Associator.Exp.associate,
+      ~associate=UHExp.associate,
       ~erase_zoperand=ZExp.erase_zoperand,
       ~erase_zoperator=ZExp.erase_zoperator,
     );
@@ -1923,6 +1923,21 @@ module Exp = {
       (
         ZExp.ZBlock.wrap'(
           mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+        ),
+        u_gen,
+      );
+    | (
+        [],
+        ExpLineZ(
+          ZOpSeq(_, ZOperator(zoperator, (inner_prefix, inner_suffix))),
+        ),
+        [],
+      ) =>
+      let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+      let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+      (
+        ZExp.ZBlock.wrap'(
+          mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
         ),
         u_gen,
       );
