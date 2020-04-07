@@ -414,6 +414,7 @@ module KeyCombo = {
     let alt_L = alt(Key.the_key("l"));
     let alt_R = alt(Key.the_key("r"));
     let alt_C = alt(Key.the_key("c"));
+    let alt_Y = alt(Key.the_key("y"));
     let alt_PageUp = alt(Key.the_key("PageUp"));
     let alt_PageDown = alt(Key.the_key("PageDown"));
     let alt_T = alt(Key.the_key("T"));
@@ -448,6 +449,7 @@ module KeyCombo = {
     | Alt_L
     | Alt_R
     | Alt_C
+    | Alt_Y
     | Pound
     | Ctrl_Z
     | Ctrl_Shift_Z;
@@ -479,6 +481,7 @@ module KeyCombo = {
     | Alt_L => Details.alt_L
     | Alt_R => Details.alt_R
     | Alt_C => Details.alt_C
+    | Alt_Y => Details.alt_Y
     | Ctrl_Z => Details.ctrl_z
     | Ctrl_Shift_Z => Details.ctrl_shift_z;
 
@@ -538,6 +541,8 @@ module KeyCombo = {
       Some(Alt_R);
     } else if (evt_matches(Details.alt_C)) {
       Some(Alt_C);
+    } else if (evt_matches(Details.alt_Y)) {
+      Some(Alt_Y);
     } else {
       None;
     };
