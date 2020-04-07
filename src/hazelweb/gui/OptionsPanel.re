@@ -79,8 +79,8 @@ let view =
               Attr.on_click(_ => {
                 Printf.printf(
                   "%s\n%!",
-                  Extraction.extraction_call(
-                    ~block=model |> Model.zblock |> ZExp.erase_block,
+                  Extraction_uhexp.extraction_call(
+                    ~t=model |> Model.get_program |> Program.get_uhexp,
                   ),
                 );
                 Event.Ignore;
