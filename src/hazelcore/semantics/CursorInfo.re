@@ -574,7 +574,14 @@ module Exp = {
         |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci))
       | Some(ann) =>
         let ty = UHTyp.expand(ann);
-        let ctx_def = Statics.Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
+        let ctx_def =
+          Statics.Exp.ctx_for_let(
+            ~steps=steps @ [0],
+            ctx,
+            p,
+            ty,
+            zdef |> ZExp.erase,
+          );
         ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
         |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci));
       }

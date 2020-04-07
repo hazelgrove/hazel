@@ -903,7 +903,7 @@ module Exp = {
       ) =>
       switch (HTyp.matched_arrow(ty)) {
       | Some(_) => (
-          Contexts.extend_gamma2(ctx, (x, (ty, steps))),
+          Contexts.extend_gamma2(ctx, (x, (ty, steps @ [0]))),
           Some(x),
         )
       | None => (ctx, None)
