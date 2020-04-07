@@ -121,18 +121,11 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | CursorPosition({cursor: OnText(_), _} as data) =>
+             | Token({shape: Text, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.CursorPosition({...data, has_cursor: true}),
-                    ),
-               )
-             | Text(text_data) =>
-               Return(
-                 l
-                 |> Layout.annot(
-                      UHAnnot.Text({...text_data, has_cursor: Some(j)}),
+                      UHAnnot.Token({...token_data, has_cursor: Some(j)}),
                     ),
                )
              | EmptyLine
@@ -143,31 +136,30 @@ let find_and_decorate_caret =
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | CursorPosition({cursor: OnOp(side') as cursor', _})
-                 when side' == side =>
+             | Token({shape: Op, len, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.CursorPosition({
-                        has_cursor: true,
-                        cursor: cursor',
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(side == Before ? 0 : len),
                       }),
                     ),
                )
+             | DelimGroup => Skip
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | CursorPosition({cursor: OnDelim(k', side') as cursor', _})
-                 when k' == k && side' == side =>
+             | Token({shape: Delim(k'), len, _} as token_data) when k' == k =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.CursorPosition({
-                        has_cursor: true,
-                        cursor: cursor',
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(side == Before ? 0 : len),
                       }),
                     ),
                )

@@ -43,6 +43,30 @@ type t = RowMap.t(ColMap.t(CursorPath.rev_t));
 [@deriving sexp]
 type binding = ((Row.t, Col.t), CursorPath.rev_t);
 
+let compare_overlapping_paths =
+    (
+      (pos1, rev_steps1): CursorPath.rev_t,
+      (pos2, rev_steps2): CursorPath.rev_t,
+    ) => {
+  let n1 = List.length(rev_steps1);
+  let n2 = List.length(rev_steps2);
+  if (n1 > n2) {
+    1;
+  } else if (n1 < n2) {
+    (-1);
+  } else {
+    switch (pos1, pos2) {
+    | (OnText(_), OnText(_)) => 0
+    | (OnText(_), _) => 1
+    | (_, OnText(_)) => (-1)
+    | (OnDelim(_), OnDelim(_)) => 0
+    | (OnDelim(_), _) => 1
+    | (_, OnDelim(_)) => (-1)
+    | (OnOp(_), OnOp(_)) => 0
+    };
+  };
+};
+
 let of_layout = (l: UHLayout.t): (t, option(binding)) => {
   let row = ref(0);
   let col = ref(0);
@@ -63,7 +87,17 @@ let of_layout = (l: UHLayout.t): (t, option(binding)) => {
       let map2 = go'(l2);
       RowMap.union(
         (_, col_map1, col_map2) => {
-          Some(ColMap.union((_, _, _) => None, col_map1, col_map2))
+          Some(
+            ColMap.union(
+              (_, rev_path1, rev_path2) =>
+                Some(
+                  compare_overlapping_paths(rev_path1, rev_path2) > 0
+                    ? rev_path1 : rev_path2,
+                ),
+              col_map1,
+              col_map2,
+            ),
+          )
         },
         map1,
         map2,
@@ -72,30 +106,31 @@ let of_layout = (l: UHLayout.t): (t, option(binding)) => {
     | Annot(Step(step), l) =>
       go(~rev_steps=[step, ...rev_steps], ~indent, l)
 
-    | Annot(CursorPosition({has_cursor, cursor}), _) =>
-      if (has_cursor) {
-        z := Some(((row^, col^), (cursor, rev_steps)));
-      };
-      RowMap.singleton(row^, ColMap.singleton(col^, (cursor, rev_steps)));
-
-    | Annot(Text({has_cursor, _}), l) =>
-      switch (has_cursor) {
-      | None => ()
-      | Some(j) => z := Some(((row^, col^ + j), (OnText(j), rev_steps)))
-      };
+    | Annot(Token({shape, has_cursor, len}), l) =>
       let col_before = col^;
       let _ = go'(l);
       let col_after = col^;
+      switch (has_cursor) {
+      | None => ()
+      | Some(j) =>
+        let pos: CursorPosition.t =
+          switch (shape) {
+          | Text => OnText(j)
+          | Op => OnOp(j == 0 ? Before : After)
+          | Delim(k) => OnDelim(k, j == 0 ? Before : After)
+          };
+        z := Some(((row^, col_before + j), (pos, rev_steps)));
+      };
+      let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
+        switch (shape) {
+        | Text => (OnText(0), OnText(len))
+        | Op => (OnOp(Before), OnOp(After))
+        | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))
+        };
       RowMap.singleton(
         row^,
-        ColMap.(
-          empty
-          |> add(col_before, (CursorPosition.OnText(0), rev_steps))
-          |> add(
-               col_after,
-               (CursorPosition.OnText(col_after - col_before), rev_steps),
-             )
-        ),
+        ColMap.singleton(col_before, (pos_before, rev_steps))
+        |> ColMap.add(col_after, (pos_after, rev_steps)),
       );
 
     | Annot(_, l) => go'(l)

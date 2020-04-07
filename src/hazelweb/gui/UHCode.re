@@ -71,24 +71,27 @@ let view =
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
     | Cat(l1, l2) => go(l1) @ go(l2)
 
-    | Annot(CursorPosition({has_cursor, _}), _) =>
-      has_cursor
-        ? [
-          Node.span([Attr.id("caret-container")], [caret_from_left(0.0)]),
-        ]
-        : []
-
     | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
 
-    | Annot(Text({has_cursor, len}), l) => {
-        let vs = [Node.span([Attr.classes(["code-text"])], go(l))];
-        switch (has_cursor) {
-        | None => vs
-        | Some(j) => [
-            caret_from_left(float_of_int(j) /. float_of_int(len) *. 100.0),
-            ...vs,
-          ]
-        };
+    | Annot(Token({shape, len, has_cursor}), l) => {
+        let clss =
+          switch (shape) {
+          | Text => ["code-text"]
+          | Op => ["code-op"]
+          | Delim(_) => ["code-delim"]
+          };
+        let children =
+          switch (has_cursor) {
+          | None => go(l)
+          | Some(j) => [
+              caret_from_left(
+                len == 0
+                  ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
+              ),
+              ...go(l),
+            ]
+          };
+        [Node.span([Attr.classes(clss)], children)];
       }
 
     | Annot(DelimGroup, l) => [
@@ -122,12 +125,6 @@ let view =
           go(l),
         ),
       ]
-
-    | Annot(Delim, l) => [
-        Node.span([Attr.classes(["code-delim"])], go(l)),
-      ]
-
-    | Annot(Op, l) => [Node.span([Attr.classes(["code-op"])], go(l))]
 
     | Annot(Term({has_cursor, shape, sort}), l) => [
         Node.span(
