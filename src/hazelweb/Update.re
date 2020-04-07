@@ -9,6 +9,7 @@ module Action = {
   [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
+    | MoveAction(JSUtil.MoveKey.t)
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
@@ -68,6 +69,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
+  | MoveAction(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -121,6 +123,13 @@ let apply_action =
       JSUtil.log("[Program.DoesNotExpand]");
       model;
     }
+  | MoveAction(move_key) =>
+    switch (model |> Model.perform_move_action(move_key)) {
+    | new_model => new_model
+    | exception Program.CursorEscaped =>
+      JSUtil.log(["Program.CursorEscaped"]);
+      model;
+    }
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
@@ -165,12 +174,20 @@ let apply_action =
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
-    let new_model = model |> Model.put_program(Program.mk(new_edit_state));
+    let new_model =
+      model
+      |> Model.put_program(
+           Program.mk(~width=model.cell_width, new_edit_state),
+         );
     {...new_model, undo_history: new_history};
   | Redo =>
     let new_history = UndoHistory.redo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
-    let new_model = model |> Model.put_program(Program.mk(new_edit_state));
+    let new_model =
+      model
+      |> Model.put_program(
+           Program.mk(~width=model.cell_width, new_edit_state),
+         );
     {...new_model, undo_history: new_history};
   | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
   };

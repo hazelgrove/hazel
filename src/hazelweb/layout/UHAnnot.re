@@ -1,22 +1,26 @@
 module Doc = Pretty.Doc;
 
+[@deriving sexp]
+type token_shape =
+  | Text
+  | Op
+  | Delim(DelimIndex.t);
+
 type t =
   | Indent
   | Padding
   | HoleLabel({len: int})
-  | CursorPosition({
-      has_cursor: bool,
-      cursor: CursorPosition.t,
+  | Token({
+      shape: token_shape,
+      len: int,
+      has_cursor: option(int),
     })
-  | Text({cursor: option(int)})
-  | Delim
-  | Op
   | SpaceOp
   | UserNewline
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | DelimGroup
-  | EmptyLine({has_cursor: bool})
+  | EmptyLine
   | LetLine
   | Step(int)
   | Term(term_data)
@@ -61,9 +65,8 @@ let mk_Var =
 
 let mk_Operand = (~err: ErrStatus.t=NotInHole, ()) => Operand({err: err});
 
-let mk_Text = (~cursor: option(int)=?, ()): t => Text({cursor: cursor});
-let mk_EmptyLine = (~has_cursor=false, ()) =>
-  EmptyLine({has_cursor: has_cursor});
+let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
+  Token({has_cursor, len, shape});
 let mk_Term =
     (~has_cursor=false, ~shape: term_shape, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});

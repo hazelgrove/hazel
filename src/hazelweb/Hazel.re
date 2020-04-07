@@ -39,11 +39,22 @@ let on_startup = (~schedule_action, _) => {
   );
 };
 
-let restart_caret_animation = () => {
-  let caret = JSUtil.force_get_elem_by_id("caret");
-  caret##.classList##remove(Js.string("blink"));
-  caret##focus;
-  caret##.classList##add(Js.string("blink"));
+let restart_cursor_animation = caret_elem => {
+  caret_elem##.classList##remove(Js.string("blink"));
+  // necessary to trigger reflow
+  let _ = caret_elem##getBoundingClientRect;
+  caret_elem##.classList##add(Js.string("blink"));
+};
+
+let scroll_cursor_into_view_if_needed = caret_elem => {
+  let page_rect =
+    JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+  if (caret_rect##.top < page_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > page_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
 };
 
 let create =
@@ -54,11 +65,15 @@ let create =
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
-  let (on_display, view) = Page.view(~inject, model);
   Component.create(
     ~apply_action=Update.apply_action(model),
-    ~on_display,
+    ~on_display=
+      (_, ~schedule_action as _) => {
+        let caret_elem = JSUtil.force_get_elem_by_id("caret");
+        restart_cursor_animation(caret_elem);
+        scroll_cursor_into_view_if_needed(caret_elem);
+      },
     model,
-    view,
+    Page.view(~inject, model),
   );
 };

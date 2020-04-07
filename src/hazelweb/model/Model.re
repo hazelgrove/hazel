@@ -1,6 +1,6 @@
 type t = {
   cardstacks: Cardstacks.t,
-  /* UI state */
+  cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   compute_results: bool,
@@ -25,7 +25,8 @@ let cardstack_info = [
 ];
 
 let init = (): t => {
-  let cardstacks = Cardstacks.mk(cardstack_info);
+  let cell_width = 80;
+  let cardstacks = Cardstacks.mk(~width=cell_width, cardstack_info);
   let undo_history = {
     let edit_state =
       cardstacks |> Cardstacks.get_program |> Program.get_edit_state;
@@ -46,6 +47,7 @@ let init = (): t => {
   };
   {
     cardstacks,
+    cell_width,
     selected_instances,
     undo_history,
     compute_results,
@@ -133,9 +135,8 @@ let select_instance =
   |> map_selected_instances(UserSelectedInstances.insert_or_update(tni))
   |> focus_cell;
 
-let perform_edit_action = (a: Action.t, model: t): t => {
+let update_program = (~undoable, new_program, model) => {
   let old_program = model |> get_program;
-  let new_program = old_program |> Program.perform_edit_action(a);
   let update_selected_instances = si => {
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
@@ -156,7 +157,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
   |> put_undo_history(
        {
          let history = model |> get_undo_history;
-         if (UndoHistory.undoable_action(a)) {
+         if (undoable) {
            UndoHistory.push_edit_state(
              history,
              Program.get_edit_state(new_program),
@@ -166,6 +167,18 @@ let perform_edit_action = (a: Action.t, model: t): t => {
          };
        },
      );
+};
+
+let perform_edit_action = (a: Action.t, model: t): t => {
+  let new_program = model |> get_program |> Program.perform_edit_action(a);
+  model
+  |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
+};
+
+let perform_move_action = (move_key, model) => {
+  let new_program =
+    model |> get_program |> Program.perform_move_action(move_key);
+  model |> update_program(~undoable=true, new_program);
 };
 
 let toggle_left_sidebar = (model: t): t => {
@@ -181,6 +194,7 @@ let load_example = (model: t, e: UHExp.t): t =>
   model
   |> put_program(
        Program.mk(
+         ~width=model.cell_width,
          Statics.Exp.fix_and_renumber_holes_z(
            (VarCtx.empty, Livelits.initial_livelit_ctx),
            ZExp.place_before(e),

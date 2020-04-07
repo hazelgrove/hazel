@@ -120,13 +120,14 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | EmptyLine(_) =>
+             | Token({shape: Text, _} as token_data) =>
                Return(
                  l
-                 |> Layout.annot(UHAnnot.mk_EmptyLine(~has_cursor=true, ())),
+                 |> Layout.annot(
+                      UHAnnot.Token({...token_data, has_cursor: Some(j)}),
+                    ),
                )
-             | Text(_) =>
-               Return(l |> Layout.annot(UHAnnot.Text({cursor: Some(j)})))
+             | EmptyLine
              | Term(_) => Skip
              | _ => Stop
              }
@@ -134,31 +135,30 @@ let find_and_decorate_caret =
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | CursorPosition({cursor: OnOp(side') as cursor', _})
-                 when side' == side =>
+             | Token({shape: Op, len, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.CursorPosition({
-                        has_cursor: true,
-                        cursor: cursor',
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(side == Before ? 0 : len),
                       }),
                     ),
                )
+             | DelimGroup => Skip
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | CursorPosition({cursor: OnDelim(k', side') as cursor', _})
-                 when k' == k && side' == side =>
+             | Token({shape: Delim(k'), len, _} as token_data) when k' == k =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.CursorPosition({
-                        has_cursor: true,
-                        cursor: cursor',
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(side == Before ? 0 : len),
                       }),
                     ),
                )

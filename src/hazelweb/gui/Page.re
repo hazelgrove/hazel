@@ -175,102 +175,99 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     );
   let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
-  let (on_display, cell_view) = Cell.view(~inject, model);
-  let page_view =
-    Node.div(
-      [Attr.id("root")],
-      [
-        Node.div(
-          [Attr.classes(["top-bar"])],
-          [
-            Node.a(
-              [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
-              [Node.text("Hazel")],
-            ),
-            cardstacks_select(~inject, Model.cardstack_info),
-          ],
-        ),
-        Node.div(
-          [Attr.classes(["main-area"])],
-          [
-            /*
-             Sidebar.left(
-               ~inject,
-               model,
-               [ActionPanel.view(~inject, model)] //the_history_panel,
-             ),
-             */
-            Node.div(
-              [Attr.classes(["flex-wrapper"])],
-              [
-                Node.div(
-                  [Attr.id("page-area")],
-                  [
-                    Node.div(
-                      [Attr.classes(["page"])],
-                      [
-                        Node.div(
-                          [Attr.classes(["card-caption"])],
-                          [card.info.caption],
-                          /* [
-                               Node.text("Hazel is an experiment in "),
-                               Node.strong(
-                                 [],
-                                 [Node.text("live functional programming")],
-                               ),
-                               Node.text(" with "),
-                               Node.strong([], [Node.text("typed holes")]),
-                               Node.text(
-                                 ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                               ),
-                             ], */
+  Node.div(
+    [Attr.id("root")],
+    [
+      Node.div(
+        [Attr.classes(["top-bar"])],
+        [
+          Node.a(
+            [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
+            [Node.text("Hazel")],
+          ),
+          cardstacks_select(~inject, Model.cardstack_info),
+        ],
+      ),
+      Node.div(
+        [Attr.classes(["main-area"])],
+        [
+          /*
+           Sidebar.left(
+             ~inject,
+             model,
+             [ActionPanel.view(~inject, model)] //the_history_panel,
+           ),
+           */
+          Node.div(
+            [Attr.classes(["flex-wrapper"])],
+            [
+              Node.div(
+                [Attr.id("page-area")],
+                [
+                  Node.div(
+                    [Attr.classes(["page"])],
+                    [
+                      Node.div(
+                        [Attr.classes(["card-caption"])],
+                        [card.info.caption],
+                        /* [
+                             Node.text("Hazel is an experiment in "),
+                             Node.strong(
+                               [],
+                               [Node.text("live functional programming")],
+                             ),
+                             Node.text(" with "),
+                             Node.strong([], [Node.text("typed holes")]),
+                             Node.text(
+                               ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                             ),
+                           ], */
+                      ),
+                      Cell.view(~inject, model),
+                      cell_status,
+                      cardstack_controls(~inject, model),
+                    ],
+                  ),
+                  examples_select(~inject),
+                  Node.button(
+                    [
+                      Attr.on_click(_ => {
+                        let e = program |> Program.get_uhexp;
+                        JSUtil.log(Js.string(Serialize.string_of_exp(e)));
+                        Event.Ignore;
+                      }),
+                    ],
+                    [Node.text("Serialize to console")],
+                  ),
+                  Node.div(
+                    [
+                      Attr.style(
+                        Css_gen.(
+                          white_space(`Pre) @> font_family(["monospace"])
                         ),
-                        cell_view,
-                        cell_status,
-                        cardstack_controls(~inject, model),
-                      ],
-                    ),
-                    examples_select(~inject),
-                    Node.button(
-                      [
-                        Attr.on_click(_ => {
-                          let e = program |> Program.get_uhexp;
-                          JSUtil.log(Js.string(Serialize.string_of_exp(e)));
-                          Event.Ignore;
-                        }),
-                      ],
-                      [Node.text("Serialize to console")],
-                    ),
-                    Node.div(
-                      [
-                        Attr.style(
-                          Css_gen.(
-                            white_space(`Pre) @> font_family(["monospace"])
-                          ),
-                        ),
-                      ],
-                      if (!model.show_presentation) {
-                        [];
-                      } else {
-                        [JSUtil.vdom_of_box(Lazy.force(box))];
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            Sidebar.right(
-              ~inject,
-              model,
-              [
-                CursorInspector.view(model),
-                ContextInspector.view(~inject, model),
-                OptionsPanel.view(~inject, model),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-  (on_display, page_view);
+                      ),
+                    ],
+                    if (!model.show_presentation) {
+                      [];
+                    } else {
+                      [JSUtil.vdom_of_box(Lazy.force(box))];
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Sidebar.right(
+            ~inject,
+            model,
+            [
+              CursorInspector.view(model),
+              ContextInspector.view(~inject, model),
+              OptionsPanel.view(~inject, model),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
 };

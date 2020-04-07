@@ -1,6 +1,8 @@
 type t;
 
-let mk: Statics.edit_state => t;
+let mk: (~width: int, Statics.edit_state) => t;
+
+let get_width: t => int;
 
 let get_edit_state: t => Statics.edit_state;
 let put_edit_state: (Statics.edit_state, t) => t;
@@ -25,10 +27,14 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
+let perform_move_action: (JSUtil.MoveKey.t, t) => t;
 
 exception NodeNotFound;
 let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => t;
 
 let get_doc: t => UHDoc.t;
+let get_layout: t => UHLayout.t;
+let get_decorated_layout: t => UHLayout.t;
+let get_cursor_map: t => CursorMap.t;
 
 let cursor_on_inst: t => option((TaggedNodeInstance.kind, MetaVar.t));

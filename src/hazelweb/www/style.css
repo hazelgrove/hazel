@@ -831,6 +831,9 @@ h1 {
   line-height: var(--code-line-height);
 }
 
+#caret-container {
+  position: relative;
+}
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
 #caret {
   z-index: var(--caret-z);

@@ -81,169 +81,77 @@ let on_click =
   };
 };
 
-let focused_view = (~inject, ~font_metrics: FontMetrics.t, program) => {
-  open Vdom;
-
-  let (zmap, view) =
-    program
-    |> Program.get_doc
-    |> UHCode.focused_view(
-         ~inject,
-         ~path=program |> Program.get_path,
-         ~ci=program |> Program.get_cursor_info,
-       );
-
-  let prevent_stop_inject = a =>
-    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
-
-  let position_cursor = ((row, col), caret_elem) => {
-    caret_elem##.style##.top :=
-      Js.string(
-        string_of_float(float_of_int(row) *. font_metrics.row_height)
-        ++ "0px",
-      );
-    caret_elem##.style##.left :=
-      Js.string(
-        string_of_float(float_of_int(col) *. font_metrics.col_width) ++ "0px",
-      );
-  };
-
-  let restart_cursor_animation = caret_elem => {
-    caret_elem##.classList##remove(Js.string("blink"));
-    // necessary to trigger reflow
-    let _ = caret_elem##getBoundingClientRect;
-    caret_elem##.classList##add(Js.string("blink"));
-  };
-
-  let scroll_cursor_into_view_if_needed = caret_elem => {
-    let page_rect =
-      JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
-    let caret_rect = caret_elem##getBoundingClientRect;
-    if (caret_rect##.top < page_rect##.top) {
-      caret_elem##scrollIntoView(Js._true);
-    } else if (caret_rect##.bottom > page_rect##.bottom) {
-      caret_elem##scrollIntoView(Js._false);
-    };
-  };
-
-  let paint_cursor = row_col => {
-    let caret_elem = JSUtil.force_get_elem_by_id("caret");
-    position_cursor(row_col, caret_elem);
-    restart_cursor_animation(caret_elem);
-    scroll_cursor_into_view_if_needed(caret_elem);
-    caret_elem##.style##.visibility := Js.string("visible");
-  };
-
-  let removed_term_indicator = ref(false);
-  let move_cursor = move_key => {
-    let (_, (_, rev_steps)) = zmap.z;
-    let moved = zmap |> ZCursorMap.move(move_key);
-    if (moved) {
-      let (new_row_col, (_, new_rev_steps)) = zmap.z;
-      if (! removed_term_indicator^) {
-        if (new_rev_steps != rev_steps) {
-          JSUtil.force_get_elem_by_cls("Cursor")##.classList##remove(
-            Js.string("Cursor"),
-          );
-          removed_term_indicator := true;
-        };
-      };
-      paint_cursor(new_row_col);
-    } else {
-      JSUtil.log("[CursorEscaped]");
-    };
-  };
-
-  let key_handlers = [
-    Attr.on_click(on_click(~inject, ~font_metrics, ~cmap=zmap.map)),
-    Attr.on_keypress(_ => Event.Prevent_default),
-    Attr.on_keyup(evt => {
-      switch (MoveKey.of_key(JSUtil.get_key(evt))) {
-      | None => Event.Many([])
-      | Some(_) =>
-        let (_, rev_path) = zmap.z;
-        let path = CursorPath.rev(rev_path);
-        prevent_stop_inject(Update.Action.EditAction(MoveTo(path)));
-      }
-    }),
-    Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(JSUtil.get_key(evt))) {
-      | Some(move_key) =>
-        move_cursor(move_key);
-        Event.Prevent_default;
-      | None =>
-        switch (KeyCombo.of_evt(evt)) {
-        | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
-        | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
-        | Some(kc) =>
-          prevent_stop_inject(
-            Update.Action.EditAction(
-              Hashtbl.find(
-                kc_actions,
-                kc,
-                program |> Program.get_cursor_info,
-              ),
-            ),
-          )
-        | None =>
-          switch (JSUtil.is_single_key(evt)) {
-          | None => Event.Ignore
-          | Some(single_key) =>
-            prevent_stop_inject(
-              Update.Action.EditAction(
-                Construct(SChar(JSUtil.single_key_string(single_key))),
-              ),
-            )
-          }
-        }
-      }
-    }),
-  ];
-
-  let on_display = (_, ~schedule_action as _) => {
-    let (row_col, _) = zmap.z;
-    paint_cursor(row_col);
-  };
-
-  (key_handlers, view, on_display);
-};
-
-let unfocused_view = (~inject, ~font_metrics, program) => {
-  // TODO set up click handlers
-  let (cmap, view) =
-    UHCode.unfocused_view(~inject, program |> Program.get_doc);
-  let on_display = (_, ~schedule_action as _) => ();
-  (
-    [Vdom.Attr.on_click(on_click(~inject, ~font_metrics, ~cmap))],
-    view,
-    on_display,
-  );
-};
-
 let view = (~inject, model: Model.t) => {
   open Vdom;
   let font_metrics = model.font_metrics;
   let program = model |> Model.get_program;
-  let (evt_handlers, code_view, on_display) =
-    if (model.is_cell_focused) {
-      focused_view(~inject, ~font_metrics, program);
-    } else {
-      unfocused_view(~inject, ~font_metrics, program);
-    };
-  let view =
-    Node.div(
-      [
-        Attr.id(cell_id),
-        // necessary to make cell focusable
-        Attr.create("tabindex", "0"),
-        Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-        Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-        ...evt_handlers,
-      ],
-      [
-        Node.div([Attr.id("font-specimen")], [Node.text("X")]),
-        Node.div([Attr.id("code-container")], [code_view]),
-      ],
+  let on_click_attr =
+    Vdom.Attr.on_click(
+      on_click(
+        ~inject,
+        ~font_metrics,
+        ~cmap=program |> Program.get_cursor_map,
+      ),
     );
-  (on_display, view);
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  let (evt_handlers, code_view) =
+    if (model.is_cell_focused) {
+      let evt_handlers = [
+        on_click_attr,
+        Attr.on_keypress(_ => Event.Prevent_default),
+        Attr.on_keydown(evt => {
+          switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+          | Some(move_key) =>
+            prevent_stop_inject(Update.Action.MoveAction(move_key))
+          | None =>
+            switch (KeyCombo.of_evt(evt)) {
+            | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
+            | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
+            | Some(kc) =>
+              prevent_stop_inject(
+                Update.Action.EditAction(
+                  Hashtbl.find(
+                    kc_actions,
+                    kc,
+                    program |> Program.get_cursor_info,
+                  ),
+                ),
+              )
+            | None =>
+              switch (JSUtil.is_single_key(evt)) {
+              | None => Event.Ignore
+              | Some(single_key) =>
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    Construct(SChar(JSUtil.single_key_string(single_key))),
+                  ),
+                )
+              }
+            }
+          }
+        }),
+      ];
+      let view =
+        program |> Program.get_decorated_layout |> UHCode.view(~inject);
+      (evt_handlers, view);
+    } else {
+      let evt_handlers = [on_click_attr];
+      let view = program |> Program.get_layout |> UHCode.view(~inject);
+      (evt_handlers, view);
+    };
+  Node.div(
+    [
+      Attr.id(cell_id),
+      // necessary to make cell focusable
+      Attr.create("tabindex", "0"),
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+      ...evt_handlers,
+    ],
+    [
+      Node.div([Attr.id("font-specimen")], [Node.text("X")]),
+      Node.div([Attr.id("code-container")], [code_view]),
+    ],
+  );
 };
