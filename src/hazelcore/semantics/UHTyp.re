@@ -22,6 +22,11 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
+let is_EmptyHole =
+  fun
+  | Hole => true
+  | _ => false;
+
 let parse = s => {
   let lexbuf = Lexing.from_string(s);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
