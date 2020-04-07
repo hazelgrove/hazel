@@ -27,6 +27,13 @@ let view = (model: Model.t): Vdom.Node.t => {
         ],
       )
     );
+  let inconsistent_branches_ty_bar = branch_types =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+        List.map(ty => Node.span([], [HTypCode.view(ty)]), branch_types),
+      )
+    );
 
   let special_msg_bar = (msg: string) =>
     Vdom.(
@@ -78,6 +85,11 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator(
       "Got inconsistent type ▶ assumed ",
       matched_ty_bar(got_ty, matched_ty),
+    );
+  let got_inconsistent_branches_indicator = branch_types =>
+    got_indicator(
+      "Got inconsistent branch types",
+      inconsistent_branches_ty_bar(branch_types),
     );
 
   let got_free_indicator =
@@ -184,6 +196,10 @@ let view = (model: Model.t): Vdom.Node.t => {
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
+    | SynInconsistentBranches(rule_types) =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_inconsistent_branches_indicator(rule_types);
+      (ind1, ind2, TypeInconsistency);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
