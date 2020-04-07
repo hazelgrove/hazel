@@ -1036,8 +1036,9 @@ and cursor_on_VarPat_zblock = ((_, zline, _)) =>
   cursor_on_VarPat_zline(zline)
 and cursor_on_VarPat_zline =
   fun
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_, p, _, _), _)))
+  | LetLineZP(p, _, _) => ZPat.cursor_on_Var(p)
+  | LetLineZE(_, _, ze) => cursor_on_VarPat(ze)
   | CursorL(_)
   | ExpLineZ(_)
-  | LetLineZA(_) => None
-  | LetLineZP(p, _, _) => ZPat.cursor_on_Var(p)
-  | LetLineZE(_, _, ze) => cursor_on_VarPat(ze);
+  | LetLineZA(_) => None;
