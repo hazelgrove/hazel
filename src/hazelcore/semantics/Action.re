@@ -2519,16 +2519,20 @@ module Exp = {
     | SwapUp when ZExp.line_can_be_swapped(zline) =>
       switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
       | (None, _, _) => Failed
-      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) => Failed
+      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+        Failed
       /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
-      | (Some((rest, EmptyLine)), _, []) => 
+      | (Some((rest, EmptyLine)), _, []) =>
         let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-        let new_zblock = (rest, zline, UHExp.Block.wrap(new_hole)) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (rest, zline, UHExp.Block.wrap(new_hole))
+          |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
       | (Some((rest, last)), _, _) =>
-        let new_zblock = (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
@@ -2540,15 +2544,17 @@ module Exp = {
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
       /* handle corner case when the second to last line is an EmptyLine */
-      | ([last], CursorL(_, EmptyLine)) => {
+      | ([last], CursorL(_, EmptyLine)) =>
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-        let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), [])
+          |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
-      }
       | ([hd, ...tl], _) =>
-        let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
         );
@@ -3838,16 +3844,20 @@ module Exp = {
     | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
       switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
       | (None, _, _) => Failed
-      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) => Failed
+      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+        Failed
       /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
       | (Some((rest, EmptyLine)), _, []) =>
         let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-        let new_zblock = (rest, zline, UHExp.Block.wrap(new_hole)) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (rest, zline, UHExp.Block.wrap(new_hole))
+          |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
       | (Some((rest, last)), _, _) =>
-        let new_zblock = (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
@@ -3859,15 +3869,17 @@ module Exp = {
       | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
         Failed
       /* handle corner case when the second to last line is an EmptyLine */
-      | ([last], CursorL(_, EmptyLine)) => {
+      | ([last], CursorL(_, EmptyLine)) =>
         let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-        let new_zblock = (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), []) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), [])
+          |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
-      }
       | ([hd, ...tl], _) =>
-        let new_zblock = (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
+        let new_zblock =
+          (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
         );
