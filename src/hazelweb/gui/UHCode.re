@@ -5,8 +5,6 @@ module Vdom = Virtual_dom.Vdom;
 open Pretty;
 open ViewUtil;
 
-type annot = TermAnnot.t;
-
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
 let clss_of_err: ErrStatus.t => list(cls) =
@@ -119,7 +117,7 @@ let contenteditable_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~show_contenteditable: bool,
-      l: TermLayout.t,
+      l: UHLayout.t,
     )
     : Vdom.Node.t => {
   open Vdom;
@@ -129,7 +127,7 @@ let contenteditable_of_layout =
       // TODO: Once we figure out content-editable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
-  let record: Layout.text(annot, list(Node.t), Node.t) = {
+  let record: Layout.text(UHAnnot.t, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
      * element either with contenteditable set to false or
      * annotated with the appropriate path-related metadata.
@@ -246,13 +244,13 @@ let caret_position_of_path =
   };
 
 let presentation_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: TermLayout.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, l: UHLayout.t): Vdom.Node.t => {
   open Vdom;
 
   let on_click_noneditable = on_click_noneditable(~inject);
   let on_click_text = on_click_text(~inject);
 
-  let rec go = (l: TermLayout.t): list(Node.t) =>
+  let rec go = (l: UHLayout.t): list(Node.t) =>
     switch (l) {
     | Text(str) => [Node.text(str)]
     | Cat(l1, l2) => go(l1) @ go(l2)
@@ -261,7 +259,7 @@ let presentation_of_layout =
 
     // TODO adjust width to num digits, use visibility none
     | Annot(HoleLabel(_), l) => [
-        Node.span([Attr.classes(["SEmptyHole-num"])], go(l)),
+        Node.span([Attr.classes(["HoleLabel"])], go(l)),
       ]
 
     | Annot(DelimGroup, l) => [
@@ -373,10 +371,10 @@ let presentation_of_layout =
                 sort_clss(sort),
                 shape_clss(shape),
                 open_child_clss(
-                  l |> TermLayout.has_inline_OpenChild,
-                  l |> TermLayout.has_para_OpenChild,
+                  l |> UHLayout.has_inline_OpenChild,
+                  l |> UHLayout.has_para_OpenChild,
                 ),
-                has_child_clss(l |> TermLayout.has_child),
+                has_child_clss(l |> UHLayout.has_child),
               ]),
             ),
           ],
@@ -409,7 +407,7 @@ let presentation_of_layout =
             Float.to_int(from_left /. 11.2),
           );
         };
-        switch (l |> TermLayout.path_of_caret_position(row, col)) {
+        switch (l |> UHLayout.path_of_caret_position(row, col)) {
         | None => Event.Many([])
         | Some(path) =>
           Event.Many([
@@ -428,7 +426,7 @@ let view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~show_contenteditable: bool,
-      l: TermLayout.t,
+      l: UHLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => (
   contenteditable_of_layout(~inject, ~show_contenteditable, l),
@@ -441,15 +439,15 @@ let focused_view_of_layout =
       ~path: CursorPath.t,
       ~ci: CursorInfo.t,
       ~show_contenteditable: bool,
-      l: TermLayout.t,
+      l: UHLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let (steps, _) = path;
   let l =
-    switch (l |> TermLayout.find_and_decorate_caret(~path)) {
+    switch (l |> UHLayout.find_and_decorate_caret(~path)) {
     | None => failwith(__LOC__ ++ ": could not find caret")
     | Some(l) =>
-      switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
+      switch (l |> UHLayout.find_and_decorate_cursor(~steps)) {
       | None => failwith(__LOC__ ++ ": could not find cursor")
       | Some(l) => l
       }
@@ -462,7 +460,7 @@ let focused_view_of_layout =
       |> List.fold_left(
            (l, use) =>
              l
-             |> TermLayout.find_and_decorate_var_use(~steps=use)
+             |> UHLayout.find_and_decorate_var_use(~steps=use)
              |> OptUtil.get(() => {
                   failwith(
                     __LOC__
@@ -476,19 +474,6 @@ let focused_view_of_layout =
   view_of_layout(~inject, ~show_contenteditable, l);
 };
 
-let view_of_htyp =
-    (~inject: Update.Action.t => Vdom.Event.t, ~width=30, ~pos=0, ty: HTyp.t)
-    : Vdom.Node.t => {
-  let l =
-    ty
-    |> TermDoc.Typ.mk_htyp(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
-  switch (l) {
-  | None => failwith("unimplemented: view_of_htyp on layout failure")
-  | Some(l) => presentation_of_layout(~inject, l)
-  };
-};
-
 let focused_view =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
@@ -497,7 +482,7 @@ let focused_view =
       ~path: CursorPath.t,
       ~ci: CursorInfo.t,
       ~show_contenteditable: bool,
-      doc: TermDoc.t,
+      doc: UHDoc.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
@@ -514,7 +499,7 @@ let view =
       ~width=80,
       ~pos=0,
       ~show_contenteditable: bool,
-      doc: TermDoc.t,
+      doc: UHDoc.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l = LayoutOfDoc.layout_of_doc(~width, ~pos, doc);
