@@ -1,13 +1,19 @@
 type t = {
-  cardstacks: Cardstacks.t /* UI state */,
+  cardstacks: Cardstacks.t,
+  /* UI state */
+  selected_instances: UserSelectedInstances.t,
+  undo_history: UndoHistory.t,
   compute_results: bool,
+  show_case_clauses: bool,
+  show_fn_bodies: bool,
+  show_casts: bool,
+  show_unevaluated_expansion: bool,
   selected_example: option(UHExp.t),
   is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   show_contenteditable: bool,
   show_presentation: bool,
-  undo_history: UndoHistory.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -46,10 +52,27 @@ let init = (): t => {
       all_hidden_history_expand: false,
     };
   };
+  let compute_results = true;
+  let selected_instances = {
+    let si = UserSelectedInstances.init;
+    switch (
+      compute_results,
+      cardstacks |> Cardstacks.get_program |> Program.cursor_on_exp_hole,
+    ) {
+    | (false, _)
+    | (_, None) => si
+    | (true, Some(u)) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    };
+  };
   {
     cardstacks,
+    selected_instances,
     undo_history,
-    compute_results: true,
+    compute_results,
+    show_case_clauses: false,
+    show_fn_bodies: false,
+    show_casts: false,
+    show_unevaluated_expansion: false,
     selected_example: None,
     is_cell_focused: false,
     left_sidebar_open: false,
@@ -100,10 +123,49 @@ let next_card = model => {
   |> focus_cell;
 };
 
+let map_selected_instances =
+    (f: UserSelectedInstances.t => UserSelectedInstances.t, model) => {
+  ...model,
+  selected_instances: f(model.selected_instances),
+};
+
+let get_selected_hole_instance = model =>
+  switch (model |> get_program |> Program.cursor_on_exp_hole) {
+  | None => None
+  | Some(u) =>
+    let i =
+      model.selected_instances
+      |> UserSelectedInstances.lookup(u)
+      |> Option.get;
+    Some((u, i));
+  };
+
+let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
+  model
+  |> map_program(Program.move_to_hole(u))
+  |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
+  |> focus_cell;
+
 let perform_edit_action = (a: Action.t, model: t): t => {
-  let new_program = model |> get_program |> Program.perform_edit_action(a);
+  let old_program = model |> get_program;
+  let new_program = old_program |> Program.perform_edit_action(a);
+  let update_selected_instances = si => {
+    let si =
+      Program.get_result(old_program) == Program.get_result(new_program)
+        ? si : UserSelectedInstances.init;
+    switch (model.compute_results, new_program |> Program.cursor_on_exp_hole) {
+    | (false, _)
+    | (_, None) => si
+    | (true, Some(u)) =>
+      switch (si |> UserSelectedInstances.lookup(u)) {
+      | None => si |> UserSelectedInstances.insert_or_update((u, 0))
+      | Some(_) => si
+      }
+    };
+  };
   model
   |> put_program(new_program)
+  |> map_selected_instances(update_selected_instances)
   |> put_undo_history(
        {
          let history = model |> get_undo_history;
@@ -119,12 +181,6 @@ let perform_edit_action = (a: Action.t, model: t): t => {
        },
      );
 };
-
-let move_to_hole = (u: MetaVar.t, model: t): t =>
-  model |> map_program(Program.move_to_hole(u));
-
-let select_hole_instance = (inst: HoleInstance.t, model: t): t =>
-  model |> map_program(Program.put_selected_instance(inst));
 
 let toggle_left_sidebar = (model: t): t => {
   ...model,
