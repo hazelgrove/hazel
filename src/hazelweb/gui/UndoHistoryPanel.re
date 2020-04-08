@@ -175,10 +175,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       );
     } else {
-      Vdom.(Node.div([], []));
+      Vdom.(Node.div([], [] /* The entry which is always displayed*/));
     };
 
-  /* The entry which is always displayed*/
   let history_title_entry_view =
       (
         ~is_expanded: bool,
@@ -311,13 +310,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
                         group_id,
-                        start_index, /*elt_id*/
+                        start_index /*elt_id*/,
                         title_entry,
                       ),
-                    ],
+                    ] /* hidden entries */,
                   )
                 ),
-                /* hidden entries */
                 Vdom.(
                   Node.div(
                     [
@@ -328,7 +326,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     list_map_helper_func(
                       history_hidden_entry_view(group_id),
                       base => base + 1,
-                      start_index + 1, /* base elt_id is 1, because there is a title entry with elt_id=0 before */
+                      start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
                       hidden_entries,
                     ),
                   )
@@ -351,7 +349,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
                         group_id,
-                        start_index, /*elt_id*/
+                        start_index /*elt_id*/,
                         title_entry,
                       ),
                     ],
@@ -389,13 +387,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part,
                           group_id,
-                          start_index, /*elt_id*/
+                          start_index /*elt_id*/,
                           title_entry,
                         ),
-                      ],
+                      ] /* the successor history entry */,
                     )
                   ),
-                  /* the successor history entry */
                   Vdom.(
                     Node.div(
                       [
@@ -406,12 +403,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       list_map_helper_func(
                         history_hidden_entry_view(group_id),
                         base => base + 1,
-                        start_index + 1, /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */
+                        start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */,
                         suc_entries',
-                      ),
+                      ) /* the selected(current) history entry */,
                     )
                   ),
-                  /* the selected(current) history entry */
                   Vdom.(
                     Node.div(
                       [
@@ -422,13 +418,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       [
                         history_hidden_entry_view(
                           group_id,
-                          List.length(suc_entries') + 1, /* elt_id */
+                          List.length(suc_entries') + 1 /* elt_id */,
                           cur_entry,
                         ),
-                      ],
+                      ] /* the previous history entry */,
                     )
                   ),
-                  /* the previous history entry */
                   Vdom.(
                     Node.div(
                       [
@@ -439,7 +434,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       list_map_helper_func(
                         history_hidden_entry_view(group_id),
                         base => base + 1,
-                        List.length(suc_entries') + 2, /* base elt_id */
+                        List.length(suc_entries') + 2 /* base elt_id */,
                         prev_entries,
                       ),
                     )
@@ -461,7 +456,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part=true,
                           group_id,
-                          start_index, /*elt_id*/
+                          start_index /*elt_id*/,
                           title_entry,
                         ),
                       ],
@@ -487,13 +482,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part,
                           group_id,
-                          start_index, /*elt_id*/
+                          start_index /*elt_id*/,
                           title_entry,
                         ),
-                      ],
+                      ] /* hidden entries */,
                     )
                   ),
-                  /* hidden entries */
                   Vdom.(
                     Node.div(
                       [
@@ -504,7 +498,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       list_map_helper_func(
                         history_hidden_entry_view(group_id),
                         base => base + 1,
-                        start_index + 1, /* base elt_id is 1, because there is a title entry with elt_id=0 before */
+                        start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
                         hidden_entries,
                       ),
                     )
@@ -527,7 +521,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part,
                           group_id,
-                          start_index, /*elt_id*/
+                          start_index /*elt_id*/,
                           cur_entry,
                         ),
                       ],
@@ -552,13 +546,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
                         group_id,
-                        start_index, /*elt_id*/
+                        start_index /*elt_id*/,
                         title_entry,
                       ),
-                    ],
+                    ] /* hidden entries */,
                   )
                 ),
-                /* hidden entries */
                 Vdom.(
                   Node.div(
                     [
@@ -569,7 +562,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     list_map_helper_func(
                       history_hidden_entry_view(group_id),
                       base => base + 1,
-                      start_index + 1, /* base elt_id is 1, because there is a title entry with elt_id=0 before */
+                      start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
                       hidden_entries,
                     ),
                   )
@@ -592,7 +585,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
                         group_id,
-                        start_index, /*elt_id*/
+                        start_index /*elt_id*/,
                         title_entry,
                       ),
                     ],
@@ -641,8 +634,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
   let history_view = (model: Model.t) => {
-    let (suc_groups, cur_group, prev_groups) = model.undo_history.groups;
-    /*if the initial entry is the only history entry */
+    let (suc_groups, cur_group, prev_groups) = model.undo_history.groups /*if the initial entry is the only history entry */;
     if (ZList.length(model.undo_history.groups) <= 1
         && ZList.length(
              ZList.prj_z(model.undo_history.groups).group_entries,
