@@ -45,17 +45,15 @@ let unwrap_parentheses = (operand: operand): t =>
   | Bool
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
-  };
+  } /* TODO fix this to only parenthesize when necessary */;
 
-/* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
   let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
   let mk_seq_operand = (op, a, b) => {
     let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
     let seq = Seq.mk(a, [(op, b)]);
     Parenthesized(OpSeq(skel, seq));
-  };
-  /* Save it for another day
+  } /* Save it for another day
      match (a, b) with
        | (OpSeq skelA opseqA, OpSeq skelB opseqB) ->
        | (OpSeq skelA opseqA, _) ->
@@ -63,7 +61,8 @@ let contract = (ty: HTyp.t): t => {
        | (_, _) ->
          OpSeq (Skel.BinOp NotInHole op' ?? ??) (Seq.ExpOpExp a op' b)
      end
-     */
+     */;
+
   let rec contract_to_operand: HTyp.t => operand =
     fun
     | Hole => mk_operand(Hole)

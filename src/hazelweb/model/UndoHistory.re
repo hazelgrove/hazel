@@ -9,7 +9,7 @@ type edit_action =
   | EditVar
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
-  | Ignore; /* cursor move and init state */
+  | Ignore /* cursor move and init state */;
 
 type cursor_term_info = {
   cursor_term_before: cursor_term,
@@ -38,9 +38,8 @@ type t = {
   all_hidden_history_expand: bool,
 };
 
-type entry_base = (cursor_term_info, Action.t, Cardstacks.t);
+type entry_base = (cursor_term_info, Action.t, Cardstacks.t) /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */;
 
-/* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */
 let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool, bool) => {
   let zexp =
     ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
@@ -283,8 +282,7 @@ let set_join_result =
 type comp_len_typ =
   | MaxLen
   | Ignore
-  | Len(int);
-/* < */
+  | Len(int) /* < */;
 let comp_len_lt =
     (cursor_len_1: comp_len_typ, cursor_len_2: comp_len_typ): bool => {
   switch (cursor_len_1, cursor_len_2) {

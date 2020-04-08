@@ -192,15 +192,13 @@ let apply_action =
 
     model;
   | Undo => Model.undo(model)
-  | Redo => Model.redo(model)
-  /* click the groups panel to shift to the certain groups entry */
+  | Redo => Model.redo(model) /* click the groups panel to shift to the certain groups entry */
   | ShiftHistory(group_id, elt_id) =>
     /* shift to the group with group_id */
     switch (ZList.shift_to(group_id, model.undo_history.groups)) {
     | None => failwith("Impossible match, because undo_history is non-empty")
     | Some(new_groups) =>
-      let cur_group = ZList.prj_z(new_groups);
-      /* shift to the element with elt_id */
+      let cur_group = ZList.prj_z(new_groups) /* shift to the element with elt_id */;
       switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
       | None => failwith("Impossible because group_entries is non-empty")
       | Some(new_group_entries) =>
@@ -221,13 +219,11 @@ let apply_action =
     }
   | ToggleHistoryGroup(toggle_group_id) =>
     let (suc_groups, _, _) = model.undo_history.groups;
-    let cur_group_id = List.length(suc_groups);
-    /*shift to the toggle-target group and change its expanded state*/
+    let cur_group_id = List.length(suc_groups) /*shift to the toggle-target group and change its expanded state*/;
     switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
     | None => failwith("Impossible match, because undo_history is non-empty")
     | Some(groups) =>
-      let toggle_target_group = ZList.prj_z(groups);
-      /* change expanded state of the toggle target group after toggling */
+      let toggle_target_group = ZList.prj_z(groups) /* change expanded state of the toggle target group after toggling */;
       let after_toggle =
         ZList.replace_z(
           {
@@ -235,8 +231,7 @@ let apply_action =
             is_expanded: !toggle_target_group.is_expanded,
           },
           groups,
-        );
-      /*shift back to the current group*/
+        ) /*shift back to the current group*/;
       switch (ZList.shift_to(cur_group_id, after_toggle)) {
       | None =>
         failwith("Impossible match, because undo_history is non-empty")

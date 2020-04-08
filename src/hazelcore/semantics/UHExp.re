@@ -186,9 +186,8 @@ let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
   | [skel] => skel
   | [skel, ...skels] =>
     BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
-  };
+  } /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
   (EmptyHole(u), u_gen);
@@ -224,9 +223,8 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(err, _, _, _)
   | ApPalette(err, _, _, _) => err
-  | Parenthesized(e) => get_err_status(e);
+  | Parenthesized(e) => get_err_status(e) /* put e in the specified hole */;
 
-/* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
   e |> set_err_status_block(err)
 and set_err_status_block = (err: ErrStatus.t, block: block): block => {
@@ -253,9 +251,8 @@ let is_inconsistent = operand =>
   switch (operand |> get_err_status_operand) {
   | InHole(TypeInconsistent, _) => true
   | _ => false
-  };
+  } /* put e in a new hole, if it is not already in a hole */;
 
-/* put e in a new hole, if it is not already in a hole */
 let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   make_inconsistent_block(u_gen, e)
 and make_inconsistent_block =
@@ -277,8 +274,8 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
-  /* not in hole */
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+    (operand, u_gen) /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
@@ -290,8 +287,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
-    (operand, u_gen);
-  /* err in constructor args */
+    (operand, u_gen /* err in constructor args */);
   | Parenthesized(body) =>
     let (body, u_gen) = body |> make_inconsistent(u_gen);
     (Parenthesized(body), u_gen);

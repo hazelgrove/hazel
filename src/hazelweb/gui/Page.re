@@ -175,12 +175,12 @@ let page_view =
           [Attr.classes(["main-area"])],
           [
             /*
-             Sidebar.left(
-               ~inject,
-               model,
-               [ActionPanel.view(~inject, model)] //the_history_panel,
-             ),
-             */
+              Sidebar.left(
+                ~inject,
+                model,
+                [ActionPanel.view(~inject, model)] //the_history_panel,
+              ),
+              */
             Node.div(
               [Attr.classes(["flex-wrapper"])],
               [
@@ -192,8 +192,7 @@ let page_view =
                       [
                         Node.div(
                           [Attr.classes(["card-caption"])],
-                          [card.info.caption],
-                          /* [
+                          [card.info.caption] /* [
                                Node.text("Hazel is an experiment in "),
                                Node.strong(
                                  [],
@@ -204,7 +203,7 @@ let page_view =
                                Node.text(
                                  ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
                                ),
-                             ], */
+                             ], */,
                         ),
                         Cell.view(~inject, model),
                         cell_status,

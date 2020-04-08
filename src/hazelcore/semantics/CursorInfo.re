@@ -2,8 +2,8 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type typed =
-  /* cursor in analytic position */
   // cursor is on a lambda with an argument type annotation
+  /* cursor in analytic position */
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
@@ -24,8 +24,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
-  /* cursor in synthetic position */
+  | AnaSubsumed(HTyp.t, HTyp.t) /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
   // with a matched arrow type
@@ -50,8 +49,7 @@ type typed =
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
   // none of the above
-  | Synthesized(HTyp.t)
-  /* cursor in analytic pattern position */
+  | Synthesized(HTyp.t) /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple pattern of the wrong length
@@ -69,14 +67,11 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
-  /* cursor in synthetic pattern position */
+  | PatAnaSubsumed(HTyp.t, HTyp.t) /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
-  | PatSynKeyword(ExpandingKeyword.t)
-  /* cursor in type position */
-  | OnType
-  /* (we will have a richer structure here later)*/
+  | PatSynKeyword(ExpandingKeyword.t) /* cursor in type position */
+  | OnType /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;
 
@@ -92,8 +87,9 @@ type cursor_term =
 
 // TODO refactor into variants
 // based on term sort and shape
-[@deriving sexp]
+//[@deriving sexp]
 type t = {
+  //term: cursor_term,
   typed,
   ctx: Contexts.t,
   // hack while merging
@@ -220,6 +216,7 @@ let is_exp_inside = (cursor_term: cursor_term): bool => {
   | Rule(_, _) => true /* TBD special condition for match rule */
   };
 };
+
 let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
@@ -352,14 +349,13 @@ let get_ctx = ci => ci.ctx;
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
     Some(mk(OnType, ctx));
-};
-
-/*
+} /*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
  * until we could find uses and feed it to (uses_list => 't).
- */
+ */;
+
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
   | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
@@ -1219,8 +1215,7 @@ module Exp = {
       | Lam(InHole(WrongLength, _), _, _, _)
       | Inj(InHole(WrongLength, _), _, _)
       | Case(InHole(WrongLength, _), _, _, _)
-      | ApPalette(InHole(WrongLength, _), _, _, _) => None
-      /* not in hole */
+      | ApPalette(InHole(WrongLength, _), _, _, _) => None /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
       | NumLit(NotInHole, _)
@@ -1249,11 +1244,9 @@ module Exp = {
               : None;
           }
         }
-      }
-    /* zipper cases */
+      } /* zipper cases */
     | ParenthesizedZ(zbody) =>
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
-    /* zipper in hole */
+      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
     | LamZP(InHole(WrongLength, _), _, _, _)
     | LamZA(InHole(WrongLength, _), _, _, _)
     | LamZE(InHole(WrongLength, _), _, _, _)
@@ -1270,8 +1263,7 @@ module Exp = {
     | CaseZR(InHole(TypeInconsistent, _), _, _, _)
     | CaseZA(InHole(TypeInconsistent, _), _, _, _)
     | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
-    /* zipper not in hole */
+      syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
     | LamZP(NotInHole, zp, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => None
