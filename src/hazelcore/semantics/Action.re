@@ -3255,19 +3255,11 @@ module Exp = {
         CaseZR(err, scrut, ([], RuleZP(zpat, exp), []), typeAscription),
       ) =>
       let OpSeq(_, seq) = ZPat.erase(zpat);
-      // Only continue if the only rule was just an empty hole
+      // Only try to derive type and continue if the only rule was just an empty hole
       if (!(seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole)) {
         Failed;
       } else {
-        let scrut_type_opt =
-          switch (typeAscription) {
-          | None => Statics.Exp.syn(ctx, scrut)
-          | Some(OpSeq(_, seq))
-              when seq |> Seq.nth_operand(0) |> UHTyp.is_EmptyHole =>
-            Statics.Exp.syn(ctx, scrut)
-          | Some(uhtyp) => Some(UHTyp.expand(uhtyp))
-          };
-        switch (scrut_type_opt) {
+        switch (Statics.Exp.syn(ctx, scrut)) {
         | None => Failed
         | Some(scrut_type) =>
           let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, scrut_type);
@@ -4463,10 +4455,7 @@ module Exp = {
       }
 
     /* Subsumption */
-    | (
-        UpdateApPalette(_) | Construct(SApPalette(_) | SListNil) | SplitCases,
-        _,
-      )
+    | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     }
