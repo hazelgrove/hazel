@@ -217,7 +217,17 @@ let is_exp_inside = (cursor_term: cursor_term): bool => {
   };
 };
 
-let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
+type outer_zexp =
+  | ZExp(ZExp.t)
+  | ZPat(ZPat.t)
+  | ZTyp(ZTyp.t)
+type cursor_term_info = {
+  cursor_term,
+  outer_zexp,
+  prev_is_empty_line: bool,
+  next_is_empty_line: bool,
+};
+let rec extract_cursor_term = (exp: ZExp.t): cursor_term_info => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
     let prefix = ZList.prj_prefix(exp);
@@ -233,7 +243,13 @@ let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
     | ls => UHExp.is_empty_line(List.hd(ls))
     };
   };
-  (cursor_term, prev_is_empty_line, next_is_empty_line);
+  //(cursor_term, prev_is_empty_line, next_is_empty_line);
+  {
+    cursor_term,
+    outer_zexp,
+    prev_is_empty_line,
+    next_is_empty_line,
+  }
 }
 and extract_cursor_exp_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));
