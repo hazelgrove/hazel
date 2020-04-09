@@ -1959,6 +1959,42 @@ module Exp = {
       ((new_prefix_lines, zline, new_suffix_lines), u_gen);
     };
 
+  let can_split_cases: ZExp.zoperand => bool =
+    fun
+    | CaseZR(_, _, ([], RuleZP(zpat, _), []), _) => {
+        let OpSeq(_, seq) = ZPat.erase(zpat);
+        // Only try to derive type and continue if the only rule was just an empty hole
+        !(seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole);
+      }
+    | _ => false;
+
+  let split_cases =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, scrut: UHExp.t, exp: UHExp.t)
+      : option((MetaVarGen.t, ZExp.zrules)) => {
+    let%bind.OptUtil scrut_type = Statics.Exp.syn(ctx, scrut);
+    let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, scrut_type);
+
+    switch (patterns) {
+    | [] => None
+    | [head, ...tail] =>
+      let (u_gen, tailRules) =
+        tail
+        |> ListUtil.map_with_accumulator(
+             (u_gen, pat) => {
+               let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+               (u_gen, UHExp.Rule(pat, UHExp.Block.wrap(hole)));
+             },
+             u_gen,
+           );
+      let zrules = (
+        [],
+        ZExp.RuleZP(head |> ZPat.place_before, exp),
+        tailRules,
+      );
+      Some((u_gen, zrules));
+    };
+  };
+
   type expanding_result = {
     kw: ExpandingKeyword.t,
     u_gen: MetaVarGen.t,
@@ -3252,48 +3288,22 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZR(err, scrut, ([], RuleZP(zpat, exp), []), typeAscription),
-      ) =>
-      let OpSeq(_, seq) = ZPat.erase(zpat);
-      // Only try to derive type and continue if the only rule was just an empty hole
-      if (!(seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole)) {
-        Failed;
-      } else {
-        switch (Statics.Exp.syn(ctx, scrut)) {
-        | None => Failed
-        | Some(scrut_type) =>
-          let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, scrut_type);
-
-          // Only continue if we get at least one pattern
-          switch (patterns) {
-          | [] => Failed
-          | [head, ...tail] =>
-            let (u_gen, tailRules) =
-              tail
-              |> ListUtil.map_with_accumulator(
-                   (u_gen, pat) => {
-                     let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-                     (u_gen, UHExp.Rule(pat, UHExp.Block.wrap(hole)));
-                   },
-                   u_gen,
-                 );
-            let zrules = (
-              [],
-              ZExp.RuleZP(head |> ZPat.place_before, exp),
-              tailRules,
-            );
-            Succeeded(
-              SynDone((
-                ZExp.ZBlock.wrap(
-                  ZExp.CaseZR(err, scrut, zrules, typeAscription),
-                ),
-                ty,
-                u_gen,
-              )),
-            );
-          };
-        };
-      };
+        CaseZR(err, scrut, (_, RuleZP(_, exp), _), typeAscription) as zop,
+      )
+        when can_split_cases(zop) =>
+      switch (split_cases(ctx, u_gen, scrut, exp)) {
+      | None => Failed
+      | Some((u_gen, zrules)) =>
+        Succeeded(
+          SynDone((
+            ZExp.ZBlock.wrap(
+              ZExp.CaseZR(err, scrut, zrules, typeAscription),
+            ),
+            ty,
+            u_gen,
+          )),
+        )
+      }
     | (SplitCases, CursorE(_)) => Failed
 
     /* Zipper Cases */
@@ -4301,6 +4311,25 @@ module Exp = {
       );
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
+
+    | (
+        SplitCases,
+        CaseZR(err, scrut, (_, RuleZP(_, exp), _), typeAscription) as zop,
+      )
+        when can_split_cases(zop) =>
+      switch (split_cases(ctx, u_gen, scrut, exp)) {
+      | None => Failed
+      | Some((u_gen, zrules)) =>
+        Succeeded(
+          AnaDone((
+            ZExp.ZBlock.wrap(
+              ZExp.CaseZR(err, scrut, zrules, typeAscription),
+            ),
+            u_gen,
+          )),
+        )
+      }
+    | (SplitCases, CursorE(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
