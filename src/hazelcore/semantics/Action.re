@@ -45,41 +45,41 @@ type t =
   | Backspace
   | Construct(shape);
 
-  let shape_to_string = (shape: shape): string => {
-    switch (shape) {
-    | SList => "[]"
-    | SParenthesized => "()"
-    | SChar(str) => str
-    | SAsc => "type annotation"
-    | SLam => "lamda function"
-    | SListNil => "Nil"
-    | SInj(side) =>
-      switch (side) {
-      | L => "left injection"
-      | R => "right injection"
-      }
-    | SLet => "let binding"
-    | SLine => "new line"
-    | SCase => "case match"
-    | SOp(operator_shape) =>
-      switch (operator_shape) {
-      | SMinus => "-"
-      | SPlus => "+"
-      | STimes => "*"
-      | SLessThan => "<"
-      | SGreaterThan => ">"
-      | SEquals => "=="
-      | SSpace => "space"
-      | SComma => ","
-      | SArrow => "->"
-      | SVBar => "vbar" /* TBD */
-      | SCons => "::"
-      | SAnd => "&&"
-      | SOr => "||"
-      }
-    | SApPalette(_) => failwith("ApPalette not implemented")
-    };
+let shape_to_string = (shape: shape): string => {
+  switch (shape) {
+  | SList => "[]"
+  | SParenthesized => "()"
+  | SChar(str) => str
+  | SAsc => "type annotation"
+  | SLam => "lamda function"
+  | SListNil => "Nil"
+  | SInj(side) =>
+    switch (side) {
+    | L => "left injection"
+    | R => "right injection"
+    }
+  | SLet => "let binding"
+  | SLine => "new line"
+  | SCase => "case match"
+  | SOp(operator_shape) =>
+    switch (operator_shape) {
+    | SMinus => "-"
+    | SPlus => "+"
+    | STimes => "*"
+    | SLessThan => "<"
+    | SGreaterThan => ">"
+    | SEquals => "=="
+    | SSpace => "space"
+    | SComma => ","
+    | SArrow => "->"
+    | SVBar => "vbar" /* TBD */
+    | SCons => "::"
+    | SAnd => "&&"
+    | SOr => "||"
+    }
+  | SApPalette(_) => failwith("ApPalette not implemented")
   };
+};
 module Outcome = {
   type t('success) =
     | Succeeded('success)

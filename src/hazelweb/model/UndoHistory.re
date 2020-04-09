@@ -14,6 +14,7 @@ type edit_action =
 type cursor_term_info = {
   cursor_term_before: cursor_term,
   cursor_term_after: cursor_term,
+  zexp: ZExp.t,
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
@@ -146,6 +147,7 @@ let cursor_jump =
     prev_step != new_step;
   };
 };
+
 let group_edit_action =
     (edit_action_1: edit_action, edit_action_2: edit_action): bool =>
   switch (edit_action_1, edit_action_2) {
@@ -180,6 +182,7 @@ let group_edit_action =
     }
   | (ConstructEdit(_), _) => false
   };
+  
 let group_entry =
     (
       prev_group: undo_history_group,
@@ -482,6 +485,66 @@ let is_delete_emptylines =
   || adjacent_is_empty_line
   && cursor_term_info.cursor_term_before == cursor_term_info.cursor_term_after;
 
+/* let ontext_delete =
+    (
+      ~prev_group: undo_history_group,
+      ~cardstacks_before: Cardstacks.t,
+      ~new_entry_base: entry_base,
+      ~adjacent_is_empty_line: bool,
+    )
+    : group_result => {
+  let (new_cursor_term_info, new_action, _) = new_entry_base;
+
+  let prev_cursor_pos =
+    get_cursor_pos(new_cursor_term_info.cursor_term_before);
+  let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after);
+
+  if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
+    /* delete adjacent empty line */
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(EmptyLine),
+    );
+  } else if (new_action == Backspace
+             && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
+    /* jump to next term */
+    set_success_join(
+      prev_group,
+      new_entry_base,
+      Ignore,
+    );
+  } else if (new_action == Delete
+             && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
+    /* jump to next term */
+    set_success_join(
+      prev_group,
+      new_entry_base,
+      Ignore,
+    );
+  } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
+             || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
+    /* delete the whole term */
+    let initial_term =
+      get_original_deleted_term(prev_group, new_cursor_term_info);
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(Term(initial_term)),
+    );
+  } else {
+    /* edit the term */
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      EditVar,
+    );
+  };
+}; */
+
 let ontext_delete =
     (
       ~prev_group: undo_history_group,
@@ -541,6 +604,7 @@ let ontext_delete =
     );
   };
 };
+
 let ondelim_not_delete =
     (
       ~prev_group: undo_history_group,
