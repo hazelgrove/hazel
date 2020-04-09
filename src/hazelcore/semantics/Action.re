@@ -3294,7 +3294,7 @@ module Exp = {
           };
         };
       };
-    | (SplitCases, _) => Failed
+    | (SplitCases, CursorE(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
