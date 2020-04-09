@@ -10,7 +10,8 @@ and zoperator = (CursorPosition.t, UHPat.operator);
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
 type operator_surround = Seq.operator_surround(UHPat.operand, UHPat.operator);
 type zseq = ZSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator);
-
+type outer_zpat = 
+  | 
 let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   CursorPosition.(
     fun
