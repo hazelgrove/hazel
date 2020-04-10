@@ -12,8 +12,9 @@ type edit_action =
   | Ignore /* cursor move and init state */;
 
 type cursor_term_info = {
-  cursor_term_before: cursor_term,
-  cursor_term_after: cursor_term,
+  //cursor_term_before: cursor_term,
+  //cursor_term_after: cursor_term,
+  cursor_term,
   zexp: ZExp.t,
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
@@ -479,12 +480,22 @@ let construct_space =
     ConstructEdit(SOp(SSpace)),
   );
 
-let is_delete_emptylines =
+/* let is_delete_emptylines =
     (adjacent_is_empty_line: bool, cursor_term_info): bool =>
   CursorInfo.is_empty_line(cursor_term_info.cursor_term_before)
   || adjacent_is_empty_line
   && cursor_term_info.cursor_term_before == cursor_term_info.cursor_term_after;
-
+ */
+let is_delete_emptylines =
+  (entry: undo_history_entry):bool => {
+    let cursor_pos =
+    get_cursor_pos(entry.cursor_term_info.cursor_term);
+    switch(cursor_pos){
+      | OnText(CharIndex.t)
+      | OnDelim(DelimIndex.t, Side.t)
+      | OnOp(Side.t);
+    }
+  }
 /* let ontext_delete =
     (
       ~prev_group: undo_history_group,
