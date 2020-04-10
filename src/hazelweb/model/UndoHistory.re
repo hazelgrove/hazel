@@ -1,4 +1,5 @@
 type cursor_term = CursorInfo.cursor_term;
+type outer_zexp = CursorInfo.outer_zexp;
 type delete_edit =
   | Term(cursor_term)
   | Space
@@ -23,6 +24,7 @@ type undo_history_entry = {
   cursor_term_info,
   previous_action: Action.t,
   edit_action,
+  outer_zexp,
 };
 
 type undo_history_group = {
@@ -38,7 +40,7 @@ type t = {
   all_hidden_history_expand: bool,
 };
 
-type entry_base = (cursor_term_info, Action.t, Cardstacks.t) /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */;
+type entry_base = (cursor_term_info, Action.t, Cardstacks.t,outer_zexp) /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */;
 
 let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool, bool) => {
   let zexp =
@@ -244,12 +246,13 @@ type group_result =
 
 let build_entry =
     (entry_base, new_edit_action: edit_action): undo_history_entry => {
-  let (cursor_term_info, action, cardstacks) = entry_base;
+  let (cursor_term_info, action, cardstacks,outer_zexp) = entry_base;
   {
     cardstacks,
     cursor_term_info,
     previous_action: action,
     edit_action: new_edit_action,
+    outer_zexp,
   };
 };
 let set_fail_join =
