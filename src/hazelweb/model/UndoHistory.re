@@ -13,8 +13,9 @@ type edit_action =
   | Ignore /* cursor move and init state */;
 
 type cursor_term_info = {
-  cursor_term_before: cursor_term,
-  cursor_term_after: cursor_term,
+  //cursor_term_before: cursor_term,
+  //cursor_term_after: cursor_term,
+  cursor_term,
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
@@ -40,7 +41,7 @@ type t = {
   all_hidden_history_expand: bool,
 };
 
-type entry_base = (cursor_term_info, Action.t, Cardstacks.t,outer_zexp) /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */;
+type entry_base = (cursor_term_info, Action.t, Cardstacks.t, outer_zexp) /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */;
 
 let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool, bool) => {
   let zexp =
@@ -246,7 +247,7 @@ type group_result =
 
 let build_entry =
     (entry_base, new_edit_action: edit_action): undo_history_entry => {
-  let (cursor_term_info, action, cardstacks,outer_zexp) = entry_base;
+  let (cursor_term_info, action, cardstacks, outer_zexp) = entry_base;
   {
     cardstacks,
     cursor_term_info,
@@ -493,7 +494,7 @@ let ontext_delete =
       ~adjacent_is_empty_line: bool,
     )
     : group_result => {
-  let (new_cursor_term_info, new_action, _) = new_entry_base;
+  let (new_cursor_term_info, new_action, _, _) = new_entry_base;
 
   let prev_cursor_pos =
     get_cursor_pos(new_cursor_term_info.cursor_term_before);
@@ -552,7 +553,7 @@ let ondelim_not_delete =
       ~adjacent_is_empty_line: bool,
     )
     : group_result => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
+  let (new_cursor_term_info, _, _, _) = new_entry_base;
   if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
     /* delete the adjacent empty line */
     set_join_result(
@@ -594,7 +595,7 @@ let ondelim_delete =
       ~pos: DelimIndex.t,
     )
     : group_result => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
+  let (new_cursor_term_info, _, _, _) = new_entry_base;
   if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
     /* move cursor in the hole */
     set_success_join(
@@ -630,7 +631,7 @@ let join_group =
     )
     : group_result => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let (new_cursor_term_info, action, _) = new_entry_base;
+  let (new_cursor_term_info, action, _, _) = new_entry_base;
   switch (action) {
   | Delete =>
     let prev_cursor_pos =
@@ -864,6 +865,12 @@ let join_group =
   };
 };
 
+let get_outer_z = (cardstacks: Cardstacks.t): outer_zexp => {
+  let zexp =
+    ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
+  CursorInfo.get_outer_z_from_zexp(zexp);
+};
+
 let push_edit_state =
     (
       undo_history: t,
@@ -876,6 +883,7 @@ let push_edit_state =
   let (cursor_term_before, prev_is_empty_line, next_is_empty_line) =
     get_cursor_info(cardstacks_before);
   let (cursor_term_after, _, _) = get_cursor_info(cardstacks_after);
+  let outer_zexp_before = get_outer_z(cardstacks_before);
   let cursor_term_info = {
     cursor_term_before,
     cursor_term_after,
@@ -886,7 +894,7 @@ let push_edit_state =
   switch (
     join_group(
       prev_group,
-      (cursor_term_info, action, cardstacks_after),
+      (cursor_term_info, action, cardstacks_after, outer_zexp_before),
       cardstacks_before,
     )
   ) {
