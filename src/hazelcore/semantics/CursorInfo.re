@@ -219,6 +219,60 @@ let is_exp_inside = (cursor_term: cursor_term): bool => {
   | Rule(_, _) => true /* TBD special condition for match rule */
   };
 };
+type zoperand =
+  | ZExp(zoperand)
+  | ZTyp(zoperand)
+  | ZPat(zoperand)
+
+let rec get_zoperand_from_zexp = (zexp: ZExp.t, outer:option(zoperand)): option(zoperand) => {
+  get_zoperand_from_zline(ZList.prj_z(zexp), ZExp(zexp));
+}
+and get_zoperand_from_zline = (zline: ZExp.zline, outer:option(zoperand)): option(zoperand) => {
+  switch (zline) {
+  | CursorL(_, _) => outer
+  | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq, outer)
+  | LetLineZP(zpat, _, _) => get_zoperand_from_zpat_opseq(zopseq, outer)
+  | LetLineZA(_, ztyp, _) => outer
+  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp,outer)
+  };
+}
+and get_zoperand_from_zexp_opseq =
+    (zopseq: ZExp.zopseq, outer:option(zoperand)): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zoperand, _) =>
+      get_zoperand_from_zexp_operand(zoperand, Some(zoperand))
+    | ZOperator(_, _) => outer
+    }
+  };
+}
+and get_zoperand_from_zexp_operand =
+    (zoperand: ZExp.zoperand, outer:option(zoperand)): option(zoperand) => {
+  switch (zoperand) {
+  | CursorE(_, _) => outer
+  | ParenthesizedZ(zexp) => get_outer_z_from_zexp(zexp)
+  | LamZP(_, zpat, _, _) => get_outer_z_from_zpat(zpat)
+  | LamZA(_, _, ztyp, _) => get_outer_z_from_ztyp(ztyp)
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _, _) => get_outer_z_from_zexp(zexp)
+  | CaseZR(_, _, zrules, _) => get_outer_z_from_zrules(zrules, outer_zexp)
+  | CaseZA(_, _, _, ztyp) => get_outer_z_from_ztyp(ztyp)
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  };
+}
+and get_zoperand_from_zrules = (zrules: ZExp.zrules, outer:option(zoperand)): option(zoperand) => {
+  get_zoperand_from_zrule(ZList.prj_z(zrules), outer_zexp);
+}
+and get_zoperand_from_zrule = (zrule: ZExp.zrule, outer:option(zoperand)): option(zoperand) => {
+  switch (zrule) {
+  | CursorR(_, _) => outer_zexp
+  | RuleZP(zpat, _) => get_outer_z_from_zpat(zpat)
+  | RuleZE(_, zexp) => get_outer_z_from_zexp(zexp)
+  };
+}
+
 let rec get_outer_z_from_zexp = (zexp: ZExp.t): outer_zexp => {
   get_outer_z_from_zline(ZList.prj_z(zexp), ZExp(zexp));
 }

@@ -495,11 +495,11 @@ let ontext_delete =
     )
     : group_result => {
   let (new_cursor_term_info, new_action, _, _) = new_entry_base;
-
+/* 
   let prev_cursor_pos =
     get_cursor_pos(new_cursor_term_info.cursor_term_before);
-  let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after);
-
+  let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after); */
+    let cursor_pos
   if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
     /* delete adjacent empty line */
     set_join_result(
