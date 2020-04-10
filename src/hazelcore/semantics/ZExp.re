@@ -38,7 +38,7 @@ type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 type outer_zexp =
   | ZLine(zline)
-  | ZOpseq(zopseq)
+  | ZOpseq(outer_zexp,zopseq)
   | ZOperand(zoperand)
   | ZRule(zrule);
 
