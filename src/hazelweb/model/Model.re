@@ -38,6 +38,7 @@ let init = (): t => {
       },
       previous_action: Construct(SOp(SSpace)),
       edit_action: Ignore,
+      outer_zexp: UndoHistory.get_outer_z(cardstacks),
     };
     let timestamp = Unix.time();
     let undo_history_group: UndoHistory.undo_history_group = {
