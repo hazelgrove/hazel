@@ -327,13 +327,7 @@ let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
     | ls => UHExp.is_empty_line(List.hd(ls))
     };
   };
-  //(cursor_term, prev_is_empty_line, next_is_empty_line);
-  {
-    cursor_term,
-    outer_zexp,
-    prev_is_empty_line,
-    next_is_empty_line,
-  }
+  (cursor_term, prev_is_empty_line, next_is_empty_line);
 }
 and extract_cursor_exp_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));

@@ -481,81 +481,6 @@ let construct_space =
     ConstructEdit(SOp(SSpace)),
   );
 
-/* let is_delete_emptylines =
-    (adjacent_is_empty_line: bool, cursor_term_info): bool =>
-  CursorInfo.is_empty_line(cursor_term_info.cursor_term_before)
-  || adjacent_is_empty_line
-  && cursor_term_info.cursor_term_before == cursor_term_info.cursor_term_after;
- */
-let is_delete_emptylines =
-  (entry: undo_history_entry):bool => {
-    let cursor_pos =
-    get_cursor_pos(entry.cursor_term_info.cursor_term);
-    switch(cursor_pos){
-      | OnText(CharIndex.t)
-      | OnDelim(DelimIndex.t, Side.t)
-      | OnOp(Side.t);
-    }
-  }
-/* let ontext_delete =
-    (
-      ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
-      ~adjacent_is_empty_line: bool,
-    )
-    : group_result => {
-  let (new_cursor_term_info, new_action, _) = new_entry_base;
-
-  let prev_cursor_pos =
-    get_cursor_pos(new_cursor_term_info.cursor_term_before);
-  let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after);
-
-  if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
-    /* delete adjacent empty line */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(EmptyLine),
-    );
-  } else if (new_action == Backspace
-             && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
-    /* jump to next term */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
-  } else if (new_action == Delete
-             && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
-    /* jump to next term */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
-  } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-             || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
-    /* delete the whole term */
-    let initial_term =
-      get_original_deleted_term(prev_group, new_cursor_term_info);
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Term(initial_term)),
-    );
-  } else {
-    /* edit the term */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      EditVar,
-    );
-  };
-}; */
 
 let delete_edit =
     (
@@ -575,6 +500,13 @@ let delete_edit =
       new_entry_base,
       DeleteEdit(Term(initial_term)),
     );
+  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(Space),
+    );
   } else {
     /* edit the term */
     set_join_result(
@@ -592,6 +524,7 @@ let delim_edge_handle =
       ~new_entry_base: entry_base,
       ~adjacent_is_empty_line: bool,
     ) =>
+  
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     set_join_result(
@@ -770,143 +703,6 @@ let backspace =
         DeleteEdit(Term(initial_term)),
       );
     }
-  };
-};
-let ontext_delete =
-    (
-      ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
-      ~adjacent_is_empty_line: bool,
-    )
-    : group_result => {
-  let (new_cursor_term_info, new_action, _) = new_entry_base;
-
-  let prev_cursor_pos =
-    get_cursor_pos(new_cursor_term_info.cursor_term_before);
-  let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after);
-//
-  if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
-    /* delete adjacent empty line */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(EmptyLine),
-    );
-  } else if (new_action == Backspace
-             && cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
-    /* jump to next term */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
-  } else if (new_action == Delete
-             && cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
-    /* jump to next term */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
-  } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-             || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
-    /* delete the whole term */
-    let initial_term =
-      get_original_deleted_term(prev_group, new_cursor_term_info);
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Term(initial_term)),
-    );
-  } else {
-    /* edit the term */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      EditVar,
-    );
-  };
-};
-
-let ondelim_not_delete =
-    (
-      ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
-      ~adjacent_is_empty_line: bool,
-    )
-    : group_result => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
-  if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
-    /* delete the adjacent empty line */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(EmptyLine),
-    );
-  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-    /*     if (CursorInfo.is_exp_inside(new_cursor_term_info.cursor_term_after)) {
-             /* move the cursor to the outer structure */
-             set_success_join(
-               prev_group,
-               new_entry_base,
-               Ignore,
-             );
-           } else */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Space),
-    );
-  } else {
-    /* move cursor to next term */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
-  };
-};
-
-let ondelim_delete =
-    (
-      ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
-      ~pos: DelimIndex.t,
-    )
-    : group_result => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
-  if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-    /* move cursor in the hole */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
-  } else if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
-    /* num==1 is the position of ':' in an expression */
-    set_fail_join(
-      prev_group,
-      new_entry_base,
-      DeleteEdit(TypeAnn),
-    );
-  } else {
-    /* delete the whole term */
-    let initial_term =
-      get_original_deleted_term(prev_group, new_cursor_term_info);
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Term(initial_term)),
-    );
   };
 };
 
