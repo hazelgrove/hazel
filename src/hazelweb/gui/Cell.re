@@ -227,17 +227,17 @@ let view =
       {
         let (contenteditable, presentation) =
           model.is_cell_focused
-            ? Code.editor_view_of_exp(
+            ? UHCode.focused_view(
                 ~inject,
+                ~show_contenteditable=model.show_contenteditable,
                 ~path=program |> Program.get_path,
                 ~ci=program |> Program.get_cursor_info,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
+                program |> Program.get_doc,
               )
-            : Code.editor_view_of_exp(
+            : UHCode.view(
                 ~inject,
                 ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
+                program |> Program.get_doc,
               );
         [
           Node.div(
