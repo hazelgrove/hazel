@@ -184,7 +184,7 @@ let group_edit_action =
     }
   | (ConstructEdit(_), _) => false
   };
-  
+
 let group_entry =
     (
       prev_group: undo_history_group,
@@ -481,7 +481,6 @@ let construct_space =
     ConstructEdit(SOp(SSpace)),
   );
 
-
 let delete_edit =
     (
       ~prev_group: undo_history_group,
@@ -500,13 +499,6 @@ let delete_edit =
       new_entry_base,
       DeleteEdit(Term(initial_term)),
     );
-  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Space),
-    );
   } else {
     /* edit the term */
     set_join_result(
@@ -523,8 +515,8 @@ let delim_edge_handle =
       ~cardstacks_before: Cardstacks.t,
       ~new_entry_base: entry_base,
       ~adjacent_is_empty_line: bool,
-    ) =>
-  
+    ) => {
+  let (new_cursor_term_info, _, _) = new_entry_base;
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     set_join_result(
@@ -532,6 +524,13 @@ let delim_edge_handle =
       cardstacks_before,
       new_entry_base,
       DeleteEdit(EmptyLine),
+    );
+  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(Space),
     );
   } else {
     /* jump to next term */
@@ -541,6 +540,7 @@ let delim_edge_handle =
       Ignore,
     );
   };
+};
 let delete =
     (
       ~prev_group: undo_history_group,
