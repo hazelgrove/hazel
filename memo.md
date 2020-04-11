@@ -1,0 +1,3 @@
+1. lambda : . { space space  } (space outer is zopseq)
+2. compare cursor_term before and after edit actions: space lambda ...
+3. still need to cursor_term_before and after 
