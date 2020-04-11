@@ -99,126 +99,6 @@ type t = {
   uses: option(UsageAnalysis.uses_list),
 };
 
-let is_empty_line = (cursor_term): bool => {
-  switch (cursor_term) {
-  | Line(_, line) => UHExp.is_empty_line(line)
-  | Exp(_, _)
-  | Pat(_, _)
-  | Typ(_, _)
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Rule(_, _) => false
-  };
-};
-
-let is_exp_inside = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | Exp(cur_pos, op) =>
-    switch (op) {
-    | EmptyHole(_)
-    | Var(_, _, _)
-    | NumLit(_, _)
-    | BoolLit(_, _)
-    | ListNil(_) => false
-    | Lam(_, _, _, _) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(pos, side) =>
-        switch (side) {
-        | Before => pos != 0
-        | After => pos != 3
-        }
-      | OnOp(_) => true
-      }
-    | Inj(_, _, _) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(pos, side) =>
-        switch (side) {
-        | Before => pos != 0
-        | After => pos != 1
-        }
-      | OnOp(_) => true
-      }
-    | Case(_, _, _, _) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(_, side) =>
-        switch (side) {
-        | Before => false
-        | After => true
-        }
-      | OnOp(_) => true
-      }
-    | Parenthesized(_) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(_, _)
-      | OnOp(_) => true
-      }
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-    }
-  | Pat(cur_pos, op) =>
-    switch (op) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | NumLit(_, _)
-    | BoolLit(_, _)
-    | ListNil(_) => false
-    | Parenthesized(_) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(_, _)
-      | OnOp(_) => true
-      }
-    | Inj(_, _, _) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(pos, side) =>
-        switch (side) {
-        | Before => pos != 0
-        | After => pos != 1
-        }
-      | OnOp(_) => true
-      }
-    }
-  | Typ(cur_pos, op) =>
-    switch (op) {
-    | Hole
-    | Unit
-    | Num
-    | Bool => false
-    | Parenthesized(_)
-    | List(_) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(_, _)
-      | OnOp(_) => true
-      }
-    }
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _) => true
-  | Line(cur_pos, line) =>
-    switch (line) {
-    | EmptyLine
-    | ExpLine(_) => false
-    | LetLine(_, _, _) =>
-      switch (cur_pos) {
-      | OnText(_) => false
-      | OnDelim(pos, side) =>
-        switch (side) {
-        | Before => pos != 0
-        | After => pos != 3
-        }
-      | OnOp(_) => true
-      }
-    }
-  | Rule(_, _) => true /* TBD special condition for match rule */
-  };
-};
 type zoperand =
   | ZExp(ZExp.zoperand)
   | ZTyp(ZTyp.zoperand)
@@ -540,6 +420,19 @@ let is_hole = (cursor_term: cursor_term): bool => {
   | PatOp(_, _)
   | TypOp(_, _)
   | Line(_, _)
+  | Rule(_, _) => false
+  };
+};
+
+let is_empty_line = (cursor_term): bool => {
+  switch (cursor_term) {
+  | Line(_, line) => UHExp.is_empty_line(line)
+  | Exp(_, _)
+  | Pat(_, _)
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
   | Rule(_, _) => false
   };
 };
