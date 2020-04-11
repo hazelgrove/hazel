@@ -13,9 +13,10 @@ type edit_action =
   | Ignore /* cursor move and init state */;
 
 type cursor_term_info = {
-  //cursor_term_before: cursor_term,
-  //cursor_term_after: cursor_term,
-  cursor_term,
+  cursor_term_before: cursor_term,
+  cursor_term_after: cursor_term,
+  //cursor_term,
+  zexp,
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
@@ -25,7 +26,6 @@ type undo_history_entry = {
   cursor_term_info,
   previous_action: Action.t,
   edit_action,
-  outer_zexp,
 };
 
 type undo_history_group = {
@@ -486,6 +486,226 @@ let is_delete_emptylines =
   || adjacent_is_empty_line
   && cursor_term_info.cursor_term_before == cursor_term_info.cursor_term_after;
 
+let delete_edit = 
+(
+      ~prev_group: undo_history_group,
+      ~cardstacks_before: Cardstacks.t,
+      ~new_entry_base: entry_base,
+    )=> {
+      let (new_cursor_term_info, _, _, _) = new_entry_base;
+    if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
+             || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
+              
+    /* delete the whole term */
+    let initial_term =
+      get_original_deleted_term(prev_group, new_cursor_term_info);
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(Term(initial_term)),
+    );
+  } else {
+    /* edit the term */
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      EditVar,
+    );
+  };
+}
+let delim_edge_handle = 
+(
+      ~prev_group: undo_history_group,
+      ~cardstacks_before: Cardstacks.t,
+      ~new_entry_base: entry_base,
+      ~adjacent_is_empty_line: bool,
+    )
+=> {
+  if(adjacent_is_empty_line){
+    /* delete adjacent empty line */
+    set_join_result(
+      prev_group,
+      cardstacks_before,
+      new_entry_base,
+      DeleteEdit(EmptyLine),
+    );
+  } else {
+    /* jump to next term */
+    set_success_join(
+      prev_group,
+      new_entry_base,
+      Ignore,
+    );
+  }
+}
+let delete = 
+(
+      ~prev_group: undo_history_group,
+      ~cardstacks_before: Cardstacks.t,
+      ~new_entry_base: entry_base,
+    )
+    : group_result => {
+      let (new_cursor_term_info, _, _, _) = new_entry_base;
+      let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
+
+      switch(cursor_pos){
+        | OnText(_) => {
+          if (CursorInfo.caret_is_after_zoperand(new_cursor_term_info.zexp)){
+            delim_edge_handle(
+          ~prev_group,
+          ~cardstacks_before,
+          ~new_entry_base,
+          ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
+        )
+            
+          } else {
+            //edit var
+            delete_edit(~prev_group,~cardstacks_before,~new_entry_base);
+          }
+        }
+        | OnDelim(pos, side) => {
+          switch(side){
+            | Before => {
+              if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+                /* move cursor in the hole */
+                set_success_join(
+                  prev_group,
+                  new_entry_base,
+                  Ignore,
+                );
+              } else if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
+                /* num==1 is the position of ':' in an expression */
+                set_fail_join(
+                  prev_group,
+                  new_entry_base,
+                  DeleteEdit(TypeAnn),
+                );
+              } else {
+                /* delete the whole term */
+                let initial_term =
+                  get_original_deleted_term(prev_group, new_cursor_term_info);
+                set_join_result(
+                  prev_group,
+                  cardstacks_before,
+                  new_entry_base,
+                  DeleteEdit(Term(initial_term)),
+                );
+              }
+            }
+            | After => {
+              delim_edge_handle(
+                ~prev_group,
+                ~cardstacks_before,
+                ~new_entry_base,
+                ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
+              )
+            }
+          }
+        }
+        | OnOp(side) => {
+          switch (side) {
+            | Before =>
+              /* delete and reach a hole */
+              let initial_term =
+                get_original_deleted_term(prev_group, new_cursor_term_info);
+              set_join_result(
+                prev_group,
+                cardstacks_before,
+                new_entry_base,
+                DeleteEdit(Term(initial_term)),
+              );
+            | After =>
+              /* move cursor to next term, just ignore this move */
+              set_success_join(prev_group, new_entry_base, Ignore)
+            }
+        }
+      }
+    }
+
+let backspace = (
+  ~prev_group: undo_history_group,
+  ~cardstacks_before: Cardstacks.t,
+  ~new_entry_base: entry_base,
+)
+: group_result => {
+  let (new_cursor_term_info, _, _, _) = new_entry_base;
+      let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
+      switch(cursor_pos){
+        | OnText(_) => {
+          if (CursorInfo.caret_is_before_zoperand(new_cursor_term_info.zexp)){
+            delim_edge_handle(
+              ~prev_group,
+              ~cardstacks_before,
+              ~new_entry_base,
+              ~adjacent_is_empty_line=new_cursor_term_info.previous_is_empty_line,
+            )
+            
+          } else {
+            //edit var
+            delete_edit(~prev_group,~cardstacks_before,~new_entry_base);
+          }
+        }
+        | OnDelim(pos, side) => {
+          switch(side){
+            | Before =>{
+              delim_edge_handle(
+                ~prev_group,
+                ~cardstacks_before,
+                ~new_entry_base,
+                ~adjacent_is_empty_line=new_cursor_term_info.previous_is_empty_line,
+              )
+            } 
+            | After => {
+              if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+                /* move cursor in the hole */
+                set_success_join(
+                  prev_group,
+                  new_entry_base,
+                  Ignore,
+                );
+              } else if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
+                /* num==1 is the position of ':' in an expression */
+                set_fail_join(
+                  prev_group,
+                  new_entry_base,
+                  DeleteEdit(TypeAnn),
+                );
+              } else {
+                /* delete the whole term */
+                let initial_term =
+                  get_original_deleted_term(prev_group, new_cursor_term_info);
+                set_join_result(
+                  prev_group,
+                  cardstacks_before,
+                  new_entry_base,
+                  DeleteEdit(Term(initial_term)),
+                );
+              }
+            }
+          }
+        }
+        | OnOp(side) => {
+          switch (side) {
+            | Before =>
+              /* move cursor to next term, just ignore this move */
+              set_success_join(prev_group, new_entry_base, Ignore)
+            | After =>
+            /* delete and reach a hole */
+            let initial_term =
+            get_original_deleted_term(prev_group, new_cursor_term_info);
+          set_join_result(
+            prev_group,
+            cardstacks_before,
+            new_entry_base,
+            DeleteEdit(Term(initial_term)),
+          );
+              
+            }
+        }
+      }
+}
 let ontext_delete =
     (
       ~prev_group: undo_history_group,
@@ -499,7 +719,7 @@ let ontext_delete =
   let prev_cursor_pos =
     get_cursor_pos(new_cursor_term_info.cursor_term_before);
   let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after); */
-    let cursor_pos
+    let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term);
   if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
     /* delete adjacent empty line */
     set_join_result(
