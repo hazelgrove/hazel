@@ -222,59 +222,10 @@ let is_exp_inside = (cursor_term: cursor_term): bool => {
 type zoperand =
   | ZExp(zoperand)
   | ZTyp(zoperand)
-  | ZPat(zoperand)
-
-let rec get_zoperand_from_zexp = (zexp: ZExp.t, outer:option(zoperand)): option(zoperand) => {
-  get_zoperand_from_zline(ZList.prj_z(zexp), ZExp(zexp));
-}
-and get_zoperand_from_zline = (zline: ZExp.zline, outer:option(zoperand)): option(zoperand) => {
-  switch (zline) {
-  | CursorL(_, _) => outer
-  | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq, outer)
-  | LetLineZP(zpat, _, _) => get_zoperand_from_zpat_opseq(zopseq, outer)
-  | LetLineZA(_, ztyp, _) => outer
-  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp,outer)
-  };
-}
-and get_zoperand_from_zexp_opseq =
-    (zopseq: ZExp.zopseq, outer:option(zoperand)): option(zoperand) => {
-  switch (zopseq) {
-  | ZOpSeq(_, zseq) =>
-    switch (zseq) {
-    | ZOperand(zoperand, _) =>
-      get_zoperand_from_zexp_operand(zoperand, Some(zoperand))
-    | ZOperator(_, _) => outer
-    }
-  };
-}
-and get_zoperand_from_zexp_operand =
-    (zoperand: ZExp.zoperand, outer:option(zoperand)): option(zoperand) => {
-  switch (zoperand) {
-  | CursorE(_, _) => outer
-  | ParenthesizedZ(zexp) => get_outer_z_from_zexp(zexp)
-  | LamZP(_, zpat, _, _) => get_outer_z_from_zpat(zpat)
-  | LamZA(_, _, ztyp, _) => get_outer_z_from_ztyp(ztyp)
-  | LamZE(_, _, _, zexp)
-  | InjZ(_, _, zexp)
-  | CaseZE(_, zexp, _, _) => get_outer_z_from_zexp(zexp)
-  | CaseZR(_, _, zrules, _) => get_outer_z_from_zrules(zrules, outer_zexp)
-  | CaseZA(_, _, _, ztyp) => get_outer_z_from_ztyp(ztyp)
-  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
-  };
-}
-and get_zoperand_from_zrules = (zrules: ZExp.zrules, outer:option(zoperand)): option(zoperand) => {
-  get_zoperand_from_zrule(ZList.prj_z(zrules), outer_zexp);
-}
-and get_zoperand_from_zrule = (zrule: ZExp.zrule, outer:option(zoperand)): option(zoperand) => {
-  switch (zrule) {
-  | CursorR(_, _) => outer_zexp
-  | RuleZP(zpat, _) => get_outer_z_from_zpat(zpat)
-  | RuleZE(_, zexp) => get_outer_z_from_zexp(zexp)
-  };
-}
+  | ZPat(zoperand);
 
 let rec get_outer_z_from_zexp = (zexp: ZExp.t): outer_zexp => {
-  get_outer_z_from_zline(ZList.prj_z(zexp), ZExp(zexp));
+  get_outer_z_from_zline(ZList.prj_z(zexp));
 }
 and get_outer_z_from_zline = (zline: ZExp.zline, outer_zexp): outer_zexp => {
   switch (zline) {
@@ -363,6 +314,98 @@ and get_outer_z_from_ztyp_operand =
   | CursorT(_, _) => outer_zexp
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => get_outer_z_from_ztyp(ztyp)
+  };
+};
+
+let rec get_zoperand = (zexp: ZExp.t): option(zoperand) => {
+  get_zoperand_from_zexp(zexp);
+}
+and get_zoperand_from_zexp = (zexp: ZExp.t): option(zoperand) => {
+  get_zoperand_from_zline(ZList.prj_z(zexp));
+}
+and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
+  switch (zline) {
+  | CursorL(_, _) => None
+  | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
+  | LetLineZP(zpat, _, _) => get_zoperand_from_zpat(zpat)
+  | LetLineZA(_, ztyp, _) => get_zoperand_from_ztyp(ztyp)
+  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
+  };
+}
+and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zoperand, _) => get_zoperand_from_zexp_operand(zoperand)
+    | ZOperator(_, _) => None
+    }
+  };
+}
+and get_zoperand_from_zexp_operand =
+    (zoperand: ZExp.zoperand): option(zoperand) => {
+  switch (zoperand) {
+  | CursorE(_, _) => Some(ZExp(zoperand))
+  | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
+  | LamZP(_, zpat, _, _) => get_zoperand_from_zpat(zpat)
+  | LamZA(_, _, ztyp, _) => get_zoperand_from_ztyp(ztyp)
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _, _) => get_zoperand_from_zexp(zexp)
+  | CaseZR(_, _, zrules, _) => get_zoperand_from_zrules(zrules)
+  | CaseZA(_, _, _, ztyp) => get_zoperand_from_ztyp(ztyp)
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  };
+}
+and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
+  get_zoperand_from_zrule(ZList.prj_z(zrules));
+}
+and get_zoperand_from_zrule = (zrule: ZExp.zrule): option(zoperand) => {
+  switch (zrule) {
+  | CursorR(_, _) => None
+  | RuleZP(zpat, _) => get_zoperand_from_zpat(zpat)
+  | RuleZE(_, zexp) => get_zoperand_from_zexp(zexp)
+  };
+}
+and get_zoperand_from_zpat = (zpat: ZPat.t): option(zoperand) => {
+  get_zoperand_from_zpat_opseq(zpat);
+}
+and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zpat_operand, _) =>
+      get_zoperand_from_zpat_operand(zpat_operand)
+    | ZOperator(_, _) => None
+    }
+  };
+}
+and get_zoperand_from_zpat_operand =
+    (zoperand: ZPat.zoperand): option(zoperand) => {
+  switch (zoperand) {
+  | CursorP(_, _) => Some(ZPat(zoperand))
+  | ParenthesizedZ(zpat)
+  | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  };
+}
+and get_zoperand_from_ztyp = (ztyp: ZTyp.t): option(zoperand) => {
+  get_zoperand_from_ztyp_opseq(ztyp);
+}
+and get_zoperand_from_ztyp_opseq = (zopseq: ZTyp.zopseq): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(ztyp_operand, _) =>
+      get_zoperand_from_ztyp_operand(ztyp_operand)
+    | ZOperator(_, _) => None
+    }
+  };
+}
+and get_zoperand_from_ztyp_operand =
+    (zoperand: ZTyp.zoperand): option(zoperand) => {
+  switch (zoperand) {
+  | CursorT(_, _) => Some(zoperand)
+  | ParenthesizedZ(ztyp)
+  | ListZ(ztyp) => get_zoperand_from_ztyp(ztyp)
   };
 };
 
