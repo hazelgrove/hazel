@@ -28,17 +28,19 @@ let init = (): t => {
   let undo_history: UndoHistory.t = {
     let (cursor_term, prev_is_empty_line, next_is_empty_line) =
       UndoHistory.get_cursor_info(cardstacks);
+    let zexp =
+      ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
       cursor_term_info: {
         cursor_term_before: cursor_term,
         cursor_term_after: cursor_term,
+        zexp,
         prev_is_empty_line,
         next_is_empty_line,
       },
       previous_action: Construct(SOp(SSpace)),
       edit_action: Ignore,
-      outer_zexp: UndoHistory.get_outer_z(cardstacks),
     };
     let timestamp = Unix.time();
     let undo_history_group: UndoHistory.undo_history_group = {
