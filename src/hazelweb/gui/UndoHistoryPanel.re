@@ -88,62 +88,61 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
-    let prestr =
-      switch (undo_history_entry.edit_action) {
-      | DeleteEdit(edit_detail) =>
-        switch (edit_detail) {
-        | Term(cursor_term) =>
-          Some("delete " ++ display_string_of_cursor_term(cursor_term))
-        | Space => Some("delete space")
-        | EmptyLine => Some("delete empty line")
-        | TypeAnn => Some("delete type annotation")
-        }
-      | ConstructEdit(edit_detail) =>
-        switch (edit_detail) {
-        | SLet => Some("construct let binding")
-        | SCase => Some("construct case match")
-        | SLam => Some("construct lambda")
-        | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
-        }
-      | EditVar =>
-        Some(
-          "edit "
-          ++ display_string_of_cursor_term(
-               undo_history_entry.cursor_term_info.cursor_term_after,
-             ),
-        )
-      | Ignore => None
-      };
-    let pend =
-      switch (undo_history_entry.outer_zexp) {
-      | ZExp(zp) =>
-        if (ZExp.is_after(zp)) {
-          " is_after";
-        } else if (ZExp.is_before(zp)) {
-          " is_before";
-        } else {
-          " no";
-        }
-      | ZPat(zp) =>
-        if (ZPat.is_after(zp)) {
-          " is_after";
-        } else if (ZPat.is_before(zp)) {
-          " is_before";
-        } else {
-          " no";
-        }
-      | ZTyp(zp) =>
-        if (ZTyp.is_after(zp)) {
-          " is_after";
-        } else if (ZTyp.is_before(zp)) {
-          " is_before";
-        } else {
-          " no";
-        }
-      };
-    switch (prestr) {
-    | None => None
-    | Some(str) => Some(str ++ pend)
+    switch (undo_history_entry.edit_action) {
+    | DeleteEdit(edit_detail) =>
+      switch (edit_detail) {
+      | Term(cursor_term) =>
+        Some("delete " ++ display_string_of_cursor_term(cursor_term))
+      | Space => Some("delete space")
+      | EmptyLine => Some("delete empty line")
+      | TypeAnn => Some("delete type annotation")
+      }
+    | ConstructEdit(edit_detail) =>
+      switch (edit_detail) {
+      | SLet => Some("construct let binding")
+      | SCase => Some("construct case match")
+      | SLam => Some("construct lambda")
+      | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
+      }
+    | EditVar =>
+      Some(
+        "edit "
+        ++ display_string_of_cursor_term(
+             undo_history_entry.cursor_term_info.cursor_term_after,
+           ),
+      )
+    | Ignore => None
+    /*     let pend =
+             switch (undo_history_entry.outer_zexp) {
+             | ZExp(zp) =>
+               if (ZExp.is_after(zp)) {
+                 " is_after";
+               } else if (ZExp.is_before(zp)) {
+                 " is_before";
+               } else {
+                 " no";
+               }
+             | ZPat(zp) =>
+               if (ZPat.is_after(zp)) {
+                 " is_after";
+               } else if (ZPat.is_before(zp)) {
+                 " is_before";
+               } else {
+                 " no";
+               }
+             | ZTyp(zp) =>
+               if (ZTyp.is_after(zp)) {
+                 " is_after";
+               } else if (ZTyp.is_before(zp)) {
+                 " is_before";
+               } else {
+                 " no";
+               }
+             };
+           switch (prestr) {
+           | None => None
+           | Some(str) => Some(str ++ pend)
+           }; */
     };
   };
 

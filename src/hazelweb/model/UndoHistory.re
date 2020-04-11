@@ -635,7 +635,7 @@ let backspace =
         ~prev_group,
         ~cardstacks_before,
         ~new_entry_base,
-        ~adjacent_is_empty_line=new_cursor_term_info.previous_is_empty_line,
+        ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
       );
     } else {
       //edit var
@@ -652,7 +652,7 @@ let backspace =
         ~prev_group,
         ~cardstacks_before,
         ~new_entry_base,
-        ~adjacent_is_empty_line=new_cursor_term_info.previous_is_empty_line,
+        ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
       )
     | After =>
       if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
@@ -708,12 +708,12 @@ let ontext_delete =
       ~adjacent_is_empty_line: bool,
     )
     : group_result => {
-  let (new_cursor_term_info, new_action, _, _) = new_entry_base;
-  /*
-   let prev_cursor_pos =
-     get_cursor_pos(new_cursor_term_info.cursor_term_before);
-   let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after); */
-  let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term);
+  let (new_cursor_term_info, new_action, _) = new_entry_base;
+
+  let prev_cursor_pos =
+    get_cursor_pos(new_cursor_term_info.cursor_term_before);
+  let new_cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_after);
+
   if (is_delete_emptylines(adjacent_is_empty_line, new_cursor_term_info)) {
     /* delete adjacent empty line */
     set_join_result(
@@ -845,7 +845,7 @@ let join_group =
     )
     : group_result => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let (new_cursor_term_info, action, _, _) = new_entry_base;
+  let (new_cursor_term_info, action, _) = new_entry_base;
   switch (action) {
   | Delete => delete(~prev_group, ~cardstacks_before, ~new_entry_base)
   /*     let prev_cursor_pos =
@@ -1079,12 +1079,6 @@ let join_group =
   };
 };
 
-let get_outer_z = (cardstacks: Cardstacks.t): outer_zexp => {
-  let zexp =
-    ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
-  CursorInfo.get_outer_z_from_zexp(zexp);
-};
-
 let push_edit_state =
     (
       undo_history: t,
@@ -1097,10 +1091,12 @@ let push_edit_state =
   let (cursor_term_before, prev_is_empty_line, next_is_empty_line) =
     get_cursor_info(cardstacks_before);
   let (cursor_term_after, _, _) = get_cursor_info(cardstacks_after);
-  let outer_zexp_before = get_outer_z(cardstacks_before);
   let cursor_term_info = {
     cursor_term_before,
     cursor_term_after,
+    zexp:
+      ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
+      |> Program.get_zexp,
     prev_is_empty_line,
     next_is_empty_line,
   };
@@ -1108,7 +1104,7 @@ let push_edit_state =
   switch (
     join_group(
       prev_group,
-      (cursor_term_info, action, cardstacks_after, outer_zexp_before),
+      (cursor_term_info, action, cardstacks_after),
       cardstacks_before,
     )
   ) {
