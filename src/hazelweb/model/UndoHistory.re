@@ -76,6 +76,7 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | Rule(cursor_pos, _) => cursor_pos
   };
 };
+/* whether have type ann */
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
