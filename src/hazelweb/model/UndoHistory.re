@@ -41,7 +41,7 @@ type t = {
 
 /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */
 let get_cursor_info =
-    (cardstacks_before: Cardstacks.t, cardstacks_after: Cardstacks.t)
+    (~cardstacks_after: Cardstacks.t, ~cardstacks_before=cardstacks_after, ())
     : cursor_term_info => {
   let zexp_before =
     ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
@@ -52,6 +52,7 @@ let get_cursor_info =
     ZList.prj_z(ZList.prj_z(cardstacks_after).zcards).program
     |> Program.get_zexp;
   let (cursor_term_after, _, _) = CursorInfo.extract_cursor_term(zexp_after);
+
   {
     cursor_term_before,
     cursor_term_after,
@@ -605,7 +606,7 @@ let push_edit_state =
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
-    get_cursor_info(cardstacks_before, cardstacks_after);
+    get_cursor_info(~cardstacks_before, ~cardstacks_after, ());
   let new_edit_action =
     get_new_edit_action(~prev_group, ~new_cursor_term_info, ~action);
   let new_entry = {
