@@ -615,7 +615,7 @@ let push_edit_state =
   let new_edit_action =
     get_new_edit_action(~prev_group, ~new_cursor_term_info, ~action);
   let new_entry = {
-    cardstacks: cardstacks_before,
+    cardstacks: cardstacks_after,
     cursor_term_info: new_cursor_term_info,
     previous_action: action,
     edit_action: new_edit_action,
