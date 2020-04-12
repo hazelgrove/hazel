@@ -40,7 +40,6 @@ type t = {
   all_hidden_history_expand: bool,
 };
 
-/* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */
 let get_cursor_info =
     (~cardstacks_after: Cardstacks.t, ~cardstacks_before=cardstacks_after, ())
     : cursor_term_info => {
@@ -76,7 +75,7 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | Rule(cursor_pos, _) => cursor_pos
   };
 };
-/* whether have type ann */
+
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
