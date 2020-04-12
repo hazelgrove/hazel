@@ -430,7 +430,7 @@ let delete =
           TypeAnn,
         );
       } else {
-        /* delete the whole term */
+        /* delete the whole term. */
         let initial_term =
           get_original_deleted_term(prev_group, new_cursor_term_info);
         DeleteEdit(Term(initial_term));
