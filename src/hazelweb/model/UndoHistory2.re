@@ -1,5 +1,5 @@
 type cursor_term = CursorInfo.cursor_term;
-type outer_zexp = CursorInfo.outer_zexp;
+/* type outer_zexp = CursorInfo.outer_zexp; */
 type delete_edit =
   | Term(cursor_term)
   | Space
@@ -15,7 +15,7 @@ type edit_action =
 type cursor_term_info = {
   cursor_term_before: cursor_term,
   cursor_term_after: cursor_term,
-  zexp: ZExp.t,
+  zexp_before: ZExp.t,
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
@@ -40,14 +40,24 @@ type t = {
   all_hidden_history_expand: bool,
 };
 
-type entry_base = (cursor_term_info, Action.t, Cardstacks.t); 
+/* type entry_base = (cursor_term_info, Action.t, Cardstacks.t);  */
 
 
 /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */
-let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool, bool) => {
-  let zexp =
-    ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
-  CursorInfo.extract_cursor_term(zexp);
+let get_cursor_info = (cardstacks_before: Cardstacks.t,cardstacks_after: Cardstacks.t): cursor_term_info => {
+  let zexp_before =
+    ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program |> Program.get_zexp;
+  let (cursor_term_before, prev_is_empty_line,next_is_empty_line) = CursorInfo.extract_cursor_term(zexp_before);
+  let zexp_after =
+    ZList.prj_z(ZList.prj_z(cardstacks_after).zcards).program |> Program.get_zexp;
+  let (cursor_term_after,_,_) = CursorInfo.extract_cursor_term(zexp_after);
+  {
+    cursor_term_before,
+    cursor_term_after,
+    zexp_before,
+    prev_is_empty_line,
+    next_is_empty_line,
+  }
 };
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
@@ -79,7 +89,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
 };
 
 let push_history_entry =
-    (prev_group: undo_history_group, new_entry: undo_history_entry)
+    (~prev_group: undo_history_group, ~new_entry: undo_history_entry)
     : undo_history_group => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   if (new_entry.edit_action == Ignore) {
@@ -188,9 +198,9 @@ let group_edit_action =
 
 let group_entry =
     (
-      prev_group: undo_history_group,
-      cardstacks_before: Cardstacks.t,
-      new_edit_action: edit_action,
+      ~prev_group: undo_history_group,
+      ~cardstacks_before: Cardstacks.t,
+      ~new_edit_action: edit_action,
     )
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
@@ -244,46 +254,6 @@ let group_entry =
   && (!cursor_jump(prev_group, cardstacks_before) || ignore_cursor_jump);
 };
 
-type group_result =
-  | Success(undo_history_group)
-  | Fail(undo_history_group, undo_history_entry);
-
-let build_entry =
-    (entry_base, new_edit_action: edit_action): undo_history_entry => {
-  let (cursor_term_info, action, cardstacks) = entry_base;
-  {
-    cardstacks,
-    cursor_term_info,
-    previous_action: action,
-    edit_action: new_edit_action,
-  };
-};
-let set_fail_join =
-    (prev_group: undo_history_group, entry_base, new_edit_action: edit_action)
-    : group_result =>
-  Fail(prev_group, build_entry(entry_base, new_edit_action));
-
-let set_success_join =
-    (prev_group: undo_history_group, entry_base, new_edit_action: edit_action)
-    : group_result => {
-  Success(
-    push_history_entry(prev_group, build_entry(entry_base, new_edit_action)),
-  );
-};
-
-let set_join_result =
-    (
-      prev_group: undo_history_group,
-      cardstacks_before: Cardstacks.t,
-      entry_base,
-      edit_action: edit_action,
-    )
-    : group_result =>
-  if (group_entry(prev_group, cardstacks_before, edit_action)) {
-    set_success_join(prev_group, entry_base, edit_action);
-  } else {
-    set_fail_join(prev_group, entry_base, edit_action);
-  };
 
 type comp_len_typ =
   | MaxLen
@@ -405,168 +375,64 @@ let get_original_deleted_term =
   );
 };
 
-let cursor_jump_after_delete =
-    (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
-  switch (cursor_pos1) {
-  | OnText(pos1) =>
-    if (pos1 != 0) {
-      switch (cursor_pos2) {
-      | OnText(pos2) => pos2 == 0
-      | OnDelim(_, side) =>
-        switch (side) {
-        | Before => true
-        | After => failwith("impossible jump")
-        }
-      | OnOp(side) =>
-        switch (side) {
-        | Before => true
-        | After => failwith("impossible jump")
-        }
-      };
-    } else {
-      false;
-    }
-  | OnDelim(_, side) =>
-    switch (side) {
-    | Before => false
-    | After => true
-    }
-  | OnOp(side) =>
-    switch (side) {
-    | Before => false
-    | After => true
-    }
-  };
-};
-let cursor_jump_after_backspace =
-    (cursor_pos1: CursorPosition.t, cursor_pos2: CursorPosition.t): bool => {
-  switch (cursor_pos1) {
-  | OnText(pos1) =>
-    if (pos1 == 0) {
-      switch (cursor_pos2) {
-      | OnText(_) => true
-      | OnDelim(_, side) =>
-        switch (side) {
-        | Before => failwith("impossible jump")
-        | After => true
-        }
-      | OnOp(side) =>
-        switch (side) {
-        | Before => failwith("impossible jump")
-        | After => true
-        }
-      };
-    } else {
-      false;
-    }
-  | OnDelim(_, side) =>
-    switch (side) {
-    | Before => true
-    | After => false
-    }
-  | OnOp(side) =>
-    switch (side) {
-    | Before => true
-    | After => false
-    }
-  };
-};
 
-let construct_space =
-    (prev_group: undo_history_group, cardstacks_before, new_entry_base)
-    : group_result =>
-  set_join_result(
-    prev_group,
-    cardstacks_before,
-    new_entry_base,
-    ConstructEdit(SOp(SSpace)),
-  );
 
 let delete_edit =
     (
       ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
-    ) => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
+      ~new_cursor_term_info: cursor_term_info,
+    ): edit_action => {
   if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
       || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
     /* delete the whole term */
     let initial_term =
       get_original_deleted_term(prev_group, new_cursor_term_info);
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Term(initial_term)),
-    );
+      DeleteEdit(Term(initial_term));
+    
   } else {
     /* edit the term */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      EditVar,
-    );
+      EditVar;
   };
 };
 let delim_edge_handle =
     (
       ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
+      ~new_cursor_term_info: cursor_term_info,
       ~adjacent_is_empty_line: bool,
-    ) => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
+    ):edit_action => {
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(EmptyLine),
-    );
+      DeleteEdit(EmptyLine);
+  
   } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-    set_join_result(
-      prev_group,
-      cardstacks_before,
-      new_entry_base,
-      DeleteEdit(Space),
-    );
+      DeleteEdit(Space);
+   
   } else {
     /* jump to next term */
-    set_success_join(
-      prev_group,
-      new_entry_base,
-      Ignore,
-    );
+      Ignore;
   };
 };
 let delete =
     (
       ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
+      ~new_cursor_term_info: cursor_term_info,
     )
-    : group_result => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
+    : edit_action => {
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
 
   switch (cursor_pos) {
   | OnText(_) =>
-    if (CursorInfo.caret_is_after_zoperand(new_cursor_term_info.zexp)) {
+    if (CursorInfo.caret_is_after_zoperand(new_cursor_term_info.zexp_before)) {
       delim_edge_handle(
         ~prev_group,
-        ~cardstacks_before,
-        ~new_entry_base,
+        ~new_cursor_term_info,
         ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
       );
     } else {
       //edit var
       delete_edit(
         ~prev_group,
-        ~cardstacks_before,
-        ~new_entry_base,
+        ~new_cursor_term_info,
       );
     }
   | OnDelim(pos, side) =>
@@ -574,35 +440,21 @@ let delete =
     | Before =>
       if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
         /* move cursor in the hole */
-        set_success_join(
-          prev_group,
-          new_entry_base,
-          Ignore,
-        );
+          Ignore;
       } else if (pos == 1
                  && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
         /* num==1 is the position of ':' in an expression */
-        set_fail_join(
-          prev_group,
-          new_entry_base,
-          DeleteEdit(TypeAnn),
-        );
+          DeleteEdit(TypeAnn);
       } else {
         /* delete the whole term */
         let initial_term =
           get_original_deleted_term(prev_group, new_cursor_term_info);
-        set_join_result(
-          prev_group,
-          cardstacks_before,
-          new_entry_base,
-          DeleteEdit(Term(initial_term)),
-        );
+          DeleteEdit(Term(initial_term));
       }
     | After =>
       delim_edge_handle(
         ~prev_group,
-        ~cardstacks_before,
-        ~new_entry_base,
+        ~new_cursor_term_info,
         ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
       )
     }
@@ -612,15 +464,10 @@ let delete =
       /* delete and reach a hole */
       let initial_term =
         get_original_deleted_term(prev_group, new_cursor_term_info);
-      set_join_result(
-        prev_group,
-        cardstacks_before,
-        new_entry_base,
-        DeleteEdit(Term(initial_term)),
-      );
+        DeleteEdit(Term(initial_term));
     | After =>
       /* move cursor to next term, just ignore this move */
-      set_success_join(prev_group, new_entry_base, Ignore)
+      Ignore;
     }
   };
 };
@@ -628,27 +475,23 @@ let delete =
 let backspace =
     (
       ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
-      ~new_entry_base: entry_base,
+      ~new_cursor_term_info: cursor_term_info,
     )
-    : group_result => {
-  let (new_cursor_term_info, _, _) = new_entry_base;
+    : edit_action => {
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
   | OnText(_) =>
-    if (CursorInfo.caret_is_before_zoperand(new_cursor_term_info.zexp)) {
+    if (CursorInfo.caret_is_before_zoperand(new_cursor_term_info.zexp_before)) {
       delim_edge_handle(
         ~prev_group,
-        ~cardstacks_before,
-        ~new_entry_base,
+        ~new_cursor_term_info,
         ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
       );
     } else {
       //edit var
       delete_edit(
         ~prev_group,
-        ~cardstacks_before,
-        ~new_entry_base,
+        ~new_cursor_term_info,
       );
     }
   | OnDelim(pos, side) =>
@@ -656,150 +499,51 @@ let backspace =
     | Before =>
       delim_edge_handle(
         ~prev_group,
-        ~cardstacks_before,
-        ~new_entry_base,
+        ~~new_cursor_term_info,
         ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
       )
     | After =>
       if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
         /* move cursor in the hole */
-        set_success_join(
-          prev_group,
-          new_entry_base,
-          Ignore,
-        );
+          Ignore;
       } else if (pos == 1
                  && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
         /* num==1 is the position of ':' in an expression */
-        set_fail_join(
-          prev_group,
-          new_entry_base,
-          DeleteEdit(TypeAnn),
-        );
+          DeleteEdit(TypeAnn);
       } else {
         /* delete the whole term */
         let initial_term =
           get_original_deleted_term(prev_group, new_cursor_term_info);
-        set_join_result(
-          prev_group,
-          cardstacks_before,
-          new_entry_base,
-          DeleteEdit(Term(initial_term)),
-        );
+          DeleteEdit(Term(initial_term));
       }
     }
   | OnOp(side) =>
     switch (side) {
     | Before =>
       /* move cursor to next term, just ignore this move */
-      set_success_join(prev_group, new_entry_base, Ignore)
-    | After =>
+      Ignore;
+    | After =>{
       /* delete and reach a hole */
       let initial_term =
         get_original_deleted_term(prev_group, new_cursor_term_info);
-      set_join_result(
-        prev_group,
-        cardstacks_before,
-        new_entry_base,
-        DeleteEdit(Term(initial_term)),
-      );
+        DeleteEdit(Term(initial_term));
+      }
     }
   };
 };
 
-let join_group =
+let get_new_edit_action =
     (
-      prev_group: undo_history_group,
-      new_entry_base: entry_base,
-      cardstacks_before: Cardstacks.t,
+      ~prev_group: undo_history_group,
+      ~new_cursor_term_info: cursor_term_info,
+      ~action: Action.t,
     )
-    : group_result => {
+    : edit_action => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let (new_cursor_term_info, action, _) = new_entry_base;
+  /* let (new_cursor_term_info, action, _) = new_entry_base; */
   switch (action) {
-  | Delete => delete(~prev_group, ~cardstacks_before, ~new_entry_base)
-  /*     let prev_cursor_pos =
-           get_cursor_pos(prev_entry.cursor_term_info.cursor_term_after);
-         switch (prev_cursor_pos) {
-         | OnText(_) =>
-           ontext_delete(
-             ~prev_group,
-             ~cardstacks_before,
-             ~new_entry_base,
-             ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
-           )
-         | OnDelim(pos, side) =>
-           switch (side) {
-           | Before =>
-             ondelim_delete(~prev_group, ~cardstacks_before, ~new_entry_base, ~pos)
-           | After =>
-             ondelim_not_delete(
-               ~prev_group,
-               ~cardstacks_before,
-               ~new_entry_base,
-               ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
-             )
-           }
-         | OnOp(side) =>
-           switch (side) {
-           | Before =>
-             /* delete and reach a hole */
-             let initial_term =
-               get_original_deleted_term(prev_group, new_cursor_term_info);
-             set_join_result(
-               prev_group,
-               cardstacks_before,
-               new_entry_base,
-               DeleteEdit(Term(initial_term)),
-             );
-           | After =>
-
-             set_success_join(prev_group, new_entry_base, Ignore)
-           }
-         }; */
-
-  | Backspace => backspace(~prev_group, ~cardstacks_before, ~new_entry_base)
-  /*     let prev_cursor_pos =
-           get_cursor_pos(prev_entry.cursor_term_info.cursor_term_after);
-         switch (prev_cursor_pos) {
-         | OnText(_) =>
-           ontext_delete(
-             ~prev_group,
-             ~cardstacks_before,
-             ~new_entry_base,
-             ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
-           )
-
-         | OnDelim(pos, side) =>
-           switch (side) {
-           | Before =>
-             ondelim_not_delete(
-               ~prev_group,
-               ~cardstacks_before,
-               ~new_entry_base,
-               ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
-             )
-
-           | After =>
-             ondelim_delete(~prev_group, ~cardstacks_before, ~new_entry_base, ~pos)
-           }
-         | OnOp(side) =>
-           switch (side) {
-           | Before =>
-             /* move cursor to next term, just ignore this move */
-             set_success_join(prev_group, new_entry_base, Ignore)
-           | After =>
-             let initial_term =
-               get_original_deleted_term(prev_group, new_cursor_term_info);
-             set_join_result(
-               prev_group,
-               cardstacks_before,
-               new_entry_base,
-               DeleteEdit(Term(initial_term)),
-             );
-           }
-         }; */
-
+  | Delete => delete(~prev_group, ~new_cursor_term_info)
+  | Backspace => backspace(~prev_group, ~new_cursor_term_info)
   | Construct(shape) =>
     switch (shape) {
     | SLine
@@ -811,14 +555,8 @@ let join_group =
     | SInj(_)
     | SLet
     | SCase =>
-      set_join_result(
-        prev_group,
-        cardstacks_before,
-        new_entry_base,
-        ConstructEdit(shape),
-      )
-    | SChar(_) =>
-      set_join_result(prev_group, cardstacks_before, new_entry_base, EditVar)
+        ConstructEdit(shape);
+    | SChar(_) => EditVar;
     | SOp(op) =>
       switch (op) {
       | SMinus
@@ -832,14 +570,7 @@ let join_group =
       | SVBar
       | SCons
       | SAnd
-      | SOr =>
-        set_join_result(
-          prev_group,
-          cardstacks_before,
-          new_entry_base,
-          ConstructEdit(shape),
-        )
-
+      | SOr => ConstructEdit(shape)
       | SSpace =>
         switch (new_cursor_term_info.cursor_term_before) {
         | Exp(_, uexp_operand) =>
@@ -850,89 +581,32 @@ let join_group =
               switch (get_cursor_pos(new_cursor_term_info.cursor_term_before)) {
               | OnText(pos) =>
                 if (pos == 3) {
-                  if (group_entry(
-                        prev_group,
-                        cardstacks_before,
-                        ConstructEdit(SLet),
-                      )) {
-                    let prev_group' = {
-                      ...prev_group,
-                      group_entries:
-                        ZList.replace_z(
-                          {...prev_entry, edit_action: Ignore},
-                          prev_group.group_entries,
-                        ),
-                    };
-                    set_success_join(
-                      prev_group',
-                      new_entry_base,
-                      ConstructEdit(SLet),
-                    );
-                  } else {
-                    set_fail_join(
-                      prev_group,
-                      new_entry_base,
-                      ConstructEdit(SLet),
-                    );
-                  };
+                  /* the caret is at the end of "let" */
+                  ConstructEdit(SLet);
                 } else {
-                  construct_space(
-                    prev_group,
-                    cardstacks_before,
-                    new_entry_base,
-                  );
+                  ConstructEdit(SOp(SSpace));
                 }
               | OnDelim(_, _)
-              | OnOp(_) =>
-                construct_space(prev_group, cardstacks_before, new_entry_base)
+              | OnOp(_) => ConstructEdit(SOp(SSpace));
               }
 
             | Case =>
               switch (get_cursor_pos(new_cursor_term_info.cursor_term_before)) {
               | OnText(pos) =>
                 if (pos == 4) {
-                  if (group_entry(
-                        prev_group,
-                        cardstacks_before,
-                        ConstructEdit(SCase),
-                      )) {
-                    let prev_group' = {
-                      ...prev_group,
-                      group_entries:
-                        ZList.replace_z(
-                          {...prev_entry, edit_action: Ignore},
-                          prev_group.group_entries,
-                        ),
-                    };
-                    set_success_join(
-                      prev_group',
-                      new_entry_base,
-                      ConstructEdit(SCase),
-                    );
-                  } else {
-                    set_fail_join(
-                      prev_group,
-                      new_entry_base,
-                      ConstructEdit(SCase),
-                    );
-                  };
+                  /* the caret is at the end of "case" */
+                  ConstructEdit(SCase);
                 } else {
-                  construct_space(
-                    prev_group,
-                    cardstacks_before,
-                    new_entry_base,
-                  );
+                  ConstructEdit(SOp(SSpace));
                 }
               | OnDelim(_, _)
-              | OnOp(_) =>
-                construct_space(prev_group, cardstacks_before, new_entry_base)
+              | OnOp(_) => ConstructEdit(SOp(SSpace));
               }
             }
           | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-          | _ =>
-            construct_space(prev_group, cardstacks_before, new_entry_base)
+          | _ => ConstructEdit(SOp(SSpace));
           }
-        | _ => construct_space(prev_group, cardstacks_before, new_entry_base)
+        | _ => ConstructEdit(SOp(SSpace));
         }
       }
 
@@ -943,7 +617,7 @@ let join_group =
   | MoveLeft
   | MoveRight
   | MoveToNextHole
-  | MoveToPrevHole => set_success_join(prev_group, new_entry_base, Ignore)
+  | MoveToPrevHole => Ignore
   | UpdateApPalette(_) =>
     failwith("ApPalette is not implemented in undo_history")
   };
@@ -958,28 +632,25 @@ let push_edit_state =
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
-  let (cursor_term_before, prev_is_empty_line, next_is_empty_line) =
-    get_cursor_info(cardstacks_before);
-  let (cursor_term_after, _, _) = get_cursor_info(cardstacks_after);
-  let cursor_term_info = {
-    cursor_term_before,
-    cursor_term_after,
-    zexp:
-      ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
-      |> Program.get_zexp,
-    prev_is_empty_line,
-    next_is_empty_line,
-  };
-
-  switch (
-    join_group(
-      prev_group,
-      (cursor_term_info, action, cardstacks_after),
-      cardstacks_before,
+  let new_cursor_term_info = get_cursor_info(cardstacks_before, cardstacks_after);
+  let new_edit_action = get_new_edit_action(
+        ~prev_group,
+        ~new_cursor_term_info,
+      ); 
+  let new_entry = {
+        cardstacks:cardstacks_before,
+        cursor_term_info:new_cursor_term_info,
+        previous_action: action,
+        edit_action: new_edit_action,
+      };
+  if(group_entry(
+      ~prev_group,
+      ~cardstacks_before,
+      ~new_edit_action,
     )
-  ) {
-  | Success(new_group) =>
-    if (ZList.prj_z(new_group.group_entries).edit_action != Ignore) {
+  ){
+    let new_group = push_history_entry(~prev_group, ~new_entry);
+    if (new_edit_action != Ignore) {
       {
         ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
@@ -991,11 +662,10 @@ let push_edit_state =
         groups: ZList.replace_z(new_group, undo_history.groups),
       };
     }
-
-  | Fail(prev_group', new_entry') =>
+  } else {
     let timestamp = Unix.time();
     let new_group = {
-      group_entries: ([], new_entry', []),
+      group_entries: ([], new_entry, []),
       is_expanded: false,
       timestamp,
       display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
@@ -1005,11 +675,11 @@ let push_edit_state =
       groups: (
         [],
         new_group,
-        [prev_group', ...ZList.prj_suffix(undo_history.groups)],
+        [prev_group, ...ZList.prj_suffix(undo_history.groups)],
       ),
       latest_timestamp: timestamp,
     };
-  };
+  }
 };
 
 let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
