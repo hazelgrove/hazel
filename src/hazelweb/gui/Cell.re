@@ -48,57 +48,20 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let on_click =
-    (~inject, ~font_metrics: FontMetrics.t, ~cmap: CursorMap.t, evt) => {
-  let container_rect =
-    JSUtil.force_get_elem_by_id("code-container")##getBoundingClientRect;
-  let (target_x, target_y) = (
-    float_of_int(evt##.clientX),
-    float_of_int(evt##.clientY),
-  );
-  if (container_rect##.left <= target_x
-      && target_x <=
-      container_rect##.right
-      &&
-      container_rect##.top <= target_y
-      && target_y <=
-      container_rect##.bottom) {
-    let row_col = (
-      Float.to_int(
-        (target_y -. container_rect##.top) /. font_metrics.row_height,
-      ),
-      Float.to_int(
-        Float.round(
-          (target_x -. container_rect##.left) /. font_metrics.col_width,
-        ),
-      ),
-    );
-    let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
-    let path = CursorPath.rev(rev_path);
-    inject(Update.Action.EditAction(MoveTo(path)));
-  } else {
-    Vdom.Event.Many([]);
-  };
-};
-
 let view = (~inject, model: Model.t) => {
   open Vdom;
-  let font_metrics = model.font_metrics;
   let program = model |> Model.get_program;
-  let on_click_attr =
-    Vdom.Attr.on_click(
-      on_click(
-        ~inject,
-        ~font_metrics,
-        ~cmap=program |> Program.get_cursor_map,
-      ),
-    );
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
-  let (evt_handlers, code_view) =
+  let (key_handlers, code_view) = {
+    let code_view =
+      UHCode.view(
+        ~inject,
+        ~font_metrics=model.font_metrics,
+        ~cmap=program |> Program.get_cursor_map,
+      );
     if (model.is_cell_focused) {
-      let evt_handlers = [
-        on_click_attr,
+      let key_handlers = [
         Attr.on_keypress(_ => Event.Prevent_default),
         Attr.on_keydown(evt => {
           switch (MoveKey.of_key(JSUtil.get_key(evt))) {
@@ -132,14 +95,13 @@ let view = (~inject, model: Model.t) => {
           }
         }),
       ];
-      let view =
-        program |> Program.get_decorated_layout |> UHCode.view(~inject);
-      (evt_handlers, view);
+      let view = program |> Program.get_decorated_layout |> code_view;
+      (key_handlers, view);
     } else {
-      let evt_handlers = [on_click_attr];
-      let view = program |> Program.get_layout |> UHCode.view(~inject);
-      (evt_handlers, view);
+      let view = program |> Program.get_layout |> code_view;
+      ([], view);
     };
+  };
   Node.div(
     [
       Attr.id(cell_id),
@@ -147,7 +109,7 @@ let view = (~inject, model: Model.t) => {
       Attr.create("tabindex", "0"),
       Attr.on_focus(_ => inject(Update.Action.FocusCell)),
       Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-      ...evt_handlers,
+      ...key_handlers,
     ],
     [
       Node.div([Attr.id("font-specimen")], [Node.text("X")]),

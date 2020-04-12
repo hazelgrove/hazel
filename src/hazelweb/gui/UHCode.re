@@ -63,9 +63,50 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
 };
 
 let view =
-    (~inject as _: Update.Action.t => Vdom.Event.t, l: UHLayout.t)
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      ~cmap as (cmap, splice_cmaps): CursorMap.with_splices,
+      (l, splice_ls): UHLayout.with_splices,
+    )
     : Vdom.Node.t => {
   open Vdom;
+
+  let on_click = (~id: string, ~cmap: CursorMap.t, evt) => {
+    let container_rect =
+      JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
+    let (target_x, target_y) = (
+      float_of_int(evt##.clientX),
+      float_of_int(evt##.clientY),
+    );
+    if (container_rect##.left <= target_x
+        && target_x <=
+        container_rect##.right
+        &&
+        container_rect##.top <= target_y
+        && target_y <=
+        container_rect##.bottom) {
+      let row_col = (
+        Float.to_int(
+          (target_y -. container_rect##.top) /. font_metrics.row_height,
+        ),
+        Float.to_int(
+          Float.round(
+            (target_x -. container_rect##.left) /. font_metrics.col_width,
+          ),
+        ),
+      );
+      let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
+      let path = CursorPath.rev(rev_path);
+      Event.Many([
+        Event.Stop_propagation,
+        inject(Update.Action.EditAction(MoveTo(path))),
+      ]);
+    } else {
+      Event.Stop_propagation;
+    };
+  };
+
   let rec go: UHLayout.t => _ =
     fun
     | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
@@ -128,7 +169,7 @@ let view =
         ),
       ]
 
-    | Annot(LivelitView({llview, splice_docs}), _) =>
+    | Annot(LivelitView({llu, llview}), _) =>
       switch (llview) {
       | Inline(view, _) => [view]
       | MultiLine(vdom_with_splices) =>
@@ -136,22 +177,18 @@ let view =
                 (vdom_with_splices: Livelits.VdomWithSplices.t): Vdom.Node.t => {
           switch (vdom_with_splices) {
           | NewSpliceFor(splice_name) =>
-            let splice_doc_opt = NatMap.lookup(splice_docs, splice_name);
-            switch (splice_doc_opt) {
-            | None =>
-              failwith("Invalid splice name " ++ string_of_int(splice_name))
-            | Some(_splice_doc) =>
-              /* TODO restore
-                 view(
-                   ~inject,
-                   ~show_contenteditable,
-                   ~width,
-                   ~pos,
-                   splice_doc,
-                 ),
-                 */
-              Vdom.Node.div([], [])
-            };
+            let splice_layout =
+              splice_ls |> SpliceMap.get_splice(llu, splice_name);
+            let splice_cmap =
+              splice_cmaps |> SpliceMap.get_splice(llu, splice_name);
+            let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+            Vdom.Node.div(
+              [
+                Attr.id(id),
+                Attr.on_click(on_click(~id, ~cmap=splice_cmap)),
+              ],
+              go(splice_layout),
+            );
           | Bind(vdom_with_splices, f) =>
             let vdom = fill_splices(vdom_with_splices);
             fill_splices(f(vdom));
@@ -182,5 +219,13 @@ let view =
         ),
       ];
 
-  Node.div([Attr.classes(["code", "presentation"])], go(l));
+  let id = "code-root";
+  Node.div(
+    [
+      Attr.id(id),
+      Attr.classes(["code", "presentation"]),
+      Attr.on_click(on_click(~id, ~cmap)),
+    ],
+    go(l),
+  );
 };

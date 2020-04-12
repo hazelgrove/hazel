@@ -1174,13 +1174,10 @@ module Exp = {
       )
       : option((DHExp.t, Delta.t)) => {
     let splice_map = si.splice_map;
-    let names_to_vars_list: list((SpliceInfo.splice_name, Var.t)) =
+    let names_to_vars_list: list((SpliceName.t, Var.t)) =
       NatMap.to_list(names_to_vars);
     List.fold_left(
-      (
-        res: option((DHExp.t, Delta.t)),
-        (name: SpliceInfo.splice_name, var: Var.t),
-      ) => {
+      (res: option((DHExp.t, Delta.t)), (name: SpliceName.t, var: Var.t)) => {
         switch (res) {
         | None => None
         | Some((expansion, delta)) =>

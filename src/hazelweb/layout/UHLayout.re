@@ -3,6 +3,7 @@ open Pretty;
 type annot = UHAnnot.t;
 
 type t = Layout.t(UHAnnot.t);
+type with_splices = (t, SpliceMap.t(t));
 
 // TODO shouldn't need this, refactor to use option
 module QueryResult = {
@@ -61,6 +62,45 @@ let has_para_OpenChild =
     | _ => Stop,
   );
 
+type pos = {
+  indent: int,
+  row: int,
+  col: int,
+};
+
+let fold =
+    (
+      ~linebreak: 'a,
+      ~text: string => 'a,
+      ~align: 'a => 'a,
+      ~cat: ('a, 'a) => 'a,
+      ~annot: (pos, UHAnnot.t, 'a) => 'a,
+      l: t,
+    ) => {
+  let row = ref(0);
+  let col = ref(0);
+  let rec go = (~indent, l: t) => {
+    let go' = go(~indent);
+    let pos = {indent, row: row^, col: col^};
+    switch (l) {
+    | Linebreak =>
+      row := row^ + 1;
+      col := indent;
+      linebreak;
+    | Text(s) =>
+      col := col^ + StringUtil.utf8_length(s);
+      text(s);
+    | Align(l) => align(go(~indent=col^, l))
+    | Cat(l1, l2) =>
+      let a1 = go'(l1);
+      let a2 = go'(l2);
+      cat(a1, a2);
+    | Annot(ann, l) => annot(pos, ann, go'(l))
+    };
+  };
+  go(~indent=0, l);
+};
+
 // TODO should be possible to make polymorphic over annot
 // but was getting confusing type inference error
 let rec find_and_decorate_Annot =
@@ -84,35 +124,53 @@ let rec find_and_decorate_Annot =
   };
 };
 
-let rec follow_steps_and_decorate =
-        (~steps: CursorPath.steps, ~decorate: t => option(t), l: t)
-        : option(t) => {
-  let go = follow_steps_and_decorate(~decorate);
-  switch (steps) {
-  | [] => decorate(l)
-  | [next_step, ...rest] =>
-    l
-    |> find_and_decorate_Annot((annot: UHAnnot.t, l: t) => {
-         switch (annot) {
-         | Step(step) when step == next_step =>
-           l
-           |> go(~steps=rest)
-           |> OptUtil.map(l => Layout.Annot(annot, l))
-           |> QueryResult.of_opt
-         | OpenChild(_)
-         | ClosedChild(_)
-         | DelimGroup
-         | LetLine
-         | Term(_) => Skip
-         | _ => Stop
-         }
-       })
-  };
+let follow_steps_and_decorate =
+    (
+      ~steps: CursorPath.steps,
+      ~decorate: t => option(t),
+      (l, splice_ls): with_splices,
+    )
+    : option(with_splices) => {
+  let splice_ls = ref(splice_ls);
+  let rec go = (~steps, l) =>
+    switch (steps) {
+    | [] => decorate(l)
+    | [next_step, ...rest] =>
+      l
+      |> find_and_decorate_Annot((annot: UHAnnot.t, l: t) => {
+           switch (annot) {
+           | Step(step) when step == next_step =>
+             l
+             |> go(~steps=rest)
+             |> OptUtil.map(Layout.annot(annot))
+             |> QueryResult.of_opt
+           | LivelitView({llu, _}) =>
+             splice_ls^
+             |> SpliceMap.get_splice(llu, next_step)
+             |> go(~steps=rest)
+             |> OptUtil.map(new_splice_layout => {
+                  splice_ls :=
+                    splice_ls^
+                    |> SpliceMap.put_splice(llu, next_step, new_splice_layout);
+                  Layout.annot(annot, l);
+                })
+             |> QueryResult.of_opt
+           | OpenChild(_)
+           | ClosedChild(_)
+           | DelimGroup
+           | LetLine
+           | Term(_) => Skip
+           | _ => Stop
+           }
+         })
+    };
+  l |> go(~steps) |> Option.map(decorated => (decorated, splice_ls^));
 };
 
 let find_and_decorate_caret =
-    (~path as (steps, cursor): CursorPath.t, l: t): option(t) =>
-  l
+    (~path as (steps, cursor): CursorPath.t, l_with_splices: with_splices)
+    : option(with_splices) =>
+  l_with_splices
   |> follow_steps_and_decorate(
        ~steps,
        ~decorate=
@@ -172,51 +230,63 @@ let find_and_decorate_caret =
      );
 
 // TODO document difference from follow_steps_and_decorate
-let rec find_and_decorate_Term =
-        (
-          ~steps: CursorPath.steps,
-          ~decorate_Term: (UHAnnot.term_data, t) => t,
-          l: t,
-        )
-        : option(t) => {
-  let go = find_and_decorate_Term(~decorate_Term);
-  switch (steps) {
-  | [] =>
-    l
-    |> find_and_decorate_Annot((annot, l) =>
-         switch (annot) {
-         | Term(term_data) => Return(decorate_Term(term_data, l))
-         | _ => Stop
-         }
-       )
-  | [next_step, ...rest] =>
-    l
-    |> find_and_decorate_Annot((annot, l) => {
-         let take_step = () =>
-           l
-           |> go(~steps=rest)
-           |> OptUtil.map(l => Layout.Annot(annot, l))
-           |> QueryResult.of_opt;
-         let found_term_if = (cond, term_data) =>
-           cond && rest == []
-             ? QueryResult.Return(decorate_Term(term_data, l)) : Skip;
-         switch (annot) {
-         | Step(step) => step == next_step ? take_step() : Stop
-         | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
-           found_term_if(hd_index == next_step, term_data)
-         | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
-           found_term_if(comma_indices |> List.mem(next_step), term_data)
-         | Term({shape: BinOp({op_index, _}), _} as term_data) =>
-           found_term_if(op_index == next_step, term_data)
-         | OpenChild(_)
-         | ClosedChild(_)
-         | DelimGroup
-         | LetLine
-         | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
-         | _ => Stop
-         };
-       })
-  };
+let find_and_decorate_Term =
+    (
+      ~steps: CursorPath.steps,
+      ~decorate_Term: (UHAnnot.term_data, t) => t,
+      (l, splice_ls): with_splices,
+    )
+    : option(with_splices) => {
+  let splice_ls = ref(splice_ls);
+  let rec go = (~steps, l) =>
+    switch (steps) {
+    | [] =>
+      l
+      |> find_and_decorate_Annot((annot, l) =>
+           switch (annot) {
+           | Term(term_data) => Return(decorate_Term(term_data, l))
+           | _ => Stop
+           }
+         )
+    | [next_step, ...rest] =>
+      l
+      |> find_and_decorate_Annot((annot, l) => {
+           let found_term_if = (cond, term_data) =>
+             cond && rest == []
+               ? QueryResult.Return(decorate_Term(term_data, l)) : Skip;
+           switch (annot) {
+           | Step(step) when step == next_step =>
+             l
+             |> go(~steps=rest)
+             |> OptUtil.map(Layout.annot(annot))
+             |> QueryResult.of_opt
+           | LivelitView({llu, _}) =>
+             splice_ls^
+             |> SpliceMap.get_splice(llu, next_step)
+             |> go(~steps=rest)
+             |> OptUtil.map(new_splice_layout => {
+                  splice_ls :=
+                    splice_ls^
+                    |> SpliceMap.put_splice(llu, next_step, new_splice_layout);
+                  Layout.annot(annot, l);
+                })
+             |> QueryResult.of_opt
+           | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
+             found_term_if(hd_index == next_step, term_data)
+           | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
+             found_term_if(comma_indices |> List.mem(next_step), term_data)
+           | Term({shape: BinOp({op_index, _}), _} as term_data) =>
+             found_term_if(op_index == next_step, term_data)
+           | OpenChild(_)
+           | ClosedChild(_)
+           | DelimGroup
+           | LetLine
+           | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
+           | _ => Stop
+           };
+         })
+    };
+  l |> go(~steps) |> Option.map(decorated => (decorated, splice_ls^));
 };
 
 let find_and_decorate_cursor =

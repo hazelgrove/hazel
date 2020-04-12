@@ -3,6 +3,7 @@ open Pretty;
 module Vdom = Virtual_dom.Vdom;
 
 type t = Doc.t(UHAnnot.t);
+type with_splices = (t, SpliceMap.t(t));
 
 let empty_ = Doc.empty();
 let space_ = Doc.space();
@@ -353,12 +354,7 @@ let mk_FreeLivelit = (lln: LivelitName.t): t =>
   annot_FreeLivelit(mk_text(lln));
 
 let mk_ApLivelit =
-    (
-      lln: LivelitName.t,
-      llview: Livelits.LivelitView.t,
-      splice_docs: NatMap.t(t),
-    )
-    : t => {
+    (llu: MetaVar.t, lln: LivelitName.t, llview: Livelits.LivelitView.t): t => {
   let lln_doc = mk_text(lln);
   let llview_doc = {
     let spaceholder =
@@ -366,10 +362,7 @@ let mk_ApLivelit =
       | Inline(_, width) => String.make(width, ' ')
       | MultiLine(_) => "" // TODO multiline spaceholders
       };
-    Doc.annot(
-      UHAnnot.LivelitView({llview, splice_docs}),
-      Doc.text(spaceholder),
-    );
+    Doc.annot(UHAnnot.LivelitView({llu, llview}), Doc.text(spaceholder));
   };
   annot_ApLivelit(Doc.hcats([lln_doc, llview_doc]));
 };
@@ -644,7 +637,8 @@ module Exp = {
         ~llii: NodeInstanceInfo.t,
         e: UHExp.t,
       )
-      : t => {
+      : with_splices => {
+    let splice_docs = ref(SpliceMap.empty);
     let rec mk_block =
             (~offset=0, ~enforce_inline: bool, block: UHExp.block): t =>
       if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
@@ -746,10 +740,19 @@ module Exp = {
             |> OptUtil.and_then(NodeInstanceInfo.lookup(llii))
             |> OptUtil.map(fst);
           let llview = svf(m, env_opt, _ => Vdom.Event.Ignore);
-          let splice_docs =
-            splice_info.splice_map
-            |> NatMap.map(((_, se)) => mk_block(~enforce_inline, se));
-          mk_ApLivelit(lln, llview, splice_docs);
+          splice_docs :=
+            splice_docs^
+            |> SpliceMap.put_ap(
+                 llu,
+                 splice_info.splice_map
+                 |> NatMap.to_list
+                 |> List.to_seq
+                 |> SpliceMap.ApMap.of_seq
+                 |> SpliceMap.ApMap.map(((_splice_ty, splice_e)) =>
+                      mk_block(~enforce_inline, splice_e)
+                    ),
+               );
+          mk_ApLivelit(llu, lln, llview);
         }
       }
     and mk_rule = (Rule(p, clause): UHExp.rule): t => {
@@ -776,6 +779,8 @@ module Exp = {
           : Unformatted(formattable);
       };
     };
-    mk_block(~enforce_inline, e);
+
+    let doc = mk_block(~enforce_inline, e);
+    (doc, splice_docs^);
   };
 };

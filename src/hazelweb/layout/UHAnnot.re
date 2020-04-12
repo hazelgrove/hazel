@@ -25,8 +25,8 @@ type t =
   | Step(int)
   | Term(term_data)
   | LivelitView({
+      llu: MetaVar.t,
       llview: Livelits.LivelitView.t,
-      splice_docs: NatMap.t(Doc.t(t)),
     })
 and term_data = {
   has_cursor: bool,

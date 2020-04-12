@@ -4,8 +4,7 @@ type out('a) = ('a, esi, MetaVarGen.t);
 type t('a) = (esi, MetaVarGen.t) => out('a);
 let return = (x, psi, u_gen) => (x, psi, u_gen);
 let new_splice =
-    ({next, splice_map, splice_order}: esi, u_gen)
-    : out(SpliceInfo.splice_name) => {
+    ({next, splice_map, splice_order}: esi, u_gen): out(SpliceName.t) => {
   let (u, u_gen) = MetaVarGen.next_hole(u_gen);
   (
     next,

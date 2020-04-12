@@ -5,6 +5,8 @@ type t('a) = list((int, 'a));
 
 let empty = [];
 
+let singleton = (u, a) => [(u, a)];
+
 let extend_unique = (delta, x) => [x, ...delta];
 
 let rec drop = (delta, n) =>

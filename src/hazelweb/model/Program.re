@@ -1,6 +1,5 @@
-module Result_ = Result;
-open Core_kernel;
-module Result = Result_;
+module Memo = Core_kernel.Memo;
+open Pretty;
 
 type t = {
   width: int,
@@ -144,10 +143,44 @@ let cursor_on_inst = program => program |> get_zexp |> _cursor_on_inst;
 
 let get_layout = program => {
   let width = program |> get_width;
-  program
-  |> get_doc
-  |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
-  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+  let (doc, splice_docs) = program |> get_doc;
+  let layout =
+    doc
+    |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
+    |> OptUtil.get(() =>
+         failwith(__LOC__ ++ ": unimplemented on layout failure")
+       );
+  let splice_layouts =
+    layout
+    |> UHLayout.fold(
+         ~linebreak=MetaVarMap.empty,
+         ~text=_ => MetaVarMap.empty,
+         ~align=ls => ls,
+         ~cat=(ls1, ls2) => ls1 @ ls2,
+         ~annot=
+           (pos, annot, ls) =>
+             switch (annot) {
+             | LivelitView({llu, _}) =>
+               let layouts =
+                 MetaVarMap.lookup(splice_docs, llu)
+                 |> Option.get
+                 |> SpliceMap.ApMap.map(doc =>
+                      doc
+                      |> LayoutOfDoc.layout_of_doc(
+                           ~width=width - pos.indent,
+                           ~pos=0,
+                         )
+                      |> OptUtil.get(() =>
+                           failwith(
+                             __LOC__ ++ ": unimplemented on layout failure",
+                           )
+                         )
+                    );
+               MetaVarMap.extend_unique(ls, (llu, layouts));
+             | _ => ls
+             },
+       );
+  (layout, splice_layouts);
 };
 
 let decorate_caret = (path, l) =>
@@ -158,21 +191,23 @@ let decorate_cursor = (steps, l) =>
   l
   |> UHLayout.find_and_decorate_cursor(~steps)
   |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
-let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
+let decorate_var_uses = (ci: CursorInfo.t, l) =>
   switch (ci.uses) {
   | None => l
   | Some(uses) =>
     uses
-    |> List.fold(~init=l, ~f=(l: UHLayout.t, use) =>
-         l
-         |> UHLayout.find_and_decorate_var_use(~steps=use)
-         |> OptUtil.get(() => {
-              failwith(
-                __LOC__
-                ++ ": could not find var use"
-                ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
-              )
-            })
+    |> List.fold_left(
+         (l, use) =>
+           l
+           |> UHLayout.find_and_decorate_var_use(~steps=use)
+           |> OptUtil.get(() => {
+                failwith(
+                  __LOC__
+                  ++ ": could not find var use"
+                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+                )
+              }),
+         l,
        )
   };
 
@@ -203,8 +238,16 @@ let get_cursor_map_z = program => {
 let get_cursor_map = program => program |> get_cursor_map_z |> fst;
 
 let perform_move_action = (move_key, program) => {
-  let (cmap, z) = program |> get_cursor_map_z;
-  switch (cmap |> CursorMap.move(move_key, z)) {
+  let ((cmap, splice_cmaps), z) = program |> get_cursor_map_z;
+  let (map, row_col) =
+    switch (z) {
+    | (None, row_col) => (cmap, row_col)
+    | (Some((llu, splice_name)), row_col) => (
+        splice_cmaps |> SpliceMap.get_splice(llu, splice_name),
+        row_col,
+      )
+    };
+  switch (map |> CursorMap.move(move_key, row_col)) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);

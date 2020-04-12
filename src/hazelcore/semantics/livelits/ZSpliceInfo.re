@@ -4,9 +4,9 @@ open Sexplib.Std;
 type zsplice_map('exp, 'zexp) = ZNatMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
 [@deriving sexp]
 type t('exp, 'zexp) = {
-  next: SpliceInfo.splice_name,
+  next: SpliceName.t,
   zsplice_map: zsplice_map('exp, 'zexp),
-  splice_order: list(SpliceInfo.splice_name),
+  splice_order: list(SpliceName.t),
 };
 let erase = (zpsi: t('exp, 'zexp), erase_z): SpliceInfo.t('exp) =>
   SpliceInfo.{

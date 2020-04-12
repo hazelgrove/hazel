@@ -9,7 +9,7 @@ type div_type = Vdom.Node.t;
 
 module VdomWithSplices = {
   type t =
-    | NewSpliceFor(SpliceInfo.splice_name)
+    | NewSpliceFor(SpliceName.t)
     | Bind(t, div_type => t)
     | Ret(div_type);
 };
