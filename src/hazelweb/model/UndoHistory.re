@@ -15,6 +15,7 @@ type cursor_term_info = {
   cursor_term_before: cursor_term,
   cursor_term_after: cursor_term,
   zexp_before: ZExp.t,
+  zexp_after: ZExp.t,
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
@@ -57,6 +58,7 @@ let get_cursor_info =
     cursor_term_before,
     cursor_term_after,
     zexp_before,
+    zexp_after,
     prev_is_empty_line,
     next_is_empty_line,
   };
@@ -395,7 +397,10 @@ let delim_edge_handle =
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     DeleteEdit(EmptyLine);
-  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
+             && ZExp.erase(new_cursor_term_info.zexp_before)
+             != ZExp.erase(new_cursor_term_info.zexp_after)) {
+    /* delete space */
     DeleteEdit(Space);
   } else {
     Ignore;
@@ -430,7 +435,7 @@ let delete =
           TypeAnn,
         );
       } else {
-        /* delete the whole term. */
+        /* delete the whole term */
         let initial_term =
           get_original_deleted_term(prev_group, new_cursor_term_info);
         DeleteEdit(Term(initial_term));
