@@ -40,8 +40,7 @@ type t = {
   all_hidden_history_expand: bool,
 };
 
-type entry_base = (cursor_term_info, Action.t, Cardstacks.t); 
-
+type entry_base = (cursor_term_info, Action.t, Cardstacks.t);
 
 /* return value: cursor_term,prev_is_empty_line: bool, next_is_empty_line: bool, */
 let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool, bool) => {
