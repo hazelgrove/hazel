@@ -100,7 +100,7 @@ let push_history_entry =
     /* if edit_action is Ignore, the successory history should not be cleared */
     if (prev_entry.edit_action == Ignore) {
       {
-        /* only store 1 cursor-move (Ignore) entry if there are consecutive cursor-move actions */
+        /* only store 1 cursor-move (Ignore) entry if there are consecutive cursor move actions */
 
         ...prev_group,
         group_entries: ZList.replace_z(new_entry, prev_group.group_entries),
