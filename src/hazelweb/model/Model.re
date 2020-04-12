@@ -26,19 +26,11 @@ let cardstack_info = [
 let init = (): t => {
   let cardstacks = Cardstacks.mk(cardstack_info);
   let undo_history: UndoHistory.t = {
-    let (cursor_term, prev_is_empty_line, next_is_empty_line) =
-      UndoHistory.get_cursor_info(cardstacks);
-    let zexp =
-      ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
+    let cursor_term_info =
+      UndoHistory.get_cursor_info(~cardstacks_after=cardstacks, ());
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
-      cursor_term_info: {
-        cursor_term_before: cursor_term,
-        cursor_term_after: cursor_term,
-        zexp,
-        prev_is_empty_line,
-        next_is_empty_line,
-      },
+      cursor_term_info,
       previous_action: Construct(SOp(SSpace)),
       edit_action: Ignore,
     };
