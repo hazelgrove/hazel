@@ -160,7 +160,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Node.div(
           [
             Attr.on_click(_ =>
-              inject(Update.Action.ToggleHistoryGroup(group_id))
+              Vdom.Event.Many([
+                inject(Update.Action.ToggleHistoryGroup(group_id)),
+                inject(FocusCell),
+              ])
             ),
           ],
           [icon],
@@ -236,7 +239,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [
                     Attr.classes(["the-history-title-txt"]),
                     Attr.on_click(_ =>
-                      inject(Update.Action.ShiftHistory(group_id, elt_id))
+                      Vdom.Event.Many([
+                        inject(Update.Action.ShiftHistory(group_id, elt_id)),
+                        inject(FocusCell),
+                      ])
                     ),
                   ],
                   [Node.text(str)],
@@ -264,7 +270,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [
             Attr.classes(["the-hidden-history-entry"]),
             Attr.on_click(_ =>
-              inject(Update.Action.ShiftHistory(group_id, elt_id))
+              Vdom.Event.Many([
+                inject(Update.Action.ShiftHistory(group_id, elt_id)),
+                inject(FocusCell),
+              ])
             ),
           ],
           [Node.text(str)],
@@ -702,7 +711,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [
           Attr.classes(["history-button"]),
-          Attr.on_click(_ => inject(Update.Action.Undo)),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([inject(Update.Action.Undo), inject(FocusCell)])
+          ),
         ],
         [
           Node.div(
@@ -719,7 +730,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [
           Attr.classes(["history-button"]),
-          Attr.on_click(_ => inject(Update.Action.Redo)),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([inject(Update.Action.Redo), inject(FocusCell)])
+          ),
         ],
         [
           Icons.redo(["redo-undo-icon"]),
@@ -742,7 +755,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [
           Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
-          Attr.on_click(_ => inject(Update.Action.ToggleHiddenHistoryAll)),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              inject(Update.Action.ToggleHiddenHistoryAll),
+              inject(FocusCell),
+            ])
+          ),
         ],
         [icon],
       )
