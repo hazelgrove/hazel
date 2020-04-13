@@ -79,7 +79,9 @@ module Pat = {
            )
         |> expand_result_of_option;
       | _ =>
-        raise(Invalid_argument("Encountered tuple pattern type with 0 elements!"))
+        raise(
+          Invalid_argument("Encountered tuple pattern type with 0 elements!"),
+        )
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
@@ -717,7 +719,8 @@ module Exp = {
         | Matches(env2) => Matches(Environment.union(env1, env2))
         }
       }
-    | Cast(d', Prod([]), Prod([])) => matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+    | Cast(d', Prod([]), Prod([])) =>
+      matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
     | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
       matches_cast_Pair(
         dp1,
@@ -997,7 +1000,9 @@ module Exp = {
            )
         |> expand_result_of_option;
       | _ =>
-        raise(Invalid_argument("Encountered tuple pattern type with 0 elements!"))
+        raise(
+          Invalid_argument("Encountered tuple pattern type with 0 elements!"),
+        )
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
