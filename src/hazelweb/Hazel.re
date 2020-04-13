@@ -16,7 +16,10 @@ let on_startup = (~schedule_action, _) => {
       schedule_action(Update.Action.FocusWindow);
       Js._true;
     });
+
   schedule_action(Update.Action.FocusCell);
+  JSUtil.force_get_elem_by_id("cell")##focus;
+
   let update_font_metrics = () => {
     let rect =
       JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
@@ -28,6 +31,7 @@ let on_startup = (~schedule_action, _) => {
     );
   };
   update_font_metrics();
+
   Dom_html.window##.onresize :=
     Dom_html.handler(_ => {
       update_font_metrics();
