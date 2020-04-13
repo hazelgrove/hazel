@@ -68,11 +68,12 @@ let create =
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (_, ~schedule_action as _) => {
-        let caret_elem = JSUtil.force_get_elem_by_id("caret");
-        restart_cursor_animation(caret_elem);
-        scroll_cursor_into_view_if_needed(caret_elem);
-      },
+      (_, ~schedule_action as _) =>
+        if (model.is_cell_focused) {
+          let caret_elem = JSUtil.force_get_elem_by_id("caret");
+          restart_cursor_animation(caret_elem);
+          scroll_cursor_into_view_if_needed(caret_elem);
+        },
     model,
     Page.view(~inject, model),
   );
