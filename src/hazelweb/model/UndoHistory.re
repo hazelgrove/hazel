@@ -41,7 +41,7 @@ type t = {
 };
 
 let get_cursor_info =
-    (~cardstacks_after: Cardstacks.t, ~cardstacks_before=cardstacks_after, ())
+    (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
     : cursor_term_info => {
   let zexp_before =
     ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
@@ -611,7 +611,7 @@ let push_edit_state =
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
-    get_cursor_info(~cardstacks_before, ~cardstacks_after, ());
+    get_cursor_info(~cardstacks_before, ~cardstacks_after);
   let new_edit_action =
     get_new_edit_action(~prev_group, ~new_cursor_term_info, ~action);
   let new_entry = {
@@ -620,38 +620,55 @@ let push_edit_state =
     previous_action: action,
     edit_action: new_edit_action,
   };
-  if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
-    let new_group = push_history_entry(~prev_group, ~new_entry);
-    if (new_edit_action != Ignore) {
-      {
-        ...undo_history,
-        groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
-        latest_timestamp: Unix.time(),
-      };
-    } else {
-      {
-        ...undo_history,
-        groups: ZList.replace_z(new_group, undo_history.groups),
-      };
-    };
-  } else {
-    let timestamp = Unix.time();
-    let new_group = {
-      group_entries: ([], new_entry, []),
-      is_expanded: false,
-      timestamp,
-      display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
-    };
-    {
-      ...undo_history,
-      groups: (
-        [],
-        new_group,
-        [prev_group, ...ZList.prj_suffix(undo_history.groups)],
-      ),
-      latest_timestamp: timestamp,
-    };
+
+  let timestamp = Unix.time();
+  let new_group = {
+    group_entries: ([], new_entry, []),
+    is_expanded: false,
+    timestamp,
+    display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
   };
+  {
+    ...undo_history,
+    groups: (
+      [],
+      new_group,
+      [prev_group, ...ZList.prj_suffix(undo_history.groups)],
+    ),
+    latest_timestamp: timestamp,
+  };
+  /*   if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
+         let new_group = push_history_entry(~prev_group, ~new_entry);
+         if (new_edit_action != Ignore) {
+           {
+             ...undo_history,
+             groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+             latest_timestamp: Unix.time(),
+           };
+         } else {
+           {
+             ...undo_history,
+             groups: ZList.replace_z(new_group, undo_history.groups),
+           };
+         };
+       } else {
+         let timestamp = Unix.time();
+         let new_group = {
+           group_entries: ([], new_entry, []),
+           is_expanded: false,
+           timestamp,
+           display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
+         };
+         {
+           ...undo_history,
+           groups: (
+             [],
+             new_group,
+             [prev_group, ...ZList.prj_suffix(undo_history.groups)],
+           ),
+           latest_timestamp: timestamp,
+         };
+       }; */
 };
 
 let set_all_hidden_history = (undo_history: t, expanded: bool): t => {

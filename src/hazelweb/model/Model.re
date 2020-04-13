@@ -27,7 +27,10 @@ let init = (): t => {
   let cardstacks = Cardstacks.mk(cardstack_info);
   let undo_history: UndoHistory.t = {
     let cursor_term_info =
-      UndoHistory.get_cursor_info(~cardstacks_after=cardstacks, ());
+      UndoHistory.get_cursor_info(
+        ~cardstacks_after=cardstacks,
+        ~cardstacks_before=cardstacks,
+      );
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
       cursor_term_info,
