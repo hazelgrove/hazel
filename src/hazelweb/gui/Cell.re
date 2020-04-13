@@ -74,7 +74,10 @@ let on_click =
     );
     let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
     let path = CursorPath.rev(rev_path);
-    inject(Update.Action.EditAction(MoveTo(path)));
+    Vdom.Event.Many([
+      inject(Update.Action.EditAction(MoveTo(path))),
+      inject(Update.Action.FocusCell),
+    ]);
   } else {
     Vdom.Event.Many([]);
   };
@@ -144,7 +147,6 @@ let view = (~inject, model: Model.t) => {
       Attr.id(cell_id),
       // necessary to make cell focusable
       Attr.create("tabindex", "0"),
-      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
       Attr.on_blur(_ => inject(Update.Action.BlurCell)),
       ...evt_handlers,
     ],
