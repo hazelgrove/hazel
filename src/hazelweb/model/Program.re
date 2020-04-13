@@ -3,16 +3,28 @@ open Core_kernel;
 module Result = Result_;
 
 type t = {
-  width: int,
   edit_state: Statics.edit_state,
+  width: int,
+  start_col_of_vertical_movement: option(int),
 };
 
 let mk = (~width: int, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
+  start_col_of_vertical_movement: None,
 };
 
 let get_width = program => program.width;
+
+let get_start_col = program => program.start_col_of_vertical_movement;
+let put_start_col = (start_col, program) => {
+  ...program,
+  start_col_of_vertical_movement: Some(start_col),
+};
+let clear_start_col = program => {
+  ...program,
+  start_col_of_vertical_movement: None,
+};
 
 let get_edit_state = program => program.edit_state;
 let put_edit_state = (edit_state, program) => {...program, edit_state};
@@ -166,13 +178,31 @@ let get_cursor_map_z = program => {
 
 let get_cursor_map = program => program |> get_cursor_map_z |> fst;
 
-let perform_move_action = (move_key, program) => {
-  let (cmap, z) = program |> get_cursor_map_z;
-  switch (cmap |> CursorMap.move(move_key, z)) {
+let perform_move_action = (move_key: JSUtil.MoveKey.t, program) => {
+  let (cmap, ((row, col), _) as z) = program |> get_cursor_map_z;
+  let (from_col, put_col_on_start) =
+    switch (program |> get_start_col) {
+    | None => (col, put_start_col(col))
+    | Some(col) => (col, (p => p))
+    };
+  let (new_z, update_start_col) =
+    switch (move_key) {
+    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
+    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
+    | ArrowUp => (
+        cmap |> CursorMap.move_up((row, from_col)),
+        put_col_on_start,
+      )
+    | ArrowDown => (
+        cmap |> CursorMap.move_down((row, from_col)),
+        put_col_on_start,
+      )
+    };
+  switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);
-    program |> perform_edit_action(MoveTo(path));
+    program |> update_start_col |> perform_edit_action(MoveTo(path));
   };
 };
 
