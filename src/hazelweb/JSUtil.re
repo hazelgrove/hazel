@@ -290,6 +290,7 @@ module ModKeys = {
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
   let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
+  let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -375,6 +376,7 @@ module KeyCombo = {
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
     let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
+    let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -421,6 +423,10 @@ module KeyCombo = {
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
+    let ctrl_alt_up = ctrl_alt(Key.the_key("ArrowUp"));
+    let ctrl_alt_down = ctrl_alt(Key.the_key("ArrowDown"));
+    let ctrl_alt_left = ctrl_alt(Key.the_key("ArrowLeft"));
+    let ctrl_alt_right = ctrl_alt(Key.the_key("ArrowRight"));
   };
 
   [@deriving sexp]
@@ -452,7 +458,11 @@ module KeyCombo = {
     | Alt_Y
     | Pound
     | Ctrl_Z
-    | Ctrl_Shift_Z;
+    | Ctrl_Shift_Z
+    | Ctrl_Alt_Up
+    | Ctrl_Alt_Down
+    | Ctrl_Alt_Left
+    | Ctrl_Alt_Right;
 
   let get_details =
     fun
@@ -483,7 +493,11 @@ module KeyCombo = {
     | Alt_C => Details.alt_C
     | Alt_Y => Details.alt_Y
     | Ctrl_Z => Details.ctrl_z
-    | Ctrl_Shift_Z => Details.ctrl_shift_z;
+    | Ctrl_Shift_Z => Details.ctrl_shift_z
+    | Ctrl_Alt_Up => Details.ctrl_alt_up
+    | Ctrl_Alt_Down => Details.ctrl_alt_down
+    | Ctrl_Alt_Left => Details.ctrl_alt_left
+    | Ctrl_Alt_Right => Details.ctrl_alt_right;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -543,6 +557,14 @@ module KeyCombo = {
       Some(Alt_C);
     } else if (evt_matches(Details.alt_Y)) {
       Some(Alt_Y);
+    } else if (evt_matches(Details.ctrl_alt_up)) {
+      Some(Ctrl_Alt_Up);
+    } else if (evt_matches(Details.ctrl_alt_down)) {
+      Some(Ctrl_Alt_Down);
+    } else if (evt_matches(Details.ctrl_alt_left)) {
+      Some(Ctrl_Alt_Left);
+    } else if (evt_matches(Details.ctrl_alt_right)) {
+      Some(Ctrl_Alt_Right);
     } else {
       None;
     };
@@ -601,7 +623,13 @@ let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
     | "ArrowLeft"
     | "ArrowRight"
     | "ArrowUp"
-    | "ArrowDown"
+    | "ArrowDown" =>
+      switch (KeyCombo.of_evt(evt)) {
+      | Some(Ctrl_Alt_Up | Ctrl_Alt_Down | Ctrl_Alt_Left | Ctrl_Alt_Right) =>
+        false
+      | Some(_)
+      | None => true
+      }
     | "PageUp"
     | "PageDown"
     | "Home"

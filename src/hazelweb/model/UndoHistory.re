@@ -33,7 +33,11 @@ let undoable_action = (action: Action.t): bool => {
   | Delete
   | Backspace
   | Construct(_)
-  | SplitCases => true
+  | SplitCases
+  | SwapUp
+  | SwapDown
+  | SwapLeft
+  | SwapRight => true
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveLeft
