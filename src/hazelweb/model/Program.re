@@ -1,6 +1,4 @@
-module Result_ = Result;
-open Core_kernel;
-module Result = Result_;
+module Memo = Core_kernel.Memo;
 
 type t = {
   edit_state: Statics.edit_state,
@@ -139,16 +137,18 @@ let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
   | None => l
   | Some(uses) =>
     uses
-    |> List.fold(~init=l, ~f=(l: UHLayout.t, use) =>
-         l
-         |> UHLayout.find_and_decorate_var_use(~steps=use)
-         |> OptUtil.get(() => {
-              failwith(
-                __LOC__
-                ++ ": could not find var use"
-                ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
-              )
-            })
+    |> List.fold_left(
+         (l: UHLayout.t, use) =>
+           l
+           |> UHLayout.find_and_decorate_var_use(~steps=use)
+           |> OptUtil.get(() => {
+                failwith(
+                  __LOC__
+                  ++ ": could not find var use"
+                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+                )
+              }),
+         l,
        )
   };
 
