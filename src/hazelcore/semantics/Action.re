@@ -2083,7 +2083,7 @@ module Exp = {
     | CaseZR(_, _, ([], RuleZP(zpat, _), []), _) => {
         let OpSeq(_, seq) = ZPat.erase(zpat);
         // Only try to derive type and continue if the only rule was just an empty hole
-        !(seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole);
+        seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
       }
     | _ => false;
 
