@@ -32,6 +32,19 @@ let view = (model: Model.t): Vdom.Node.t => {
       )
     );
 
+  let special_msg_ty_bar = (opt_ty, msg: string) =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar", "special-msg-bar"])],
+        (
+          switch (opt_ty) {
+          | Some(ty) => [Node.text("of "), HTypCode.view(ty)]
+          | None => [Node.text("of expected type, ")]
+          }
+        )
+        @ [Node.text(msg)],
+      )
+    );
   let special_msg_bar = (msg: string) =>
     Vdom.(
       Node.div(
@@ -98,33 +111,36 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
   let got_duplicate_indicator =
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
-
-  let got_var_indicator = (var, shadow, num_of_uses) =>
+  let got_var_indicator = (opt_ty, shadow, num_of_uses) =>
     got_indicator(
-      "Got a var pattern " ++ (shadow ? " shadowing previous variable" : ""),
-      special_msg_bar(
-        var ++ " is used " ++ Int.to_string(num_of_uses) ++ " times",
+      "Got a variable",
+      special_msg_ty_bar(
+        opt_ty,
+        (shadow ? " shadowing previous variable, " : "")
+        ++ "used "
+        ++ Int.to_string(num_of_uses)
+        ++ " times",
       ),
     );
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let (ind1, ind2, err_state_b) =
+  let (ind1, ind2, err_state_b, warn_state_b) =
     switch (ci.typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, NoWarn);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -138,38 +154,38 @@ let view = (model: Model.t): Vdom.Node.t => {
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, NoWarn);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, NoWarn);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -181,7 +197,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           )
         | _ => got_indicator("Got", typebar(syn_ty))
         };
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | SynKeywordArrow(matched_ty, _k) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -189,7 +205,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           "Got a keyword ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -197,20 +213,23 @@ let view = (model: Model.t): Vdom.Node.t => {
           "Got a free variable ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
-      (ind1, ind2, OK);
-    | PatAnalyzed(ty)
-    | PatAnaVar(ty, _, _, _) =>
+      (ind1, ind2, OK, NoWarn);
+    | PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
+    | PatAnaVar(ty, _, shadow, uses) =>
+      let ind1 = expected_ty_indicator_pat(ty);
+      let ind2 = got_var_indicator(None, shadow, List.length(uses));
+      (ind1, ind2, OK, shadow ? VarShadow : NoWarn);
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, NoWarn);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -224,54 +243,48 @@ let view = (model: Model.t): Vdom.Node.t => {
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, NoWarn);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | PatAnaDuplicate(expected_ty, _var) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_duplicate_indicator;
-      (ind1, ind2, BindingError);
-    | PatSynthesized(ty)
-    | PatSynVar(ty, _, _, _) =>
+      (ind1, ind2, BindingError, NoWarn);
+    | PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
+    | PatSynVar(ty, _, shadow, uses) =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_var_indicator(Some(ty), shadow, List.length(uses));
+      (ind1, ind2, OK, shadow ? VarShadow : NoWarn);
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | PatSynDuplicate(_var) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_duplicate_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, NoWarn);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, NoWarn);
     | OnRule =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
-    };
-
-  let (var_ind, warn_state_b) =
-    switch (ci.typed) {
-    | PatAnaVar(_, var, shadow, uses)
-    | PatSynVar(_, var, shadow, uses) =>
-      let var_ind = got_var_indicator(var, shadow, List.length(uses));
-      (Some(var_ind), shadow ? VarShadow : NoWarn);
-    | _ => (None, NoWarn)
+      (ind1, ind2, OK, NoWarn);
     };
 
   let cls_of_err_state_b =
@@ -292,27 +305,17 @@ let view = (model: Model.t): Vdom.Node.t => {
       [Attr.classes(["cursor-inspector-outer"])],
       [
         Node.div(
-          [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
+          [
+            Attr.classes([
+              "panel",
+              "cursor-inspector",
+              cls_of_err_state_b,
+              cls_of_warn_state_b,
+            ]),
+          ],
           [ind1, ind2],
         ),
-      ]
-      @ (
-        switch (var_ind) {
-        | None => []
-        | Some(var_ind) => [
-            Node.div(
-              [
-                Attr.classes([
-                  "panel",
-                  "cursor_inspector",
-                  cls_of_warn_state_b,
-                ]),
-              ],
-              [var_ind],
-            ),
-          ]
-        }
-      ),
+      ],
     )
   );
 };

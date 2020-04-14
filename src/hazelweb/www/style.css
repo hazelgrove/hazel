@@ -322,20 +322,12 @@ html, body {
 }
 
   /* warn_state */
-.cursor-NoWarn.cursor-inspector {
-  outline: 1px solid var(--title-bar-color);
-}
-
 .cursor-VarShadow.cursor-inspector {
-  outline: 1px solid #ce5f00;
-}
-
-.cursor-NoWarn .title-bar {
-  background-color: var(--title-bar-color);
+  outline: 1px solid #a7a7a7;
 }
 
 .cursor-VarShadow .title-bar {
-  background-color: #ce5f00;
+  background-color: #a7a7a7;
 }
 
 .typebar, .infobar {
