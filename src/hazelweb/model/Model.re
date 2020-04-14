@@ -212,26 +212,19 @@ let undo = (model: t): t => {
       /*if current group doesn't have previous state, shfit to previous group*/
       switch (ZList.shift_next(model.undo_history.groups)) {
       | None =>
-        JSUtil.log("none shift group");
         model.undo_history.groups;
       | Some(new_groups) =>
-        JSUtil.log("new shift group");
         let new_group = ZList.prj_z(new_groups);
-        JSUtil.log("before entries new shift group");
         let new_entries = ZList.shift_begin(new_group.group_entries);
-        JSUtil.log("after entries new shift group");
         let new_group': UndoHistory.undo_history_group = {
           ...new_group,
           group_entries: new_entries,
           is_expanded: true,
         } /* is_expanded=true because the selected group should be expanded*/;
-        JSUtil.log("after new shift group");
         let groups = ZList.replace_z(new_group', new_groups);
-        JSUtil.log("after replace shift group");
         groups;
       }
     | Some(new_group_entries) =>
-      JSUtil.log("new shift entry");
       let new_group: UndoHistory.undo_history_group = {
         ...cur_group,
         group_entries: new_group_entries,
@@ -244,11 +237,8 @@ let undo = (model: t): t => {
     };
   };
   let cur_group' = ZList.prj_z(new_groups);
-  JSUtil.log("after prj new shift group");
   let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  JSUtil.log("after cardstacks");
   let model' = model |> put_cardstacks(new_cardstacks);
-  JSUtil.log("after model");
   let new_model = {
     ...model',
     undo_history: {
@@ -256,7 +246,6 @@ let undo = (model: t): t => {
       groups: new_groups,
     },
   };
-  JSUtil.log("after model");
   new_model;
 };
 
