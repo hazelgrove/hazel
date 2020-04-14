@@ -15,13 +15,12 @@ let clss_of_err: ErrStatus.t => list(cls) =
 let clss_of_verr: VarErrStatus.t => list(cls) =
   fun
   | NotInVarHole => []
-  | InVarHole(Duplicate, _) => ["InVarHole", "Duplicate"]
   | InVarHole(_) => ["InVarHole"];
 
 let clss_of_vwarn: VarWarnStatus.t => list(cls) =
   fun
   | NoWarning => []
-  | CritUnused => ["CritUnused"];
+  | CritUnused => ["InVarWarnHole"];
 
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
@@ -460,9 +459,9 @@ let focused_view_of_layout =
       }
     };
   let l =
-    switch (ci.uses) {
-    | None => l
-    | Some(uses) =>
+    switch (ci.typed) {
+    | PatAnaVar(_, _, _, [_, ..._] as uses)
+    | PatSynVar(_, _, _, [_, ..._] as uses) =>
       uses
       |> List.fold_left(
            (l, use) =>
@@ -477,6 +476,7 @@ let focused_view_of_layout =
                 }),
            l,
          )
+    | _ => l
     };
   view_of_layout(~inject, ~show_contenteditable, l);
 };

@@ -5,6 +5,10 @@ type err_state_b =
   | BindingError
   | OK;
 
+type warn_state_b =
+  | VarShadow
+  | NoWarn;
+
 let view = (model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
@@ -94,6 +98,14 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
   let got_duplicate_indicator =
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
+
+  let got_var_indicator = (var, shadow, num_of_uses) =>
+    got_indicator(
+      "Got a var pattern " ++ (shadow ? " shadowing previous variable" : ""),
+      special_msg_bar(
+        var ++ " is used " ++ Int.to_string(num_of_uses) ++ " times",
+      ),
+    );
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let (ind1, ind2, err_state_b) =
@@ -190,7 +202,8 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
-    | PatAnalyzed(ty) =>
+    | PatAnalyzed(ty)
+    | PatAnaVar(ty, _, _, _) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
@@ -227,7 +240,8 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_duplicate_indicator;
       (ind1, ind2, BindingError);
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty)
+    | PatSynVar(ty, _, _, _) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
@@ -251,11 +265,26 @@ let view = (model: Model.t): Vdom.Node.t => {
       (ind1, ind2, OK);
     };
 
+  let (var_ind, warn_state_b) =
+    switch (ci.typed) {
+    | PatAnaVar(_, var, shadow, uses)
+    | PatSynVar(_, var, shadow, uses) =>
+      let var_ind = got_var_indicator(var, shadow, List.length(uses));
+      (Some(var_ind), shadow ? VarShadow : NoWarn);
+    | _ => (None, NoWarn)
+    };
+
   let cls_of_err_state_b =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"
     | BindingError => "cursor-BindingError"
     | OK => "cursor-OK"
+    };
+
+  let cls_of_warn_state_b =
+    switch (warn_state_b) {
+    | VarShadow => "cursor-VarShadow"
+    | NoWarn => "cursor-NoWarn"
     };
 
   Vdom.(
@@ -266,7 +295,24 @@ let view = (model: Model.t): Vdom.Node.t => {
           [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
           [ind1, ind2],
         ),
-      ],
+      ]
+      @ (
+        switch (var_ind) {
+        | None => []
+        | Some(var_ind) => [
+            Node.div(
+              [
+                Attr.classes([
+                  "panel",
+                  "cursor_inspector",
+                  cls_of_warn_state_b,
+                ]),
+              ],
+              [var_ind],
+            ),
+          ]
+        }
+      ),
     )
   );
 };

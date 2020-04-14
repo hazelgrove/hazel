@@ -68,6 +68,8 @@ type typed =
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
   // cursor is on a variable with duplicated name
   | PatAnaDuplicate(HTyp.t, Var.t)
+  // cursor is on a variable bindint site and not in var hole
+  | PatAnaVar(HTyp.t, Var.t, bool, UsageAnalysis.uses_list)
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -77,6 +79,8 @@ type typed =
   | PatSynKeyword(ExpandingKeyword.t)
   // cursor is on a variable with duplicated name
   | PatSynDuplicate(Var.t)
+  // cursor is on a variable and not in var hole
+  | PatSynVar(HTyp.t, Var.t, bool, UsageAnalysis.uses_list)
   | PatSynthesized(HTyp.t)
   /* cursor in type position */
   | OnType
@@ -90,11 +94,9 @@ type typed =
 type t = {
   typed,
   ctx: Contexts.t,
-  // hack while merging
-  uses: option(UsageAnalysis.uses_list),
 };
 
-let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
+let mk = (typed, ctx) => {typed, ctx};
 
 let get_ctx = ci => ci.ctx;
 
@@ -245,7 +247,11 @@ module Pat = {
       Statics.Pat.syn_operand(~steps, ctx, p)
       |> OptUtil.map(((ty, _)) =>
            CursorOnDeferredVarPat(
-             uses => mk(~uses, PatSynthesized(ty), ctx),
+             uses =>
+               mk(
+                 PatSynVar(ty, x, Contexts.gamma_contains(ctx, x), uses),
+                 ctx,
+               ),
              x,
            )
          )
@@ -436,7 +442,11 @@ module Pat = {
       | Var(NotInHole, _, _, x) =>
         Some(
           CursorOnDeferredVarPat(
-            uses => mk(~uses, PatAnalyzed(ty), ctx),
+            uses =>
+              mk(
+                PatAnaVar(ty, x, Contexts.gamma_contains(ctx, x), uses),
+                ctx,
+              ),
             x,
           ),
         )

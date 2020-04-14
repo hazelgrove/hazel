@@ -2378,15 +2378,11 @@ module Exp = {
         }
       | GoToFirstUsage =>
         // from binding site to first usage
-        switch (ZExp.cursor_on_VarPat(ze)) {
-        | None => Failed
-        | Some(_) =>
-          switch (ci.uses) {
-          | None
-          | Some([]) => Failed
-          | Some([steps_of_usage, ..._]) =>
-            syn_move(ctx, MoveToBefore(steps_of_usage), (ze, ty, u_gen))
-          }
+        switch (ci.typed) {
+        | PatAnaVar(_, _, _, [first_usage, ..._])
+        | PatSynVar(_, _, _, [first_usage, ..._]) =>
+          syn_move(ctx, MoveToBefore(first_usage), (ze, ty, u_gen))
+        | _ => Failed
         }
       | GoToNextUsage
       | GoToPrevUsage =>
@@ -2396,17 +2392,18 @@ module Exp = {
         | Some(x) =>
           switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
           | None => Failed
-          | Some(def_steps) =>
-            switch (syn_move(ctx, MoveToBefore(def_steps), (ze, ty, u_gen))) {
+          | Some(bind_steps) =>
+            switch (
+              syn_move(ctx, MoveToBefore(bind_steps), (ze, ty, u_gen))
+            ) {
             | (Failed | CursorEscaped(_) | Succeeded(SynExpands(_))) as err => err
             | Succeeded(SynDone((ze, ty, u_gen))) =>
               switch (CursorInfo.Exp.syn_cursor_info(Contexts.empty, ze)) {
               | None => Failed
               | Some(ci) =>
-                switch (ci.uses) {
-                | None
-                | Some([]) => Failed
-                | Some(uses) =>
+                switch (ci.typed) {
+                | PatAnaVar(_, _, _, [_, ..._] as uses)
+                | PatSynVar(_, _, _, [_, ..._] as uses) =>
                   let result_steps =
                     switch (a) {
                     | GoToNextUsage =>
@@ -2424,6 +2421,7 @@ module Exp = {
                       (ze, ty, u_gen),
                     )
                   };
+                | _ => Failed
                 }
               }
             }

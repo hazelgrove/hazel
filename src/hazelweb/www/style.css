@@ -16,6 +16,7 @@
 
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
+  --vwarn-hole-color: #ce5fff;
 
   --default-code-bg-color: transparent;
   --caret-color: red;
@@ -287,6 +288,7 @@ html, body {
 
 /* cursor inspector */
 
+  /* err_state */
 .cursor-OK.cursor-inspector {
   outline: 1px solid var(--title-bar-color);
 }
@@ -317,6 +319,23 @@ html, body {
 
 .cursor-Keyword .titlebar {
 	background-color: #ce5f00;
+}
+
+  /* warn_state */
+.cursor-NoWarn.cursor-inspector {
+  outline: 1px solid var(--title-bar-color);
+}
+
+.cursor-VarShadow.cursor-inspector {
+  outline: 1px solid #ce5f00;
+}
+
+.cursor-NoWarn .title-bar {
+  background-color: var(--title-bar-color);
+}
+
+.cursor-VarShadow .title-bar {
+  background-color: #ce5f00;
 }
 
 .typebar, .infobar {
@@ -885,6 +904,10 @@ h1 {
 }
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
+  margin: -1px;
+}
+.InVarWarnHole {
+  border: 1px dashed var(--vwarn-hole-color);
   margin: -1px;
 }
 
