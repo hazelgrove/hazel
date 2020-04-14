@@ -32,19 +32,6 @@ let view = (model: Model.t): Vdom.Node.t => {
       )
     );
 
-  let special_msg_ty_bar = (opt_ty, msg: string) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "special-msg-bar"])],
-        (
-          switch (opt_ty) {
-          | Some(ty) => [Node.text("of "), HTypCode.view(ty)]
-          | None => [Node.text("of expected type, ")]
-          }
-        )
-        @ [Node.text(msg)],
-      )
-    );
   let special_msg_bar = (msg: string) =>
     Vdom.(
       Node.div(
@@ -111,11 +98,10 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
   let got_duplicate_indicator =
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
-  let got_var_indicator = (opt_ty, shadow, num_of_uses) =>
+  let got_var_indicator = (shadow, num_of_uses) =>
     got_indicator(
       "Got a variable",
-      special_msg_ty_bar(
-        opt_ty,
+      special_msg_bar(
         (shadow ? " shadowing previous variable, " : "")
         ++ "used "
         ++ Int.to_string(num_of_uses)
@@ -224,7 +210,7 @@ let view = (model: Model.t): Vdom.Node.t => {
       (ind1, ind2, OK, NoWarn);
     | PatAnaVar(ty, _, shadow, uses) =>
       let ind1 = expected_ty_indicator_pat(ty);
-      let ind2 = got_var_indicator(None, shadow, List.length(uses));
+      let ind2 = got_var_indicator(shadow, List.length(uses));
       (ind1, ind2, OK, shadow ? VarShadow : NoWarn);
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
@@ -263,9 +249,9 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK, NoWarn);
-    | PatSynVar(ty, _, shadow, uses) =>
+    | PatSynVar(_, _, shadow, uses) =>
       let ind1 = expected_any_indicator_pat;
-      let ind2 = got_var_indicator(Some(ty), shadow, List.length(uses));
+      let ind2 = got_var_indicator(shadow, List.length(uses));
       (ind1, ind2, OK, shadow ? VarShadow : NoWarn);
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
