@@ -323,6 +323,7 @@ html, body {
   font-size: 125%;
   padding: 5px;
   min-height: 35px;
+  max-height: 100px;
   display: flex;
   align-items: center;
 }
@@ -361,6 +362,9 @@ html, body {
 .inconsistent-branches-ty-bar {
   flex-direction: column;
   align-items: flex-start;
+  flex-basis: auto;
+  /* enable scroll */
+  overflow-y: auto;
 }
 
 .inconsistent-branches-ty-bar > :nth-child(even) {
