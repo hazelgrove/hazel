@@ -165,6 +165,39 @@ and is_before_zoperand =
   | CaseZR(_)
   | CaseZA(_) => false
   | ApPaletteZ(_) => false;
+
+// The following 2 functions are specifically for CommentLines!!
+// Check if the cursor at "OnDelim(After)" in a (sub) "CommentLine"
+/* For example:
+           # Comment1
+           #| Comment2
+
+   */
+let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
+  switch (zline) {
+  | CursorL(cursor, CommentLine(_)) =>
+    switch (prefix |> ListUtil.split_last) {
+    | Some((_, CommentLine(_))) => cursor == OnDelim(0, After)
+    | _ => false
+    }
+  | _ => false
+  };
+// Check if the cursor at the end of a (pre) "CommentLine"
+/* For example:
+           # Comment1|
+           # Comment2
+
+   */
+let is_end_of_comment = ((_, zline, suffix): zblock): bool =>
+  switch (zline) {
+  | CursorL(cursor, CommentLine(comment)) =>
+    switch (suffix) {
+    | [CommentLine(_), ..._] => cursor == OnText(String.length(comment))
+    | _ => false
+    }
+  | _ => false
+  };
+
 let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true

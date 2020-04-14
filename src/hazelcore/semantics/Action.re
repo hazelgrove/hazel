@@ -2349,22 +2349,40 @@ module Exp = {
     | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
 
     /* Backspace & Delete */
-
-    | Backspace =>
-      switch (zline) {
-      | CursorL(OnDelim(_, After), CommentLine(comment)) =>
-        switch (prefix |> ListUtil.split_last) {
-        | Some((new_prefix, CommentLine(comment_pre))) =>
+    // Handle 2 special cases for CommentLines
+    // Case 1
+    | Backspace when ZExp.is_begin_of_comment(zblock) =>
+      switch (prefix |> ListUtil.split_last) {
+      | Some((new_prefix, pre_zline)) =>
+        switch (pre_zline, zline) {
+        | (CommentLine(pre_comment), CursorL(_, CommentLine(comment))) =>
           let new_zline =
-            ZExp.CursorL(OnText(0), CommentLine(comment_pre ++ comment));
+            ZExp.CursorL(
+              OnText(String.length(pre_comment)),
+              CommentLine(pre_comment ++ comment),
+            );
           let new_ze = (new_prefix, new_zline, suffix);
           Succeeded(SynDone((new_ze, ty, u_gen)));
-        | _other_cases =>
-          let new_ze = (prefix, ZExp.CursorL(OnText(0), EmptyLine), suffix);
-          Succeeded(SynDone((new_ze, ty, u_gen)));
+        | _ => Failed
         }
-      | _other_cases =>
-        syn_perform(ctx, Backspace, (zblock, ty, u_gen)) |> wrap_in_SynDone
+      | _ => Failed
+      }
+
+    // Case 2
+    | Delete when ZExp.is_end_of_comment(zblock) =>
+      switch (suffix, zline) {
+      | (
+          [CommentLine(post_comment), ...new_suffix],
+          CursorL(_, CommentLine(comment)),
+        ) =>
+        let new_zline =
+          ZExp.CursorL(
+            OnText(String.length(comment)),
+            CommentLine(comment ++ post_comment),
+          );
+        let new_ze = (prefix, new_zline, new_suffix);
+        Succeeded(SynDone((new_ze, ty, u_gen)));
+      | _ => Failed
       }
 
     | Delete when ZExp.is_after_zline(zline) =>
@@ -2567,7 +2585,9 @@ module Exp = {
         fix_and_mk_result(u_gen, new_ze);
       }
 
-    | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) => Failed
+    | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
+      let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
+      mk_result(u_gen, new_zblock);
 
     | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
       if (j == String.length(comment)) {
@@ -2595,7 +2615,6 @@ module Exp = {
 
     /* Construction */
 
-    // Construct "SCommentLine"
     | (Construct(SCommentLine), CursorL(_, EmptyLine)) =>
       let new_zblock = ([], ZExp.CursorL(OnText(0), CommentLine("")), []);
       mk_result(u_gen, new_zblock);
@@ -2616,6 +2635,23 @@ module Exp = {
         ZExp.CursorL(OnText(0), CommentLine(com_aft)),
         [],
       );
+      mk_result(u_gen, new_zblock);
+
+    | (Construct(SOp(SSpace)), CursorL(OnText(j), CommentLine(comment))) =>
+      let new_zblock = {
+        let new_comment = comment |> StringUtil.insert(j, " ");
+        let new_line: UHExp.line = CommentLine(new_comment);
+        ([], ZExp.CursorL(OnText(j + 1), new_line), []);
+      };
+      mk_result(u_gen, new_zblock);
+
+    | (
+        Construct(SOp(SSpace)),
+        CursorL(OnDelim(_, After), CommentLine(_) as line),
+      ) =>
+      let new_zblock = {
+        ([], ZExp.CursorL(OnText(0), line), []);
+      };
       mk_result(u_gen, new_zblock);
 
     | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>

@@ -390,9 +390,7 @@ module KeyCombo = {
     let delete = plain(Key.the_code("Delete"));
     let tab = plain(Key.the_code("Tab"));
     let shift_tab = shift(Key.the_code("Tab"));
-    // "shift_enter" is for creating another commentline
-    // Might be modified
-    let shift_enter = shift(Key.code2("Enter", "Enter", "NumpadEnter"));
+    let shift_enter = shift(Key.code2("Enter", "Enter", "NumpadEnter")); // For creating another "CommentLine"
     let space = plain(Key.the_code("Space"));
     let lt = no_ctrl_alt_meta(Key.the_key("<"));
     let gt = no_ctrl_alt_meta(Key.the_key(">"));
