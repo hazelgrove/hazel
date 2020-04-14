@@ -303,7 +303,6 @@ let redo = (model: t): t => {
     model
     |> put_cardstacks(new_cardstacks)
     |> map_selected_instances(update_selected_instances);
-
   {
     ...model',
     undo_history: {
