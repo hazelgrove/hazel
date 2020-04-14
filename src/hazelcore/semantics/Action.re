@@ -2096,6 +2096,9 @@ module Exp = {
         let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
         Succeeded(SynDone((new_ze, Hole, u_gen)));
       };
+    /* | Some(Dot) =>
+       let ze = ZExp.ZBlock.wrap()
+       Succeeded(SynDone((ze, HType.Float, u_gen))) */
     };
   };
 
@@ -2787,6 +2790,26 @@ module Exp = {
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
     /* Construction */
+
+    /* Making Float Operators from Int Operators */
+    /* This is for temporary testing. I should find better cursor */
+    /* TODO FIXME */
+    | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
+      let new_operator =
+        switch (oper) {
+        | UHExp.Plus => UHExp.FPlus
+        | UHExp.Minus => UHExp.FMinus
+        | UHExp.Times => UHExp.FTimes
+        | _ => oper
+        };
+      /* let new_zoperator =
+         switch (new_operator |> ZExp.place_after_operator) {
+         | Some(x) => x
+         | None => zop
+         }; */
+      let new_zoperator = (pos, new_operator);
+      let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
     /* Space construction on operators becomes movement... */
     | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
