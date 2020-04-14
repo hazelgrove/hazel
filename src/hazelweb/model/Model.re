@@ -211,8 +211,7 @@ let undo = (model: t): t => {
     | None =>
       /*if current group doesn't have previous state, shfit to previous group*/
       switch (ZList.shift_next(model.undo_history.groups)) {
-      | None =>
-        model.undo_history.groups;
+      | None => model.undo_history.groups
       | Some(new_groups) =>
         let new_group = ZList.prj_z(new_groups);
         let new_entries = ZList.shift_begin(new_group.group_entries);
@@ -238,15 +237,26 @@ let undo = (model: t): t => {
   };
   let cur_group' = ZList.prj_z(new_groups);
   let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  let model' = model |> put_cardstacks(new_cardstacks);
-  let new_model = {
+  let new_program = Cardstacks.get_program(new_cardstacks);
+  let update_selected_instances = _ => {
+    let si = UserSelectedInstances.init;
+    switch (Program.cursor_on_exp_hole(new_program)) {
+    | None => si
+    | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    };
+  };
+  let model' =
+    model
+    |> put_cardstacks(new_cardstacks)
+    |> map_selected_instances(update_selected_instances);
+
+  {
     ...model',
     undo_history: {
       ...model.undo_history,
       groups: new_groups,
     },
   };
-  new_model;
 };
 
 let redo = (model: t): t => {
@@ -280,7 +290,20 @@ let redo = (model: t): t => {
   };
   let cur_group' = ZList.prj_z(new_groups);
   let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
-  let model' = model |> put_cardstacks(new_cardstacks);
+
+  let new_program = Cardstacks.get_program(new_cardstacks);
+  let update_selected_instances = _ => {
+    let si = UserSelectedInstances.init;
+    switch (Program.cursor_on_exp_hole(new_program)) {
+    | None => si
+    | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    };
+  };
+  let model' =
+    model
+    |> put_cardstacks(new_cardstacks)
+    |> map_selected_instances(update_selected_instances);
+
   {
     ...model',
     undo_history: {
