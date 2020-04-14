@@ -112,37 +112,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
            ),
       )
     | Ignore => None
-    /*     let pend =
-             switch (undo_history_entry.outer_zexp) {
-             | ZExp(zp) =>
-               if (ZExp.is_after(zp)) {
-                 " is_after";
-               } else if (ZExp.is_before(zp)) {
-                 " is_before";
-               } else {
-                 " no";
-               }
-             | ZPat(zp) =>
-               if (ZPat.is_after(zp)) {
-                 " is_after";
-               } else if (ZPat.is_before(zp)) {
-                 " is_before";
-               } else {
-                 " no";
-               }
-             | ZTyp(zp) =>
-               if (ZTyp.is_after(zp)) {
-                 " is_after";
-               } else if (ZTyp.is_before(zp)) {
-                 " is_before";
-               } else {
-                 " no";
-               }
-             };
-           switch (prestr) {
-           | None => None
-           | Some(str) => Some(str ++ pend)
-           }; */
     };
   };
 
@@ -315,12 +284,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       } else {
         [];
       };
-    let cur_his_classes =
+/*     let cur_his_classes =
       if (is_cur_group) {
         ["the-cur-history"];
       } else {
         [];
-      };
+      }; */
 
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
@@ -330,12 +299,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
         let has_hidden_part = List.length(hidden_entries) > 0;
-        let title_class =
-          if (start_index != 0) {
-            prev_his_classes;
-          } else {
-            cur_his_classes;
-          };
         if (group.is_expanded) {
           Vdom.(
             Node.div(
@@ -344,7 +307,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* title entry */
                 Vdom.(
                   Node.div(
-                    [Attr.classes(title_class)],
+                    if (start_index != 0) {
+                      [Attr.classes(prev_his_classes)];
+                    } else {
+                      [
+                        Attr.classes(cur_his_classes),
+                        Attr.id("cur-selected-entry"),
+                      ];
+                    },
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,
@@ -383,7 +353,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [
                 Vdom.(
                   Node.div(
-                    [Attr.classes(cur_his_classes)],
+                    if (is_cur_group) {
+                      [
+                        Attr.classes("the-cur-history"),
+                        Attr.id("cur-selected-entry"),
+                      ];
+                    } else {
+                      [];
+                    },
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,
@@ -675,11 +652,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
   let history_view = (model: Model.t) => {
     let (suc_groups, cur_group, prev_groups) = model.undo_history.groups /*if the initial entry is the only history entry */;
-    if (ZList.length(model.undo_history.groups) <= 1
-        && ZList.length(
-             ZList.prj_z(model.undo_history.groups).group_entries,
-           )
-        <= 1) {
+    if (UndoHistory.is_empty(model.undo_history)) {
       Vdom.(
         Node.div(
           [Attr.classes(["the-history"])],
@@ -782,7 +755,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Panel.view_of_main_title_bar("history"),
         button_bar_view(model.undo_history.all_hidden_history_expand),
         Node.div(
-          [Attr.classes(["panel-body", "context-inspector-body"])],
+          [
+            Attr.classes(["panel-body", "context-inspector-body"]),
+            Attr.id("history-body"),
+          ],
           [history_view(model)],
         ),
       ],

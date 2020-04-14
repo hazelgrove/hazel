@@ -39,7 +39,10 @@ type t = {
   latest_timestamp: float,
   all_hidden_history_expand: bool,
 };
-
+let is_empty = (history: t): bool => {
+  ZList.length(history.groups) <= 1
+  && ZList.length(ZList.prj_z(history.groups).group_entries) <= 1;
+};
 let get_cursor_info =
     (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
     : cursor_term_info => {

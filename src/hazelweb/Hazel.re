@@ -41,6 +41,17 @@ let restart_caret_animation = () => {
   caret##.classList##add(Js.string("blink"));
 };
 
+let scroll_history_panel_entry = entry_elem => {
+  JSUtil.log("body create");
+  let panel_rect =
+    JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
+  JSUtil.log("finish body create");
+  let entry_rect = entry_elem##getBoundingClientRect;
+  if (entry_rect##.top > panel_rect##.top) {
+    entry_elem##scrollIntoView(Js._true);
+  };
+};
+
 let create =
     (
       model: Incr.t(Model.t),
@@ -53,6 +64,12 @@ let create =
     ~apply_action=Update.apply_action(model),
     ~on_display=
       (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
+        let undo_history = model |> Model.get_undo_history;
+        if (!UndoHistory.is_empty(undo_history)) {
+          let entry_elem = JSUtil.force_get_elem_by_id("cur-selected-entry");
+          scroll_history_panel_entry(entry_elem);
+        };
+
         let path = model |> Model.get_program |> Program.get_path;
         if (state.changing_cards^) {
           state.changing_cards := false;

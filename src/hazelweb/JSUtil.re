@@ -158,16 +158,7 @@ let set_caret = (anchorNode, offset) => {
     log(offset);
     assert(false);
   };
-} /* let scroll_anchor = (container_id, anchor_id) => {
-     let container = Dom_html.document##getElementById(Js.string(container_id));
-     let scroll_to = Dom_html.document##getElementById(Js.string(anchor_id));
-     container##.scrollTop :=  scroll_to##.offsetTop;
-   }; */ /* This comment part tries to make scrollbar follow the selected entry in history panel
-   However, "container##scrollTop=scroll_to##offsetTop;" will report an error
-   though it works in Js
-   I leave it here and wonder if Cyrus has any idea.
-   ----Zoe
-   */;
+};
 
 let reset_caret = () => {
   let selection = Dom_html.window##getSelection;
