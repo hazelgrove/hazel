@@ -272,32 +272,25 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let group_view =
       (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
     /* if the group containning selected history entry, it should be splited into different css styles */
-    let suc_his_classes =
-      if (is_cur_group) {
-        ["the-suc-history"];
-      } else {
-        [];
-      };
-    let prev_his_classes =
-      if (is_cur_group) {
-        ["the-prev-history"];
-      } else {
-        [];
-      };
-/*     let cur_his_classes =
-      if (is_cur_group) {
-        ["the-cur-history"];
-      } else {
-        [];
-      }; */
-
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
       let (title, hidden_entries) =
         drop_prefix_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
-      | None => Vdom.(Node.div([], []))
+      | None =>
+        JSUtil.log(281);
+        Vdom.(
+          Node.div(
+            if (is_cur_group) {
+              [Attr.id("cur-selected-entry")];
+            } else {
+              [];
+            },
+            [],
+          )
+        );
       | Some((title_entry, start_index)) =>
+        JSUtil.log(293);
         let has_hidden_part = List.length(hidden_entries) > 0;
         if (group.is_expanded) {
           Vdom.(
@@ -308,12 +301,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Vdom.(
                   Node.div(
                     if (start_index != 0) {
-                      [Attr.classes(prev_his_classes)];
-                    } else {
+                      if (is_cur_group) {
+                        [Attr.classes(["the-prev-history"])];
+                      } else {
+                        [];
+                      };
+                    } else if (is_cur_group) {
                       [
-                        Attr.classes(cur_his_classes),
+                        Attr.classes(["the-cur-history"]),
                         Attr.id("cur-selected-entry"),
                       ];
+                    } else {
+                      [];
                     },
                     [
                       history_title_entry_view(
@@ -328,11 +327,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ),
                 Vdom.(
                   Node.div(
-                    [
-                      Attr.classes(
-                        ["hidden-history-entry"] @ prev_his_classes,
-                      ),
-                    ],
+                    if (is_cur_group) {
+                      [
+                        Attr.classes([
+                          "hidden-history-entry",
+                          "the-prev-history",
+                        ]),
+                      ];
+                    } else {
+                      [Attr.classes(["hidden-history-entry"])];
+                    },
                     list_map_helper_func(
                       history_hidden_entry_view(group_id),
                       base => base + 1,
@@ -355,7 +359,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Node.div(
                     if (is_cur_group) {
                       [
-                        Attr.classes("the-cur-history"),
+                        Attr.classes(["the-cur-history"]),
                         Attr.id("cur-selected-entry"),
                       ];
                     } else {
@@ -379,12 +383,23 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         };
       };
     | (suc_entries, cur_entry, prev_entries) =>
+      JSUtil.log(386);
       let (title, hidden_entries) =
         drop_prefix_undisplay_entries(
           suc_entries @ [cur_entry] @ prev_entries,
         );
       switch (title) {
-      | None => Vdom.(Node.div([], []))
+      | None =>
+        Vdom.(
+          Node.div(
+            if (is_cur_group) {
+              [Attr.id("cur-selected-entry")];
+            } else {
+              [];
+            },
+            [],
+          )
+        )
       | Some((title_entry, start_index)) =>
         /* title entry is in suc_entries */
         let has_hidden_part = List.length(hidden_entries) > 0;
@@ -398,7 +413,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   /* the history title entry */
                   Vdom.(
                     Node.div(
-                      [Attr.classes(suc_his_classes)],
+                      if (is_cur_group) {
+                        [Attr.classes(["the-suc-history"])];
+                      } else {
+                        [];
+                      },
                       [
                         history_title_entry_view(
                           ~is_expanded=group.is_expanded,
@@ -412,11 +431,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ),
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ suc_his_classes,
-                        ),
-                      ],
+                      if (is_cur_group) {
+                        [
+                          Attr.classes([
+                            "hidden-history-entry",
+                            "the-suc-history",
+                          ]),
+                        ];
+                      } else {
+                        [Attr.classes(["hidden-history-entry"])];
+                      },
                       list_map_helper_func(
                         history_hidden_entry_view(group_id),
                         base => base + 1,
@@ -427,11 +451,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ),
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ cur_his_classes,
-                        ),
-                      ],
+                      if (is_cur_group) {
+                        [
+                          Attr.classes([
+                            "hidden-history-entry",
+                            "the-cur-history",
+                          ]),
+                          Attr.id("cur-selected-entry"),
+                        ];
+                      } else {
+                        [Attr.classes(["hidden-history-entry"])];
+                      },
                       [
                         history_hidden_entry_view(
                           group_id,
@@ -443,11 +473,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ),
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ prev_his_classes,
-                        ),
-                      ],
+                      if (is_cur_group) {
+                        [
+                          Attr.classes([
+                            "hidden-history-entry",
+                            "the-prev-history",
+                          ]),
+                        ];
+                      } else {
+                        [Attr.classes(["hidden-history-entry"])];
+                      },
                       list_map_helper_func(
                         history_hidden_entry_view(group_id),
                         base => base + 1,
@@ -467,7 +502,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Vdom.(
                     Node.div(
-                      [Attr.classes(suc_his_classes)],
+                      if (is_cur_group) {
+                        [Attr.classes(["the-suc-history"])];
+                      } else {
+                        [];
+                      },
                       [
                         history_title_entry_view(
                           ~is_expanded=group.is_expanded,
@@ -493,7 +532,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   /* title entry */
                   Vdom.(
                     Node.div(
-                      [Attr.classes(cur_his_classes)],
+                      if (is_cur_group) {
+                        [
+                          Attr.classes(["the-cur-history"]),
+                          Attr.id("cur-selected-entry"),
+                        ];
+                      } else {
+                        [];
+                      },
                       [
                         history_title_entry_view(
                           ~is_expanded=group.is_expanded,
@@ -507,11 +553,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ),
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ prev_his_classes,
-                        ),
-                      ],
+                      if (is_cur_group) {
+                        [
+                          Attr.classes([
+                            "hidden-history-entry",
+                            "the-prev-history",
+                          ]),
+                        ];
+                      } else {
+                        [Attr.classes(["hidden-history-entry"])];
+                      },
                       list_map_helper_func(
                         history_hidden_entry_view(group_id),
                         base => base + 1,
@@ -532,7 +583,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Vdom.(
                     Node.div(
-                      [Attr.classes(cur_his_classes)],
+                      if (is_cur_group) {
+                        [
+                          Attr.classes(["the-cur-history"]),
+                          Attr.id("cur-selected-entry"),
+                        ];
+                      } else {
+                        [];
+                      },
                       [
                         history_title_entry_view(
                           ~is_expanded=group.is_expanded,
@@ -557,7 +615,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* title entry */
                 Vdom.(
                   Node.div(
-                    [Attr.classes(prev_his_classes)],
+                    if (is_cur_group) {
+                      [Attr.classes(["the-prev-history"])];
+                    } else {
+                      [];
+                    },
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,
@@ -571,11 +633,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ),
                 Vdom.(
                   Node.div(
-                    [
-                      Attr.classes(
-                        ["hidden-history-entry"] @ prev_his_classes,
-                      ),
-                    ],
+                    if (is_cur_group) {
+                      [
+                        Attr.classes([
+                          "hidden-history-entry",
+                          "the-prev-history",
+                        ]),
+                      ];
+                    } else {
+                      [Attr.classes(["hidden-history-entry"])];
+                    },
                     list_map_helper_func(
                       history_hidden_entry_view(group_id),
                       base => base + 1,
@@ -596,7 +663,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [
                 Vdom.(
                   Node.div(
-                    [Attr.classes(prev_his_classes)],
+                    if (is_cur_group) {
+                      [Attr.classes(["the-prev-history"])];
+                    } else {
+                      [];
+                    },
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,

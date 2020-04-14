@@ -47,7 +47,8 @@ let scroll_history_panel_entry = entry_elem => {
     JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
   JSUtil.log("finish body create");
   let entry_rect = entry_elem##getBoundingClientRect;
-  if (entry_rect##.top > panel_rect##.top) {
+  
+  if (entry_rect##.bottom > panel_rect##.bottom) {
     entry_elem##scrollIntoView(Js._true);
   };
 };
