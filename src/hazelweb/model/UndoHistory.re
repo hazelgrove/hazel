@@ -39,10 +39,12 @@ type t = {
   latest_timestamp: float,
   all_hidden_history_expand: bool,
 };
+
 let is_empty = (history: t): bool => {
   ZList.length(history.groups) <= 1
   && ZList.length(ZList.prj_z(history.groups).group_entries) <= 1;
 };
+
 let get_cursor_info =
     (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
     : cursor_term_info => {
@@ -406,8 +408,8 @@ let delim_edge_handle =
     /* delete space */
     DeleteEdit(Space);
   } else {
-    Ignore;
-          /* jump to next term */
+    /* jump to next term */
+    Ignore;        
   };
 let delete =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
