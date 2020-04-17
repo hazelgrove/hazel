@@ -49,10 +49,10 @@ let memoize =
   );
 };
 
-let empty_ = Doc.empty();
-let space_ = Doc.space();
+let empty_: t = Doc.empty();
+let space_: t = Doc.space();
 
-let indent_and_align_ = doc =>
+let indent_and_align_ = (doc: t): t =>
   Doc.(hcat(annot(UHAnnot.Indent, indent()), align(doc)));
 
 module Delim = {
@@ -73,56 +73,57 @@ module Delim = {
     |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
   };
 
-  let open_List = () => mk(~index=0, "[");
-  let close_List = () => mk(~index=1, "]");
+  let open_List = (): t => mk(~index=0, "[");
+  let close_List = (): t => mk(~index=1, "]");
 
-  let open_Parenthesized = () => mk(~index=0, "(");
-  let close_Parenthesized = () => mk(~index=1, ")");
+  let open_Parenthesized = (): t => mk(~index=0, "(");
+  let close_Parenthesized = (): t => mk(~index=1, ")");
 
-  let open_Inj = (inj_side: InjSide.t) =>
+  let open_Inj = (inj_side: InjSide.t): t =>
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
-  let close_Inj = () => mk(~index=1, ")");
+  let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = () => mk(~index=0, UnicodeConstants.lamSym);
-  let colon_Lam = () => mk(~index=1, ":");
-  let open_Lam = () => mk(~index=2, ".{");
-  let close_Lam = () => mk(~index=3, "}");
+  let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);
+  let colon_Lam = (): t => mk(~index=1, ":");
+  let open_Lam = (): t => mk(~index=2, ".{");
+  let close_Lam = (): t => mk(~index=3, "}");
 
-  let open_Case = () => mk(~index=0, "case");
-  let close_Case = () => mk(~index=1, "end");
-  let close_Case_ann = () => mk(~index=1, "end :");
+  let open_Case = (): t => mk(~index=0, "case");
+  let close_Case = (): t => mk(~index=1, "end");
+  let close_Case_ann = (): t => mk(~index=1, "end :");
 
-  let bar_Rule = () => mk(~index=0, "|");
-  let arrow_Rule = () => mk(~index=1, UnicodeConstants.caseArrowSym);
+  let bar_Rule = (): t => mk(~index=0, "|");
+  let arrow_Rule = (): t => mk(~index=1, UnicodeConstants.caseArrowSym);
 
-  let let_LetLine = () => mk(~index=0, "let");
-  let colon_LetLine = () => mk(~index=1, ":");
-  let eq_LetLine = () => mk(~index=2, "=");
-  let in_LetLine = () => mk(~index=3, "in");
+  let let_LetLine = (): t => mk(~index=0, "let");
+  let colon_LetLine = (): t => mk(~index=1, ":");
+  let eq_LetLine = (): t => mk(~index=2, "=");
+  let in_LetLine = (): t => mk(~index=3, "in");
 };
 
-let annot_Indent = Doc.annot(UHAnnot.Indent);
-let annot_Padding = (d: Doc.t(UHAnnot.t)) =>
+let annot_Indent: t => t = Doc.annot(UHAnnot.Indent);
+let annot_Padding = (d: t): t =>
   switch (d.doc) {
   | Text("") => d
   | _ => Doc.annot(UHAnnot.Padding, d)
   };
-let annot_DelimGroup = Doc.annot(UHAnnot.DelimGroup);
-let annot_OpenChild = (~is_inline) =>
+let annot_DelimGroup: t => t = Doc.annot(UHAnnot.DelimGroup);
+let annot_OpenChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_OpenChild(~is_inline, ()));
-let annot_ClosedChild = (~is_inline) =>
+let annot_ClosedChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
-let annot_Step = step => Doc.annot(UHAnnot.Step(step));
+let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
 let annot_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t) =>
+    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t)
+    : (t => t) =>
   Doc.annot(
     UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
   );
-let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole) =>
+let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =>
   Doc.annot(
     UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
   );
-let annot_Case = (~err: ErrStatus.t) =>
+let annot_Case = (~err: ErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
@@ -151,9 +152,9 @@ let mk_op = (op_text: string): t =>
     Doc.text(op_text),
   );
 
-let mk_space_op = Doc.annot(UHAnnot.SpaceOp, space_);
+let mk_space_op: t = Doc.annot(UHAnnot.SpaceOp, space_);
 
-let user_newline =
+let user_newline: t =
   Doc.(
     hcats([
       space_ |> annot_Padding,
@@ -204,8 +205,10 @@ let pad_child =
   };
 };
 
-let pad_open_child = pad_child(~is_open=true);
-let pad_closed_child = pad_child(~is_open=false);
+let pad_open_child: (~inline_padding: (t, t)=?, formatted_child) => t =
+  pad_child(~is_open=true);
+let pad_closed_child: (~inline_padding: (t, t)=?, formatted_child) => t =
+  pad_child(~is_open=false);
 
 let pad_left_delimited_child =
     (~is_open: bool, ~inline_padding: t=empty_, child: formatted_child): t => {
@@ -520,7 +523,7 @@ let mk_NTuple =
 };
 
 module Typ = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHTyp.operator => (t, t) =
     fun
     | UHTyp.Prod => (Doc.empty(), Doc.space())
     | Arrow
@@ -554,7 +557,8 @@ module Typ = {
       let body = mk_child(~enforce_inline, ~child_step=0, body);
       mk_List(body);
     }
-  and mk_child = (~enforce_inline, ~child_step, uty): formatted_child => {
+  and mk_child =
+      (~enforce_inline: bool, ~child_step: int, uty: UHTyp.t): formatted_child => {
     let formattable = (~enforce_inline: bool) =>
       mk(~enforce_inline, uty) |> annot_Step(child_step);
     enforce_inline
@@ -564,7 +568,7 @@ module Typ = {
 };
 
 module Pat = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHPat.operator => (t, t) =
     Doc.(
       fun
       | UHPat.Comma => (empty(), space())
@@ -572,14 +576,23 @@ module Pat = {
       | Cons => (empty(), empty())
     );
 
-  let mk_EmptyHole = mk_EmptyHole(~sort=Pat);
-  let mk_NumLit = mk_NumLit(~sort=Pat);
-  let mk_BoolLit = mk_BoolLit(~sort=Pat);
-  let mk_ListNil = mk_ListNil(~sort=Pat);
-  let mk_Var = mk_Var(~sort=Pat);
-  let mk_Parenthesized = mk_Parenthesized(~sort=Pat);
-  let mk_Inj = mk_Inj(~sort=Pat);
-  let mk_NTuple =
+  let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Pat);
+  let mk_NumLit: (~err: ErrStatus.t, int) => t = mk_NumLit(~sort=Pat);
+  let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Pat);
+  let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Pat);
+  let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
+    mk_Var(~sort=Pat);
+  let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Pat);
+  let mk_Inj: (~err: ErrStatus.t, ~inj_side: InjSide.t, formatted_child) => t =
+    mk_Inj(~sort=Pat);
+  let mk_NTuple:
+    (
+      ~mk_operand: (~enforce_inline: bool, 'a) => t,
+      ~mk_operator: UHPat.operator => t,
+      ~enforce_inline: bool,
+      OpSeq.t('a, UHPat.operator)
+    ) =>
+    t =
     mk_NTuple(
       ~sort=Pat,
       ~get_tuple_elements=UHPat.get_tuple_elements,
@@ -607,7 +620,8 @@ module Pat = {
       let body = mk_child(~enforce_inline, ~child_step=0, body);
       mk_Inj(~err, ~inj_side, body);
     }
-  and mk_child = (~enforce_inline, ~child_step, p): formatted_child => {
+  and mk_child =
+      (~enforce_inline: bool, ~child_step: int, p: UHPat.t): formatted_child => {
     let formattable = (~enforce_inline: bool) =>
       mk(~enforce_inline, p) |> annot_Step(child_step);
     enforce_inline
@@ -617,7 +631,7 @@ module Pat = {
 };
 
 module Exp = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHExp.operator => (t, t) =
     Doc.(
       fun
       | UHExp.Space
@@ -633,21 +647,30 @@ module Exp = {
       | Comma => (empty(), space())
     );
 
-  let mk_EmptyHole = mk_EmptyHole(~sort=Exp);
-  let mk_NumLit = mk_NumLit(~sort=Exp);
-  let mk_BoolLit = mk_BoolLit(~sort=Exp);
-  let mk_ListNil = mk_ListNil(~sort=Exp);
-  let mk_Var = mk_Var(~sort=Exp);
-  let mk_Parenthesized = mk_Parenthesized(~sort=Exp);
-  let mk_Inj = mk_Inj(~sort=Exp);
-  let mk_NTuple =
+  let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Exp);
+  let mk_NumLit: (~err: ErrStatus.t, int) => t = mk_NumLit(~sort=Exp);
+  let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
+  let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Exp);
+  let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
+    mk_Var(~sort=Exp);
+  let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Exp);
+  let mk_Inj: (~err: ErrStatus.t, ~inj_side: InjSide.t, formatted_child) => t =
+    mk_Inj(~sort=Exp);
+  let mk_NTuple:
+    (
+      ~mk_operand: (~enforce_inline: bool, 'a) => t,
+      ~mk_operator: UHExp.operator => t,
+      ~enforce_inline: bool,
+      OpSeq.t('a, UHExp.operator)
+    ) =>
+    t =
     mk_NTuple(
       ~sort=Exp,
       ~get_tuple_elements=UHExp.get_tuple_elements,
       ~inline_padding_of_operator,
     );
 
-  let annot_SubBlock = (~hd_index: int) =>
+  let annot_SubBlock = (~hd_index: int): (t => t) =>
     Doc.annot(
       UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
     );
@@ -659,7 +682,7 @@ module Exp = {
     mk_block(~offset=0, ~enforce_inline, block)
   and mk_block_1 = (~enforce_inline: bool, block: UHExp.block): t =>
     mk_block(~offset=1, ~enforce_inline, block)
-  and mk_block = (~offset, ~enforce_inline: bool, block: UHExp.block): t =>
+  and mk_block = (~offset: int, ~enforce_inline: bool, block: UHExp.block): t =>
     if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
       Doc.fail();
     } else {
@@ -754,7 +777,8 @@ module Exp = {
     let clause = mk_child(~enforce_inline=false, ~child_step=1, clause);
     mk_Rule(p, clause);
   }
-  and mk_child = (~enforce_inline, ~child_step, e): formatted_child => {
+  and mk_child =
+      (~enforce_inline: bool, ~child_step: int, e: UHExp.t): formatted_child => {
     switch (e) {
     | [EmptyLine, ...subblock] =>
       if (enforce_inline) {
