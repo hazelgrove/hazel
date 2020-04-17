@@ -38,9 +38,7 @@ let on_startup = (~schedule_action, _) => {
       Js._true;
     });
 
-  Async_kernel.Deferred.return(
-    State.{setting_caret: ref(false), changing_cards: ref(false)},
-  );
+  Async_kernel.Deferred.return(State.{changing_cards: ref(false)});
 };
 
 let restart_cursor_animation = caret_elem => {
@@ -73,7 +71,7 @@ let create =
     ~apply_action=Update.apply_action(model),
     ~on_display=
       (_, ~schedule_action as _) =>
-        if (model.is_cell_focused) {
+        if (Model.is_cell_focused(model)) {
           let caret_elem = JSUtil.force_get_elem_by_id("caret");
           restart_cursor_animation(caret_elem);
           scroll_cursor_into_view_if_needed(caret_elem);

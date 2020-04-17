@@ -9,7 +9,8 @@ module Action = {
   [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
-    | MoveAction(JSUtil.MoveKey.t)
+    | MoveViaKey(JSUtil.MoveKey.t)
+    | MoveViaClick((CursorMap.Row.t, CursorMap.Col.t))
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
@@ -69,7 +70,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
-  | MoveAction(_)
+  | MoveViaKey(_)
+  | MoveViaClick(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -123,13 +125,14 @@ let apply_action =
       JSUtil.log("[Program.DoesNotExpand]");
       model;
     }
-  | MoveAction(move_key) =>
-    switch (model |> Model.perform_move_action(move_key)) {
+  | MoveViaKey(move_key) =>
+    switch (model |> Model.move_via_key(move_key)) {
     | new_model => new_model
     | exception Program.CursorEscaped =>
       JSUtil.log(["Program.CursorEscaped"]);
       model;
     }
+  | MoveViaClick(row_col) => model |> Model.move_via_click(row_col)
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
@@ -164,11 +167,8 @@ let apply_action =
     }
   | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
+  | FocusWindow => model
   | FocusCell => model |> Model.focus_cell
-  | FocusWindow =>
-    state.setting_caret := true;
-    JSUtil.reset_caret();
-    model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);

@@ -4,12 +4,14 @@ type t = {
   edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
+  is_focused: bool,
 };
 
-let mk = (~width: int, edit_state: Statics.edit_state): t => {
+let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,
+  is_focused,
 };
 
 let get_width = program => program.width;
@@ -23,6 +25,11 @@ let clear_start_col = program => {
   ...program,
   start_col_of_vertical_movement: None,
 };
+
+let is_focused = program => program.is_focused;
+
+let focus = program => {...program, is_focused: true};
+let blur = program => {...program, is_focused: false};
 
 let get_edit_state = program => program.edit_state;
 let put_edit_state = (edit_state, program) => {...program, edit_state};
@@ -178,7 +185,14 @@ let get_cursor_map_z = program => {
 
 let get_cursor_map = program => program |> get_cursor_map_z |> fst;
 
-let perform_move_action = (move_key: JSUtil.MoveKey.t, program) => {
+let move_via_click = (row_col, program) => {
+  let (_, rev_path) =
+    program |> get_cursor_map |> CursorMap.find_nearest_within_row(row_col);
+  let path = CursorPath.rev(rev_path);
+  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+};
+
+let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
   let (cmap, ((row, col), _) as z) = program |> get_cursor_map_z;
   let (from_col, put_col_on_start) =
     switch (program |> get_start_col) {

@@ -9,7 +9,6 @@ type t = {
   show_casts: bool,
   show_unevaluated_expansion: bool,
   selected_example: option(UHExp.t),
-  is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   show_contenteditable: bool,
@@ -55,7 +54,6 @@ let init = (): t => {
     show_casts: false,
     show_unevaluated_expansion: false,
     selected_example: None,
-    is_cell_focused: false,
     left_sidebar_open: false,
     right_sidebar_open: true,
     show_contenteditable: false,
@@ -86,9 +84,6 @@ let put_undo_history = (history: UndoHistory.t, model: t): t => {
   undo_history: history,
 };
 
-let focus_cell = model => {...model, is_cell_focused: true};
-let blur_cell = model => {...model, is_cell_focused: false};
-
 let get_cardstacks = model => model.cardstacks;
 let put_cardstacks = (cardstacks, model) => {...model, cardstacks};
 let map_cardstacks = (f: Cardstacks.t => Cardstacks.t, model: t): t => {
@@ -99,22 +94,16 @@ let map_cardstacks = (f: Cardstacks.t => Cardstacks.t, model: t): t => {
 let get_cardstack = model => model |> get_cardstacks |> Cardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
 
-let prev_card = model => {
-  model
-  |> map_cardstacks(Cardstacks.map_z(Cardstack.prev_card))
-  |> focus_cell;
-};
-let next_card = model => {
-  model
-  |> map_cardstacks(Cardstacks.map_z(Cardstack.next_card))
-  |> focus_cell;
-};
-
 let map_selected_instances =
     (f: UserSelectedInstances.t => UserSelectedInstances.t, model) => {
   ...model,
   selected_instances: f(model.selected_instances),
 };
+
+let focus_cell = map_program(Program.focus);
+let blur_cell = map_program(Program.blur);
+
+let is_cell_focused = model => model |> get_program |> Program.is_focused;
 
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
@@ -167,16 +156,31 @@ let update_program = (~undoable, new_program, model) => {
      );
 };
 
+let prev_card = model => {
+  model
+  |> map_cardstacks(Cardstacks.map_z(Cardstack.prev_card))
+  |> focus_cell;
+};
+let next_card = model => {
+  model
+  |> map_cardstacks(Cardstacks.map_z(Cardstack.next_card))
+  |> focus_cell;
+};
+
 let perform_edit_action = (a: Action.t, model: t): t => {
   let new_program = model |> get_program |> Program.perform_edit_action(a);
   model
   |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
 };
 
-let perform_move_action = (move_key, model) => {
-  let new_program =
-    model |> get_program |> Program.perform_move_action(move_key);
-  model |> update_program(~undoable=true, new_program);
+let move_via_key = (move_key, model) => {
+  let new_program = model |> get_program |> Program.move_via_key(move_key);
+  model |> update_program(~undoable=false, new_program);
+};
+
+let move_via_click = (row_col, model) => {
+  let new_program = model |> get_program |> Program.move_via_click(row_col);
+  model |> update_program(~undoable=false, new_program);
 };
 
 let toggle_left_sidebar = (model: t): t => {

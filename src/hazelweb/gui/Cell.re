@@ -51,8 +51,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let on_click =
-    (~inject, ~font_metrics: FontMetrics.t, ~cmap: CursorMap.t, evt) => {
+let on_click = (~inject, ~font_metrics: FontMetrics.t, evt) => {
   let container_rect =
     JSUtil.force_get_elem_by_id("code-container")##getBoundingClientRect;
   let (target_x, target_y) = (
@@ -76,12 +75,7 @@ let on_click =
         ),
       ),
     );
-    let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
-    let path = CursorPath.rev(rev_path);
-    Vdom.Event.Many([
-      inject(Update.Action.EditAction(MoveTo(path))),
-      inject(Update.Action.FocusCell),
-    ]);
+    inject(Update.Action.MoveViaClick(row_col));
   } else {
     Vdom.Event.Many([]);
   };
@@ -91,25 +85,18 @@ let view = (~inject, model: Model.t) => {
   open Vdom;
   let font_metrics = model.font_metrics;
   let program = model |> Model.get_program;
-  let on_click_attr =
-    Vdom.Attr.on_click(
-      on_click(
-        ~inject,
-        ~font_metrics,
-        ~cmap=program |> Program.get_cursor_map,
-      ),
-    );
+  let on_click_attr = Vdom.Attr.on_click(on_click(~inject, ~font_metrics));
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   let (evt_handlers, code_view) =
-    if (model.is_cell_focused) {
+    if (Model.is_cell_focused(model)) {
       let evt_handlers = [
         on_click_attr,
         Attr.on_keypress(_ => Event.Prevent_default),
         Attr.on_keydown(evt => {
           switch (MoveKey.of_key(JSUtil.get_key(evt))) {
           | Some(move_key) =>
-            prevent_stop_inject(Update.Action.MoveAction(move_key))
+            prevent_stop_inject(Update.Action.MoveViaKey(move_key))
           | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
