@@ -87,6 +87,12 @@ let view =
             ~on_change=() => inject(ToggleShowPresentation),
             model.show_presentation,
           ),
+          labeled_checkbox(
+            ~id="memoize_doc",
+            ~label="Memoize doc generation",
+            ~on_change=() => inject(ToggleMemoizeDoc),
+            model.memoize_doc,
+          ),
         ],
       )
     );

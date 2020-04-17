@@ -24,6 +24,7 @@ module Action = {
     | ToggleShowUnevaluatedExpansion
     | ToggleShowContenteditable
     | ToggleShowPresentation
+    | ToggleMemoizeDoc
     | SelectHoleInstance(HoleInstance.t)
     | InvalidVar(string)
     | FocusCell
@@ -85,6 +86,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleShowUnevaluatedExpansion
   | ToggleShowContenteditable
   | ToggleShowPresentation
+  | ToggleMemoizeDoc
   | SelectHoleInstance(_)
   | InvalidVar(_)
   | FocusCell
@@ -165,6 +167,7 @@ let apply_action =
       ...model,
       show_presentation: !model.show_presentation,
     }
+  | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
   | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
   | FocusWindow => model
