@@ -227,8 +227,9 @@ module Exp = {
     | And(_) => precedence_And
     | Or(_) => precedence_Or
     | Pair(_) => precedence_Comma
-    | NonEmptyHole(_, _, _, _, d) => precedence'(d)
-    | LivelitHole(_, _, _, d) => precedence'(d)
+    | NonEmptyHole(_, _, _, _, d)
+    | LivelitInfo(_, _, _, _, _, d) => precedence'(d)
+    | LivelitAp(_) => precedence_const
     };
   };
 
@@ -299,9 +300,11 @@ module Exp = {
         | NonEmptyHole(reason, u, i, _sigma, d) =>
           go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
-        | LivelitHole(_, _, _, d) =>
+        | LivelitInfo(_, _, _, _, _, d) =>
           let (doc, _) = go'(d);
           doc;
+        | LivelitAp(_, _, _, lln, _, _) =>
+          annot(DHAnnot.Collapsed, text("<" ++ lln ++ " ap>"))
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
