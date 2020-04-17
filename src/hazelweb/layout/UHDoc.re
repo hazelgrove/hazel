@@ -524,9 +524,9 @@ let mk_NTuple =
 module Typ = {
   let inline_padding_of_operator: UHTyp.operator => (t, t) =
     fun
-    | UHTyp.Prod => (Doc.empty(), Doc.space())
+    | UHTyp.Prod => (empty_, space_)
     | Arrow
-    | Sum => (Doc.space(), Doc.space());
+    | Sum => (space_, space_);
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Typ);
   let mk_Parenthesized = mk_Parenthesized(~sort=Typ);
@@ -568,12 +568,10 @@ module Typ = {
 
 module Pat = {
   let inline_padding_of_operator: UHPat.operator => (t, t) =
-    Doc.(
-      fun
-      | UHPat.Comma => (empty(), space())
-      | Space
-      | Cons => (empty(), empty())
-    );
+    fun
+    | UHPat.Comma => (empty_, space_)
+    | Space
+    | Cons => (empty_, empty_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Pat);
   let mk_NumLit: (~err: ErrStatus.t, int) => t = mk_NumLit(~sort=Pat);
@@ -631,20 +629,18 @@ module Pat = {
 
 module Exp = {
   let inline_padding_of_operator: UHExp.operator => (t, t) =
-    Doc.(
-      fun
-      | UHExp.Space
-      | Times
-      | Cons => (empty(), empty())
-      | Plus
-      | Minus
-      | LessThan
-      | GreaterThan
-      | Equals
-      | And
-      | Or => (space(), space())
-      | Comma => (empty(), space())
-    );
+    fun
+    | UHExp.Space
+    | Times
+    | Cons => (empty_, empty_)
+    | Plus
+    | Minus
+    | LessThan
+    | GreaterThan
+    | Equals
+    | And
+    | Or => (space_, space_)
+    | Comma => (empty_, space_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Exp);
   let mk_NumLit: (~err: ErrStatus.t, int) => t = mk_NumLit(~sort=Exp);
