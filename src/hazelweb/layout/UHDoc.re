@@ -537,29 +537,54 @@ module Typ = {
       ~inline_padding_of_operator,
     );
 
-  let rec mk = (~enforce_inline: bool, uty: UHTyp.t): t =>
-    mk_opseq(~enforce_inline, uty)
-  and mk_opseq = (~enforce_inline: bool, opseq: UHTyp.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
+  let rec mk =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
+        (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): t)
+      )
+    )
+  and mk_opseq =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
+        (
+          mk_NTuple(
+            ~mk_operand=Lazy.force(mk_operand, ~memoize),
+            ~mk_operator,
+            ~enforce_inline,
+            opseq,
+          ): t
+        )
+      )
+    )
   and mk_operator = (op: UHTyp.operator): t =>
     mk_op(UHTyp.string_of_operator(op))
-  and mk_operand = (~enforce_inline: bool, operand: UHTyp.operand): t =>
-    switch (operand) {
-    | Hole => mk_EmptyHole("?")
-    | Unit => mk_Unit()
-    | Num => mk_Num()
-    | Bool => mk_Bool()
-    | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~child_step=0, body);
-      mk_Parenthesized(body);
-    | List(body) =>
-      let body = mk_child(~enforce_inline, ~child_step=0, body);
-      mk_List(body);
-    }
+  and mk_operand =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
+        (
+          switch (operand) {
+          | Hole => mk_EmptyHole("?")
+          | Unit => mk_Unit()
+          | Num => mk_Num()
+          | Bool => mk_Bool()
+          | Parenthesized(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_Parenthesized(body);
+          | List(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_List(body);
+          }: t
+        )
+      )
+    )
   and mk_child =
-      (~enforce_inline: bool, ~child_step: int, uty: UHTyp.t): formatted_child => {
+      (~memoize: bool, ~enforce_inline: bool, ~child_step: int, uty: UHTyp.t)
+      : formatted_child => {
     let formattable = (~enforce_inline: bool) =>
-      mk(~enforce_inline, uty) |> annot_Step(child_step);
+      Lazy.force(mk, ~memoize, ~enforce_inline, uty)
+      |> annot_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
       : Unformatted(formattable);
@@ -596,31 +621,55 @@ module Pat = {
       ~inline_padding_of_operator,
     );
 
-  let rec mk = (~enforce_inline: bool, p: UHPat.t): t =>
-    mk_opseq(~enforce_inline, p)
-  and mk_opseq = (~enforce_inline: bool, opseq: UHPat.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
+  let rec mk =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, p: UHPat.t) =>
+        (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, p): t)
+      )
+    )
+  and mk_opseq =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHPat.opseq) =>
+        (
+          mk_NTuple(
+            ~mk_operand=Lazy.force(mk_operand, ~memoize),
+            ~mk_operator,
+            ~enforce_inline,
+            opseq,
+          ): t
+        )
+      )
+    )
   and mk_operator = (op: UHPat.operator): t =>
     op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
-  and mk_operand = (~enforce_inline: bool, operand: UHPat.operand): t =>
-    switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
-    | Wild(err) => mk_Wild(~err)
-    | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-    | NumLit(err, n) => mk_NumLit(~err, n)
-    | BoolLit(err, b) => mk_BoolLit(~err, b)
-    | ListNil(err) => mk_ListNil(~err, ())
-    | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~child_step=0, body);
-      mk_Parenthesized(body);
-    | Inj(err, inj_side, body) =>
-      let body = mk_child(~enforce_inline, ~child_step=0, body);
-      mk_Inj(~err, ~inj_side, body);
-    }
+  and mk_operand =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
+        (
+          switch (operand) {
+          | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
+          | Wild(err) => mk_Wild(~err)
+          | Var(err, verr, x) => mk_Var(~err, ~verr, x)
+          | NumLit(err, n) => mk_NumLit(~err, n)
+          | BoolLit(err, b) => mk_BoolLit(~err, b)
+          | ListNil(err) => mk_ListNil(~err, ())
+          | Parenthesized(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_Parenthesized(body);
+          | Inj(err, inj_side, body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_Inj(~err, ~inj_side, body);
+          }: t
+        )
+      )
+    )
   and mk_child =
-      (~enforce_inline: bool, ~child_step: int, p: UHPat.t): formatted_child => {
+      (~memoize: bool, ~enforce_inline: bool, ~child_step: int, p: UHPat.t)
+      : formatted_child => {
     let formattable = (~enforce_inline: bool) =>
-      mk(~enforce_inline, p) |> annot_Step(child_step);
+      Lazy.force(mk, ~memoize, ~enforce_inline, p) |> annot_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
       : Unformatted(formattable);
@@ -670,20 +719,34 @@ module Exp = {
       UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
     );
 
-  let rec mk = (~enforce_inline: bool, e: UHExp.t): t =>
-    mk_block_0(~enforce_inline, e)
+  let rec mk =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
+        (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): t)
+      )
+    )
   // Two versions of `mk_block` so we can memoize them
-  and mk_block_0 = (~enforce_inline: bool, block: UHExp.block): t =>
-    mk_block(~offset=0, ~enforce_inline, block)
-  and mk_block_1 = (~enforce_inline: bool, block: UHExp.block): t =>
-    mk_block(~offset=1, ~enforce_inline, block)
-  and mk_block = (~offset: int, ~enforce_inline: bool, block: UHExp.block): t =>
+  and mk_block_0 =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
+        (mk_block(~offset=0, ~memoize, ~enforce_inline, block): t)
+      )
+    )
+  and mk_block_1 =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
+        (mk_block(~offset=1, ~memoize, ~enforce_inline, block): t)
+      )
+    )
+  and mk_block =
+      (~offset: int, ~memoize, ~enforce_inline: bool, block: UHExp.block): t =>
     if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
       Doc.fail();
     } else {
       block
       |> List.mapi((i, line) =>
-           mk_line(~enforce_inline, line) |> annot_Step(offset + i)
+           Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+           |> annot_Step(offset + i)
          )
       |> ListUtil.split_last
       |> (
@@ -702,91 +765,149 @@ module Exp = {
           )
       );
     }
-  and mk_line = (~enforce_inline: bool, line: UHExp.line): t =>
-    switch (line) {
-    | EmptyLine =>
-      empty_
-      |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-      |> Doc.annot(UHAnnot.EmptyLine)
-    | ExpLine(opseq) => mk_opseq(~enforce_inline, opseq)
-    | LetLine(p, ann, def) =>
-      let p = Pat.mk_child(~enforce_inline, ~child_step=0, p);
-      let ann =
-        ann
-        |> OptUtil.map(ann =>
-             Typ.mk_child(~enforce_inline, ~child_step=1, ann)
-           );
-      let def = mk_child(~enforce_inline, ~child_step=2, def);
-      mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
-    }
-  and mk_opseq = (~enforce_inline: bool, opseq: UHExp.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
+  and mk_line =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
+        (
+          switch (line) {
+          | EmptyLine =>
+            empty_
+            |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+            |> Doc.annot(UHAnnot.EmptyLine)
+          | ExpLine(opseq) =>
+            Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
+          | LetLine(p, ann, def) =>
+            let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
+            let ann =
+              ann
+              |> OptUtil.map(ann =>
+                   Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann)
+                 );
+            let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
+            mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
+          }: t
+        )
+      )
+    )
+  and mk_opseq =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
+        (
+          mk_NTuple(
+            ~mk_operand=Lazy.force(mk_operand, ~memoize),
+            ~mk_operator,
+            ~enforce_inline,
+            opseq,
+          ): t
+        )
+      )
+    )
   and mk_operator = (op: UHExp.operator): t =>
     op |> UHExp.is_Space ? mk_space_op : mk_op(UHExp.string_of_operator(op))
-  and mk_operand = (~enforce_inline: bool, operand: UHExp.operand): t =>
-    switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
-    | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-    | NumLit(err, n) => mk_NumLit(~err, n)
-    | BoolLit(err, b) => mk_BoolLit(~err, b)
-    | ListNil(err) => mk_ListNil(~err, ())
-    | Lam(err, p, ann, body) =>
-      let p = Pat.mk_child(~enforce_inline, ~child_step=0, p);
-      let ann =
-        ann
-        |> OptUtil.map(ann =>
-             Typ.mk_child(~enforce_inline, ~child_step=1, ann)
-           );
-      let body = mk_child(~enforce_inline, ~child_step=2, body);
-      mk_Lam(~err, p, ann, body);
-    | Inj(err, inj_side, body) =>
-      let body = mk_child(~enforce_inline, ~child_step=0, body);
-      mk_Inj(~err, ~inj_side, body);
-    | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~child_step=0, body);
-      mk_Parenthesized(body);
-    | Case(err, scrut, rules, ann) =>
-      if (enforce_inline) {
-        Doc.fail();
-      } else {
-        let scrut = mk_child(~enforce_inline=false, ~child_step=0, scrut);
-        let rules =
-          rules
-          |> List.mapi((i, rule) => mk_rule(rule) |> annot_Step(1 + i));
-        switch (ann) {
-        | None => mk_Case(~err, scrut, rules)
-        | Some(ann) =>
-          let ann =
-            Typ.mk_child(
-              ~enforce_inline=false,
-              ~child_step=1 + List.length(rules),
-              ann,
-            );
-          mk_Case_ann(~err, scrut, rules, ann);
-        };
-      }
-    | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
-    }
-  and mk_rule = (Rule(p, clause): UHExp.rule): t => {
-    let p = Pat.mk_child(~enforce_inline=false, ~child_step=0, p);
-    let clause = mk_child(~enforce_inline=false, ~child_step=1, clause);
-    mk_Rule(p, clause);
-  }
+  and mk_operand =
+    lazy(
+      memoize((~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
+        (
+          switch (operand) {
+          | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
+          | Var(err, verr, x) => mk_Var(~err, ~verr, x)
+          | NumLit(err, n) => mk_NumLit(~err, n)
+          | BoolLit(err, b) => mk_BoolLit(~err, b)
+          | ListNil(err) => mk_ListNil(~err, ())
+          | Lam(err, p, ann, body) =>
+            let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
+            let ann =
+              ann
+              |> OptUtil.map(ann =>
+                   Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann)
+                 );
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=2, body);
+            mk_Lam(~err, p, ann, body);
+          | Inj(err, inj_side, body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_Inj(~err, ~inj_side, body);
+          | Parenthesized(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_Parenthesized(body);
+          | Case(err, scrut, rules, ann) =>
+            if (enforce_inline) {
+              Doc.fail();
+            } else {
+              let scrut =
+                mk_child(
+                  ~memoize,
+                  ~enforce_inline=false,
+                  ~child_step=0,
+                  scrut,
+                );
+              let rules =
+                rules
+                |> List.mapi((i, rule) =>
+                     Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
+                     |> annot_Step(1 + i)
+                   );
+              switch (ann) {
+              | None => mk_Case(~err, scrut, rules)
+              | Some(ann) =>
+                let ann =
+                  Typ.mk_child(
+                    ~memoize,
+                    ~enforce_inline=false,
+                    ~child_step=1 + List.length(rules),
+                    ann,
+                  );
+                mk_Case_ann(~err, scrut, rules, ann);
+              };
+            }
+          | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
+          }: t
+        )
+      )
+    )
+  and mk_rule =
+    lazy(
+      memoize(
+        (
+          ~memoize: bool,
+          ~enforce_inline as _: bool,
+          Rule(p, clause): UHExp.rule,
+        ) =>
+        (
+          {
+            let p =
+              Pat.mk_child(~memoize, ~enforce_inline=false, ~child_step=0, p);
+            let clause =
+              mk_child(
+                ~memoize,
+                ~enforce_inline=false,
+                ~child_step=1,
+                clause,
+              );
+            mk_Rule(p, clause);
+          }: t
+        )
+      )
+    )
   and mk_child =
-      (~enforce_inline: bool, ~child_step: int, e: UHExp.t): formatted_child => {
+      (~memoize: bool, ~enforce_inline: bool, ~child_step: int, e: UHExp.t)
+      : formatted_child => {
     switch (e) {
     | [EmptyLine, ...subblock] =>
       if (enforce_inline) {
         EnforcedInline(Doc.fail());
       } else {
         let formatted =
-          mk_block_1(~enforce_inline=false, subblock)
+          Lazy.force(mk_block_1, ~memoize, ~enforce_inline=false, subblock)
           |> annot_Step(child_step);
         UserNewline(formatted);
       }
     | _ =>
       let formattable = (~enforce_inline) =>
-        mk(~enforce_inline, e) |> annot_Step(child_step);
+        Lazy.force(mk, ~memoize, ~enforce_inline, e)
+        |> annot_Step(child_step);
       enforce_inline
         ? EnforcedInline(formattable(~enforce_inline=true))
         : Unformatted(formattable);

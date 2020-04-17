@@ -155,7 +155,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       );
     };
   let e = program |> Program.get_uhexp;
-  let doc = lazy(UHDoc.Exp.mk(~enforce_inline=false, e));
+  let doc =
+    lazy(
+      Lazy.force(
+        UHDoc.Exp.mk,
+        ~memoize=false /*TODO:memoize*/,
+        ~enforce_inline=false,
+        e,
+      )
+    );
   let layout =
     lazy(
       switch (
