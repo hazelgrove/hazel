@@ -126,11 +126,16 @@ let view = (~inject, model: Model.t) => {
         }),
       ];
       let view =
-        program |> Program.get_decorated_layout |> UHCode.view(~inject);
+        program
+        |> Program.get_decorated_layout(~memoize=model.memoize_doc)
+        |> UHCode.view(~inject);
       (evt_handlers, view);
     } else {
       let evt_handlers = [on_click_attr];
-      let view = program |> Program.get_layout |> UHCode.view(~inject);
+      let view =
+        program
+        |> Program.get_layout(~memoize=model.memoize_doc)
+        |> UHCode.view(~inject);
       (evt_handlers, view);
     };
   Node.div(

@@ -159,7 +159,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     lazy(
       Lazy.force(
         UHDoc.Exp.mk,
-        ~memoize=false /*TODO:memoize*/,
+        ~memoize=model.memoize_doc,
         ~enforce_inline=false,
         e,
       )

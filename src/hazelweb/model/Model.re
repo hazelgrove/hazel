@@ -8,6 +8,7 @@ type t = {
   show_fn_bodies: bool,
   show_casts: bool,
   show_unevaluated_expansion: bool,
+  memoize_doc: bool,
   selected_example: option(UHExp.t),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
@@ -53,6 +54,7 @@ let init = (): t => {
     show_fn_bodies: false,
     show_casts: false,
     show_unevaluated_expansion: false,
+    memoize_doc: true,
     selected_example: None,
     left_sidebar_open: false,
     right_sidebar_open: true,
@@ -174,12 +176,18 @@ let perform_edit_action = (a: Action.t, model: t): t => {
 };
 
 let move_via_key = (move_key, model) => {
-  let new_program = model |> get_program |> Program.move_via_key(move_key);
+  let new_program =
+    model
+    |> get_program
+    |> Program.move_via_key(~memoize=model.memoize_doc, move_key);
   model |> update_program(~undoable=false, new_program);
 };
 
 let move_via_click = (row_col, model) => {
-  let new_program = model |> get_program |> Program.move_via_click(row_col);
+  let new_program =
+    model
+    |> get_program
+    |> Program.move_via_click(~memoize=model.memoize_doc, row_col);
   model |> update_program(~undoable=false, new_program);
 };
 
