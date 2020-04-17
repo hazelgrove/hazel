@@ -179,9 +179,11 @@ let next_card = model => {
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
-  let new_program = model |> get_program |> Program.perform_edit_action(a);
-  model
-  |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
+  TimeUtil.measure_time("Model.perform_edit_action", () => {
+    let new_program = model |> get_program |> Program.perform_edit_action(a);
+    model
+    |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
+  });
 };
 
 let move_via_key = (move_key, model) => {

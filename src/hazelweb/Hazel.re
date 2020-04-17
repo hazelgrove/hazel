@@ -67,16 +67,19 @@ let create =
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
-  Component.create(
-    ~apply_action=Update.apply_action(model),
-    ~on_display=
-      (_, ~schedule_action as _) =>
-        if (Model.is_cell_focused(model)) {
-          let caret_elem = JSUtil.force_get_elem_by_id("caret");
-          restart_cursor_animation(caret_elem);
-          scroll_cursor_into_view_if_needed(caret_elem);
-        },
-    model,
-    Page.view(~inject, model),
+  Printf.printf("\n== Hazel.create times ==\n");
+  TimeUtil.measure_time("Hazel.create", () =>
+    Component.create(
+      ~apply_action=Update.apply_action(model),
+      ~on_display=
+        (_, ~schedule_action as _) =>
+          if (Model.is_cell_focused(model)) {
+            let caret_elem = JSUtil.force_get_elem_by_id("caret");
+            restart_cursor_animation(caret_elem);
+            scroll_cursor_into_view_if_needed(caret_elem);
+          },
+      model,
+      Page.view(~inject, model),
+    )
   );
 };
