@@ -206,6 +206,13 @@ let find_nearest_within_row = ((row, col), cmap) => {
   };
 };
 
+let move_up = ((row, col), cmap): option(binding) =>
+  row <= 0 ? None : Some(cmap |> find_nearest_within_row((row - 1, col)));
+
+let move_down = ((row, col), cmap): option(binding) =>
+  row >= num_rows(cmap) - 1
+    ? None : Some(cmap |> find_nearest_within_row((row + 1, col)));
+
 let move_left =
     (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_before_within_row((row, col))) {
@@ -226,9 +233,6 @@ let move_right =
     row == num_rows(cmap) - 1 ? None : Some(cmap |> start_of_row(row + 1))
   };
 
-let move_up = ((row, col), cmap): option(binding) =>
-  row <= 0 ? None : Some(cmap |> find_nearest_within_row((row - 1, col)));
+let move_sol = (row, cmap): binding => cmap |> start_of_row(row);
 
-let move_down = ((row, col), cmap): option(binding) =>
-  row >= num_rows(cmap) - 1
-    ? None : Some(cmap |> find_nearest_within_row((row + 1, col)));
+let move_eol = (row, cmap): binding => cmap |> end_of_row(row);

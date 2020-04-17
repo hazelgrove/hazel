@@ -626,7 +626,9 @@ module MoveKey = {
     | ArrowLeft
     | ArrowRight
     | ArrowUp
-    | ArrowDown;
+    | ArrowDown
+    | Home
+    | End;
 
   let of_key =
     fun
@@ -634,6 +636,8 @@ module MoveKey = {
     | "ArrowRight" => Some(ArrowRight)
     | "ArrowDown" => Some(ArrowDown)
     | "ArrowUp" => Some(ArrowUp)
+    | "Home" => Some(Home)
+    | "End" => Some(End)
     | _ => None;
 };
 

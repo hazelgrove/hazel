@@ -201,8 +201,6 @@ let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
     };
   let (new_z, update_start_col) =
     switch (move_key) {
-    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
-    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
     | ArrowUp => (
         cmap |> CursorMap.move_up((row, from_col)),
         put_col_on_start,
@@ -211,6 +209,10 @@ let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
         cmap |> CursorMap.move_down((row, from_col)),
         put_col_on_start,
       )
+    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
+    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
+    | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
+    | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
     };
   switch (new_z) {
   | None => raise(CursorEscaped)
