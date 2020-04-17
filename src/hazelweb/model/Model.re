@@ -6,12 +6,25 @@ type compute_results = {
   show_unevaluated_expansion: bool,
 };
 
+type measurements = {
+  measurements: bool,
+  model_perform_edit_action: bool,
+  program_get_doc: bool,
+  layoutOfDoc_layout_of_doc: bool,
+  uhcode_view: bool,
+  cell_view: bool,
+  page_view: bool,
+  hazel_create: bool,
+  update_apply_action: bool,
+};
+
 type t = {
   cardstacks: Cardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   compute_results,
+  measurements,
   memoize_doc: bool,
   selected_example: option(UHExp.t),
   left_sidebar_open: bool,
@@ -59,6 +72,17 @@ let init = (): t => {
       show_fn_bodies: false,
       show_casts: false,
       show_unevaluated_expansion: false,
+    },
+    measurements: {
+      measurements: true,
+      model_perform_edit_action: true,
+      program_get_doc: true,
+      layoutOfDoc_layout_of_doc: true,
+      uhcode_view: true,
+      cell_view: true,
+      page_view: true,
+      hazel_create: true,
+      update_apply_action: true,
     },
     memoize_doc: true,
     selected_example: None,
@@ -179,18 +203,36 @@ let next_card = model => {
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
-  TimeUtil.measure_time("Model.perform_edit_action", () => {
-    let new_program = model |> get_program |> Program.perform_edit_action(a);
-    model
-    |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
-  });
+  TimeUtil.measure_time(
+    "Model.perform_edit_action",
+    model.measurements.measurements
+    && model.measurements.model_perform_edit_action,
+    () => {
+      let new_program =
+        model |> get_program |> Program.perform_edit_action(a);
+      model
+      |> update_program(
+           ~undoable=UndoHistory.undoable_action(a),
+           new_program,
+         );
+    },
+  );
 };
 
 let move_via_key = (move_key, model) => {
   let new_program =
     model
     |> get_program
-    |> Program.move_via_key(~memoize=model.memoize_doc, move_key);
+    |> Program.move_via_key(
+         ~measure_program_get_doc=
+           model.measurements.measurements
+           && model.measurements.program_get_doc,
+         ~measure_layoutOfDoc_layout_of_doc=
+           model.measurements.measurements
+           && model.measurements.layoutOfDoc_layout_of_doc,
+         ~memoize_doc=model.memoize_doc,
+         move_key,
+       );
   model |> update_program(~undoable=false, new_program);
 };
 
@@ -198,7 +240,16 @@ let move_via_click = (row_col, model) => {
   let new_program =
     model
     |> get_program
-    |> Program.move_via_click(~memoize=model.memoize_doc, row_col);
+    |> Program.move_via_click(
+         ~measure_program_get_doc=
+           model.measurements.measurements
+           && model.measurements.program_get_doc,
+         ~measure_layoutOfDoc_layout_of_doc=
+           model.measurements.measurements
+           && model.measurements.layoutOfDoc_layout_of_doc,
+         ~memoize_doc=model.memoize_doc,
+         row_col,
+       );
   model |> update_program(~undoable=false, new_program);
 };
 

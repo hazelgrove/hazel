@@ -31,16 +31,53 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
-let move_via_key: (~memoize: bool, JSUtil.MoveKey.t, t) => t;
+let move_via_key:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    JSUtil.MoveKey.t,
+    t
+  ) =>
+  t;
 let move_via_click:
-  (~memoize: bool, (CursorMap.Row.t, CursorMap.Col.t), t) => t;
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    (CursorMap.Row.t, CursorMap.Col.t),
+    t
+  ) =>
+  t;
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
 
-let get_doc: (t, ~memoize: bool) => UHDoc.t;
-let get_layout: (~memoize: bool, t) => UHLayout.t;
-let get_decorated_layout: (~memoize: bool, t) => UHLayout.t;
-let get_cursor_map: (~memoize: bool, t) => CursorMap.t;
+let get_doc:
+  (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc.t;
+let get_layout:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  UHLayout.t;
+let get_decorated_layout:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  UHLayout.t;
+let get_cursor_map:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  CursorMap.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
