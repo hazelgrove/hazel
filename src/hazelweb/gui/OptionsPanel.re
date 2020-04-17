@@ -4,6 +4,7 @@ module Vdom = Virtual_dom.Vdom;
 let labeled_checkbox =
     (
       ~id: string,
+      ~classes: List.t(string)=[],
       ~label: string,
       ~on_change: unit => Vdom.Event.t,
       ~disabled=false,
@@ -13,7 +14,7 @@ let labeled_checkbox =
   let checkbox_id = id ++ "_checkbox";
   Vdom.(
     Node.div(
-      [Attr.id(id), Attr.classes(["labeled-checkbox"])],
+      [Attr.id(id), Attr.classes(["labeled-checkbox", ...classes])],
       [
         Node.input(
           [
@@ -55,7 +56,16 @@ let view =
             model.compute_results,
           ),
           labeled_checkbox(
+            ~id="show_case_clauses",
+            ~classes=["indented-option"],
+            ~label="Show case clauses",
+            ~on_change=() => inject(ToggleShowCaseClauses),
+            ~disabled=!model.compute_results,
+            model.show_case_clauses,
+          ),
+          labeled_checkbox(
             ~id="show_fn_bodies",
+            ~classes=["indented-option"],
             ~label="Show function bodies",
             ~on_change=() => inject(ToggleShowFnBodies),
             ~disabled=!model.compute_results,
@@ -63,6 +73,7 @@ let view =
           ),
           labeled_checkbox(
             ~id="show_casts",
+            ~classes=["indented-option"],
             ~label="Show casts",
             ~on_change=() => inject(ToggleShowCasts),
             ~disabled=!model.compute_results,
@@ -70,6 +81,7 @@ let view =
           ),
           labeled_checkbox(
             ~id="show_unevaluated_expansion",
+            ~classes=["indented-option"],
             ~label="Show unevaluated expansion",
             ~on_change=() => inject(ToggleShowUnevaluatedExpansion),
             ~disabled=!model.compute_results,
