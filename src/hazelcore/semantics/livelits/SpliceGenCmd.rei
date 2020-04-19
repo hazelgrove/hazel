@@ -1,7 +1,5 @@
 include Monads.MONAD;
 
-// type esi = SpliceInfo.t(UHExp.t);
-// type out('a) = ('a, esi, MetaVarGen.t);
 let new_splice: t(SpliceName.t);
 let drop_splice: SpliceName.t => t((HTyp.t, UHExp.t));
 let exec:
