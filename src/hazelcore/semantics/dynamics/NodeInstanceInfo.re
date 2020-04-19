@@ -1,25 +1,31 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t = MetaVarMap.t(list((Environment.t, InstancePath.t)));
+type t('a) = MetaVarMap.t(list((Environment.t, InstancePath.t, 'a)));
 
-let empty: t = (MetaVarMap.empty: t);
+let empty: t('a) = (MetaVarMap.empty: t('a));
 
 let next =
-    (hii: t, u: MetaVar.t, sigma: Environment.t, path: InstancePath.t)
-    : (int, t) => {
+    (
+      hii: t('a),
+      u: MetaVar.t,
+      sigma: Environment.t,
+      path: InstancePath.t,
+      a: 'a,
+    )
+    : (int, t('a)) => {
   let (envs, hii) =
     MetaVarMap.insert_or_map(
       hii,
       u,
-      _ => [(sigma, path)],
-      envs => [(sigma, path), ...envs],
+      _ => [(sigma, path, a)],
+      envs => [(sigma, path, a), ...envs],
     );
   (List.length(envs) - 1, hii);
 };
 
 let update_environment =
-    (hii: t, inst: NodeInstance.t, sigma: Environment.t): t => {
+    (hii: t('a), inst: NodeInstance.t, sigma: Environment.t, a: 'a): t('a) => {
   let (u, i) = inst;
   let (_, hii) =
     MetaVarMap.update_with(
@@ -28,9 +34,9 @@ let update_environment =
         ListUtil.update_nth(
           length - i - 1,
           instances,
-          (inst_info: (Environment.t, InstancePath.t)) => {
-            let (_, path) = inst_info;
-            (sigma, path);
+          (inst_info: (Environment.t, InstancePath.t, 'a)) => {
+            let (_, path, _) = inst_info;
+            (sigma, path, a);
           },
         );
       },
@@ -41,13 +47,13 @@ let update_environment =
   hii;
 };
 
-let num_instances = (hii: t, u: MetaVar.t): int =>
+let num_instances = (hii: t('a), u: MetaVar.t): int =>
   switch (MetaVarMap.lookup(hii, u)) {
   | Some(envs) => List.length(envs)
   | None => 0
   };
 
-let default_instance = (hii: t, u: MetaVar.t): option((MetaVar.t, int)) =>
+let default_instance = (hii: t('a), u: MetaVar.t): option((MetaVar.t, int)) =>
   switch (MetaVarMap.lookup(hii, u)) {
   | Some(envs) =>
     switch (envs) {
@@ -58,7 +64,8 @@ let default_instance = (hii: t, u: MetaVar.t): option((MetaVar.t, int)) =>
   };
 
 let lookup =
-    (hii: t, inst: NodeInstance.t): option((Environment.t, InstancePath.t)) => {
+    (hii: t('a), inst: NodeInstance.t)
+    : option((Environment.t, InstancePath.t, 'a)) => {
   let (u, i) = inst;
   switch (MetaVarMap.lookup(hii, u)) {
   | Some(envs) =>

@@ -95,8 +95,8 @@ let get_result = (program: t): Result.t => {
     let (d_renumbered, hii, llii) =
       Dynamics.Exp.renumber(
         [],
-        NodeInstanceInfo.empty,
-        NodeInstanceInfo.empty,
+        HoleInstanceInfo.empty,
+        LivelitInstanceInfo.empty,
         d,
       );
     (d_renumbered, hii, llii, BoxedValue(d_renumbered));
@@ -104,8 +104,8 @@ let get_result = (program: t): Result.t => {
     let (d_renumbered, hii, llii) =
       Dynamics.Exp.renumber(
         [],
-        NodeInstanceInfo.empty,
-        NodeInstanceInfo.empty,
+        HoleInstanceInfo.empty,
+        LivelitInstanceInfo.empty,
         d,
       );
     (d_renumbered, hii, llii, Indet(d_renumbered));

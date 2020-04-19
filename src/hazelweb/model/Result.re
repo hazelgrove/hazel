@@ -1,8 +1,8 @@
 [@deriving sexp]
 type t = (
   DHExp.t,
-  NodeInstanceInfo.t,
-  NodeInstanceInfo.t,
+  HoleInstanceInfo.t,
+  LivelitInstanceInfo.t,
   Dynamics.Evaluator.result,
 );
 

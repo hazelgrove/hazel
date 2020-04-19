@@ -342,8 +342,8 @@ module Pat = {
     };
 
   let rec renumber_result_only =
-          (path: InstancePath.t, hii: NodeInstanceInfo.t, dp: DHPat.t)
-          : (DHPat.t, NodeInstanceInfo.t) =>
+          (path: InstancePath.t, hii: HoleInstanceInfo.t, dp: DHPat.t)
+          : (DHPat.t, HoleInstanceInfo.t) =>
     switch (dp) {
     | Wild
     | Var(_)
@@ -353,18 +353,18 @@ module Pat = {
     | Triv => (dp, hii)
     | EmptyHole(u, _) =>
       let sigma = Environment.empty;
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (EmptyHole(u, i), hii);
     | NonEmptyHole(reason, u, _, dp1) =>
       /* TODO: see above */
       let sigma = Environment.empty;
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       let (dp1, hii) = renumber_result_only(path, hii, dp1);
       (NonEmptyHole(reason, u, i, dp1), hii);
     | Keyword(u, _, k) =>
       /* TODO: see above */
       let sigma = Environment.empty;
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, k), hii);
     | Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only(path, hii, dp1);
@@ -1553,307 +1553,333 @@ module Exp = {
   };
 
   let _renumber_splices =
-      (renumberer, splice_info: SpliceInfo.t(DHExp.t), hii, sii) => {
-    let (sim, hii, sii) =
-      (NatMap.empty, hii, sii)
+      (renumberer, splice_info: SpliceInfo.t(DHExp.t), hii, llii) => {
+    let (sim, hii, llii) =
+      (NatMap.empty, hii, llii)
       |> NatMap.fold(
            splice_info.splice_map,
-           ((sim, hii, sii), (name, (typ, dexp))) => {
-             let (dexp, hii, sii) = renumberer(hii, sii, dexp);
+           ((sim, hii, llii), (name, (typ, dexp))) => {
+             let (dexp, hii, llii) = renumberer(hii, llii, dexp);
              let sim = NatMap.insert_or_update(sim, (name, (typ, dexp)));
-             (sim, hii, sii);
+             (sim, hii, llii);
            },
          );
     let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
-    (splice_info, hii, sii);
+    (splice_info, hii, llii);
   };
 
   let rec renumber_result_only =
           (
             path: InstancePath.t,
-            hii: NodeInstanceInfo.t,
-            sii: NodeInstanceInfo.t,
+            hii: HoleInstanceInfo.t,
+            llii: LivelitInstanceInfo.t,
             d: DHExp.t,
           )
-          : (DHExp.t, NodeInstanceInfo.t, NodeInstanceInfo.t) =>
+          : (DHExp.t, HoleInstanceInfo.t, LivelitInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
-    | Triv => (d, hii, sii)
+    | Triv => (d, hii, llii)
     | Let(dp, d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (Let(dp, d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (Let(dp, d1, d2), hii, llii);
     | FixF(x, ty, d1) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (FixF(x, ty, d1), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (FixF(x, ty, d1), hii, llii);
     | Lam(x, ty, d1) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (Lam(x, ty, d1), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (Lam(x, ty, d1), hii, llii);
     | Ap(d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (Ap(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (Ap(d1, d2), hii, llii);
     | BinNumOp(op, d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (BinNumOp(op, d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (BinNumOp(op, d1, d2), hii, llii);
     | And(d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (And(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (And(d1, d2), hii, llii);
     | Or(d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (Or(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (Or(d1, d2), hii, llii);
     | Inj(ty, side, d1) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (Inj(ty, side, d1), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (Inj(ty, side, d1), hii, llii);
     | Pair(d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (Pair(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (Pair(d1, d2), hii, llii);
     | Cons(d1, d2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_result_only(path, hii, sii, d2);
-      (Cons(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
+      (Cons(d1, d2), hii, llii);
     | Case(d1, rules, n) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      let (drules, hii, sii) =
-        renumber_result_only_rules(path, hii, sii, rules);
-      (Case(d1, drules, n), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      let (drules, hii, llii) =
+        renumber_result_only_rules(path, hii, llii, rules);
+      (Case(d1, drules, n), hii, llii);
     | EmptyHole(u, _, sigma) =>
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (EmptyHole(u, i, sigma), hii, sii);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (EmptyHole(u, i, sigma), hii, llii);
     | NonEmptyHole(reason, u, _, sigma, d1) =>
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (NonEmptyHole(reason, u, i, sigma, d1), hii, sii);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (NonEmptyHole(reason, u, i, sigma, d1), hii, llii);
     | FreeVar(u, _, sigma, x) =>
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (FreeVar(u, i, sigma, x), hii, sii);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (FreeVar(u, i, sigma, x), hii, llii);
     | Keyword(u, _, sigma, k) =>
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (Keyword(u, i, sigma, k), hii, sii);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (Keyword(u, i, sigma, k), hii, llii);
     | FreeLivelit(u, _, sigma, name) =>
-      let (i, hii) = NodeInstanceInfo.next(hii, u, sigma, path);
-      (FreeLivelit(u, i, sigma, name), hii, sii);
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (FreeLivelit(u, i, sigma, name), hii, llii);
     | LivelitAp(su, _, sigma, lln, splice_info, d1) =>
-      let (si, sii) = NodeInstanceInfo.next(sii, su, sigma, path);
-      let (splice_info, hii, sii) =
-        _renumber_splices(renumber_result_only(path), splice_info, hii, sii);
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (LivelitAp(su, si, sigma, lln, splice_info, d1), hii, sii);
+      let (splice_info, hii, llii) =
+        _renumber_splices(
+          renumber_result_only(path),
+          splice_info,
+          hii,
+          llii,
+        );
+      let (si, llii) =
+        LivelitInstanceInfo.next(llii, su, sigma, path, splice_info);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (LivelitAp(su, si, sigma, lln, splice_info, d1), hii, llii);
     | LivelitInfo(su, _, sigma, lln, splice_info, d1) =>
-      let (si, sii) = NodeInstanceInfo.next(sii, su, sigma, path);
+      let (si, llii) =
+        LivelitInstanceInfo.next(llii, su, sigma, path, splice_info);
       // Note: we do _not_ renumber the splices -
       // it's not necessary and not feasible to do so accurately
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (LivelitInfo(su, si, sigma, lln, splice_info, d1), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (LivelitInfo(su, si, sigma, lln, splice_info, d1), hii, llii);
     | Cast(d1, ty1, ty2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (Cast(d1, ty1, ty2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (Cast(d1, ty1, ty2), hii, llii);
     | FailedCast(d1, ty1, ty2) =>
-      let (d1, hii, sii) = renumber_result_only(path, hii, sii, d1);
-      (FailedCast(d1, ty1, ty2), hii, sii);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
+      (FailedCast(d1, ty1, ty2), hii, llii);
     }
   and renumber_result_only_rules =
       (
         path: InstancePath.t,
-        hii: NodeInstanceInfo.t,
-        sii: NodeInstanceInfo.t,
+        hii: HoleInstanceInfo.t,
+        llii: LivelitInstanceInfo.t,
         rules: list(DHExp.rule),
       )
-      : (list(DHExp.rule), NodeInstanceInfo.t, NodeInstanceInfo.t) =>
+      : (list(DHExp.rule), HoleInstanceInfo.t, LivelitInstanceInfo.t) =>
     rules
     |> List.fold_left(
          (b, r: DHExp.rule) => {
-           let (rs, hii, sii) = b;
+           let (rs, hii, llii) = b;
            switch (r) {
            | Rule(dp, d) =>
              let (dp, hii) = Pat.renumber_result_only(path, hii, dp);
-             let (d, hii, sii) = renumber_result_only(path, hii, sii, d);
-             (rs @ [DHExp.Rule(dp, d)], hii, sii);
+             let (d, hii, llii) = renumber_result_only(path, hii, llii, d);
+             (rs @ [DHExp.Rule(dp, d)], hii, llii);
            };
          },
-         ([], hii, sii),
+         ([], hii, llii),
        );
 
   let rec renumber_sigmas_only =
           (
             path: InstancePath.t,
-            hii: NodeInstanceInfo.t,
-            sii: NodeInstanceInfo.t,
+            hii: HoleInstanceInfo.t,
+            llii: LivelitInstanceInfo.t,
             d: DHExp.t,
           )
-          : (DHExp.t, NodeInstanceInfo.t, NodeInstanceInfo.t) =>
+          : (DHExp.t, HoleInstanceInfo.t, LivelitInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
-    | Triv => (d, hii, sii)
+    | Triv => (d, hii, llii)
     | Let(dp, d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (Let(dp, d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (Let(dp, d1, d2), hii, llii);
     | FixF(x, ty, d1) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (FixF(x, ty, d1), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (FixF(x, ty, d1), hii, llii);
     | Lam(x, ty, d1) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (Lam(x, ty, d1), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (Lam(x, ty, d1), hii, llii);
     | Ap(d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (Ap(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (Ap(d1, d2), hii, llii);
     | BinNumOp(op, d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (BinNumOp(op, d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (BinNumOp(op, d1, d2), hii, llii);
     | And(d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (And(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (And(d1, d2), hii, llii);
     | Or(d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (Or(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (Or(d1, d2), hii, llii);
     | Inj(ty, side, d1) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (Inj(ty, side, d1), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (Inj(ty, side, d1), hii, llii);
     | Pair(d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (Pair(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (Pair(d1, d2), hii, llii);
     | Cons(d1, d2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (d2, hii, sii) = renumber_sigmas_only(path, hii, sii, d2);
-      (Cons(d1, d2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);
+      (Cons(d1, d2), hii, llii);
     | Case(d1, rules, n) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      let (rules, hii, sii) =
-        renumber_sigmas_only_rules(path, hii, sii, rules);
-      (Case(d1, rules, n), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      let (rules, hii, llii) =
+        renumber_sigmas_only_rules(path, hii, llii, rules);
+      (Case(d1, rules, n), hii, llii);
     | EmptyHole(u, i, sigma) =>
-      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
-      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (EmptyHole(u, i, sigma), hii, sii);
+      let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (EmptyHole(u, i, sigma), hii, llii);
     | NonEmptyHole(reason, u, i, sigma, d1) =>
-      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
-      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (NonEmptyHole(reason, u, i, sigma, d1), hii, sii);
+      let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (NonEmptyHole(reason, u, i, sigma, d1), hii, llii);
     | FreeVar(u, i, sigma, x) =>
-      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
-      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (FreeVar(u, i, sigma, x), hii, sii);
+      let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (FreeVar(u, i, sigma, x), hii, llii);
     | Keyword(u, i, sigma, k) =>
-      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
-      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (Keyword(u, i, sigma, k), hii, sii);
+      let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (Keyword(u, i, sigma, k), hii, llii);
     | FreeLivelit(u, i, sigma, name) =>
-      let (sigma, hii, sii) = renumber_sigma(path, u, i, hii, sii, sigma);
-      let hii = NodeInstanceInfo.update_environment(hii, (u, i), sigma);
-      (FreeLivelit(u, i, sigma, name), hii, sii);
+      let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (FreeLivelit(u, i, sigma, name), hii, llii);
     | LivelitAp(su, si, sigma, lln, splice_info, d1) =>
-      let (sigma, hii, sii) = renumber_sigma(path, su, si, hii, sii, sigma);
-      let sii = NodeInstanceInfo.update_environment(sii, (su, si), sigma);
-      let (splice_info, hii, sii) =
-        _renumber_splices(renumber_sigmas_only(path), splice_info, hii, sii);
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (LivelitAp(su, si, sigma, lln, splice_info, d1), hii, sii);
+      let (sigma, hii, llii) =
+        renumber_sigma(path, su, si, hii, llii, sigma);
+      let (splice_info, hii, llii) =
+        _renumber_splices(
+          renumber_sigmas_only(path),
+          splice_info,
+          hii,
+          llii,
+        );
+      let llii =
+        LivelitInstanceInfo.update_environment(
+          llii,
+          (su, si),
+          sigma,
+          splice_info,
+        );
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (LivelitAp(su, si, sigma, lln, splice_info, d1), hii, llii);
     | LivelitInfo(su, si, sigma, lln, splice_info, d1) =>
-      let (sigma, hii, sii) = renumber_sigma(path, su, si, hii, sii, sigma);
-      let sii = NodeInstanceInfo.update_environment(sii, (su, si), sigma);
+      let (sigma, hii, llii) =
+        renumber_sigma(path, su, si, hii, llii, sigma);
+      let llii =
+        LivelitInstanceInfo.update_environment(
+          llii,
+          (su, si),
+          sigma,
+          splice_info,
+        );
       // Note: we do _not_ renumber the splices -
       // it's not necessary and not feasible to do so accurately
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (LivelitInfo(su, si, sigma, lln, splice_info, d1), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (LivelitInfo(su, si, sigma, lln, splice_info, d1), hii, llii);
     | Cast(d1, ty1, ty2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (Cast(d1, ty1, ty2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (Cast(d1, ty1, ty2), hii, llii);
     | FailedCast(d1, ty1, ty2) =>
-      let (d1, hii, sii) = renumber_sigmas_only(path, hii, sii, d1);
-      (FailedCast(d1, ty1, ty2), hii, sii);
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
+      (FailedCast(d1, ty1, ty2), hii, llii);
     }
   and renumber_sigmas_only_rules =
       (
         path: InstancePath.t,
-        hii: NodeInstanceInfo.t,
-        sii: NodeInstanceInfo.t,
+        hii: HoleInstanceInfo.t,
+        llii: LivelitInstanceInfo.t,
         rules: list(DHExp.rule),
       )
-      : (list(DHExp.rule), NodeInstanceInfo.t, NodeInstanceInfo.t) =>
+      : (list(DHExp.rule), HoleInstanceInfo.t, LivelitInstanceInfo.t) =>
     rules
     |> List.fold_left(
          (b, r: DHExp.rule) => {
-           let (rs, hii, sii) = b;
+           let (rs, hii, llii) = b;
            switch (r) {
            | Rule(dp, d) =>
              /* pattern holes don't have environments */
-             let (d, hii, sii) = renumber_sigmas_only(path, hii, sii, d);
-             (rs @ [DHExp.Rule(dp, d)], hii, sii);
+             let (d, hii, llii) = renumber_sigmas_only(path, hii, llii, d);
+             (rs @ [DHExp.Rule(dp, d)], hii, llii);
            };
          },
-         ([], hii, sii),
+         ([], hii, llii),
        )
   and renumber_sigma =
       (
         path: InstancePath.t,
         u: MetaVar.t,
         i: MetaVarInst.t,
-        hii: NodeInstanceInfo.t,
-        sii: NodeInstanceInfo.t,
+        hii: HoleInstanceInfo.t,
+        llii: LivelitInstanceInfo.t,
         sigma: Environment.t,
       )
-      : (Environment.t, NodeInstanceInfo.t, NodeInstanceInfo.t) => {
-    let (sigma, hii, sii) =
+      : (Environment.t, HoleInstanceInfo.t, LivelitInstanceInfo.t) => {
+    let (sigma, hii, llii) =
       List.fold_right(
         (
           xd: (Var.t, DHExp.t),
-          acc: (Environment.t, NodeInstanceInfo.t, NodeInstanceInfo.t),
+          acc: (Environment.t, HoleInstanceInfo.t, LivelitInstanceInfo.t),
         ) => {
           let (x, d) = xd;
-          let (sigma_in, hii, sii) = acc;
+          let (sigma_in, hii, llii) = acc;
           let path = [((u, i), x), ...path];
-          let (d, hii, sii) = renumber_result_only(path, hii, sii, d);
+          let (d, hii, llii) = renumber_result_only(path, hii, llii, d);
           let sigma_out = [(x, d), ...sigma_in];
-          (sigma_out, hii, sii);
+          (sigma_out, hii, llii);
         },
         sigma,
-        ([], hii, sii),
+        ([], hii, llii),
       );
 
     List.fold_right(
       (
         xd: (Var.t, DHExp.t),
-        acc: (Environment.t, NodeInstanceInfo.t, NodeInstanceInfo.t),
+        acc: (Environment.t, HoleInstanceInfo.t, LivelitInstanceInfo.t),
       ) => {
         let (x, d) = xd;
-        let (sigma_in, hii, sii) = acc;
+        let (sigma_in, hii, llii) = acc;
         let path = [((u, i), x), ...path];
-        let (d, hii, sii) = renumber_sigmas_only(path, hii, sii, d);
+        let (d, hii, llii) = renumber_sigmas_only(path, hii, llii, d);
         let sigma_out = [(x, d), ...sigma_in];
-        (sigma_out, hii, sii);
+        (sigma_out, hii, llii);
       },
       sigma,
-      ([], hii, sii),
+      ([], hii, llii),
     );
   };
 
   let renumber =
       (
         path: InstancePath.t,
-        hii: NodeInstanceInfo.t,
-        sii: NodeInstanceInfo.t,
+        hii: HoleInstanceInfo.t,
+        llii: LivelitInstanceInfo.t,
         d: DHExp.t,
       )
-      : (DHExp.t, NodeInstanceInfo.t, NodeInstanceInfo.t) => {
-    let (d, hii, sii) = renumber_result_only(path, hii, sii, d);
-    renumber_sigmas_only(path, hii, sii, d);
+      : (DHExp.t, HoleInstanceInfo.t, LivelitInstanceInfo.t) => {
+    let (d, hii, llii) = renumber_result_only(path, hii, llii, d);
+    renumber_sigmas_only(path, hii, llii, d);
   };
 };
 

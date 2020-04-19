@@ -634,7 +634,7 @@ module Exp = {
       (
         ~enforce_inline: bool,
         ~ctx: Livelits.LivelitViewCtx.t,
-        ~llii: NodeInstanceInfo.t,
+        ~llii: LivelitInstanceInfo.t,
         e: UHExp.t,
       )
       : with_splices => {
@@ -734,11 +734,11 @@ module Exp = {
         switch (VarMap.lookup(ctx, lln)) {
         | None => assert(false)
         | Some(svf) =>
-          let inst_opt = NodeInstanceInfo.default_instance(llii, llu);
+          let inst_opt = LivelitInstanceInfo.default_instance(llii, llu);
           let env_opt =
             inst_opt
-            |> OptUtil.and_then(NodeInstanceInfo.lookup(llii))
-            |> OptUtil.map(fst);
+            |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
+            |> OptUtil.map(((sigma, _, _)) => sigma);
           let llview = svf(m, env_opt, _ => Vdom.Event.Ignore);
           splice_docs :=
             splice_docs^

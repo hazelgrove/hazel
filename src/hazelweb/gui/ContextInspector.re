@@ -79,17 +79,17 @@ let view =
         switch (model |> Model.get_selected_instance) {
         | None => Dynamics.Exp.id_env(ctx)
         | Some((kind, inst)) =>
-          let mii =
-            switch (kind) {
-            | Hole => hii
-            | Livelit => llii
+          let helper = mii =>
+            switch (NodeInstanceInfo.lookup(mii, inst)) {
+            | None =>
+              // raise(InvalidInstance)
+              JSUtil.log("[InvalidInstance]");
+              Dynamics.Exp.id_env(ctx);
+            | Some((sigma, _, _)) => sigma
             };
-          switch (NodeInstanceInfo.lookup(mii, inst)) {
-          | None =>
-            // raise(InvalidInstance)
-            JSUtil.log("[InvalidInstance]");
-            Dynamics.Exp.id_env(ctx);
-          | Some((sigma, _)) => sigma
+          switch (kind) {
+          | Hole => helper(hii)
+          | Livelit => helper(llii)
           };
         };
       } else {
@@ -199,8 +199,8 @@ let view =
     );
   };
 
-  let hii_summary = (hii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
-    let num_instances = NodeInstanceInfo.num_instances(hii, u);
+  let mii_summary = (mii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
+    let num_instances = NodeInstanceInfo.num_instances(mii, u);
     let kindstr =
       switch (kind) {
       | Hole => "hole"
@@ -214,7 +214,7 @@ let view =
             [],
             [
               Node.div(
-                [Attr.classes(["hii-summary-inst"])],
+                [Attr.classes(["mii-summary-inst"])],
                 [
                   DHCode.view_of_instance(
                     ~inject,
@@ -339,20 +339,20 @@ let view =
               ]
             | Some((kind', (u', _) as inst)) =>
               if (kind == kind' && MetaVar.eq(u, u')) {
-                let mii =
-                  switch (kind) {
-                  | Hole => hii
-                  | Livelit => llii
+                let helper = mii =>
+                  switch (NodeInstanceInfo.lookup(mii, inst)) {
+                  | None =>
+                    // raise(InvalidInstance)
+                    [instructional_msg("Internal Error: [InvalidInstance]")]
+                  | Some((_, path, _)) => [
+                      path_view_titlebar,
+                      mii_summary(mii, (kind, inst)),
+                      path_view(inst, path),
+                    ]
                   };
-                switch (NodeInstanceInfo.lookup(mii, inst)) {
-                | None =>
-                  // raise(InvalidInstance)
-                  [instructional_msg("Internal Error: [InvalidInstance]")]
-                | Some((_, path)) => [
-                    path_view_titlebar,
-                    hii_summary(mii, (kind, inst)),
-                    path_view(inst, path),
-                  ]
+                switch (kind) {
+                | Hole => helper(hii)
+                | Livelit => helper(llii)
                 };
               } else {
                 [
