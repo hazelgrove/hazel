@@ -478,7 +478,6 @@ module Exp = {
       LivelitInfo(su, si, sigma', lln, splice_info', d3');
     | LivelitAp(su, si, sigma, lln, splice_info, model) =>
       let splice_info' = subst_splices(splice_info);
-      // TODO delete let model' = if (List.mem(x, List.map(var_of_splice_name, splice_info.splice_order)) ) {model} else { subst_var(d1, x, model)};
       let sigma' = subst_var_env(d1, x, sigma);
       LivelitAp(su, si, sigma', lln, splice_info', model);
     | Cast(d, ty1, ty2) =>
