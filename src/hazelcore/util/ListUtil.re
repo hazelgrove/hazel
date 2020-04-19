@@ -226,3 +226,10 @@ let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
        [],
      )
   |> List.rev;
+
+let rec pairs = (xs: list('x)): list(('x, 'x)) =>
+  switch (xs) {
+  | []
+  | [_] => []
+  | [x1, x2, ...xs] => [(x1, x2), ...pairs([x2, ...xs])]
+  };

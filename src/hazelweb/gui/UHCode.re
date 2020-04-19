@@ -4,6 +4,158 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
 
+module Decoration = {
+  type shape = {
+    // start and end of first line
+    // (where n means n columns from
+    // start of current indentation)
+    hd: (int, int),
+    // ends of all other lines
+    tl: list(int),
+  };
+
+  let shape_of_layout = (~start: int, l: UHLayout.t): shape => {
+    let col = ref(start);
+    let rec go = (~indent, l: UHLayout.t) => {
+      let go' = go(~indent);
+      switch (l) {
+      | Linebreak =>
+        let eol = col^;
+        col := indent;
+        {hd: (eol, eol), tl: [indent]};
+      | Text(s) =>
+        let col_before = col^;
+        col := col^ + StringUtil.utf8_length(s);
+        let col_after = col^;
+        {hd: (col_before - indent, col_after - indent), tl: []};
+      | Align(l) => go(~indent=col^, l)
+      | Cat(l1, l2) =>
+        let s1 = go'(l1);
+        let s2 = go'(l2);
+        switch (s1.tl) {
+        | [] => {hd: (fst(s1.hd), snd(s2.hd)), tl: s2.tl}
+        | [_, ..._] => {hd: s1.hd, tl: s1.tl @ [snd(s2.hd), ...s2.tl]}
+        };
+      | Annot(_, l) => go'(l)
+      };
+    };
+    go(~indent=0, l);
+  };
+
+  type outline_segment =
+    | VLine(float)
+    | HLine(float)
+    | Corner(corner, float)
+  and corner =
+    | TopLeft
+    | TopRight
+    | BottomLeft
+    | BottomRight;
+
+  let outline_path = (~font_metrics: FontMetrics.t, ~corner_radius, shape) => {
+    let row_height = font_metrics.row_height;
+    let col_width = font_metrics.col_width;
+    let half_row_height = row_height /. 2.0;
+
+    let vline_down = VLine(half_row_height -. corner_radius);
+    let vline_up = VLine((-1.0) *. (half_row_height -. corner_radius));
+
+    let hline_left = len =>
+      HLine(
+        (-1.0) *. (float_of_int(len) *. col_width -. 2.0 *. corner_radius),
+      );
+    let hline_right = len =>
+      HLine(float_of_int(len) *. col_width -. 2.0 *. corner_radius);
+
+    let corner_TopLeft = Corner(TopLeft, corner_radius);
+    let corner_TopRight = Corner(TopRight, corner_radius);
+    let corner_BottomLeft = Corner(BottomLeft, corner_radius);
+    let corner_BottomRight = Corner(BottomRight, corner_radius);
+
+    let top_cap = width => [
+      vline_up,
+      corner_TopLeft,
+      hline_right(width),
+      corner_TopRight,
+      vline_down,
+    ];
+    let bottom_cap = width => [
+      vline_down,
+      corner_BottomRight,
+      hline_left(width),
+      corner_BottomLeft,
+      vline_up,
+    ];
+
+    let left_edge =
+        // list of cols from last line up
+        (cols: list(int)) =>
+      cols
+      |> ListUtil.pairs
+      |> List.map(((col1, col2)) =>
+           if (col1 == col2) {
+             [VLine((-1.0) *. row_height)];
+           } else if (col1 > col2) {
+             [
+               vline_up,
+               corner_TopLeft,
+               hline_right(col1 - col2),
+               corner_BottomRight,
+               vline_up,
+             ];
+           } else {
+             [
+               vline_up,
+               corner_TopRight,
+               hline_left(col2 - col1),
+               corner_BottomLeft,
+               vline_up,
+             ];
+           }
+         )
+      |> List.flatten;
+    let right_edge =
+        // list of cols from first line down
+        (cols: list(int)) =>
+      cols
+      |> ListUtil.pairs
+      |> List.map(((col1, col2)) =>
+           if (col1 == col2) {
+             [VLine(row_height)];
+           } else if (col1 > col2) {
+             [
+               vline_down,
+               corner_BottomRight,
+               hline_left(col1 - col2),
+               corner_TopLeft,
+               vline_down,
+             ];
+           } else {
+             [
+               vline_down,
+               corner_BottomLeft,
+               hline_right(col2 - col1),
+               corner_TopRight,
+               vline_down,
+             ];
+           }
+         )
+      |> List.flatten;
+
+    let hd_width = snd(shape.hd) - fst(shape.hd);
+    switch (ListUtil.split_last(shape.tl)) {
+    | None => top_cap(hd_width) @ bottom_cap(hd_width)
+    | Some((_, last)) =>
+      top_cap(hd_width)
+      @ right_edge([snd(shape.hd), ...shape.tl])
+      @ bottom_cap(last)
+      @ left_edge(
+          ListUtil.replicate(List.length(shape.tl), 0) @ [fst(shape.hd)],
+        )
+    };
+  };
+};
+
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
 let clss_of_err: ErrStatus.t => list(cls) =
