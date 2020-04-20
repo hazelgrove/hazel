@@ -167,14 +167,12 @@ let view =
         ),
       ]
 
-    | Annot(LivelitView({llu, llview}), _) =>
+    | Annot(LivelitView({llu, llview, splice_map_opt}), _) =>
       switch (llview) {
       | Inline(view, _) => [view]
       | MultiLine(vdom_with_splices) =>
-        let rec fill_splices =
-                (vdom_with_splices: Livelits.VdomWithSplices.t): Vdom.Node.t => {
-          switch (vdom_with_splices) {
-          | NewSpliceFor(splice_name) =>
+        let splice_getters: Livelits.VdomWithSplices.splice_getters = {
+          get_splice_div: splice_name => {
             let splice_layout =
               splice_ls |> SpliceMap.get_splice(llu, splice_name);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
@@ -188,13 +186,18 @@ let view =
               ],
               go(splice_layout),
             );
-          | Bind(vdom_with_splices, f) =>
-            let vdom = fill_splices(vdom_with_splices);
-            fill_splices(f(vdom));
-          | Ret(vdom) => vdom
-          };
+          },
+
+          get_splice_value: splice_name =>
+            splice_map_opt
+            |> OptUtil.map(splice_map =>
+                 switch (NatMap.lookup(splice_map, splice_name)) {
+                 | None => raise(Not_found)
+                 | Some((_, d)) => d
+                 }
+               ),
         };
-        [fill_splices(vdom_with_splices)];
+        [Livelits.VdomWithSplices.exec(vdom_with_splices, splice_getters)];
       }
 
     | Annot(Term({has_cursor, shape, sort}), l) => [

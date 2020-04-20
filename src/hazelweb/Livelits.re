@@ -7,17 +7,53 @@ module Vdom = Virtual_dom.Vdom;
 
 type div_type = Vdom.Node.t;
 
-module VdomWithSplices = {
-  type t =
-    | NewSpliceFor(SpliceName.t)
-    | Bind(t, div_type => t)
-    | Ret(div_type);
+module type VdomWithSplices = {
+  include Monads.MONAD;
+
+  type splice_getters = {
+    get_splice_div: SpliceName.t => div_type,
+    get_splice_value: SpliceName.t => option(DHExp.t),
+  };
+
+  let get_splice_div: SpliceName.t => t(div_type);
+  let get_splice_value: SpliceName.t => t(option(DHExp.t));
+  let exec: (t('a), splice_getters) => 'a;
+};
+
+module VdomWithSplices: VdomWithSplices = {
+  type splice_getters = {
+    get_splice_div: SpliceName.t => div_type,
+    get_splice_value: SpliceName.t => option(DHExp.t),
+  };
+
+  [@deriving sexp]
+  type t('a) = splice_getters => ('a, splice_getters);
+
+  let get_splice_div = (name, {get_splice_div, _} as sg) => (
+    get_splice_div(name),
+    sg,
+  );
+  let get_splice_value = (name, {get_splice_value, _} as sg) => (
+    get_splice_value(name),
+    sg,
+  );
+
+  let bind = (m, f, sg) => {
+    let (x, sg) = m(sg);
+    f(x, sg);
+  };
+  let return = (m, sg) => (m, sg);
+
+  let exec = (m, sg) => {
+    let (x, _) = m(sg);
+    x;
+  };
 };
 
 module LivelitView = {
   type t =
     | Inline(div_type, int)
-    | MultiLine(VdomWithSplices.t);
+    | MultiLine(VdomWithSplices.t(div_type));
 };
 
 module type LIVELIT = {
@@ -32,7 +68,7 @@ module type LIVELIT = {
 
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
-  let view: (model, option(Environment.t), trigger) => LivelitView.t;
+  let view: (model, trigger) => LivelitView.t;
   let expand: model => UHExp.t;
 };
 
@@ -54,23 +90,21 @@ module PairLivelit: LIVELIT = {
     );
   let update = (m, _) => SpliceGenCmd.return(m);
 
-  let view = ((leftID, rightID), _, _) =>
+  let view = ((leftID, rightID), _) =>
     LivelitView.MultiLine(
-      VdomWithSplices.Bind(
-        VdomWithSplices.NewSpliceFor(leftID),
-        left_splice_view =>
-          VdomWithSplices.Bind(
-            VdomWithSplices.NewSpliceFor(rightID),
-            right_splice_view =>
-              VdomWithSplices.Ret(
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(["pair-livelit"])],
-                    [left_splice_view, right_splice_view],
-                  )
-                ),
+      VdomWithSplices.(
+        bind(get_splice_div(leftID), left_splice_view =>
+          bind(get_splice_div(rightID), right_splice_view =>
+            return(
+              Vdom.(
+                Node.div(
+                  [Attr.classes(["pair-livelit"])],
+                  [left_splice_view, right_splice_view],
+                )
               ),
-          ),
+            )
+          )
+        )
       ),
     );
 
@@ -195,7 +229,7 @@ module CheckboxLivelit: LIVELIT = {
   let init_model = SpliceGenCmd.return(false);
   let update = (m, _) => SpliceGenCmd.return(!m);
 
-  let view = (m, _, trig) => {
+  let view = (m, trig) => {
     let checked_state = m ? [Vdom.Attr.checked] : [];
     let input_elt =
       Vdom.(
@@ -319,8 +353,7 @@ module CheckboxLivelit: LIVELIT = {
 
 type trigger_serialized = SerializedAction.t => Vdom.Event.t;
 type serialized_view_fn_t =
-  (SerializedModel.t, option(Environment.t), trigger_serialized) =>
-  LivelitView.t;
+  (SerializedModel.t, trigger_serialized) => LivelitView.t;
 
 module LivelitViewCtx = {
   type t = VarMap.t_(serialized_view_fn_t);
@@ -362,8 +395,8 @@ module LivelitAdapter = (L: LIVELIT) => {
         L.expand(L.model_of_sexp(serialized_model)),
     };
 
-  let serialized_view_fn = (serialized_model, env, update_fn) =>
-    L.view(L.model_of_sexp(serialized_model), env, action =>
+  let serialized_view_fn = (serialized_model, update_fn) =>
+    L.view(L.model_of_sexp(serialized_model), action =>
       update_fn(L.sexp_of_action(action))
     );
 

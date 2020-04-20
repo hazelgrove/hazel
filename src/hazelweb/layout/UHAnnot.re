@@ -29,6 +29,7 @@ type t =
   | LivelitView({
       llu: MetaVar.t,
       llview: [@sexp.opaque] Livelits.LivelitView.t,
+      splice_map_opt: option(SpliceInfo.splice_map(DHExp.t)),
     })
 [@deriving sexp]
 and term_data = {

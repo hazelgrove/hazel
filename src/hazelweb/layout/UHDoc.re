@@ -354,7 +354,13 @@ let mk_FreeLivelit = (lln: LivelitName.t): t =>
   annot_FreeLivelit(mk_text(lln));
 
 let mk_ApLivelit =
-    (llu: MetaVar.t, lln: LivelitName.t, llview: Livelits.LivelitView.t): t => {
+    (
+      llu: MetaVar.t,
+      lln: LivelitName.t,
+      llview: Livelits.LivelitView.t,
+      splice_map_opt: option(SpliceInfo.splice_map(DHExp.t)),
+    )
+    : t => {
   let lln_doc = mk_text(lln);
   let llview_doc = {
     let spaceholder =
@@ -362,7 +368,10 @@ let mk_ApLivelit =
       | Inline(_, width) => String.make(width, ' ')
       | MultiLine(_) => "" // TODO multiline spaceholders
       };
-    Doc.annot(UHAnnot.LivelitView({llu, llview}), Doc.text(spaceholder));
+    Doc.annot(
+      UHAnnot.LivelitView({llu, llview, splice_map_opt}),
+      Doc.text(spaceholder),
+    );
   };
   annot_ApLivelit(Doc.hseps([lln_doc, llview_doc]));
 };
@@ -735,11 +744,11 @@ module Exp = {
         | None => assert(false)
         | Some(svf) =>
           let inst_opt = LivelitInstanceInfo.default_instance(llii, llu);
-          let env_opt =
+          let sim_opt =
             inst_opt
             |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-            |> OptUtil.map(((sigma, _, _)) => sigma);
-          let llview = svf(m, env_opt, _ => Vdom.Event.Ignore);
+            |> OptUtil.map(((_, _, si)) => SpliceInfo.splice_map(si));
+          let llview = svf(m, _ => Vdom.Event.Ignore);
           splice_docs :=
             splice_docs^
             |> SpliceMap.put_ap(
@@ -752,7 +761,7 @@ module Exp = {
                       mk_block(~enforce_inline, splice_e)
                     ),
                );
-          mk_ApLivelit(llu, lln, llview);
+          mk_ApLivelit(llu, lln, llview, sim_opt);
         }
       }
     and mk_rule = (Rule(p, clause): UHExp.rule): t => {
