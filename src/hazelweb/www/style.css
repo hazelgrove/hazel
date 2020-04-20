@@ -791,6 +791,16 @@ h1 {
   font-weight: bold;
 }
 
+.pair-livelit {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  column-gap: 10px;
+}
+
+.splice {
+  display: inline-block;
+}
+
 .DHCode .Align {
   display: inline-block;
 }

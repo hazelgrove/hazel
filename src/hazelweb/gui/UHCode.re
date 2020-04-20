@@ -181,6 +181,7 @@ let view =
             Node.div(
               [
                 Attr.id(id),
+                Attr.classes(["splice"]),
                 Attr.on_click(
                   on_click(~id, ~splice=Some((llu, splice_name))),
                 ),

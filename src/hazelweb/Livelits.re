@@ -58,15 +58,15 @@ module PairLivelit: LIVELIT = {
     LivelitView.MultiLine(
       VdomWithSplices.Bind(
         VdomWithSplices.NewSpliceFor(leftID),
-        left_cell_div =>
+        left_splice_view =>
           VdomWithSplices.Bind(
             VdomWithSplices.NewSpliceFor(rightID),
-            right_cell_div =>
+            right_splice_view =>
               VdomWithSplices.Ret(
                 Vdom.(
                   Node.div(
-                    [Attr.classes(["inline-div"])],
-                    [left_cell_div, right_cell_div],
+                    [Attr.classes(["pair-livelit"])],
+                    [left_splice_view, right_splice_view],
                   )
                 ),
               ),

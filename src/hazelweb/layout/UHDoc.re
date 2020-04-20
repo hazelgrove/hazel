@@ -364,7 +364,7 @@ let mk_ApLivelit =
       };
     Doc.annot(UHAnnot.LivelitView({llu, llview}), Doc.text(spaceholder));
   };
-  annot_ApLivelit(Doc.hcats([lln_doc, llview_doc]));
+  annot_ApLivelit(Doc.hseps([lln_doc, llview_doc]));
 };
 
 let mk_LetLine =
