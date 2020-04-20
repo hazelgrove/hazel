@@ -282,7 +282,7 @@ let find_and_decorate_Term =
            | ClosedChild(_)
            | DelimGroup
            | LetLine
-           | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
+           | Term({shape: ApLivelit | Operand(_) | Case(_) | Rule, _}) => Skip
            | _ => Stop
            };
          })
