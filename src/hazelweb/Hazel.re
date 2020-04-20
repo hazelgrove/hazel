@@ -16,7 +16,10 @@ let on_startup = (~schedule_action, _) => {
       schedule_action(Update.Action.FocusWindow);
       Js._true;
     });
+
   schedule_action(Update.Action.FocusCell);
+  JSUtil.force_get_elem_by_id("cell")##focus;
+
   let update_font_metrics = () => {
     let rect =
       JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
@@ -28,15 +31,14 @@ let on_startup = (~schedule_action, _) => {
     );
   };
   update_font_metrics();
+
   Dom_html.window##.onresize :=
     Dom_html.handler(_ => {
       update_font_metrics();
       Js._true;
     });
 
-  Async_kernel.Deferred.return(
-    State.{setting_caret: ref(false), changing_cards: ref(false)},
-  );
+  Async_kernel.Deferred.return(State.{changing_cards: ref(false)});
 };
 
 let restart_cursor_animation = caret_elem => {
@@ -68,11 +70,12 @@ let create =
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (_, ~schedule_action as _) => {
-        let caret_elem = JSUtil.force_get_elem_by_id("caret");
-        restart_cursor_animation(caret_elem);
-        scroll_cursor_into_view_if_needed(caret_elem);
-      },
+      (_, ~schedule_action as _) =>
+        if (Model.is_cell_focused(model)) {
+          let caret_elem = JSUtil.force_get_elem_by_id("caret");
+          restart_cursor_animation(caret_elem);
+          scroll_cursor_into_view_if_needed(caret_elem);
+        },
     model,
     Page.view(~inject, model),
   );

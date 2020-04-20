@@ -42,7 +42,11 @@ type t =
   | PerformLivelitAction(SerializedAction.t)
   | Delete
   | Backspace
-  | Construct(shape);
+  | Construct(shape)
+  | SwapLeft
+  | SwapRight
+  | SwapUp
+  | SwapDown;
 
 module Outcome = {
   type t('success) =
@@ -153,8 +157,11 @@ module Typ = {
     | Construct(_)
     | Delete
     | Backspace
-    | PerformLivelitAction(_) =>
-      // | UpdateApPalette(_) =>
+    | PerformLivelitAction(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -170,7 +177,9 @@ module Typ = {
     /* Invalid actions at the type level */
     | (
         PerformLivelitAction(_) |
-        Construct(SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase),
+        Construct(SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
+        SwapUp |
+        SwapDown,
         _,
       )
     /* Invalid cursor positions */
@@ -227,6 +236,34 @@ module Typ = {
       | Some(op) => Succeeded(construct_operator(op, zoperand, surround))
       }
 
+    /* SwapLeft and SwapRight is handled at block level */
+
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorT(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorT(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_ZOpSeq(new_zseq));
+    | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorT(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_ZOpSeq(new_zseq));
+
     /* Zipper */
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
       switch (perform_operand(a, zoperand)) {
@@ -254,7 +291,9 @@ module Typ = {
     /* Invalid actions at the type level */
     | (
         PerformLivelitAction(_) |
-        Construct(SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase),
+        Construct(SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
+        SwapUp |
+        SwapDown,
         _,
       ) =>
       Failed
@@ -333,6 +372,9 @@ module Typ = {
       | None => Failed
       | Some(op) => Succeeded(construct_operator(op, zoperand, (E, E)))
       }
+
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorT(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
@@ -950,7 +992,11 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | PerformLivelitAction(_) =>
+    | PerformLivelitAction(_)
+    | SwapUp
+    | SwapDown
+    | SwapLeft
+    | SwapRight =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -998,7 +1044,11 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | PerformLivelitAction(_) =>
+    | PerformLivelitAction(_)
+    | SwapUp
+    | SwapDown
+    | SwapLeft
+    | SwapRight =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1024,6 +1074,9 @@ module Pat = {
 
     /* Invalid actions */
     | (PerformLivelitAction(_), ZOperator(_)) => Failed
+
+    /* Invalid swap actions */
+    | (SwapUp | SwapDown, _) => Failed
 
     /* Movement */
     | (
@@ -1097,6 +1150,33 @@ module Pat = {
       | Some(zp) => syn_perform(ctx, u_gen, a, zp)
       };
 
+    /* SwapLeft and SwapRight actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorP(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    | (SwapRight, ZOperand(CursorP(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
     /* Zipper */
 
     | (_, ZOperand(zoperand, (E, E))) =>
@@ -1150,7 +1230,9 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SList | SAsc | SLet | SLine | SLam | SCase) |
-        PerformLivelitAction(_),
+        PerformLivelitAction(_) |
+        SwapUp |
+        SwapDown,
         _,
       ) =>
       Failed
@@ -1308,6 +1390,9 @@ module Pat = {
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
       }
 
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorP(_)) => Failed
+
     /* Zipper */
     | (_, ParenthesizedZ(zbody)) =>
       switch (syn_perform(ctx, u_gen, a, zbody)) {
@@ -1352,6 +1437,7 @@ module Pat = {
 
     /* Invalid actions */
     | (PerformLivelitAction(_), ZOperator(_)) => Failed
+    | (SwapUp | SwapDown, _) => Failed
 
     /* Movement handled at top level */
     | (
@@ -1471,6 +1557,33 @@ module Pat = {
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
 
+    /* invalid swap actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorP(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    | (SwapRight, ZOperand(CursorP(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
     /* Zipper */
     | (_, ZOperand(zoperand, (E, E))) =>
       ana_perform_operand(ctx, u_gen, a, zoperand, ty)
@@ -1529,7 +1642,9 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SList | SAsc | SLet | SLine | SLam | SCase) |
-        PerformLivelitAction(_),
+        PerformLivelitAction(_) |
+        SwapUp |
+        SwapDown,
         _,
       ) =>
       Failed
@@ -1705,6 +1820,9 @@ module Pat = {
           construct_operator(u_gen, operator, zoperand, (E, E));
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
+
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorP(_)) => Failed
 
     /* Zipper */
     | (_, ParenthesizedZ(zbody)) =>
@@ -2267,7 +2385,11 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | PerformLivelitAction(_) =>
+    | PerformLivelitAction(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2320,7 +2442,11 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | PerformLivelitAction(_) =>
+    | PerformLivelitAction(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2419,6 +2545,51 @@ module Exp = {
       }
 
     /* No construction handled at block level */
+
+    /* SwapUp and SwapDown is handled at block level */
+    | SwapUp when ZExp.line_can_be_swapped(zline) =>
+      switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+      | (None, _, _) => Failed
+      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+        Failed
+      /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
+      | (Some((rest, EmptyLine)), _, []) =>
+        let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let new_zblock =
+          (rest, zline, UHExp.Block.wrap(new_hole))
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      | (Some((rest, last)), _, _) =>
+        let new_zblock =
+          (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      }
+    | SwapDown when ZExp.line_can_be_swapped(zline) =>
+      switch (suffix, zline) {
+      | ([], _) => Failed
+      /* avoid swap down for the Let line if it is second to last */
+      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
+        Failed
+      /* handle corner case when the second to last line is an EmptyLine */
+      | ([last], CursorL(_, EmptyLine)) =>
+        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        let new_zblock =
+          (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), [])
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      | ([hd, ...tl], _) =>
+        let new_zblock =
+          (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      }
 
     /* Zipper */
     | _ =>
@@ -2614,6 +2785,11 @@ module Exp = {
       | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
       };
     | (Construct(_) | PerformLivelitAction(_), CursorL(_)) => Failed
+
+    /* Invalid swap actions */
+    | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
+    | (SwapLeft, CursorL(_))
+    | (SwapRight, CursorL(_)) => Failed
 
     /* Zipper */
 
@@ -2829,6 +3005,34 @@ module Exp = {
       };
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(SynDone((new_zblock, ty, u_gen)));
+
+    /* Swap actions */
+    | (SwapUp | SwapDown, ZOperator(_))
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | (SwapRight, ZOperand(CursorE(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
     /* Zipper */
 
@@ -3268,6 +3472,11 @@ module Exp = {
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
 
+    /* Invalid Swap actions */
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
+      Failed
+    | (SwapLeft | SwapRight, CursorE(_)) => Failed
+
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
       switch (syn_perform(ctx, a, (zbody, ty, u_gen))) {
@@ -3524,6 +3733,25 @@ module Exp = {
     | (Construct(_) | PerformLivelitAction(_), CursorR(OnDelim(_), _)) =>
       Failed
 
+    /* Invalid swap actions */
+    | (SwapLeft | SwapRight, CursorR(_)) => Failed
+
+    /* SwapUp and SwapDown actions */
+    | (SwapUp, CursorR(_) | RuleZP(_)) =>
+      switch (ListUtil.split_last(prefix)) {
+      | None => Failed
+      | Some((rest, last)) =>
+        let new_zrules = (rest, zrule, [last, ...suffix]);
+        Succeeded((new_zrules, u_gen));
+      }
+    | (SwapDown, CursorR(_) | RuleZP(_)) =>
+      switch (suffix) {
+      | [] => Failed
+      | [hd, ...tl] =>
+        let new_zrules = (prefix @ [hd], zrule, tl);
+        Succeeded((new_zrules, u_gen));
+      }
+
     /* Zipper */
     | (_, RuleZP(zp, clause)) =>
       switch (Pat.ana_perform(ctx, u_gen, a, zp, pat_ty)) {
@@ -3648,6 +3876,50 @@ module Exp = {
 
     /* No construction handled at block level */
 
+    /* SwapUp and SwapDown is handled at block level */
+    | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
+      switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+      | (None, _, _) => Failed
+      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+        Failed
+      /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
+      | (Some((rest, EmptyLine)), _, []) =>
+        let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let new_zblock =
+          (rest, zline, UHExp.Block.wrap(new_hole))
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      | (Some((rest, last)), _, _) =>
+        let new_zblock =
+          (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      }
+    | (SwapDown, _) when ZExp.line_can_be_swapped(zline) =>
+      switch (suffix, zline) {
+      | ([], _) => Failed
+      /* avoid swap down for the Let line if it is second to last */
+      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
+        Failed
+      /* handle corner case when the second to last line is an EmptyLine */
+      | ([last], CursorL(_, EmptyLine)) =>
+        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        let new_zblock =
+          (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), [])
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      | ([hd, ...tl], _) =>
+        let new_zblock =
+          (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      }
     /* Zipper */
     | _ =>
       switch (Statics.Exp.syn_lines(ctx, prefix)) {
@@ -3870,6 +4142,36 @@ module Exp = {
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(AnaDone((new_zblock, u_gen)));
 
+    /* Swap actions */
+    | (SwapUp | SwapDown, ZOperator(_))
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      |> wrap_in_AnaDone;
+    | (SwapRight, ZOperand(CursorE(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      |> wrap_in_AnaDone;
+
     /* Zipper */
 
     | (_, ZOperand(zoperand, (E, E))) =>
@@ -3956,6 +4258,7 @@ module Exp = {
         ),
       ) =>
       Failed
+
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
@@ -4274,6 +4577,11 @@ module Exp = {
       );
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
+
+    /* Invalid Swap actions */
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
+      Failed
+    | (SwapLeft | SwapRight, CursorE(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>

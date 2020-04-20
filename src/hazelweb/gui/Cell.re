@@ -44,6 +44,10 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_L, _ => Action.Construct(SInj(L))),
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
+    (Ctrl_Alt_Up, _ => Action.SwapUp),
+    (Ctrl_Alt_Down, _ => Action.SwapDown),
+    (Ctrl_Alt_Left, _ => Action.SwapLeft),
+    (Ctrl_Alt_Right, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
@@ -54,19 +58,14 @@ let view = (~inject, model: Model.t) => {
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
   let (key_handlers, code_view) = {
-    let code_view =
-      UHCode.view(
-        ~inject,
-        ~font_metrics=model.font_metrics,
-        ~cmap=program |> Program.get_cursor_map,
-      );
-    if (model.is_cell_focused) {
+    let code_view = UHCode.view(~inject, ~font_metrics=model.font_metrics);
+    if (Model.is_cell_focused(model)) {
       let key_handlers = [
         Attr.on_keypress(_ => Event.Prevent_default),
         Attr.on_keydown(evt => {
           switch (MoveKey.of_key(JSUtil.get_key(evt))) {
           | Some(move_key) =>
-            prevent_stop_inject(Update.Action.MoveAction(move_key))
+            prevent_stop_inject(Update.Action.MoveViaKey(move_key))
           | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
@@ -107,7 +106,6 @@ let view = (~inject, model: Model.t) => {
       Attr.id(cell_id),
       // necessary to make cell focusable
       Attr.create("tabindex", "0"),
-      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
       Attr.on_blur(_ => inject(Update.Action.BlurCell)),
       ...key_handlers,
     ],

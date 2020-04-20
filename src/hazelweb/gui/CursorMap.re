@@ -241,29 +241,33 @@ let find_nearest_within_row = ((row, col), cmap) => {
   };
 };
 
-let move = (move_key: JSUtil.MoveKey.t, z: binding, map: t): option(binding) => {
-  let ((row, col), (pos, rev_steps)) = z;
-  switch (move_key) {
-  | ArrowLeft =>
-    switch (pos, map |> find_before_within_row((row, col))) {
-    | (OnText(j), _) when j > 0 =>
-      Some(((row, col - 1), (OnText(j - 1), rev_steps)))
-    | (_, Some(z)) => Some(z)
-    | (_, None) => row == 0 ? None : Some(map |> end_of_row(row - 1))
-    }
-  | ArrowRight =>
-    switch (pos, map |> find_after_within_row((row, col))) {
-    | (OnText(j), Some((_, (OnText(_), rev_steps_after))))
-        when rev_steps === rev_steps_after || rev_steps == rev_steps_after =>
-      Some(((row, col + 1), (OnText(j + 1), rev_steps)))
-    | (_, Some(z)) => Some(z)
-    | (_, None) =>
-      row == num_rows(map) - 1 ? None : Some(map |> start_of_row(row + 1))
-    }
-  | ArrowUp =>
-    row <= 0 ? None : Some(map |> find_nearest_within_row((row - 1, col)))
-  | ArrowDown =>
-    row >= num_rows(map) - 1
-      ? None : Some(map |> find_nearest_within_row((row + 1, col)))
+let move_up = ((row, col), cmap): option(binding) =>
+  row <= 0 ? None : Some(cmap |> find_nearest_within_row((row - 1, col)));
+
+let move_down = ((row, col), cmap): option(binding) =>
+  row >= num_rows(cmap) - 1
+    ? None : Some(cmap |> find_nearest_within_row((row + 1, col)));
+
+let move_left =
+    (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
+  switch (pos, cmap |> find_before_within_row((row, col))) {
+  | (OnText(j), _) when j > 0 =>
+    Some(((row, col - 1), (OnText(j - 1), rev_steps)))
+  | (_, Some(z)) => Some(z)
+  | (_, None) => row == 0 ? None : Some(cmap |> end_of_row(row - 1))
   };
-};
+
+let move_right =
+    (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
+  switch (pos, cmap |> find_after_within_row((row, col))) {
+  | (OnText(j), Some((_, (CursorPosition.OnText(_), rev_steps_after))))
+      when rev_steps === rev_steps_after || rev_steps == rev_steps_after =>
+    Some(((row, col + 1), (OnText(j + 1), rev_steps)))
+  | (_, Some(z)) => Some(z)
+  | (_, None) =>
+    row == num_rows(cmap) - 1 ? None : Some(cmap |> start_of_row(row + 1))
+  };
+
+let move_sol = (row, cmap): binding => cmap |> start_of_row(row);
+
+let move_eol = (row, cmap): binding => cmap |> end_of_row(row);

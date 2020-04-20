@@ -1,8 +1,12 @@
 type t;
 
-let mk: (~width: int, Statics.edit_state) => t;
+let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
 
 let get_width: t => int;
+
+let is_focused: t => bool;
+let focus: t => t;
+let blur: t => t;
 
 let get_edit_state: t => Statics.edit_state;
 let put_edit_state: (Statics.edit_state, t) => t;
@@ -27,7 +31,14 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
-let perform_move_action: (JSUtil.MoveKey.t, t) => t;
+let move_via_key: (JSUtil.MoveKey.t, t) => t;
+let move_via_click:
+  (
+    option((MetaVar.t, SpliceName.t)),
+    (CursorMap.Row.t, CursorMap.Col.t),
+    t
+  ) =>
+  t;
 
 exception NodeNotFound;
 let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => t;

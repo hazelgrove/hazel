@@ -66,13 +66,13 @@ let view =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~cmap as (cmap, splice_cmaps): CursorMap.with_splices,
       (l, splice_ls): UHLayout.with_splices,
     )
     : Vdom.Node.t => {
   open Vdom;
 
-  let on_click = (~id: string, ~cmap: CursorMap.t, evt) => {
+  let on_click =
+      (~id: string, ~splice: option((MetaVar.t, SpliceName.t)), evt) => {
     let container_rect =
       JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
     let (target_x, target_y) = (
@@ -96,12 +96,7 @@ let view =
           ),
         ),
       );
-      let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
-      let path = CursorPath.rev(rev_path);
-      Event.Many([
-        Event.Stop_propagation,
-        inject(Update.Action.EditAction(MoveTo(path))),
-      ]);
+      inject(Update.Action.MoveViaClick(splice, row_col));
     } else {
       Event.Stop_propagation;
     };
@@ -179,13 +174,13 @@ let view =
           | NewSpliceFor(splice_name) =>
             let splice_layout =
               splice_ls |> SpliceMap.get_splice(llu, splice_name);
-            let splice_cmap =
-              splice_cmaps |> SpliceMap.get_splice(llu, splice_name);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-            Vdom.Node.div(
+            Node.div(
               [
                 Attr.id(id),
-                Attr.on_click(on_click(~id, ~cmap=splice_cmap)),
+                Attr.on_click(
+                  on_click(~id, ~splice=Some((llu, splice_name))),
+                ),
               ],
               go(splice_layout),
             );
@@ -224,7 +219,7 @@ let view =
     [
       Attr.id(id),
       Attr.classes(["code", "presentation"]),
-      Attr.on_click(on_click(~id, ~cmap)),
+      Attr.on_click(on_click(~id, ~splice=None)),
     ],
     go(l),
   );

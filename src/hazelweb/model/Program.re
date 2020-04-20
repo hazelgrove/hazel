@@ -1,17 +1,35 @@
 module Memo = Core_kernel.Memo;
-open Pretty;
 
 type t = {
-  width: int,
   edit_state: Statics.edit_state,
+  width: int,
+  start_col_of_vertical_movement: option(int),
+  is_focused: bool,
 };
 
-let mk = (~width: int, edit_state: Statics.edit_state): t => {
+let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
+  start_col_of_vertical_movement: None,
+  is_focused,
 };
 
 let get_width = program => program.width;
+
+let get_start_col = program => program.start_col_of_vertical_movement;
+let put_start_col = (start_col, program) => {
+  ...program,
+  start_col_of_vertical_movement: Some(start_col),
+};
+let clear_start_col = program => {
+  ...program,
+  start_col_of_vertical_movement: None,
+};
+
+let is_focused = program => program.is_focused;
+
+let focus = program => {...program, is_focused: true};
+let blur = program => {...program, is_focused: false};
 
 let get_edit_state = program => program.edit_state;
 let put_edit_state = (edit_state, program) => {...program, edit_state};
@@ -166,7 +184,7 @@ let get_layout = program => {
                  |> Option.get
                  |> SpliceMap.ApMap.map(doc =>
                       doc
-                      |> LayoutOfDoc.layout_of_doc(
+                      |> Pretty.LayoutOfDoc.layout_of_doc(
                            ~width=width - pos.indent,
                            ~pos=0,
                          )
@@ -237,20 +255,57 @@ let get_cursor_map_z = program => {
 
 let get_cursor_map = program => program |> get_cursor_map_z |> fst;
 
-let perform_move_action = (move_key, program) => {
-  let ((cmap, splice_cmaps), z) = program |> get_cursor_map_z;
-  let (map, row_col) =
-    switch (z) {
-    | (None, row_col) => (cmap, row_col)
-    | (Some((llu, splice_name)), row_col) => (
-        splice_cmaps |> SpliceMap.get_splice(llu, splice_name),
-        row_col,
+let move_via_click = (opt_splice, row_col, program) => {
+  let cmap = {
+    let (cmap, splice_cmaps) = program |> get_cursor_map;
+    switch (opt_splice) {
+    | None => cmap
+    | Some((u, splice_name)) =>
+      splice_cmaps |> SpliceMap.get_splice(u, splice_name)
+    };
+  };
+  let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
+  let path = CursorPath.rev(rev_path);
+  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+};
+
+let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
+  let (cmap, z) = {
+    let ((cmap, splice_cmaps), (opt_splice, z)) =
+      program |> get_cursor_map_z;
+    switch (opt_splice) {
+    | None => (cmap, z)
+    | Some((u, splice_name)) => (
+        splice_cmaps |> SpliceMap.get_splice(u, splice_name),
+        z,
       )
     };
-  switch (map |> CursorMap.move(move_key, row_col)) {
+  };
+  let ((row, col), _) = z;
+  let (from_col, put_col_on_start) =
+    switch (program |> get_start_col) {
+    | None => (col, put_start_col(col))
+    | Some(col) => (col, (p => p))
+    };
+  let (new_z, update_start_col) =
+    switch (move_key) {
+    | ArrowUp => (
+        cmap |> CursorMap.move_up((row, from_col)),
+        put_col_on_start,
+      )
+    | ArrowDown => (
+        cmap |> CursorMap.move_down((row, from_col)),
+        put_col_on_start,
+      )
+    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
+    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
+    | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
+    | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
+    };
+  switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);
-    program |> perform_edit_action(MoveTo(path));
+    program |> update_start_col |> perform_edit_action(MoveTo(path));
   };
 };

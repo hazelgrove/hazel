@@ -62,12 +62,23 @@ follow these instructions instead of the shorter instructions in the
 
 - Install the most recent version of `opam` (which must be at least 2.0):
 
-  - If you are on Linux or Windows, you can do this by running the following
-    commands:
+  - If you are on Windows or Ubuntu Linux 18.11 (cosmic) or earlier,
+    you can do this by running the following commands:
 
     ```sh
     sudo add-apt-repository ppa:avsm/ppa
     ```
+
+    ```sh
+    sudo apt update
+    ```
+
+    ```sh
+    sudo apt install opam
+    ```
+
+  - If you are on Ubuntu Linux 19.04 (disco) or later, you can do this
+    by running the following commands:
 
     ```sh
     sudo apt update
