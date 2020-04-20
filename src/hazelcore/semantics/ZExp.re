@@ -1021,7 +1021,8 @@ and cursor_on_inst_zoperand =
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _, _) => cursor_on_inst(ze)
-  | ApLivelitZ(_) => failwith("unimplemented")
+  | ApLivelitZ(_, _, _, _, zsplice_info) =>
+    cursor_on_inst(ZSpliceInfo.prj_ze(zsplice_info))
   | CaseZR(_, _, (_, zrule, _), _) => cursor_on_inst_zrule(zrule)
 and cursor_on_inst_zrule =
   fun
