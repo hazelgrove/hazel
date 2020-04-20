@@ -1,4 +1,5 @@
 module Doc = Pretty.Doc;
+open Sexplib.Std;
 
 [@deriving sexp]
 type token_shape =
@@ -6,6 +7,7 @@ type token_shape =
   | Op
   | Delim(DelimIndex.t);
 
+[@deriving sexp]
 type t =
   | Indent
   | Padding
@@ -26,13 +28,15 @@ type t =
   | Term(term_data)
   | LivelitView({
       llu: MetaVar.t,
-      llview: Livelits.LivelitView.t,
+      llview: [@sexp.opaque] Livelits.LivelitView.t,
     })
+[@deriving sexp]
 and term_data = {
   has_cursor: bool,
   shape: term_shape,
   sort: TermSort.t,
 }
+[@deriving sexp]
 and term_shape =
   | Rule
   | Case({err: ErrStatus.t})

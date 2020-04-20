@@ -1,5 +1,6 @@
 open Pretty;
 
+[@deriving sexp]
 type t = Layout.t(UHAnnot.t);
 type with_splices = (t, SpliceMap.t(t));
 
