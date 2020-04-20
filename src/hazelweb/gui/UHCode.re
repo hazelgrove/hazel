@@ -42,7 +42,7 @@ module Decoration = {
     go(~indent=0, l);
   };
 
-  type outline_segment =
+  type path_segment =
     | VLine(float)
     | HLine(float)
     | Corner(corner, float)
@@ -52,20 +52,14 @@ module Decoration = {
     | BottomLeft
     | BottomRight;
 
-  let outline_path = (~font_metrics: FontMetrics.t, ~corner_radius, shape) => {
-    let row_height = font_metrics.row_height;
-    let col_width = font_metrics.col_width;
-    let half_row_height = row_height /. 2.0;
-
-    let vline_down = VLine(half_row_height -. corner_radius);
-    let vline_up = VLine((-1.0) *. (half_row_height -. corner_radius));
+  let outline_path = (~corner_radius, shape) => {
+    let vline_down = VLine(0.5 -. corner_radius);
+    let vline_up = VLine(Float.neg(0.5 -. corner_radius));
 
     let hline_left = len =>
-      HLine(
-        (-1.0) *. (float_of_int(len) *. col_width -. 2.0 *. corner_radius),
-      );
+      HLine(Float.neg(Float.of_int(len) -. 2.0 *. corner_radius));
     let hline_right = len =>
-      HLine(float_of_int(len) *. col_width -. 2.0 *. corner_radius);
+      HLine(float_of_int(len) -. 2.0 *. corner_radius);
 
     let corner_TopLeft = Corner(TopLeft, corner_radius);
     let corner_TopRight = Corner(TopRight, corner_radius);
@@ -94,7 +88,7 @@ module Decoration = {
       |> ListUtil.pairs
       |> List.map(((col1, col2)) =>
            if (col1 == col2) {
-             [VLine((-1.0) *. row_height)];
+             [VLine(-1.0)];
            } else if (col1 > col2) {
              [
                vline_up,
@@ -121,7 +115,7 @@ module Decoration = {
       |> ListUtil.pairs
       |> List.map(((col1, col2)) =>
            if (col1 == col2) {
-             [VLine(row_height)];
+             [VLine(1.0)];
            } else if (col1 > col2) {
              [
                vline_down,
