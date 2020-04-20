@@ -96,7 +96,7 @@ let of_layout =
       row := row^ + 1;
       col := indent;
       empty;
-    | Align(l) => go(~indent=col^, ~rev_steps, l)
+    | Align(l) => go(~splice?, ~indent=col^, ~rev_steps, l)
     | Cat(l1, l2) =>
       let cmap1 = go'(l1);
       let cmap2 = go'(l2);
@@ -119,7 +119,7 @@ let of_layout =
       );
 
     | Annot(Step(step), l) =>
-      go(~rev_steps=[step, ...rev_steps], ~indent, l)
+      go(~splice?, ~rev_steps=[step, ...rev_steps], ~indent, l)
 
     | Annot(LivelitView({llu, _}), _) =>
       let ap_cmaps =
