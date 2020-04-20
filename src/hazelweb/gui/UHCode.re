@@ -96,9 +96,12 @@ let view =
           ),
         ),
       );
-      inject(Update.Action.MoveViaClick(splice, row_col));
+      Event.Many([
+        inject(Update.Action.MoveViaClick(splice, row_col)),
+        Event.Stop_propagation,
+      ]);
     } else {
-      Event.Stop_propagation;
+      Event.Many([]);
     };
   };
 
