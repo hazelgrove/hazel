@@ -78,7 +78,7 @@ let view =
           labeled_checkbox(
             ~id="show_contenteditable",
             ~label="Show contenteditable (debugging)",
-            ~on_change=() => inject(ToggleShowUnevaluatedExpansion),
+            ~on_change=() => inject(ToggleShowContenteditable),
             model.show_contenteditable,
           ),
           labeled_checkbox(
