@@ -32,7 +32,11 @@ let undoable_action = (action: Action.t): bool => {
   | UpdateApPalette(_)
   | Delete
   | Backspace
-  | Construct(_) => true
+  | Construct(_)
+  | SwapUp
+  | SwapDown
+  | SwapLeft
+  | SwapRight => true
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveLeft
