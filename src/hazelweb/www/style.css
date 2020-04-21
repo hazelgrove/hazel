@@ -44,10 +44,6 @@
   --caret-z: 5;
 }
 
-.CommentLine {
-  white-space: pre;
-}
-
 /* general */
 div {
   box-sizing: border-box;
