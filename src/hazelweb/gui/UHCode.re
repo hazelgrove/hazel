@@ -14,33 +14,25 @@ module Decoration = {
     tl: list(int),
   };
 
-  let shape_of_layout = (~start: int, l: UHLayout.t): shape => {
-    let col = ref(start);
-    let rec go = (~indent, l: UHLayout.t) => {
-      let go' = go(~indent);
-      switch (l) {
-      | Linebreak =>
-        let eol = col^;
-        col := indent;
-        {hd: (eol, eol), tl: [indent]};
-      | Text(s) =>
-        let col_before = col^;
-        col := col^ + StringUtil.utf8_length(s);
-        let col_after = col^;
-        {hd: (col_before - indent, col_after - indent), tl: []};
-      | Align(l) => go(~indent=col^, l)
-      | Cat(l1, l2) =>
-        let s1 = go'(l1);
-        let s2 = go'(l2);
-        switch (s1.tl) {
-        | [] => {hd: (fst(s1.hd), snd(s2.hd)), tl: s2.tl}
-        | [_, ..._] => {hd: s1.hd, tl: s1.tl @ [snd(s2.hd), ...s2.tl]}
-        };
-      | Annot(_, l) => go'(l)
-      };
-    };
-    go(~indent=0, l);
-  };
+  let shape_of_layout = (~start: int) =>
+    UHLayout.pos_fold(
+      ~col_start=start,
+      ~linebreak=pos => {hd: (pos.col, pos.col), tl: [pos.indent]},
+      ~text=
+        (pos, s) =>
+          {hd: (pos.col, pos.col + StringUtil.utf8_length(s)), tl: []},
+      ~align=(_, shape) => shape,
+      ~cat=
+        (_, shape1, shape2) =>
+          switch (shape1.tl) {
+          | [] => {hd: (fst(shape1.hd), snd(shape2.hd)), tl: shape2.tl}
+          | [_, ..._] => {
+              hd: shape1.hd,
+              tl: shape1.tl @ [snd(shape2.hd), ...shape2.tl],
+            }
+          },
+      ~annot=(_, _, shape) => shape,
+    );
 
   type path_segment =
     | VLine(float)
