@@ -3238,8 +3238,7 @@ module Exp = {
     | (Construct(SList), _) => Failed
 
     /* Invalid actions at operand level */
-    | (Construct(SLine), CursorE(OnText(_), _))
-    | (Construct(SCommentLine), _) => Failed
+    | (Construct(SLine), CursorE(OnText(_), _)) => Failed
 
     /* Movement */
     | (
@@ -3337,6 +3336,24 @@ module Exp = {
     /* TODO consider deletion of type ascription on case */
 
     /* Construction */
+
+    | (Construct(SCommentLine), _) =>
+      if (ZExp.is_before_zoperand(zoperand)) {
+        let operand = ZExp.erase_zoperand(zoperand);
+        Succeeded(
+          SynDone((
+            (
+              [],
+              CursorL(OnText(0), CommentLine("")),
+              [ExpLine(OpSeq.wrap(operand))],
+            ),
+            ty,
+            u_gen,
+          )),
+        );
+      } else {
+        Failed;
+      }
 
     // TODO consider relaxing guards and
     // merging with regular op construction
@@ -4375,9 +4392,6 @@ module Exp = {
     /* Invalid actions at the expression level */
     | (Construct(SList), _) => Failed
 
-    /* Invalid actions at the operand level */
-    | (Construct(SCommentLine), _) => Failed
-
     | _ when ZExp.is_inconsistent(zoperand) =>
       let err = zoperand |> ZExp.get_err_status_zoperand;
       let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
@@ -4494,6 +4508,23 @@ module Exp = {
     /* TODO consider deletion of type ascription on case */
 
     /* Construction */
+
+    | (Construct(SCommentLine), _) =>
+      if (ZExp.is_before_zoperand(zoperand)) {
+        let operand = ZExp.erase_zoperand(zoperand);
+        Succeeded(
+          AnaDone((
+            (
+              [],
+              CursorL(OnText(0), CommentLine("")),
+              [ExpLine(OpSeq.wrap(operand))],
+            ),
+            u_gen,
+          )),
+        );
+      } else {
+        Failed;
+      }
 
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
