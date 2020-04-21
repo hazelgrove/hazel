@@ -75,103 +75,105 @@ type z = (option((MetaVar.t, SpliceName.t)), binding);
 
 let of_layout =
     ((l, splice_ls): UHLayout.with_splices): (with_splices, option(z)) => {
-  let row = ref(0);
-  let col = ref(0);
   let z = ref(None);
   let splice_cmaps = ref(SpliceMap.empty);
-  let rec go =
+  let rec of_splice =
           (
             ~splice: option((MetaVar.t, SpliceName.t))=?,
-            ~indent=0,
             ~rev_steps,
             l: UHLayout.t,
           )
           : t => {
-    let go' = go(~splice?, ~indent, ~rev_steps);
-    switch (l) {
-    | Text(s) =>
-      col := col^ + StringUtil.utf8_length(s);
-      empty;
-    | Linebreak =>
-      row := row^ + 1;
-      col := indent;
-      empty;
-    | Align(l) => go(~splice?, ~indent=col^, ~rev_steps, l)
-    | Cat(l1, l2) =>
-      let cmap1 = go'(l1);
-      let cmap2 = go'(l2);
-      RowMap.union(
-        (_, col_map1, col_map2) => {
-          Some(
-            ColMap.union(
-              (_, rev_path1, rev_path2) =>
-                Some(
-                  compare_overlapping_paths(rev_path1, rev_path2) > 0
-                    ? rev_path1 : rev_path2,
-                ),
-              col_map1,
-              col_map2,
-            ),
-          )
-        },
-        cmap1,
-        cmap2,
-      );
+    let row = ref(0);
+    let col = ref(0);
+    let rec go = (~indent, ~rev_steps, l: UHLayout.t): t => {
+      let go' = go(~indent, ~rev_steps);
+      switch (l) {
+      | Text(s) =>
+        col := col^ + StringUtil.utf8_length(s);
+        empty;
+      | Linebreak =>
+        row := row^ + 1;
+        col := indent;
+        empty;
+      | Align(l) => go(~indent=col^, ~rev_steps, l)
+      | Cat(l1, l2) =>
+        let cmap1 = go'(l1);
+        let cmap2 = go'(l2);
+        RowMap.union(
+          (_, col_map1, col_map2) => {
+            Some(
+              ColMap.union(
+                (_, rev_path1, rev_path2) =>
+                  Some(
+                    compare_overlapping_paths(rev_path1, rev_path2) > 0
+                      ? rev_path1 : rev_path2,
+                  ),
+                col_map1,
+                col_map2,
+              ),
+            )
+          },
+          cmap1,
+          cmap2,
+        );
 
-    | Annot(Step(step), l) =>
-      go(~splice?, ~rev_steps=[step, ...rev_steps], ~indent, l)
+      | Annot(Step(step), l) =>
+        go(~rev_steps=[step, ...rev_steps], ~indent, l)
 
-    | Annot(LivelitView({llu, _}), _) =>
-      let ap_cmaps =
-        splice_ls
-        |> SpliceMap.get_ap(llu)
-        |> SpliceMap.ApMap.bindings
-        |> List.map(((splice_name, splice_layout)) =>
-             (
-               splice_name,
-               go(
-                 ~splice=(llu, splice_name),
-                 ~rev_steps=[splice_name, ...rev_steps],
-                 splice_layout,
-               ),
+      | Annot(LivelitView({llu, _}), _) =>
+        let ap_cmaps =
+          splice_ls
+          |> SpliceMap.get_ap(llu)
+          |> SpliceMap.ApMap.bindings
+          |> List.map(((splice_name, splice_layout)) =>
+               (
+                 splice_name,
+                 of_splice(
+                   ~splice=(llu, splice_name),
+                   ~rev_steps=[splice_name, ...rev_steps],
+                   splice_layout,
+                 ),
+               )
              )
-           )
-        |> List.to_seq
-        |> SpliceMap.ApMap.of_seq;
-      splice_cmaps := splice_cmaps^ |> SpliceMap.put_ap(llu, ap_cmaps);
-      empty;
+          |> List.to_seq
+          |> SpliceMap.ApMap.of_seq;
+        splice_cmaps := splice_cmaps^ |> SpliceMap.put_ap(llu, ap_cmaps);
+        empty;
 
-    | Annot(Token({shape, has_cursor, len}), l) =>
-      let col_before = col^;
-      let _ = go'(l);
-      let col_after = col^;
-      switch (has_cursor) {
-      | None => ()
-      | Some(j) =>
-        let pos: CursorPosition.t =
-          switch (shape) {
-          | Text => OnText(j)
-          | Op => OnOp(j == 0 ? Before : After)
-          | Delim(k) => OnDelim(k, j == 0 ? Before : After)
-          };
-        z := Some((splice, ((row^, col_before + j), (pos, rev_steps))));
-      };
-      let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
-        switch (shape) {
-        | Text => (OnText(0), OnText(len))
-        | Op => (OnOp(Before), OnOp(After))
-        | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))
+      | Annot(Token({shape, has_cursor, len}), l) =>
+        let col_before = col^;
+        let _ = go'(l);
+        let col_after = col^;
+        switch (has_cursor) {
+        | None => ()
+        | Some(j) =>
+          let pos: CursorPosition.t =
+            switch (shape) {
+            | Text => OnText(j)
+            | Op => OnOp(j == 0 ? Before : After)
+            | Delim(k) => OnDelim(k, j == 0 ? Before : After)
+            };
+          z := Some((splice, ((row^, col_before + j), (pos, rev_steps))));
         };
-      RowMap.singleton(
-        row^,
-        ColMap.singleton(col_before, (pos_before, rev_steps))
-        |> ColMap.add(col_after, (pos_after, rev_steps)),
-      );
+        let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
+          switch (shape) {
+          | Text => (OnText(0), OnText(len))
+          | Op => (OnOp(Before), OnOp(After))
+          | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))
+          };
+        RowMap.singleton(
+          row^,
+          ColMap.singleton(col_before, (pos_before, rev_steps))
+          |> ColMap.add(col_after, (pos_after, rev_steps)),
+        );
 
-    | Annot(_, l) => go'(l)
+      | Annot(_, l) => go'(l)
+      };
     };
+    go(~indent=0, ~rev_steps, l);
   };
-  let cmap = go(~rev_steps=[], l);
+  let cmap = of_splice(~rev_steps=[], l);
   ((cmap, splice_cmaps^), z^);
 };
 
