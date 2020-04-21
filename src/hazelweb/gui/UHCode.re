@@ -141,7 +141,33 @@ module Decoration = {
     };
   };
 
-  let path_view = (~start, ~width, path: list(path_segment)) =>
+  let path_view = (~start, ~width, path: list(path_segment)) => {
+    let d_path_segments =
+      path
+      |> List.map(
+           fun
+           | VLine(len) => "v " ++ string_of_float(len)
+           | HLine(len) => "h " ++ string_of_float(len)
+           | Corner(corner, radius) => {
+               let (dx, dy) =
+                 switch (corner) {
+                 | TopLeft => (radius, Float.neg(radius))
+                 | TopRight => (radius, radius)
+                 | BottomRight => (Float.neg(radius), radius)
+                 | BottomLeft => (Float.neg(radius), Float.neg(radius))
+                 };
+               StringUtil.sep([
+                 "a",
+                 string_of_float(radius),
+                 string_of_float(radius),
+                 "0",
+                 "0",
+                 "1",
+                 string_of_float(dx),
+                 string_of_float(dy),
+               ]);
+             },
+         );
     Vdom.(
       Node.create_svg(
         "svg",
@@ -155,34 +181,7 @@ module Decoration = {
                 "d",
                 StringUtil.sep([
                   "m " ++ string_of_int(start) ++ " 0",
-                  ...path
-                     |> List.map(
-                          fun
-                          | VLine(len) => "v " ++ string_of_float(len)
-                          | HLine(len) => "h " ++ string_of_float(len)
-                          | Corner(corner, radius) => {
-                              let (dx, dy) =
-                                switch (corner) {
-                                | TopLeft => (radius, Float.neg(radius))
-                                | TopRight => (radius, radius)
-                                | BottomRight => (Float.neg(radius), radius)
-                                | BottomLeft => (
-                                    Float.neg(radius),
-                                    Float.neg(radius),
-                                  )
-                                };
-                              StringUtil.sep([
-                                "a",
-                                string_of_float(radius),
-                                string_of_float(radius),
-                                "0",
-                                "0",
-                                "1",
-                                string_of_float(dx),
-                                string_of_float(dy),
-                              ]);
-                            },
-                        ),
+                  ...d_path_segments,
                 ]),
               ),
             ],
@@ -191,6 +190,7 @@ module Decoration = {
         ],
       )
     );
+  };
 };
 
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
