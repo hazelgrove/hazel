@@ -227,7 +227,7 @@ module CheckboxLivelit: LIVELIT = {
   type trigger = action => Vdom.Event.t;
 
   let init_model = SpliceGenCmd.return(false);
-  let update = (m, _) => SpliceGenCmd.return(!m);
+  let update = (m, Toggle) => SpliceGenCmd.return(!m);
 
   let view = (m, trig) => {
     let checked_state = m ? [Vdom.Attr.checked] : [];
@@ -249,104 +249,87 @@ module CheckboxLivelit: LIVELIT = {
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
 
-/*
+module SliderLivelit: LIVELIT = {
+  let name = "$slider";
+  let expansion_ty = HTyp.Num;
 
- /* overflow paranoia */
- let maxSliderValue = 1000 * 1000 * 1000;
- let cropSliderValue = value => max(0, min(maxSliderValue, value));
+  [@deriving sexp]
+  type model = (int, int);
+  [@deriving sexp]
+  type action =
+    | Slide(int)
+    | UpdateMax(int);
+  type trigger = action => Vdom.Event.t;
 
- module SliderPalette: PALETTE = {
-   let name = "$slider";
-   let expansion_ty = HTyp.Num;
+  let init_model = SpliceGenCmd.return((5, 10));
+  let update = ((n, max), a) =>
+    switch (a) {
+    | Slide(n') => SpliceGenCmd.return((n', max))
+    | UpdateMax(max') => SpliceGenCmd.return((n, max'))
+    };
 
-   type model = (int, int);
-   type model_updater = model => unit;
-   let init_model = UHExp.HoleRefs.Ret((5, 10));
+  /* overflow paranoia */
+  let max_slider_value = 1000 * 1000 * 1000;
+  let crop_slider_value = value => max(0, min(max_slider_value, value));
 
-   let view = ((value, sliderMax), model_updater) => {
-     let curValString = curVal => Printf.sprintf("%d/%d", curVal, sliderMax);
-     let changeMaxButton = (desc, f) =>
-       Html5.(
-         button(
-           ~a=[
-             a_onclick(_ => {
-               let newSliderMax = f(sliderMax);
-               let newValue = min(value, newSliderMax);
-               model_updater((newValue, newSliderMax));
-               true;
-             }),
-           ],
-           [txt(desc)],
-         )
-       );
-     let input_elt =
-       Html5.(
-         input(
-           ~a=[
-             a_input_type(`Range),
-             a_input_min(`Number(0)),
-             a_input_max(`Number(cropSliderValue(sliderMax))),
-             a_value(string_of_int(cropSliderValue(value))),
-           ],
-           (),
-         )
-       );
-     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
-     let label_elt = Html5.(label([txt(curValString(value))]));
-     let label_dom = Tyxml_js.To_dom.of_label(label_elt);
-     let decrease_range_button_elt =
-       changeMaxButton("/ 10", m => max(10, m / 10));
-     let increase_range_button_elt =
-       changeMaxButton("* 10", m => cropSliderValue(m * 10));
-     let view_span =
-       Html5.(
-         span([
-           input_elt,
-           label_elt,
-           decrease_range_button_elt,
-           increase_range_button_elt,
-         ])
-       );
-     let _ =
-       JSUtil.listen_to(
-         Dom_html.Event.input,
-         input_dom,
-         _ => {
-           let _ =
-             label_dom##.innerHTML :=
-               Js.string(
-                 curValString(
-                   int_of_string(Js.to_string(input_dom##.value)),
-                 ),
-               );
-           Js._true;
-         },
-       );
-     let _ =
-       JSUtil.listen_to(
-         Dom_html.Event.change,
-         input_dom,
-         _ => {
-           let newValue =
-             cropSliderValue(int_of_string(Js.to_string(input_dom##.value)));
-           model_updater((newValue, sliderMax));
-           Js._true;
-         },
-       );
-     Inline(view_span);
-   };
+  let view = ((value, slider_max), trigger: trigger) => {
+    let view_span =
+      Vdom.(
+        Node.span(
+          [],
+          [
+            Node.input(
+              [
+                Attr.type_("range"),
+                Attr.create("min", "0"),
+                Attr.create("max", string_of_int(slider_max)),
+                Attr.value(string_of_int(value)),
+                Attr.on_input((_, value_str) => {
+                  let new_value = int_of_string(value_str);
+                  trigger(Slide(new_value));
+                }),
+              ],
+              [],
+            ),
+            Node.label(
+              [],
+              [Node.text(Printf.sprintf("%d/%d", value, slider_max))],
+            ),
+            Node.button(
+              [
+                Attr.on_click(_ => {
+                  let new_slider_max = max(10, slider_max / 10);
+                  let new_value = min(value, new_slider_max);
+                  Event.Many([
+                    trigger(UpdateMax(new_slider_max)),
+                    trigger(Slide(new_value)),
+                  ]);
+                }),
+              ],
+              [Node.text("/ 10")],
+            ),
+            Node.button(
+              [
+                Attr.on_click(_ => {
+                  let new_slider_max = crop_slider_value(slider_max * 10);
+                  let new_value = min(value, new_slider_max);
+                  Event.Many([
+                    trigger(UpdateMax(new_slider_max)),
+                    trigger(Slide(new_value)),
+                  ]);
+                }),
+              ],
+              [Node.text("* 10")],
+            ),
+          ],
+        )
+      );
+    LivelitView.Inline(view_span, 10);
+  };
 
-   let expand = ((value, _)) =>
-     UHExp.Tm(NotInHole, UHExp.NumLit(cropSliderValue(value)));
+  let expand = ((value, _)) => UHExp.Block.wrap(UHExp.numlit(value));
+};
 
-   /* sprintf/sscanf are magical and treat string literals specially -
-      attempt to factor out the format string at your own peril */
-   let serialize = ((value, sliderMax)) =>
-     sprintf("(%d,%d)", value, sliderMax);
-   let deserialize = serialized =>
-     sscanf(serialized, "(%d,%d)", (value, sliderMax) => (value, sliderMax));
- };
- */
 /* ----------
    stuff below is infrastructure
    ---------- */
@@ -405,12 +388,16 @@ module LivelitAdapter = (L: LIVELIT) => {
 
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
+module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
   LivelitContexts.extend(
     LivelitContexts.extend(
-      empty_livelit_contexts,
-      PairLivelitAdapter.contexts_entry,
+      LivelitContexts.extend(
+        empty_livelit_contexts,
+        PairLivelitAdapter.contexts_entry,
+      ),
+      CheckboxLivelitAdapter.contexts_entry,
     ),
-    CheckboxLivelitAdapter.contexts_entry,
+    SliderLivelitAdapter.contexts_entry,
   );
