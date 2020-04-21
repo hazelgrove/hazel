@@ -1693,16 +1693,16 @@ module Exp = {
         splice_map: UHExp.splice_map,
       )
       : (UHExp.splice_map, MetaVarGen.t) =>
-    NatMap.fold(
+    MetaVarMap.fold(
       splice_map,
-      ((splice_map, u_gen), (splice_name, (ty, e))) => {
+      ((new_splice_map, u_gen), (splice_name, (ty, e))) => {
         let (e, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, e, ty);
         let splice_map =
-          NatMap.extend_unique(splice_map, (splice_name, (ty, e)));
+          NatMap.extend_unique(new_splice_map, (splice_name, (ty, e)));
         (splice_map, u_gen);
       },
-      (splice_map, u_gen),
+      (MetaVarMap.empty, u_gen),
     )
   and ana_fix_holes =
       (
