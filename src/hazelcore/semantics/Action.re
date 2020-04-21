@@ -1991,6 +1991,10 @@ module Exp = {
       ~new_EmptyHole=UHExp.new_EmptyHole,
     );
 
+  /**
+   * Convert an opseq prefix into standalone
+   * line items (0 if prefix is empty, 1 otherwise)
+   */
   let lines_of_prefix =
       (u_gen: MetaVarGen.t, prefix: UHExp.affix)
       : (list(UHExp.line), MetaVarGen.t) =>
@@ -2002,6 +2006,10 @@ module Exp = {
       ([UHExp.ExpLine(opseq)], u_gen);
     };
 
+  /**
+   * Convert an opseq suffix into standalone
+   * line items (0 if suffix is empty, 1 otherwise)
+   */
   let lines_of_suffix =
       (u_gen: MetaVarGen.t, suffix: UHExp.affix)
       : (list(UHExp.line), MetaVarGen.t) =>
