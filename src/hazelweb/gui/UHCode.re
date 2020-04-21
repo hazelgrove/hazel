@@ -14,26 +14,6 @@ module Decoration = {
     tl: list(int),
   };
 
-  let shape_of_layout = (~start: int) =>
-    UHLayout.pos_fold(
-      ~col_start=start,
-      ~linebreak=pos => {hd: (pos.col, pos.col), tl: [pos.indent]},
-      ~text=
-        (pos, s) =>
-          {hd: (pos.col, pos.col + StringUtil.utf8_length(s)), tl: []},
-      ~align=(_, shape) => shape,
-      ~cat=
-        (_, shape1, shape2) =>
-          switch (shape1.tl) {
-          | [] => {hd: (fst(shape1.hd), snd(shape2.hd)), tl: shape2.tl}
-          | [_, ..._] => {
-              hd: shape1.hd,
-              tl: shape1.tl @ [snd(shape2.hd), ...shape2.tl],
-            }
-          },
-      ~annot=(_, _, shape) => shape,
-    );
-
   type path_segment =
     | VLine(float)
     | HLine(float)
@@ -141,7 +121,7 @@ module Decoration = {
     };
   };
 
-  let path_view = (~start, ~width, path: list(path_segment)) => {
+  let path_view = (~start, path: list(path_segment)) => {
     let d_path_segments =
       path
       |> List.map(
@@ -170,27 +150,24 @@ module Decoration = {
          );
     Vdom.(
       Node.create_svg(
-        "svg",
-        [Attr.create("viewBox", "")],
+        "path",
         [
-          Node.create_svg(
-            "path",
-            [
-              Attr.create("fill", "none"),
-              Attr.create(
-                "d",
-                StringUtil.sep([
-                  "m " ++ string_of_int(start) ++ " 0",
-                  ...d_path_segments,
-                ]),
-              ),
-            ],
-            [],
+          Attr.create("fill", "none"),
+          Attr.create(
+            "d",
+            StringUtil.sep([
+              "m " ++ string_of_int(start) ++ " 0",
+              ...d_path_segments,
+            ]),
           ),
         ],
+        [],
       )
     );
   };
+
+  let err_hole_view = (~start, ~corner_radius, shape) =>
+    path_view(~start, outline_path(~corner_radius, shape));
 };
 
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
@@ -249,92 +226,144 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
   );
 };
 
-let view =
-    (~inject as _: Update.Action.t => Vdom.Event.t, l: UHLayout.t)
-    : Vdom.Node.t => {
+let view = (
+  ~corner_radius: float,
+  l: UHLayout.t
+) => {
   open Vdom;
-  let rec go: UHLayout.t => _ =
-    fun
-    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-    | Linebreak => [Node.br([])]
-    | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
-    | Cat(l1, l2) => go(l1) @ go(l2)
+  let (vs, _): (list(Vdom.Node.t), Decoration.shape) =
+    l
+    |> UHLayout.pos_fold(
+         ~linebreak=
+           pos =>
+             (
+               [Node.br([])],
+               Decoration.{hd: (pos.col, pos.col), tl: [pos.indent]},
+             ),
+         ~text=
+           (pos, s) =>
+             (
+               StringUtil.is_empty(s) ? [] : [Node.text(s)],
+               {hd: (pos.col, pos.col + StringUtil.utf8_length(s)), tl: []},
+             ),
+         ~align=
+           (_, (vs, shape)) =>
+             ([Node.div([Attr.classes(["Align"])], vs)], shape),
+         ~cat=
+           (_, (vs1, shape1), (vs2, shape2)) =>
+             (
+               vs1 @ vs2,
+               switch (shape1.tl) {
+               | [] => {
+                   hd: (fst(shape1.hd), snd(shape2.hd)),
+                   tl: shape2.tl,
+                 }
+               | [_, ..._] => {
+                   hd: shape1.hd,
+                   tl: shape1.tl @ [snd(shape2.hd), ...shape2.tl],
+                 }
+               },
+             ),
+         ~annot=
+           (pos, annot, (vs, shape)) =>
+             (
+               switch (annot) {
+               | Step(_)
+               | EmptyLine
+               | SpaceOp => vs
+               | Token({shape, len, has_cursor}) =>
+                 let clss =
+                   switch (shape) {
+                   | Text => ["code-text"]
+                   | Op => ["code-op"]
+                   | Delim(_) => ["code-delim"]
+                   };
+                 let vs =
+                   switch (has_cursor) {
+                   | None => vs
+                   | Some(j) => [
+                       caret_from_left(
+                         len == 0
+                           ? 0.0
+                           : float_of_int(j) /. float_of_int(len) *. 100.0,
+                       ),
+                       ...vs,
+                     ]
+                   };
+                 [Node.span([Attr.classes(clss)], vs)];
+               | DelimGroup => [
+                   Node.span([Attr.classes(["DelimGroup"])], vs),
+                 ]
+               | LetLine => [Node.span([Attr.classes(["LetLine"])], vs)]
 
-    | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
+               | Padding => [Node.span([Attr.classes(["Padding"])], vs)]
+               | Indent => [Node.span([Attr.classes(["Indent"])], vs)]
 
-    | Annot(Token({shape, len, has_cursor}), l) => {
-        let clss =
-          switch (shape) {
-          | Text => ["code-text"]
-          | Op => ["code-op"]
-          | Delim(_) => ["code-delim"]
-          };
-        let children =
-          switch (has_cursor) {
-          | None => go(l)
-          | Some(j) => [
-              caret_from_left(
-                len == 0
-                  ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
-              ),
-              ...go(l),
-            ]
-          };
-        [Node.span([Attr.classes(clss)], children)];
-      }
+               | HoleLabel(_) => [
+                   Node.span([Attr.classes(["HoleLabel"])], vs),
+                 ]
+               | UserNewline => [
+                   Node.span([Attr.classes(["UserNewline"])], vs),
+                 ]
 
-    | Annot(DelimGroup, l) => [
-        Node.span([Attr.classes(["DelimGroup"])], go(l)),
-      ]
-    | Annot(LetLine, l) => [
-        Node.span([Attr.classes(["LetLine"])], go(l)),
-      ]
+               | OpenChild({is_inline}) => [
+                   Node.span(
+                     [
+                       Attr.classes([
+                         "OpenChild",
+                         is_inline ? "Inline" : "Para",
+                       ]),
+                     ],
+                     vs,
+                   ),
+                 ]
+               | ClosedChild({is_inline}) => [
+                   Node.span(
+                     [
+                       Attr.classes([
+                         "ClosedChild",
+                         is_inline ? "Inline" : "Para",
+                       ]),
+                     ],
+                     vs,
+                   ),
+                 ]
 
-    | Annot(Padding, l) => [
-        Node.span([Attr.classes(["Padding"])], go(l)),
-      ]
-    | Annot(Indent, l) => [Node.span([Attr.classes(["Indent"])], go(l))]
-
-    | Annot(HoleLabel(_), l) => [
-        Node.span([Attr.classes(["HoleLabel"])], go(l)),
-      ]
-    | Annot(UserNewline, l) => [
-        Node.span([Attr.classes(["UserNewline"])], go(l)),
-      ]
-
-    | Annot(OpenChild({is_inline}), l) => [
-        Node.span(
-          [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
-          go(l),
-        ),
-      ]
-    | Annot(ClosedChild({is_inline}), l) => [
-        Node.span(
-          [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
-          go(l),
-        ),
-      ]
-
-    | Annot(Term({has_cursor, shape, sort}), l) => [
-        Node.span(
-          [
-            Attr.classes(
-              List.concat([
-                ["Term"],
-                cursor_clss(has_cursor),
-                sort_clss(sort),
-                shape_clss(shape),
-                open_child_clss(
-                  l |> UHLayout.has_inline_OpenChild,
-                  l |> UHLayout.has_para_OpenChild,
-                ),
-                has_child_clss(l |> UHLayout.has_child),
-              ]),
-            ),
-          ],
-          go(l),
-        ),
-      ];
-
-  Node.div([Attr.classes(["code", "presentation"])], go(l));
+               | Term({has_cursor, shape: term_shape, sort}) =>
+                 let err_hole_decoration =
+                   switch (TermShape.err_status(term_shape)) {
+                   | NotInHole => []
+                   | InHole(_) => [
+                       Decoration.err_hole_view(
+                         ~start=pos.col - pos.indent,
+                         ~corner_radius,
+                         shape,
+                       ),
+                     ]
+                   };
+                 [
+                   Node.span(
+                     [
+                       Attr.classes(
+                         List.concat([
+                           ["Term"],
+                           cursor_clss(has_cursor),
+                           sort_clss(sort),
+                           shape_clss(term_shape),
+                           open_child_clss(
+                             l |> UHLayout.has_inline_OpenChild,
+                             l |> UHLayout.has_para_OpenChild,
+                           ),
+                           has_child_clss(l |> UHLayout.has_child),
+                         ]),
+                       ),
+                     ],
+                     err_hole_decoration @ vs,
+                   ),
+                 ];
+               },
+               shape,
+             ),
+       );
+  Node.div([Attr.classes(["code", "presentation"])], vs);
 };

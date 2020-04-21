@@ -30,3 +30,13 @@ let mk_Var =
   Var({err, verr, show_use});
 
 let mk_Operand = (~err: ErrStatus.t=NotInHole, ()) => Operand({err: err});
+
+let err_status =
+  fun
+  | Rule
+  | SubBlock(_) => ErrStatus.NotInHole
+  | Case({err})
+  | Var({err, _})
+  | Operand({err})
+  | BinOp({err, _})
+  | NTuple({err, _}) => err;

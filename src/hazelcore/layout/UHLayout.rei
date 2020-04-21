@@ -18,7 +18,6 @@ type pos = {
 // but was getting confusing type inference error
 let pos_fold:
   (
-    ~col_start: int=?,
     ~linebreak: pos => 'a,
     ~text: (pos, string) => 'a,
     ~align: (pos, 'a) => 'a,

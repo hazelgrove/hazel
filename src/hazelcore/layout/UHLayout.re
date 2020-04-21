@@ -70,7 +70,6 @@ type pos = {
 
 let pos_fold =
     (
-      ~col_start=0,
       ~linebreak: pos => 'a,
       ~text: (pos, string) => 'a,
       ~align: (pos, 'a) => 'a,
@@ -79,7 +78,7 @@ let pos_fold =
       l: t,
     ) => {
   let row = ref(0);
-  let col = ref(col_start);
+  let col = ref(0);
   let rec go = (~indent, l: t) => {
     let go' = go(~indent);
     let pos = {indent, row: row^, col: col^};
