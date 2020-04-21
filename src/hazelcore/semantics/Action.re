@@ -2185,7 +2185,7 @@ module Exp = {
       let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       let ze =
         ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.FreeLivelit(u, lln)));
-      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+      Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
     | Some((Underscore | Var(_)) as shape) =>
       let x =
         switch (shape) {
