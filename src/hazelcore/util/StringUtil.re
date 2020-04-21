@@ -1,5 +1,9 @@
 let is_empty = String.equal("");
 
+let cat = String.concat("");
+
+let replicat = (n: int, s: string) => cat(ListUtil.replicate(n, s));
+
 /**
  * A string of length n has caret positions 0 through n,
  * where 0 places the caret at the start and n places
