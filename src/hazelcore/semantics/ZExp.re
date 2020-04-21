@@ -45,6 +45,24 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
+let line_can_be_swapped = (line: zline): bool =>
+  switch (line) {
+  | CursorL(_)
+  | LetLineZP(_)
+  | LetLineZA(_)
+  | ExpLineZ(ZOpSeq(_, ZOperator(_)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZA(_), _))) => true
+  | LetLineZE(_)
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(ApPaletteZ(_), _))) => false
+  };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | CommentLine(comment) =>
@@ -1034,3 +1052,37 @@ and move_cursor_right_zrule =
     | None => None
     | Some(zclause) => Some(RuleZE(p, zclause))
     };
+
+let rec cursor_on_EmptyHole = ze => cursor_on_EmptyHole_zblock(ze)
+and cursor_on_EmptyHole_zblock = ((_, zline, _)) =>
+  cursor_on_EmptyHole_zline(zline)
+and cursor_on_EmptyHole_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => cursor_on_EmptyHole_zopseq(zopseq)
+  | LetLineZP(_)
+  | LetLineZA(_) => None
+  | LetLineZE(_, _, ze) => cursor_on_EmptyHole(ze)
+and cursor_on_EmptyHole_zopseq =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    cursor_on_EmptyHole_zoperand(zoperand)
+and cursor_on_EmptyHole_zoperand =
+  fun
+  | CursorE(_, EmptyHole(u)) => Some(u)
+  | CursorE(_)
+  | LamZP(_)
+  | LamZA(_)
+  | CaseZA(_) => None
+  | LamZE(_, _, _, ze)
+  | ParenthesizedZ(ze)
+  | InjZ(_, _, ze)
+  | CaseZE(_, ze, _, _) => cursor_on_EmptyHole(ze)
+  | ApPaletteZ(_) => failwith("unimplemented")
+  | CaseZR(_, _, (_, zrule, _), _) => cursor_on_EmptyHole_zrule(zrule)
+and cursor_on_EmptyHole_zrule =
+  fun
+  | CursorR(_)
+  | RuleZP(_) => None
+  | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
