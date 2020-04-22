@@ -9,6 +9,7 @@ module Action = {
   [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
+    | LivelitAction(MetaVar.t, SerializedAction.t)
     | MoveViaKey(JSUtil.MoveKey.t)
     | MoveViaClick(
         option((MetaVar.t, SpliceName.t)),
@@ -73,6 +74,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
+  | LivelitAction(_)
   | MoveViaKey(_)
   | MoveViaClick(_)
   | ToggleLeftSidebar
@@ -128,6 +130,14 @@ let apply_action =
       JSUtil.log("[Program.DoesNotExpand]");
       model;
     }
+  | LivelitAction(llu, serialized_action) =>
+    model
+    |> Model.map_program(Program.move_to_node(Livelit, llu))
+    |> Model.map_program(
+         Program.perform_edit_action(
+           PerformLivelitAction(serialized_action),
+         ),
+       )
   | MoveViaKey(move_key) =>
     switch (model |> Model.move_via_key(move_key)) {
     | new_model => new_model

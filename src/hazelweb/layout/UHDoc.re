@@ -357,14 +357,15 @@ let mk_ApLivelit =
     (
       llu: MetaVar.t,
       lln: LivelitName.t,
-      llview: Livelits.LivelitView.t,
+      llview: Livelits.trigger_serialized => Livelits.LivelitView.t,
       splice_map_opt: option(SpliceInfo.splice_map(DHExp.t)),
     )
     : t => {
   let lln_doc = mk_text(lln);
   let llview_doc = {
+    // TODO resolve hack of passing in dummy trigger
     let spaceholder =
-      switch (llview) {
+      switch (llview(_ => Vdom.Event.Ignore)) {
       | Inline(_, width) => String.make(width, ' ')
       | MultiLine(_) => "" // TODO multiline spaceholders
       };
@@ -748,7 +749,7 @@ module Exp = {
             inst_opt
             |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
             |> OptUtil.map(((_, _, si)) => SpliceInfo.splice_map(si));
-          let llview = svf(m, _ => Vdom.Event.Ignore);
+          let llview = svf(m);
           splice_docs :=
             splice_docs^
             |> SpliceMap.put_ap(

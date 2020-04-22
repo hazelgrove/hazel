@@ -167,37 +167,40 @@ let view =
         ),
       ]
 
-    | Annot(LivelitView({llu, llview, splice_map_opt}), _) =>
-      switch (llview) {
-      | Inline(view, _) => [view]
-      | MultiLine(vdom_with_splices) =>
-        let splice_getters: Livelits.VdomWithSplices.splice_getters = {
-          get_splice_div: splice_name => {
-            let splice_layout =
-              splice_ls |> SpliceMap.get_splice(llu, splice_name);
-            let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-            Node.div(
-              [
-                Attr.id(id),
-                Attr.classes(["splice"]),
-                Attr.on_click(
-                  on_click(~id, ~splice=Some((llu, splice_name))),
-                ),
-              ],
-              go(splice_layout),
-            );
-          },
+    | Annot(LivelitView({llu, llview, splice_map_opt}), _) => {
+        let trigger = serialized_action =>
+          inject(Update.Action.LivelitAction(llu, serialized_action));
+        switch (llview(trigger)) {
+        | Inline(view, _) => [view]
+        | MultiLine(vdom_with_splices) =>
+          let splice_getters: Livelits.VdomWithSplices.splice_getters = {
+            get_splice_div: splice_name => {
+              let splice_layout =
+                splice_ls |> SpliceMap.get_splice(llu, splice_name);
+              let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+              Node.div(
+                [
+                  Attr.id(id),
+                  Attr.classes(["splice"]),
+                  Attr.on_click(
+                    on_click(~id, ~splice=Some((llu, splice_name))),
+                  ),
+                ],
+                go(splice_layout),
+              );
+            },
 
-          get_splice_value: splice_name =>
-            splice_map_opt
-            |> OptUtil.map(splice_map =>
-                 switch (NatMap.lookup(splice_map, splice_name)) {
-                 | None => raise(Not_found)
-                 | Some((_, d)) => d
-                 }
-               ),
+            get_splice_value: splice_name =>
+              splice_map_opt
+              |> OptUtil.map(splice_map =>
+                   switch (NatMap.lookup(splice_map, splice_name)) {
+                   | None => raise(Not_found)
+                   | Some((_, d)) => d
+                   }
+                 ),
+          };
+          [Livelits.VdomWithSplices.exec(vdom_with_splices, splice_getters)];
         };
-        [Livelits.VdomWithSplices.exec(vdom_with_splices, splice_getters)];
       }
 
     | Annot(Term({has_cursor, shape, sort}), l) => [

@@ -28,7 +28,8 @@ type t =
   | Term(term_data)
   | LivelitView({
       llu: MetaVar.t,
-      llview: [@sexp.opaque] Livelits.LivelitView.t,
+      llview:
+        [@sexp.opaque] (Livelits.trigger_serialized => Livelits.LivelitView.t),
       splice_map_opt: option(SpliceInfo.splice_map(DHExp.t)),
     })
 [@deriving sexp]
