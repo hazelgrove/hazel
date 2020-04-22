@@ -25,6 +25,7 @@ let rec pass_trans = (~type1: pass_t): option(string) =>
       ~strs=[pass_trans(~type1=a), Some("|"), pass_trans(~type1=b)],
     )
   | EMPTY => None
+  | UNK => Some("'a")
   | _ => None
   };
 
@@ -48,10 +49,17 @@ let add_var_annotation =
     )
   };
 
-let var_annotate = (~var: string, ~vs: variable_set_t): extract_t => (
-  add_var_annotation(~var=Some(var), ~set=vs),
-  find_variable_set(~var, ~set=vs),
-);
+let var_annotate = (~var: string, ~vs: variable_set_t): extract_t =>
+  extract_t_concat(
+    ~le=[
+      (Some("("), UNK),
+      (
+        add_var_annotation(~var=Some(var), ~set=vs),
+        find_variable_set(~var, ~set=vs),
+      ),
+      (Some(")"), UNK),
+    ],
+  );
 
 //================================
 //  UHPat
