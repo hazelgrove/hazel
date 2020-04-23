@@ -9,6 +9,7 @@ type edit_action =
   | EditVar
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
+  | MatchRule
   | Ignore /* cursor move and init state */;
 
 type cursor_term_info = {
@@ -399,7 +400,8 @@ let delete_edit =
 let delim_edge_handle =
     (~new_cursor_term_info: cursor_term_info, ~adjacent_is_empty_line: bool)
     : edit_action =>
-  if (adjacent_is_empty_line) {
+  if (adjacent_is_empty_line&& ZExp.erase(new_cursor_term_info.zexp_before)
+  != ZExp.erase(new_cursor_term_info.zexp_after)) {
     /* delete adjacent empty line */
     DeleteEdit(EmptyLine);
   } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
@@ -530,7 +532,18 @@ let get_new_edit_action =
   | Backspace => backspace(~prev_group, ~new_cursor_term_info)
   | Construct(shape) =>
     switch (shape) {
-    | SLine
+    | SLine => 
+      if(&& ZExp.erase(new_cursor_term_info.zexp_before)
+      != ZExp.erase(new_cursor_term_info.zexp_after)) {
+        switch(new_cursor_term_info.cursor_term_after){
+          | Rule(_,_) => MatchRule
+          | _ => 
+            switch
+          ConstructEdit(shape)
+        }
+      }else {
+        Ignore
+      }
     | SParenthesized
     | SList
     | SAsc

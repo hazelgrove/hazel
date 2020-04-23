@@ -72,7 +72,7 @@ let shape_to_string = (shape: shape): string => {
     | SSpace => "space"
     | SComma => ","
     | SArrow => "->"
-    | SVBar => "vbar" /* TBD */
+    | SVBar => "vbar"
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
