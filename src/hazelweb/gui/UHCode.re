@@ -182,8 +182,8 @@ module Decoration = {
 
     let path_view = {
       let corner_radii = (
-        corner_radius /. row_height,
         corner_radius /. col_width,
+        corner_radius /. row_height,
       );
       shape
       |> outline_path(~corner_radii)
