@@ -51,11 +51,11 @@ type t =
 
 let shape_to_string = (shape: shape): string => {
   switch (shape) {
-  | SList => "[]"
-  | SParenthesized => "()"
+  | SList => "list type"
+  | SParenthesized => "parentheses"
   | SChar(str) => str
   | SAsc => "type annotation"
-  | SLam => "lamda function"
+  | SLam => "function"
   | SListNil => "Nil"
   | SInj(side) =>
     switch (side) {
@@ -64,7 +64,7 @@ let shape_to_string = (shape: shape): string => {
     }
   | SLet => "let binding"
   | SLine => "new line"
-  | SCase => "case match"
+  | SCase => "case expression"
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"
