@@ -613,7 +613,11 @@ let get_new_edit_action =
   | MoveLeft
   | MoveRight
   | MoveToNextHole
-  | MoveToPrevHole => Ignore
+  | MoveToPrevHole
+  | SwapUp
+  | SwapDown
+  | SwapLeft
+  | SwapRight => Ignore
   | UpdateApPalette(_) =>
     failwith("ApPalette is not implemented in undo_history")
   };
