@@ -36,11 +36,6 @@ and zrule =
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
-type outer_zexp =
-  | ZLine(zline)
-  | ZOpseq(outer_zexp, zopseq)
-  | ZOperand(zoperand)
-  | ZRule(zrule);
 
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
