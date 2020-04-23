@@ -87,7 +87,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let display_string_of_history_entry =
-      (undo_history_entry: undo_history_entry): option(string) => {
+      (undo_history_entry: undo_history_entry,group_id:int, elt_id:int): option(string) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
