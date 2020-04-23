@@ -330,6 +330,12 @@ let apply_action =
       switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
       | None => failwith("Impossible because group_entries is non-empty")
       | Some(new_group_entries) =>
+        JSUtil.log(
+          "group and elt:"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        );
         let new_cardstacks = ZList.prj_z(new_group_entries).cardstacks;
         let new_model = model |> Model.put_cardstacks(new_cardstacks);
         let new_program = Cardstacks.get_program(new_cardstacks);
