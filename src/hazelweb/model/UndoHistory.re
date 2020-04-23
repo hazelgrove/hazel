@@ -408,8 +408,8 @@ let delim_edge_handle =
     /* delete space */
     DeleteEdit(Space);
   } else {
-    /* jump to next term */
-    Ignore;        
+    Ignore;
+          /* jump to next term */
   };
 let delete =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)

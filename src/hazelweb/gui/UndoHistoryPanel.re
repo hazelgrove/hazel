@@ -183,6 +183,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let history_title_entry_view =
       (
+        ~is_latest_selected:bool,
         ~is_expanded: bool,
         ~has_hidden_part: bool,
         group_id: int,
@@ -230,7 +231,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let history_hidden_entry_view =
-      (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
+      (~is_latest_selected:bool, group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
     switch (display_string_of_history_entry(undo_history_entry)) {
     | None => Vdom.(Node.div([], []))
     | Some(str) =>
@@ -269,6 +270,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
     helper_func(entries, 0);
   };
+
   let group_view =
       (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
     /* if the group containning selected history entry, it should be splited into different css styles */
@@ -503,7 +505,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Vdom.(
                     Node.div(
                       if (is_cur_group) {
-                        [Attr.classes(["the-suc-history"])];
+                        [
+                          Attr.classes(["the-suc-history"]),
+                          Attr.id("cur-selected-entry"),
+                        ];
                       } else {
                         [];
                       },
@@ -523,7 +528,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               )
             );
           };
-        } else if (start_index + 1 == List.length(suc_entries) + 1) {
+        } else if (start_index == List.length(suc_entries)) {
           if (group.is_expanded) {
             Vdom.(
               Node.div(
@@ -616,7 +621,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Vdom.(
                   Node.div(
                     if (is_cur_group) {
-                      [Attr.classes(["the-prev-history"])];
+                      [
+                        Attr.classes(["the-prev-history"]),
+                        Attr.id("cur-selected-entry"),
+                      ];
                     } else {
                       [];
                     },
@@ -664,7 +672,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Vdom.(
                   Node.div(
                     if (is_cur_group) {
-                      [Attr.classes(["the-prev-history"])];
+                      [
+                        Attr.classes(["the-prev-history"]),
+                        Attr.id("cur-selected-entry"),
+                      ];
                     } else {
                       [];
                     },
