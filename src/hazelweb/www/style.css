@@ -1490,6 +1490,7 @@ h1 {
   cursor: pointer;
   display: inline-block;
   vertical-align: middle;
+  margin-right: 10px;
 }
 .redo-undo-icon {
  
@@ -1501,11 +1502,6 @@ h1 {
   margin-right: 5px;
 }
 
-.undo-redo-button-txt {
-  color: white;
-  display: inline-block;
-  vertical-align: middle;
- }
 
 
 

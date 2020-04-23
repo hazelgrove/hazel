@@ -760,13 +760,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Vdom.Event.Many([inject(Update.Action.Undo), inject(FocusCell)])
           ),
         ],
-        [
-          Node.div(
-            [Attr.classes(["undo-redo-button-txt"])],
-            [Node.text("undo")],
-          ),
-          Icons.undo(["redo-undo-icon"]),
-        ],
+        [Icons.undo(["redo-undo-icon"])],
       )
     );
 
@@ -779,13 +773,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Vdom.Event.Many([inject(Update.Action.Redo), inject(FocusCell)])
           ),
         ],
-        [
-          Icons.redo(["redo-undo-icon"]),
-          Node.div(
-            [Attr.classes(["undo-redo-button-txt"])],
-            [Node.text("redo")],
-          ),
-        ],
+        [Icons.redo(["redo-undo-icon"])],
       )
     );
 
