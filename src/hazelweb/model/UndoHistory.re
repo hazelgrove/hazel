@@ -400,32 +400,38 @@ let get_original_deleted_term =
 let delete_edit =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
     : edit_action =>
-  if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-      || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
-    /* delete the whole term */
-    let initial_term =
-      get_original_deleted_term(prev_group, new_cursor_term_info);
-    DeleteEdit(Term(initial_term));
+  if (ZExp.erase(new_cursor_term_info.zexp_before)
+      != ZExp.erase(new_cursor_term_info.zexp_after)) {
+    if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
+        || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
+      /* delete the whole term */
+      let initial_term =
+        get_original_deleted_term(prev_group, new_cursor_term_info);
+      DeleteEdit(Term(initial_term));
+    } else {
+      EditVar;
+             /* edit the term */
+    };
   } else {
-    EditVar;
-           /* edit the term */
+    Ignore;
   };
 let delim_edge_handle =
     (~new_cursor_term_info: cursor_term_info, ~adjacent_is_empty_line: bool)
     : edit_action =>
-  if (adjacent_is_empty_line
-      && ZExp.erase(new_cursor_term_info.zexp_before)
+  if (ZExp.erase(new_cursor_term_info.zexp_before)
       != ZExp.erase(new_cursor_term_info.zexp_after)) {
-    /* delete adjacent empty line */
-    DeleteEdit(EmptyLine);
-  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
-             && ZExp.erase(new_cursor_term_info.zexp_before)
-             != ZExp.erase(new_cursor_term_info.zexp_after)) {
-    /* delete space */
-    DeleteEdit(Space);
+    if (adjacent_is_empty_line) {
+      /* delete adjacent empty line */
+      DeleteEdit(EmptyLine);
+    } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+      /* delete space */
+      DeleteEdit(Space);
+    } else {
+      Ignore;
+            /* jump to next term */
+    };
   } else {
     Ignore;
-          /* jump to next term */
   };
 let delete =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
@@ -446,7 +452,9 @@ let delete =
   | OnDelim(pos, side) =>
     switch (side) {
     | Before =>
-      if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+      if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
+          || ZExp.erase(new_cursor_term_info.zexp_before)
+          == ZExp.erase(new_cursor_term_info.zexp_after)) {
         Ignore;
               /* move cursor in the hole */
       } else if (pos == 1
@@ -665,14 +673,29 @@ let push_edit_state =
     previous_action: action,
     edit_action: new_edit_action,
   };
-
+  let timestamp = Unix.time();
   if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
     let new_group = push_history_entry(~prev_group, ~new_entry);
     if (new_edit_action != Ignore) {
+      let prev_groups = {
+        switch (ListUtil.first(ZList.prj_suffix(undo_history.groups))) {
+        | None => []
+        | Some(prev_group') => [
+            {
+              ...prev_group',
+              display_timestamp:
+                timestamp
+                -. undo_history.latest_timestamp > 5.
+                || prev_group'.display_timestamp,
+            },
+            ...ListUtil.drop(1, ZList.prj_suffix(undo_history.groups)),
+          ]
+        };
+      };
       {
         ...undo_history,
-        groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
-        latest_timestamp: Unix.time(),
+        groups: ([], new_group, prev_groups),
+        latest_timestamp: timestamp,
       };
     } else {
       {
@@ -681,19 +704,24 @@ let push_edit_state =
       };
     };
   } else {
-    let timestamp = Unix.time();
     let new_group = {
       group_entries: ([], new_entry, []),
       is_expanded: false,
       timestamp,
-      display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
+      display_timestamp: false,
     };
     {
       ...undo_history,
       groups: (
         [],
         new_group,
-        [prev_group, ...ZList.prj_suffix(undo_history.groups)],
+        [
+          {
+            ...prev_group,
+            display_timestamp: timestamp -. undo_history.latest_timestamp > 5.,
+          },
+          ...ZList.prj_suffix(undo_history.groups),
+        ],
       ),
       latest_timestamp: timestamp,
     };
