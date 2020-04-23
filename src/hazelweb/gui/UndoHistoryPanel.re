@@ -111,6 +111,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
              undo_history_entry.cursor_term_info.cursor_term_after,
            ),
       )
+    | MatchRule => Some("insert a match rule")
     | Ignore => None
     };
   };
