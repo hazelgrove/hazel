@@ -280,7 +280,8 @@ let group_entry =
 type comp_len_typ =
   | MaxLen
   | Ignore
-  | Len(int) /* < */;
+  | Len(int);
+
 let comp_len_lt =
     (cursor_len_1: comp_len_typ, cursor_len_2: comp_len_typ): bool => {
   switch (cursor_len_1, cursor_len_2) {

@@ -401,18 +401,6 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let get_cursor_pos = (cursor_term: cursor_term) => {
-  switch (cursor_term) {
-  | Exp(cursor_pos, _)
-  | Pat(cursor_pos, _)
-  | Typ(cursor_pos, _)
-  | ExpOp(cursor_pos, _)
-  | PatOp(cursor_pos, _)
-  | TypOp(cursor_pos, _)
-  | Line(cursor_pos, _)
-  | Rule(cursor_pos, _) => cursor_pos
-  };
-};
 let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
 let get_ctx = ci => ci.ctx;
