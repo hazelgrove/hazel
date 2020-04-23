@@ -42,6 +42,24 @@ type outer_zexp =
   | ZOperand(zoperand)
   | ZRule(zrule);
 
+let line_can_be_swapped = (line: zline): bool =>
+  switch (line) {
+  | CursorL(_)
+  | LetLineZP(_)
+  | LetLineZA(_)
+  | ExpLineZ(ZOpSeq(_, ZOperator(_)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZA(_), _))) => true
+  | LetLineZE(_)
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(ApPaletteZ(_), _))) => false
+  };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | ExpLine(_) => []
