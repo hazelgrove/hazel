@@ -87,31 +87,85 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let display_string_of_history_entry =
-      (undo_history_entry: undo_history_entry,group_id:int, elt_id:int): option(string) => {
+      (undo_history_entry: undo_history_entry, group_id: int, elt_id: int)
+      : option(string) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
       | Term(cursor_term) =>
-        Some("delete " ++ display_string_of_cursor_term(cursor_term))
-      | Space => Some("delete space")
-      | EmptyLine => Some("delete empty line")
-      | TypeAnn => Some("delete type annotation")
+        Some(
+          "delete "
+          ++ display_string_of_cursor_term(cursor_term)
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
+      | Space =>
+        Some(
+          "delete space"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
+      | EmptyLine =>
+        Some(
+          "delete empty line"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
+      | TypeAnn =>
+        Some(
+          "delete type annotation"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
-      | SLet => Some("construct let binding")
-      | SCase => Some("construct case match")
-      | SLam => Some("construct lambda")
-      | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
+      | SLet =>
+        Some(
+          "construct let binding"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
+      | SCase =>
+        Some(
+          "construct case match"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
+      | SLam =>
+        Some(
+          "construct lambda"
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
+      | _ =>
+        Some(
+          "insert "
+          ++ Action.shape_to_string(edit_detail)
+          ++ string_of_int(group_id)
+          ++ "]g e["
+          ++ string_of_int(elt_id),
+        )
       }
     | EditVar =>
       Some(
         "edit "
         ++ display_string_of_cursor_term(
              undo_history_entry.cursor_term_info.cursor_term_after,
-           ),
+           )
+        ++ string_of_int(group_id)
+        ++ "]g e["
+        ++ string_of_int(elt_id),
       )
-    | Ignore => None
+    | Ignore =>
+      Some(string_of_int(group_id) ++ "]g e[" ++ string_of_int(elt_id))
     };
   };
 
@@ -190,13 +244,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    /*     let attr_id =
-           if (is_latest_selected) {
-             [Attr.id("cur-selected-entry")];
-           } else {
-             [];
-           }; */
-    switch (display_string_of_history_entry(undo_history_entry)) {
+    switch (
+      display_string_of_history_entry(undo_history_entry, group_id, elt_id)
+    ) {
     | None =>
       Vdom.(
         Node.div(
@@ -263,7 +313,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    switch (display_string_of_history_entry(undo_history_entry)) {
+    switch (
+      display_string_of_history_entry(undo_history_entry, group_id, elt_id)
+    ) {
     | None =>
       Vdom.(
         Node.div(
@@ -498,7 +550,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         history_hidden_entry_view(
                           ~is_latest_selected=is_cur_group,
                           group_id,
-                          List.length(suc_entries') + 1 /* elt_id */,
+                          start_index+ 1 + List.length(suc_entries')  /* elt_id */,
                           cur_entry,
                         ),
                       ] /* the previous history entry */,
@@ -517,7 +569,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           group_id,
                         ),
                         base => base + 1,
-                        List.length(suc_entries') + 2 /* base elt_id */,
+                        start_index+ 1 + List.length(suc_entries') + 1 /* base elt_id */,
                         prev_entries,
                       ),
                     )
