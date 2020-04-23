@@ -6,37 +6,42 @@ open ViewUtil;
 
 module Decoration = {
   type shape = {
-    // start and end of first line
-    // (where n means n columns from
+    // start col of first line
+    // (where n means n colums from
     // start of current indentation)
-    hd: (int, int),
-    // ends of all other lines
-    tl: list(int),
+    hd_start: int,
+    // width of first line
+    hd_width: int,
+    // widths of all other lines
+    tl_widths: list(int),
   };
 
   type path_segment =
     | VLine(float)
     | HLine(float)
-    | Corner(corner, float)
+    | Corner(corner, (float, float))
   and corner =
     | TopLeft
     | TopRight
     | BottomLeft
     | BottomRight;
 
-  let outline_path = (~corner_radius, shape) => {
-    let vline_down = VLine(0.5 -. corner_radius);
-    let vline_up = VLine(Float.neg(0.5 -. corner_radius));
+  let corner_radius = 4.0;
+
+  let outline_path = (~corner_radii, shape) => {
+    let (rx, ry) = corner_radii;
+
+    let vline_down = VLine(0.5 -. ry);
+    let vline_up = VLine(Float.neg(0.5 -. ry));
 
     let hline_left = len =>
-      HLine(Float.neg(Float.of_int(len) -. 2.0 *. corner_radius));
-    let hline_right = len =>
-      HLine(float_of_int(len) -. 2.0 *. corner_radius);
+      HLine(Float.neg(Float.of_int(len) -. 2.0 *. rx));
+    let hline_right = len => HLine(float_of_int(len) -. 2.0 *. rx);
 
-    let corner_TopLeft = Corner(TopLeft, corner_radius);
-    let corner_TopRight = Corner(TopRight, corner_radius);
-    let corner_BottomLeft = Corner(BottomLeft, corner_radius);
-    let corner_BottomRight = Corner(BottomRight, corner_radius);
+    let corner_TopLeft = Corner(TopLeft, corner_radii);
+    let corner_TopRight = Corner(TopRight, corner_radii);
+    let corner_BottomLeft = Corner(BottomLeft, corner_radii);
+    let corner_BottomRight = Corner(BottomRight, corner_radii);
 
     let top_cap = width => [
       vline_up,
@@ -108,38 +113,38 @@ module Decoration = {
          )
       |> List.flatten;
 
-    let hd_width = snd(shape.hd) - fst(shape.hd);
-    switch (ListUtil.split_last(shape.tl)) {
-    | None => top_cap(hd_width) @ bottom_cap(hd_width)
-    | Some((_, last)) =>
-      top_cap(hd_width)
-      @ right_edge([snd(shape.hd), ...shape.tl])
-      @ bottom_cap(last)
+    switch (ListUtil.split_last(shape.tl_widths)) {
+    | None => top_cap(shape.hd_width) @ bottom_cap(shape.hd_width)
+    | Some((_, last_width)) =>
+      top_cap(shape.hd_width)
+      @ right_edge([shape.hd_width, ...shape.tl_widths])
+      @ bottom_cap(last_width)
       @ left_edge(
-          ListUtil.replicate(List.length(shape.tl), 0) @ [fst(shape.hd)],
+          ListUtil.replicate(List.length(shape.tl_widths), 0)
+          @ [shape.hd_start],
         )
     };
   };
 
-  let path_view = (~start, path: list(path_segment)) => {
+  let path_view = (~hd_start, path: list(path_segment)) => {
     let d_path_segments =
       path
       |> List.map(
            fun
            | VLine(len) => "v " ++ string_of_float(len)
            | HLine(len) => "h " ++ string_of_float(len)
-           | Corner(corner, radius) => {
+           | Corner(corner, (rx, ry)) => {
                let (dx, dy) =
                  switch (corner) {
-                 | TopLeft => (radius, Float.neg(radius))
-                 | TopRight => (radius, radius)
-                 | BottomRight => (Float.neg(radius), radius)
-                 | BottomLeft => (Float.neg(radius), Float.neg(radius))
+                 | TopLeft => (rx, Float.neg(ry))
+                 | TopRight => (rx, ry)
+                 | BottomRight => (Float.neg(rx), ry)
+                 | BottomLeft => (Float.neg(rx), Float.neg(ry))
                  };
                StringUtil.sep([
                  "a",
-                 string_of_float(radius),
-                 string_of_float(radius),
+                 string_of_float(rx),
+                 string_of_float(ry),
                  "0",
                  "0",
                  "1",
@@ -156,7 +161,7 @@ module Decoration = {
           Attr.create(
             "d",
             StringUtil.sep([
-              "m " ++ string_of_int(start) ++ " 0",
+              "m " ++ string_of_int(hd_start) ++ " 0",
               ...d_path_segments,
             ]),
           ),
@@ -166,8 +171,41 @@ module Decoration = {
     );
   };
 
-  let err_hole_view = (~start, ~corner_radius, shape) =>
-    path_view(~start, outline_path(~corner_radius, shape));
+  let err_hole_view = (~font_metrics, shape) => {
+    let FontMetrics.{row_height, col_width} = font_metrics;
+
+    let num_rows = 1 + List.length(shape.tl_widths);
+    let height = float_of_int(num_rows) *. row_height;
+
+    let num_cols = shape.tl_widths |> List.fold_left(max, shape.hd_width);
+    let width = float_of_int(num_cols) *. col_width;
+
+    let path_view = {
+      let corner_radii = (
+        corner_radius /. row_height,
+        corner_radius /. col_width,
+      );
+      shape
+      |> outline_path(~corner_radii)
+      |> path_view(~hd_start=shape.hd_start);
+    };
+
+    Vdom.(
+      Node.create_svg(
+        "svg",
+        [
+          Attr.create(
+            "viewBox",
+            Printf.sprintf("0 0 %d %d", num_cols, num_rows),
+          ),
+          Attr.create("width", string_of_float(width)),
+          Attr.create("height", string_of_float(height)),
+          Attr.create("stroke", "green"),
+        ],
+        [path_view],
+      )
+    );
+  };
 };
 
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
@@ -226,10 +264,7 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
   );
 };
 
-let view = (
-  ~corner_radius: float,
-  l: UHLayout.t
-) => {
+let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
   open Vdom;
   let (vs, _): (list(Vdom.Node.t), Decoration.shape) =
     l
@@ -238,13 +273,21 @@ let view = (
            pos =>
              (
                [Node.br([])],
-               Decoration.{hd: (pos.col, pos.col), tl: [pos.indent]},
+               Decoration.{
+                 hd_start: pos.col - pos.indent,
+                 hd_width: 0,
+                 tl_widths: [0],
+               },
              ),
          ~text=
            (pos, s) =>
              (
                StringUtil.is_empty(s) ? [] : [Node.text(s)],
-               {hd: (pos.col, pos.col + StringUtil.utf8_length(s)), tl: []},
+               {
+                 hd_start: pos.col - pos.indent,
+                 hd_width: StringUtil.utf8_length(s),
+                 tl_widths: [],
+               },
              ),
          ~align=
            (_, (vs, shape)) =>
@@ -253,19 +296,22 @@ let view = (
            (_, (vs1, shape1), (vs2, shape2)) =>
              (
                vs1 @ vs2,
-               switch (shape1.tl) {
+               switch (shape1.tl_widths) {
                | [] => {
-                   hd: (fst(shape1.hd), snd(shape2.hd)),
-                   tl: shape2.tl,
+                   hd_start: shape1.hd_start,
+                   hd_width: shape1.hd_width + shape2.hd_width,
+                   tl_widths: shape2.tl_widths,
                  }
                | [_, ..._] => {
-                   hd: shape1.hd,
-                   tl: shape1.tl @ [snd(shape2.hd), ...shape2.tl],
+                   hd_start: shape1.hd_start,
+                   hd_width: shape1.hd_width,
+                   tl_widths:
+                     shape1.tl_widths @ [shape2.hd_width, ...shape2.tl_widths],
                  }
                },
              ),
          ~annot=
-           (pos, annot, (vs, shape)) =>
+           (_, annot, (vs, shape)) =>
              (
                switch (annot) {
                | Step(_)
@@ -334,10 +380,9 @@ let view = (
                    switch (TermShape.err_status(term_shape)) {
                    | NotInHole => []
                    | InHole(_) => [
-                       Decoration.err_hole_view(
-                         ~start=pos.col - pos.indent,
-                         ~corner_radius,
-                         shape,
+                       Vdom.Node.div(
+                         [Vdom.Attr.classes(["code-err-hole"])],
+                         [Decoration.err_hole_view(~font_metrics, shape)],
                        ),
                      ]
                    };

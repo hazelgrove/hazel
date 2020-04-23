@@ -39,6 +39,7 @@
   --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
   /* necessary for hiding portions of box shadows */
+  --err-hole-z: 0;
   --para-border-z: 1;
   --delim-group-z: 2;
   --inline-border-z: 3;
@@ -785,6 +786,13 @@ h1 {
 }
 .code-delim {
   font-weight: bold;
+}
+
+.code.presentation .code-err-hole {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--err-hole-z);
 }
 
 .DHCode .Align {
