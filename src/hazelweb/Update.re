@@ -215,9 +215,113 @@ let apply_action =
     };
 
     model;
-  | Undo => Model.undo(model)
-  | Redo => Model.redo(model) /* click the groups panel to shift to the certain groups entry */
+  | Undo =>
+    let new_groups = {
+      let cur_group = ZList.prj_z(model.undo_history.groups) /* shift to previous state in the same group */;
+      switch (ZList.shift_next(cur_group.group_entries)) {
+      | None =>
+        /*if current group doesn't have previous state, shfit to previous group*/
+        switch (ZList.shift_next(model.undo_history.groups)) {
+        | None => model.undo_history.groups
+        | Some(new_groups) =>
+          let new_group = ZList.prj_z(new_groups);
+          let new_entries = ZList.shift_begin(new_group.group_entries);
+          let new_group': UndoHistory.undo_history_group = {
+            ...new_group,
+            group_entries: new_entries,
+            is_expanded: true,
+          } /* is_expanded=true because the selected group should be expanded*/;
+          let groups = ZList.replace_z(new_group', new_groups);
+          groups;
+        }
+      | Some(new_group_entries) =>
+        let new_group: UndoHistory.undo_history_group = {
+          ...cur_group,
+          group_entries: new_group_entries,
+          is_expanded: true,
+        };
+        ZList.replace_z(
+          new_group,
+          model.undo_history.groups /* is_expanded=true because the selected group should be expanded*/,
+        );
+      };
+    };
+    let cur_group' = ZList.prj_z(new_groups);
+    let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
+    let new_program = Cardstacks.get_program(new_cardstacks);
+    let update_selected_instances = _ => {
+      let si = UserSelectedInstances.init;
+      switch (Program.cursor_on_exp_hole(new_program)) {
+      | None => si
+      | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+      };
+    };
+    let model' =
+      model
+      |> Model.put_cardstacks(new_cardstacks)
+      |> Model.map_selected_instances(update_selected_instances);
+
+    {
+      ...model',
+      undo_history: {
+        ...model.undo_history,
+        groups: new_groups,
+      },
+    };
+  | Redo =>
+    let new_groups = {
+      let cur_group = ZList.prj_z(model.undo_history.groups) /* shift to previous state in the same group */;
+      switch (ZList.shift_prev(cur_group.group_entries)) {
+      | None =>
+        /*if current group doesn't have previous state, shfit to previous group*/
+        switch (ZList.shift_prev(model.undo_history.groups)) {
+        | None => model.undo_history.groups
+        | Some(new_groups) =>
+          let new_group = ZList.prj_z(new_groups);
+          let new_group': UndoHistory.undo_history_group = {
+            ...new_group,
+            group_entries: ZList.shift_end(new_group.group_entries) /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/,
+            is_expanded: true,
+          } /* is_expanded=true because this group should be expanded when redo*/;
+          ZList.replace_z(new_group', new_groups);
+        }
+      | Some(new_group_entries) =>
+        let new_group: UndoHistory.undo_history_group = {
+          ...cur_group,
+          group_entries: new_group_entries,
+          is_expanded: true,
+        };
+        ZList.replace_z(
+          new_group,
+          model.undo_history.groups /* is_expanded=true because the selected group should be expanded*/,
+        );
+      };
+    };
+    let cur_group' = ZList.prj_z(new_groups);
+    let new_cardstacks = ZList.prj_z(cur_group'.group_entries).cardstacks;
+
+    let new_program = Cardstacks.get_program(new_cardstacks);
+    let update_selected_instances = _ => {
+      let si = UserSelectedInstances.init;
+      switch (Program.cursor_on_exp_hole(new_program)) {
+      | None => si
+      | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+      };
+    };
+    let model' =
+      model
+      |> Model.put_cardstacks(new_cardstacks)
+      |> Model.map_selected_instances(update_selected_instances);
+    {
+      ...model',
+      undo_history: {
+        ...model.undo_history,
+        groups: new_groups,
+      },
+    };
+
   | ShiftHistory(group_id, elt_id) =>
+    /* click the groups panel to shift to the certain groups entry */
     /* shift to the group with group_id */
     switch (ZList.shift_to(group_id, model.undo_history.groups)) {
     | None => failwith("Impossible match, because undo_history is non-empty")
@@ -228,10 +332,22 @@ let apply_action =
       | Some(new_group_entries) =>
         let new_cardstacks = ZList.prj_z(new_group_entries).cardstacks;
         let new_model = model |> Model.put_cardstacks(new_cardstacks);
+        let new_program = Cardstacks.get_program(new_cardstacks);
+        let update_selected_instances = _ => {
+          let si = UserSelectedInstances.init;
+          switch (Program.cursor_on_exp_hole(new_program)) {
+          | None => si
+          | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+          };
+        };
+        let new_model' =
+          new_model
+          |> Model.put_cardstacks(new_cardstacks)
+          |> Model.map_selected_instances(update_selected_instances);
         {
-          ...new_model,
+          ...new_model',
           undo_history: {
-            ...new_model.undo_history,
+            ...new_model'.undo_history,
             groups:
               ZList.replace_z(
                 {...cur_group, group_entries: new_group_entries},
