@@ -84,10 +84,7 @@ type cursor_term =
   | TypOp(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
-type outer_zexp =
-  | ZExp(ZExp.t)
-  | ZPat(ZPat.t)
-  | ZTyp(ZTyp.t);
+
 // TODO refactor into variants
 // based on term sort and shape
 //[@deriving sexp]
@@ -218,6 +215,66 @@ let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
     }
   };
 };
+
+let rec get_outer_zrules = (exp: ZExp.t): option(ZExp.zrules) => {
+  get_outer_zrules_from_zexp(exp, None);
+}
+and get_outer_zrules_from_zexp =
+    (exp: ZExp.t, outer_zrules: option(ZExp.zrules)): option(ZExp.zrules) => {
+  get_outer_zrules_from_zline(ZList.prj_z(exp), outer_zrules);
+}
+and get_outer_zrules_from_zline =
+    (zline: ZExp.zline, outer_zrules: option(ZExp.zrules)) => {
+  switch (zline) {
+  | CursorL(_, _) => outer_zrules
+  | ExpLineZ(zopseq) =>
+    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _) => outer_zrules
+  | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  };
+}
+and get_outer_zrules_from_zexp_opseq =
+    (zopseq: ZExp.zopseq, outer_zrules: option(ZExp.zrules))
+    : option(ZExp.zrules) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zoperand, _) =>
+      get_outer_zrules_from_zexp_operand(zoperand, outer_zrules)
+    | ZOperator(_, _) => outer_zrules
+    }
+  };
+}
+and get_outer_zrules_from_zexp_operand =
+    (zoperand: ZExp.zoperand, outer_zrules: option(ZExp.zrules))
+    : option(ZExp.zrules) => {
+  switch (zoperand) {
+  | CursorE(_, _) => outer_zrules
+  | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | LamZP(_, _, _, _)
+  | LamZA(_, _, _, _) => outer_zrules
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | CaseZR(_, _, zrules, _) => get_outer_zrules_from_zrules(zrules)
+  | CaseZA(_, _, _, _) => outer_zrules
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  };
+}
+and get_outer_zrules_from_zrules = (zrules: ZExp.zrules): option(ZExp.zrules) => {
+  get_outer_zrules_from_zrule(ZList.prj_z(zrules), Some(zrules));
+}
+and get_outer_zrules_from_zrule =
+    (zrule: ZExp.zrule, outer_zrules: option(ZExp.zrules))
+    : option(ZExp.zrules) => {
+  switch (zrule) {
+  | CursorR(_, _)
+  | RuleZP(_, _) => outer_zrules
+  | RuleZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  };
+};
+
 let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {

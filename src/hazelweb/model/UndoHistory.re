@@ -9,6 +9,7 @@ type edit_action =
   | EditVar
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
+  | MatchRule
   | Ignore /* cursor move and init state */;
 
 type cursor_term_info = {
@@ -175,6 +176,8 @@ let group_edit_action =
   switch (edit_action_1, edit_action_2) {
   | (Ignore, _)
   | (_, Ignore)
+  | (MatchRule, MatchRule) => true
+  | (MatchRule, _) => false
   | (EditVar, EditVar) => true
   | (EditVar, DeleteEdit(delete_edit)) =>
     switch (delete_edit) {
@@ -189,10 +192,16 @@ let group_edit_action =
     | SCase => true
     | _ => false
     }
+  | (EditVar, _) => false
   | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
     switch (delete_edit_1, delete_edit_2) {
     | (Space, Space)
     | (EmptyLine, EmptyLine) => true
+    | (Term(term_1), Term(term_2)) =>
+      switch (term_1, term_2) {
+      | (Rule(_, _), Rule(_, _)) => true
+      | _ => false
+      }
     | (_, _) => false
     }
   | (DeleteEdit(_), _) => false
@@ -248,6 +257,11 @@ let group_entry =
         switch (delete_edit_1, delete_edit_2) {
         | (Space, Space)
         | (EmptyLine, EmptyLine) => true
+        | (Term(term_1), Term(term_2)) =>
+          switch (term_1, term_2) {
+          | (Rule(_, _), Rule(_, _)) => true
+          | _ => false
+          }
         | _ => false
         }
       | (ConstructEdit(construct_edit_1), ConstructEdit(construct_edit_2)) =>
@@ -532,18 +546,27 @@ let get_new_edit_action =
   | Backspace => backspace(~prev_group, ~new_cursor_term_info)
   | Construct(shape) =>
     switch (shape) {
-    | SLine /* =>
-      if(&& ZExp.erase(new_cursor_term_info.zexp_before)
-      != ZExp.erase(new_cursor_term_info.zexp_after)) {
-        switch(new_cursor_term_info.cursor_term_after){
-          | Rule(_,_) => MatchRule
-          | _ =>
-            switch
-          ConstructEdit(shape)
-        }
-      }else {
-        Ignore
-      } */
+    | SLine =>
+      if (ZExp.erase(new_cursor_term_info.zexp_before)
+          != ZExp.erase(new_cursor_term_info.zexp_after)) {
+        switch (CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)) {
+        | None => ConstructEdit(shape)
+        | Some(zrules_before) =>
+          switch (
+            CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
+          ) {
+          | None => ConstructEdit(shape)
+          | Some(zrules_after) =>
+            if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
+              MatchRule;
+            } else {
+              ConstructEdit(shape);
+            }
+          }
+        };
+      } else {
+        Ignore;
+      }
     | SParenthesized
     | SList
     | SAsc
@@ -614,7 +637,7 @@ let get_new_edit_action =
   | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
-  | SwapUp
+  | SwapUp /* what's that */
   | SwapDown
   | SwapLeft
   | SwapRight => Ignore
