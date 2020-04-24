@@ -305,17 +305,18 @@ let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
              (
                Cat(l1, l2),
                vs1 @ vs2,
-               switch (shape1.tl_widths) {
-               | [] => {
+               switch (ListUtil.split_last(shape1.tl_widths)) {
+               | None => {
                    hd_start: shape1.hd_start,
                    hd_width: shape1.hd_width + shape2.hd_width,
                    tl_widths: shape2.tl_widths,
                  }
-               | [_, ..._] => {
+               | Some((tl_leading, tl_last)) => {
                    hd_start: shape1.hd_start,
                    hd_width: shape1.hd_width,
                    tl_widths:
-                     shape1.tl_widths @ [shape2.hd_width, ...shape2.tl_widths],
+                     tl_leading
+                     @ [tl_last + shape2.hd_width, ...shape2.tl_widths],
                  }
                },
              ),
