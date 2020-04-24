@@ -224,6 +224,7 @@ module Decoration = {
           Attr.create("width", string_of_float(width) ++ "0px"),
           Attr.create("height", string_of_float(height) ++ "0px"),
           Attr.create("stroke", "green"),
+          Attr.create("preserveAspectRatio", "none"),
         ],
         [path_view],
       )
