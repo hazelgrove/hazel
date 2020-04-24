@@ -162,7 +162,10 @@ module Decoration = {
                  string_of_float(ry) ++ "0",
                  "0",
                  "0",
-                 "1",
+                 switch (direction) {
+                 | CW => "1"
+                 | CCW => "0"
+                 },
                  string_of_float(dx) ++ "0",
                  string_of_float(dy) ++ "0",
                ]);
