@@ -8,14 +8,13 @@ open Sexplib.Std;
 module Decoration = {
   [@deriving sexp]
   type shape = {
+    indent: int,
     // start col of first line
-    // (where n means n colums from
-    // start of current indentation)
     hd_start: int,
-    // width of first line
-    hd_width: int,
-    // widths of all other lines
-    tl_widths: list(int),
+    // end of first line
+    hd_end: int,
+    // ends of all other lines
+    tl_ends: list(int),
   };
 
   type path_segment =
@@ -71,17 +70,17 @@ module Decoration = {
            } else if (col1 > col2) {
              [
                vline_up,
-               corner_TopLeft,
-               hline_right(col1 - col2),
-               corner_BottomRight,
+               corner_TopRight,
+               hline_left(col1 - col2),
+               corner_BottomLeft,
                vline_up,
              ];
            } else {
              [
                vline_up,
-               corner_TopRight,
-               hline_left(col2 - col1),
-               corner_BottomLeft,
+               corner_TopLeft,
+               hline_right(col2 - col1),
+               corner_BottomRight,
                vline_up,
              ];
            }
@@ -115,15 +114,17 @@ module Decoration = {
          )
       |> List.flatten;
 
-    switch (ListUtil.split_last(shape.tl_widths)) {
-    | None => top_cap(shape.hd_width) @ bottom_cap(shape.hd_width)
+    let hd_width = shape.hd_end - shape.hd_start;
+    let tl_widths = shape.tl_ends |> List.map(tl_end => tl_end - shape.indent);
+    switch (ListUtil.split_last(tl_widths)) {
+    | None => top_cap(hd_width) @ bottom_cap(hd_width)
     | Some((_, last_width)) =>
-      top_cap(shape.hd_width)
-      @ right_edge([shape.hd_width, ...shape.tl_widths])
+      top_cap(hd_width)
+      @ right_edge([hd_width, ...tl_widths])
       @ bottom_cap(last_width)
       @ left_edge(
-          ListUtil.replicate(List.length(shape.tl_widths), 0)
-          @ [shape.hd_start],
+          ListUtil.replicate(List.length(tl_widths), 0)
+          @ [shape.hd_start - shape.indent],
         )
     };
   };
@@ -176,10 +177,13 @@ module Decoration = {
   let err_hole_view = (~font_metrics, shape) => {
     let FontMetrics.{row_height, col_width} = font_metrics;
 
-    let num_rows = 1 + List.length(shape.tl_widths);
+    let hd_width = shape.hd_end - shape.hd_start;
+    let tl_widths = shape.tl_ends |> List.map(tl_end => tl_end - shape.indent);
+
+    let num_rows = 1 + List.length(tl_widths);
     let height = float_of_int(num_rows) *. row_height;
 
-    let num_cols = shape.tl_widths |> List.fold_left(max, shape.hd_width);
+    let num_cols = tl_widths |> List.fold_left(max, hd_width);
     let width = float_of_int(num_cols) *. col_width;
 
     let path_view = {
@@ -277,9 +281,10 @@ let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
                Pretty.Layout.Linebreak,
                [Node.br([])],
                Decoration.{
-                 hd_start: pos.col - pos.indent,
-                 hd_width: 0,
-                 tl_widths: [0],
+                 indent: pos.indent,
+                 hd_start: pos.col,
+                 hd_end: pos.col,
+                 tl_ends: [pos.indent],
                },
              ),
          ~text=
@@ -288,35 +293,29 @@ let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
                Text(s),
                StringUtil.is_empty(s) ? [] : [Node.text(s)],
                {
-                 hd_start: pos.col - pos.indent,
-                 hd_width: StringUtil.utf8_length(s),
-                 tl_widths: [],
+                 indent: pos.indent,
+                 hd_start: pos.col,
+                 hd_end: pos.col + StringUtil.utf8_length(s),
+                 tl_ends: [],
                },
              ),
          ~align=
-           (_, (l, vs, shape)) =>
+           (pos, (l, vs, shape)) =>
              (
                Align(l),
                [Node.div([Attr.classes(["Align"])], vs)],
-               shape,
+               {...shape, indent: pos.indent},
              ),
          ~cat=
            (_, (l1, vs1, shape1), (l2, vs2, shape2)) =>
              (
                Cat(l1, l2),
                vs1 @ vs2,
-               switch (ListUtil.split_last(shape1.tl_widths)) {
-               | None => {
-                   hd_start: shape1.hd_start,
-                   hd_width: shape1.hd_width + shape2.hd_width,
-                   tl_widths: shape2.tl_widths,
-                 }
-               | Some((tl_leading, tl_last)) => {
-                   hd_start: shape1.hd_start,
-                   hd_width: shape1.hd_width,
-                   tl_widths:
-                     tl_leading
-                     @ [tl_last + shape2.hd_width, ...shape2.tl_widths],
+               switch (ListUtil.split_last(shape1.tl_ends)) {
+               | None => {...shape2, hd_start: shape1.hd_start}
+               | Some((tl_leading, _)) => {
+                   ...shape1,
+                   tl_ends: tl_leading @ [shape2.hd_end, ...shape2.tl_ends],
                  }
                },
              ),
