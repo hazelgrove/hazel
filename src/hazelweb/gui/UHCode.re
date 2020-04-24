@@ -179,7 +179,7 @@ module Decoration = {
           Attr.create(
             "d",
             StringUtil.sep([
-              "m " ++ string_of_int(rel_hd_start) ++ " 0",
+              "m " ++ string_of_int(rel_hd_start) ++ " 0.5",
               ...d_path_segments,
             ]),
           ),
