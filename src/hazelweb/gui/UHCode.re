@@ -132,7 +132,7 @@ module Decoration = {
     };
   };
 
-  let path_view = (~hd_start, path: list(path_segment)) => {
+  let path_view = (~rel_hd_start, path: list(path_segment)) => {
     let d_path_segments =
       path
       |> List.map(
@@ -176,7 +176,7 @@ module Decoration = {
           Attr.create(
             "d",
             StringUtil.sep([
-              "m " ++ string_of_int(hd_start) ++ " 0",
+              "m " ++ string_of_int(rel_hd_start) ++ " 0",
               ...d_path_segments,
             ]),
           ),
@@ -205,7 +205,7 @@ module Decoration = {
       );
       shape
       |> outline_path(~corner_radii)
-      |> path_view(~hd_start=shape.hd_start);
+      |> path_view(~rel_hd_start=shape.hd_start - shape.indent);
     };
 
     Vdom.(
