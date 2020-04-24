@@ -131,8 +131,8 @@ module Decoration = {
       path
       |> List.map(
            fun
-           | VLine(len) => "v " ++ string_of_float(len)
-           | HLine(len) => "h " ++ string_of_float(len)
+           | VLine(len) => "v " ++ string_of_float(len) ++ "0"
+           | HLine(len) => "h " ++ string_of_float(len) ++ "0"
            | Corner(corner, (rx, ry)) => {
                let (dx, dy) =
                  switch (corner) {
@@ -143,13 +143,13 @@ module Decoration = {
                  };
                StringUtil.sep([
                  "a",
-                 string_of_float(rx),
-                 string_of_float(ry),
+                 string_of_float(rx) ++ "0",
+                 string_of_float(ry) ++ "0",
                  "0",
                  "0",
                  "1",
-                 string_of_float(dx),
-                 string_of_float(dy),
+                 string_of_float(dx) ++ "0",
+                 string_of_float(dy) ++ "0",
                ]);
              },
          );
@@ -198,8 +198,8 @@ module Decoration = {
             "viewBox",
             Printf.sprintf("0 0 %d %d", num_cols, num_rows),
           ),
-          Attr.create("width", string_of_float(width)),
-          Attr.create("height", string_of_float(height)),
+          Attr.create("width", string_of_float(width) ++ "0px"),
+          Attr.create("height", string_of_float(height) ++ "0px"),
           Attr.create("stroke", "green"),
         ],
         [path_view],
