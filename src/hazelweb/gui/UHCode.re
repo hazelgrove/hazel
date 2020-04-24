@@ -20,12 +20,15 @@ module Decoration = {
   type path_segment =
     | VLine(float)
     | HLine(float)
-    | Corner(corner, (float, float))
+    | Corner(corner, direction, (float, float))
   and corner =
     | TopLeft
     | TopRight
     | BottomLeft
-    | BottomRight;
+    | BottomRight
+  and direction =
+    | CW
+    | CCW;
 
   let corner_radius = 4.0;
 
@@ -39,23 +42,23 @@ module Decoration = {
       HLine(Float.neg(Float.of_int(len) -. 2.0 *. rx));
     let hline_right = len => HLine(float_of_int(len) -. 2.0 *. rx);
 
-    let corner_TopLeft = Corner(TopLeft, corner_radii);
-    let corner_TopRight = Corner(TopRight, corner_radii);
-    let corner_BottomLeft = Corner(BottomLeft, corner_radii);
-    let corner_BottomRight = Corner(BottomRight, corner_radii);
+    let corner_TopLeft = d => Corner(TopLeft, d, corner_radii);
+    let corner_TopRight = d => Corner(TopRight, d, corner_radii);
+    let corner_BottomLeft = d => Corner(BottomLeft, d, corner_radii);
+    let corner_BottomRight = d => Corner(BottomRight, d, corner_radii);
 
     let top_cap = width => [
       vline_up,
-      corner_TopLeft,
+      corner_TopLeft(CW),
       hline_right(width),
-      corner_TopRight,
+      corner_TopRight(CW),
       vline_down,
     ];
     let bottom_cap = width => [
       vline_down,
-      corner_BottomRight,
+      corner_BottomRight(CW),
       hline_left(width),
-      corner_BottomLeft,
+      corner_BottomLeft(CW),
       vline_up,
     ];
 
@@ -70,17 +73,17 @@ module Decoration = {
            } else if (col1 > col2) {
              [
                vline_up,
-               corner_TopRight,
+               corner_TopRight(CCW),
                hline_left(col1 - col2),
-               corner_BottomLeft,
+               corner_BottomLeft(CW),
                vline_up,
              ];
            } else {
              [
                vline_up,
-               corner_TopLeft,
+               corner_TopLeft(CW),
                hline_right(col2 - col1),
-               corner_BottomRight,
+               corner_BottomRight(CCW),
                vline_up,
              ];
            }
@@ -97,17 +100,17 @@ module Decoration = {
            } else if (col1 > col2) {
              [
                vline_down,
-               corner_BottomRight,
+               corner_BottomRight(CW),
                hline_left(col1 - col2),
-               corner_TopLeft,
+               corner_TopLeft(CCW),
                vline_down,
              ];
            } else {
              [
                vline_down,
-               corner_BottomLeft,
+               corner_BottomLeft(CCW),
                hline_right(col2 - col1),
-               corner_TopRight,
+               corner_TopRight(CW),
                vline_down,
              ];
            }
@@ -136,7 +139,12 @@ module Decoration = {
            fun
            | VLine(len) => "v " ++ string_of_float(len) ++ "0"
            | HLine(len) => "h " ++ string_of_float(len) ++ "0"
-           | Corner(corner, (rx, ry)) => {
+           | Corner(corner, direction, (rx, ry)) => {
+               let direction_scalar =
+                 switch (direction) {
+                 | CW => 1.0
+                 | CCW => (-1.0)
+                 };
                let (dx, dy) =
                  switch (corner) {
                  | TopLeft => (rx, Float.neg(ry))
@@ -144,6 +152,10 @@ module Decoration = {
                  | BottomRight => (Float.neg(rx), ry)
                  | BottomLeft => (Float.neg(rx), Float.neg(ry))
                  };
+               let (dx, dy) = (
+                 dx *. direction_scalar,
+                 dy *. direction_scalar,
+               );
                StringUtil.sep([
                  "a",
                  string_of_float(rx) ++ "0",
