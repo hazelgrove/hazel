@@ -3,8 +3,10 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
+open Sexplib.Std;
 
 module Decoration = {
+  [@deriving sexp]
   type shape = {
     // start col of first line
     // (where n means n colums from
