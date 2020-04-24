@@ -180,6 +180,8 @@ module Decoration = {
               ...d_path_segments,
             ]),
           ),
+          Attr.create("stroke-width", "1px"),
+          Attr.create("vector-effect", "non-scaling-stroke"),
         ],
         [],
       )
