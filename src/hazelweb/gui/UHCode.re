@@ -266,12 +266,13 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
 
 let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
   open Vdom;
-  let (vs, _): (list(Vdom.Node.t), Decoration.shape) =
+  let (_, vs, _): (UHLayout.t, list(Vdom.Node.t), Decoration.shape) =
     l
     |> UHLayout.pos_fold(
          ~linebreak=
            pos =>
              (
+               Pretty.Layout.Linebreak,
                [Node.br([])],
                Decoration.{
                  hd_start: pos.col - pos.indent,
@@ -282,6 +283,7 @@ let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
          ~text=
            (pos, s) =>
              (
+               Text(s),
                StringUtil.is_empty(s) ? [] : [Node.text(s)],
                {
                  hd_start: pos.col - pos.indent,
@@ -290,11 +292,16 @@ let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
                },
              ),
          ~align=
-           (_, (vs, shape)) =>
-             ([Node.div([Attr.classes(["Align"])], vs)], shape),
-         ~cat=
-           (_, (vs1, shape1), (vs2, shape2)) =>
+           (_, (l, vs, shape)) =>
              (
+               Align(l),
+               [Node.div([Attr.classes(["Align"])], vs)],
+               shape,
+             ),
+         ~cat=
+           (_, (l1, vs1, shape1), (l2, vs2, shape2)) =>
+             (
+               Cat(l1, l2),
                vs1 @ vs2,
                switch (shape1.tl_widths) {
                | [] => {
@@ -311,8 +318,9 @@ let view = (~font_metrics: FontMetrics.t, l: UHLayout.t) => {
                },
              ),
          ~annot=
-           (_, annot, (vs, shape)) =>
+           (_, annot, (l, vs, shape)) =>
              (
+               Annot(annot, l),
                switch (annot) {
                | Step(_)
                | EmptyLine
