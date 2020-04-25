@@ -366,7 +366,7 @@ module LivelitAdapter = (L: LIVELIT) => {
     LivelitDefinition.{
       expansion_ty: L.expansion_ty,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
-      update: (serialized_action, serialized_model) =>
+      update: (serialized_model, serialized_action) =>
         SpliceGenCmd.bind(
           L.update(
             L.model_of_sexp(serialized_model),

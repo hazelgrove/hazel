@@ -3108,16 +3108,16 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_) | FreeLivelit(_),
+          Var(_) | NumLit(_) | BoolLit(_) | FreeLivelit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
-          Parenthesized(_) |
-          ApLivelit(_),
+          Parenthesized(_),
         ),
       ) =>
       Failed
+    | (_, CursorE(OnOp(_), ApLivelit(_))) => Failed
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
@@ -3162,7 +3162,7 @@ module Exp = {
       let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
       syn_perform_operand(ctx, Backspace, (new_zoperand, ty, u_gen));
 
-    | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
+    | (Backspace, CursorE(OnDelim(_, After), ListNil(_) | ApLivelit(_))) =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       let new_ze = ZExp.ZBlock.wrap(zhole);
       Succeeded(SynDone((new_ze, Hole, u_gen)));
@@ -3173,7 +3173,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, string_of_int(n))
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
-    | (Delete, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+    | (Delete, CursorE(OnText(j), FreeLivelit(_, lln)))
+    | (Delete, CursorE(OnText(j), ApLivelit(_, _, lln, _, _))) =>
       syn_delete_text(ctx, u_gen, j, lln)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -3182,7 +3183,8 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, string_of_int(n))
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
-    | (Backspace, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+    | (Backspace, CursorE(OnText(j), FreeLivelit(_, lln)))
+    | (Backspace, CursorE(OnText(j), ApLivelit(_, _, lln, _, _))) =>
       syn_backspace_text(ctx, u_gen, j, lln)
 
     /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
@@ -3383,37 +3385,43 @@ module Exp = {
          };
        }; */
     /* | (Construct(SApPalette(_)), CursorE(_)) => Failed */
-    /* TODO
-       | (UpdateApPalette(_), CursorE(_, ApPalette(_, _name, _, _hole_data))) =>
-          let (_, palette_ctx) = ctx;
-          switch (PaletteCtx.lookup(palette_ctx, name)) {
-          | Some(palette_defn) =>
-            let (q, u_gen') = UHExp.HoleRefs.exec(monad, hole_data, u_gen);
-            let (serialized_model, hole_data') = q;
-            let expansion_ty = UHExp.PaletteDefinition.expansion_ty(palette_defn);
-            let expansion =
-              (UHExp.PaletteDefinition.to_exp(palette_defn))(serialized_model);
-            let (_, hole_map') = hole_data';
-            let expansion_ctx =
-              UHExp.PaletteHoleData.extend_ctx_with_hole_map(ctx, hole_map');
-            switch (Statics.ana(expansion_ctx, expansion, expansion_ty)) {
-            | Some(_) =>
-              Succeeded((
-                CursorE(
-                  After,
-                  Tm(
-                    NotInHole,
-                    ApPalette(name, serialized_model, hole_data'),
-                  ),
-                ),
-                expansion_ty,
-                u_gen,
-              ))
-            | None => Failed
-            };
-          | None => Failed
-          }; */
-    /* | (UpdateApPalette(_), CursorE(_)) => Failed */
+    | (
+        PerformLivelitAction(serialized_action),
+        CursorE(
+          cpos,
+          ApLivelit(llu, err, lln, serialized_model, splice_info),
+        ),
+      ) =>
+      let (_, livelit_ctx) = ctx;
+      switch (LivelitCtx.lookup(livelit_ctx, lln)) {
+      | Some(livelit_defn) =>
+        let update_cmd =
+          livelit_defn.update(serialized_model, serialized_action);
+        let (serialized_model, splice_info, u_gen) =
+          SpliceGenCmd.exec(update_cmd, splice_info, u_gen);
+        let (splice_map, u_gen) =
+          Statics.Exp.ana_fix_holes_splice_map(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes=true,
+            splice_info.splice_map,
+          );
+        let splice_info =
+          SpliceInfo.update_splice_map(splice_info, splice_map);
+        // TODO do we need to check that the type is correct before completing?
+        let expansion_ty = livelit_defn.expansion_ty;
+        let new_ze =
+          ZExp.(
+            ZBlock.wrap(
+              CursorE(
+                cpos,
+                ApLivelit(llu, err, lln, serialized_model, splice_info),
+              ),
+            )
+          );
+        Succeeded(SynDone((new_ze, expansion_ty, u_gen)));
+      | None => Failed
+      };
     | (PerformLivelitAction(_), CursorE(_)) => Failed
 
     | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
