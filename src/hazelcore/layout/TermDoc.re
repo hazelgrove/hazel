@@ -136,7 +136,7 @@ let pad_left_delimited_child =
 let mk_Unit = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "()") |> annot_Operand(~sort=Typ);
 
-let mk_Num = (~steps: CursorPath.steps, ()): t =>
+let mk_Int = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "Int") |> annot_Operand(~sort=Typ);
 
 let mk_Float = (~steps: CursorPath.steps, ()): t =>
@@ -163,7 +163,7 @@ let mk_Var =
     : t =>
   mk_text(~steps, x) |> annot_Var(~sort, ~err, ~verr);
 
-let mk_NumLit =
+let mk_IntLit =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, n: int)
     : t =>
   mk_text(~steps, string_of_int(n)) |> annot_Operand(~sort, ~err);
@@ -515,7 +515,7 @@ module Typ = {
       switch (ty) {
       | Hole => mk_EmptyHole(~steps, "?")
       | Unit => mk_Unit(~steps, ())
-      | Int => mk_Num(~steps, ())
+      | Int => mk_Int(~steps, ())
       | Float => mk_Float(~steps, ())
       | Bool => mk_Bool(~steps, ())
       | List(ty) =>
@@ -648,7 +648,7 @@ module Typ = {
     switch (operand) {
     | Hole => mk_EmptyHole(~steps, "?")
     | Unit => mk_Unit(~steps, ())
-    | Int => mk_Num(~steps, ())
+    | Int => mk_Int(~steps, ())
     | Float => mk_Float(~steps, ())
     | Bool => mk_Bool(~steps, ())
     | Parenthesized(body) =>
@@ -678,7 +678,7 @@ module Pat = {
     );
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Pat);
-  let mk_NumLit = mk_NumLit(~sort=Pat);
+  let mk_IntLit = mk_IntLit(~sort=Pat);
   let mk_FloatLit = mk_FloatLit(~sort=Pat);
   let mk_BoolLit = mk_BoolLit(~sort=Pat);
   let mk_ListNil = mk_ListNil(~sort=Pat);
@@ -712,7 +712,7 @@ module Pat = {
     | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u))
     | Wild(err) => mk_Wild(~err, ~steps)
     | Var(err, verr, x) => mk_Var(~steps, ~err, ~verr, x)
-    | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
+    | IntLit(err, n) => mk_IntLit(~err, ~steps, n)
     | FloatLit(err, f) => mk_FloatLit(~err, ~steps, f)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
     | ListNil(err) => mk_ListNil(~err, ~steps, ())
@@ -754,7 +754,7 @@ module Exp = {
     );
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Exp);
-  let mk_NumLit = mk_NumLit(~sort=Exp);
+  let mk_IntLit = mk_IntLit(~sort=Exp);
   let mk_FloatLit = mk_FloatLit(~sort=Exp);
   let mk_BoolLit = mk_BoolLit(~sort=Exp);
   let mk_ListNil = mk_ListNil(~sort=Exp);
@@ -847,7 +847,7 @@ module Exp = {
     switch (operand) {
     | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u))
     | Var(err, verr, x) => mk_Var(~err, ~verr, ~steps, x)
-    | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
+    | IntLit(err, n) => mk_IntLit(~err, ~steps, n)
     | FloatLit(err, f) => mk_FloatLit(~err, ~steps, f)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
     | ListNil(err) => mk_ListNil(~err, ~steps, ())

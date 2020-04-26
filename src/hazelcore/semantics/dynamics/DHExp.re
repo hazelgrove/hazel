@@ -62,7 +62,7 @@ type t =
   | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
-  | NumLit(int)
+  | IntLit(int)
   | FloatLit(float)
   | BinNumOp(bin_num_op, t, t)
   | And(t, t)
@@ -90,7 +90,7 @@ let constructor_string = (d: t): string =>
   | Lam(_, _, _) => "Lam"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
-  | NumLit(_) => "NumLit"
+  | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
   | BinNumOp(_, _, _) => "BinNumOp"
   | And(_, _) => "And"

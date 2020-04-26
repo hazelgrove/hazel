@@ -401,7 +401,7 @@ module Pat = {
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Hole), ctx)))
       | Wild(InHole(TypeInconsistent, _))
       | Var(InHole(TypeInconsistent, _), _, _)
-      | NumLit(InHole(TypeInconsistent, _), _)
+      | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
@@ -418,7 +418,7 @@ module Pat = {
         };
       | Wild(InHole(WrongLength, _))
       | Var(InHole(WrongLength, _), _, _)
-      | NumLit(InHole(WrongLength, _), _)
+      | IntLit(InHole(WrongLength, _), _)
       | FloatLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
@@ -436,7 +436,7 @@ module Pat = {
       | Wild(NotInHole)
       | ListNil(NotInHole) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
-      | NumLit(NotInHole, _) =>
+      | IntLit(NotInHole, _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Int), ctx)))
       | FloatLit(NotInHole, _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Float), ctx)))
@@ -955,7 +955,7 @@ module Exp = {
         Some(mk(AnaKeyword(ty, k), ctx))
       | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty), ctx))
       | Var(InHole(TypeInconsistent, _), _, _)
-      | NumLit(InHole(TypeInconsistent, _), _)
+      | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
@@ -972,7 +972,7 @@ module Exp = {
         | Some(ty') => Some(mk(AnaTypeInconsistent(ty, ty'), ctx))
         };
       | Var(InHole(WrongLength, _), _, _)
-      | NumLit(InHole(WrongLength, _), _)
+      | IntLit(InHole(WrongLength, _), _)
       | FloatLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
@@ -983,7 +983,7 @@ module Exp = {
       /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
-      | NumLit(NotInHole, _)
+      | IntLit(NotInHole, _)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
       | ApPalette(NotInHole, _, _, _) =>
