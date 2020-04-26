@@ -328,8 +328,10 @@ module Typ = {
       | Succeeded(zty) => perform(a, zty)
       }
 
-    | (Construct(SChar("N")), CursorT(_, Hole)) =>
+    | (Construct(SChar("I")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Int)))
+    | (Construct(SChar("F")), CursorT(_, Hole)) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
     | (Construct(SChar(_)), CursorT(_)) => Failed
