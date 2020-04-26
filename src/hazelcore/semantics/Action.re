@@ -3408,7 +3408,6 @@ module Exp = {
           );
         let splice_info =
           SpliceInfo.update_splice_map(splice_info, splice_map);
-        // TODO do we need to check that the type is correct before completing?
         let expansion_ty = livelit_defn.expansion_ty;
         let new_ze =
           ZExp.(
