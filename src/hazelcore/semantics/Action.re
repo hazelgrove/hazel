@@ -730,8 +730,8 @@ module Pat = {
     | Some(Underscore) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    | Some(NumLit(n)) =>
-      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.numlit(n)));
+    | Some(IntLit(n)) =>
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
       Succeeded((zp, HTyp.Int, ctx, u_gen));
     | Some(FloatLit(f)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
@@ -776,7 +776,7 @@ module Pat = {
     | Some(Underscore) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, ctx, u_gen));
-    | Some(NumLit(_))
+    | Some(IntLit(_))
     | Some(FloatLit(_))
     | Some(BoolLit(_)) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
@@ -1142,7 +1142,7 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_)) |
+        CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1201,7 +1201,7 @@ module Pat = {
 
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
-    | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
+    | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
       syn_delete_text(ctx, u_gen, j, string_of_int(n))
     | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
       syn_delete_text(ctx, u_gen, j, string_of_float(f))
@@ -1210,7 +1210,7 @@ module Pat = {
 
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
-    | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
+    | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_int(n))
     | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_float(f))
@@ -1254,7 +1254,7 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_bool(b))
-    | (Construct(SOp(sop)), CursorP(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorP(OnText(j), IntLit(_, n)))
         when
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
@@ -1276,7 +1276,7 @@ module Pat = {
       syn_insert_text(ctx, u_gen, (index, s), "_");
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
-    | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
+    | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
     | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_float(f))
@@ -1532,7 +1532,7 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_)) |
+        CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1611,7 +1611,7 @@ module Pat = {
 
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
-    | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
+    | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
       ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
     | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
       ana_delete_text(ctx, u_gen, j, string_of_float(f), ty)
@@ -1620,7 +1620,7 @@ module Pat = {
 
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
-    | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
+    | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
     | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_float(f), ty)
@@ -1662,7 +1662,7 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_bool(b), ty)
-    | (Construct(SOp(sop)), CursorP(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorP(OnText(j), IntLit(_, n)))
         when
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
@@ -1684,7 +1684,7 @@ module Pat = {
       ana_insert_text(ctx, u_gen, (index, s), "_", ty);
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
-    | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
+    | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
     | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_float(f), ty)
@@ -2064,8 +2064,8 @@ module Exp = {
       } else {
         Failed;
       }
-    | Some(NumLit(n)) =>
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.numlit(n)));
+    | Some(IntLit(n)) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
       Succeeded(SynDone((ze, HTyp.Int, u_gen)));
     | Some(FloatLit(f)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
@@ -2131,7 +2131,7 @@ module Exp = {
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(NumLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -2941,7 +2941,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3002,7 +3002,7 @@ module Exp = {
 
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
-    | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
+    | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
       syn_delete_text(ctx, u_gen, j, string_of_int(n))
     | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
       syn_delete_text(ctx, u_gen, j, string_of_float(f))
@@ -3011,7 +3011,7 @@ module Exp = {
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
-    | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
+    | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_int(n))
     | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_float(f))
@@ -3072,7 +3072,7 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_bool(b))
-    | (Construct(SOp(sop)), CursorE(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorE(OnText(j), IntLit(_, n)))
         when
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
@@ -3134,7 +3134,7 @@ module Exp = {
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
-    | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
+    | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
     | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_float(f))
@@ -3988,7 +3988,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -4062,7 +4062,7 @@ module Exp = {
 
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
-    | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
+    | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
       ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
     | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
       ana_delete_text(ctx, u_gen, j, string_of_float(f), ty)
@@ -4071,7 +4071,7 @@ module Exp = {
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
-    | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
+    | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
     | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_float(f), ty)
@@ -4130,7 +4130,7 @@ module Exp = {
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
-    | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
+    | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
     | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_float(f), ty)
@@ -4166,7 +4166,7 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_bool(b), ty)
-    | (Construct(SOp(sop)), CursorE(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorE(OnText(j), IntLit(_, n)))
         when
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>

@@ -17,7 +17,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | EmptyHole(_) => delim_cursors(1)
     | Wild(_) => delim_cursors(1)
     | Var(_, _, x) => text_cursors(Var.length(x))
-    | NumLit(_, n) => text_cursors(IntUtil.num_digits(n))
+    | IntLit(_, n) => text_cursors(IntUtil.num_digits(n))
     | FloatLit(_, f) => text_cursors(FloatUtil.num_digits(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
     | ListNil(_) => delim_cursors(1)
@@ -88,7 +88,7 @@ and is_before_zoperand =
   | CursorP(cursor, Wild(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, Var(_, _, _))
-  | CursorP(cursor, NumLit(_, _))
+  | CursorP(cursor, IntLit(_, _))
   | CursorP(cursor, FloatLit(_, _))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
   | CursorP(cursor, Inj(_, _, _))
@@ -108,7 +108,7 @@ and is_after_zoperand =
   | CursorP(cursor, Wild(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
-  | CursorP(cursor, NumLit(_, n)) =>
+  | CursorP(cursor, IntLit(_, n)) =>
     cursor == OnText(IntUtil.num_digits(n))
   | CursorP(cursor, FloatLit(_, f)) =>
     cursor == OnText(FloatUtil.num_digits(f))
@@ -131,7 +131,7 @@ and place_before_operand = operand =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, Before), operand)
   | Var(_, _, _)
-  | NumLit(_, _)
+  | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
@@ -152,7 +152,7 @@ and place_after_operand = operand =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, After), operand)
   | Var(_, _, x) => CursorP(OnText(Var.length(x)), operand)
-  | NumLit(_, n) => CursorP(OnText(IntUtil.num_digits(n)), operand)
+  | IntLit(_, n) => CursorP(OnText(IntUtil.num_digits(n)), operand)
   | FloatLit(_, f) => CursorP(OnText(FloatUtil.num_digits(f)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
@@ -215,7 +215,7 @@ and move_cursor_left_zoperand =
     Some(InjZ(err, side, place_after(p)))
   | CursorP(
       OnDelim(_, _),
-      Var(_, _, _) | BoolLit(_, _) | NumLit(_, _) | FloatLit(_, _),
+      Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) | FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
@@ -263,7 +263,7 @@ and move_cursor_right_zoperand =
     Some(InjZ(err, side, place_before(p)))
   | CursorP(
       OnDelim(_, _),
-      Var(_, _, _) | BoolLit(_, _) | NumLit(_, _) | FloatLit(_, _),
+      Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) | FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
