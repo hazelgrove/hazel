@@ -74,6 +74,85 @@ module PairLivelit: LIVELIT = {
   };
 };
 
+module MatrixLivelit: LIVELIT = {
+  let name = "$matrix";
+  let expansion_ty = HTyp.(List(List(Hole)));
+
+  [@deriving sexp]
+  type model = list(list(int));
+  [@deriving sexp]
+  type action = unit;
+  type trigger = action => Vdom.Event.t;
+
+  let init_height = 2;
+  let init_width = 2;
+
+  let init_model =
+    SpliceGenCmd.(
+      MonadsUtil.bind_many(
+        init_height,
+        bind(MonadsUtil.bind_many(init_width, bind(new_splice), return)),
+        return,
+      )
+    );
+  let update = (m, _) => SpliceGenCmd.return(m);
+
+  let view = (m, _) =>
+    LivelitView.MultiLine(
+      (get_splice_div, _) => {
+        let div_of_list = (l, nil_str) => {
+          let rslt =
+            switch (l) {
+            | [] => [Vdom.(Node.label([], [Node.text(nil_str)]))]
+            | _ => l
+            };
+          Vdom.Node.div([], rslt);
+        };
+        let m' =
+          m
+          |> List.map(r => {
+               let r' =
+                 r
+                 |> List.map(c =>
+                      Vdom.(
+                        Node.span([], [Node.text(" "), get_splice_div(c)])
+                      )
+                    );
+               div_of_list(r', "-");
+             });
+        div_of_list(m', "");
+      },
+    );
+
+  let expand = m => {
+    let to_uhvar = id =>
+      UHExp.(
+        Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id))
+      );
+    let to_uhexp_list =
+      fun
+      | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
+      | [fst, ...rest] => {
+          let rest' =
+            (rest |> List.map(item => (UHExp.Cons, item)))
+            @ [(UHExp.Cons, UHExp.ListNil(NotInHole))];
+          let seq = Seq.mk(fst, rest');
+          UHExp.Block.wrap'(
+            OpSeq.mk(~associate=Associator.Exp.associate, seq),
+          );
+        };
+    let m' =
+      m
+      |> List.map(r =>
+           r
+           |> List.map(to_uhvar)
+           |> to_uhexp_list
+           |> (q => UHExp.Parenthesized(q))
+         );
+    to_uhexp_list(m');
+  };
+};
+
 /*
   module ColorPalette: PALETTE = {
     let name = "$color";
@@ -342,12 +421,16 @@ module LivelitAdapter = (L: LIVELIT) => {
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
+module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
   LivelitContexts.extend(
     LivelitContexts.extend(
       LivelitContexts.extend(
-        empty_livelit_contexts,
+        LivelitContexts.extend(
+          empty_livelit_contexts,
+          MatrixLivelitAdapter.contexts_entry,
+        ),
         PairLivelitAdapter.contexts_entry,
       ),
       CheckboxLivelitAdapter.contexts_entry,
