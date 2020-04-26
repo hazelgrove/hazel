@@ -8,7 +8,7 @@ type t =
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | Var(Var.t)
-  | IntLit(int)
+  | NumLit(int)
   | FloatLit(float)
   | BoolLit(bool)
   | Inj(InjSide.t, t)
@@ -32,7 +32,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | EmptyHole(_, _)
   | NonEmptyHole(_, _, _, _)
   | Wild
-  | IntLit(_)
+  | NumLit(_)
   | FloatLit(_)
   | BoolLit(_)
   | Triv

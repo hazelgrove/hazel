@@ -63,7 +63,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | IntLit(ErrStatus.t, int)
+  | NumLit(ErrStatus.t, int)
   | FloatLit(ErrStatus.t, float)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
@@ -97,8 +97,8 @@ let var =
     : operand =>
   Var(err, var_err, x);
 
-let intlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
-  IntLit(err, n);
+let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
+  NumLit(err, n);
 
 let floatlit = (~err: ErrStatus.t=NotInHole, f: float): operand =>
   FloatLit(err, f);
@@ -227,7 +227,7 @@ and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
   | Var(err, _, _)
-  | IntLit(err, _)
+  | NumLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
@@ -250,7 +250,7 @@ and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
-  | IntLit(_, n) => IntLit(err, n)
+  | NumLit(_, n) => NumLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
@@ -283,7 +283,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   /* already in hole */
   | EmptyHole(_)
   | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
+  | NumLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
@@ -293,7 +293,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | IntLit(NotInHole | InHole(WrongLength, _), _)
+  | NumLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
@@ -323,7 +323,7 @@ let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
   switch (shape) {
   | Underscore => (var("_"), u_gen)
-  | IntLit(n) => (intlit(n), u_gen)
+  | NumLit(n) => (numlit(n), u_gen)
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
