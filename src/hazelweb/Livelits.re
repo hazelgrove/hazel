@@ -7,53 +7,13 @@ module Vdom = Virtual_dom.Vdom;
 
 type div_type = Vdom.Node.t;
 
-module type VdomWithSplices = {
-  include Monads.MONAD;
-
-  type splice_getters = {
-    get_splice_div: SpliceName.t => div_type,
-    get_splice_value: SpliceName.t => option(DHExp.t),
-  };
-
-  let get_splice_div: SpliceName.t => t(div_type);
-  let get_splice_value: SpliceName.t => t(option(DHExp.t));
-  let exec: (t('a), splice_getters) => 'a;
-};
-
-module VdomWithSplices: VdomWithSplices = {
-  type splice_getters = {
-    get_splice_div: SpliceName.t => div_type,
-    get_splice_value: SpliceName.t => option(DHExp.t),
-  };
-
-  [@deriving sexp]
-  type t('a) = splice_getters => ('a, splice_getters);
-
-  let get_splice_div = (name, {get_splice_div, _} as sg) => (
-    get_splice_div(name),
-    sg,
-  );
-  let get_splice_value = (name, {get_splice_value, _} as sg) => (
-    get_splice_value(name),
-    sg,
-  );
-
-  let bind = (m, f, sg) => {
-    let (x, sg) = m(sg);
-    f(x, sg);
-  };
-  let return = (m, sg) => (m, sg);
-
-  let exec = (m, sg) => {
-    let (x, _) = m(sg);
-    x;
-  };
-};
+type splice_getters_to_vdom =
+  (SpliceName.t => div_type, SpliceName.t => option(DHExp.t)) => div_type;
 
 module LivelitView = {
   type t =
     | Inline(div_type, int)
-    | MultiLine(VdomWithSplices.t(div_type));
+    | MultiLine(splice_getters_to_vdom);
 };
 
 module type LIVELIT = {
@@ -92,20 +52,13 @@ module PairLivelit: LIVELIT = {
 
   let view = ((leftID, rightID), _) =>
     LivelitView.MultiLine(
-      VdomWithSplices.(
-        bind(get_splice_div(leftID), left_splice_view =>
-          bind(get_splice_div(rightID), right_splice_view =>
-            return(
-              Vdom.(
-                Node.div(
-                  [Attr.classes(["pair-livelit"])],
-                  [left_splice_view, right_splice_view],
-                )
-              ),
-            )
+      (get_splice_div, _) =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["pair-livelit"])],
+            [get_splice_div(leftID), get_splice_div(rightID)],
           )
-        )
-      ),
+        ),
     );
 
   let expand = ((leftID, rightID)) => {

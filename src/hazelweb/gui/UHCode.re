@@ -172,34 +172,33 @@ let view =
           inject(Update.Action.LivelitAction(llu, serialized_action));
         switch (llview(trigger)) {
         | Inline(view, _) => [view]
-        | MultiLine(vdom_with_splices) =>
-          let splice_getters: Livelits.VdomWithSplices.splice_getters = {
-            get_splice_div: splice_name => {
-              let splice_layout =
-                splice_ls |> SpliceMap.get_splice(llu, splice_name);
-              let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-              Node.div(
-                [
-                  Attr.id(id),
-                  Attr.classes(["splice"]),
-                  Attr.on_click(
-                    on_click(~id, ~splice=Some((llu, splice_name))),
-                  ),
-                ],
-                go(splice_layout),
-              );
-            },
-
-            get_splice_value: splice_name =>
-              splice_map_opt
-              |> OptUtil.map(splice_map =>
-                   switch (NatMap.lookup(splice_map, splice_name)) {
-                   | None => raise(Not_found)
-                   | Some((_, d)) => d
-                   }
-                 ),
+        | MultiLine(splice_getters_to_vdom) =>
+          let get_splice_div = splice_name => {
+            let splice_layout =
+              splice_ls |> SpliceMap.get_splice(llu, splice_name);
+            let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+            Node.div(
+              [
+                Attr.id(id),
+                Attr.classes(["splice"]),
+                Attr.on_click(
+                  on_click(~id, ~splice=Some((llu, splice_name))),
+                ),
+              ],
+              go(splice_layout),
+            );
           };
-          [Livelits.VdomWithSplices.exec(vdom_with_splices, splice_getters)];
+
+          let get_splice_value = splice_name =>
+            splice_map_opt
+            |> OptUtil.map(splice_map =>
+                 switch (NatMap.lookup(splice_map, splice_name)) {
+                 | None => raise(Not_found)
+                 | Some((_, d)) => d
+                 }
+               );
+
+          [splice_getters_to_vdom(get_splice_div, get_splice_value)];
         };
       }
 
