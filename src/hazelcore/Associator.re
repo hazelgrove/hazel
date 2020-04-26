@@ -1,4 +1,3 @@
-// Anytime a new operator is added, the Skel____Lexer.mll and Skel____Parser.mll should be updated too
 let rec make_skel_str' =
         (
           string_of_op: 'op => string,
