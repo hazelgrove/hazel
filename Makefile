@@ -4,7 +4,7 @@ all: dev
 
 deps:
 	opam install \
-		dune reason utop rtop \
+		dune reason=3.5.2 utop rtop \
 		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib
 
 dev:
