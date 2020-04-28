@@ -78,6 +78,7 @@ module MatrixLivelit: LIVELIT = {
   let name = "$matrix";
   let expansion_ty = HTyp.(List(List(Hole)));
 
+  // assume nonzero height and width
   [@deriving sexp]
   type model = list(list(int));
   [@deriving sexp]
@@ -97,30 +98,86 @@ module MatrixLivelit: LIVELIT = {
     );
   let update = (m, _) => SpliceGenCmd.return(m);
 
+  let get_height = (m: model): int => List.length(m);
+  let get_width = (m: model): int => List.length(List.hd(m));
+
+  let attr_style = Vdom.Attr.create("style");
+
+  let prop_val = (prop: string, value: string) =>
+    StringUtil.cat([prop, ": ", value, ";"]);
+
+  let grid_area = (row_start, col_start, row_end, col_end) =>
+    prop_val(
+      "grid-area",
+      Printf.sprintf(
+        "%d / %d / %d / %d",
+        row_start,
+        col_start,
+        row_end,
+        col_end,
+      ),
+    );
+
   let view = (m, _) =>
     LivelitView.MultiLine(
       (get_splice_div, _) => {
-        let div_of_list = (l, nil_str) => {
-          let rslt =
-            switch (l) {
-            | [] => [Vdom.(Node.label([], [Node.text(nil_str)]))]
-            | _ => l
-            };
-          Vdom.Node.div([], rslt);
-        };
-        let m' =
+        open Vdom;
+        let width = get_width(m);
+        let height = get_height(m);
+        let header_row =
+          ListUtil.range(width)
+          |> List.map(i =>
+               Node.span(
+                 [attr_style(grid_area(1, i + 2, 2, i + 3))],
+                 [Node.text(string_of_int(i + 1))],
+               )
+             );
+        let rows =
           m
-          |> List.map(r => {
-               let r' =
-                 r
-                 |> List.map(c =>
-                      Vdom.(
-                        Node.span([], [Node.text(" "), get_splice_div(c)])
-                      )
-                    );
-               div_of_list(r', "-");
-             });
-        div_of_list(m', "");
+          |> List.mapi((i, r) =>
+               [
+                 Node.span(
+                   [attr_style(grid_area(i + 2, 1, i + 3, 2))],
+                   [Node.text(string_of_int(i + 1))],
+                 ),
+                 ...r
+                    |> List.mapi((j, splice) =>
+                         Node.div(
+                           [
+                             attr_style(
+                               grid_area(i + 2, j + 2, i + 3, j + 3),
+                             ),
+                           ],
+                           [get_splice_div(splice)],
+                         )
+                       ),
+               ]
+             )
+          |> List.flatten;
+
+        Node.div(
+          [
+            Attr.classes(["matrix-livelit"]),
+            attr_style(
+              StringUtil.cat([
+                prop_val(
+                  "grid-template-columns",
+                  StringUtil.sep(
+                    ["auto", ...ListUtil.replicate(width, "1fr")] @ ["auto"],
+                  ),
+                ),
+                prop_val(
+                  "grid-template-rows",
+                  StringUtil.sep(
+                    ["auto", ...ListUtil.replicate(height, "1fr")]
+                    @ ["auto"],
+                  ),
+                ),
+              ]),
+            ),
+          ],
+          header_row @ rows,
+        );
       },
     );
 

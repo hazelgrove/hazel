@@ -797,6 +797,12 @@ h1 {
   column-gap: 10px;
 }
 
+.matrix-livelit {
+  display: grid;
+  column-gap: 10px;
+  justify-items: start;
+}
+
 .splice {
   display: inline-block;
 }
