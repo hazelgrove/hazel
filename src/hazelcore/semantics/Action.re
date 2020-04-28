@@ -2098,9 +2098,6 @@ module Exp = {
         let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
         Succeeded(SynDone((new_ze, Hole, u_gen)));
       };
-    /* | Some(Dot) =>
-       let ze = ZExp.ZBlock.wrap()
-       Succeeded(SynDone((ze, HType.Float, u_gen))) */
     };
   };
 

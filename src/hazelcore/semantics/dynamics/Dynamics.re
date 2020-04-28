@@ -954,9 +954,7 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | BinOp(NotInHole, Minus as op, skel1, skel2)
-    | BinOp(NotInHole, Plus as op, skel1, skel2)
-    | BinOp(NotInHole, Times as op, skel1, skel2)
+    | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | DoesNotExpand => DoesNotExpand
@@ -974,9 +972,7 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, FMinus as op, skel1, skel2)
-    | BinOp(NotInHole, FPlus as op, skel1, skel2)
-    | BinOp(NotInHole, FTimes as op, skel1, skel2) =>
+    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Float)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
