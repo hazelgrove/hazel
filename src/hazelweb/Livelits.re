@@ -82,9 +82,13 @@ module MatrixLivelit: LIVELIT = {
   [@deriving sexp]
   type model = list(list(SpliceName.t));
   [@deriving sexp]
+  type dim =
+    | Row
+    | Col;
+  [@deriving sexp]
   type action =
-    | AddRow
-    | AddCol;
+    | Add(dim)
+    | Del(dim, int);
   type trigger = action => Vdom.Event.t;
 
   let init_height = 2;
@@ -95,27 +99,57 @@ module MatrixLivelit: LIVELIT = {
 
   let init_model =
     SpliceGenCmd.(
-      MonadsUtil.bind_many(
+      MonadsUtil.bind_count(
         init_height,
-        bind(MonadsUtil.bind_many(init_width, bind(new_splice), return)),
+        bind(MonadsUtil.bind_count(init_width, bind(new_splice), return)),
         return,
       )
     );
 
   let update = m =>
     fun
-    | AddRow =>
+    | Add(Row) =>
       SpliceGenCmd.(
-        MonadsUtil.bind_many(get_width(m), bind(new_splice), new_row =>
+        MonadsUtil.bind_count(get_width(m), bind(new_splice), new_row =>
           m @ [new_row] |> return
         )
       )
-    | AddCol =>
+    | Add(Col) =>
       SpliceGenCmd.(
-        MonadsUtil.bind_many(get_height(m), bind(new_splice), new_col =>
+        MonadsUtil.bind_count(get_height(m), bind(new_splice), new_col =>
           List.map2((c, r) => r @ [c], new_col, m) |> return
         )
-      );
+      )
+    | Del(dim, i) => {
+        let drop = (to_drop, ret) =>
+          SpliceGenCmd.(
+            MonadsUtil.bind_list(
+              to_drop,
+              d => bind(drop_splice(d)),
+              _ => return(ret),
+            )
+          );
+        switch (dim) {
+        | Row =>
+          if (get_height(m) <= 1) {
+            SpliceGenCmd.return(m);
+          } else {
+            let (before, rest) = ListUtil.split_index(m, i);
+            let (to_drop, after) = (List.hd(rest), List.tl(rest));
+            drop(to_drop, before @ after);
+          }
+        | Col =>
+          if (get_width(m) <= 1) {
+            SpliceGenCmd.return(m);
+          } else {
+            let (before, rest) =
+              m |> List.map(r => ListUtil.split_index(r, i)) |> List.split;
+            let (to_drop, after) =
+              rest |> List.map(r => (List.hd(r), List.tl(r))) |> List.split;
+            drop(to_drop, List.map2((b, a) => b @ a, before, after));
+          }
+        };
+      };
 
   let attr_style = Vdom.Attr.create("style");
 
@@ -154,7 +188,10 @@ module MatrixLivelit: LIVELIT = {
                      [Node.text(string_of_int(i + 1))],
                    ),
                    Node.span(
-                     [Attr.classes(["delete"])],
+                     [
+                       Attr.classes(["delete"]),
+                       Attr.on_click(_ => trig(Del(Row, i))),
+                     ],
                      [Node.text("x")],
                    ),
                  ],
@@ -174,7 +211,10 @@ module MatrixLivelit: LIVELIT = {
                      [Node.text(string_of_int(j + 1))],
                    ),
                    Node.span(
-                     [Attr.classes(["delete"])],
+                     [
+                       Attr.classes(["delete"]),
+                       Attr.on_click(_ => trig(Del(Col, j))),
+                     ],
                      [Node.text("x")],
                    ),
                  ],
@@ -185,7 +225,7 @@ module MatrixLivelit: LIVELIT = {
             [
               attr_style(grid_area(-1, 2, -2, -2)),
               Attr.classes(["add-row", "pure-button"]),
-              Attr.on_click(_ => trig(AddRow)),
+              Attr.on_click(_ => trig(Add(Row))),
             ],
             [Node.text("+")],
           );
@@ -194,7 +234,7 @@ module MatrixLivelit: LIVELIT = {
             [
               attr_style(grid_area(2, -2, -2, -1)),
               Attr.classes(["add-col", "pure-button"]),
-              Attr.on_click(_ => trig(AddCol)),
+              Attr.on_click(_ => trig(Add(Col))),
             ],
             [Node.text("+")],
           );
