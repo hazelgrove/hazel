@@ -80,7 +80,7 @@ module MatrixLivelit: LIVELIT = {
 
   // assume nonzero height and width
   [@deriving sexp]
-  type model = list(list(int));
+  type model = list(list(SpliceName.t));
   [@deriving sexp]
   type action = unit;
   type trigger = action => Vdom.Event.t;
