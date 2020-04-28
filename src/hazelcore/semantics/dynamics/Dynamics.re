@@ -440,10 +440,14 @@ module Exp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       Cons(d3, d4);
-    | BinNumOp(op, d3, d4) =>
+    | BinIntOp(op, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
-      BinNumOp(op, d3, d4);
+      BinIntOp(op, d3, d4);
+    | BinFloatOp(op, d3, d4) =>
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      BinFloatOp(op, d3, d4);
     | And(d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
@@ -531,7 +535,8 @@ module Exp = {
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
-    | (_, BinNumOp(_, _, _) | And(_, _) | Or(_, _)) => Indet
+    | (_, BinIntOp(_, _, _) | And(_, _) | Or(_, _)) => Indet
+    | (_, BinFloatOp(_, _, _)) => Indet
     | (_, Case(_, _, _)) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
       if (b1 == b2) {
@@ -653,7 +658,8 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
-    | BinNumOp(_, _, _)
+    | BinIntOp(_, _, _)
+    | BinFloatOp(_, _, _)
     | And(_, _)
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
@@ -708,7 +714,8 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
-    | BinNumOp(_, _, _)
+    | BinIntOp(_, _, _)
+    | BinFloatOp(_, _, _)
     | And(_, _)
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
@@ -763,7 +770,8 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
-    | BinNumOp(_, _, _)
+    | BinIntOp(_, _, _)
+    | BinFloatOp(_, _, _)
     | And(_, _)
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
@@ -964,10 +972,10 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Int);
           let dc2 = DHExp.cast(d2, ty2, Int);
-          switch (DHExp.of_op(op)) {
+          switch (DHExp.of_int_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
-            let d = DHExp.BinNumOp(op, dc1, dc2);
+            let d = DHExp.BinIntOp(op, dc1, dc2);
             Expands(d, ty, delta);
           };
         }
@@ -981,10 +989,10 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Float);
           let dc2 = DHExp.cast(d2, ty2, Float);
-          switch (DHExp.of_op(op)) {
+          switch (DHExp.of_float_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
-            let d = DHExp.BinNumOp(op, dc1, dc2);
+            let d = DHExp.BinFloatOp(op, dc1, dc2);
             Expands(d, ty, delta);
           };
         }
@@ -998,10 +1006,10 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Bool);
           let dc2 = DHExp.cast(d2, ty2, Bool);
-          switch (DHExp.of_op(op)) {
+          switch (DHExp.of_int_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
-            let d = DHExp.BinNumOp(op, dc1, dc2);
+            let d = DHExp.BinIntOp(op, dc1, dc2);
             Expands(d, ty, delta);
           };
         }
@@ -1533,10 +1541,14 @@ module Exp = {
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (Ap(d1, d2), hii);
-    | BinNumOp(op, d1, d2) =>
+    | BinIntOp(op, d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
-      (BinNumOp(op, d1, d2), hii);
+      (BinIntOp(op, d1, d2), hii);
+    | BinFloatOp(op, d1, d2) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (d2, hii) = renumber_result_only(path, hii, d2);
+      (BinFloatOp(op, d1, d2), hii);
     | And(d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1625,10 +1637,14 @@ module Exp = {
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (Ap(d1, d2), hii);
-    | BinNumOp(op, d1, d2) =>
+    | BinIntOp(op, d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (BinNumOp(op, d1, d2), hii);
+      (BinIntOp(op, d1, d2), hii);
+    | BinFloatOp(op, d1, d2) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+      (BinFloatOp(op, d1, d2), hii);
     | And(d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1752,14 +1768,13 @@ module Evaluator = {
      0 = out of fuel
      1 = free or invalid variable
      2 = ap invalid boxed function val
-     3 = boxed value not a number literal 2
-     4 = boxed value not a number literal 1
+     3 = boxed value not a int literal 2
+     4 = boxed value not a int literal 1
      5 = bad pattern match
      6 = Cast BV Hole Ground
+     7 = boxed value not a float literal 1
+     8 = boxed value not a float literal 2
    */
-  /* TODO
-     need to include the case for float point numbers?
-      */
 
   [@deriving sexp]
   type ground_cases =
@@ -1790,7 +1805,7 @@ module Evaluator = {
     };
 
   let eval_bin_int_op =
-      (op: DHExp.bin_num_op, n1: int, n2: int): option(DHExp.t) =>
+      (op: DHExp.bin_int_op, n1: int, n2: int): option(DHExp.t) =>
     switch (op) {
     | Minus => Some(IntLit(n1 - n2))
     | Plus => Some(IntLit(n1 + n2))
@@ -1798,16 +1813,14 @@ module Evaluator = {
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))
-    | _ => None
     };
 
   let eval_bin_float_op =
-      (op: DHExp.bin_num_op, f1: float, f2: float): option(DHExp.t) =>
+      (op: DHExp.bin_float_op, f1: float, f2: float): option(DHExp.t) =>
     switch (op) {
     | FPlus => Some(FloatLit(f1 +. f2))
     | FMinus => Some(FloatLit(f1 -. f2))
     | FTimes => Some(FloatLit(f1 *. f2))
-    | _ => None
     };
 
   let rec evaluate = (d: DHExp.t): result =>
@@ -1900,7 +1913,7 @@ module Evaluator = {
         | Indet(d2') => Indet(Or(d1', d2'))
         }
       }
-    | BinNumOp(op, d1, d2) =>
+    | BinIntOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(IntLit(n1) as d1') =>
@@ -1912,8 +1925,19 @@ module Evaluator = {
           | None => InvalidInput(5)
           }
         | BoxedValue(_) => InvalidInput(3)
-        | Indet(d2') => Indet(BinNumOp(op, d1', d2'))
+        | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
         }
+      | BoxedValue(_) => InvalidInput(4)
+      | Indet(d1') =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
+        }
+      }
+    | BinFloatOp(op, d1, d2) =>
+      switch (evaluate(d1)) {
+      | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(FloatLit(f1) as d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
@@ -1922,15 +1946,15 @@ module Evaluator = {
           | Some(out) => BoxedValue(out)
           | None => InvalidInput(5)
           }
-        | BoxedValue(_) => InvalidInput(3)
-        | Indet(d2') => Indet(BinNumOp(op, d1', d2'))
+        | BoxedValue(_) => InvalidInput(8)
+        | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
         }
-      | BoxedValue(_) => InvalidInput(4)
+      | BoxedValue(_) => InvalidInput(7)
       | Indet(d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
-        | Indet(d2') => Indet(BinNumOp(op, d1', d2'))
+        | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
         }
       }
     | Inj(ty, side, d1) =>

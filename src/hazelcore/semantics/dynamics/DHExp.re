@@ -1,28 +1,31 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type bin_num_op =
+type bin_int_op =
   | Minus
   | Plus
   | Times
-  | FMinus
-  | FPlus
-  | FTimes
   | LessThan
   | GreaterThan
   | Equals;
 
-let of_op = (op: UHExp.operator): option((bin_num_op, HTyp.t)) =>
+[@deriving sexp]
+type bin_float_op =
+  | FPlus
+  | FMinus
+  | FTimes;
+
+let of_int_op = (op: UHExp.operator): option((bin_int_op, HTyp.t)) =>
   switch (op) {
   | Minus => Some((Minus, Int))
   | Plus => Some((Plus, Int))
   | Times => Some((Times, Int))
-  | FMinus => Some((FMinus, Float))
-  | FPlus => Some((FPlus, Float))
-  | FTimes => Some((FTimes, Float))
   | LessThan => Some((LessThan, Bool))
   | GreaterThan => Some((GreaterThan, Bool))
   | Equals => Some((Equals, Bool))
+  | FPlus
+  | FMinus
+  | FTimes
   | And
   | Or
   | Space
@@ -30,17 +33,39 @@ let of_op = (op: UHExp.operator): option((bin_num_op, HTyp.t)) =>
   | Comma => None
   };
 
-let to_op = (bno: bin_num_op): UHExp.operator =>
-  switch (bno) {
+let of_float_op = (op: UHExp.operator): option((bin_float_op, HTyp.t)) =>
+  switch (op) {
+  | FPlus => Some((FPlus, Float))
+  | FMinus => Some((FMinus, Float))
+  | FTimes => Some((FTimes, Float))
+  | Plus
+  | Minus
+  | Times
+  | LessThan
+  | GreaterThan
+  | Equals
+  | And
+  | Or
+  | Space
+  | Cons
+  | Comma => None
+  };
+
+let to_int_op = (bio: bin_int_op): UHExp.operator =>
+  switch (bio) {
   | Minus => Minus
   | Plus => Plus
   | Times => Times
-  | FMinus => FMinus
-  | FPlus => FPlus
-  | FTimes => FTimes
   | LessThan => LessThan
   | GreaterThan => GreaterThan
   | Equals => Equals
+  };
+
+let to_float_op = (bfo: bin_float_op): UHExp.operator =>
+  switch (bfo) {
+  | FPlus => FPlus
+  | FMinus => FMinus
+  | FTimes => FTimes
   };
 
 [@deriving sexp]
@@ -64,7 +89,8 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
-  | BinNumOp(bin_num_op, t, t)
+  | BinIntOp(bin_int_op, t, t)
+  | BinFloatOp(bin_float_op, t, t)
   | And(t, t)
   | Or(t, t)
   | ListNil(HTyp.t)
@@ -92,7 +118,8 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
-  | BinNumOp(_, _, _) => "BinNumOp"
+  | BinIntOp(_, _, _) => "BinIntOp"
+  | BinFloatOp(_, _, _) => "BinFloatOp"
   | And(_, _) => "And"
   | Or(_, _) => "Or"
   | ListNil(_) => "ListNil"
