@@ -82,11 +82,16 @@ module MatrixLivelit: LIVELIT = {
   [@deriving sexp]
   type model = list(list(SpliceName.t));
   [@deriving sexp]
-  type action = unit;
+  type action =
+    | AddRow
+    | AddCol;
   type trigger = action => Vdom.Event.t;
 
   let init_height = 2;
   let init_width = 2;
+
+  let get_height = (m: model): int => List.length(m);
+  let get_width = (m: model): int => List.length(List.hd(m));
 
   let init_model =
     SpliceGenCmd.(
@@ -96,10 +101,21 @@ module MatrixLivelit: LIVELIT = {
         return,
       )
     );
-  let update = (m, _) => SpliceGenCmd.return(m);
 
-  let get_height = (m: model): int => List.length(m);
-  let get_width = (m: model): int => List.length(List.hd(m));
+  let update = m =>
+    fun
+    | AddRow =>
+      SpliceGenCmd.(
+        MonadsUtil.bind_many(get_width(m), bind(new_splice), new_row =>
+          m @ [new_row] |> return
+        )
+      )
+    | AddCol =>
+      SpliceGenCmd.(
+        MonadsUtil.bind_many(get_height(m), bind(new_splice), new_col =>
+          List.map2((c, r) => r @ [c], new_col, m) |> return
+        )
+      );
 
   let attr_style = Vdom.Attr.create("style");
 
@@ -118,7 +134,7 @@ module MatrixLivelit: LIVELIT = {
       ),
     );
 
-  let view = (m, _) =>
+  let view = (m, trig) =>
     LivelitView.MultiLine(
       (get_splice_div, _) => {
         open Vdom;
@@ -140,6 +156,7 @@ module MatrixLivelit: LIVELIT = {
             [
               attr_style(grid_area(-1, 2, -2, -2)),
               Attr.classes(["add-row", "pure-button"]),
+              Attr.on_click(_ => trig(AddRow)),
             ],
             [Node.text("+")],
           );
@@ -159,6 +176,7 @@ module MatrixLivelit: LIVELIT = {
             [
               attr_style(grid_area(2, -2, -2, -1)),
               Attr.classes(["add-col", "pure-button"]),
+              Attr.on_click(_ => trig(AddCol)),
             ],
             [Node.text("+")],
           );
