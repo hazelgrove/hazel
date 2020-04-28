@@ -809,6 +809,24 @@ h1 {
   font-size: 65%;
   color: #444;
 }
+.matrix-livelit .col-header .index,
+.matrix-livelit .row-header .index {
+  display: inline;
+}
+.matrix-livelit .col-header .delete,
+.matrix-livelit .row-header .delete {
+  display: none;
+}
+.matrix-livelit .col-header:hover .index,
+.matrix-livelit .row-header:hover .index {
+  display: none;
+}
+.matrix-livelit .col-header:hover .delete,
+.matrix-livelit .row-header:hover .delete {
+  display: inline;
+  cursor: pointer;
+}
+
 .matrix-livelit .matrix-splice {
   justify-self: right;
 }

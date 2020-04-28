@@ -143,12 +143,41 @@ module MatrixLivelit: LIVELIT = {
         let row_header =
           ListUtil.range(height)
           |> List.map(i =>
-               Node.span(
+               Node.div(
                  [
                    attr_style(grid_area(i + 2, 1, i + 3, 2)),
                    Attr.classes(["row-header"]),
                  ],
-                 [Node.text(string_of_int(i + 1))],
+                 [
+                   Node.span(
+                     [Attr.classes(["index"])],
+                     [Node.text(string_of_int(i + 1))],
+                   ),
+                   Node.span(
+                     [Attr.classes(["delete"])],
+                     [Node.text("x")],
+                   ),
+                 ],
+               )
+             );
+        let col_header =
+          ListUtil.range(width)
+          |> List.map(j =>
+               Node.span(
+                 [
+                   attr_style(grid_area(1, j + 2, 2, j + 3)),
+                   Attr.classes(["col-header"]),
+                 ],
+                 [
+                   Node.span(
+                     [Attr.classes(["index"])],
+                     [Node.text(string_of_int(j + 1))],
+                   ),
+                   Node.span(
+                     [Attr.classes(["delete"])],
+                     [Node.text("x")],
+                   ),
+                 ],
                )
              );
         let add_row_button =
@@ -160,17 +189,6 @@ module MatrixLivelit: LIVELIT = {
             ],
             [Node.text("+")],
           );
-        let col_header =
-          ListUtil.range(width)
-          |> List.map(j =>
-               Node.span(
-                 [
-                   attr_style(grid_area(1, j + 2, 2, j + 3)),
-                   Attr.classes(["col-header"]),
-                 ],
-                 [Node.text(string_of_int(j + 1))],
-               )
-             );
         let add_col_button =
           Node.button(
             [
