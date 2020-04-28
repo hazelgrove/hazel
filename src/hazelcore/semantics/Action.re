@@ -2794,21 +2794,14 @@ module Exp = {
     /* Construction */
 
     /* Making Float Operators from Int Operators */
-    /* This is for temporary testing. I should find better cursor */
-    /* TODO FIXME */
     | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
       let new_operator =
         switch (oper) {
         | UHExp.Plus => UHExp.FPlus
         | UHExp.Minus => UHExp.FMinus
         | UHExp.Times => UHExp.FTimes
-        | _ => oper
+        | _ => Failed
         };
-      /* let new_zoperator =
-         switch (new_operator |> ZExp.place_after_operator) {
-         | Some(x) => x
-         | None => zop
-         }; */
       let new_zoperator = (pos, new_operator);
       let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
