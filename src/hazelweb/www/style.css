@@ -800,7 +800,34 @@ h1 {
 .matrix-livelit {
   display: grid;
   column-gap: 10px;
-  justify-items: start;
+}
+
+.matrix-livelit .col-header,
+.matrix-livelit .row-header {
+  place-self: center;
+  vertical-align: text-bottom;
+  font-size: 65%;
+  color: #444;
+}
+.matrix-livelit .matrix-splice {
+  justify-self: right;
+}
+
+.matrix-livelit .add-row,
+.matrix-livelit .add-col {
+  background-color: #EEE;
+  border-radius: 4px;
+  font-size: 85%;
+}
+.matrix-livelit .add-row {
+  width: 100%;
+  height: 20px;
+  padding: 0 1em;
+}
+.matrix-livelit .add-col {
+  height: 100%;
+  width: 20px;
+  padding: 1em 0;
 }
 
 .splice {

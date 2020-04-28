@@ -124,34 +124,57 @@ module MatrixLivelit: LIVELIT = {
         open Vdom;
         let width = get_width(m);
         let height = get_height(m);
-        let header_row =
-          ListUtil.range(width)
+        let row_header =
+          ListUtil.range(height)
           |> List.map(i =>
                Node.span(
-                 [attr_style(grid_area(1, i + 2, 2, i + 3))],
+                 [
+                   attr_style(grid_area(i + 2, 1, i + 3, 2)),
+                   Attr.classes(["row-header"]),
+                 ],
                  [Node.text(string_of_int(i + 1))],
                )
              );
-        let rows =
+        let add_row_button =
+          Node.button(
+            [
+              attr_style(grid_area(-1, 2, -2, -2)),
+              Attr.classes(["add-row", "pure-button"]),
+            ],
+            [Node.text("+")],
+          );
+        let col_header =
+          ListUtil.range(width)
+          |> List.map(j =>
+               Node.span(
+                 [
+                   attr_style(grid_area(1, j + 2, 2, j + 3)),
+                   Attr.classes(["col-header"]),
+                 ],
+                 [Node.text(string_of_int(j + 1))],
+               )
+             );
+        let add_col_button =
+          Node.button(
+            [
+              attr_style(grid_area(2, -2, -2, -1)),
+              Attr.classes(["add-col", "pure-button"]),
+            ],
+            [Node.text("+")],
+          );
+        let splices =
           m
-          |> List.mapi((i, r) =>
-               [
-                 Node.span(
-                   [attr_style(grid_area(i + 2, 1, i + 3, 2))],
-                   [Node.text(string_of_int(i + 1))],
-                 ),
-                 ...r
-                    |> List.mapi((j, splice) =>
-                         Node.div(
-                           [
-                             attr_style(
-                               grid_area(i + 2, j + 2, i + 3, j + 3),
-                             ),
-                           ],
-                           [get_splice_div(splice)],
-                         )
-                       ),
-               ]
+          |> List.mapi((i, row) =>
+               row
+               |> List.mapi((j, splice) =>
+                    Node.div(
+                      [
+                        attr_style(grid_area(i + 2, j + 2, i + 3, j + 3)),
+                        Attr.classes(["matrix-splice"]),
+                      ],
+                      [get_splice_div(splice)],
+                    )
+                  )
              )
           |> List.flatten;
 
@@ -176,7 +199,12 @@ module MatrixLivelit: LIVELIT = {
               ]),
             ),
           ],
-          header_row @ rows,
+          List.concat([
+            row_header,
+            col_header,
+            splices,
+            [add_row_button, add_col_button],
+          ]),
         );
       },
     );
