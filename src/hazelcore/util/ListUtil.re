@@ -147,6 +147,36 @@ let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
   };
 
+let rec _split_index = (rev_before, xs, ind, n) =>
+  if (ind == n) {
+    (List.rev(rev_before), xs);
+  } else {
+    switch (xs) {
+    | [] =>
+      raise(
+        Invalid_argument(
+          Printf.sprintf(
+            "ListUtil.split_index: index (%d) out of bounds (%d)",
+            n,
+            ind,
+          ),
+        ),
+      )
+    | [x, ...xs] => _split_index([x, ...rev_before], xs, ind + 1, n)
+    };
+  };
+
+let split_index = (xs, n) =>
+  if (n < 0) {
+    raise(
+      Invalid_argument(
+        Printf.sprintf("ListUtil.split_index: negative index %d", n),
+      ),
+    );
+  } else {
+    _split_index([], xs, 0, n);
+  };
+
 let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])
