@@ -11,6 +11,8 @@
   --title-bar-color: #073f24;
   --page-padding: 15px;
 
+  --code-font-family: "Fira Mono", monospace;
+  --code-font-size: 14pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
@@ -143,7 +145,7 @@ html, body {
   flex-direction: column;
 }
 
-.page-area {
+#page-area {
   flex-grow: 1;
   /* enable scroll */
   height: 0px;
@@ -208,7 +210,7 @@ html, body {
 .sidebar-tab-icon {
   fill: #41392c;
   display: block; /* MUST do this: inline elements have in-built vertical margins */
-  font-family: "Fira Mono", monospace;
+  font-family: var(--code-font-family);
   font-size: 16px;
   cursor: default;
 }
@@ -476,7 +478,7 @@ html, body {
   border-bottom: 1px solid #ffffff47;
   background-color: rgba(0,0,0,0);
   color: white;
-  font-family: "Fira Mono", monospace;
+  font-family: var(--code-font-family);
   font-style: italic;
 }
 
@@ -776,8 +778,8 @@ h1 {
 }
 
 .code {
-  font-family: "Fira Mono", monospace;
-  font-size: 14pt;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
 }
 .code.presentation * {
@@ -809,10 +811,11 @@ h1 {
 
 #code-container {
   position: relative;
-  font-family: "Fira Mono", monospace;
-  font-size: 14pt;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
   width: 80ch;
+  cursor: text;
 }
 .contenteditable {
   background-color: lightgray;
@@ -829,6 +832,18 @@ h1 {
   outline: 0px;
 }
 
+#font-specimen {
+  position: fixed;
+  top: 0;
+  left: 100%;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
+}
+
+#caret-container {
+  position: relative;
+}
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
 #caret {
   z-index: var(--caret-z);
@@ -838,6 +853,7 @@ h1 {
   margin: calc(0.1 * var(--code-line-height) * 1em) 0;
   height: calc(0.8 * var(--code-line-height) * 1em);
   width: 2px;
+  pointer-events: none;
 }
 #caret.blink {
   -webkit-animation: 1s blink step-end infinite;
@@ -1176,7 +1192,7 @@ h1 {
   position: absolute;
   z-index: var(--hole-indicator-z-index);
   background-color: transparent;
-  font-family: "Fira Mono", monospace;
+  font-family: var(--code-font-family);
   font-size: 20px;
 }
 
