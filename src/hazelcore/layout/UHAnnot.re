@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open ViewUtil;
 
 [@deriving sexp]
 type term_data = {
@@ -9,22 +8,20 @@ type term_data = {
 };
 
 [@deriving sexp]
+type token_shape =
+  | Text
+  | Op
+  | Delim(DelimIndex.t);
+
+[@deriving sexp]
 type t =
   | Indent
   | Padding
   | HoleLabel({len: int})
-  | Text({
-      steps: CursorPath.steps,
-      length: int,
-      caret: option(int),
-    })
-  | Delim({
-      path: delim_path,
-      caret: option(Side.t),
-    })
-  | Op({
-      steps: CursorPath.steps,
-      caret: option(Side.t),
+  | Token({
+      shape: token_shape,
+      len: int,
+      has_cursor: option(int),
     })
   | SpaceOp
   | UserNewline
@@ -37,13 +34,9 @@ type t =
   | Step(int)
   | Term(term_data);
 
-let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>
-  Delim({caret, path});
-let mk_Op = (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ()): t =>
-  Op({caret, steps});
-let mk_Text =
-    (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
-  Text({caret, steps, length});
+let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
+  Token({has_cursor, len, shape});
+
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});

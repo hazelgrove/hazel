@@ -121,11 +121,11 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Text(text_data) =>
+             | Token({shape: Text, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.Text({...text_data, caret: Some(j)}),
+                      UHAnnot.Token({...token_data, has_cursor: Some(j)}),
                     ),
                )
              | EmptyLine
@@ -137,28 +137,33 @@ let find_and_decorate_caret =
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Op(op_data) =>
+             | Token({shape: Op, len, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.Op({...op_data, caret: Some(side)}),
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(side == Before ? 0 : len),
+                      }),
                     ),
                )
+             | DelimGroup => Skip
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Delim({path: (_, index), _} as delim_data) =>
-               index == k
-                 ? Return(
-                     l
-                     |> Layout.annot(
-                          UHAnnot.Delim({...delim_data, caret: Some(side)}),
-                        ),
-                   )
-                 : Stop
+             | Token({shape: Delim(k'), len, _} as token_data) when k' == k =>
+               Return(
+                 l
+                 |> Layout.annot(
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(side == Before ? 0 : len),
+                      }),
+                    ),
+               )
              | Term(_)
              | DelimGroup
              | LetLine
@@ -236,143 +241,3 @@ let find_and_decorate_var_use =
     | _ => failwith(__LOC__ ++ ": var not found")
     }
   );
-
-module PathSearchResult = {
-  type t =
-    | Found(CursorPath.t)
-    | Transport(Side.t)
-    | NotFound;
-
-  let of_opt =
-    fun
-    | None => NotFound
-    | Some(path) => Found(path);
-
-  let to_opt =
-    fun
-    | NotFound
-    | Transport(_) => None
-    | Found(path) => Some(path);
-};
-
-let path_before = (l: t): option(CursorPath.t) => {
-  let rec go = (l: t): PathSearchResult.t =>
-    switch (l) {
-    | Text(_)
-    | Linebreak => NotFound
-    | Align(l) => go(l)
-    | Cat(l1, l2) =>
-      switch (go(l1)) {
-      | (NotFound | Transport(Before) | Found(_)) as fin => fin
-      | Transport(After) => go(l2)
-      }
-    | Annot(
-        OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-        CommentLine |
-        Step(_) |
-        Term(_),
-        l,
-      ) =>
-      go(l)
-    | Annot(Padding | HoleLabel(_) | SpaceOp | UserNewline, _) => NotFound
-    | Annot(Indent, _) => Transport(After)
-    | Annot(Text({steps, _}), _) => Found((steps, OnText(0)))
-    | Annot(Op({steps, _}), _) => Found((steps, OnOp(Before)))
-    | Annot(Delim({path: (steps, k), _}), _) =>
-      Found((steps, OnDelim(k, Before)))
-    };
-  go(l) |> PathSearchResult.to_opt;
-};
-
-let path_after = (l: t): option(CursorPath.t) => {
-  let rec go = (l: t): PathSearchResult.t =>
-    switch (l) {
-    | Text(_)
-    | Linebreak => NotFound
-    | Align(l) => go(l)
-    | Cat(l1, l2) =>
-      switch (go(l2)) {
-      | (NotFound | Transport(After) | Found(_)) as fin => fin
-      | Transport(Before) => go(l1)
-      }
-    | Annot(
-        OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-        CommentLine |
-        Step(_) |
-        Term(_),
-        l,
-      ) =>
-      go(l)
-    | Annot(UserNewline, _) => Transport(Before)
-    | Annot(Padding | HoleLabel(_) | SpaceOp | Indent, _) => NotFound
-    | Annot(Text({steps, length, _}), _) => Found((steps, OnText(length)))
-    | Annot(Op({steps, _}), _) => Found((steps, OnOp(After)))
-    | Annot(Delim({path: (steps, k), _}), _) =>
-      Found((steps, OnDelim(k, After)))
-    };
-  go(l) |> PathSearchResult.to_opt;
-};
-
-let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) => {
-  let rec go = (indent, current_row, current_col, l: t): PathSearchResult.t => {
-    let metrics = Metrics.metrics(l);
-    let end_row = current_row + metrics.height - 1;
-    let end_col =
-      (metrics.height == 1 ? current_col : indent) + metrics.last_width;
-    if (current_row == end_row && col <= indent) {
-      PathSearchResult.of_opt(path_before(l));
-    } else if (current_row == end_row && col >= end_col) {
-      PathSearchResult.of_opt(path_after(l));
-    } else {
-      // current_row != end_row || indent < col < end_col
-      let leaning_side: Side.t =
-        col - current_col <= end_col - col ? Before : After;
-      switch (l) {
-      | Text(_)
-      | Annot(HoleLabel(_), _) => NotFound
-      | Linebreak => Transport(row == end_row ? After : Before)
-      | Align(l) => l |> go(current_col, current_row, current_col)
-      | Cat(l1, l2) =>
-        let metrics1 = Metrics.metrics(l1);
-        let mid_row = current_row + metrics1.height - 1;
-        let mid_col =
-          (metrics1.height == 1 ? current_col : indent) + metrics1.last_width;
-        if (row == mid_row && col == mid_col) {
-          switch (path_after(l1), path_before(l2)) {
-          | (None, None) => NotFound
-          | (Some(path), _)
-          | (_, Some(path)) => Found(path)
-          };
-        } else if (row < mid_row || row == mid_row && col < mid_col) {
-          switch (l1 |> go(indent, current_row, current_col)) {
-          | (NotFound | Transport(Before) | Found(_)) as fin => fin
-          | Transport(After) => PathSearchResult.of_opt(path_before(l2))
-          };
-        } else {
-          // row >= mid_row && (row != mid_row || col > mid_col)
-          switch (l2 |> go(indent, mid_row, mid_col)) {
-          | (NotFound | Transport(After) | Found(_)) as fin => fin
-          | Transport(Before) => PathSearchResult.of_opt(path_after(l1))
-          };
-        };
-      | Annot(
-          OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-          CommentLine |
-          Step(_) |
-          Term(_),
-          l,
-        ) =>
-        l |> go(indent, current_row, current_col)
-      | Annot(UserNewline, _) => Transport(Before)
-      | Annot(Indent, _) => Transport(After)
-      | Annot(Padding | SpaceOp, _) => Transport(leaning_side)
-      | Annot(Text({steps, _}), _) =>
-        Found((steps, OnText(col - current_col)))
-      | Annot(Op({steps, _}), _) => Found((steps, OnOp(leaning_side)))
-      | Annot(Delim({path: (steps, k), _}), _) =>
-        Found((steps, OnDelim(k, leaning_side)))
-      };
-    };
-  };
-  l |> go(0, 0, 0) |> PathSearchResult.to_opt;
-};
