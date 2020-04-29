@@ -1,8 +1,8 @@
 type t = ZList.t(Cardstack.t, Cardstack.t);
 
-let mk = (info: list(CardstackInfo.t)): t => {
+let mk = (~width, info: list(CardstackInfo.t)): t => {
   assert(List.length(info) != 0);
-  let cardstacks = info |> List.map(Cardstack.mk);
+  let cardstacks = info |> List.map(Cardstack.mk(~width));
   cardstacks |> ZList.split_at(0) |> Option.get;
 };
 
