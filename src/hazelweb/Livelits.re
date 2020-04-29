@@ -43,8 +43,8 @@ module PairLivelit: LIVELIT = {
   type trigger = action => Vdom.Event.t;
 
   let init_model =
-    SpliceGenCmd.bind(SpliceGenCmd.new_splice, leftID =>
-      SpliceGenCmd.bind(SpliceGenCmd.new_splice, rightID =>
+    SpliceGenCmd.bind(SpliceGenCmd.new_splice(HTyp.Hole), leftID =>
+      SpliceGenCmd.bind(SpliceGenCmd.new_splice(HTyp.Hole), rightID =>
         SpliceGenCmd.return((leftID, rightID))
       )
     );
@@ -76,7 +76,7 @@ module PairLivelit: LIVELIT = {
 
 module MatrixLivelit: LIVELIT = {
   let name = "$matrix";
-  let expansion_ty = HTyp.(List(List(Hole)));
+  let expansion_ty = HTyp.(List(List(Num)));
 
   // assume nonzero height and width
   [@deriving sexp]
@@ -101,7 +101,13 @@ module MatrixLivelit: LIVELIT = {
     SpliceGenCmd.(
       MonadsUtil.bind_count(
         init_height,
-        bind(MonadsUtil.bind_count(init_width, bind(new_splice), return)),
+        bind(
+          MonadsUtil.bind_count(
+            init_width,
+            bind(new_splice(HTyp.Num)),
+            return,
+          ),
+        ),
         return,
       )
     );
@@ -110,13 +116,15 @@ module MatrixLivelit: LIVELIT = {
     fun
     | Add(Row) =>
       SpliceGenCmd.(
-        MonadsUtil.bind_count(get_width(m), bind(new_splice), new_row =>
+        MonadsUtil.bind_count(
+          get_width(m), bind(new_splice(HTyp.Num)), new_row =>
           m @ [new_row] |> return
         )
       )
     | Add(Col) =>
       SpliceGenCmd.(
-        MonadsUtil.bind_count(get_height(m), bind(new_splice), new_col =>
+        MonadsUtil.bind_count(
+          get_height(m), bind(new_splice(HTyp.Num)), new_col =>
           List.map2((c, r) => r @ [c], new_col, m) |> return
         )
       )

@@ -4,7 +4,7 @@ type out('a) = ('a, esi, MetaVarGen.t);
 type t('a) = (esi, MetaVarGen.t) => out('a);
 let return = (x, psi, u_gen) => (x, psi, u_gen);
 let new_splice =
-    ({next, splice_map, splice_order}: esi, u_gen): out(SpliceName.t) => {
+    (htyp, {next, splice_map, splice_order}: esi, u_gen): out(SpliceName.t) => {
   let (u, u_gen) = MetaVarGen.next_hole(u_gen);
   (
     next,
@@ -13,7 +13,7 @@ let new_splice =
       splice_map:
         NatMap.extend_unique(
           splice_map,
-          (next, (HTyp.Hole, UHExp.(Block.wrap(EmptyHole(u))))),
+          (next, (htyp, UHExp.(Block.wrap(EmptyHole(u))))),
         ),
       splice_order: splice_order @ [next],
     },
