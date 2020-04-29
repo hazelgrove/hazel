@@ -64,7 +64,7 @@ let view = (~inject, model: Model.t) => {
         Attr.on_keydown(evt => {
           switch (MoveKey.of_key(JSUtil.get_key(evt))) {
           | Some(move_key) =>
-            prevent_stop_inject(Update.Action.MoveViaKey(move_key))
+            prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
           | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)

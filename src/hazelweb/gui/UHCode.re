@@ -174,7 +174,7 @@ let view =
             ),
           ),
         );
-        inject(Update.Action.MoveViaClick(row_col));
+        inject(Update.Action.MoveAction(Click(row_col)));
       }),
     ],
     go(l),

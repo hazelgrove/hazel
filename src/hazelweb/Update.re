@@ -5,12 +5,16 @@ module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
+[@deriving sexp]
+type move_input =
+  | Key(JSUtil.MoveKey.t)
+  | Click((CursorMap.Row.t, CursorMap.Col.t));
+
 module Action = {
   [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
-    | MoveViaKey(JSUtil.MoveKey.t)
-    | MoveViaClick((CursorMap.Row.t, CursorMap.Col.t))
+    | MoveAction(move_input)
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
@@ -70,8 +74,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
-  | MoveViaKey(_)
-  | MoveViaClick(_)
+  | MoveAction(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -125,14 +128,14 @@ let apply_action =
       JSUtil.log("[Program.DoesNotExpand]");
       model;
     }
-  | MoveViaKey(move_key) =>
+  | MoveAction(Key(move_key)) =>
     switch (model |> Model.move_via_key(move_key)) {
     | new_model => new_model
     | exception Program.CursorEscaped =>
       JSUtil.log(["Program.CursorEscaped"]);
       model;
     }
-  | MoveViaClick(row_col) => model |> Model.move_via_click(row_col)
+  | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
