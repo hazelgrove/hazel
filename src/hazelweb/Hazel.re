@@ -11,34 +11,49 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("selectionchange"),
-      Dom_html.document,
-      _ => {
-        let anchorNode = Dom_html.window##getSelection##.anchorNode;
-        let contenteditable = JSUtil.force_get_elem_by_id("contenteditable");
-        if (JSUtil.div_contains_node(contenteditable, anchorNode)) {
-          schedule_action(Update.Action.SelectionChange);
-        };
-      },
+  let update_font_metrics = () => {
+    let rect =
+      JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
+    schedule_action(
+      Update.Action.UpdateFontMetrics({
+        row_height: rect##.bottom -. rect##.top,
+        col_width: rect##.right -. rect##.left,
+      }),
     );
-  Dom_html.window##.onfocus :=
+  };
+  Dom_html.window##.onresize :=
     Dom_html.handler(_ => {
-      schedule_action(Update.Action.FocusWindow);
+      update_font_metrics();
       Js._true;
     });
-  schedule_action(Update.Action.FocusCell);
-  Async_kernel.Deferred.return(
-    State.{setting_caret: ref(false), changing_cards: ref(false)},
-  );
+  update_font_metrics();
+
+  Dom_html.window##.onfocus :=
+    Dom_html.handler(_ => {
+      Cell.focus();
+      Js._true;
+    });
+  Cell.focus();
+
+  Async_kernel.Deferred.return(State.{changing_cards: ref(false)});
 };
 
-let restart_caret_animation = () => {
-  let caret = JSUtil.force_get_elem_by_id("caret");
-  caret##.classList##remove(Js.string("blink"));
-  caret##focus;
-  caret##.classList##add(Js.string("blink"));
+let restart_cursor_animation = caret_elem => {
+  caret_elem##.classList##remove(Js.string("blink"));
+  // necessary to trigger reflow
+  let _ = caret_elem##getBoundingClientRect;
+  caret_elem##.classList##add(Js.string("blink"));
+};
+
+let scroll_cursor_into_view_if_needed = caret_elem => {
+  let page_rect =
+    JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+  if (caret_rect##.top < page_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > page_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
 };
 
 let scroll_history_panel_entry = entry_elem => {
@@ -63,34 +78,12 @@ let create =
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
-        let undo_history = model |> Model.get_undo_history;
-        if (!UndoHistory.is_empty(undo_history)) {
-          let entry_elem = JSUtil.force_get_elem_by_id("cur-selected-entry");
-          scroll_history_panel_entry(entry_elem);
-        };
-
-        let path = model |> Model.get_program |> Program.get_path;
-        if (state.changing_cards^) {
-          state.changing_cards := false;
-          let (anchor_node, anchor_offset) =
-            path |> UHCode.caret_position_of_path;
-          state.setting_caret := true;
-          JSUtil.set_caret(anchor_node, anchor_offset);
-        } else if (model.is_cell_focused) {
-          let (expected_node, expected_offset) =
-            path |> UHCode.caret_position_of_path;
-          let (actual_node, actual_offset) = JSUtil.get_selection_anchor();
-          if (actual_node === expected_node
-              && actual_offset === expected_offset) {
-            state.setting_caret := false;
-          } else {
-            state.setting_caret := true;
-            JSUtil.set_caret(expected_node, expected_offset);
-          };
-          restart_caret_animation();
-        };
-      },
+      (_, ~schedule_action as _) =>
+        if (Model.is_cell_focused(model)) {
+          let caret_elem = JSUtil.force_get_elem_by_id("caret");
+          restart_cursor_animation(caret_elem);
+          scroll_cursor_into_view_if_needed(caret_elem);
+        },
     model,
     Page.view(~inject, model),
   );
