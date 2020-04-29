@@ -52,20 +52,24 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
+let focus = () => {
+  JSUtil.force_get_elem_by_id("cell")##focus;
+};
+
 let view = (~inject, model: Model.t) => {
   open Vdom;
   let program = model |> Model.get_program;
+  let code_view = UHCode.view(~inject, ~font_metrics=model.font_metrics);
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
-  let (key_handlers, code_view) = {
-    let code_view = UHCode.view(~inject, ~font_metrics=model.font_metrics);
+  let (key_handlers, code_view) =
     if (Model.is_cell_focused(model)) {
       let key_handlers = [
         Attr.on_keypress(_ => Event.Prevent_default),
         Attr.on_keydown(evt => {
           switch (MoveKey.of_key(JSUtil.get_key(evt))) {
           | Some(move_key) =>
-            prevent_stop_inject(Update.Action.MoveViaKey(move_key))
+            prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
           | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
@@ -97,15 +101,24 @@ let view = (~inject, model: Model.t) => {
       let view = program |> Program.get_decorated_layout |> code_view;
       (key_handlers, view);
     } else {
+<<<<<<< HEAD
       let view = program |> Program.get_layout |> code_view;
       ([], view);
     };
   };
+=======
+      ([], program |> Program.get_layout |> code_view);
+    };
+>>>>>>> origin/dev
   Node.div(
     [
       Attr.id(cell_id),
       // necessary to make cell focusable
       Attr.create("tabindex", "0"),
+<<<<<<< HEAD
+=======
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+>>>>>>> origin/dev
       Attr.on_blur(_ => inject(Update.Action.BlurCell)),
       ...key_handlers,
     ],

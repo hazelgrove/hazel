@@ -4,8 +4,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
 
-let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
-
 let clss_of_err: ErrStatus.t => list(cls) =
   fun
   | NotInHole => []
@@ -64,14 +62,20 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
 
 let view =
     (
+<<<<<<< HEAD
       ~inject,
       ~font_metrics: FontMetrics.t,
       (l, splice_ls): UHLayout.with_splices,
+=======
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~font_metrics: FontMetrics.t,
+      l: UHLayout.t,
+>>>>>>> origin/dev
     )
     : Vdom.Node.t => {
   open Vdom;
 
-  let on_click =
+  let on_mousedown =
       (~id: string, ~splice: option((MetaVar.t, SpliceName.t)), evt) => {
     let container_rect =
       JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
@@ -79,30 +83,20 @@ let view =
       float_of_int(evt##.clientX),
       float_of_int(evt##.clientY),
     );
-    if (container_rect##.left <= target_x
-        && target_x <=
-        container_rect##.right
-        &&
-        container_rect##.top <= target_y
-        && target_y <=
-        container_rect##.bottom) {
-      let row_col = (
-        Float.to_int(
-          (target_y -. container_rect##.top) /. font_metrics.row_height,
+    let row_col = (
+      Float.to_int(
+        (target_y -. container_rect##.top) /. font_metrics.row_height,
+      ),
+      Float.to_int(
+        Float.round(
+          (target_x -. container_rect##.left) /. font_metrics.col_width,
         ),
-        Float.to_int(
-          Float.round(
-            (target_x -. container_rect##.left) /. font_metrics.col_width,
-          ),
-        ),
-      );
-      Event.Many([
-        inject(Update.Action.MoveViaClick(splice, row_col)),
-        Event.Stop_propagation,
-      ]);
-    } else {
-      Event.Many([]);
-    };
+      ),
+    );
+    Event.Many([
+      inject(Update.Action.MoveViaClick(splice, row_col)),
+      Event.Stop_propagation,
+    ]);
   };
 
   let rec go: UHLayout.t => _ =
@@ -182,8 +176,8 @@ let view =
                 [
                   Attr.id(id),
                   Attr.classes(["splice"]),
-                  Attr.on_click(
-                    on_click(~id, ~splice=Some((llu, splice_name))),
+                  Attr.on_mousedown(
+                    on_mousedown(~id, ~splice=Some((llu, splice_name))),
                   ),
                 ],
                 go(splice_layout),
@@ -203,7 +197,7 @@ let view =
           };
         [
           Vdom.Node.div(
-            [Vdom.Attr.on_click(_ => Vdom.Event.Stop_propagation)],
+            [Vdom.Attr.on_mousedown(_ => Vdom.Event.Stop_propagation)],
             vs,
           ),
         ];
@@ -235,7 +229,7 @@ let view =
     [
       Attr.id(id),
       Attr.classes(["code", "presentation"]),
-      Attr.on_click(on_click(~id, ~splice=None)),
+      Attr.on_mousedown(on_mousedown(~id, ~splice=None)),
     ],
     go(l),
   );

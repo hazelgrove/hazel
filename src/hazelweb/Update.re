@@ -5,16 +5,17 @@ module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
+[@deriving sexp]
+type move_input =
+  | Key(JSUtil.MoveKey.t)
+  | Click((CursorMap.Row.t, CursorMap.Col.t));
+
 module Action = {
   [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
+    | MoveAction(move_input)
     | LivelitAction(MetaVar.t, SerializedAction.t)
-    | MoveViaKey(JSUtil.MoveKey.t)
-    | MoveViaClick(
-        option((MetaVar.t, SpliceName.t)),
-        (CursorMap.Row.t, CursorMap.Col.t),
-      )
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
@@ -32,7 +33,6 @@ module Action = {
     | InvalidVar(string)
     | FocusCell
     | BlurCell
-    | FocusWindow
     | Redo
     | Undo
     | UpdateFontMetrics(FontMetrics.t);
@@ -74,9 +74,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
+  | MoveAction(_)
   | LivelitAction(_)
-  | MoveViaKey(_)
-  | MoveViaClick(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -94,7 +93,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | InvalidVar(_)
   | FocusCell
   | BlurCell
-  | FocusWindow
   | Undo
   | Redo
   | UpdateFontMetrics(_) =>
@@ -138,15 +136,14 @@ let apply_action =
            PerformLivelitAction(serialized_action),
          ),
        )
-  | MoveViaKey(move_key) =>
+  | MoveAction(Key(move_key)) =>
     switch (model |> Model.move_via_key(move_key)) {
     | new_model => new_model
     | exception Program.CursorEscaped =>
-      JSUtil.log(["Program.CursorEscaped"]);
+      JSUtil.log("[Program.CursorEscaped]");
       model;
     }
-  | MoveViaClick(opt_splice, row_col) =>
-    model |> Model.move_via_click(opt_splice, row_col)
+  | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
@@ -184,7 +181,7 @@ let apply_action =
   | InvalidVar(_) => model
   | FocusWindow => model
   | FocusCell => model |> Model.focus_cell
-  | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
+  | BlurCell => model |> Model.blur_cell
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
