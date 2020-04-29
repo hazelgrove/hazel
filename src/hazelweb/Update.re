@@ -132,7 +132,7 @@ let apply_action =
     switch (model |> Model.move_via_key(move_key)) {
     | new_model => new_model
     | exception Program.CursorEscaped =>
-      JSUtil.log(["Program.CursorEscaped"]);
+      JSUtil.log("[Program.CursorEscaped]");
       model;
     }
   | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
