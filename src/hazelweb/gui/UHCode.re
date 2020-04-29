@@ -61,9 +61,14 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
 };
 
 let view =
-    (~inject as _: Update.Action.t => Vdom.Event.t, l: UHLayout.t)
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~font_metrics: FontMetrics.t,
+      l: UHLayout.t,
+    )
     : Vdom.Node.t => {
   open Vdom;
+
   let rec go: UHLayout.t => _ =
     fun
     | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
@@ -147,5 +152,31 @@ let view =
         ),
       ];
 
-  Node.div([Attr.classes(["code", "presentation"])], go(l));
+  let id = "code-root";
+  Node.div(
+    [
+      Attr.id(id),
+      Attr.classes(["code", "presentation"]),
+      Attr.on_click(evt => {
+        let container_rect =
+          JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
+        let (target_x, target_y) = (
+          float_of_int(evt##.clientX),
+          float_of_int(evt##.clientY),
+        );
+        let row_col = (
+          Float.to_int(
+            (target_y -. container_rect##.top) /. font_metrics.row_height,
+          ),
+          Float.to_int(
+            Float.round(
+              (target_x -. container_rect##.left) /. font_metrics.col_width,
+            ),
+          ),
+        );
+        inject(Update.Action.MoveViaClick(row_col));
+      }),
+    ],
+    go(l),
+  );
 };
