@@ -13,12 +13,10 @@ module State = State;
 let on_startup = (~schedule_action, _) => {
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      schedule_action(Update.Action.FocusWindow);
+      Cell.focus();
       Js._true;
     });
-
-  schedule_action(Update.Action.FocusCell);
-  JSUtil.force_get_elem_by_id("cell")##focus;
+  Cell.focus();
 
   let update_font_metrics = () => {
     let rect =

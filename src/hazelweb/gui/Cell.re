@@ -51,6 +51,10 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
+let focus = () => {
+  JSUtil.force_get_elem_by_id("cell")##focus;
+};
+
 let view = (~inject, model: Model.t) => {
   open Vdom;
   let program = model |> Model.get_program;

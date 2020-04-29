@@ -32,7 +32,6 @@ module Action = {
     | InvalidVar(string)
     | FocusCell
     | BlurCell
-    | FocusWindow
     | Redo
     | Undo
     | UpdateFontMetrics(FontMetrics.t);
@@ -92,7 +91,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | InvalidVar(_)
   | FocusCell
   | BlurCell
-  | FocusWindow
   | Undo
   | Redo
   | UpdateFontMetrics(_) =>
@@ -170,7 +168,6 @@ let apply_action =
     }
   | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
-  | FocusWindow => model
   | FocusCell => model |> Model.focus_cell
   | BlurCell => model |> Model.blur_cell
   | Undo =>
