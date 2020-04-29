@@ -101,24 +101,14 @@ let view = (~inject, model: Model.t) => {
       let view = program |> Program.get_decorated_layout |> code_view;
       (key_handlers, view);
     } else {
-<<<<<<< HEAD
-      let view = program |> Program.get_layout |> code_view;
-      ([], view);
-    };
-  };
-=======
       ([], program |> Program.get_layout |> code_view);
     };
->>>>>>> origin/dev
   Node.div(
     [
       Attr.id(cell_id),
       // necessary to make cell focusable
       Attr.create("tabindex", "0"),
-<<<<<<< HEAD
-=======
       Attr.on_focus(_ => inject(Update.Action.FocusCell)),
->>>>>>> origin/dev
       Attr.on_blur(_ => inject(Update.Action.BlurCell)),
       ...key_handlers,
     ],

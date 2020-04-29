@@ -8,7 +8,10 @@ open Sexplib.Std;
 [@deriving sexp]
 type move_input =
   | Key(JSUtil.MoveKey.t)
-  | Click((CursorMap.Row.t, CursorMap.Col.t));
+  | Click(
+      option((MetaVar.t, SpliceName.t)),
+      (CursorMap.Row.t, CursorMap.Col.t),
+    );
 
 module Action = {
   [@deriving sexp]
@@ -143,7 +146,8 @@ let apply_action =
       JSUtil.log("[Program.CursorEscaped]");
       model;
     }
-  | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
+  | MoveAction(Click(opt_splice, row_col)) =>
+    model |> Model.move_via_click(opt_splice, row_col)
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
@@ -179,7 +183,6 @@ let apply_action =
   | SelectInstance(kind, inst) =>
     model |> Model.select_instance((kind, inst))
   | InvalidVar(_) => model
-  | FocusWindow => model
   | FocusCell => model |> Model.focus_cell
   | BlurCell => model |> Model.blur_cell
   | Undo =>

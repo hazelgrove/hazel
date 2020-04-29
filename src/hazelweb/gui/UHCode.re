@@ -62,15 +62,9 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
 
 let view =
     (
-<<<<<<< HEAD
       ~inject,
       ~font_metrics: FontMetrics.t,
       (l, splice_ls): UHLayout.with_splices,
-=======
-      ~inject: Update.Action.t => Vdom.Event.t,
-      ~font_metrics: FontMetrics.t,
-      l: UHLayout.t,
->>>>>>> origin/dev
     )
     : Vdom.Node.t => {
   open Vdom;
@@ -94,7 +88,7 @@ let view =
       ),
     );
     Event.Many([
-      inject(Update.Action.MoveViaClick(splice, row_col)),
+      inject(Update.Action.MoveAction(Click(splice, row_col))),
       Event.Stop_propagation,
     ]);
   };
