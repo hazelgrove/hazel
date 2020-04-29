@@ -103,6 +103,7 @@ let view = (~inject, model: Model.t) => {
       Attr.id(cell_id),
       // necessary to make cell focusable
       Attr.create("tabindex", "0"),
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
       Attr.on_blur(_ => inject(Update.Action.BlurCell)),
       ...key_handlers,
     ],

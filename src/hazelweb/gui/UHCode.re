@@ -155,7 +155,9 @@ let view =
     [
       Attr.id(id),
       Attr.classes(["code", "presentation"]),
-      Attr.on_click(evt => {
+      // need to use mousedown instead of click to fire
+      // (and move caret) before cell focus event handler
+      Attr.on_mousedown(evt => {
         let container_rect =
           JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
         let (target_x, target_y) = (
