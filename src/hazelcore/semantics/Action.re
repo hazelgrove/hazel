@@ -1091,7 +1091,7 @@ module Pat = {
     /* Variable-based navigation handled at top level */
     | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
       Failed
-      
+
     /* Invalid swap actions */
     | (SwapUp | SwapDown, _) => Failed
 
