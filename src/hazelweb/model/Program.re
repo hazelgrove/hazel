@@ -175,7 +175,7 @@ let get_cursor_map_z = program => {
   program
   |> get_layout
   |> decorate_caret(path)
-  |> CursorMap.of_layout
+  |> CursorMap.mk
   |> (
     fun
     | (_, None) => failwith(__LOC__ ++ ": no cursor found")

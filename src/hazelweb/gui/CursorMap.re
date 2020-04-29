@@ -28,7 +28,7 @@ module ColMap = {
   let find_after_eq = (col, map) =>
     map |> find_first_opt(c => Int.compare(c, col) >= 0);
 
-  let log_sexp = col_map =>
+  let _log_sexp = col_map =>
     col_map
     |> iter((col, rev_path) => {
          JSUtil.log("col = " ++ Sexplib.Sexp.to_string(Col.sexp_of_t(col)));
@@ -67,7 +67,7 @@ let compare_overlapping_paths =
   };
 };
 
-let of_layout = (l: UHLayout.t): (t, option(binding)) => {
+let mk = (l: UHLayout.t): (t, option(binding)) => {
   let row = ref(0);
   let col = ref(0);
   let z = ref(None);
@@ -142,9 +142,6 @@ let of_layout = (l: UHLayout.t): (t, option(binding)) => {
 
 let num_rows = cmap => RowMap.cardinal(cmap);
 
-let find = ((row, col), cmap) =>
-  cmap |> RowMap.find(row) |> ColMap.find(col);
-
 let start_of_row = (row, cmap) =>
   cmap
   |> RowMap.find(row)
@@ -175,7 +172,6 @@ let find_after_within_row = ((row, col), cmap) =>
   |> ColMap.find_after(col)
   |> Option.map(((col, rev_path)) => ((row, col), rev_path));
 
-// TODO standardize whether CursorMap is aware of text cursor positions
 let find_nearest_within_row = ((row, col), cmap) => {
   let col_map = cmap |> RowMap.find(row);
   switch (
