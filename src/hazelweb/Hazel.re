@@ -11,13 +11,6 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  Dom_html.window##.onfocus :=
-    Dom_html.handler(_ => {
-      Cell.focus();
-      Js._true;
-    });
-  Cell.focus();
-
   let update_font_metrics = () => {
     let rect =
       JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
@@ -28,13 +21,19 @@ let on_startup = (~schedule_action, _) => {
       }),
     );
   };
-  update_font_metrics();
-
   Dom_html.window##.onresize :=
     Dom_html.handler(_ => {
       update_font_metrics();
       Js._true;
     });
+  update_font_metrics();
+
+  Dom_html.window##.onfocus :=
+    Dom_html.handler(_ => {
+      Cell.focus();
+      Js._true;
+    });
+  Cell.focus();
 
   Async_kernel.Deferred.return(State.{changing_cards: ref(false)});
 };
