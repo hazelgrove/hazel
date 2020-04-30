@@ -269,16 +269,11 @@ module MatrixLivelit: LIVELIT = {
               StringUtil.cat([
                 prop_val(
                   "grid-template-columns",
-                  StringUtil.sep(
-                    ["auto", ...ListUtil.replicate(width, "1fr")] @ ["auto"],
-                  ),
+                  StringUtil.sep(ListUtil.replicate(width + 2, "auto")),
                 ),
                 prop_val(
                   "grid-template-rows",
-                  StringUtil.sep(
-                    ["auto", ...ListUtil.replicate(height, "1fr")]
-                    @ ["auto"],
-                  ),
+                  StringUtil.sep(ListUtil.replicate(height + 2, "auto")),
                 ),
               ]),
             ),
