@@ -7,6 +7,7 @@ type op_shape =
   | SMinus
   | SPlus
   | SPlusPlus
+  | SQuotation
   | STimes
   | SLessThan
   | SGreaterThan
@@ -27,6 +28,7 @@ let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   | SMinus
   | SPlus
   | SPlusPlus
+  | SQuotation
   | STimes
   | SAnd
   | SOr
@@ -91,8 +93,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   switch (op) {
   | Minus => SMinus
   | Plus => SPlus
-  | PlusPlus => SPlusPlus
-  | 
+  | PlusPlus => SPlusPlus 
   | Times => STimes
   | LessThan => SLessThan
   | GreaterThan => SGreaterThan
