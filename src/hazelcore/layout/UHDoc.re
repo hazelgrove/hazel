@@ -78,6 +78,8 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole) =>
 let annot_Case = (~err: ErrStatus.t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
+let annot_Id = (uhid: UHAnnot.uhid, d) => Doc.annot(UHAnnot.Id(uhid), d);
+
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
@@ -126,22 +128,26 @@ let pad_child =
       ~inline_padding: (t, t)=(empty_, empty_),
       child: formatted_child,
     )
-    : t => {
+    : (UHAnnot.uhid, t) => {
   open Doc;
-  // TODO review child annotation and simplify if possible
+  // TODO review child annotation and simplify if possible.
+
+  // NOTE: this id is use exacly once in each choice.  (Otherwise, we would get
+  // either a missing or duplicate id.)
+  let child_id = UHAnnot.mk_id();
   let annot_child = is_open ? annot_OpenChild : annot_ClosedChild;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
     let lpadding = left == empty_ ? [] : [left |> annot_Padding];
     let rpadding = right == empty_ ? [] : [right |> annot_Padding];
     hcats([
-      hcats(List.concat([lpadding, [child_doc], rpadding]))
+      hcats(List.concat([lpadding, [annot_Id(child_id, child_doc)], rpadding]))
       |> annot_child(~is_inline=true),
     ]);
   };
   let para_choice = child_doc =>
-    child_doc |> indent_and_align |> annot_child(~is_inline=false);
-  switch (child) {
+    child_doc |> indent_and_align |> annot_child(~is_inline=false) |> annot_Id(child_id);
+  let padded_child_doc = switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
     hcats([user_newline, linebreak(), para_choice(child_doc), linebreak()])
@@ -155,6 +161,7 @@ let pad_child =
       ]),
     ])
   };
+  (child_id, padded_child_doc);
 };
 
 let pad_open_child = pad_child(~is_open=true);
@@ -252,27 +259,31 @@ let mk_Lam =
       body: formatted_child,
     )
     : t => {
-  let open_group = {
-    let lam_delim = Delim.sym_Lam();
-    let open_delim = Delim.open_Lam();
-    let doc =
-      switch (ann) {
-      | None => Doc.hcats([lam_delim, p |> pad_closed_child, open_delim])
-      | Some(ann) =>
-        let colon_delim = Delim.colon_Lam();
-        Doc.hcats([
-          lam_delim,
-          p |> pad_closed_child,
-          colon_delim,
-          ann |> pad_closed_child,
-          open_delim,
-        ]);
-      };
-    doc |> annot_DelimGroup;
+  let (open_group_id, open_group) = {
+    let (lam_id, lam_delim) = UHAnnot.wrap_uhid(Delim.sym_Lam());
+    let (p_id, p_padded) = p |> pad_closed_child;
+    let (open_id, open_delim) = UHAnnot.wrap_uhid(Delim.open_Lam());
+    (switch (ann) {
+    | None =>      
+      Doc.hcats([lam_delim, p_padded, open_delim])
+      |> annot_DelimGroup(lam_id, open_id,)
+    | Some(ann) =>
+      let colon_delim = Delim.colon_Lam();
+      let (ann_id, ann_padded) = ann |> pad_closed_child;
+      Doc.hcats([
+        lam_delim,
+        p_padded,
+        colon_delim,
+        ann_padded,
+        open_delim,
+      ]);
+    })
+    |> UHAnnot.wrap_uhid;
   };
   let close_group = Delim.close_Lam() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
-  |> annot_Operand(~sort=Exp, ~err);
+  |> annot_Operand(~sort=Exp, ~err)
+  |> UHAnnot.wrap_uhid;
 };
 
 let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
