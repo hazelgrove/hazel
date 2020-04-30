@@ -130,14 +130,23 @@ let update_program = (~undoable, new_program, model) => {
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
         ? si : UserSelectedInstances.init;
-    switch (model.compute_results, new_program |> Program.cursor_on_inst) {
+    switch (
+      model.compute_results,
+      new_program |> Program.cursor_through_insts,
+    ) {
     | (false, _)
-    | (_, None) => si
-    | (true, Some((kind, u))) =>
-      switch (si |> UserSelectedInstances.lookup(kind, u)) {
-      | None => si |> UserSelectedInstances.insert_or_update((kind, (u, 0)))
-      | Some(_) => si
-      }
+    | (_, []) => si
+    | (true, insts) =>
+      insts
+      |> List.fold_left(
+           (si, (kind, u)) =>
+             switch (si |> UserSelectedInstances.lookup(kind, u)) {
+             | None =>
+               si |> UserSelectedInstances.insert_or_update((kind, (u, 0)))
+             | Some(_) => si
+             },
+           si,
+         )
     };
   };
   model

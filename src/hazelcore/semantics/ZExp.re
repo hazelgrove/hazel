@@ -1013,37 +1013,46 @@ and move_cursor_right_zrule =
     | Some(zclause) => Some(RuleZE(p, zclause))
     };
 
-let rec cursor_on_inst = ze => cursor_on_inst_zblock(ze)
-and cursor_on_inst_zblock = ((_, zline, _)) => cursor_on_inst_zline(zline)
-and cursor_on_inst_zline =
+let rec cursor_through_insts = ze => _cursor_inst_zblock(ze)
+and _cursor_inst_zblock = ((_, zline, _)) => _cursor_inst_zline(zline)
+and _cursor_inst_zline =
   fun
-  | CursorL(_) => None
-  | ExpLineZ(zopseq) => cursor_on_inst_zopseq(zopseq)
+  | CursorL(_) => []
+  | ExpLineZ(zopseq) => _cursor_inst_zopseq(zopseq)
   | LetLineZP(_)
-  | LetLineZA(_) => None
-  | LetLineZE(_, _, ze) => cursor_on_inst(ze)
-and cursor_on_inst_zopseq =
+  | LetLineZA(_) => []
+  | LetLineZE(_, _, ze) => cursor_through_insts(ze)
+and _cursor_inst_zopseq =
   fun
-  | ZOpSeq(_, ZOperator(_)) => None
-  | ZOpSeq(_, ZOperand(zoperand, _)) => cursor_on_inst_zoperand(zoperand)
-and cursor_on_inst_zoperand =
+  | ZOpSeq(_, ZOperator(_)) => []
+  | ZOpSeq(_, ZOperand(zoperand, _)) => _cursor_inst_zoperand(zoperand)
+and _cursor_inst_zoperand =
   fun
-  | CursorE(_, EmptyHole(u)) => Some((TaggedNodeInstance.Hole, u))
-  | CursorE(_, ApLivelit(llu, _, _, _, _)) =>
-    Some((TaggedNodeInstance.Livelit, llu))
+  | CursorE(_, EmptyHole(u)) => [(TaggedNodeInstance.Hole, u)]
+  | CursorE(_, ApLivelit(llu, _, _, _, _)) => [
+      (TaggedNodeInstance.Livelit, llu),
+    ]
   | CursorE(_)
   | LamZP(_)
   | LamZA(_)
-  | CaseZA(_) => None
+  | CaseZA(_) => []
   | LamZE(_, _, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
-  | CaseZE(_, ze, _, _) => cursor_on_inst(ze)
-  | ApLivelitZ(_, _, _, _, zsplice_info) =>
-    cursor_on_inst(ZSpliceInfo.prj_ze(zsplice_info))
-  | CaseZR(_, _, (_, zrule, _), _) => cursor_on_inst_zrule(zrule)
-and cursor_on_inst_zrule =
+  | CaseZE(_, ze, _, _) => cursor_through_insts(ze)
+  | ApLivelitZ(llu, _, _, _, zsplice_info) => [
+      (TaggedNodeInstance.Livelit, llu),
+      ...cursor_through_insts(ZSpliceInfo.prj_ze(zsplice_info)),
+    ]
+  | CaseZR(_, _, (_, zrule, _), _) => _cursor_inst_zrule(zrule)
+and _cursor_inst_zrule =
   fun
   | CursorR(_)
-  | RuleZP(_) => None
-  | RuleZE(_, ze) => cursor_on_inst(ze);
+  | RuleZP(_) => []
+  | RuleZE(_, ze) => cursor_through_insts(ze);
+
+let cursor_on_inst = ze =>
+  switch (List.rev(_cursor_inst_zblock(ze))) {
+  | [] => None
+  | [i, ..._] => Some(i)
+  };

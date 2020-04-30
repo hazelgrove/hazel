@@ -159,6 +159,11 @@ let _cursor_on_inst =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_inst);
 let cursor_on_inst = program => program |> get_zexp |> _cursor_on_inst;
 
+let _cursor_through_insts =
+  Memo.general(~cache_size_bound=1000, ZExp.cursor_through_insts);
+let cursor_through_insts = program =>
+  program |> get_zexp |> _cursor_through_insts;
+
 let get_layout = program => {
   let width = program |> get_width;
   let (doc, splice_docs) = program |> get_doc;

@@ -55,3 +55,4 @@ let get_decorated_layout: t => UHLayout.with_splices;
 let get_cursor_map: t => CursorMap.with_splices;
 
 let cursor_on_inst: t => option((TaggedNodeInstance.kind, MetaVar.t));
+let cursor_through_insts: t => list((TaggedNodeInstance.kind, MetaVar.t));
