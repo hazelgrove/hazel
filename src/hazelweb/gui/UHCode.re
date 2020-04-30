@@ -190,7 +190,7 @@ let view =
             [splice_getters_to_vdom(get_splice_div, get_splice_value)];
           };
         [
-          Vdom.Node.div(
+          Vdom.Node.span(
             [Vdom.Attr.on_mousedown(_ => Vdom.Event.Stop_propagation)],
             vs,
           ),
