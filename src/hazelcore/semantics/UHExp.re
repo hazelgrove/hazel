@@ -7,6 +7,7 @@ type op =
   | Plus
   | Minus
   | Times
+  | PlusPlus
   | LessThan
   | GreaterThan
   | Equals

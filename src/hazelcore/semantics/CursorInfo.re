@@ -365,6 +365,7 @@ let rec _ana_cursor_found_pat =
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
@@ -384,6 +385,7 @@ let rec _ana_cursor_found_pat =
   | Var(InHole(WrongLength, _), _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
@@ -419,6 +421,14 @@ let rec _ana_cursor_found_pat =
     Some(
       CursorNotOnDeferredVarPat((
         PatAnaSubsumed(ty, Bool),
+        Pat(OtherPat(p)),
+        ctx,
+      )),
+    )
+  | StringLit(NotInHole, _) =>
+    Some(
+      CursorNotOnDeferredVarPat((
+        PatAnaSubsumed(ty, String),
         Pat(OtherPat(p)),
         ctx,
       )),
@@ -982,6 +992,7 @@ and _ana_cursor_found_exp =
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -996,6 +1007,7 @@ and _ana_cursor_found_exp =
   | Var(InHole(WrongLength, _), _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _)) => None
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -1021,6 +1033,7 @@ and _ana_cursor_found_exp =
   | EmptyHole(_)
   | Var(NotInHole, NotInVarHole, _)
   | NumLit(NotInHole, _)
+  | StringLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
     switch (Statics.syn_exp(ctx, e)) {
     | None => None
@@ -1050,6 +1063,7 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, And | Or, _, _), _)
   | OpSeq(BinOp(NotInHole, Minus, _, _), _)
   | OpSeq(BinOp(NotInHole, Plus, _, _), _)
+  | OpSeq(BinOp(NotInHole, PlusPlus, _, _), _)
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
   | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
   | OpSeq(BinOp(NotInHole, GreaterThan, _, _), _)
@@ -1762,6 +1776,39 @@ and _syn_cursor_info_skel =
       | None => None
       }
     }
+  | BinOp(_, PlusPlus, skel1, skel2) =>
+    switch (
+      _ana_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        ze_n,
+        String,
+      )
+    ) {
+    | Some(_) as result => result
+    | None =>
+      switch (
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          ze_n,
+          String,
+        )
+      ) {
+      | Some(_) as result => result
+      | None => None
+      }
+    }
   | BinOp(_, Space, Placeholder(n') as skel1, skel2) =>
     if (n == n') {
       switch (_syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze_n)) {
@@ -2121,6 +2168,7 @@ and _ana_cursor_info_skel =
     }
   | BinOp(_, Minus | And | Or, _, _)
   | BinOp(_, Plus, _, _)
+  | BinOp(_, PlusPlus, _, _)
   | BinOp(_, Times, _, _)
   | BinOp(_, LessThan | GreaterThan | Equals, _, _)
   | BinOp(_, Space, _, _) =>

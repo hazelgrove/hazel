@@ -113,6 +113,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       KeyCombo.Details.key_B,
     );
 
+  let constructString =
+    action_button(
+      Action.Construct(Action.SString),
+      twopiece_lbl_kw("String", " type"),
+      KeyCombo.Details.key_S,
+    );
+
   let constructArrow =
     action_button(
       Action.(Construct(SOp(SArrow))),
@@ -180,6 +187,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.Node.text("enter number literals directly"),
     );
 
+  let constructStringLit =
+    info_button(
+      ~can_perform=Action.can_enter_str(cursor_info),
+      Vdom.Node.text("enter string literals directly"),
+    );
+
   let constructLam =
     action_button(
       Action.Construct(Action.SLam),
@@ -199,6 +212,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Action.(Construct(SOp(STimes))),
       twopiece_lbl_op("*", " operator"),
       KeyCombo.Details.asterisk,
+    );
+
+  let constructPlusPlus =
+    action_button(
+      Action.(Construct(SOp(SPlusPlus))),
+      twopiece_lbl_op("^", " operator"),
+      KeyCombo.Details.plusplus,
     );
 
   let constructLessThan =
@@ -287,6 +307,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               constructNum,
               constructBool,
+              constructString,
               constructList,
               constructArrow,
               constructSum,
@@ -316,6 +337,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               constructNumLit,
               constructPlus,
               constructTimes,
+              constructStringLit,
+              constructPlusPlus,
               constructLessThan,
               constructBoolLit,
               constructComma,

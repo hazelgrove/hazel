@@ -16,6 +16,7 @@ type t =
   | Unit
   | Num
   | Bool
+  | String
   /* inner nodes */
   | Parenthesized(t)
   | List(t)
@@ -31,6 +32,7 @@ let bidelimited = (uty: t): bool =>
   | Unit
   | Num
   | Bool => true
+  | String => true
   /* inner nodes */
   | Parenthesized(_) => true
   | List(_) => true
@@ -59,6 +61,7 @@ let rec contract = (ty: HTyp.t): t => {
   | Unit => Unit
   | Num => Num
   | Bool => Bool
+  | String => String
   | Arrow(ty1, ty2) => mk_opseq(Arrow, contract(ty1), contract(ty2))
   | Prod(ty1, ty2) => mk_opseq(Prod, contract(ty1), contract(ty2))
   | Sum(ty1, ty2) => mk_opseq(Sum, contract(ty1), contract(ty2))
@@ -72,6 +75,7 @@ let rec expand = (uty: t): HTyp.t =>
   | Unit => Unit
   | Num => Num
   | Bool => Bool
+  | String => String
   | Parenthesized(uty1) => expand(uty1)
   | List(uty1) => List(expand(uty1))
   | OpSeq(skel, seq) => expand_skel(skel, seq)
@@ -103,6 +107,7 @@ let child_indices =
   | Unit
   | Num
   | Bool => []
+  | String => []
   | Parenthesized(_)
   | List(_) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));
@@ -113,6 +118,7 @@ let favored_child: t => option((ChildIndex.t, t)) =
   | Unit
   | Num
   | Bool
+  | String
   | OpSeq(_, _) => None
   | Parenthesized(ty)
   | List(ty) => Some((0, ty));

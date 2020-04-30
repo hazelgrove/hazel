@@ -56,6 +56,8 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.node => Action.t) =
       (KeyCombo.Plus, _ => Action.Construct(SOp(SPlus))),
       (KeyCombo.Minus, _ => Action.Construct(SOp(SMinus))),
       (KeyCombo.Asterisk, _ => Action.Construct(SOp(STimes))),
+      (KeyCombo.PlusPlus, _ => Action.Construct(SOp(SPlusPlus))),
+      (KeyCombo.LeftQuotation, _ => Action.Construct(SOp(SQuotation))),
       (KeyCombo.LT, _ => Action.Construct(SOp(SLessThan))),
       (KeyCombo.Space, _ => Action.Construct(SOp(SSpace))),
       (KeyCombo.Comma, _ => Action.Construct(SOp(SComma))),
@@ -108,8 +110,11 @@ let entered_single_key =
       };
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
   | (
-      Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
-      Pat(OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(_, _)),
+      Exp(NumLit(_, _) | BoolLit(_, _) | StringLit(_, _) | Var(_, _, _)) |
+      Pat(
+        OtherPat(NumLit(_, _) | BoolLit(_, _) | StringLit(_, _)) |
+        VarPat(_, _),
+      ),
       _,
     ) =>
     let (nodeValue, anchorOffset) =
@@ -120,6 +125,13 @@ let entered_single_key =
         )
       | (Exp(BoolLit(_, b)) | Pat(OtherPat(BoolLit(_, b))), OnText(j)) => (
           b ? "true" : "false",
+          j,
+        )
+      | (
+          Exp(StringLit(_, s)) | Pat(OtherPat(StringLit(_, s))),
+          OnText(j),
+        ) => (
+          s,
           j,
         )
       | (Exp(Var(_, _, x)) | Pat(VarPat(x, _)), OnText(j)) => (x, j)

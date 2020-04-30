@@ -7,6 +7,7 @@ type t =
   | Unit
   | Num
   | Bool
+  | String
   | Arrow(t, t)
   | Prod(t, t)
   | Sum(t, t)
@@ -18,6 +19,7 @@ let rec num_tms = (ty: t): int =>
   | Unit
   | Num
   | Bool
+  | String
   | List(_) => 1
   | Arrow(ty1, ty2)
   | Prod(ty1, ty2)
@@ -35,6 +37,8 @@ let rec eq = (ty1, ty2) =>
   | (Num, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
+  | (String, String) => true
+  | (String, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
   | (Arrow(_, _), _) => false
   | (Prod(ty1, ty2), Prod(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
@@ -56,6 +60,8 @@ let rec consistent = (x, y) =>
   | (Num, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
+  | (String, String) => true
+  | (String, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Prod(ty1, ty2), Prod(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
@@ -167,6 +173,7 @@ let rec complete =
   | Unit => true
   | Num => true
   | Bool => true
+  | String => true
   | Arrow(ty1, ty2) =>
     if (complete(ty1)) {
       complete(ty2);
@@ -197,6 +204,8 @@ let rec join = (ty1, ty2) =>
   | (Num, _) => None
   | (Bool, Bool) => Some(ty1)
   | (Bool, _) => None
+  | (String, String) => Some(ty1)
+  | (String, _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))

@@ -453,12 +453,15 @@ module KeyCombo = {
     let right_parens = no_ctrl_alt_meta(Key.the_key(")"));
     let left_bracket = no_ctrl_alt_meta(Key.the_key("["));
     let right_bracket = no_ctrl_alt_meta(Key.the_key("]"));
+    let left_quotation = no_ctrl_alt_meta(Key.the_key("\""));
+    let right_quotation = no_ctrl_alt_meta(Key.the_key("\""));
     let qmark = no_ctrl_alt_meta(Key.the_key("?"));
     let equals = no_ctrl_alt_meta(Key.the_key("="));
     let pound = no_ctrl_alt_meta(Key.the_key("#"));
     let plus = no_ctrl_alt_meta(Key.the_key("+"));
     let minus = no_ctrl_alt_meta(Key.the_key("-"));
     let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
+    let plusplus = no_ctrl_alt_meta(Key.the_key("^"));
     let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
     let comma = no_ctrl_alt_meta(Key.the_key(","));
     let vbar = no_ctrl_alt_meta(Key.the_key("|"));
@@ -474,6 +477,7 @@ module KeyCombo = {
     let alt_F = alt(Key.the_key("F"));
     let key_B = no_ctrl_alt_meta(Key.the_key("B"));
     let key_N = no_ctrl_alt_meta(Key.the_key("N"));
+    let key_S = no_ctrl_alt_meta(Key.the_key("S"));
     let key_L = no_ctrl_alt_meta(Key.the_key("L"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
@@ -487,6 +491,7 @@ module KeyCombo = {
     | Tab
     | Key_N
     | Key_B
+    | Key_S
     | GT
     | Ampersand
     | VBar
@@ -499,10 +504,12 @@ module KeyCombo = {
     | Plus
     | Minus
     | Asterisk
+    | PlusPlus
     | LT
     | Space
     | Comma
     | LeftBracket
+    | LeftQuotation
     | Semicolon
     | Alt_L
     | Alt_R
@@ -519,6 +526,7 @@ module KeyCombo = {
     | Tab => Details.tab
     | Key_N => Details.key_N
     | Key_B => Details.key_B
+    | Key_S => Details.key_S
     | GT => Details.gt
     | Ampersand => Details.ampersand
     | VBar => Details.vbar
@@ -531,10 +539,12 @@ module KeyCombo = {
     | Plus => Details.plus
     | Minus => Details.minus
     | Asterisk => Details.asterisk
+    | PlusPlus => Details.plusplus
     | LT => Details.lt
     | Space => Details.space
     | Comma => Details.comma
     | LeftBracket => Details.left_bracket
+    | LeftQuotation => Details.left_quotation
     | Semicolon => Details.semicolon
     | Alt_L => Details.alt_L
     | Alt_R => Details.alt_R
@@ -562,6 +572,8 @@ module KeyCombo = {
       Some(Key_N);
     } else if (evt_matches(Details.key_B)) {
       Some(Key_B);
+    } else if (evt_matches(Details.key_S)) {
+      Some(Key_S);
     } else if (evt_matches(Details.gt)) {
       Some(GT);
     } else if (evt_matches(Details.ampersand)) {
@@ -586,6 +598,8 @@ module KeyCombo = {
       Some(Minus);
     } else if (evt_matches(Details.asterisk)) {
       Some(Asterisk);
+    } else if (evt_matches(Details.plusplus)) {
+      Some(PlusPlus);
     } else if (evt_matches(Details.lt)) {
       Some(LT);
     } else if (evt_matches(Details.space)) {
@@ -594,6 +608,8 @@ module KeyCombo = {
       Some(Comma);
     } else if (evt_matches(Details.left_bracket)) {
       Some(LeftBracket);
+    } else if (evt_matches(Details.left_quotation)) {
+      Some(LeftQuotation);
     } else if (evt_matches(Details.semicolon)) {
       Some(Semicolon);
     } else if (evt_matches(Details.alt_L)) {

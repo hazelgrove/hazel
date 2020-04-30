@@ -11,7 +11,7 @@ let rec binds_var = (x: Var.t, p: UHPat.t): bool =>
   | Var(InHole(_, _), _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
-  // | StringLit(_, _)
+  | StringLit(_, _)
   | ListNil(_)
   | Inj(InHole(_, _), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y

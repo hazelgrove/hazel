@@ -42,6 +42,8 @@ let doc_of_NumLit = (n: int): doc => Text(string_of_int(n));
 
 let doc_of_BoolLit = (b: bool): doc => Text(string_of_bool(b));
 
+let doc_of_StringLit = (s: string): doc => Text(s);
+
 let doc_of_ListNil: doc = Text("[]");
 
 let doc_of_Parenthesized = (sbody_doc: doc): doc => {
@@ -161,6 +163,7 @@ let rec doc_of_separated_pat =
       | Var(_, _, x) => doc_of_Var(x)
       | NumLit(_, n) => doc_of_NumLit(n)
       | BoolLit(_, b) => doc_of_BoolLit(b)
+      | StringLit(_, s) => doc_of_StringLit(s)
       | ListNil(_) => doc_of_ListNil
       | Inj(_, side, body) =>
         let sbody_doc =

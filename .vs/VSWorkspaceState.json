@@ -1,0 +1,10 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\src",
+    "\\src\\hazelcore",
+    "\\src\\hazelcore\\semantics"
+  ],
+  "SelectedNode": "\\src\\hazelcore\\semantics\\ZPat.re",
+  "PreviewInSolutionExplorer": false
+}
