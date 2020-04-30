@@ -22,6 +22,11 @@ let valid_cursors = (p: UHPat.t): list(CursorPosition.t) =>
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
+  | StringLit(_, s) =>
+    List.append(
+      CursorPosition.delim_cursors(1),
+      CursorPosition.text_cursors(String.length(s)),
+    )
   | ListNil(_) => CursorPosition.delim_cursors(1)
   | Inj(_, _, _) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
@@ -164,6 +169,7 @@ let rec is_before = (zp: t): bool =>
   | CursorP(cursor, NumLit(_, _))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
   /* inner nodes */
+  | CursorP(cursor, StringLit(_, _)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorP(_, OpSeq(_, _)) => false
@@ -185,6 +191,7 @@ let rec is_after = (zp: t): bool =>
   | CursorP(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   /* inner nodes */
+  | CursorP(cursor, StringLit(_, _)) => cursor == OnDelim(1, After)
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorP(_, OpSeq(_, _)) => false
@@ -200,6 +207,7 @@ let rec place_before = (p: UHPat.t): t =>
   /* outer nodes - delimiter */
   | EmptyHole(_)
   | Wild(_)
+  | StringLit(_, _) => CursorP(OnDelim(0, Before), p)
   | ListNil(_) => CursorP(OnDelim(0, Before), p)
   /* outer nodes - text */
   | Var(_, _, _)
@@ -226,6 +234,7 @@ let rec place_after = (p: UHPat.t): t =>
   | NumLit(_, n) => CursorP(OnText(num_digits(n)), p)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), p)
   /* inner nodes */
+  | StringLit(_, _) => CursorP(OnDelim(1, After), p)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), p)
   | Parenthesized(_) => CursorP(OnDelim(1, After), p)
   | OpSeq(skel, seq) =>
@@ -259,7 +268,11 @@ let rec move_cursor_left = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_before(zp) => None
   | CursorP(Staging(_), _) => None
+  | CursorP(OnText(0), e) => Some(CursorP(OnDelim(0, After), e))
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j - 1), p))
+  | CursorP(OnDelim(1, Before), StringLit(_, b) as e) =>
+    Some(CursorP(OnText(String.length(b)), e))
+  | CursorP(OnDelim(_, Before), StringLit(_, _)) => assert(false)
   | CursorP(OnDelim(k, After), p) => Some(CursorP(OnDelim(k, Before), p))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
   | CursorP(OnDelim(_k, Before), Parenthesized(p1)) =>
@@ -315,6 +328,16 @@ let rec move_cursor_right = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_after(zp) => None
   | CursorP(Staging(_), _) => None
+  | CursorP(OnDelim(1, After), StringLit(a, b)) =>
+    Some(CursorP(OnDelim(1, After), StringLit(a, b)))
+  | CursorP(OnDelim(0, After), e) => Some(CursorP(OnText(0), e))
+  | CursorP(OnDelim(_, After), StringLit(_, _)) => assert(false)
+  | CursorP(OnText(j), StringLit(a, b)) =>
+    if (j == String.length(b)) {
+      Some(CursorP(OnDelim(1, Before), StringLit(a, b)));
+    } else {
+      Some(CursorP(OnText(j + 1), StringLit(a, b)));
+    }
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None

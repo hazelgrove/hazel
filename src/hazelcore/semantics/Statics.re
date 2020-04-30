@@ -24,6 +24,7 @@ let rec syn_pat =
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let p' = UHPat.set_err_status_t(NotInHole, p);
@@ -35,6 +36,7 @@ let rec syn_pat =
   | Var(InHole(WrongLength, _), _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
@@ -48,6 +50,7 @@ let rec syn_pat =
     )
   | NumLit(NotInHole, _) => Some((Num, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
+  | StringLit(NotInHole, _) => Some((String, ctx))
   | ListNil(NotInHole) => Some((List(Hole), ctx))
   | Inj(NotInHole, inj_side, p1) =>
     switch (syn_pat(ctx, p1)) {
@@ -147,6 +150,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let p' = UHPat.set_err_status_t(NotInHole, p);
@@ -158,6 +162,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | Var(InHole(WrongLength, _), _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
@@ -167,6 +172,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
   | Wild(NotInHole) => Some(ctx)
   | NumLit(NotInHole, _)
+  | StringLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
     switch (syn_pat(ctx, p)) {
     | None => None
@@ -562,13 +568,22 @@ and syn_skel =
     | Some((_, mode)) => Some((Hole, mode))
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => None
-  | BinOp(NotInHole, Minus, skel1, skel2)
   | BinOp(NotInHole, Plus, skel1, skel2)
+  | BinOp(NotInHole, Minus, skel1, skel2)
   | BinOp(NotInHole, Times, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Num, monitor)) {
     | None => None
     | Some(mode1) =>
       switch (ana_skel(ctx, skel2, seq, Num, monitor)) {
+      | None => None
+      | Some(mode2) => Some((Num, combine_modes(mode1, mode2)))
+      }
+    }
+  | BinOp(NotInHole, PlusPlus, skel1, skel2) =>
+    switch (ana_skel(ctx, skel1, seq, HTyp.String, monitor)) {
+    | None => None
+    | Some(mode1) =>
+      switch (ana_skel(ctx, skel2, seq, HTyp.String, monitor)) {
       | None => None
       | Some(mode2) => Some((Num, combine_modes(mode1, mode2)))
       }
@@ -941,7 +956,9 @@ and ana_skel =
   | BinOp(InHole(TypeInconsistent, _), _, _, _)
   | BinOp(
       NotInHole,
-      And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals | Space,
+      And | Or | Minus | Plus | Times | PlusPlus | LessThan | GreaterThan |
+      Equals |
+      Space,
       _,
       _,
     ) =>
@@ -994,6 +1011,7 @@ let rec syn_fix_holes_pat =
     }
   | NumLit(_, _) => (p_nih, Num, ctx, u_gen)
   | BoolLit(_, _) => (p_nih, Bool, ctx, u_gen)
+  | StringLit(_, _) => (p_nih, String, ctx, u_gen)
   | ListNil(_) => (p_nih, List(Hole), ctx, u_gen)
   | Parenthesized(p) =>
     let (p, ty, ctx, u_gen) =
@@ -1109,6 +1127,7 @@ and ana_fix_holes_pat =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     (p_nih, ctx, u_gen);
   | NumLit(_, _)
+  | StringLit(_, _)
   | BoolLit(_, _) =>
     let (p', ty', ctx, u_gen) =
       syn_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p);
@@ -1489,7 +1508,7 @@ and syn_fix_holes_exp =
     };
   | NumLit(_, _) => (e_nih, Num, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
-  | StringLit(_, _) => (E_nih, String, u_gen)
+  | StringLit(_, _) => (e_nih, String, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
   | Parenthesized(block) =>
     let (block, ty, u_gen) =
@@ -1845,6 +1864,26 @@ and syn_fix_holes_exp_skel =
         HTyp.Num,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Num, u_gen);
+  | BinOp(_, PlusPlus as op, skel1, skel2) =>
+    let (skel1, seq, u_gen) =
+      ana_fix_holes_exp_skel(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        skel1,
+        seq,
+        HTyp.String,
+      );
+    let (skel2, seq, u_gen) =
+      ana_fix_holes_exp_skel(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        skel2,
+        seq,
+        HTyp.String,
+      );
+    (BinOp(NotInHole, op, skel1, skel2), seq, String, u_gen);
   | BinOp(_, (And | Or) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_exp_skel(
@@ -2114,7 +2153,9 @@ and ana_fix_holes_exp_skel =
     }
   | BinOp(
       _,
-      And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals | Space,
+      And | Or | Minus | Plus | PlusPlus | Times | LessThan | GreaterThan |
+      Equals |
+      Space,
       _,
       _,
     ) =>

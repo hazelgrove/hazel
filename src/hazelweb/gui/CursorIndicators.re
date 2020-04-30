@@ -66,6 +66,7 @@ let rec collect_holes_pat: UHPat.t => holes_steps =
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
+  | StringLit(err, _)
   | ListNil(err) => err_holes(err)
   | Parenthesized(p) => cons_holes(0, collect_holes_pat(p))
   | OpSeq(skel, seq) => collect_holes_pat_skel(skel, seq)
@@ -141,6 +142,7 @@ and collect_holes_exp: UHExp.t => holes_steps =
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
+  | StringLit(err, _)
   | ListNil(err) => err_holes(err)
   | Lam(err, p, _, def) =>
     concat_holes(

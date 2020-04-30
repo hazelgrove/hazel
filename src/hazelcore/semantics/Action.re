@@ -6,6 +6,7 @@ open Sexplib.Std;
 type op_shape =
   | SMinus
   | SPlus
+  | SPlusPlus
   | STimes
   | SLessThan
   | SGreaterThan
@@ -25,6 +26,7 @@ let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   | SVBar => Some(Sum)
   | SMinus
   | SPlus
+  | SPlusPlus
   | STimes
   | SAnd
   | SOr
@@ -51,6 +53,7 @@ let pat_op_of = (os: op_shape): option(UHPat.op) =>
   | SOr
   | SMinus
   | SPlus
+  | SPlusPlus
   | STimes
   | SLessThan
   | SGreaterThan
@@ -71,6 +74,7 @@ let exp_op_of = (os: op_shape): option(UHExp.op) =>
   | SPlus => Some(Plus)
   | SMinus => Some(Minus)
   | STimes => Some(Times)
+  | SPlusPlus => Some(PlusPlus)
   | SLessThan => Some(LessThan)
   | SGreaterThan => Some(GreaterThan)
   | SEquals => Some(Equals)
@@ -87,6 +91,8 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   switch (op) {
   | Minus => SMinus
   | Plus => SPlus
+  | PlusPlus => SPlusPlus
+  | 
   | Times => STimes
   | LessThan => SLessThan
   | GreaterThan => SGreaterThan
@@ -104,12 +110,14 @@ type shape =
   /* type shapes */
   | SNum
   | SBool
+  | SString
   | SList
   /* expression shapes */
   | SAsc
   | SVar(Var.t, CursorPosition.t)
   | SLam
   | SNumLit(int, CursorPosition.t)
+  | SStringLit(string, CursorPosition.t)
   | SListNil
   | SInj(InjSide.t)
   | SLet
@@ -155,7 +163,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (
       _,
       CursorT(OnText(_), _) |
-      CursorT(Staging(_), Hole | Unit | Num | Bool | OpSeq(_, _)),
+      CursorT(Staging(_), Hole | Unit | Num | Bool | String | OpSeq(_, _)),
     ) =>
     // invalid cursor position
     Failed
@@ -241,7 +249,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     ZTyp.is_after(zty) ? Succeeded(ZTyp.place_before(uty)) : Failed
   | (Delete, CursorT(_, Hole as uty)) =>
     ZTyp.is_before(zty) ? Succeeded(ZTyp.place_after(uty)) : Failed
-  | (Backspace | Delete, CursorT(_, Unit | Num | Bool)) =>
+  | (Backspace | Delete, CursorT(_, Unit | Num | Bool | String)) =>
     Succeeded(ZTyp.place_before(Hole))
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
@@ -352,6 +360,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SBool), CursorT(_, Hole)) =>
     Succeeded(ZTyp.place_after(Bool))
   | (Construct(SBool), CursorT(_, _)) => Failed
+  | (Construct(SString), CursorT(_, Hole)) =>
+    Succeeded(ZTyp.place_after(String))
+  | (Construct(SString), CursorT(_, _)) => Failed
   | (Construct(SList), CursorT(_, _)) => Succeeded(ListZ(zty))
   | (Construct(SOp(os)), CursorT(_, _)) =>
     let uty = ZTyp.erase(zty);
@@ -462,6 +473,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SVar(_, _)), _)
   | (Construct(SLam), _)
   | (Construct(SNumLit(_, _)), _)
+  | (Construct(SStringLit(_, _)), _)
   | (Construct(SListNil), _)
   | (Construct(SInj(_)), _)
   | (Construct(SCase), _)
@@ -1279,11 +1291,15 @@ let rec syn_perform_pat =
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
         Inj(_, _, _),
       ) |
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
+      CursorP(
+        OnDelim(_, _),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ) |
       CursorP(
         Staging(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
         BoolLit(_, _) |
+        StringLit(_, _) |
         OpSeq(_, _),
       ),
     ) =>
@@ -1403,7 +1419,9 @@ let rec syn_perform_pat =
       Backspace | Delete,
       CursorP(
         OnText(_) | OnDelim(_, _),
-        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
+        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) |
+        StringLit(_, _) |
+        ListNil(_),
       ),
     ) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -1718,6 +1736,7 @@ let rec syn_perform_pat =
   | (Construct(SWild), CursorP(_, Wild(_)))
   | (Construct(SWild), CursorP(_, Var(_, _, _)))
   | (Construct(SWild), CursorP(_, NumLit(_, _)))
+  | (Construct(SWild), CursorP(_, StringLit(_, _)))
   | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
     Succeeded((ZPat.place_after(Wild(NotInHole)), Hole, ctx, u_gen))
   | (Construct(SWild), CursorP(_, _)) => Failed
@@ -1725,9 +1744,31 @@ let rec syn_perform_pat =
   | (Construct(SNumLit(n, cursor)), CursorP(_, Wild(_)))
   | (Construct(SNumLit(n, cursor)), CursorP(_, Var(_, _, _)))
   | (Construct(SNumLit(n, cursor)), CursorP(_, NumLit(_, _)))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, StringLit(_, _)))
   | (Construct(SNumLit(n, cursor)), CursorP(_, BoolLit(_, _))) =>
     Succeeded((CursorP(cursor, NumLit(NotInHole, n)), Num, ctx, u_gen))
   | (Construct(SNumLit(_, _)), CursorP(_, _)) => Failed
+  | (
+      Construct(SStringLit(n, cursor)),
+      CursorP(
+        OnDelim(_, _),
+        EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
+        Inj(_, _, _),
+      ),
+    )
+  | (
+      Construct(SStringLit(n, cursor)),
+      CursorP(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ),
+    ) =>
+    Succeeded((
+      CursorP(cursor, StringLit(NotInHole, n)),
+      String,
+      ctx,
+      u_gen,
+    ))
   | (Construct(SInj(side)), CursorP(_, _)) =>
     switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
     | None => Failed
@@ -1896,6 +1937,7 @@ let rec syn_perform_pat =
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SString), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
@@ -1915,11 +1957,15 @@ and ana_perform_pat =
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
         Inj(_, _, _),
       ) |
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
+      CursorP(
+        OnDelim(_, _),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ) |
       CursorP(
         Staging(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
         BoolLit(_, _) |
+        StringLit(_, _) |
         OpSeq(_, _),
       ),
     ) =>
@@ -2053,7 +2099,9 @@ and ana_perform_pat =
       Backspace | Delete,
       CursorP(
         OnText(_) | OnDelim(_, _),
-        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
+        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) |
+        StringLit(_, _) |
+        ListNil(_),
       ),
     ) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -2346,6 +2394,7 @@ and ana_perform_pat =
   | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
   | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, StringLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
     switch (Keyword.transform_to_kw(x)) {
     | TermKW(_, p, ty') =>
@@ -2381,6 +2430,7 @@ and ana_perform_pat =
   | (Construct(SWild), CursorP(_, Wild(_)))
   | (Construct(SWild), CursorP(_, Var(_, _, _)))
   | (Construct(SWild), CursorP(_, NumLit(_, _)))
+  | (Construct(SWild), CursorP(_, StringLit(_, _)))
   | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
     Succeeded((ZPat.place_after(Wild(NotInHole)), ctx, u_gen))
   | (Construct(SWild), CursorP(_, _)) => Failed
@@ -2560,6 +2610,21 @@ and ana_perform_pat =
     };
   /* Subsumption */
   | (Construct(SNumLit(_, _)), _)
+  | (
+      Construct(SStringLit(_, _)),
+      CursorP(
+        OnDelim(_, _),
+        EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
+        Inj(_, _, _),
+      ),
+    )
+  | (
+      Construct(SStringLit(_, _)),
+      CursorP(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ),
+    )
   | (Construct(SListNil), _) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp)) {
     | (Failed | CantShift | CursorEscaped(_)) as err => err
@@ -2576,6 +2641,7 @@ and ana_perform_pat =
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SString), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
@@ -3918,6 +3984,7 @@ and syn_perform_exp =
       CursorE(
         Staging(_),
         EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+        StringLit(_, _) |
         ListNil(_) |
         OpSeq(_, _) |
         ApPalette(_, _, _, _),
@@ -4039,7 +4106,10 @@ and syn_perform_exp =
       : CursorEscaped(After)
   | (
       Backspace | Delete,
-      CursorE(OnText(_), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
+      CursorE(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ),
     )
   | (Backspace | Delete, CursorE(OnDelim(_, _), ListNil(_))) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -4426,6 +4496,10 @@ and syn_perform_exp =
         Succeeded((E(ze), ty, u_gen));
       }
     }
+  | (Backspace, CursorE(OnDelim(_, After), StringLit(_, _)))
+  | (Backspace, CursorE(OnDelim(_, Before), StringLit(_, _)))
+  | (Delete, CursorE(OnDelim(_, Before), StringLit(_, _)))
+  | (Delete, CursorE(OnDelim(_, After), StringLit(_, _))) => Failed
   /* Construction */
   | (Construct(SLine), CursorE(Staging(k), e)) =>
     let (new_ze, ty, u_gen) =
@@ -4559,6 +4633,7 @@ and syn_perform_exp =
   | (Construct(SVar(x, cursor)), CursorE(_, EmptyHole(_)))
   | (Construct(SVar(x, cursor)), CursorE(_, Var(_, _, _)))
   | (Construct(SVar(x, cursor)), CursorE(_, NumLit(_, _)))
+  | (Construct(SVar(x, cursor)), CursorE(_, StringLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorE(_, BoolLit(_, _))) =>
     switch (Keyword.transform_to_kw(x)) {
     | TermKW(e, _, ty) => Succeeded((E(CursorE(cursor, e)), ty, u_gen))
@@ -4605,9 +4680,23 @@ and syn_perform_exp =
   | (Construct(SNumLit(n, cursor)), CursorE(_, EmptyHole(_)))
   | (Construct(SNumLit(n, cursor)), CursorE(_, NumLit(_, _)))
   | (Construct(SNumLit(n, cursor)), CursorE(_, BoolLit(_, _)))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, StringLit(_, _)))
   | (Construct(SNumLit(n, cursor)), CursorE(_, Var(_, _, _))) =>
     Succeeded((E(CursorE(cursor, NumLit(NotInHole, n))), Num, u_gen))
   | (Construct(SNumLit(_, _)), CursorE(_, _)) => Failed
+  | (
+      Construct(SStringLit(s, cursor)),
+      CursorE(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ),
+    )
+  | (
+      Construct(SStringLit(s, cursor)),
+      CursorE(OnDelim(_, _), EmptyHole(_)),
+    ) =>
+    Succeeded((E(CursorE(cursor, StringLit(NotInHole, s))), String, u_gen))
+  | (Construct(SStringLit(_, _)), CursorE(_, _)) => Failed
   | (Construct(SInj(side)), CursorE(_, _)) =>
     let zblock = ZExp.BlockZE([], ze);
     let ze' = ZExp.InjZ(NotInHole, side, zblock);
@@ -5040,6 +5129,7 @@ and syn_perform_exp =
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SString), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
   }
@@ -5792,7 +5882,8 @@ and ana_perform_exp =
       _,
       CursorE(
         OnDelim(_, _),
-        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApPalette(_, _, _, _),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _) |
+        ApPalette(_, _, _, _),
       ) |
       CursorE(
         OnText(_),
@@ -5805,6 +5896,7 @@ and ana_perform_exp =
       CursorE(
         Staging(_),
         EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+        StringLit(_, _) |
         ListNil(_) |
         OpSeq(_, _) |
         ApPalette(_, _, _, _),
@@ -5941,7 +6033,10 @@ and ana_perform_exp =
       : CursorEscaped(After)
   | (
       Backspace | Delete,
-      CursorE(OnText(_), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
+      CursorE(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+      ),
     )
   | (Backspace | Delete, CursorE(OnDelim(_, _), ListNil(_))) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -6859,12 +6954,14 @@ and ana_perform_exp =
   | (Construct(SLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SNumLit(_, _)), _)
+  | (Construct(SStringLit(_, _)), _)
   | (Construct(SListNil), _)
   | (_, ApPaletteZ(_, _, _, _)) =>
     ana_perform_exp_subsume(~ci, ctx, a, (ze, u_gen), ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SString), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
   }
@@ -6948,9 +7045,11 @@ let can_perform =
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */
+  | Construct(SStringLit(_, _))
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
+  | Construct(SString)
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveToNextHole
@@ -7003,6 +7102,20 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | Exp(NumLit(_, _))
   | Exp(EmptyHole(_))
   | Pat(OtherPat(NumLit(_, _) | EmptyHole(_))) => true
+  | Line(_)
+  | Exp(_)
+  | Rule(_)
+  | Pat(_)
+  | Typ(_) => false
+  };
+
+let can_enter_str = (ci: CursorInfo.t): bool =>
+  switch (ci.node) {
+  | Line(EmptyLine)
+  | Line(ExpLine(EmptyHole(_)))
+  | Exp(StringLit(_, _))
+  | Exp(EmptyHole(_))
+  | Pat(OtherPat(StringLit(_, _) | EmptyHole(_))) => true
   | Line(_)
   | Exp(_)
   | Rule(_)

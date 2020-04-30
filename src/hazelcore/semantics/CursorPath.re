@@ -192,6 +192,7 @@ let rec before_typ = (~steps=[], ty: UHTyp.t): t =>
   | Unit
   | Num
   | Bool => (steps, OnDelim(0, Before))
+  | String => (steps, OnDelim(0, Before))
   | Parenthesized(_)
   | List(_) => (steps, OnDelim(0, Before))
   | OpSeq(_, seq) =>
@@ -207,6 +208,7 @@ let rec before_pat = (~steps=[], p: UHPat.t): t =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => (steps, OnText(0))
+  | StringLit(_, _) => (steps, OnDelim(0, Before))
   | Parenthesized(_)
   | Inj(_, _, _) => (steps, OnDelim(0, Before))
   | OpSeq(_, seq) =>
@@ -255,6 +257,7 @@ let rec follow_ty_and_place_cursor =
     | Unit
     | Num
     | Bool => None
+    | String => None
     | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
@@ -322,6 +325,7 @@ let rec follow_pat_and_place_cursor =
     | (_, Var(_, _, _))
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
+    | (_, StringLit(_, _))
     | (_, ListNil(_)) => None
     /* inner nodes */
     | (0, Parenthesized(p1)) =>
@@ -875,6 +879,7 @@ let rec holes_uty =
   | Unit => holes
   | Num => holes
   | Bool => holes
+  | String => holes
   | Parenthesized(uty1) => holes |> holes_uty(uty1, [0, ...rev_steps])
   | List(uty1) => holes |> holes_uty(uty1, [0, ...rev_steps])
   | OpSeq(skel, seq) =>
@@ -901,6 +906,7 @@ let rec holes_pat =
   | Var(InHole(_, u), _, _)
   | NumLit(InHole(_, u), _)
   | BoolLit(InHole(_, u), _)
+  | StringLit(InHole(_, u), _)
   | ListNil(InHole(_, u))
   | Inj(InHole(_, u), _, _) => [
       (PatHole(u), rev_steps |> List.rev |> append(before_pat(p))),
@@ -914,6 +920,7 @@ let rec holes_pat =
   | Wild(NotInHole) => holes
   | NumLit(NotInHole, _) => holes
   | BoolLit(NotInHole, _) => holes
+  | StringLit(NotInHole, _) => holes
   | ListNil(NotInHole) => holes
   | Parenthesized(p1) => holes |> holes_pat(p1, [0, ...rev_steps])
   | Inj(NotInHole, _, p1) => holes |> holes_pat(p1, [0, ...rev_steps])
@@ -1384,6 +1391,11 @@ let rec holes_zty = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list => {
       hole_selected: None,
       holes_after: [],
     }
+  | CursorT(_, String) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: [],
+    }
   | CursorT(OnDelim(k, _), Parenthesized(uty1))
   | CursorT(OnDelim(k, _), List(uty1)) =>
     holes_Cursor_bracketed(holes_uty, k, uty1, rev_steps)
@@ -1430,6 +1442,7 @@ let rec holes_zpat = (zp: ZPat.t, rev_steps: rev_steps): zhole_list => {
   | CursorP(_, Var(_, _, _))
   | CursorP(_, NumLit(_, _))
   | CursorP(_, BoolLit(_, _))
+  | CursorP(_, StringLit(_, _))
   | CursorP(_, ListNil(_)) => {
       holes_before: [],
       hole_selected: None,

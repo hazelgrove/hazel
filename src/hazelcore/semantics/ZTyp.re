@@ -19,6 +19,7 @@ let valid_cursors = (uty: UHTyp.t): list(CursorPosition.t) =>
   | Unit
   | Num
   | Bool => CursorPosition.delim_cursors(1)
+  | String => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2)
   | OpSeq(_, seq) =>
@@ -48,6 +49,7 @@ let rec is_before = (zty: t): bool =>
   | CursorT(cursor, Unit)
   | CursorT(cursor, Num)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, Before)
+  | CursorT(cursor, String) => cursor == OnDelim(0, Before)
   /* inner nodes */
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
@@ -66,6 +68,7 @@ let rec is_after = (zty: t): bool =>
   | CursorT(cursor, Unit)
   | CursorT(cursor, Num)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
+  | CursorT(cursor, String) => cursor == OnDelim(0, After)
   /* inner nodes */
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
@@ -83,6 +86,7 @@ let rec place_before = (uty: UHTyp.t): t =>
   | Unit
   | Num
   | Bool
+  | String
   /* inner nodes */
   | Parenthesized(_)
   | List(_) => CursorT(OnDelim(0, Before), uty)
@@ -99,6 +103,7 @@ let rec place_after = (uty: UHTyp.t): t =>
   | Hole
   | Unit
   | Num
+  | String
   | Bool => CursorT(OnDelim(0, After), uty)
   /* inner nodes */
   | Parenthesized(_)
@@ -129,6 +134,7 @@ let rec move_cursor_left = (zty: t): option(t) =>
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Num | Bool) => None
+  | CursorT(OnDelim(_, Before), String) => None
   | CursorT(OnDelim(_k, Before), Parenthesized(ty1)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
@@ -170,7 +176,7 @@ let rec move_cursor_right = (zty: t): option(t) =>
   | CursorT(Staging(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
-  | CursorT(OnDelim(_, After), Hole | Unit | Num | Bool) => None
+  | CursorT(OnDelim(_, After), Hole | Unit | Num | Bool | String) => None
   | CursorT(OnDelim(_k, After), Parenthesized(ty1)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(ty1)))

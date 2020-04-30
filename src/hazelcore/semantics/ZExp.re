@@ -65,7 +65,11 @@ let valid_cursors_exp = (e: UHExp.t): list(CursorPosition.t) =>
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  | StringLit(_, s) => CursorPosition.text_cursors(String.length(s))
+  | StringLit(_, s) =>
+    List.append(
+      CursorPosition.delim_cursors(1),
+      CursorPosition.text_cursors(String.length(s)),
+    )
   /* inner nodes */
   | Lam(_, _, ann, _) =>
     let colon_positions =
@@ -156,7 +160,7 @@ and is_before_exp = (ze: t): bool =>
   | CursorE(cursor, Var(_, _, _))
   | CursorE(cursor, NumLit(_, _))
   | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0)
-  | CursorE(cursor, StringLit(_, _))
+  | CursorE(cursor, StringLit(_, _)) => cursor == OnDelim(0, Before)
   /* inner nodes */
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
@@ -210,7 +214,7 @@ and is_after_exp = (ze: t): bool =>
   | CursorE(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
-  | CursorE(cursor, StringLit(_, s)) => cursor == OnText(String.length(s))
+  | CursorE(cursor, StringLit(_, _)) => cursor == OnDelim(1, After)
   /* inner nodes */
   | CursorE(_, Lam(_, _, _, _)) => false
   | CursorE(_, Case(_, _, _, Some(_))) => false
@@ -324,7 +328,7 @@ and place_before_exp = (e: UHExp.t): t =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => CursorE(OnText(0), e)
-  | StringLit(_, _)
+  | StringLit(_, _) => CursorE(OnDelim(0, Before), e)
   /* inner nodes */
   | Lam(_, _, _, _)
   | Inj(_, _, _)
@@ -363,7 +367,7 @@ and place_after_exp = (e: UHExp.t): t =>
   | NumLit(_, n) => CursorE(OnText(num_digits(n)), e)
   | BoolLit(_, true) => CursorE(OnText(4), e)
   | BoolLit(_, false) => CursorE(OnText(5), e)
-  | StringLit(_, s) => CursorE(OnText(String.length(s)), e)
+  | StringLit(_, s) => CursorE(OnDelim(String.length(s), After), e)
   /* inner nodes */
   | Lam(err, p, ann, block) => LamZE(err, p, ann, place_after_block(block))
   | Case(err, block, rules, Some(uty)) =>
@@ -794,6 +798,10 @@ and move_cursor_left_exp = (ze: t): option(t) =>
   switch (ze) {
   | _ when is_before_exp(ze) => None
   | CursorE(Staging(_), _) => None
+  | CursorE(OnText(0), e) => Some(CursorE(OnDelim(0, After), e))
+  | CursorE(OnDelim(1, Before), StringLit(_, b) as e) =>
+    Some(CursorE(OnText(String.length(b)), e))
+  | CursorE(OnDelim(_, Before), StringLit(_, _)) => assert(false)
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
@@ -831,10 +839,7 @@ and move_cursor_left_exp = (ze: t): option(t) =>
       )
     }
   | CursorE(_, ApPalette(_, _, _, _)) => None
-  | CursorE(
-      OnDelim(_, _),
-      Var(_, _, _) | BoolLit(_, _) | NumLit(_, _) | StringLit(_, _),
-    ) =>
+  | CursorE(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -1075,6 +1080,20 @@ and move_cursor_right_exp = (ze: t): option(t) =>
   switch (ze) {
   | _ when is_after_exp(ze) => None
   | CursorE(Staging(_), _) => None
+  | CursorE(OnDelim(1, After), StringLit(a, b)) =>
+    Some(CursorE(OnDelim(1, After), StringLit(a, b)))
+  | CursorE(OnDelim(0, After), e) => Some(CursorE(OnText(0), e))
+  | CursorE(OnDelim(_, After), StringLit(_, _)) => assert(false)
+  | CursorE(OnText(j), StringLit(a, b)) =>
+    if (j == String.length(b)) {
+      Some(CursorE(OnDelim(1, Before), StringLit(a, b)));
+    } else {
+      Some(CursorE(OnText(j + 1), StringLit(a, b)));
+    }
+  /* switch (j) {
+     | String.length(b) => Some(CursorE(OnDelim(1, Before), StringLit(_, b)))
+     | _ => Some(CursorE(OnText(j+1), StringLit(_, b)))
+     } */
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
@@ -1111,10 +1130,7 @@ and move_cursor_right_exp = (ze: t): option(t) =>
       ? Some(CaseZE(err, place_before_block(scrut), rules, Some(ann)))
       : Some(CaseZA(err, scrut, rules, ZTyp.place_before(ann)))
   | CursorE(_, ApPalette(_, _, _, _)) => None
-  | CursorE(
-      OnDelim(_, _),
-      Var(_, _, _) | BoolLit(_, _) | NumLit(_, _) | StringLit(_, _),
-    ) =>
+  | CursorE(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>

@@ -25,6 +25,7 @@ type t =
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   /* inner nodes */
   | Parenthesized(t)
@@ -44,6 +45,9 @@ let var =
   Var(err, var_err, x);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
+
+let stringlit = (~err: ErrStatus.t=NotInHole, s: string) =>
+  StringLit(err, s);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
 
@@ -74,6 +78,7 @@ let bidelimited = (p: t): bool =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _) => true
   | ListNil(_) => true
   /* inner nodes */
   | Inj(_, _, _) => true
@@ -107,6 +112,7 @@ let rec get_err_status_t = (p: t): ErrStatus.t =>
   | Var(err, _, _) => err
   | NumLit(err, _) => err
   | BoolLit(err, _) => err
+  | StringLit(err, _) => err
   | ListNil(err) => err
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status_t(p)
@@ -125,6 +131,7 @@ let rec set_err_status_t = (err: ErrStatus.t, p: t): t =>
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
+  | StringLit(_, s) => StringLit(err, s)
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status_t(err, p))
@@ -163,6 +170,7 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) => (p, u_gen)
   /* not in hole */
@@ -170,6 +178,7 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | StringLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -212,6 +221,7 @@ let child_indices =
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _) => []
   | ListNil(_) => []
   | Parenthesized(_) => [0]
   | Inj(_, _, _) => [0]
@@ -224,6 +234,7 @@ let favored_child: t => option((ChildIndex.t, t)) =
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _)
   | ListNil(_)
   | OpSeq(_, _) => None
   | Parenthesized(p)

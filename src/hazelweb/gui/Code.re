@@ -44,6 +44,7 @@ and sbox_shape =
   | Wild
   | NumLit
   | BoolLit
+  | StringLit
   | ListNil
   | Lam
   | Inj
@@ -53,6 +54,7 @@ and sbox_shape =
   | Unit
   | Num
   | Bool
+  | String
   | List
   | Triv
   | EmptyHoleInstance(
@@ -231,6 +233,7 @@ let string_of_op_exp: UHExp.op => string =
   | Minus => "-"
   | Plus => "+"
   | Times => "*"
+  | PlusPlus => "++"
   | LessThan => "<"
   | GreaterThan => ">"
   | Equals => "=="
@@ -257,6 +260,7 @@ let space_before_after_op_exp: UHExp.op => (bool, bool) =
   | Minus => (true, true)
   | Plus => (true, true)
   | Times => (true, true)
+  | PlusPlus => (true, true)
   | LessThan => (true, true)
   | GreaterThan => (true, true)
   | Equals => (true, true)
@@ -583,6 +587,7 @@ let snode_attrs =
         | Wild => [Attr.classes(["Wild", ...base_clss])]
         | NumLit => [Attr.classes(["NumLit", ...base_clss])]
         | BoolLit => [Attr.classes(["BoolLit", ...base_clss])]
+        | StringLit => [Attr.classes(["StringLit", ...base_clss])]
         | ListNil => [Attr.classes(["ListNil", ...base_clss])]
         | Lam => [Attr.classes(["Lam", ...base_clss])]
         | Inj => [Attr.classes(["Inj", ...base_clss])]
@@ -592,6 +597,7 @@ let snode_attrs =
         | Unit => [Attr.classes(["Unit", ...base_clss])]
         | Num => [Attr.classes(["Num", ...base_clss])]
         | Bool => [Attr.classes(["Bool", ...base_clss])]
+        | String => [Attr.classes(["Bool", ...base_clss])]
         | List => [Attr.classes(["List", ...base_clss])]
         | Triv => [Attr.classes(["Triv", ...base_clss])]
         | EmptyHoleInstance(u, i, _sigma) => [
@@ -1441,6 +1447,16 @@ let snode_of_BoolLit =
     ],
   );
 
+let snode_of_StringLit =
+    (~ap_err_status=NotInApHole, ~err, ~steps, s: string): snode =>
+  mk_SBox(
+    ~ap_err_status,
+    ~err,
+    ~steps,
+    ~shape=StringLit,
+    [mk_SLine(~steps_of_first_sword=steps, [SToken(mk_SText(s))])],
+  );
+
 let snode_of_ListNil = (~ap_err_status=NotInApHole, ~err, ~steps, ()): snode =>
   mk_SBox(
     ~ap_err_status,
@@ -1796,6 +1812,18 @@ let snode_of_Num = (~steps, ()) =>
     ],
   );
 
+let snode_of_String = (~steps, ()) =>
+  mk_SBox(
+    ~steps,
+    ~shape=String,
+    [
+      mk_SLine(
+        ~steps_of_first_sword=steps,
+        [SToken(mk_SDelim(~index=0, "String"))],
+      ),
+    ],
+  );
+
 let snode_of_Unit = (~steps, ()) =>
   mk_SBox(
     ~steps,
@@ -1814,6 +1842,7 @@ let rec snode_of_typ = (~steps: CursorPath.steps=[], uty: UHTyp.t): snode =>
   | Unit => snode_of_Unit(~steps, ())
   | Num => snode_of_Num(~steps, ())
   | Bool => snode_of_Bool(~steps, ())
+  | String => snode_of_String(~steps, ())
   | Parenthesized(body) =>
     let sbody = snode_of_typ(~steps=steps @ [0], body);
     snode_of_Parenthesized(~steps, sbody);
@@ -1889,6 +1918,7 @@ let rec snode_of_pat =
     snode_of_Var(~ap_err_status, ~err, ~var_err, ~steps, x)
   | NumLit(err, n) => snode_of_NumLit(~ap_err_status, ~err, ~steps, n)
   | BoolLit(err, b) => snode_of_BoolLit(~ap_err_status, ~err, ~steps, b)
+  | StringLit(err, s) => snode_of_StringLit(~ap_err_status, ~err, ~steps, s)
   | ListNil(err) => snode_of_ListNil(~ap_err_status, ~err, ~steps, ())
   | Inj(err, side, body) =>
     let sbody = snode_of_pat(~steps=steps @ [0], body);
@@ -2031,6 +2061,7 @@ and snode_of_exp =
     snode_of_Var(~ap_err_status, ~err, ~var_err, ~steps, x)
   | NumLit(err, n) => snode_of_NumLit(~err, ~steps, n)
   | BoolLit(err, b) => snode_of_BoolLit(~err, ~steps, b)
+  | StringLit(err, s) => snode_of_StringLit(~err, ~steps, s)
   | ListNil(err) => snode_of_ListNil(~err, ~steps, ())
   /* inner nodes */
   | Lam(err, arg, ann, body) =>
@@ -2637,6 +2668,7 @@ let precedence_ty = (ty: HTyp.t): int =>
   switch (ty) {
   | Num
   | Bool
+  | String
   | Hole
   | Unit
   | List(_) => precedence_const
@@ -2649,6 +2681,7 @@ let precedence_Ap = 1;
 let precedence_Times = 2;
 let precedence_Plus = 3;
 let precedence_Minus = 3;
+let precedence_PlusPlus = 3;
 let precedence_Cons = 4;
 let precedence_LessThan = 5;
 let precedence_GreaterThan = 5;
@@ -2666,6 +2699,7 @@ let precedence_dhpat = (dp: DHPat.t) =>
   | Var(_)
   | NumLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | Inj(_, _)
   | Triv
   | ListNil
@@ -2680,6 +2714,7 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   | IntermediateKW(_, _, _, _)
   | BoolLit(_)
   | NumLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Inj(_, _, _)
   | Pair(_, _)
@@ -2698,6 +2733,7 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   | BinNumOp(LessThan, _, _) => precedence_LessThan
   | BinNumOp(GreaterThan, _, _) => precedence_GreaterThan
   | BinNumOp(Equals, _, _) => precedence_Equals
+  | BinStrOp(PlusPlus, _, _) => precedence_PlusPlus
   | Cons(_, _) => precedence_Cons
   | NonEmptyHole(_, _, _, _, d1) => precedence_dhexp(d1)
   | And(_, _) => precedence_And
@@ -2772,6 +2808,7 @@ let rec snode_of_htyp =
   | Hole => snode_of_EmptyHole(~steps, "?")
   | Bool => snode_of_Bool(~steps, ())
   | Num => snode_of_Num(~steps, ())
+  | String => snode_of_String(~steps, ())
   | Unit => snode_of_Unit(~steps, ())
   | List(ty1) =>
     let sty1 = snode_of_htyp(~steps=steps @ [0], ty1);
@@ -2864,6 +2901,7 @@ let rec snode_of_dhpat =
   | Var(x) => snode_of_Var(~err, ~var_err=NotInVarHole, ~steps, x)
   | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
   | NumLit(n) => snode_of_NumLit(~err, ~steps, n)
+  | StringLit(s) => snode_of_StringLit(~err, ~steps, s)
   | Triv => snode_of_Triv(~err, ~steps)
   | ListNil => snode_of_ListNil(~err, ~steps, ())
   | Inj(side, dp1) =>
@@ -2932,6 +2970,7 @@ let rec snode_of_dhexp =
   | Triv => snode_of_Triv(~err, ~steps)
   | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
   | NumLit(n) => snode_of_NumLit(~err, ~steps, n)
+  | StringLit(s) => snode_of_StringLit(~err, ~steps, s)
   | ListNil(_) => snode_of_ListNil(~err, ~steps, ())
   | BoundVar(x) => snode_of_Var(~err, ~var_err=NotInVarHole, ~steps, x)
   | FreeVar(u, _, _, x) =>
@@ -2980,6 +3019,21 @@ let rec snode_of_dhexp =
     snode_of_Case(~err, ~steps, sscrut, srules, None);
   | BinNumOp(dop, d1, d2) =>
     let sop = string_of_op_exp(DHExp.to_op(dop));
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_dhexp(d),
+        ~steps=steps @ [0],
+        d1,
+      );
+    let s2 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d2) >= precedence_dhexp(d),
+        ~steps=steps @ [1],
+        d2,
+      );
+    snode_of_BinOp(~err, ~steps, s1, sop, s2);
+  | BinStrOp(dop, d1, d2) =>
+    let sop = string_of_op_exp(DHExp.to_op2(dop));
     let s1 =
       snode_of_dhexp(
         ~parenthesize=precedence_dhexp(d1) > precedence_dhexp(d),
