@@ -5,13 +5,12 @@ type err_state_b =
   | BindingError
   | OK;
 
-let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+let view = (model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(
         [Attr.classes(["infobar", "typebar"])],
-        [Code.view_of_htyp(~inject, ty)],
+        [HTypCode.view(ty)],
       )
     );
   let matched_ty_bar = (ty1, ty2) =>
@@ -19,12 +18,12 @@ let view =
       Node.div(
         [Attr.classes(["infobar", "matched-type-bar"])],
         [
-          Code.view_of_htyp(~inject, ty1),
+          HTypCode.view(ty1),
           Node.span(
             [Attr.classes(["matched-connective"])],
             [Node.text(" ▶ ")],
           ),
-          Code.view_of_htyp(~inject, ty2),
+          HTypCode.view(ty2),
         ],
       )
     );
@@ -94,8 +93,9 @@ let view =
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
+  let ci = model |> Model.get_program |> Program.get_cursor_info;
   let (ind1, ind2, err_state_b) =
-    switch (model.cursor_info.typed) {
+    switch (ci.typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
@@ -235,11 +235,6 @@ let view =
       let ind2 = got_a_line_indicator;
       (ind1, ind2, OK);
     | OnRule =>
-      /* TODO */
-      let ind1 = expected_a_rule_indicator;
-      let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
-    | OnOp =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;

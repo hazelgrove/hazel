@@ -1,0 +1,7 @@
+(include_subdirs unqualified)
+
+(library
+ (name pretty)
+ (libraries sexplib uutf)
+ (preprocess
+  (pps ppx_let ppx_sexp_conv)))

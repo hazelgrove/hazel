@@ -1,7 +1,6 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
-open GeneralUtil;
 open Incr_dom;
 
 // https://github.com/janestreet/incr_dom/blob/6aa4aca2cfc82a17bbcc0424ff6b0ae3d6d8d540/example/text_input/README.md
@@ -12,20 +11,49 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("selectionchange"), Dom_html.document, _ =>
-      schedule_action(Update.Action.SelectionChange)
+  let update_font_metrics = () => {
+    let rect =
+      JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
+    schedule_action(
+      Update.Action.UpdateFontMetrics({
+        row_height: rect##.bottom -. rect##.top,
+        col_width: rect##.right -. rect##.left,
+      }),
     );
-  Dom_html.window##.onfocus :=
+  };
+  Dom_html.window##.onresize :=
     Dom_html.handler(_ => {
-      schedule_action(Update.Action.FocusWindow);
+      update_font_metrics();
       Js._true;
     });
-  schedule_action(Update.Action.FocusCell);
-  Async_kernel.Deferred.return(
-    State.{setting_caret: ref(false), changing_cards: ref(false)},
-  );
+  update_font_metrics();
+
+  Dom_html.window##.onfocus :=
+    Dom_html.handler(_ => {
+      Cell.focus();
+      Js._true;
+    });
+  Cell.focus();
+
+  Async_kernel.Deferred.return(State.{changing_cards: ref(false)});
+};
+
+let restart_cursor_animation = caret_elem => {
+  caret_elem##.classList##remove(Js.string("blink"));
+  // necessary to trigger reflow
+  let _ = caret_elem##getBoundingClientRect;
+  caret_elem##.classList##add(Js.string("blink"));
+};
+
+let scroll_cursor_into_view_if_needed = caret_elem => {
+  let page_rect =
+    JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+  if (caret_rect##.top < page_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > page_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
 };
 
 let create =
@@ -39,61 +67,12 @@ let create =
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
-        let path = model |> Model.path;
-        if (! state.changing_cards^) {
-          // Currently drawing non-empty hole borders along with the
-          // cursor indicators on each render. This is due to an
-          // unfortunate confluence of contenteditable, indented
-          // multi-lining, and the desire to not include indentation
-          // when decorating a deeply indented Hazel ast node.
-          // contenteditable requires us to make all dom elements
-          // representing editable code be inline elements (otherwise
-          // the caret moves in strange ways). Now suppose we have a
-          // dom element representing some deeply indented multi-line
-          // node of the Hazel program. Due to its inline layout, the
-          // dom element must structurally include the indentation. So
-          // if we simply decorated this dom element by styling that
-          // element, we would include the indentation, resulting in
-          // strange term and non-empty hole indicators that extend
-          // beyond the textual code. Thus, we need to draw non-empty
-          // hole indicators along with cursor indicators after the
-          // code text has been rendered so we can position them in
-          // terms of viewport coordinates.
-          // TODO figure out better solution
-          CursorIndicators.draw_hole_indicators(
-            model,
-          );
-        };
-        if (state.changing_cards^) {
-          switch (Code.caret_position_of_path(path)) {
-          | None => assert(false)
-          | Some((node, offset)) =>
-            state.setting_caret := true;
-            JSUtil.set_caret(node, offset);
-          };
-          state.changing_cards := false;
-        } else if (model.is_cell_focused) {
-          let (_, cursor) = path;
-          switch (cursor) {
-          | OnText(_)
-          | OnDelim(_, _) =>
-            if (!Code.is_caret_consistent_with_path(path)) {
-              state.setting_caret := true;
-              let (node, offset) =
-                Code.caret_position_of_path(path)
-                |> Opt.get(_ => assert(false));
-              JSUtil.set_caret(node, offset);
-            } else {
-              state.setting_caret := false;
-              CursorIndicators.draw(~ci=model.cursor_info);
-            }
-          | Staging(_delim_index) =>
-            JSUtil.unset_caret();
-            CursorIndicators.draw(~ci=model.cursor_info);
-          };
-        };
-      },
+      (_, ~schedule_action as _) =>
+        if (Model.is_cell_focused(model)) {
+          let caret_elem = JSUtil.force_get_elem_by_id("caret");
+          restart_cursor_animation(caret_elem);
+          scroll_cursor_into_view_if_needed(caret_elem);
+        },
     model,
     Page.view(~inject, model),
   );
