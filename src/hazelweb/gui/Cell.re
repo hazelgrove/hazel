@@ -36,7 +36,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
       LeftBracket,
       fun
       | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
-      | _ => Action.Construct(SListNil),
+      | _ => Action.Construct(SListLit),
     ),
     (Semicolon, _ => Action.Construct(SOp(SCons))),
     (Alt_L, _ => Action.Construct(SInj(L))),

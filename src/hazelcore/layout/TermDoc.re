@@ -691,6 +691,7 @@ module Pat = {
   let mk_NumLit = mk_NumLit(~family=Pat);
   let mk_BoolLit = mk_BoolLit(~family=Pat);
   let mk_ListNil = mk_ListNil(~family=Pat);
+  let mk_ListLit = mk_ListLit(~family=Pat);
   let mk_Var = mk_Var(~family=Pat);
   let mk_Parenthesized = mk_Parenthesized(~family=Pat);
   let mk_Inj = mk_Inj(~family=Pat);
@@ -723,10 +724,14 @@ module Pat = {
     | Var(err, verr, x) => mk_Var(~steps, ~err, ~verr, x)
     | NumLit(err, n) => mk_NumLit(~err, ~steps, n)
     | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
-    | ListNil(err) => mk_ListNil(~err, ~steps, ())
+    // | ListNil(err) => mk_ListNil(~err, ~steps, ())
+    | ListLit(err, None) => mk_ListNil(~err, ~steps, ())
     | Parenthesized(body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
       mk_Parenthesized(~steps, body);
+    | ListLit(err, Some(body)) =>
+      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
+      mk_ListLit(~err, ~steps, body);
     | Inj(err, inj_side, body) =>
       let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
       mk_Inj(~err, ~steps, ~inj_side, body);

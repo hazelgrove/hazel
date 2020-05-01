@@ -24,7 +24,7 @@ type shape =
   | SChar(string)
   | SAsc
   | SLam
-  | SListNil
+  | SListLit
   | SInj(InjSide.t)
   | SLet
   | SLine
@@ -171,7 +171,7 @@ module Typ = {
     | (
         UpdateApPalette(_) |
         Construct(
-          SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+          SAsc | SLet | SLine | SLam | SListLit | SInj(_) | SCase |
           SApPalette(_),
         ),
         _,
@@ -258,7 +258,7 @@ module Typ = {
     | (
         UpdateApPalette(_) |
         Construct(
-          SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+          SAsc | SLet | SLine | SLam | SListLit | SInj(_) | SCase |
           SApPalette(_),
         ),
         _,
@@ -1121,11 +1121,14 @@ module Pat = {
       : Outcome.t(syn_success) => {
     switch (a, zoperand) {
     /* Invalid cursor positions */
+    // | (_, CursorP (OnText _, ListLit (_, Some _)))
+    // | (Delete, CursorP (OnText _, ListLit (_, Some _)))
     | (
         _,
         CursorP(
           OnText(_),
-          EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
+          EmptyHole(_) | Wild(_) | Parenthesized(_) | Inj(_) |
+          ListLit(_, Some(_)),
         ) |
         CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
@@ -1179,7 +1182,7 @@ module Pat = {
       let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
       syn_perform(ctx, u_gen, Backspace, new_zp);
 
-    | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
+    | (Backspace, CursorP(OnDelim(_, After), ListLit(_, None) | Wild(_))) =>
       let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, Hole, ctx, u_gen));
@@ -1200,14 +1203,41 @@ module Pat = {
 
     /* ( _ )<|  ==>  _| */
     /* (<| _ )  ==>  |_ */
+    // | (Backspace, CursorP (OnText _, ListLit (_, _))) => Failed
+    // | (Delete, CursorP (OnText _, ListLit (_, _))) => Failed
+    // | (Delete, CursorP(OnText(j), ListLit(_, Some(b)))) =>
+    //   syn_delete_text(ctx, u_gen, j, b)
+
+    // CursorP(OnText(0), ListLit(_, None)) == "CursorP(OnDelim(0, Before), ListLit(_, None))" / backspace -> taken care for
+    // CursorP(OnText(1), ListLit(_, None)) == "CursorP(OnDelim(0, After) | OnDelim(1, Before), ListLit(_, None))"
+    // CursorP(OnText(2), ListLit(_, None)) == "CursorP(OnDelim(1, After), ListLit(_, None))" / delete -> taken care for
+    | (Backspace | Delete, CursorP(OnText(_), ListLit(_, None))) =>
+      // need to generate new hole -
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      Succeeded((ZOpSeq.wrap(zhole), Hole, ctx, u_gen));
+
+    // | (Delete, CursorP(OnText(j), ListLit(_, None))) =>
+    //   // j == 0 || j == 1
+    //   // need to generate new hole
+    //   let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    //   Succeeded((ZOpSeq.wrap(zhole), Hole, u_gen));
+
+    // | (Backspace, CursorP(OnText(j), ListLit(_, Some(x)))) =>
+    //   syn_backspace_text(ctx, u_gen, j, x)
     | (
         Backspace,
-        CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
+        CursorP(
+          OnDelim(k, After),
+          Parenthesized(body) | ListLit(_, Some(body)) | Inj(_, _, body),
+        ),
       ) =>
       let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
       Succeeded(
         Statics.Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor),
       );
+
+    // TODO consider how to implement backspacing on a listlit
+    // - just return the inner zopseq if there is one, otherwise generate a hole
 
     /* Construction */
 
@@ -1258,10 +1288,41 @@ module Pat = {
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorP(_)) => Failed
 
-    | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
-      let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-      Succeeded((zp, List(Hole), ctx, u_gen));
-    | (Construct(SListNil), CursorP(_, _)) => Failed
+    | (Construct(SListLit), CursorP(_, EmptyHole(_))) => Failed
+    // let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
+    //   Succeeded(SynDone((new_ze, ty, u_gen)));
+    // constructing new list elements in empty list
+    // [|]  ==>   [1|]
+    // [1|] ==> [1, 2|]
+    // [1, 2] => [1, 2, 3]
+    // [| 1, 2, 3 ]  CursorP(OnDelim(0, After), Some(...))
+    // [  |1, 2, 3 ]  ListLitZ( _, ZOperand(_, _))
+    | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      switch (syn_perform_operand(ctx, u_gen, a, zhole)) {
+      | (Failed | CursorEscaped(_)) as failed => failed
+      | Succeeded((zp, _, ctx, u_gen)) =>
+        mk_syn_result(ctx, u_gen, ZOpSeq.wrap(ZPat.ListLitZ(err, zp)))
+      };
+    // let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
+    // Succeeded((zp, List(Hole), ctx, u_gen));
+
+    // this is what you want to do
+    // _   ==>   [|] (ZPat.CursorP(OnText(1), UHPat.listlit()))
+
+    /* wrong
+       mk_syn_result(
+         ctx,
+         u_gen,
+         ZOpSeq.wrap(
+           ZPat.listlitz(zopseq),
+           // ZPat.ListLitZ(_err, zopseq)
+         ),
+       )*/
+    | (Construct(SListLit), CursorP(_, _)) => Failed
+
+    // TODO add similar cases in ana_perform_operand
+    // TODO add similar cases to Exp.[syn|ana]_perform_operand
 
     | (Construct(SParenthesized), CursorP(_)) =>
       mk_syn_result(
@@ -1305,6 +1366,14 @@ module Pat = {
       | Succeeded((zbody, ty, ctx, u_gen)) =>
         Succeeded((ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody)), ty, ctx, u_gen))
       }
+    | (_, ListLitZ(err, zbody)) =>
+      switch (syn_perform(ctx, u_gen, a, zbody)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(ctx, u_gen, escape(side), zoperand)
+      | Succeeded((zbody, ty, ctx, u_gen)) =>
+        Succeeded((ZOpSeq.wrap(ZPat.ListLitZ(err, zbody)), ty, ctx, u_gen))
+      }
     | (_, InjZ(_, side, zbody)) =>
       switch (syn_perform(ctx, u_gen, a, zbody)) {
       | Failed => Failed
@@ -1319,6 +1388,18 @@ module Pat = {
           };
         Succeeded((zp, ty, ctx, u_gen));
       }
+    // // constructing new list elements in empty list
+    // // [|]  ==>   [1|]
+    // // [1|] ==> [1, 2|]
+    // | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
+    //   let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    //   switch (syn_perform_operand(ctx, u_gen, a, zhole)) {
+    //   | (Failed | CursorEscaped(_)) as failed => failed
+    //   | Succeeded((zp, _, ctx, u_gen)) =>
+    //     mk_syn_result(ctx, u_gen, ZOpSeq.wrap(ZPat.ListLitZ(err, zp)))
+    //   };
+    // TODO add zipper case for ListLitZ
+    // - similar to ParenthesizedZ case
     };
   }
   and ana_perform =
@@ -1504,7 +1585,8 @@ module Pat = {
         _,
         CursorP(
           OnText(_),
-          EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
+          EmptyHole(_) | Wild(_) | ListLit(_, Some(_)) | Parenthesized(_) |
+          Inj(_),
         ) |
         CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
@@ -1578,7 +1660,7 @@ module Pat = {
       let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
       ana_perform(ctx, u_gen, Backspace, new_zp, ty);
 
-    | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListNil(_))) =>
+    | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListLit(_, None))) =>
       let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, ctx, u_gen));
@@ -1597,11 +1679,19 @@ module Pat = {
     | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
+    | (Backspace | Delete, CursorP(OnText(_), ListLit(_, None))) =>
+      // need to generate new hole -
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
+
     /* ( _ )<|  ==>  _| */
     /* (<| _ )  ==>  |_ */
     | (
         Backspace,
-        CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
+        CursorP(
+          OnDelim(k, After),
+          Parenthesized(body) | ListLit(_, Some(body)) | Inj(_, _, body),
+        ),
       ) =>
       let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
       Succeeded(
@@ -1655,6 +1745,18 @@ module Pat = {
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
     | (Construct(SChar(_)), CursorP(_)) => Failed
 
+    | (Construct(SListLit), CursorP(_, EmptyHole(_))) => Failed
+
+    | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      switch (ana_perform_operand(ctx, u_gen, a, zhole, ty)) {
+      | (Failed | CursorEscaped(_)) as failed => failed
+      | Succeeded((zp, _, u_gen)) =>
+        mk_ana_result(ctx, u_gen, ZOpSeq.wrap(ZPat.ListLitZ(err, zp)), ty)
+      };
+
+    // | (Construct(SListLit), CursorP(_, _)) => Failed
+
     | (Construct(SParenthesized), CursorP(_)) =>
       let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
       mk_ana_result(ctx, u_gen, new_zp, ty);
@@ -1704,6 +1806,14 @@ module Pat = {
         let zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody));
         Succeeded((zp, ctx, u_gen));
       }
+    | (_, ListLitZ(err, zbody)) =>
+      switch (ana_perform(ctx, u_gen, a, zbody, ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(ctx, u_gen, escape(side), zoperand, ty)
+      | Succeeded((zbody, ctx, u_gen)) =>
+        Succeeded((ZOpSeq.wrap(ZPat.ListLitZ(err, zbody)), ctx, u_gen))
+      }
     | (_, InjZ(_, side, zbody)) =>
       switch (HTyp.matched_sum(ty)) {
       | None => Failed
@@ -1720,7 +1830,7 @@ module Pat = {
       }
 
     /* Subsumption */
-    | (Construct(SListNil), _) =>
+    | (Construct(SListLit), _) =>
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zp, ty', ctx, u_gen)) =>
@@ -2985,26 +3095,17 @@ module Exp = {
           | _one => ZExp.place_after
           }
         };
+      // \ x : ty .{  ... }
       let new_ze = e |> place_cursor;
       Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
     | (Backspace, CursorE(OnDelim(_, After), ListLit(_, None))) => Failed
-    | (
-        Backspace,
-        CursorE(OnDelim(k, After), ListLit(_, Some(opseq)) as operand),
-      ) =>
+    | (Backspace, CursorE(OnDelim(k, After), ListLit(_, Some(opseq)))) =>
+      // [ 1, 2, 3 ]|  ==>  1, 2, 3|
+      // [| 1, 2, 3 ]  ==>  |1, 2, 3
       let place_cursor =
-        switch (operand) {
-        | Lam(_) =>
-          switch (k) {
-          | 0
-          | 2 => ZExp.place_before
-          | _three => ZExp.place_after
-          }
-        | _ =>
-          switch (k) {
-          | 0 => ZExp.place_before
-          | _one => ZExp.place_after
-          }
+        switch (k) {
+        | 0 => ZExp.place_before
+        | _one => ZExp.place_after
         };
       let new_ze = UHExp.Block.wrap'(opseq) |> place_cursor;
       Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
@@ -3093,7 +3194,9 @@ module Exp = {
     //     UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
     //   let new_ty = HTyp.List(Hole);
     // Succeeded(SynDone((new_ze, new_ty, u_gen)));
-    | (Construct(SListNil), CursorE(_)) => Failed
+    | (Construct(SListLit), CursorE(_)) => Failed
+    // let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
+    // Succeeded(SynDone((new_ze, ty, u_gen)));
 
     | (Construct(SParenthesized), CursorE(_)) =>
       let new_ze =
@@ -3265,9 +3368,10 @@ module Exp = {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-      | Succeeded((new_zopseq, new_ty, u_gen)) =>
-        let new_ze = new_zopseq;
+      | Succeeded((([], ExpLineZ(new_zopseq), []), new_ty, u_gen)) =>
+        let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(new_zopseq)); //make the helper function
         Succeeded(SynDone((new_ze, new_ty, u_gen)));
+      | Succeeded(_) => Failed
       }
     | (_, LamZP(_, zp, ann, body)) =>
       let ty1 =
@@ -4451,7 +4555,7 @@ module Exp = {
       }
 
     /* Subsumption */
-    | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
+    | (UpdateApPalette(_) | Construct(SApPalette(_) | SListLit), _)
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     }

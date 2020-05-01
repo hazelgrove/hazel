@@ -75,7 +75,8 @@ module Pat = {
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
+    // | ListNil(InHole(TypeInconsistent as reason, u))
+    | ListLit(InHole(TypeInconsistent as reason, u), None)
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
       let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
@@ -90,7 +91,8 @@ module Pat = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
+    | ListLit(InHole(WrongLength, _), None)
     | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -108,8 +110,10 @@ module Pat = {
       Expands(Var(x), Hole, ctx, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
-    | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
+    // | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
+    | ListLit(NotInHole, None) => Expands(ListNil, List(Hole), ctx, delta)
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
+    | ListLit(_, Some(p1)) => syn_expand(ctx, delta, p1)
     | Inj(NotInHole, side, p) =>
       switch (syn_expand(ctx, delta, p)) {
       | DoesNotExpand => DoesNotExpand
@@ -284,7 +288,8 @@ module Pat = {
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
+    // | ListNil(InHole(TypeInconsistent as reason, u))
+    | ListLit(InHole(TypeInconsistent as reason, u), None)
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
       let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
@@ -300,7 +305,8 @@ module Pat = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
+    | ListLit(InHole(WrongLength, _), None)
     | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -317,12 +323,14 @@ module Pat = {
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
     | NumLit(NotInHole, _)
     | BoolLit(NotInHole, _) => syn_expand_operand(ctx, delta, operand)
-    | ListNil(NotInHole) =>
+    // | ListNil(NotInHole) =>
+    | ListLit(NotInHole, None) =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand
       | Some(ty_elt) => Expands(ListNil, HTyp.List(ty_elt), ctx, delta)
       }
     | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
+    | ListLit(_, Some(p)) => ana_expand(ctx, delta, p, ty)
     | Inj(NotInHole, side, p1) =>
       switch (HTyp.matched_sum(ty)) {
       | None => DoesNotExpand

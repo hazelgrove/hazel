@@ -38,6 +38,9 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
+let listlitz = (~err: ErrStatus.t=NotInHole, zopseq): zoperand =>
+  ListLitZ(err, zopseq);
+
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | ExpLine(_) => []
@@ -81,7 +84,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
-  | ListLit(_, _) => CursorPosition.delim_cursors(2)
+  | ListLit(_, None) => CursorPosition.text_cursors(2) // OnText(0), OnText(1), OnText(2)
+  | ListLit(_, Some(_)) => CursorPosition.delim_cursors(2) // OnDelim(0 | 1, Before | After)
   | ApPalette(_) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);

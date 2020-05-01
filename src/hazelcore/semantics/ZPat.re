@@ -5,6 +5,7 @@ and zoperand =
   | CursorP(CursorPosition.t, UHPat.operand)
   | ParenthesizedZ(t)
   | InjZ(ErrStatus.t, InjSide.t, t)
+  | ListLitZ(ErrStatus.t, zopseq)
 and zoperator = (CursorPosition.t, UHPat.operator);
 
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
@@ -19,7 +20,9 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | Var(_, _, x) => text_cursors(Var.length(x))
     | NumLit(_, n) => text_cursors(IntUtil.num_digits(n))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
-    | ListNil(_) => delim_cursors(1)
+    // | ListNil(_) => delim_cursors(1)
+    | ListLit(_, None) => CursorPosition.text_cursors(2) // OnText(0), OnText(1), OnText(2)
+    | ListLit(_, Some(_)) => CursorPosition.delim_cursors(2) // OnDelim(0 | 1, Before | After)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
   );
@@ -43,6 +46,7 @@ and set_err_status_zoperand = (err, zoperand) =>
   | CursorP(cursor, operand) =>
     CursorP(cursor, operand |> UHPat.set_err_status_operand(err))
   | ParenthesizedZ(zp) => ParenthesizedZ(set_err_status(err, zp))
+  | ListLitZ(_, zp) => ListLitZ(err, zp)
   | InjZ(_, inj_side, zp) => InjZ(err, inj_side, zp)
   };
 
@@ -63,6 +67,9 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> make_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
+  | ListLitZ(err, zp) =>
+    let (zp, u_gen) = zp |> make_inconsistent(u_gen);
+    (ListLitZ(err, zp), u_gen);
   };
 
 let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
@@ -75,6 +82,7 @@ and erase_zoperand =
   | CursorP(_, operand) => operand
   | InjZ(err, inj_side, zp) => Inj(err, inj_side, erase(zp))
   | ParenthesizedZ(zp) => Parenthesized(erase(zp))
+  | ListLitZ(err, zp) => ListLit(err, Some(erase(zp)))
 and erase_zoperator =
   fun
   | (_, op) => op;
@@ -85,13 +93,15 @@ and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  // | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, Var(_, _, _))
   | CursorP(cursor, NumLit(_, _))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
   | CursorP(cursor, Inj(_, _, _))
+  | CursorP(cursor, ListLit(_, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | InjZ(_, _, _)
+  | ListLitZ(_, _)
   | ParenthesizedZ(_) => false;
 let is_before_zoperator: zoperator => bool =
   fun
@@ -103,15 +113,17 @@ and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
-  | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
+  | CursorP(cursor, Wild(_)) => cursor == OnDelim(0, After)
+  // | CursorP(cursor, ListNil(_))
   | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorP(cursor, NumLit(_, n)) =>
     cursor == OnText(IntUtil.num_digits(n))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   | CursorP(cursor, Inj(_, _, _))
+  | CursorP(cursor, ListLit(_, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | InjZ(_, _, _)
+  | ListLitZ(_, _)
   | ParenthesizedZ(_) => false;
 let is_after_zoperator: zoperator => bool =
   fun
@@ -124,12 +136,13 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | Wild(_)
-  | ListNil(_) => CursorP(OnDelim(0, Before), operand)
+  | Wild(_) => CursorP(OnDelim(0, Before), operand)
+  // | ListNil(_)
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
+  | ListLit(_, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   };
 let place_before_operator = (op: UHPat.operator): option(zoperator) =>
@@ -144,12 +157,13 @@ and place_after_opseq = opseq =>
 and place_after_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | Wild(_)
-  | ListNil(_) => CursorP(OnDelim(0, After), operand)
+  | Wild(_) => CursorP(OnDelim(0, After), operand)
+  // | ListNil(_)
   | Var(_, _, x) => CursorP(OnText(Var.length(x)), operand)
   | NumLit(_, n) => CursorP(OnText(IntUtil.num_digits(n)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
-  | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
+  | Inj(_, _, _)
+  | ListLit(_, _)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   };
 let place_after_operator = (op: UHPat.operator): option(zoperator) =>
@@ -200,10 +214,14 @@ and move_cursor_left_zoperand =
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
-  | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_)) => None
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
+  | CursorP(OnDelim(_k, Before), ListLit(_, None)) => None
+  | CursorP(OnDelim(_k, Before), ListLit(err, Some(p))) =>
+    // _k == 1
+    Some(ListLitZ(err, place_after(p)))
   | CursorP(OnDelim(_k, Before), Inj(err, side, p)) =>
     // _k == 1
     Some(InjZ(err, side, place_after(p)))
@@ -214,6 +232,12 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zp)) {
     | Some(zp) => Some(ParenthesizedZ(zp))
     | None => Some(CursorP(OnDelim(0, After), Parenthesized(erase(zp))))
+    }
+  | ListLitZ(err, zp) =>
+    switch (move_cursor_left(zp)) {
+    | Some(zp) => Some(ListLitZ(err, zp))
+    | None =>
+      Some(CursorP(OnDelim(0, After), ListLit(err, Some(erase(zp)))))
     }
   | InjZ(err, side, zp) =>
     switch (move_cursor_left(zp)) {
@@ -245,10 +269,14 @@ and move_cursor_right_zoperand =
   | CursorP(OnOp(_), _) => None
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
-  | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_)) => None
   | CursorP(OnDelim(_k, After), Parenthesized(p)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(p)))
+  | CursorP(OnDelim(_k, After), ListLit(_, None)) => None
+  | CursorP(OnDelim(_k, After), ListLit(err, Some(p))) =>
+    // _k == 0
+    Some(ListLitZ(err, place_before(p)))
   | CursorP(OnDelim(_k, After), Inj(err, side, p)) =>
     // _k == 0
     Some(InjZ(err, side, place_before(p)))
@@ -259,6 +287,12 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zp)) {
     | Some(zp) => Some(ParenthesizedZ(zp))
     | None => Some(CursorP(OnDelim(1, Before), Parenthesized(erase(zp))))
+    }
+  | ListLitZ(err, zp) =>
+    switch (move_cursor_right(zp)) {
+    | Some(zp) => Some(ListLitZ(err, zp))
+    | None =>
+      Some(CursorP(OnDelim(1, Before), ListLit(err, Some(erase(zp)))))
     }
   | InjZ(err, side, zp) =>
     switch (move_cursor_right(zp)) {
