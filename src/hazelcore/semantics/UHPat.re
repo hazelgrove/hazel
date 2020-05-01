@@ -167,3 +167,32 @@ let text_operand =
       u_gen,
     );
   };
+
+let rec is_complete = (pn: t): bool => {
+  switch (pn) {
+  | OpSeq(Placeholder(n) as _skel, seq) =>
+    is_complete_operand(seq |> Seq.nth_operand(n))
+  | OpSeq(BinOp(InHole(_), _, _, _), _) => false
+  | OpSeq(BinOp(NotInHole, _, skel1, skel2), seq) =>
+    is_complete(OpSeq(skel1, seq)) && is_complete(OpSeq(skel2, seq))
+  };
+}
+and is_complete_operand = (operand: 'operand): bool => {
+  switch (operand) {
+  | EmptyHole(_) => false
+  | Wild(InHole(_)) => false
+  | Wild(NotInHole) => true
+  | Var(InHole(_), _, _) => false
+  | Var(NotInHole, InVarHole(_), _) => false
+  | Var(NotInHole, NotInVarHole, _) => true
+  | NumLit(InHole(_), _) => false
+  | NumLit(NotInHole, _) => true
+  | BoolLit(InHole(_), _) => false
+  | BoolLit(NotInHole, _) => true
+  | ListNil(InHole(_)) => false
+  | ListNil(NotInHole) => true
+  | Parenthesized(body) => is_complete(body)
+  | Inj(InHole(_), _, _) => false
+  | Inj(NotInHole, _, body) => is_complete(body)
+  };
+};

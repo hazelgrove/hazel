@@ -319,3 +319,41 @@ let text_operand =
       u_gen,
     );
   };
+
+let rec is_complete_line = (l: line): bool => {
+  switch (l) {
+  | EmptyLine => true
+  | LetLine(pat, _, body) => UHPat.is_complete(pat) && is_complete(body)
+  | ExpLine(body) => OpSeq.is_complete(is_complete_operand, body)
+  };
+}
+and is_complete_block = (b: block): bool => {
+  b |> List.for_all(is_complete_line);
+}
+and is_complete_operand = (operand: 'operand): bool => {
+  switch (operand) {
+  | EmptyHole(_) => false
+  | Var(InHole(_), _, _) => false
+  | Var(NotInHole, InVarHole(_), _) => false
+  | Var(NotInHole, NotInVarHole, _) => true
+  | NumLit(InHole(_), _) => false
+  | NumLit(NotInHole, _) => true
+  | BoolLit(InHole(_), _) => false
+  | BoolLit(NotInHole, _) => true
+  | ListNil(InHole(_)) => false
+  | ListNil(NotInHole) => true
+  | Lam(InHole(_), _, _, _) => false
+  | Lam(NotInHole, pat, _, body) =>
+    UHPat.is_complete(pat) && is_complete(body)
+  | Inj(InHole(_), _, _) => false
+  | Inj(NotInHole, _, body) => is_complete(body)
+  | Case(InHole(_), _, _, _) => false
+  | Case(NotInHole, body, _, _) => is_complete(body)
+  | Parenthesized(body) => is_complete(body)
+  | ApPalette(InHole(_), _, _, _) => false
+  | ApPalette(NotInHole, _, _, _) => true
+  };
+}
+and is_complete = (exp: t): bool => {
+  is_complete_block(exp);
+};
