@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 /* types with holes */
 [@deriving sexp]
 type t =
@@ -12,6 +10,9 @@ type t =
   | Prod(t, t)
   | Sum(t, t)
   | List(t);
+
+// Prod(Num, Num)  ==  (Num, Num)
+// (Prod(Num, Num), Bool)  ==  (Num, Num, Bool)
 
 let rec num_tms = (ty: t): int =>
   switch (ty) {
@@ -85,60 +86,19 @@ let matched_arrow =
 let has_matched_arrow =
   fun
   | Hole => true
-  | Arrow(_, _) => true
+  | Arrow(_) => true
   | _ => false;
 
-/* matched product types */
-let matched_prod =
+let rec get_prod_elements: t => list(t) =
   fun
-  | Hole => Some((Hole, Hole))
-  | Prod(ty1, ty2) => Some((ty1, ty2))
-  | _ => None;
+  | Prod(ty1, ty2) => get_prod_elements(ty1) @ get_prod_elements(ty2)
+  | _ as ty => [ty];
 
-let has_matched_prod =
+let rec make_tuple: list(t) => t =
   fun
-  | Hole => true
-  | Prod(_, _) => true
-  | _ => false;
-
-let rec get_tuple = (ty1: t, ty2: t): ListMinTwo.t(t) =>
-  switch (ty2) {
-  | Prod(ty21, ty22) => ListMinTwo.Cons(ty1, get_tuple(ty21, ty22))
-  | _ => ListMinTwo.Pair(ty1, ty2)
-  };
-
-let rec make_tuple = (tys: ListMinTwo.t(t)): t =>
-  switch (tys) {
-  | Pair(ty1, ty2) => Prod(ty1, ty2)
-  | Cons(ty1, tys) => Prod(ty1, make_tuple(tys))
-  };
-
-let rec zip_with_skels =
-        (skels: ListMinTwo.t('a), types: ListMinTwo.t(t))
-        : (ListMinTwo.t(('a, t)), list('a)) =>
-  switch (skels, types) {
-  | (Pair(skel1, skel2), Pair(ty1, ty2)) => (
-      Pair((skel1, ty1), (skel2, ty2)),
-      [],
-    )
-  | (Cons(skel1, skels), Pair(ty1, ty2)) =>
-    let (skel2, remainder) =
-      switch (skels) {
-      | Pair(s1, s2) => (s1, [s2])
-      | Cons(s, ss) => (s, ListMinTwo.to_list(ss))
-      };
-    (Pair((skel1, ty1), (skel2, ty2)), remainder);
-  | (Pair(skel1, skel2), Cons(ty1, tys)) =>
-    let ty2 =
-      switch (tys) {
-      | Pair(t, _)
-      | Cons(t, _) => t
-      };
-    (Pair((skel1, ty1), (skel2, ty2)), []);
-  | (Cons(skel, skels), Cons(ty, tys)) =>
-    let (tail, remainder) = zip_with_skels(skels, tys);
-    (Cons((skel, ty), tail), remainder);
-  };
+  | [] => failwith("make_tuple: expected at least 1 element")
+  | [ty] => ty
+  | [ty, ...tys] => Prod(ty, make_tuple(tys));
 
 /* matched sum types */
 let matched_sum =
@@ -150,7 +110,7 @@ let matched_sum =
 let has_matched_sum =
   fun
   | Hole => true
-  | Sum(_, _) => true
+  | Sum(_) => true
   | _ => false;
 
 /* matched list types */
@@ -211,19 +171,19 @@ let rec join = (ty1, ty2) =>
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
-  | (Arrow(_, _), _) => None
+  | (Arrow(_), _) => None
   | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
     | _ => None
     }
-  | (Prod(_, _), _) => None
+  | (Prod(_), _) => None
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
     | _ => None
     }
-  | (Sum(_, _), _) => None
+  | (Sum(_), _) => None
   | (List(ty), List(ty')) =>
     switch (join(ty, ty')) {
     | Some(ty) => Some(List(ty))

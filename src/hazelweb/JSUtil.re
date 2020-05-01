@@ -1,5 +1,3 @@
-open Sexplib.Std;
-module U = GeneralUtil;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -7,14 +5,14 @@ module Ev = Dom_html.Event;
 
 let log = x => Js_of_ocaml.Firebug.console##log(x);
 
-let log_sexp = (sexp: Sexplib.Sexp.t) => log(U.string_of_sexp(sexp));
+let log_sexp = (sexp: Sexplib.Sexp.t) => log(Sexplib.Sexp.to_string(sexp));
 
 let get_child_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) =>
   Dom.list_of_nodeList(root##.childNodes);
 
 let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
-  |> U.Opt.map(s => Js.to_string(s));
+  |> OptUtil.map(s => Js.to_string(s));
 
 let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
   switch (elem |> get_attr(attr)) {
@@ -135,15 +133,31 @@ let node_has_cls = (cls: string, node: Js.t(Dom.node)): bool =>
   | Some(elem) => elem_has_cls(cls, elem)
   };
 
+let get_selection_anchor = () => {
+  let selection = Dom_html.window##getSelection;
+  (selection##.anchorNode, selection##.anchorOffset);
+};
+
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
 
 let set_caret = (anchorNode, offset) => {
-  let selection = Dom_html.window##getSelection;
-  let range = Dom_html.document##createRange;
-  range##setStart(anchorNode, offset);
-  range##setEnd(anchorNode, offset);
-  selection##removeAllRanges;
-  selection##addRange(range);
+  let go = () => {
+    let selection = Dom_html.window##getSelection;
+    let range = Dom_html.document##createRange;
+    range##setStart(anchorNode, offset);
+    range##setEnd(anchorNode, offset);
+    selection##removeAllRanges;
+    selection##addRange(range);
+  };
+  switch (go()) {
+  | () => ()
+  | exception e =>
+    log(Js.string(__LOC__ ++ ": Failed to set caret"));
+    log(Js.string(Printexc.to_string(e)));
+    log(anchorNode);
+    log(offset);
+    assert(false);
+  };
 };
 
 let reset_caret = () => {
@@ -201,6 +215,15 @@ let force_get_elem_by_id = id => {
   );
 };
 
+let get_elem_by_cls = cls =>
+  switch (
+    Dom_html.document##getElementsByClassName(Js.string(cls))
+    |> Dom.list_of_nodeList
+  ) {
+  | [] => None
+  | [elem, ..._] => Some(elem)
+  };
+
 let force_get_elem_by_cls = cls =>
   switch (
     Dom_html.document##getElementsByClassName(Js.string(cls))
@@ -216,87 +239,19 @@ let force_get_parent_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.parentNode)
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false))
+  |> OptUtil.get(() => assert(false))
   |> Dom_html.CoerceTo.element
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false));
+  |> OptUtil.get(() => assert(false));
 
 let force_get_next_sibling_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.nextSibling)
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false))
+  |> OptUtil.get(() => assert(false))
   |> Dom_html.CoerceTo.element
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false));
-
-let px = (f: float): string => string_of_float(f) ++ "0px";
-
-[@deriving sexp]
-type rect = {
-  top: float,
-  right: float,
-  bottom: float,
-  left: float,
-};
-
-let get_bounding_rect = (~top_origin=0.0, ~left_origin=0.0, elem) => {
-  let rect = elem##getBoundingClientRect;
-  {
-    top: rect##.top -. top_origin,
-    right: rect##.right -. left_origin,
-    bottom: rect##.bottom -. top_origin,
-    left: rect##.left -. left_origin,
-  };
-};
-
-// indent parameter is how many ch units by which to trim
-// left edge to handle snode elems that contain indented lines
-let place_over_rect = (~indent=0.0, rect, elem) => {
-  elem##.style##.top := Js.string(rect.top |> px);
-  elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);
-  elem##.style##.left :=
-    Js.string(
-      "calc("
-      ++ (rect.left |> px)
-      ++ (
-        indent >= 0.0
-          ? " + " ++ string_of_float(indent) ++ "0"
-          : " - " ++ string_of_float((-1.0) *. indent) ++ "0"
-      )
-      ++ "ch"
-      ++ ")",
-    );
-  elem##.style##.width :=
-    Js.string(
-      "calc("
-      ++ (rect.right -. rect.left |> px)
-      ++ (
-        indent >= 0.0
-          ? " - " ++ string_of_float(indent) ++ "0"
-          : " + " ++ string_of_float((-1.0) *. indent) ++ "0"
-      )
-      ++ "ch"
-      ++ ")",
-    );
-};
-
-let get_covering_rect = rects =>
-  rects
-  |> List.fold_left(
-       (covering_rect, rect) =>
-         {
-           top: U.fmin(covering_rect.top, rect.top),
-           left: U.fmin(covering_rect.left, rect.left),
-           bottom: U.fmax(covering_rect.bottom, rect.bottom),
-           right: U.fmax(covering_rect.right, rect.right),
-         },
-       {top: max_float, left: max_float, bottom: min_float, right: min_float},
-     );
-
-let place_over_elem =
-    (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
-  over_elem |> place_over_rect(under_elem |> get_bounding_rect);
+  |> OptUtil.get(() => assert(false));
 
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
@@ -344,6 +299,7 @@ module ModKeys = {
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
   let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
+  let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -411,7 +367,7 @@ module Key = {
 
   let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
     let recognition_methods = k.recognition_methods;
-    U.any(recognition_methods, recognize(evt));
+    ListUtil.any(recognition_methods, recognize(evt));
   };
 };
 
@@ -429,6 +385,7 @@ module KeyCombo = {
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
     let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
+    let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -475,27 +432,24 @@ module KeyCombo = {
     let alt_PageDown = alt(Key.the_key("PageDown"));
     let alt_T = alt(Key.the_key("T"));
     let alt_F = alt(Key.the_key("F"));
-    let key_B = no_ctrl_alt_meta(Key.the_key("B"));
-    let key_N = no_ctrl_alt_meta(Key.the_key("N"));
-    let key_S = no_ctrl_alt_meta(Key.the_key("S"));
-    let key_L = no_ctrl_alt_meta(Key.the_key("L"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
+    let ctrl_alt_up = ctrl_alt(Key.the_key("ArrowUp"));
+    let ctrl_alt_down = ctrl_alt(Key.the_key("ArrowDown"));
+    let ctrl_alt_left = ctrl_alt(Key.the_key("ArrowLeft"));
+    let ctrl_alt_right = ctrl_alt(Key.the_key("ArrowRight"));
   };
 
+  [@deriving sexp]
   type t =
     | Escape
     | Backspace
     | Delete
     | ShiftTab
     | Tab
-    | Key_N
-    | Key_B
-    | Key_S
     | GT
     | Ampersand
     | VBar
-    | Key_L
     | LeftParen
     | Colon
     | Equals
@@ -514,23 +468,25 @@ module KeyCombo = {
     | Alt_L
     | Alt_R
     | Alt_C
+    | Pound
     | Ctrl_Z
-    | Ctrl_Shift_Z;
+    | Ctrl_Shift_Z
+    | Ctrl_Alt_Up
+    | Ctrl_Alt_Down
+    | Ctrl_Alt_Left
+    | Ctrl_Alt_Right;
 
   let get_details =
     fun
+    | Pound => Details.pound
     | Escape => Details.escape
     | Backspace => Details.backspace
     | Delete => Details.delete
     | ShiftTab => Details.shift_tab
     | Tab => Details.tab
-    | Key_N => Details.key_N
-    | Key_B => Details.key_B
-    | Key_S => Details.key_S
     | GT => Details.gt
     | Ampersand => Details.ampersand
     | VBar => Details.vbar
-    | Key_L => Details.key_L
     | LeftParen => Details.left_parens
     | Colon => Details.colon
     | Equals => Details.equals
@@ -550,11 +506,17 @@ module KeyCombo = {
     | Alt_R => Details.alt_R
     | Alt_C => Details.alt_C
     | Ctrl_Z => Details.ctrl_z
-    | Ctrl_Shift_Z => Details.ctrl_shift_z;
+    | Ctrl_Shift_Z => Details.ctrl_shift_z
+    | Ctrl_Alt_Up => Details.ctrl_alt_up
+    | Ctrl_Alt_Down => Details.ctrl_alt_down
+    | Ctrl_Alt_Left => Details.ctrl_alt_left
+    | Ctrl_Alt_Right => Details.ctrl_alt_right;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
-    if (evt_matches(Details.ctrl_z)) {
+    if (evt_matches(Details.pound)) {
+      Some(Pound);
+    } else if (evt_matches(Details.ctrl_z)) {
       Some(Ctrl_Z);
     } else if (evt_matches(Details.ctrl_shift_z)) {
       Some(Ctrl_Shift_Z);
@@ -568,20 +530,12 @@ module KeyCombo = {
       Some(ShiftTab);
     } else if (evt_matches(Details.tab)) {
       Some(Tab);
-    } else if (evt_matches(Details.key_N)) {
-      Some(Key_N);
-    } else if (evt_matches(Details.key_B)) {
-      Some(Key_B);
-    } else if (evt_matches(Details.key_S)) {
-      Some(Key_S);
     } else if (evt_matches(Details.gt)) {
       Some(GT);
     } else if (evt_matches(Details.ampersand)) {
       Some(Ampersand);
     } else if (evt_matches(Details.vbar)) {
       Some(VBar);
-    } else if (evt_matches(Details.key_L)) {
-      Some(Key_L);
     } else if (evt_matches(Details.left_parens)) {
       Some(LeftParen);
     } else if (evt_matches(Details.colon)) {
@@ -618,6 +572,14 @@ module KeyCombo = {
       Some(Alt_R);
     } else if (evt_matches(Details.alt_C)) {
       Some(Alt_C);
+    } else if (evt_matches(Details.ctrl_alt_up)) {
+      Some(Ctrl_Alt_Up);
+    } else if (evt_matches(Details.ctrl_alt_down)) {
+      Some(Ctrl_Alt_Down);
+    } else if (evt_matches(Details.ctrl_alt_left)) {
+      Some(Ctrl_Alt_Left);
+    } else if (evt_matches(Details.ctrl_alt_right)) {
+      Some(Ctrl_Alt_Right);
     } else {
       None;
     };
@@ -640,7 +602,6 @@ type single_key =
   | Underscore;
 
 let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
-let lowercase_letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-z]");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
@@ -670,6 +631,27 @@ let single_key_string: single_key => string =
     | Underscore => "_"
     };
 
+module MoveKey = {
+  [@deriving sexp]
+  type t =
+    | ArrowLeft
+    | ArrowRight
+    | ArrowUp
+    | ArrowDown
+    | Home
+    | End;
+
+  let of_key =
+    fun
+    | "ArrowLeft" => Some(ArrowLeft)
+    | "ArrowRight" => Some(ArrowRight)
+    | "ArrowDown" => Some(ArrowDown)
+    | "ArrowUp" => Some(ArrowUp)
+    | "Home" => Some(Home)
+    | "End" => Some(End)
+    | _ => None;
+};
+
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {
     let key = get_key(evt);
@@ -677,7 +659,13 @@ let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
     | "ArrowLeft"
     | "ArrowRight"
     | "ArrowUp"
-    | "ArrowDown"
+    | "ArrowDown" =>
+      switch (KeyCombo.of_evt(evt)) {
+      | Some(Ctrl_Alt_Up | Ctrl_Alt_Down | Ctrl_Alt_Left | Ctrl_Alt_Right) =>
+        false
+      | Some(_)
+      | None => true
+      }
     | "PageUp"
     | "PageDown"
     | "Home"
@@ -750,11 +738,11 @@ let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
 
 // TODO: find better Module to put this in
 module Vdom = Virtual_dom.Vdom;
-// let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
+// let contenteditable_of_layout: Layout.t('annot) => Vdom.Node.t =
 //   layout => {
-//     let record: Layout.text('tag, list(Vdom.Node.t), Vdom.Node.t) = {
+//     let record: Layout.text('annot, list(Vdom.Node.t), Vdom.Node.t) = {
 //       imp_of_string: string => [Vdom.Node.text(string)],
-//       imp_of_tag: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
+//       imp_of_annot: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
 //       imp_append: (s1, s2) => s1 @ s2,
 //       imp_newline: _ => [Vdom.Node.br([])],
 //       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
@@ -762,7 +750,8 @@ module Vdom = Virtual_dom.Vdom;
 //     Layout.make_of_layout(record, layout);
 //   };
 
-let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
+open Pretty;
+let rec vdom_of_box = (box: Box.t('annot)): Vdom.Node.t =>
   switch (box) {
   | Text(string) =>
     Vdom.Node.div([Vdom.Attr.classes(["text"])], [Vdom.Node.text(string)])
@@ -770,7 +759,7 @@ let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
     Vdom.Node.div([Vdom.Attr.classes(["hbox"])], List.map(vdom_of_box, bs))
   | VBox(bs) =>
     Vdom.Node.div([Vdom.Attr.classes(["vbox"])], List.map(vdom_of_box, bs))
-  | Tagged(_, b) =>
+  | Annot(_, b) =>
     // TODO
     vdom_of_box(b)
   };

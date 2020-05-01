@@ -1,1 +1,1 @@
-include GeneralUtil.NatMap;
+include NatMap;
