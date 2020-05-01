@@ -87,7 +87,8 @@ module Pat = {
     | Var(InHole(TypeInconsistent, _), _, _)
     | NumLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
+    | ListLit(InHole(TypeInconsistent, _), None)
+    // | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand')
@@ -96,7 +97,8 @@ module Pat = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    | ListLit(InHole(WrongLength, _), None)
+    // | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | Wild(NotInHole) => Some((Hole, ctx))
@@ -109,7 +111,8 @@ module Pat = {
       )
     | NumLit(NotInHole, _) => Some((Num, ctx))
     | BoolLit(NotInHole, _) => Some((Bool, ctx))
-    | ListNil(NotInHole) => Some((List(Hole), ctx))
+    // | ListNil(NotInHole) => Some((List(Hole), ctx))
+    | ListLit(NotInHole, _) => Some((List(Hole), ctx))
     | Inj(NotInHole, inj_side, p1) =>
       switch (syn(ctx, p1)) {
       | None => None
@@ -122,6 +125,7 @@ module Pat = {
         Some((ty, ctx));
       }
     | Parenthesized(p) => syn(ctx, p)
+    | ListLit(_, Some(p)) => syn(ctx, p)
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     ana_opseq(ctx, p, ty)
@@ -189,7 +193,8 @@ module Pat = {
     | Var(InHole(TypeInconsistent, _), _, _)
     | NumLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
+    // | ListNil(InHole(TypeInconsistent, _))
+    | ListLit(InHole(TypeInconsistent, _), None)
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
@@ -197,7 +202,8 @@ module Pat = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
+    // | ListNil(InHole(WrongLength, _))
+    | ListLit(InHole(WrongLength, _), None)
     | Inj(InHole(WrongLength, _), _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
@@ -217,7 +223,8 @@ module Pat = {
           None;
         }
       }
-    | ListNil(NotInHole) =>
+    // | ListNil(NotInHole) =>
+    | ListLit(NotInHole, None) =>
       switch (HTyp.matched_list(ty)) {
       | None => None
       | Some(_) => Some(ctx)
@@ -230,6 +237,7 @@ module Pat = {
         ana(ctx, p1, ty1);
       }
     | Parenthesized(p) => ana(ctx, p, ty)
+    | ListLit(_, Some(p)) => ana(ctx, p, ty)
     };
 
   /**
@@ -437,11 +445,16 @@ module Pat = {
       (operand_nih, Hole, ctx, u_gen);
     | NumLit(_, _) => (operand_nih, Num, ctx, u_gen)
     | BoolLit(_, _) => (operand_nih, Bool, ctx, u_gen)
-    | ListNil(_) => (operand_nih, List(Hole), ctx, u_gen)
+    // | ListNil(_) => (operand_nih, List(Hole), ctx, u_gen)
+    | ListLit(_, None) => (operand_nih, List(Hole), ctx, u_gen)
     | Parenthesized(p) =>
       let (p, ty, ctx, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
       (Parenthesized(p), ty, ctx, u_gen);
+    | ListLit(err, Some(p)) =>
+      let (p, ty, ctx, u_gen) =
+        syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+      (ListLit(err, Some(p)), ty, ctx, u_gen);
     | Inj(_, side, p1) =>
       let (p1, ty1, ctx, u_gen) =
         syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
@@ -694,17 +707,22 @@ module Pat = {
           u_gen,
         );
       };
-    | ListNil(_) =>
+    // | ListNil(_) =>
+    | ListLit(_, None) =>
       switch (HTyp.matched_list(ty)) {
-      | Some(_) => (ListNil(NotInHole), ctx, u_gen)
+      | Some(_) => (ListLit(NotInHole, None), ctx, u_gen)
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        (ListNil(InHole(TypeInconsistent, u)), ctx, u_gen);
+        (ListLit(InHole(TypeInconsistent, u), None), ctx, u_gen);
       }
     | Parenthesized(p1) =>
       let (p1, ctx, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
       (Parenthesized(p1), ctx, u_gen);
+    | ListLit(err, Some(p1)) =>
+      let (p1, ctx, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1, ty);
+      (ListLit(err, Some(p1)), ctx, u_gen);
     | Inj(_, side, p1) =>
       switch (HTyp.matched_sum(ty)) {
       | Some((tyL, tyR)) =>

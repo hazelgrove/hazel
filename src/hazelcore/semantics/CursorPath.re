@@ -566,6 +566,7 @@ module Pat = {
     fun
     | CursorP(cursor, _) => ([], cursor)
     | ParenthesizedZ(zbody)
+    | ListLitZ(_, zbody)
     | InjZ(_, _, zbody) => cons'(0, of_z(zbody));
 
   let rec follow = (path: t, p: UHPat.t): option(ZPat.t) =>
@@ -582,14 +583,23 @@ module Pat = {
       | Wild(_)
       | Var(_, _, _)
       | NumLit(_, _)
-      | BoolLit(_, _)
-      | ListNil(_) => None
+      | BoolLit(_, _) => None
+      // | ListNil(_)
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
           body
           |> follow((xs, cursor))
           |> OptUtil.map(zbody => ZPat.ParenthesizedZ(zbody))
+        | _ => None
+        }
+      | ListLit(_, None) => None
+      | ListLit(err, Some(body)) =>
+        switch (x) {
+        | 0 =>
+          body
+          |> follow((xs, cursor))
+          |> OptUtil.map(zbody => ZPat.ListLitZ(err, zbody))
         | _ => None
         }
       | Inj(err, side, body) =>
@@ -636,14 +646,23 @@ module Pat = {
       | Wild(_)
       | Var(_, _, _)
       | NumLit(_, _)
-      | BoolLit(_, _)
-      | ListNil(_) => None
+      | BoolLit(_, _) => None
+      // | ListNil(_)
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
           body
           |> follow_steps(~side, xs)
           |> OptUtil.map(zbody => ZPat.ParenthesizedZ(zbody))
+        | _ => None
+        }
+      | ListLit(_, None) => None
+      | ListLit(err, Some(body)) =>
+        switch (x) {
+        | 0 =>
+          body
+          |> follow_steps(~side, xs)
+          |> OptUtil.map(zbody => ZPat.ListLitZ(err, zbody))
         | _ => None
         }
       | Inj(err, inj_side, body) =>
@@ -697,15 +716,18 @@ module Pat = {
     | Var(_, InVarHole(_, u), _)
     | NumLit(InHole(_, u), _)
     | BoolLit(InHole(_, u), _)
-    | ListNil(InHole(_, u)) => [
+    | ListLit(InHole(_, u), None) => [
         (PatHole(u), rev_steps |> List.rev),
         ...hs,
       ]
+    // | ListNil(InHole(_, u))
     | Var(NotInHole, NotInVarHole, _)
     | Wild(NotInHole)
     | NumLit(NotInHole, _)
-    | BoolLit(NotInHole, _)
-    | ListNil(NotInHole) => hs
+    | ListLit(NotInHole, None)
+    | BoolLit(NotInHole, _) => hs
+    // | ListNil(NotInHole)
+    | ListLit(_, Some(body))
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
     | Inj(err, _, body) =>
       let body_holes = hs |> holes(body, [0, ...rev_steps]);
@@ -752,7 +774,8 @@ module Pat = {
     | CursorP(_, Wild(err))
     | CursorP(_, NumLit(err, _))
     | CursorP(_, BoolLit(err, _))
-    | CursorP(_, ListNil(err)) =>
+    | CursorP(_, ListLit(err, None)) =>
+      // | CursorP(_, ListNil(err))
       switch (err) {
       | NotInHole => no_holes
       | InHole(_, u) =>
@@ -762,6 +785,13 @@ module Pat = {
         )
       }
     | CursorP(OnDelim(k, _), Parenthesized(body)) =>
+      let body_holes = holes(body, [0, ...rev_steps], []);
+      switch (k) {
+      | 0 => mk_zholes(~holes_before=body_holes, ())
+      | 1 => mk_zholes(~holes_after=body_holes, ())
+      | _ => no_holes
+      };
+    | CursorP(OnDelim(k, _), ListLit(_, Some(body))) =>
       let body_holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
       | 0 => mk_zholes(~holes_before=body_holes, ())
@@ -780,10 +810,11 @@ module Pat = {
       | 1 => mk_zholes(~hole_selected, ~holes_after=body_holes, ())
       | _ => no_holes
       };
-    | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _)) =>
+    | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | ListLit(_, _)) =>
       // invalid cursor position
       no_holes
     | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+    | ListLitZ(_, zbody) => holes_z(zbody, [0, ...rev_steps])
     | InjZ(err, _, zbody) =>
       let zbody_holes = holes_z(zbody, [0, ...rev_steps]);
       switch (err) {

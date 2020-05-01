@@ -107,7 +107,10 @@ let qsort_example: UHExp.t = {
       case(
         Block.wrap(var("xs")),
         [
-          Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(var("ys"))),
+          Rule(
+            OpSeq.wrap(UHPat.ListLit(NotInHole, None)),
+            Block.wrap(var("ys")),
+          ),
           Rule(
             UHPat.(Seq.mk(var("z"), [(Cons, var("zs"))]) |> mk_OpSeq_pat),
             Block.wrap'(

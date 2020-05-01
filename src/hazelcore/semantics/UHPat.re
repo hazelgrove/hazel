@@ -33,7 +33,8 @@ and operand =
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
-  | ListNil(ErrStatus.t)
+  // | ListNil(ErrStatus.t)
+  | ListLit(ErrStatus.t, option(opseq))
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
 
@@ -57,7 +58,8 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
 let numlit = (~err: ErrStatus.t=NotInHole, n: int) => NumLit(err, n);
 
-let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
+let listlit = (~err: ErrStatus.t=NotInHole, ~elems: option(opseq)=?, ()) =>
+  ListLit(err, elems);
 
 let rec get_tuple_elements: skel => list(skel) =
   fun
@@ -94,7 +96,8 @@ and get_err_status_operand =
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
-  | ListNil(err)
+  // | ListNil(err)
+  | ListLit(err, _)
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status(p);
 
@@ -109,7 +112,8 @@ and set_err_status_operand = (err, operand) =>
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
-  | ListNil(_) => ListNil(err)
+  // | ListNil(_) => ListNil(err)
+  | ListLit(_, opseq) => ListLit(err, opseq)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
   };
@@ -135,14 +139,16 @@ and make_inconsistent_operand =
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
+  // | ListNil(InHole(TypeInconsistent, _))
+  | ListLit(InHole(TypeInconsistent, _), _)
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
+  // | ListNil(NotInHole | InHole(WrongLength, _))
+  | ListLit(NotInHole | InHole(WrongLength, _), _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =

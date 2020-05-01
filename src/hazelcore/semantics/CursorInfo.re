@@ -249,6 +249,7 @@ module Pat = {
            CursorNotOnDeferredVarPat(mk(PatSynthesized(ty), ctx))
          )
     | InjZ(_, _, zbody)
+    | ListLitZ(_, zbody)
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
     }
@@ -403,7 +404,8 @@ module Pat = {
       | Var(InHole(TypeInconsistent, _), _, _)
       | NumLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
-      | ListNil(InHole(TypeInconsistent, _))
+      // | ListNil(InHole(TypeInconsistent, _))
+      | ListLit(InHole(TypeInconsistent, _), None)
       | Inj(InHole(TypeInconsistent, _), _, _) =>
         let operand' = UHPat.set_err_status_operand(NotInHole, operand);
         switch (Statics.Pat.syn_operand(ctx, operand')) {
@@ -419,7 +421,8 @@ module Pat = {
       | Var(InHole(WrongLength, _), _, _)
       | NumLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
-      | ListNil(InHole(WrongLength, _))
+      // | ListNil(InHole(WrongLength, _))
+      | ListLit(InHole(WrongLength, _), None)
       | Inj(InHole(WrongLength, _), _, _) => None
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaKeyword(ty, k), ctx)))
@@ -431,8 +434,9 @@ module Pat = {
             x,
           ),
         )
+      // | ListNil(NotInHole) =>
       | Wild(NotInHole)
-      | ListNil(NotInHole) =>
+      | ListLit(NotInHole, None) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
       | NumLit(NotInHole, _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Num), ctx)))
@@ -441,6 +445,11 @@ module Pat = {
       | Inj(NotInHole, _, _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
       | Parenthesized(body) =>
+        Statics.Pat.ana(ctx, body, ty)
+        |> OptUtil.map(_ =>
+             CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
+           )
+      | ListLit(_, Some(body)) =>
         Statics.Pat.ana(ctx, body, ty)
         |> OptUtil.map(_ =>
              CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
@@ -457,6 +466,8 @@ module Pat = {
         ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_body);
       }
     | ParenthesizedZ(zbody) =>
+      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+    | ListLitZ(_, zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
     };
 };

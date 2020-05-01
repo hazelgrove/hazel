@@ -14,10 +14,12 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | Var(InHole(_), _, _)
   | NumLit(_)
   | BoolLit(_)
-  | ListNil(_)
+  | ListLit(_, None)
+  // | ListNil(_)
   | Inj(InHole(_), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
+  | ListLit(_, Some(body)) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
   };
 
