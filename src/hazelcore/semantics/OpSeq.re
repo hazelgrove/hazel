@@ -70,3 +70,19 @@ let make_inconsistent =
     let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
     (OpSeq(set_skel, seq), u_gen);
   };
+
+let rec is_complete =
+        (
+          is_complete_operand: 'operand => bool,
+          opseq: t('operand, 'operator),
+        )
+        : bool => {
+  switch (opseq) {
+  | OpSeq(Placeholder(n) as _skel, seq) =>
+    is_complete_operand(seq |> Seq.nth_operand(n))
+  | OpSeq(BinOp(InHole(_), _, _, _), _) => false
+  | OpSeq(BinOp(NotInHole, _, skel1, skel2), seq) =>
+    is_complete(is_complete_operand, OpSeq(skel1, seq))
+    && is_complete(is_complete_operand, OpSeq(skel2, seq))
+  };
+};
