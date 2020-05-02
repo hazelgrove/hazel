@@ -96,3 +96,9 @@ The `make dev` and `make release` commands do three things:
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+   
+### Debugging
+
+You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
+
+`js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.

@@ -4,6 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
 module KeyCombo = JSUtil.KeyCombo;
+module MoveKey = JSUtil.MoveKey;
 open ViewUtil;
 open Sexplib.Std;
 
@@ -42,31 +43,33 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_L, _ => Action.Construct(SInj(L))),
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
+    (Ctrl_Alt_Up, _ => Action.SwapUp),
+    (Ctrl_Alt_Down, _ => Action.SwapDown),
+    (Ctrl_Alt_Left, _ => Action.SwapLeft),
+    (Ctrl_Alt_Right, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+let focus = () => {
+  JSUtil.force_get_elem_by_id("cell")##focus;
+};
+
+let view = (~inject, model: Model.t) => {
+  open Vdom;
   let program = model |> Model.get_program;
-  Vdom.(
-    Node.div(
-      [
-        Attr.id(cell_id),
-        Attr.on_keypress(evt =>
-          JSUtil.is_movement_key(evt)
-            ? Event.Many([]) : Event.Prevent_default
-        ),
+  let code_view = UHCode.view(~inject, ~font_metrics=model.font_metrics);
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  let (key_handlers, code_view) =
+    if (Model.is_cell_focused(model)) {
+      let key_handlers = [
+        Attr.on_keypress(_ => Event.Prevent_default),
         Attr.on_keydown(evt => {
-          let prevent_stop_inject = a =>
-            Vdom.Event.Many([
-              Vdom.Event.Prevent_default,
-              Vdom.Event.Stop_propagation,
-              inject(a),
-            ]);
-          if (JSUtil.is_movement_key(evt)) {
-            Event.Many([]);
-          } else {
+          switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+          | Some(move_key) =>
+            prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
+          | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
             | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
@@ -90,32 +93,27 @@ let view =
                   ),
                 )
               }
-            };
-          };
+            }
+          }
         }),
-      ],
-      {
-        let (contenteditable, presentation) =
-          model.is_cell_focused
-            ? Code.editor_view_of_exp(
-                ~inject,
-                ~path=program |> Program.get_path,
-                ~ci=program |> Program.get_cursor_info,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
-              )
-            : Code.editor_view_of_exp(
-                ~inject,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
-              );
-        [
-          Node.div(
-            [Attr.id("code-container")],
-            [presentation, contenteditable],
-          ),
-        ];
-      },
-    )
+      ];
+      let view = program |> Program.get_decorated_layout |> code_view;
+      (key_handlers, view);
+    } else {
+      ([], program |> Program.get_layout |> code_view);
+    };
+  Node.div(
+    [
+      Attr.id(cell_id),
+      // necessary to make cell focusable
+      Attr.create("tabindex", "0"),
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+      ...key_handlers,
+    ],
+    [
+      Node.div([Attr.id("font-specimen")], [Node.text("X")]),
+      Node.div([Attr.id("code-container")], [code_view]),
+    ],
   );
 };
