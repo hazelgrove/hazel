@@ -135,7 +135,7 @@ let rec join = (ty1, ty2) =>
     ListUtil.map2_opt(join, tys1, tys2)
     |> Option.map(OptUtil.sequence)
     |> Option.join
-    |> Option.map(joinedTypes => Prod(joinedTypes))
+    |> Option.map(joined_types => Prod(joined_types))
   | (Prod(_), _) => None
   | (List(ty), List(ty')) =>
     switch (join(ty, ty')) {
