@@ -3207,10 +3207,9 @@ module Exp = {
     //     UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
     //   let new_ty = HTyp.List(Hole);
     // Succeeded(SynDone((new_ze, new_ty, u_gen)));
+
     | (Construct(SListLit), CursorE(_)) =>
-      // Failed
-      let new_ze =
-        ZExp.ZBlock.wrap(ListLitZ(NotInHole, ZOpSeq.wrap(zoperand)));
+      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
       Succeeded(SynDone((new_ze, ty, u_gen)));
     // Succeeded(SynDone((new_ze, HTyp.List(Hole), u_gen)));
 
