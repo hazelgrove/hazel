@@ -1288,9 +1288,20 @@ module Pat = {
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorP(_)) => Failed
 
-    | (Construct(SListLit), CursorP(_, EmptyHole(_))) => Failed
-    // let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
-    //   Succeeded(SynDone((new_ze, ty, u_gen)));
+    | (Construct(SListLit), CursorP(_, EmptyHole(_))) =>
+      mk_syn_result(
+        ctx,
+        u_gen,
+        ZOpSeq.wrap(ZPat.ListLitZ(NotInHole, ZOpSeq.wrap(zoperand))),
+      )
+    // Failed
+    // let zp =
+    //   ZOpSeq.wrap(
+    //     ZPat.place_after_operand(
+    //       ListLit(NotInHole, ZOpSeq.wrap(zoperand)),
+    //     ),
+    //   );
+    // Succeeded((zp, List(Hole), ctx, u_gen));
     // constructing new list elements in empty list
     // [|]  ==>   [1|]
     // [1|] ==> [1, 2|]
@@ -1745,7 +1756,9 @@ module Pat = {
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
     | (Construct(SChar(_)), CursorP(_)) => Failed
 
-    | (Construct(SListLit), CursorP(_, EmptyHole(_))) => Failed
+    // | (Construct(SListLit), CursorP(_, EmptyHole(_))) => Failed
+    // let new_zp = ZOpSeq.wrap(ZPat.listlitz(ZOpSeq.wrap(zoperand)));
+    // mk_ana_result(ctx, u_gen, new_zp, ty);
 
     | (Construct(_), CursorP(OnText(1), ListLit(err, None))) =>
       let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -3194,9 +3207,12 @@ module Exp = {
     //     UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
     //   let new_ty = HTyp.List(Hole);
     // Succeeded(SynDone((new_ze, new_ty, u_gen)));
-    | (Construct(SListLit), CursorE(_)) => Failed
-    // let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
-    // Succeeded(SynDone((new_ze, ty, u_gen)));
+    | (Construct(SListLit), CursorE(_)) =>
+      // Failed
+      let new_ze =
+        ZExp.ZBlock.wrap(ListLitZ(NotInHole, ZOpSeq.wrap(zoperand)));
+      Succeeded(SynDone((new_ze, ty, u_gen)));
+    // Succeeded(SynDone((new_ze, HTyp.List(Hole), u_gen)));
 
     | (Construct(SParenthesized), CursorE(_)) =>
       let new_ze =
