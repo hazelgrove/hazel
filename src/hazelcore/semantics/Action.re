@@ -91,13 +91,6 @@ module Typ = {
     | Sum => SVBar
     };
 
-  let mk_ZOpSeq =
-    ZOpSeq.mk(
-      ~associate=UHTyp.associate,
-      ~erase_zoperand=ZTyp.erase_zoperand,
-      ~erase_zoperator=ZTyp.erase_zoperator,
-    );
-
   let construct_operator =
       (
         operator: UHTyp.operator,
@@ -116,7 +109,7 @@ module Typ = {
         let new_prefix = Seq.A(operator, S(operand, prefix));
         (zoperand, (new_prefix, suffix));
       };
-    mk_ZOpSeq(ZOperand(zoperand, surround));
+    ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
   };
 
   let rec move = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
@@ -215,7 +208,9 @@ module Typ = {
       let S(prefix_hd, new_prefix) = prefix;
       let zoperand = prefix_hd |> ZTyp.place_after_operand;
       let S(_, new_suffix) = suffix;
-      Succeeded(mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))));
+      Succeeded(
+        ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+      );
 
     /* Construction */
     /* construction on operators becomes movement... */
@@ -255,7 +250,7 @@ module Typ = {
       ) =>
       let new_suffix = Seq.A(operator, S(operand, suffix));
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-      Succeeded(mk_ZOpSeq(new_zseq));
+      Succeeded(ZTyp.mk_ZOpSeq(new_zseq));
     | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
     | (
         SwapRight,
@@ -266,7 +261,7 @@ module Typ = {
       ) =>
       let new_prefix = Seq.A(operator, S(operand, prefix));
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-      Succeeded(mk_ZOpSeq(new_zseq));
+      Succeeded(ZTyp.mk_ZOpSeq(new_zseq));
 
     /* Zipper */
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
@@ -279,13 +274,13 @@ module Typ = {
           let new_prefix = Seq.affix_affix(inner_prefix, prefix);
           let new_suffix = Seq.affix_affix(inner_suffix, suffix);
           Succeeded(
-            mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+            ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
           );
         | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
           let new_prefix = Seq.seq_affix(inner_prefix, prefix);
           let new_suffix = Seq.seq_affix(inner_suffix, suffix);
           Succeeded(
-            mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+            ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
           );
         }
       }
@@ -704,13 +699,6 @@ module Pat = {
     | Space => SSpace
     | Cons => SCons;
 
-  let mk_ZOpSeq =
-    ZOpSeq.mk(
-      ~associate=UHPat.associate,
-      ~erase_zoperand=ZPat.erase_zoperand,
-      ~erase_zoperator=ZPat.erase_zoperator,
-    );
-
   let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
     zseq
     |> ZPat.erase_zseq
@@ -722,13 +710,13 @@ module Pat = {
 
   let mk_and_syn_fix_ZOpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq): syn_success => {
-    let zopseq = mk_ZOpSeq(zseq);
+    let zopseq = ZPat.mk_ZOpSeq(zseq);
     Statics.Pat.syn_fix_holes_z(ctx, u_gen, zopseq);
   };
   let mk_and_ana_fix_ZOpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
       : ana_success => {
-    let zopseq = mk_ZOpSeq(zseq);
+    let zopseq = ZPat.mk_ZOpSeq(zseq);
     Statics.Pat.ana_fix_holes_z(ctx, u_gen, zopseq, ty);
   };
 
@@ -859,7 +847,7 @@ module Pat = {
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
       let new_ze = {
         let zoperand = roperand |> ZPat.place_before_operand;
-        mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
       };
       Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, new_ze));
     };
@@ -888,7 +876,7 @@ module Pat = {
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
       let new_ze = {
         let zoperand = roperand |> ZPat.place_before_operand;
-        mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
       };
       Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
     };
@@ -922,7 +910,7 @@ module Pat = {
 
   let complete_tuple =
     _complete_tuple(
-      ~mk_ZOpSeq,
+      ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
       ~comma=UHPat.Comma,
       ~zcomma=(OnOp(After), UHPat.Comma),
       ~new_EmptyHole=UHPat.new_EmptyHole,
@@ -1892,36 +1880,28 @@ module Exp = {
     |> Seq.operators
     |> List.exists(op => op == UHExp.Comma);
 
-  let mk_OpSeq = OpSeq.mk(~associate=UHExp.associate);
-  let mk_ZOpSeq =
-    ZOpSeq.mk(
-      ~associate=UHExp.associate,
-      ~erase_zoperand=ZExp.erase_zoperand,
-      ~erase_zoperator=ZExp.erase_zoperator,
-    );
-
   let mk_and_syn_fix_OpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, seq: UHExp.seq)
       : (UHExp.opseq, HTyp.t, MetaVarGen.t) => {
-    let opseq = mk_OpSeq(seq);
+    let opseq = UHExp.mk_OpSeq(seq);
     Statics.Exp.syn_fix_holes_opseq(ctx, u_gen, opseq);
   };
   let mk_and_ana_fix_OpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, seq: UHExp.seq, ty: HTyp.t)
       : (UHExp.opseq, MetaVarGen.t) => {
-    let opseq = mk_OpSeq(seq);
+    let opseq = UHExp.mk_OpSeq(seq);
     Statics.Exp.ana_fix_holes_opseq(ctx, u_gen, opseq, ty);
   };
   let mk_and_syn_fix_ZOpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZExp.zseq)
       : (ZExp.t, HTyp.t, MetaVarGen.t) => {
-    let zopseq = mk_ZOpSeq(zseq);
+    let zopseq = ZExp.mk_ZOpSeq(zseq);
     Statics.Exp.syn_fix_holes_z(ctx, u_gen, ([], ExpLineZ(zopseq), []));
   };
   let mk_and_ana_fix_ZOpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZExp.zseq, ty: HTyp.t)
       : (ZExp.t, MetaVarGen.t) => {
-    let zopseq = mk_ZOpSeq(zseq);
+    let zopseq = ZExp.mk_ZOpSeq(zseq);
     Statics.Exp.ana_fix_holes_z(ctx, u_gen, ([], ExpLineZ(zopseq), []), ty);
   };
 
@@ -1937,10 +1917,10 @@ module Exp = {
       (suffix: Seq.affix(UHExp.operand, UHExp.operator), u_gen: MetaVarGen.t)
       : (UHExp.opseq, MetaVarGen.t) =>
     switch (suffix) {
-    | A(Space, suffix_tl) => (mk_OpSeq(suffix_tl), u_gen)
+    | A(Space, suffix_tl) => (UHExp.mk_OpSeq(suffix_tl), u_gen)
     | _ =>
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      (mk_OpSeq(S(hole, suffix)), u_gen);
+      (UHExp.mk_OpSeq(S(hole, suffix)), u_gen);
     };
 
   let keyword_action = (kw: ExpandingKeyword.t): t =>
@@ -1977,7 +1957,7 @@ module Exp = {
 
   let complete_tuple =
     _complete_tuple(
-      ~mk_ZOpSeq,
+      ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
       ~comma=UHExp.Comma,
       ~zcomma=(OnOp(After), UHExp.Comma),
       ~new_EmptyHole=UHExp.new_EmptyHole,
@@ -1990,7 +1970,7 @@ module Exp = {
     | E => ([], u_gen)
     | A(_) =>
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let opseq = mk_OpSeq(Seq.affix_seq(prefix, S(hole, E)));
+      let opseq = UHExp.mk_OpSeq(Seq.affix_seq(prefix, S(hole, E)));
       ([UHExp.ExpLine(opseq)], u_gen);
     };
 
@@ -2001,7 +1981,7 @@ module Exp = {
     | E => ([], u_gen)
     | A(_) =>
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let opseq = mk_OpSeq(Seq.seq_affix(S(hole, E), suffix));
+      let opseq = UHExp.mk_OpSeq(Seq.seq_affix(S(hole, E), suffix));
       ([UHExp.ExpLine(opseq)], u_gen);
     };
 
@@ -2015,7 +1995,7 @@ module Exp = {
     switch (e) {
     | [ExpLine(OpSeq(_, seq))] =>
       let new_seq = Seq.affix_seq(prefix, Seq.seq_affix(seq, suffix));
-      (UHExp.Block.wrap'(mk_OpSeq(new_seq)), u_gen);
+      (UHExp.Block.wrap'(UHExp.mk_OpSeq(new_seq)), u_gen);
     | block =>
       let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
       let (suffix_lines, u_gen) = lines_of_suffix(u_gen, suffix);
@@ -2041,7 +2021,7 @@ module Exp = {
       let new_suffix = Seq.affix_affix(inner_suffix, suffix);
       (
         ZExp.ZBlock.wrap'(
-          mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+          ZExp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
         ),
         u_gen,
       );
@@ -2056,7 +2036,7 @@ module Exp = {
       let new_suffix = Seq.seq_affix(inner_suffix, suffix);
       (
         ZExp.ZBlock.wrap'(
-          mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+          ZExp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
         ),
         u_gen,
       );
@@ -2274,7 +2254,7 @@ module Exp = {
       let new_ze = {
         let zoperand = roperand |> ZExp.place_before_operand;
         let zopseq =
-          mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+          ZExp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
         ZExp.ZBlock.wrap'(zopseq);
       };
       Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
@@ -2316,7 +2296,7 @@ module Exp = {
       let new_ze = {
         let zoperand = roperand |> ZExp.place_before_operand;
         let zopseq =
-          mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+          ZExp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
         ZExp.ZBlock.wrap'(zopseq);
       };
       Succeeded(
