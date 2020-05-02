@@ -157,11 +157,10 @@ let patterns_of_type =
     | Num => ([numlit(0), wild()] |> List.map(wrap), u_gen)
     | Bool => ([true, false] |> List.map(b => b |> boollit |> wrap), u_gen)
     | Prod([]) => ([], u_gen)
-    | Prod(_) =>
-      // prod_element_count should be >= 1, because we caught the unit-case above and tuple should otherwise have at least 2 elements
-      let prod_element_count = ty |> HTyp.get_prod_elements |> List.length;
+    | Prod(tys) =>
       let (firstHole, u_gen) = u_gen |> new_EmptyHole;
-      let (holes, u_gen) = new_EmptyHoles(prod_element_count - 1, u_gen);
+      // List.length(tys) should be >= 1, because we caught the unit-case above and tuple should otherwise have at least 2 elements
+      let (holes, u_gen) = new_EmptyHoles(List.length(tys) - 1, u_gen);
       let opseq =
         holes
         |> List.map(hole => (Comma, hole))
