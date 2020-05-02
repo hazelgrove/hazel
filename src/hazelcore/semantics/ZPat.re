@@ -30,6 +30,9 @@ let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
 
+let listlitz = (~err: ErrStatus.t=NotInHole, zopseq): zoperand =>
+  ListLitZ(err, zopseq);
+
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
   valid_cursors_operand(operand) |> List.mem(cursor);
