@@ -290,7 +290,7 @@ let parse = s => {
 };
 
 let associate = (seq: seq) => {
-  let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
+  let (skel_str, _) = Skel.make_skel_str(seq, parse_string_of_operator);
   parse(skel_str);
 };
 
