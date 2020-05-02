@@ -1321,15 +1321,6 @@ module Pat = {
     // this is what you want to do
     // _   ==>   [|] (ZPat.CursorP(OnText(1), UHPat.listlit()))
 
-    /* wrong
-       mk_syn_result(
-         ctx,
-         u_gen,
-         ZOpSeq.wrap(
-           ZPat.listlitz(zopseq),
-           // ZPat.ListLitZ(_err, zopseq)
-         ),
-       )*/
     | (Construct(SListLit), CursorP(_, _)) => Failed
 
     // TODO add similar cases in ana_perform_operand
@@ -3201,12 +3192,6 @@ module Exp = {
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorE(_)) => Failed
-
-    // | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
-    //   let new_ze =
-    //     UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
-    //   let new_ty = HTyp.List(Hole);
-    // Succeeded(SynDone((new_ze, new_ty, u_gen)));
 
     | (Construct(SListLit), CursorE(_)) =>
       let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
