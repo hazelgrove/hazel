@@ -22,6 +22,13 @@ type rev_steps = steps;
 
 [@deriving sexp]
 type t = (steps, CursorPosition.t);
+[@deriving sexp]
+type rev_t = (CursorPosition.t, rev_steps);
+
+let rev = ((cursor, rev_steps): rev_t): t => (
+  rev_steps |> List.rev,
+  cursor,
+);
 
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
