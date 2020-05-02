@@ -22,6 +22,13 @@ type rev_steps = steps;
 
 [@deriving sexp]
 type t = (steps, CursorPosition.t);
+[@deriving sexp]
+type rev_t = (CursorPosition.t, rev_steps);
+
+let rev = ((cursor, rev_steps): rev_t): t => (
+  rev_steps |> List.rev,
+  cursor,
+);
 
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
@@ -687,10 +694,10 @@ module Pat = {
     | [_, ..._] => None
     };
 
-  exception UHPatNodeNotFound(t, UHPat.t);
+  exception NotFound(t, UHPat.t);
   let follow_or_fail = (path: t, p: UHPat.t): ZPat.t =>
     switch (follow(path, p)) {
-    | None => raise(UHPatNodeNotFound(path, p))
+    | None => raise(NotFound(path, p))
     | Some(zp) => zp
     };
 
@@ -1230,17 +1237,17 @@ module Exp = {
       }
     };
 
-  exception UHExpNodeNotFound;
+  exception NotFound;
   let follow_or_fail = (path: t, e: UHExp.t): ZExp.t =>
     switch (follow(path, e)) {
-    | None => raise(UHExpNodeNotFound)
+    | None => raise(NotFound)
     | Some(ze) => ze
     };
 
   let follow_operand_or_fail =
       (path: t, operand: UHExp.operand): ZExp.zoperand =>
     switch (follow_operand(path, operand)) {
-    | None => raise(UHExpNodeNotFound)
+    | None => raise(NotFound)
     | Some(zoperand) => zoperand
     };
 

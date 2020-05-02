@@ -1,4 +1,1 @@
-type t = {
-  setting_caret: ref(bool),
-  changing_cards: ref(bool),
-};
+type t = {changing_cards: ref(bool)};
