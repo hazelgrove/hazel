@@ -89,7 +89,7 @@ type cursor_term =
 // based on term sort and shape
 //[@deriving sexp]
 type t = {
-  //term: cursor_term,
+  cursor_term,
   typed,
   ctx: Contexts.t,
   // hack while merging
@@ -401,13 +401,18 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
+let mk = (~uses=?, typed, ctx, cursor_term) => {
+  typed,
+  ctx,
+  uses,
+  cursor_term,
+};
 
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx));
+  let cursor_info = (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(t) =>
+    Some(mk(OnType, ctx, extract_cursor_type_term(typ)));
 } /*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
@@ -439,7 +444,7 @@ module Pat = {
     let seq = zseq |> ZPat.erase_zseq;
     let skels = skel |> UHPat.get_tuple_elements;
     switch (zseq) {
-    | ZOperator((_, Comma), _) =>
+    | ZOperator((cursor_pos, Comma), _) =>
       // cursor on tuple comma
       skels
       |> List.fold_left(
@@ -456,7 +461,11 @@ module Pat = {
          )
       |> OptUtil.map(((rev_tys, _)) =>
            CursorNotOnDeferredVarPat(
-             mk(PatSynthesized(rev_tys |> List.rev |> HTyp.make_tuple), ctx),
+             mk(
+               PatSynthesized(rev_tys |> List.rev |> HTyp.make_tuple),
+               ctx,
+               PatOp(cursor_pos, Comma)
+             ),
            )
          )
     | _ =>
