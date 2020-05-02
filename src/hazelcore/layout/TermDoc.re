@@ -179,7 +179,7 @@ let mk_BoolLit =
 let mk_ListNil =
     (~family: TermFamily.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, ())
     : t =>
-  DelimDoc.mk(~path=(steps, 0), "[]") |> annot_Operand(~family, ~err);
+  mk_text(~steps, "[]") |> annot_Operand(~family, ~err);
 
 let mk_Parenthesized =
     (~family: TermFamily.t, ~steps: CursorPath.steps, body: formatted_child)
