@@ -22,7 +22,7 @@ echo-html:
 	@echo "$(HTML_FILE)"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML FILE)"
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
 
 win-firefox:
 	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" "$(HTML FILE)"
