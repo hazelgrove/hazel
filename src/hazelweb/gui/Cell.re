@@ -52,9 +52,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   |> Hashtbl.of_seq;
 
 let focus = () => {
-  JSUtil.log(55);
   JSUtil.force_get_elem_by_id("cell")##focus;
-  JSUtil.log(57);
 };
 
 let view = (~inject, model: Model.t) => {

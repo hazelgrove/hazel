@@ -14,6 +14,7 @@ let on_startup = (~schedule_action, _) => {
   let update_font_metrics = () => {
     let rect =
       JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
+
     schedule_action(
       Update.Action.UpdateFontMetrics({
         row_height: rect##.bottom -. rect##.top,
@@ -56,16 +57,18 @@ let scroll_cursor_into_view_if_needed = caret_elem => {
   };
 };
 
-let scroll_history_panel_entry = entry_elem => {
-  let panel_rect =
-    JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
-  let entry_rect = entry_elem##getBoundingClientRect;
-  if (entry_rect##.top < panel_rect##.top) {
-    entry_elem##scrollIntoView(Js._true);
-  } else if (entry_rect##.bottom > panel_rect##.bottom) {
-    entry_elem##scrollIntoView(Js._false);
-  };
-};
+/* let scroll_history_panel_entry = entry_elem => {
+
+     let panel_rect =
+       JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
+
+     let entry_rect = entry_elem##getBoundingClientRect;
+     if (entry_rect##.top < panel_rect##.top) {
+       entry_elem##scrollIntoView(Js._true);
+     } else if (entry_rect##.bottom > panel_rect##.bottom) {
+       entry_elem##scrollIntoView(Js._false);
+     };
+   }; */
 
 let create =
     (
@@ -80,9 +83,7 @@ let create =
     ~on_display=
       (_, ~schedule_action as _) =>
         if (Model.is_cell_focused(model)) {
-          JSUtil.log(83);
           let caret_elem = JSUtil.force_get_elem_by_id("caret");
-          JSUtil.log(84);
           restart_cursor_animation(caret_elem);
           scroll_cursor_into_view_if_needed(caret_elem);
         },
