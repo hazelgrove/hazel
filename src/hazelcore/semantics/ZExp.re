@@ -156,8 +156,9 @@ and is_before_zline = (zline: zline): bool =>
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
-  | CursorE(cursor, EmptyHole(_))
-  // | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, EmptyHole(_)) =>
+    // | CursorE(cursor, ListNil(_))
+    cursor == OnDelim(0, Before)
   | CursorE(cursor, Var(_))
   | CursorE(cursor, NumLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
@@ -257,8 +258,9 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand = operand =>
   switch (operand) {
-  | EmptyHole(_)
-  // | ListNil(_) => CursorE(OnDelim(0, Before), operand)
+  | EmptyHole(_) =>
+    // | ListNil(_)
+    CursorE(OnDelim(0, Before), operand)
   | Var(_)
   | NumLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
