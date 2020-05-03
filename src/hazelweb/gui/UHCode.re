@@ -158,10 +158,9 @@ let view =
       // need to use mousedown instead of click to fire
       // (and move caret) before cell focus event handler
       Attr.on_mousedown(evt => {
-        JSUtil.log(161);
         let container_rect =
           JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
-        JSUtil.log(164);
+
         let (target_x, target_y) = (
           float_of_int(evt##.clientX),
           float_of_int(evt##.clientY),
