@@ -37,8 +37,20 @@ installed, you can build Hazel by running the following commands.
 - `make deps`
 - `make dev`
 
-To run Hazel, run the command `make echo-html`, which will display a filename.
-Then use your preferred browser to open that file.
+To run Hazel, run the command `make echo-html`, which will print a filename.
+Then use your preferred browser to open that file. For convenience, the 
+following make targets open the corresponding browser or invoke the
+corresponding command immediately (see INSTALL.md):
+
+ - `make firefox`
+ - `make chrome`
+ - `make chrome-browser`
+ - `make chromium`
+ - `make chromium-browser`
+ - `make win-chrome`
+ - `make win-firefox`
+ - `make xdg-open`
+ - `make open`
 
 ### Long Version
 
