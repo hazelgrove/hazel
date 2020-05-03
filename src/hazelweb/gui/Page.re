@@ -193,25 +193,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [Attr.classes(["flex-wrapper"])],
             [
               Node.div(
-                [Attr.classes(["page-area"])],
+                [Attr.id("page-area")],
                 [
                   Node.div(
                     [Attr.classes(["page"])],
                     [
                       Node.div(
                         [Attr.classes(["card-caption"])],
-                        [card.info.caption] /* [
-                               Node.text("Hazel is an experiment in "),
-                               Node.strong(
-                                 [],
-                                 [Node.text("live functional programming")],
-                               ),
-                               Node.text(" with "),
-                               Node.strong([], [Node.text("typed holes")]),
-                               Node.text(
-                                 ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                               ),
-                             ], */,
+                        [card.info.caption],
+                        /* [
+                             Node.text("Hazel is an experiment in "),
+                             Node.strong(
+                               [],
+                               [Node.text("live functional programming")],
+                             ),
+                             Node.text(" with "),
+                             Node.strong([], [Node.text("typed holes")]),
+                             Node.text(
+                               ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                             ),
+                           ], */
                       ),
                       Cell.view(~inject, model),
                       cell_status,
