@@ -2747,6 +2747,30 @@ module Exp = {
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
       syn_perform_opseq(ctx, escape(side), (zopseq, ty, u_gen))
 
+    /* Backspace "." from Float Op to get Int Op */
+    /* ( +.<| ) ==> ( + ) */
+    | (
+        Backspace,
+        ZOperator(
+          (OnOp(After) as pos, (FPlus | FMinus | FTimes) as oper),
+          seq,
+        ),
+      ) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.FPlus => Some(UHExp.Plus)
+        | UHExp.FMinus => Some(UHExp.Minus)
+        | UHExp.FTimes => Some(UHExp.Times)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+      | None => Failed
+      };
     /* Delete before operator == Backspace after operator */
     | (Delete, ZOperator((OnOp(Before), op), surround)) =>
       let new_ze =
