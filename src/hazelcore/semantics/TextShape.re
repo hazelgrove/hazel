@@ -23,10 +23,17 @@ let of_text = (text: string): option(t) =>
     + IntUtil.num_digits(n) == String.length(text)
       ? Some(IntLit(text)) : None
   | (_, Some(f), _, _) =>
+    print_endline(
+      string_of_int(
+        FloatUtil.leading_zeros(text)
+        + FloatUtil.num_digits(f)
+        + FloatUtil.trailing_zeros(text),
+      ),
+    );
     FloatUtil.leading_zeros(text)
     + FloatUtil.num_digits(f)
     + FloatUtil.trailing_zeros(text) == String.length(text)
-      ? Some(FloatLit(text)) : None
+      ? Some(FloatLit(text)) : None;
   | (_, _, Some(b), _) => Some(BoolLit(b))
   | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
   | (None, None, None, None) =>

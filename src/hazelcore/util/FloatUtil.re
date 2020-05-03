@@ -1,12 +1,22 @@
 /* returns the number of digits in a float */
-let num_digits = (f: float): int => String.length(string_of_float(f));
+let num_digits = (f: float): int =>
+  /* 1 is subtracted from length because Ocaml introduces extra 0 when float is < 1 */
+  if (f < 1.0) {
+    String.length(string_of_float(f)) - 1;
+  } else {
+    String.length(string_of_float(f));
+  };
 let num_digits_str = (f: string): int => String.length(f);
 let leading_zeros = (f: string): int => {
   let whole_num_str = String.sub(f, 0, String.index(f, '.'));
-  let whole_num = string_of_int(int_of_string(whole_num_str));
-  switch (whole_num) {
-  | "0" => String.length(whole_num_str) - 1
-  | _ => String.index(whole_num_str, whole_num.[0])
+  if (String.length(whole_num_str) == 0) {
+    0;
+  } else {
+    let whole_num = string_of_int(int_of_string(whole_num_str));
+    switch (whole_num) {
+    | "0" => String.length(whole_num_str)
+    | _ => String.index(whole_num_str, whole_num.[0])
+    };
   };
 };
 let trailing_zeros = (f: string): int => {
