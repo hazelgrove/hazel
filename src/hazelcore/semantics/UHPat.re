@@ -31,8 +31,8 @@ and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | IntLit(ErrStatus.t, int)
-  | FloatLit(ErrStatus.t, float)
+  | IntLit(ErrStatus.t, string)
+  | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
@@ -56,9 +56,9 @@ let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
-let intlit = (~err: ErrStatus.t=NotInHole, n: int) => IntLit(err, n);
+let intlit = (~err: ErrStatus.t=NotInHole, n: string) => IntLit(err, n);
 
-let floatlit = (~err: ErrStatus.t=NotInHole, f: float) => FloatLit(err, f);
+let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 

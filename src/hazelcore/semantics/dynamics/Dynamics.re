@@ -1805,23 +1805,27 @@ module Evaluator = {
     };
 
   let eval_bin_int_op =
-      (op: DHExp.bin_int_op, n1: int, n2: int): option(DHExp.t) =>
+      (op: DHExp.bin_int_op, s1: string, s2: string): option(DHExp.t) => {
+    let (n1, n2) = (int_of_string(s1), int_of_string(s2));
     switch (op) {
-    | Minus => Some(IntLit(n1 - n2))
-    | Plus => Some(IntLit(n1 + n2))
-    | Times => Some(IntLit(n1 * n2))
+    | Minus => Some(IntLit(string_of_int(n1 - n2)))
+    | Plus => Some(IntLit(string_of_int(n1 + n2)))
+    | Times => Some(IntLit(string_of_int(n1 * n2)))
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))
     };
+  };
 
   let eval_bin_float_op =
-      (op: DHExp.bin_float_op, f1: float, f2: float): option(DHExp.t) =>
+      (op: DHExp.bin_float_op, s1: string, s2: string): option(DHExp.t) => {
+    let (f1, f2) = (float_of_string(s1), float_of_string(s2));
     switch (op) {
-    | FPlus => Some(FloatLit(f1 +. f2))
-    | FMinus => Some(FloatLit(f1 -. f2))
-    | FTimes => Some(FloatLit(f1 *. f2))
+    | FPlus => Some(FloatLit(string_of_float(f1 +. f2)))
+    | FMinus => Some(FloatLit(string_of_float(f1 -. f2)))
+    | FTimes => Some(FloatLit(string_of_float(f1 *. f2)))
     };
+  };
 
   let rec evaluate = (d: DHExp.t): result =>
     switch (d) {
