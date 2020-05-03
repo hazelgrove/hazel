@@ -351,7 +351,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Case(NotInHole, body, _, _) => is_complete(body)
   | Parenthesized(body) => is_complete(body)
   | ApPalette(InHole(_), _, _, _) => false
-  | ApPalette(NotInHole, _, _, _) => true
+  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   };
 }
 and is_complete = (exp: t): bool => {

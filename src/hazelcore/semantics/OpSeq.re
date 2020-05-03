@@ -71,18 +71,25 @@ let make_inconsistent =
     (OpSeq(set_skel, seq), u_gen);
   };
 
-let rec is_complete =
+let rec is_complete_skel =
         (
           is_complete_operand: 'operand => bool,
-          opseq: t('operand, 'operator),
+          sk: skel('operator),
+          sq: seq('operand, 'operator),
         )
         : bool => {
+  switch (sk) {
+  | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
+  | BinOp(InHole(_), _, _, _) => false
+  | BinOp(NotInHole, _, skel1, skel2) =>
+    is_complete_skel(is_complete_operand, skel1, sq)
+    && is_complete_skel(is_complete_operand, skel2, sq)
+  };
+}
+and is_complete =
+    (is_complete_operand: 'operand => bool, opseq: t('operand, 'operator))
+    : bool => {
   switch (opseq) {
-  | OpSeq(Placeholder(n) as _skel, seq) =>
-    is_complete_operand(seq |> Seq.nth_operand(n))
-  | OpSeq(BinOp(InHole(_), _, _, _), _) => false
-  | OpSeq(BinOp(NotInHole, _, skel1, skel2), seq) =>
-    is_complete(is_complete_operand, OpSeq(skel1, seq))
-    && is_complete(is_complete_operand, OpSeq(skel2, seq))
+  | OpSeq(sk, sq) => is_complete_skel(is_complete_operand, sk, sq)
   };
 };
