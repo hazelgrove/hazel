@@ -19,10 +19,13 @@ let of_text = (text: string): option(t) =>
   | (Some(n), _, _, _) =>
     // OCaml accepts and ignores underscores
     // when parsing ints and floats from strings, we don't
-    IntUtil.num_digits(n) == String.length(text)
+    IntUtil.leading_zeros(text)
+    + IntUtil.num_digits(n) == String.length(text)
       ? Some(IntLit(text)) : None
   | (_, Some(f), _, _) =>
-    FloatUtil.num_digits(f) == String.length(text)
+    FloatUtil.leading_zeros(text)
+    + FloatUtil.num_digits(f)
+    + FloatUtil.trailing_zeros(text) == String.length(text)
       ? Some(FloatLit(text)) : None
   | (_, _, Some(b), _) => Some(BoolLit(b))
   | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
