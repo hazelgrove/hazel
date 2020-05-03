@@ -168,13 +168,17 @@ let text_operand =
     );
   };
 
-let rec is_complete = (pn: t): bool => {
-  switch (pn) {
-  | OpSeq(Placeholder(n) as _skel, seq) =>
-    is_complete_operand(seq |> Seq.nth_operand(n))
-  | OpSeq(BinOp(InHole(_), _, _, _), _) => false
-  | OpSeq(BinOp(NotInHole, _, skel1, skel2), seq) =>
-    is_complete(OpSeq(skel1, seq)) && is_complete(OpSeq(skel2, seq))
+let rec is_complete_skel = (sk: skel, sq: seq): bool => {
+  switch (sk) {
+  | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
+  | BinOp(InHole(_), _, _, _) => false
+  | BinOp(NotInHole, _, skel1, skel2) =>
+    is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
+  };
+}
+and is_complete = (p: t): bool => {
+  switch (p) {
+  | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 }
 and is_complete_operand = (operand: 'operand): bool => {
