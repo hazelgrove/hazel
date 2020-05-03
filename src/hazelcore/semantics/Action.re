@@ -3003,11 +3003,17 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
-
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
       syn_backspace_text(ctx, u_gen, j, n)
+    /* For Float: (.x<|) ==> ( |_ )  */
+    | (Backspace, CursorE(OnText(2), FloatLit(_, f)))
+        when
+          FloatUtil.less_than_one_str(f) && FloatUtil.num_digits_str(f) == 2 =>
+      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+      let new_ze = ZExp.ZBlock.wrap(zhole);
+      Succeeded(SynDone((new_ze, Hole, u_gen)));
     | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
       syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
@@ -3822,6 +3828,26 @@ module Exp = {
 
     /* Construction */
 
+    /* contruction of Float Operators from Int Operators */
+    | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.Plus => Some(UHExp.FPlus)
+        | UHExp.Minus => Some(UHExp.FMinus)
+        | UHExp.Times => Some(UHExp.FTimes)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(
+          AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, Float)),
+        );
+      | None => Failed
+      };
+
     /* construction on operators either becomes movement... */
     | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
         when ZExp.is_after_zoperator(zoperator) =>
@@ -4068,6 +4094,13 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, x, ty)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
       ana_backspace_text(ctx, u_gen, j, n, ty)
+    /* For Float: (.x<|) ==> ( |_ )  */
+    | (Backspace, CursorE(OnText(2), FloatLit(_, f)))
+        when
+          FloatUtil.less_than_one_str(f) && FloatUtil.num_digits_str(f) == 2 =>
+      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+      let new_ze = ZExp.ZBlock.wrap(zhole);
+      Succeeded(AnaDone((new_ze, u_gen)));
     | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
       ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>

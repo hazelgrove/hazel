@@ -31,3 +31,6 @@ let trailing_zeros = (f: string): int => {
     0;
   };
 };
+let less_than_one_str = (f: string): bool => {
+  float_of_string(f) < 1.0;
+};
