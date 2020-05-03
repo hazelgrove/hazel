@@ -2792,16 +2792,21 @@ module Exp = {
 
     /* Making Float Operators from Int Operators */
     | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
-      let new_operator =
+      let new_operator = {
         switch (oper) {
-        | UHExp.Plus => UHExp.FPlus
-        | UHExp.Minus => UHExp.FMinus
-        | UHExp.Times => UHExp.FTimes
-        | _ => Failed
+        | UHExp.Plus => Some(UHExp.FPlus)
+        | UHExp.Minus => Some(UHExp.FMinus)
+        | UHExp.Times => Some(UHExp.FTimes)
+        | _ => None
         };
-      let new_zoperator = (pos, new_operator);
-      let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+      | None => Failed
+      };
 
     /* Space construction on operators becomes movement... */
     | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
