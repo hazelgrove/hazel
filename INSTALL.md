@@ -229,7 +229,7 @@ dev` or `make release` again.
 
   - If you are on Linux, you can launch Hazel with `BROWSER $(make
     echo-html)` where (depending on your installed operating system and browser)
-    `BROWSER` is one of:
+    `BROWSER` is probably one of:
 
     - `firefox`,
     - `chrome`,
@@ -237,10 +237,22 @@ dev` or `make release` again.
     - `chromium`, or
     - `chromium-browser`.
 
-  - If you are on MacOS, you can launch Hazell with `open $(make echo-html)`.
+    As a convenience, we have provided the following shorthand make targets:
+
+    - `make firefox`
+    - `make chrome`
+    - `make chrome-browser`
+    - `make chromium`
+    - `make chromium-browser`
+
+    On some setups, you can also use `xdg-open` to open your default browser.
+    The `make xdg-open` shorthand invokes `xdg-open $(make echo-html)`.
+
+  - If you are on MacOS, you can use the above or you can launch Hazel with 
+    `open $(make echo-html)` or `make open` more concisely.
 
   - If you are on Windows, the path to the browser may not be so easy to type, so you
-    can use the following commands to launch Hazel in the browser:
+    can use the following commands to launch Hazel in your browser:
     - `make win-firefox`
     - `make win-chrome`
 
