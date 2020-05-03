@@ -63,8 +63,8 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | IntLit(ErrStatus.t, int)
-  | FloatLit(ErrStatus.t, float)
+  | IntLit(ErrStatus.t, string)
+  | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
@@ -97,10 +97,10 @@ let var =
     : operand =>
   Var(err, var_err, x);
 
-let intlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
+let intlit = (~err: ErrStatus.t=NotInHole, n: string): operand =>
   IntLit(err, n);
 
-let floatlit = (~err: ErrStatus.t=NotInHole, f: float): operand =>
+let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
   FloatLit(err, f);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>

@@ -317,14 +317,14 @@ let qsort_example: UHExp.t = {
               Parenthesized(
                 Block.wrap'(
                   Seq.mk(
-                    intlit(4),
+                    intlit("4"),
                     [
-                      (Cons, intlit(2)),
-                      (Cons, intlit(6)),
-                      (Cons, intlit(5)),
-                      (Cons, intlit(3)),
-                      (Cons, intlit(1)),
-                      (Cons, intlit(7)),
+                      (Cons, intlit("2")),
+                      (Cons, intlit("6")),
+                      (Cons, intlit("5")),
+                      (Cons, intlit("3")),
+                      (Cons, intlit("1")),
+                      (Cons, intlit("7")),
                       (Cons, listnil()),
                     ],
                   )

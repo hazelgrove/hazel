@@ -164,14 +164,24 @@ let mk_Var =
   mk_text(~steps, x) |> annot_Var(~sort, ~err, ~verr);
 
 let mk_IntLit =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, n: int)
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t,
+      ~steps: CursorPath.steps,
+      n: string,
+    )
     : t =>
-  mk_text(~steps, string_of_int(n)) |> annot_Operand(~sort, ~err);
+  mk_text(~steps, n) |> annot_Operand(~sort, ~err);
 
 let mk_FloatLit =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, f: float)
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t,
+      ~steps: CursorPath.steps,
+      f: string,
+    )
     : t =>
-  mk_text(~steps, string_of_float(f)) |> annot_Operand(~sort, ~err);
+  mk_text(~steps, f) |> annot_Operand(~sort, ~err);
 
 let mk_BoolLit =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, b: bool)

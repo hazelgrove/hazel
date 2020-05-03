@@ -3,8 +3,8 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Underscore
-  | IntLit(int)
-  | FloatLit(float)
+  | IntLit(string)
+  | FloatLit(string)
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t);
@@ -19,10 +19,11 @@ let of_text = (text: string): option(t) =>
   | (Some(n), _, _, _) =>
     // OCaml accepts and ignores underscores
     // when parsing ints and floats from strings, we don't
-    IntUtil.num_digits(n) == String.length(text) ? Some(IntLit(n)) : None
+    IntUtil.num_digits(n) == String.length(text)
+      ? Some(IntLit(text)) : None
   | (_, Some(f), _, _) =>
     FloatUtil.num_digits(f) == String.length(text)
-      ? Some(FloatLit(f)) : None
+      ? Some(FloatLit(text)) : None
   | (_, _, Some(b), _) => Some(BoolLit(b))
   | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
   | (None, None, None, None) =>
