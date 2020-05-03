@@ -35,7 +35,7 @@ let init = (): t => {
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
       cursor_term_info,
-      previous_action: Construct(SOp(SSpace)),
+      previous_action: None,
       edit_action: Ignore,
     };
     let timestamp = Unix.time();
@@ -142,7 +142,7 @@ let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
   |> focus_cell;
 
-let update_program = (~undoable, new_program, model) => {
+let update_program = (a: option(Action.t), new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -190,18 +190,17 @@ let next_card = model => {
 
 let perform_edit_action = (a: Action.t, model: t): t => {
   let new_program = model |> get_program |> Program.perform_edit_action(a);
-  model
-  |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
+  model |> update_program(Some(a), new_program);
 };
 
 let move_via_key = (move_key, model) => {
   let new_program = model |> get_program |> Program.move_via_key(move_key);
-  model |> update_program(~undoable=false, new_program);
+  model |> update_program(None, new_program);
 };
 
 let move_via_click = (row_col, model) => {
   let new_program = model |> get_program |> Program.move_via_click(row_col);
-  model |> update_program(~undoable=false, new_program);
+  model |> update_program(None, new_program);
 };
 
 let toggle_left_sidebar = (model: t): t => {

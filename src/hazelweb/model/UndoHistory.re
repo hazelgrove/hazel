@@ -24,7 +24,7 @@ type cursor_term_info = {
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
   cursor_term_info,
-  previous_action: Action.t,
+  previous_action: option(Action.t),
   edit_action,
 };
 
@@ -547,111 +547,124 @@ let get_new_edit_action =
     (
       ~prev_group: undo_history_group,
       ~new_cursor_term_info: cursor_term_info,
-      ~action: Action.t,
+      ~action: option(Action.t),
     )
     : edit_action => {
   switch (action) {
-  | Delete => delete(~prev_group, ~new_cursor_term_info)
-  | Backspace => backspace(~prev_group, ~new_cursor_term_info)
-  | Construct(shape) =>
-    switch (shape) {
-    | SLine =>
-      if (ZExp.erase(new_cursor_term_info.zexp_before)
-          != ZExp.erase(new_cursor_term_info.zexp_after)) {
-        switch (CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)) {
-        | None => ConstructEdit(shape)
-        | Some(zrules_before) =>
+  | None => Ignore
+  | Some(action') =>
+    switch (action') {
+    | Delete => delete(~prev_group, ~new_cursor_term_info)
+    | Backspace => backspace(~prev_group, ~new_cursor_term_info)
+    | Construct(shape) =>
+      switch (shape) {
+      | SLine =>
+        if (ZExp.erase(new_cursor_term_info.zexp_before)
+            != ZExp.erase(new_cursor_term_info.zexp_after)) {
           switch (
-            CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
+            CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)
           ) {
           | None => ConstructEdit(shape)
-          | Some(zrules_after) =>
-            if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
-              MatchRule;
-            } else {
-              ConstructEdit(shape);
-            }
-          }
-        };
-      } else {
-        Ignore;
-      }
-    | SParenthesized
-    | SList
-    | SAsc
-    | SLam
-    | SListNil
-    | SInj(_)
-    | SLet
-    | SCase => ConstructEdit(shape)
-    | SChar(_) => EditVar
-    | SOp(op) =>
-      switch (op) {
-      | SMinus
-      | SPlus
-      | STimes
-      | SLessThan
-      | SGreaterThan
-      | SEquals
-      | SComma
-      | SArrow
-      | SVBar
-      | SCons
-      | SAnd
-      | SOr => ConstructEdit(shape)
-      | SSpace =>
-        switch (new_cursor_term_info.cursor_term_before) {
-        | Exp(_, uexp_operand) =>
-          switch (uexp_operand) {
-          | Var(_, InVarHole(Keyword(k), _), _) =>
-            switch (k) {
-            | Let =>
-              switch (get_cursor_pos(new_cursor_term_info.cursor_term_before)) {
-              | OnText(pos) =>
-                if (pos == 3) {
-                  /* the caret is at the end of "let" */
-                  ConstructEdit(SLet);
-                } else {
-                  ConstructEdit(SOp(SSpace));
-                }
-              | OnDelim(_, _)
-              | OnOp(_) => ConstructEdit(SOp(SSpace))
+          | Some(zrules_before) =>
+            switch (
+              CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
+            ) {
+            | None => ConstructEdit(shape)
+            | Some(zrules_after) =>
+              if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
+                MatchRule;
+              } else {
+                ConstructEdit(shape);
               }
+            }
+          };
+        } else {
+          Ignore;
+        }
+      | SParenthesized
+      | SList
+      | SAsc
+      | SLam
+      | SListNil
+      | SInj(_)
+      | SLet
+      | SCase => ConstructEdit(shape)
+      | SChar(_) => EditVar
+      | SOp(op) =>
+        switch (op) {
+        | SMinus
+        | SPlus
+        | STimes
+        | SLessThan
+        | SGreaterThan
+        | SEquals
+        | SComma
+        | SArrow
+        | SVBar
+        | SCons
+        | SAnd
+        | SOr => ConstructEdit(shape)
+        | SSpace =>
+          switch (new_cursor_term_info.cursor_term_before) {
+          | Exp(_, uexp_operand) =>
+            switch (uexp_operand) {
+            | Var(_, InVarHole(Keyword(k), _), _) =>
+              switch (k) {
+              | Let =>
+                switch (
+                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                ) {
+                | OnText(pos) =>
+                  if (pos == 3) {
+                    /* the caret is at the end of "let" */
+                    ConstructEdit(SLet);
+                  } else {
+                    ConstructEdit(SOp(SSpace));
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => ConstructEdit(SOp(SSpace))
+                }
 
-            | Case =>
-              switch (get_cursor_pos(new_cursor_term_info.cursor_term_before)) {
-              | OnText(pos) =>
-                if (pos == 4) {
-                  /* the caret is at the end of "case" */
-                  ConstructEdit(SCase);
-                } else {
-                  ConstructEdit(SOp(SSpace));
+              | Case =>
+                switch (
+                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                ) {
+                | OnText(pos) =>
+                  if (pos == 4) {
+                    /* the caret is at the end of "case" */
+                    ConstructEdit(
+                      SCase,
+                    );
+                  } else {
+                    ConstructEdit(SOp(SSpace));
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => ConstructEdit(SOp(SSpace))
                 }
-              | OnDelim(_, _)
-              | OnOp(_) => ConstructEdit(SOp(SSpace))
               }
+            | ApPalette(_, _, _, _) =>
+              failwith("ApPalette is not implemented")
+            | _ => ConstructEdit(SOp(SSpace))
             }
-          | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
           | _ => ConstructEdit(SOp(SSpace))
           }
-        | _ => ConstructEdit(SOp(SSpace))
         }
-      }
 
-    | SApPalette(_) => failwith("ApPalette is not implemented")
+      | SApPalette(_) => failwith("ApPalette is not implemented")
+      }
+    | MoveTo(_)
+    | MoveToBefore(_)
+    | MoveLeft
+    | MoveRight
+    | MoveToNextHole
+    | MoveToPrevHole
+    | SwapUp /* what's that */
+    | SwapDown
+    | SwapLeft
+    | SwapRight => Ignore
+    | UpdateApPalette(_) =>
+      failwith("ApPalette is not implemented in undo_history")
     }
-  | MoveTo(_)
-  | MoveToBefore(_)
-  | MoveLeft
-  | MoveRight
-  | MoveToNextHole
-  | MoveToPrevHole
-  | SwapUp /* what's that */
-  | SwapDown
-  | SwapLeft
-  | SwapRight => Ignore
-  | UpdateApPalette(_) =>
-    failwith("ApPalette is not implemented in undo_history")
   };
 };
 
@@ -660,7 +673,7 @@ let push_edit_state =
       undo_history: t,
       cardstacks_before: Cardstacks.t,
       cardstacks_after: Cardstacks.t,
-      action: Action.t,
+      action: option(Action.t),
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
