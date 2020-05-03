@@ -7,23 +7,15 @@ type theory. You can find the relevant papers and more motivation at [the Hazel
 website](http://hazel.org/).
 
 You can try Hazel online with either the
-[stable](https://hazel.org/build/master/index.html) or
-[development](https://hazel.org/build/dev/index.html) version.
+[master](https://hazel.org/build/master/index.html) or
+[dev](https://hazel.org/build/dev/index.html) version. Note that the master
+branch is updated infrequently and is currently almost two years behind!
 
-### Demo
+### Overview View
 
-- [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
+- The following covers the theory (with a much older implementation): [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
 
-### Screenshot
-
-![Screenshot of Hazel](hazel-screenshot.png)
-
-Note that this screenshot is of the `master` (i.e., stable) branch circa 2019.
-Hazel is under rapid development, so this screenshot may not reflect the most
-recent version.
-
-<!-- TODO: screenshot with a hole -->
-<!-- TODO: animated gif -->
+<!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
 
 ## Building and Running Hazel
 
@@ -60,7 +52,7 @@ instructions contained in [INSTALL.md](INSTALL.md).
 
 ## Contributing
 
-### Learning ReasonML
+### From OCaml to ReasonML
 
 This link lets you type OCaml and see what the corresponding ReasonML syntax is:
 <https://reasonml.github.io/en/try>.
@@ -104,7 +96,7 @@ same style.
 
 The `make dev` and `make release` commands do three things:
 
-1. Generate some parsers using `menhir`.
+1. Generate some internal parsers using `menhir`.
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
