@@ -80,7 +80,9 @@ let create =
     ~on_display=
       (_, ~schedule_action as _) =>
         if (Model.is_cell_focused(model)) {
+          JSUtil.log(83);
           let caret_elem = JSUtil.force_get_elem_by_id("caret");
+          JSUtil.log(84);
           restart_cursor_animation(caret_elem);
           scroll_cursor_into_view_if_needed(caret_elem);
         },
