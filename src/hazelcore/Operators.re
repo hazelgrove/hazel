@@ -5,16 +5,16 @@ module Typ = {
     | Prod
     | Sum;
 
-  let string_of_operator =
+  let to_string =
     fun
     | Arrow => UnicodeConstants.typeArrowSym
     | Prod => ","
     | Sum => "|";
 
-  let parse_string_of_operator = op =>
+  let to_parse_string = op =>
     switch (op) {
     | Arrow => "->"
-    | _ => string_of_operator(op)
+    | _ => to_string(op)
     };
 };
 
@@ -25,16 +25,16 @@ module Pat = {
     | Space
     | Cons;
 
-  let string_of_operator =
+  let to_string =
     fun
     | Comma => ","
     | Space => " "
     | Cons => "::";
 
-  let parse_string_of_operator = op =>
+  let to_parse_string = op =>
     switch (op) {
     | Space => "_"
-    | _ => string_of_operator(op)
+    | _ => to_string(op)
     };
 
   let is_Space =
@@ -58,7 +58,7 @@ module Exp = {
     | And
     | Or;
 
-  let string_of_operator =
+  let to_string =
     fun
     | Space => " "
     | Plus => "+"
@@ -72,13 +72,13 @@ module Exp = {
     | And => "&&"
     | Or => "||";
 
-  let parse_string_of_operator = op =>
+  let to_parse_string = op =>
     switch (op) {
     | Equals => "="
     | Space => "_"
     | And => "&"
     | Or => "|"
-    | _ => string_of_operator(op)
+    | _ => to_string(op)
     };
 
   let is_Space =
