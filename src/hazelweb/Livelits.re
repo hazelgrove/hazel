@@ -816,73 +816,221 @@ module SliderLivelit: LIVELIT = {
   let name = "$slider";
   let expansion_ty = HTyp.Num;
 
+  module EditableValue = {
+    [@deriving sexp]
+    type t = {
+      value: int,
+      editing: option(string),
+    };
+
+    let init = value => {value, editing: None};
+
+    let start_editing = editable => {
+      ...editable,
+      editing: Some(string_of_int(editable.value)),
+    };
+
+    let edit = (new_edit_value, editable) => {
+      ...editable,
+      editing: Some(new_edit_value),
+    };
+
+    let stop_editing = (new_value, editable) => {
+      editing: None,
+      value:
+        switch (new_value) {
+        | None => editable.value
+        | Some(new_value) => new_value
+        },
+    };
+  };
+
   [@deriving sexp]
-  type model = (int, int);
+  type endpoint =
+    | Min
+    | Max;
+
+  [@deriving sexp]
+  type model = {
+    min: EditableValue.t,
+    max: EditableValue.t,
+    value: int,
+  };
+
+  let get_endpoint = (endpoint, model) =>
+    switch (endpoint) {
+    | Min => model.min
+    | Max => model.max
+    };
+
+  let map_endpoint = (f, endpoint, model) =>
+    switch (endpoint) {
+    | Min => {...model, min: f(model.min)}
+    | Max => {...model, max: f(model.max)}
+    };
+
+  let start_editing = map_endpoint(EditableValue.start_editing);
+  let edit = (endpoint, new_value, model) =>
+    model |> map_endpoint(EditableValue.edit(new_value), endpoint);
+  let stop_editing = (endpoint, new_value, model) =>
+    model |> map_endpoint(EditableValue.stop_editing(new_value), endpoint);
+
   [@deriving sexp]
   type action =
     | Slide(int)
-    | UpdateMax(int);
+    | StartEditing(endpoint)
+    | Edit(endpoint, string)
+    | StopEditing(endpoint, option(int));
   type trigger = action => Vdom.Event.t;
-
-  let init_model = SpliceGenCmd.return((5, 10));
-  let update = ((n, max), a) =>
-    switch (a) {
-    | Slide(n') => SpliceGenCmd.return((n', max))
-    | UpdateMax(max') => SpliceGenCmd.return((n, max'))
-    };
 
   /* overflow paranoia */
   let max_slider_value = 1000 * 1000 * 1000;
-  let crop_slider_value = value => max(0, min(max_slider_value, value));
+  let min_slider_value = (-1) * max_slider_value;
+  /*let crop_slider_value = value =>
+    max(min_slider_value, min(max_slider_value, value));*/
 
-  let view = ((value, slider_max), trigger: trigger) => {
+  let init_model =
+    SpliceGenCmd.return({
+      min: EditableValue.init(0),
+      max: EditableValue.init(10),
+      value: 5,
+    });
+  let update = (model, a) =>
+    switch (a) {
+    | Slide(n) => SpliceGenCmd.return({...model, value: n})
+    | StartEditing(Min) => SpliceGenCmd.return(model |> start_editing(Min))
+    | StartEditing(Max) => SpliceGenCmd.return(model |> start_editing(Max))
+    | Edit(endpoint, new_value) =>
+      SpliceGenCmd.return(model |> edit(endpoint, new_value))
+    | StopEditing(endpoint, new_value) =>
+      SpliceGenCmd.return(model |> stop_editing(endpoint, new_value))
+    };
+
+  let view = (model, trigger: trigger) => {
+    let is_valid = (endpoint, edit_value) =>
+      switch (endpoint) {
+      | Min =>
+        Option.bind(int_of_string_opt(edit_value), new_min =>
+          min_slider_value < new_min && new_min < model.max.value
+            ? Some(new_min) : None
+        )
+      | Max =>
+        Option.bind(int_of_string_opt(edit_value), new_max =>
+          model.min.value < new_max && new_max < max_slider_value
+            ? Some(new_max) : None
+        )
+      };
+    let editing_clss = endpoint => {
+      let editable = model |> get_endpoint(endpoint);
+      switch (editable.editing) {
+      | None => []
+      | Some(_) => ["editing"]
+      };
+    };
+    let err_clss = endpoint => {
+      let editable = model |> get_endpoint(endpoint);
+      switch (editable.editing) {
+      | None => []
+      | Some(edit_value) =>
+        switch (is_valid(endpoint, edit_value)) {
+        | Some(_) => []
+        | None => ["err"]
+        }
+      };
+    };
     let view_span =
       Vdom.(
         Node.span(
-          [],
+          [Attr.classes(["slider-livelit"])],
           [
             Node.input(
               [
+                Attr.classes(
+                  ["min-input"] @ editing_clss(Min) @ err_clss(Min),
+                ),
+                Attr.type_("text"),
+                Attr.create(
+                  "size",
+                  string_of_int(IntUtil.num_digits(model.min.value)),
+                ),
+                Attr.value(
+                  // only sets initial value
+                  switch (model.min.editing) {
+                  | None => string_of_int(model.min.value)
+                  | Some(edit_value) => edit_value
+                  },
+                ),
+                Attr.on_focus(_ => trigger(StartEditing(Min))),
+                Attr.on_blur(evt => {
+                  let new_value =
+                    Option.bind(model.min.editing, is_valid(Min));
+                  {
+                    let target = Js.Opt.get(evt##.target, () => assert(false));
+                    let new_value =
+                      switch (new_value) {
+                      | None => model.min.value
+                      | Some(new_value) => new_value
+                      };
+                    Js.Unsafe.set(target, "value", string_of_int(new_value));
+                  };
+                  trigger(StopEditing(Min, new_value));
+                }),
+                Attr.on_input((_, new_edit_value) =>
+                  trigger(Edit(Min, new_edit_value))
+                ),
+              ],
+              [],
+            ),
+            Node.input(
+              [
+                Attr.classes(
+                  ["max-input"] @ editing_clss(Max) @ err_clss(Max),
+                ),
+                Attr.type_("text"),
+                Attr.create(
+                  "size",
+                  string_of_int(IntUtil.num_digits(model.max.value)),
+                ),
+                Attr.value(
+                  switch (model.max.editing) {
+                  | None => string_of_int(model.max.value)
+                  | Some(edit_value) => edit_value
+                  },
+                ),
+                Attr.on_focus(_ => trigger(StartEditing(Max))),
+                Attr.on_blur(evt => {
+                  let new_value =
+                    Option.bind(model.max.editing, is_valid(Max));
+                  {
+                    let target = Js.Opt.get(evt##.target, () => assert(false));
+                    let new_value =
+                      switch (new_value) {
+                      | None => model.max.value
+                      | Some(new_value) => new_value
+                      };
+                    Js.Unsafe.set(target, "value", string_of_int(new_value));
+                  };
+                  trigger(StopEditing(Max, new_value));
+                }),
+                Attr.on_input((_, new_edit_value) =>
+                  trigger(Edit(Max, new_edit_value))
+                ),
+              ],
+              [],
+            ),
+            Node.input(
+              [
+                Attr.classes(["slider"]),
                 Attr.type_("range"),
-                Attr.create("min", "0"),
-                Attr.create("max", string_of_int(slider_max)),
-                Attr.value(string_of_int(value)),
-                Attr.on_input((_, value_str) => {
+                Attr.create("min", string_of_int(model.min.value)),
+                Attr.create("max", string_of_int(model.max.value)),
+                Attr.value(string_of_int(model.value)),
+                Attr.on_change((_, value_str) => {
                   let new_value = int_of_string(value_str);
                   trigger(Slide(new_value));
                 }),
               ],
               [],
-            ),
-            Node.label(
-              [],
-              [Node.text(Printf.sprintf("%d/%d", value, slider_max))],
-            ),
-            Node.button(
-              [
-                Attr.on_click(_ => {
-                  let new_slider_max = max(10, slider_max / 10);
-                  let new_value = min(value, new_slider_max);
-                  Event.Many([
-                    trigger(UpdateMax(new_slider_max)),
-                    trigger(Slide(new_value)),
-                  ]);
-                }),
-              ],
-              [Node.text("/ 10")],
-            ),
-            Node.button(
-              [
-                Attr.on_click(_ => {
-                  let new_slider_max = crop_slider_value(slider_max * 10);
-                  let new_value = min(value, new_slider_max);
-                  Event.Many([
-                    trigger(UpdateMax(new_slider_max)),
-                    trigger(Slide(new_value)),
-                  ]);
-                }),
-              ],
-              [Node.text("* 10")],
             ),
           ],
         )
@@ -890,7 +1038,7 @@ module SliderLivelit: LIVELIT = {
     LivelitView.Inline(view_span, 10);
   };
 
-  let expand = ((value, _)) => UHExp.Block.wrap(UHExp.numlit(value));
+  let expand = model => UHExp.Block.wrap(UHExp.numlit(model.value));
 };
 
 /* ----------
