@@ -167,6 +167,7 @@ let text_operand =
   | Underscore => (wild(), u_gen)
   | NumLit(n) => (numlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
+  | StringLit(s) => (stringlit(s), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;

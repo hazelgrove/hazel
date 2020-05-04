@@ -17,6 +17,7 @@
 %token PLUS
 %token MINUS
 %token TIMES
+%token PLUSPLUS
 %token SPACEOP
 %token EOF
 
@@ -30,6 +31,7 @@
 %left PLUS
 %left MINUS
 %left TIMES
+%left PLUSPLUS
 %left SPACEOP
 
 %start <UHExp.operator Skel.t> skel_expr
@@ -79,6 +81,11 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.Minus,
+      e1, e2) }
+  | e1 = expr; MINUS; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.PlusPlus,
       e1, e2) }
   | e1 = expr; AND; e2 = expr {
     Skel.BinOp(
