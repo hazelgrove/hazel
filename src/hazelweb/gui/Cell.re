@@ -42,6 +42,10 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Alt_L, _ => Action.Construct(SInj(L))),
     (Alt_R, _ => Action.Construct(SInj(R))),
     (Alt_C, _ => Action.Construct(SCase)),
+    (Ctrl_Alt_Up, _ => Action.SwapUp),
+    (Ctrl_Alt_Down, _ => Action.SwapDown),
+    (Ctrl_Alt_Left, _ => Action.SwapLeft),
+    (Ctrl_Alt_Right, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
@@ -97,17 +101,17 @@ let view =
       {
         let (contenteditable, presentation) =
           model.is_cell_focused
-            ? Code.editor_view_of_exp(
+            ? UHCode.focused_view(
                 ~inject,
+                ~show_contenteditable=model.show_contenteditable,
                 ~path=program |> Program.get_path,
                 ~ci=program |> Program.get_cursor_info,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
+                program |> Program.get_doc,
               )
-            : Code.editor_view_of_exp(
+            : UHCode.view(
                 ~inject,
                 ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_uhexp,
+                program |> Program.get_doc,
               );
         [
           Node.div(

@@ -1,6 +1,6 @@
 open Pretty;
 
-type t = Layout.t(TermAnnot.t);
+type t = Layout.t(UHAnnot.t);
 
 let has_child: t => bool;
 
