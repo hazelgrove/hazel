@@ -82,7 +82,7 @@ expr:
       NotInHole,
       UHExp.Minus,
       e1, e2) }
-  | e1 = expr; MINUS; e2 = expr {
+  | e1 = expr; PLUSPLUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
       UHExp.PlusPlus,
