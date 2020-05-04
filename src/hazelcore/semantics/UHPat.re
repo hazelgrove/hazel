@@ -149,14 +149,10 @@ let text_operand =
     );
   };
 
-let parse = s => {
-  let lexbuf = Lexing.from_string(s);
-  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
-};
-
 let associate = (seq: seq) => {
   let (skel_str, _) = Skel.make_skel_str(seq, Operators.Pat.to_parse_string);
-  parse(skel_str);
+  let lexbuf = Lexing.from_string(skel_str);
+  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
 };
 
 let mk_OpSeq = OpSeq.mk(~associate);
