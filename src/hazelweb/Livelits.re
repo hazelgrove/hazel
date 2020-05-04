@@ -32,6 +32,9 @@ module type LIVELIT = {
   let expand: model => UHExp.t;
 };
 
+let _to_uhvar = id =>
+  UHExp.(Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id)));
+
 module PairLivelit: LIVELIT = {
   let name = "$pair";
   let expansion_ty = HTyp.(Prod(Hole, Hole));
@@ -62,12 +65,8 @@ module PairLivelit: LIVELIT = {
     );
 
   let expand = ((leftID, rightID)) => {
-    let to_uhvar = id =>
-      UHExp.(
-        Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id))
-      );
     let pair_seq =
-      Seq.mk(to_uhvar(leftID), [(UHExp.Comma, to_uhvar(rightID))]);
+      Seq.mk(_to_uhvar(leftID), [(UHExp.Comma, _to_uhvar(rightID))]);
     UHExp.Block.wrap'(
       OpSeq.mk(~associate=Associator.Exp.associate, pair_seq),
     );
@@ -289,10 +288,6 @@ module MatrixLivelit: LIVELIT = {
     );
 
   let expand = m => {
-    let to_uhvar = id =>
-      UHExp.(
-        Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id))
-      );
     let to_uhexp_list =
       fun
       | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
@@ -309,7 +304,7 @@ module MatrixLivelit: LIVELIT = {
       m
       |> List.map(r =>
            r
-           |> List.map(to_uhvar)
+           |> List.map(_to_uhvar)
            |> to_uhexp_list
            |> (q => UHExp.Parenthesized(q))
          );
