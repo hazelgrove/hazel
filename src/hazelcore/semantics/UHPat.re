@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-include Operator.Pat;
+include Operators.Pat;
 
 exception FreeVarInPat;
 
