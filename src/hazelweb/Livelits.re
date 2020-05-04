@@ -857,12 +857,6 @@ module SliderLivelit: LIVELIT = {
     value: int,
   };
 
-  let get_endpoint = (endpoint, model) =>
-    switch (endpoint) {
-    | Min => model.min
-    | Max => model.max
-    };
-
   let map_endpoint = (f, endpoint, model) =>
     switch (endpoint) {
     | Min => {...model, min: f(model.min)}
@@ -907,133 +901,106 @@ module SliderLivelit: LIVELIT = {
     };
 
   let view = (model, trigger: trigger) => {
-    let is_valid = (endpoint, edit_value) =>
-      switch (endpoint) {
-      | Min =>
-        Option.bind(int_of_string_opt(edit_value), new_min =>
-          min_slider_value < new_min && new_min < model.max.value
-            ? Some(new_min) : None
-        )
-      | Max =>
-        Option.bind(int_of_string_opt(edit_value), new_max =>
-          model.min.value < new_max && new_max < max_slider_value
-            ? Some(new_max) : None
-        )
-      };
-    let editing_clss = endpoint => {
-      let editable = model |> get_endpoint(endpoint);
-      switch (editable.editing) {
-      | None => []
-      | Some(_) => ["editing"]
-      };
+    open Vdom;
+
+    let endpoint_view =
+        (
+          ~clss,
+          ~is_valid: string => option(int),
+          (endpoint, editable: EditableValue.t),
+        ) => {
+      let editing_clss =
+        switch (editable.editing) {
+        | None => []
+        | Some(_) => ["editing"]
+        };
+      let err_clss =
+        switch (editable.editing) {
+        | None => []
+        | Some(edit_value) =>
+          switch (is_valid(edit_value)) {
+          | Some(_) => []
+          | None => ["err"]
+          }
+        };
+      Node.input(
+        [
+          Attr.classes(clss @ editing_clss @ err_clss),
+          Attr.type_("text"),
+          Attr.create(
+            "size",
+            string_of_int(IntUtil.num_digits(editable.value)),
+          ),
+          Attr.value(
+            // only sets initial value
+            switch (editable.editing) {
+            | None => string_of_int(editable.value)
+            | Some(edit_value) => edit_value
+            },
+          ),
+          Attr.on_focus(_ => trigger(StartEditing(endpoint))),
+          Attr.on_blur(evt => {
+            let new_value = Option.bind(editable.editing, is_valid);
+            {
+              let target = Js.Opt.get(evt##.target, () => assert(false));
+              let new_value =
+                switch (new_value) {
+                | None => editable.value
+                | Some(new_value) => new_value
+                };
+              Js.Unsafe.set(target, "value", string_of_int(new_value));
+            };
+            trigger(StopEditing(endpoint, new_value));
+          }),
+          Attr.on_input((_, new_edit_value) =>
+            trigger(Edit(endpoint, new_edit_value))
+          ),
+        ],
+        [],
+      );
     };
-    let err_clss = endpoint => {
-      let editable = model |> get_endpoint(endpoint);
-      switch (editable.editing) {
-      | None => []
-      | Some(edit_value) =>
-        switch (is_valid(endpoint, edit_value)) {
-        | Some(_) => []
-        | None => ["err"]
-        }
-      };
-    };
+
     let view_span =
-      Vdom.(
-        Node.span(
-          [Attr.classes(["slider-livelit"])],
-          [
-            Node.input(
-              [
-                Attr.classes(
-                  ["min-input"] @ editing_clss(Min) @ err_clss(Min),
-                ),
-                Attr.type_("text"),
-                Attr.create(
-                  "size",
-                  string_of_int(IntUtil.num_digits(model.min.value)),
-                ),
-                Attr.value(
-                  // only sets initial value
-                  switch (model.min.editing) {
-                  | None => string_of_int(model.min.value)
-                  | Some(edit_value) => edit_value
-                  },
-                ),
-                Attr.on_focus(_ => trigger(StartEditing(Min))),
-                Attr.on_blur(evt => {
-                  let new_value =
-                    Option.bind(model.min.editing, is_valid(Min));
-                  {
-                    let target = Js.Opt.get(evt##.target, () => assert(false));
-                    let new_value =
-                      switch (new_value) {
-                      | None => model.min.value
-                      | Some(new_value) => new_value
-                      };
-                    Js.Unsafe.set(target, "value", string_of_int(new_value));
-                  };
-                  trigger(StopEditing(Min, new_value));
-                }),
-                Attr.on_input((_, new_edit_value) =>
-                  trigger(Edit(Min, new_edit_value))
-                ),
-              ],
-              [],
-            ),
-            Node.input(
-              [
-                Attr.classes(
-                  ["max-input"] @ editing_clss(Max) @ err_clss(Max),
-                ),
-                Attr.type_("text"),
-                Attr.create(
-                  "size",
-                  string_of_int(IntUtil.num_digits(model.max.value)),
-                ),
-                Attr.value(
-                  switch (model.max.editing) {
-                  | None => string_of_int(model.max.value)
-                  | Some(edit_value) => edit_value
-                  },
-                ),
-                Attr.on_focus(_ => trigger(StartEditing(Max))),
-                Attr.on_blur(evt => {
-                  let new_value =
-                    Option.bind(model.max.editing, is_valid(Max));
-                  {
-                    let target = Js.Opt.get(evt##.target, () => assert(false));
-                    let new_value =
-                      switch (new_value) {
-                      | None => model.max.value
-                      | Some(new_value) => new_value
-                      };
-                    Js.Unsafe.set(target, "value", string_of_int(new_value));
-                  };
-                  trigger(StopEditing(Max, new_value));
-                }),
-                Attr.on_input((_, new_edit_value) =>
-                  trigger(Edit(Max, new_edit_value))
-                ),
-              ],
-              [],
-            ),
-            Node.input(
-              [
-                Attr.classes(["slider"]),
-                Attr.type_("range"),
-                Attr.create("min", string_of_int(model.min.value)),
-                Attr.create("max", string_of_int(model.max.value)),
-                Attr.value(string_of_int(model.value)),
-                Attr.on_change((_, value_str) => {
-                  let new_value = int_of_string(value_str);
-                  trigger(Slide(new_value));
-                }),
-              ],
-              [],
-            ),
-          ],
-        )
+      Node.span(
+        [Attr.classes(["slider-livelit"])],
+        [
+          endpoint_view(
+            ~clss=["min-input"],
+            ~is_valid=
+              edit_value =>
+                edit_value
+                |> int_of_string_opt
+                |> OptUtil.filter(new_min =>
+                     min_slider_value < new_min && new_min < model.max.value
+                   ),
+            (Min, model.min),
+          ),
+          Node.input(
+            [
+              Attr.classes(["slider"]),
+              Attr.type_("range"),
+              Attr.create("min", string_of_int(model.min.value)),
+              Attr.create("max", string_of_int(model.max.value)),
+              Attr.value(string_of_int(model.value)),
+              Attr.on_change((_, value_str) => {
+                let new_value = int_of_string(value_str);
+                trigger(Slide(new_value));
+              }),
+            ],
+            [],
+          ),
+          endpoint_view(
+            ~clss=["max-input"],
+            ~is_valid=
+              edit_value =>
+                edit_value
+                |> int_of_string_opt
+                |> OptUtil.filter(new_max =>
+                     model.min.value < new_max && new_max < max_slider_value
+                   ),
+            (Max, model.max),
+          ),
+        ],
       );
     LivelitView.Inline(view_span, 10);
   };

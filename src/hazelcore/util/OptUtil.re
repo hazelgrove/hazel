@@ -38,3 +38,9 @@ let and_then = (f: 'a => 'b, opt: option('a)): 'b =>
   | None => None
   | Some(a) => f(a)
   };
+
+let filter = (pred: 'a => bool, opt: option('a)): option('a) =>
+  switch (opt) {
+  | None => None
+  | Some(a) => pred(a) ? Some(a) : None
+  };
