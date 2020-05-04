@@ -32,8 +32,14 @@ module type LIVELIT = {
   let expand: model => UHExp.t;
 };
 
+
 let _to_uhvar = id =>
   UHExp.(Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id)));
+
+let attr_style = Vdom.Attr.create("style");
+
+let prop_val = (prop: string, value: string) =>
+  StringUtil.cat([prop, ": ", value, ";"]);
 
 module PairLivelit: LIVELIT = {
   let name = "$pair";
@@ -157,11 +163,6 @@ module MatrixLivelit: LIVELIT = {
           }
         };
       };
-
-  let attr_style = Vdom.Attr.create("style");
-
-  let prop_val = (prop: string, value: string) =>
-    StringUtil.cat([prop, ": ", value, ";"]);
 
   let grid_area = (row_start, col_start, row_end, col_end) =>
     prop_val(
@@ -923,21 +924,31 @@ module SliderLivelit: LIVELIT = {
           | None => ["err"]
           }
         };
+      let display_value =
+        switch (editable.editing) {
+        | None => string_of_int(editable.value)
+        | Some(edit_value) => edit_value
+        };
+      let padding = "3px";
       Node.input(
         [
           Attr.classes(clss @ editing_clss @ err_clss),
           Attr.type_("text"),
-          Attr.create(
-            "size",
-            string_of_int(IntUtil.num_digits(editable.value)),
+          attr_style(
+            StringUtil.sep([
+              prop_val("padding", padding),
+              prop_val(
+                "width",
+                Printf.sprintf(
+                  "calc(%dch + %s)",
+                  String.length(display_value),
+                  padding,
+                ),
+              ),
+            ]),
           ),
-          Attr.value(
-            // only sets initial value
-            switch (editable.editing) {
-            | None => string_of_int(editable.value)
-            | Some(edit_value) => edit_value
-            },
-          ),
+          // only sets initial value
+          Attr.value(display_value),
           Attr.on_focus(_ => trigger(StartEditing(endpoint))),
           Attr.on_blur(evt => {
             let new_value = Option.bind(editable.editing, is_valid);

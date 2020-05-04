@@ -862,8 +862,6 @@ h1 {
 .slider-livelit .min-input,
 .slider-livelit .max-input {
   font-size: 65%;
-  min-width: 3em;
-  max-width: 3em;
   border: none;
   background-color: #EEE;
   border-radius: 3px
