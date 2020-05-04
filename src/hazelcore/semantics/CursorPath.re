@@ -582,7 +582,7 @@ module Pat = {
       | EmptyHole(_)
       | Wild(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -637,7 +637,7 @@ module Pat = {
       | EmptyHole(_)
       | Wild(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -696,7 +696,7 @@ module Pat = {
     | Wild(InHole(_, u))
     | Var(InHole(_, u), _, _)
     | Var(_, InVarHole(_, u), _)
-    | NumLit(InHole(_, u), _)
+    | IntLit(InHole(_, u), _)
     | FloatLit(InHole(_, u), _)
     | BoolLit(InHole(_, u), _)
     | ListNil(InHole(_, u)) => [
@@ -705,7 +705,7 @@ module Pat = {
       ]
     | Var(NotInHole, NotInVarHole, _)
     | Wild(NotInHole)
-    | NumLit(NotInHole, _)
+    | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
     | ListNil(NotInHole) => hs
@@ -753,7 +753,7 @@ module Pat = {
         )
       }
     | CursorP(_, Wild(err))
-    | CursorP(_, NumLit(err, _))
+    | CursorP(_, IntLit(err, _))
     | CursorP(_, FloatLit(err, _))
     | CursorP(_, BoolLit(err, _))
     | CursorP(_, ListNil(err)) =>
@@ -906,7 +906,7 @@ module Exp = {
       switch (operand) {
       | EmptyHole(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -1083,7 +1083,7 @@ module Exp = {
       switch (operand) {
       | EmptyHole(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -1241,7 +1241,7 @@ module Exp = {
     | EmptyHole(u) => [(ExpHole(u), rev_steps |> List.rev), ...hs]
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
-    | NumLit(err, _)
+    | IntLit(err, _)
     | FloatLit(err, _)
     | BoolLit(err, _)
     | ListNil(err) => hs |> holes_err(err, rev_steps)
@@ -1429,7 +1429,7 @@ module Exp = {
           (),
         )
       }
-    | CursorE(_, NumLit(err, _))
+    | CursorE(_, IntLit(err, _))
     | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
     | CursorE(_, ListNil(err)) =>

@@ -32,7 +32,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | EmptyHole(_, _)
   | NonEmptyHole(_, _, _, _)
   | Wild
-  | NumLit(_)
+  | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
   | Triv

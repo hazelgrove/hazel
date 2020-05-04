@@ -152,7 +152,7 @@ and is_before_zoperand =
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, Var(_))
-  | CursorE(cursor, NumLit(_))
+  | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
@@ -251,7 +251,7 @@ and place_before_operand = operand =>
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | Var(_)
-  | NumLit(_)
+  | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Lam(_)
@@ -640,7 +640,7 @@ and move_cursor_left_zoperand =
       )
     }
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_) | FloatLit(_)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -866,7 +866,7 @@ and move_cursor_right_zoperand =
       ? Some(CaseZE(err, place_before(scrut), rules, Some(ann)))
       : Some(CaseZA(err, scrut, rules, ZTyp.place_before(ann)))
   | CursorE(_, ApPalette(_, _, _, _)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_) | FloatLit(_)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
