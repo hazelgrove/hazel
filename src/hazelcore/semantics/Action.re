@@ -703,7 +703,7 @@ module Pat = {
     zseq
     |> ZPat.erase_zseq
     |> Seq.operators
-    |> List.exists(op => op == UHPat.Comma);
+    |> List.exists(op => op == Operators.Pat.Comma);
 
   type syn_success = (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
   type ana_success = (ZPat.t, Contexts.t, MetaVarGen.t);
@@ -884,7 +884,7 @@ module Pat = {
 
   let delete_operator =
     _delete_operator(
-      ~space=UHPat.Space,
+      ~space=Operators.Pat.Space,
       ~is_EmptyHole=UHPat.is_EmptyHole,
       ~place_before_operand=ZPat.place_before_operand,
       ~place_after_operand=ZPat.place_after_operand,
@@ -893,7 +893,7 @@ module Pat = {
 
   let construct_operator_before_zoperand =
     _construct_operator_before_zoperand(
-      ~is_Space=UHPat.is_Space,
+      ~is_Space=Operators.Pat.is_Space,
       ~new_EmptyHole=UHPat.new_EmptyHole,
       ~erase_zoperand=ZPat.erase_zoperand,
       ~place_before_operand=ZPat.place_before_operand,
@@ -901,7 +901,7 @@ module Pat = {
     );
   let construct_operator_after_zoperand =
     _construct_operator_after_zoperand(
-      ~is_Space=UHPat.is_Space,
+      ~is_Space=Operators.Pat.is_Space,
       ~new_EmptyHole=UHPat.new_EmptyHole,
       ~erase_zoperand=ZPat.erase_zoperand,
       ~place_before_operand=ZPat.place_before_operand,
@@ -911,8 +911,8 @@ module Pat = {
   let complete_tuple =
     _complete_tuple(
       ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
-      ~comma=UHPat.Comma,
-      ~zcomma=(OnOp(After), UHPat.Comma),
+      ~comma=Operators.Pat.Comma,
+      ~zcomma=(OnOp(After), Operators.Pat.Comma),
       ~new_EmptyHole=UHPat.new_EmptyHole,
     );
 
@@ -1878,7 +1878,7 @@ module Exp = {
     zseq
     |> ZExp.erase_zseq
     |> Seq.operators
-    |> List.exists(op => op == UHExp.Comma);
+    |> List.exists(op => op == Operators.Exp.Comma);
 
   let mk_and_syn_fix_OpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, seq: UHExp.seq)
@@ -1931,7 +1931,7 @@ module Exp = {
 
   let delete_operator =
     _delete_operator(
-      ~space=UHExp.Space,
+      ~space=Operators.Exp.Space,
       ~is_EmptyHole=UHExp.is_EmptyHole,
       ~place_before_operand=ZExp.place_before_operand,
       ~place_after_operand=ZExp.place_after_operand,
@@ -1940,7 +1940,7 @@ module Exp = {
 
   let construct_operator_before_zoperand =
     _construct_operator_before_zoperand(
-      ~is_Space=UHExp.is_Space,
+      ~is_Space=Operators.Exp.is_Space,
       ~new_EmptyHole=UHExp.new_EmptyHole,
       ~erase_zoperand=ZExp.erase_zoperand,
       ~place_before_operand=ZExp.place_before_operand,
@@ -1948,7 +1948,7 @@ module Exp = {
     );
   let construct_operator_after_zoperand =
     _construct_operator_after_zoperand(
-      ~is_Space=UHExp.is_Space,
+      ~is_Space=Operators.Exp.is_Space,
       ~new_EmptyHole=UHExp.new_EmptyHole,
       ~erase_zoperand=ZExp.erase_zoperand,
       ~place_before_operand=ZExp.place_before_operand,
@@ -1958,8 +1958,8 @@ module Exp = {
   let complete_tuple =
     _complete_tuple(
       ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
-      ~comma=UHExp.Comma,
-      ~zcomma=(OnOp(After), UHExp.Comma),
+      ~comma=Operators.Exp.Comma,
+      ~zcomma=(OnOp(After), Operators.Exp.Comma),
       ~new_EmptyHole=UHExp.new_EmptyHole,
     );
 

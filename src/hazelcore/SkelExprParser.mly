@@ -32,8 +32,8 @@
 %left TIMES
 %left SPACEOP
 
-%start <Operators.Exp.operator Skel.t> skel_expr
-%type <Operators.Exp.operator Skel.t> expr
+%start <Operators.Exp.t Skel.t> skel_expr
+%type <Operators.Exp.t Skel.t> expr
 
 (* %% ends the declarations section of the grammar definition *)
 

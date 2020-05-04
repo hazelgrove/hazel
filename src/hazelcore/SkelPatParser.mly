@@ -16,8 +16,8 @@
 %right CONS
 %left SPACEOP
 
-%start <Operators.Pat.operator Skel.t> skel_pat
-%type <Operators.Pat.operator Skel.t> pat
+%start <Operators.Pat.t Skel.t> skel_pat
+%type <Operators.Pat.t Skel.t> pat
 
 (* %% ends the declarations section of the grammar definition *)
 

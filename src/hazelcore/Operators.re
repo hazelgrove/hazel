@@ -1,6 +1,6 @@
 module Typ = {
   [@deriving sexp]
-  type operator =
+  type t =
     | Arrow
     | Prod
     | Sum;
@@ -16,16 +16,11 @@ module Typ = {
     | Arrow => "->"
     | _ => string_of_operator(op)
     };
-
-  let is_Prod =
-    fun
-    | Prod => true
-    | _ => false;
 };
 
 module Pat = {
   [@deriving sexp]
-  type operator =
+  type t =
     | Comma
     | Space
     | Cons;
@@ -46,16 +41,11 @@ module Pat = {
     fun
     | Space => true
     | _ => false;
-
-  let is_Comma =
-    fun
-    | Comma => true
-    | _ => false;
 };
 
 module Exp = {
   [@deriving sexp]
-  type operator =
+  type t =
     | Space
     | Plus
     | Minus
@@ -94,10 +84,5 @@ module Exp = {
   let is_Space =
     fun
     | Space => true
-    | _ => false;
-
-  let is_Comma =
-    fun
-    | Comma => true
     | _ => false;
 };

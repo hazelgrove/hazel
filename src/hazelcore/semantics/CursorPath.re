@@ -687,7 +687,7 @@ module Pat = {
     |> holes_opseq(
          ~holes_operand,
          ~hole_desc,
-         ~is_space=UHPat.is_Space,
+         ~is_space=Operators.Pat.is_Space,
          ~rev_steps,
          p,
        )
@@ -728,7 +728,7 @@ module Pat = {
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
-      ~is_space=UHPat.is_Space,
+      ~is_space=Operators.Pat.is_Space,
       ~rev_steps,
       ~erase_zopseq=ZPat.erase_zopseq,
       zopseq,
@@ -1227,7 +1227,7 @@ module Exp = {
       |> holes_opseq(
            ~holes_operand,
            ~hole_desc,
-           ~is_space=UHExp.is_Space,
+           ~is_space=Operators.Exp.is_Space,
            ~rev_steps,
            opseq,
          )
@@ -1401,7 +1401,7 @@ module Exp = {
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
-      ~is_space=UHExp.is_Space,
+      ~is_space=Operators.Exp.is_Space,
       ~rev_steps,
       ~erase_zopseq=ZExp.erase_zopseq,
       zopseq,

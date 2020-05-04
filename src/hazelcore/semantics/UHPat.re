@@ -1,8 +1,9 @@
 open Sexplib.Std;
 
-include Operators.Pat;
-
 exception FreeVarInPat;
+
+[@deriving sexp]
+type operator = Operators.Pat.t;
 
 [@deriving sexp]
 type t = opseq
@@ -154,6 +155,9 @@ let parse = s => {
 };
 
 let associate = (seq: seq) => {
-  let (skel_str, _) = Skel.make_skel_str(seq, parse_string_of_operator);
+  let (skel_str, _) =
+    Skel.make_skel_str(seq, Operators.Pat.parse_string_of_operator);
   parse(skel_str);
 };
+
+let mk_OpSeq = OpSeq.mk(~associate);
