@@ -108,7 +108,7 @@ module type PALETTE = {
  module ColorPalette: PALETTE = {
    let name = "$color";
    let expansion_ty =
-     HTyp.(Arrow(Arrow(Num, Arrow(, Arrow(Num, Hole))), Hole));
+     HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
 
    type model = string;
    let init_model = UHExp.HoleRefs.Ret("#c94d4d");

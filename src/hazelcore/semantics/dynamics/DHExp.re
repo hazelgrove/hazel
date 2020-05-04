@@ -116,7 +116,7 @@ let constructor_string = (d: t): string =>
   | Lam(_, _, _) => "Lam"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
-  | IntLit(_) => "IntLit"
+  | NumLit(_) => "NumLit"
   | FloatLit(_) => "FloatLit"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"

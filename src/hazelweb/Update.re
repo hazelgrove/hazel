@@ -16,12 +16,15 @@ module Action = {
     | LoadCardstack(int)
     | NextCard
     | PrevCard
-    | SetComputeResults(bool)
-    | SetShowContentEditable(bool)
-    | SetShowPresentation(bool)
-    | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
+    | ToggleComputeResults
+    | ToggleShowCaseClauses
+    | ToggleShowFnBodies
+    | ToggleShowCasts
+    | ToggleShowUnevaluatedExpansion
+    | ToggleShowContenteditable
+    | ToggleShowPresentation
+    | SelectHoleInstance(HoleInstance.t)
     | InvalidVar(string)
-    | MoveToHole(MetaVar.t)
     | SelectionChange
     | FocusCell
     | BlurCell
@@ -72,15 +75,18 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | LoadCardstack(_)
   | NextCard
   | PrevCard
-  | SetComputeResults(_)
-  | SetShowContentEditable(_)
-  | SetShowPresentation(_)
+  | ToggleComputeResults
+  | ToggleShowCaseClauses
+  | ToggleShowFnBodies
+  | ToggleShowCasts
+  | ToggleShowUnevaluatedExpansion
+  | ToggleShowContenteditable
+  | ToggleShowPresentation
   | SelectHoleInstance(_)
   | InvalidVar(_)
   | FocusCell
   | BlurCell
   | FocusWindow
-  | MoveToHole(_)
   | Undo
   | Redo =>
     Logger.append(
@@ -126,15 +132,30 @@ let apply_action =
   | PrevCard =>
     state.changing_cards := true;
     Model.prev_card(model);
-  | SetComputeResults(compute_results) => {...model, compute_results}
-  | SetShowContentEditable(show_contenteditable) => {
+  | ToggleComputeResults => {
       ...model,
-      show_contenteditable,
+      compute_results: !model.compute_results,
     }
-  | SetShowPresentation(show_presentation) => {...model, show_presentation}
-  | SelectHoleInstance(u, i) => model |> Model.select_hole_instance((u, i))
+  | ToggleShowCaseClauses => {
+      ...model,
+      show_case_clauses: !model.show_case_clauses,
+    }
+  | ToggleShowFnBodies => {...model, show_fn_bodies: !model.show_fn_bodies}
+  | ToggleShowCasts => {...model, show_casts: !model.show_casts}
+  | ToggleShowUnevaluatedExpansion => {
+      ...model,
+      show_unevaluated_expansion: !model.show_unevaluated_expansion,
+    }
+  | ToggleShowContenteditable => {
+      ...model,
+      show_contenteditable: !model.show_contenteditable,
+    }
+  | ToggleShowPresentation => {
+      ...model,
+      show_presentation: !model.show_presentation,
+    }
+  | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
-  | MoveToHole(u) => model |> Model.move_to_hole(u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
     state.setting_caret := true;
@@ -149,7 +170,10 @@ let apply_action =
       let id = closest_elem |> JSUtil.force_get_attr("id");
       let model_path = model |> Model.get_program |> Program.get_path;
       switch (path_of_path_id(id), steps_of_text_id(id)) {
-      | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
+      | (None, None) =>
+        JSUtil.log(closest_elem);
+        JSUtil.log(anchorNode);
+        failwith(__LOC__ ++ ": unexpected caret position");
       | (Some((_, cursor) as path), _) =>
         if (path == model_path) {
           switch (cursor) {
