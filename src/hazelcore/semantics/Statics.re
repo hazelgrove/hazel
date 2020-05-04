@@ -412,7 +412,12 @@ module Pat = {
         );
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
-        Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators.Pat.Space,
+          skel1,
+          skel2,
+        );
       let ty = HTyp.Hole;
       (skel, seq, ty, ctx, u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
@@ -421,7 +426,7 @@ module Pat = {
       let ty = HTyp.List(ty_elt);
       let (skel2, seq, ctx, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-      let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
+      let skel = Skel.BinOp(NotInHole, Operators.Pat.Cons, skel1, skel2);
       (skel, seq, ty, ctx, u_gen);
     }
   and syn_fix_holes_operand =
@@ -623,7 +628,12 @@ module Pat = {
         );
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
-        Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators.Pat.Space,
+          skel1,
+          skel2,
+        );
       (skel, seq, ctx, u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
@@ -647,7 +657,7 @@ module Pat = {
             seq,
             ty_list,
           );
-        let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
+        let skel = Skel.BinOp(NotInHole, Operators.Pat.Cons, skel1, skel2);
         (skel, seq, ctx, u_gen);
       | None =>
         let (skel1, seq, ty_elt, ctx, u_gen) =
@@ -664,7 +674,12 @@ module Pat = {
           );
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel =
-          Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Cons, skel1, skel2);
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators.Pat.Cons,
+            skel1,
+            skel2,
+          );
         (skel, seq, ctx, u_gen);
       }
     }
@@ -1524,7 +1539,7 @@ module Exp = {
       let ty = HTyp.List(ty_elt);
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-      let skel = Skel.BinOp(NotInHole, UHExp.Cons, skel1, skel2);
+      let skel = Skel.BinOp(NotInHole, Operators.Exp.Cons, skel1, skel2);
       (skel, seq, ty, u_gen);
     }
   and syn_fix_holes_operand =
@@ -1889,7 +1904,7 @@ module Exp = {
             seq,
             ty_list,
           );
-        let skel = Skel.BinOp(NotInHole, UHExp.Cons, skel1, skel2);
+        let skel = Skel.BinOp(NotInHole, Operators.Exp.Cons, skel1, skel2);
         (skel, seq, u_gen);
       | None =>
         let (skel1, seq, ty_elt, u_gen) =
@@ -1906,7 +1921,12 @@ module Exp = {
           );
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel =
-          Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators.Exp.Cons,
+            skel1,
+            skel2,
+          );
         (skel, seq, u_gen);
       }
     | BinOp(

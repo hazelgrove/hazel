@@ -1,6 +1,7 @@
 open Sexplib.Std;
 
-include Operators.Exp;
+[@deriving sexp]
+type operator = Operators.Exp.t;
 
 // TODO
 // type t =
@@ -290,7 +291,8 @@ let parse = s => {
 };
 
 let associate = (seq: seq) => {
-  let (skel_str, _) = Skel.make_skel_str(seq, parse_string_of_operator);
+  let (skel_str, _) =
+    Skel.make_skel_str(seq, Operators.Exp.parse_string_of_operator);
   parse(skel_str);
 };
 

@@ -15,8 +15,8 @@
 %right VBAR
 %right AMP
 
-%start <Operators.Typ.operator Skel.t> skel_typ
-%type <Operators.Typ.operator Skel.t> ty
+%start <Operators.Typ.t Skel.t> skel_typ
+%type <Operators.Typ.t Skel.t> ty
 
 (* %% ends the declarations section of the grammar definition *)
 
