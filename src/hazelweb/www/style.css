@@ -848,6 +848,10 @@ h1 {
   padding: 1em 0;
 }
 
+.grade-cutoffs-livelit .data-err-msg {
+  color: firebrick;
+}
+
 .splice {
   display: inline-block;
 }

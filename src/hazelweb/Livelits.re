@@ -312,6 +312,378 @@ module MatrixLivelit: LIVELIT = {
   };
 };
 
+module GradeCutoffLivelit: LIVELIT = {
+  let name = "$grade_cutoffs";
+  let expansion_ty = HTyp.(Prod(Num, Prod(Num, Prod(Num, Num))));
+
+  [@deriving sexp]
+  type letter_grade =
+    | A
+    | B
+    | C
+    | D;
+
+  [@deriving sexp]
+  type model = {
+    a: int,
+    b: int,
+    c: int,
+    d: int,
+    selected_grade: option(letter_grade),
+    dataID: SpliceName.t,
+  };
+
+  [@deriving sexp]
+  type action =
+    | SelectLetterGrade(option(letter_grade))
+    | MoveSelectedGrade(int)
+    | DragGrade(letter_grade, int);
+
+  type trigger = action => Vdom.Event.t;
+
+  let init_model =
+    SpliceGenCmd.(
+      bind(new_splice(HTyp.(List(Num))), dataID =>
+        return({a: 90, b: 80, c: 70, d: 60, selected_grade: None, dataID})
+      )
+    );
+
+  let update = ({selected_grade, _} as m, a) => {
+    // also deselects
+    let set_new_cutoff = (grade, new_cutoff) =>
+      if (new_cutoff < 0 || new_cutoff > 100) {
+        JSUtil.log(Printf.sprintf("Invalid grade cutoff %d", new_cutoff));
+        m;
+      } else {
+        let m =
+          switch (grade) {
+          | A => {...m, a: new_cutoff}
+          | B => {...m, b: new_cutoff}
+          | C => {...m, c: new_cutoff}
+          | D => {...m, d: new_cutoff}
+          };
+        {...m, selected_grade: None};
+      };
+    SpliceGenCmd.return(
+      switch (a) {
+      | SelectLetterGrade(new_grade_opt) => {
+          ...m,
+          selected_grade: new_grade_opt,
+        }
+      | MoveSelectedGrade(new_cutoff) =>
+        switch (selected_grade) {
+        | None =>
+          JSUtil.log("No grade selected");
+          m;
+        | Some(grade) => set_new_cutoff(grade, new_cutoff)
+        }
+      | DragGrade(grade, new_cutoff) => set_new_cutoff(grade, new_cutoff)
+      },
+    );
+  };
+
+  let line_y = 50;
+  let line_width = 600;
+  let margin_x_left = 15;
+  let margin_x_right = 40;
+  let margin_y = 20;
+  let label_x_offset = (-5);
+  let label_y_offset = 20;
+  let letter_y_offset = 10;
+  let grade_point_size = 10;
+  let grade_point_half_size = grade_point_size / 2;
+  let default_color = "black";
+  let wrong_letter_order_color = "firebrick";
+  // let cramped_cutoff_color = "coral";
+  let selected_color = "olivedrab";
+  let svg_height = line_y + margin_y;
+  let svg_width = line_width + margin_x_left + margin_x_right;
+  let soi = string_of_int;
+
+  let _svg = (kind, create_attrs, ~attrs=[], ~children=[], ()) =>
+    Vdom.Node.create_svg(
+      kind,
+      (
+        create_attrs
+        |> List.map(((name, val_)) => Vdom.Attr.create(name, val_))
+      )
+      @ attrs,
+      children,
+    );
+
+  let get_cutoff_from_evt = evt => {
+    let cur_tgt =
+      Js.Opt.get(evt##.currentTarget, () =>
+        failwith("No currentTarget for grade_cutoffs click")
+      );
+    (
+      float(evt##.clientX)
+      -.
+      cur_tgt##getBoundingClientRect##.left
+      -. float(margin_x_left)
+    )
+    /. float(line_width)
+    *. 100.0
+    |> Float.round
+    |> Float.to_int;
+  };
+
+  let cutoff_svg = (lg, cutoff, color, selected_grade, trig) => {
+    let x = line_width / 100 * cutoff + margin_x_left;
+    let line_height = 25;
+    let y = line_y - line_height;
+    let lstr =
+      switch (lg) {
+      | A => "A"
+      | B => "B"
+      | C => "C"
+      | D => "D"
+      };
+    [
+      _svg(
+        "line",
+        [
+          ("x1", x |> soi),
+          ("y1", line_y |> soi),
+          ("x2", x |> soi),
+          ("y2", y |> soi),
+          ("stroke", color),
+          ("stroke-width", "2"),
+        ],
+        (),
+      ),
+      _svg(
+        "text",
+        [
+          ("x", x + label_x_offset |> soi),
+          ("y", y - letter_y_offset |> soi),
+          ("fill", color),
+        ],
+        ~attrs=[
+          Vdom.Attr.classes(["grade-letter"]),
+          Vdom.Attr.on_mousedown(_ =>
+            selected_grade == Some(lg)
+              ? trig(SelectLetterGrade(None))
+              : trig(SelectLetterGrade(Some(lg)))
+          ),
+        ],
+        ~children=[Vdom.Node.text(lstr)],
+        (),
+      ),
+    ];
+  };
+
+  let cutoff_svgs = (a, b, c, d, selected_grade, trig) => {
+    let cutoff_svg' = (lg, cutoff, low_bound, high_bound) => {
+      let color =
+        if (selected_grade == Some(lg)) {
+          selected_color;
+        } else if (cutoff <= low_bound || cutoff >= high_bound) {
+          wrong_letter_order_color;
+        } else {
+          default_color;
+        };
+      cutoff_svg(lg, cutoff, color, selected_grade, trig);
+    };
+    List.concat([
+      cutoff_svg'(A, a, b, 101),
+      cutoff_svg'(B, b, c, a),
+      cutoff_svg'(C, c, d, b),
+      cutoff_svg'(D, d, -1, c),
+    ]);
+  };
+
+  let grade_labels = {
+    let num_pos_grade_labels = 5;
+    let grade_label_inc = 100 / num_pos_grade_labels;
+    let line_inc = line_width / num_pos_grade_labels;
+    List.init(num_pos_grade_labels + 1, i =>
+      _svg(
+        "text",
+        [
+          (
+            "x",
+            i
+            * line_inc
+            + margin_x_left
+            + label_x_offset
+            * String.length(i * grade_label_inc |> soi)
+            |> soi,
+          ),
+          ("y", line_y + label_y_offset |> soi),
+          ("fill", "black"),
+        ],
+        ~attrs=[Vdom.Attr.classes(["grade-labels"])],
+        ~children=[Vdom.Node.text(i * grade_label_inc |> soi)],
+        (),
+      )
+    );
+  };
+
+  let svgs_of_grades = grades => {
+    let valid_grades =
+      grades
+      |> List.for_all(grade => {
+           let valid = grade >= 0 && grade <= 100;
+           if (!valid) {
+             JSUtil.log(Printf.sprintf("Invalid grade %d", grade));
+           };
+           valid;
+         });
+    if (valid_grades) {
+      Some(
+        grades
+        |> List.map(grade =>
+             _svg(
+               "rect",
+               [
+                 (
+                   "x",
+                   line_width
+                   / 100
+                   * grade
+                   + margin_x_left
+                   - grade_point_half_size
+                   |> soi,
+                 ),
+                 ("y", line_y - grade_point_half_size |> soi),
+                 ("rx", "3"),
+                 ("ry", "3"),
+                 ("height", grade_point_size |> soi),
+                 ("width", grade_point_size |> soi),
+                 ("fill", "blue"),
+               ],
+               ~attrs=[Vdom.Attr.classes(["grade-point"])],
+               (),
+             )
+           ),
+      );
+    } else {
+      None;
+    };
+  };
+
+  let rec dhexp_to_grades = rslt =>
+    fun
+    | DHExp.ListNil(_) => Some(List.rev(rslt))
+    | DHExp.Cons(DHExp.NumLit(g), d) => dhexp_to_grades([g, ...rslt], d)
+    | DHExp.LivelitInfo(_, _, _, _, _, d) => dhexp_to_grades(rslt, d)
+    // currently, we are very strict, and the presence of any indet is immediate failure
+    | _ => None;
+
+  let view = ({a, b, c, d, selected_grade, dataID}, trig) =>
+    LivelitView.MultiLine(
+      (get_splice_div, get_splice_value) => {
+        let data_opt = get_splice_value(dataID);
+        let grades_opt = data_opt |> OptUtil.and_then(dhexp_to_grades([]));
+        let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
+        let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
+        let data_err_msg =
+          switch (data_opt, grades_opt, grades_svgs_opt) {
+          | (None, _, _) => [
+              Vdom.Node.text("Grades data was never evaluated"),
+            ]
+          | (_, None, _) => [
+              Vdom.Node.text(
+                "Grades data was indeterminate (maybe it contains a hole?)",
+              ),
+            ]
+          | (_, _, None) => [
+              Vdom.Node.text(
+                "Grades data was invalid (i.e. it contains a number < 0 or > 100)",
+              ),
+            ]
+          | _ => []
+          };
+        Vdom.(
+          Node.div(
+            [Attr.classes(["grade-cutoffs-livelit"])],
+            [
+              Node.div(
+                [Attr.classes(["data-splice"])],
+                [Node.text("data = "), get_splice_div(dataID)],
+              ),
+              Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+              Node.div(
+                [Attr.classes(["grade-display"])],
+                [
+                  _svg(
+                    "svg",
+                    [
+                      ("width", svg_width |> soi),
+                      ("height", svg_height |> soi),
+                    ],
+                    ~attrs=[
+                      Attr.on_mouseup(evt => {
+                        let new_cutoff = get_cutoff_from_evt(evt);
+                        let new_cutoff =
+                          new_cutoff < 0
+                            ? 0 : new_cutoff > 100 ? 100 : new_cutoff;
+                        switch (selected_grade) {
+                        | None => Event.Ignore
+                        | Some(lg) =>
+                          let old_cutoff =
+                            switch (lg) {
+                            | A => a
+                            | B => b
+                            | C => c
+                            | D => d
+                            };
+                          if (new_cutoff == old_cutoff) {
+                            Event.Ignore;
+                          } else {
+                            trig(DragGrade(lg, new_cutoff));
+                          };
+                        };
+                      }),
+                    ],
+                    ~children=
+                      [
+                        _svg(
+                          "line",
+                          [
+                            ("x1", margin_x_left |> soi),
+                            ("y1", line_y |> soi),
+                            ("x2", margin_x_left + line_width |> soi),
+                            ("y2", line_y |> soi),
+                            ("stroke", "black"),
+                            ("stroke-width", "4"),
+                          ],
+                          ~attrs=[Attr.classes(["grade-line"])],
+                          (),
+                        ),
+                      ]
+                      @ grade_labels
+                      @ cutoff_svgs(a, b, c, d, selected_grade, trig)
+                      @ grades_svgs,
+                    (),
+                  ),
+                ],
+              ),
+            ],
+          )
+        );
+      },
+    );
+
+  let expand = ({a, b, c, d, _}) => {
+    let tupl_seq =
+      UHExp.(
+        Seq.mk(
+          NumLit(NotInHole, a),
+          [
+            (Comma, NumLit(NotInHole, b)),
+            (Comma, NumLit(NotInHole, c)),
+            (Comma, NumLit(NotInHole, d)),
+          ],
+        )
+      );
+    UHExp.Block.wrap'(
+      OpSeq.mk(~associate=Associator.Exp.associate, tupl_seq),
+    );
+  };
+};
+
 /*
   module ColorPalette: PALETTE = {
     let name = "$color";
@@ -581,13 +953,17 @@ module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
 module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
+module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
   LivelitContexts.extend(
     LivelitContexts.extend(
       LivelitContexts.extend(
         LivelitContexts.extend(
-          empty_livelit_contexts,
+          LivelitContexts.extend(
+            empty_livelit_contexts,
+            GradeCutoffLivelitAdapter.contexts_entry,
+          ),
           MatrixLivelitAdapter.contexts_entry,
         ),
         PairLivelitAdapter.contexts_entry,
