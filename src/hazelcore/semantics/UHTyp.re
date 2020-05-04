@@ -56,7 +56,7 @@ let contract = (ty: HTyp.t): t => {
         tail
         |> List.map(ty =>
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
+               ~parenthesize=HTyp.precedence(ty) >= HTyp.precedence_Prod,
                ty,
              )
            )
