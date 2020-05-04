@@ -32,7 +32,6 @@ module type LIVELIT = {
   let expand: model => UHExp.t;
 };
 
-
 let _to_uhvar = id =>
   UHExp.(Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id)));
 
