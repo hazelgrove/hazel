@@ -23,14 +23,10 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let parse = s => {
-  let lexbuf = Lexing.from_string(s);
-  SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
-};
-
 let associate = (seq: seq) => {
   let (skel_str, _) = Skel.make_skel_str(seq, Operators.Typ.to_parse_string);
-  parse(skel_str);
+  let lexbuf = Lexing.from_string(skel_str);
+  SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
 };
 
 let mk_OpSeq = OpSeq.mk(~associate);
