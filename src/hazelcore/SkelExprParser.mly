@@ -32,8 +32,8 @@
 %left TIMES
 %left SPACEOP
 
-%start <Operator.Exp.operator Skel.t> skel_expr
-%type <Operator.Exp.operator Skel.t> expr
+%start <Operators.Exp.operator Skel.t> skel_expr
+%type <Operators.Exp.operator Skel.t> expr
 
 (* %% ends the declarations section of the grammar definition *)
 
@@ -48,57 +48,57 @@ expr:
   | e1 = expr; COMMA; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Comma,
+      Operators.Exp.Comma,
       e1, e2) }
   | e1 = expr; LT; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.LessThan,
+      Operators.Exp.LessThan,
       e1, e2) }
   | e1 = expr; GT; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.GreaterThan,
+      Operators.Exp.GreaterThan,
       e1, e2) }
   | e1 = expr; EQ; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Equals,
+      Operators.Exp.Equals,
       e1, e2) }
   | e1 = expr; CONS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Cons,
+      Operators.Exp.Cons,
       e1, e2) }
   | e1 = expr; PLUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Plus,
+      Operators.Exp.Plus,
       e1, e2) }
   | e1 = expr; MINUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Minus,
+      Operators.Exp.Minus,
       e1, e2) }
   | e1 = expr; AND; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.And,
+      Operators.Exp.And,
       e1, e2) }
   | e1 = expr; OR; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Or,
+      Operators.Exp.Or,
       e1, e2) }
   | e1 = expr; TIMES; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Times,
+      Operators.Exp.Times,
       e1, e2) }
   | e1 = expr; SPACEOP; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operator.Exp.Space,
+      Operators.Exp.Space,
       e1, e2) }
   ;
 

@@ -1,4 +1,4 @@
-include Operator.Typ;
+include Operators.Typ;
 
 [@deriving sexp]
 type t = opseq
