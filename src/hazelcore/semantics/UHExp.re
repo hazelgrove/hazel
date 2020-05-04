@@ -99,6 +99,9 @@ let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
+let stringlit = (~err: ErrStatus.t=NotInHole, s: string): operand =>
+  StringLit(err, s);
+
 let lam =
     (
       ~err: ErrStatus.t=NotInHole,
@@ -318,6 +321,7 @@ let text_operand =
   | Underscore => (var("_"), u_gen)
   | NumLit(n) => (numlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
+  | StringLit(s) => (stringlit(s), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
