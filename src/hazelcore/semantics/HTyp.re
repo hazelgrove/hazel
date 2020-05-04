@@ -27,7 +27,7 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-/* eqity
+/* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
 let eq = (==);
