@@ -112,7 +112,8 @@ module Pat = {
     | NumLit(NotInHole, _) => Some((Num, ctx))
     | BoolLit(NotInHole, _) => Some((Bool, ctx))
     // | ListNil(NotInHole) => Some((List(Hole), ctx))
-    | ListLit(NotInHole, _) => Some((List(Hole), ctx))
+    // | ListLit(NotInHole, _) => Some((List(Hole), ctx))
+    | ListLit(NotInHole, None) => Some((List(Hole), ctx))
     | Inj(NotInHole, inj_side, p1) =>
       switch (syn(ctx, p1)) {
       | None => None
@@ -125,7 +126,12 @@ module Pat = {
         Some((ty, ctx));
       }
     | Parenthesized(p) => syn(ctx, p)
-    | ListLit(_, Some(p)) => syn(ctx, p)
+    | ListLit(_, Some(p)) =>
+      // syn(ctx, p);
+      switch (syn(ctx, p)) {
+      | Some((ty, ctx)) => Some((List(ty), ctx))
+      | _ => None
+      }
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     ana_opseq(ctx, p, ty)
@@ -962,8 +968,15 @@ module Exp = {
         }
       };
     | Parenthesized(body) => syn(ctx, body)
-    | ListLit(_, Some(opseq)) => syn_opseq(ctx, opseq)
-    | ListLit(_, None) => None
+    | ListLit(_, Some(opseq)) =>
+      // syn_opseq(ctx, opseq)
+      switch (syn_opseq(ctx, opseq)) {
+      | Some(ty) => Some(List(ty))
+      | _ => None
+      }
+    | ListLit(_, None) =>
+      // None
+      Some(List(Hole))
     }
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
@@ -1146,7 +1159,13 @@ module Exp = {
       }
     | Parenthesized(body) => ana(ctx, body, ty)
     | ListLit(_, Some(opseq)) => ana_opseq(ctx, opseq, ty)
-    | ListLit(_, None) => None
+    // switch (ana_opseq(ctx, opseq, ty)) {
+    //   | Some(ty) => Some(List(ty))
+    //   | _ => None
+    //   }
+    | ListLit(_, None) =>
+      // None
+      Some()
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
