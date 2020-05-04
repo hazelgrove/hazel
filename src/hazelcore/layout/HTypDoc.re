@@ -64,7 +64,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         ...List.map(
              ty =>
                mk'(
-                 ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
+                 ~parenthesize=HTyp.precedence(ty) >= HTyp.precedence_Prod,
                  ty,
                ),
              tail,
