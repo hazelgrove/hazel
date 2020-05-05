@@ -78,9 +78,6 @@ module Typ = {
     | SMinus
     | SPlus
     | STimes
-    | SFMinus
-    | SFPlus
-    | SFTimes
     | SAnd
     | SOr
     | SLessThan
