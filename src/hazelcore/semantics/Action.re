@@ -6,9 +6,6 @@ type operator_shape =
   | SMinus
   | SPlus
   | STimes
-  | SFMinus
-  | SFPlus
-  | SFTimes
   | SLessThan
   | SGreaterThan
   | SEquals
@@ -697,9 +694,6 @@ module Pat = {
     | SMinus
     | SPlus
     | STimes
-    | SFMinus
-    | SFPlus
-    | SFTimes
     | SLessThan
     | SGreaterThan
     | SEquals
@@ -1893,9 +1887,6 @@ module Exp = {
     | SPlus => Some(Plus)
     | SMinus => Some(Minus)
     | STimes => Some(Times)
-    | SFPlus => Some(FPlus)
-    | SFMinus => Some(FMinus)
-    | SFTimes => Some(FTimes)
     | SLessThan => Some(LessThan)
     | SGreaterThan => Some(GreaterThan)
     | SEquals => Some(Equals)
@@ -1908,22 +1899,22 @@ module Exp = {
     | SVBar => None
     };
 
-  let shape_of_operator = (op: UHExp.operator): operator_shape =>
+  let shape_of_operator = (op: UHExp.operator): option(operator_shape) =>
     switch (op) {
-    | Minus => SMinus
-    | Plus => SPlus
-    | Times => STimes
-    | FMinus => SFMinus
-    | FPlus => SFPlus
-    | FTimes => SFTimes
-    | LessThan => SLessThan
-    | GreaterThan => SGreaterThan
-    | Equals => SEquals
-    | Space => SSpace
-    | Comma => SComma
-    | Cons => SCons
-    | And => SAnd
-    | Or => SOr
+    | Minus => Some(SMinus)
+    | Plus => Some(SPlus)
+    | Times => Some(STimes)
+    | LessThan => Some(SLessThan)
+    | GreaterThan => Some(SGreaterThan)
+    | Equals => Some(SEquals)
+    | Space => Some(SSpace)
+    | Comma => Some(SComma)
+    | Cons => Some(SCons)
+    | And => Some(SAnd)
+    | Or => Some(SOr)
+    | FPlus
+    | FMinus
+    | FTimes => None
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
