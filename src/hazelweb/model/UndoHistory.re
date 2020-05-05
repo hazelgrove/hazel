@@ -10,7 +10,7 @@ type edit_action =
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
   | MatchRule
-  | Ignore /* cursor move and init state */;
+  | Ignore; /* cursor move and init state */
 
 type cursor_term_info = {
   cursor_term_before: cursor_term,
@@ -112,7 +112,6 @@ let push_history_entry =
     if (prev_entry.edit_action == Ignore) {
       {
         /* only store 1 cursor-move (Ignore) entry if there are consecutive cursor move actions */
-
         ...prev_group,
         group_entries: ZList.replace_z(new_entry, prev_group.group_entries),
       };
