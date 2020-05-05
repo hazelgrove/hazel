@@ -12,7 +12,7 @@
 %token SPACEOP
 %token EOF
 
-%nonassoc COMMA
+%right COMMA
 %right CONS
 %left SPACEOP
 

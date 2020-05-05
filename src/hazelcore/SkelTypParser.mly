@@ -10,7 +10,7 @@
 %token ARROW
 %token EOF
 
-%nonassoc COMMA
+%right COMMA
 %right ARROW
 %right VBAR
 %right AMP

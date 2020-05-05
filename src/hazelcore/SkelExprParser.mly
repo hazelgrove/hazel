@@ -23,7 +23,7 @@
 %token SPACEOP
 %token EOF
 
-%nonassoc COMMA
+%right COMMA
 %left OR
 %left AND
 %left LT
