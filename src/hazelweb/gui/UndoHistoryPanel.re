@@ -168,15 +168,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           string_of_int(sec);
         };
       Vdom.(
-        Node.div(
-          [Attr.classes(["timestamp-wrapper"])],
-          [
             Node.div(
               [Attr.classes(["timestamp-txt"])],
               [Node.text(str_hour ++ ":" ++ str_min ++ ":" ++ str_sec)],
             ),
-          ],
-        )
+          
       );
     } else {
       Vdom.(Node.div([], [] /* The entry which is always displayed*/));
