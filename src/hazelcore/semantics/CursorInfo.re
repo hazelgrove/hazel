@@ -275,23 +275,8 @@ and get_outer_zrules_from_zrule =
   };
 };
 
-let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
-  let cursor_term = extract_cursor_exp_term(exp);
-  let prev_is_empty_line = {
-    let prefix = ZList.prj_prefix(exp);
-    switch (ListUtil.split_last(prefix)) {
-    | None => false
-    | Some((_, elt)) => UHExp.is_empty_line(elt)
-    };
-  };
-  let next_is_empty_line = {
-    let suffix = ZList.prj_suffix(exp);
-    switch (suffix) {
-    | [] => false
-    | ls => UHExp.is_empty_line(List.hd(ls))
-    };
-  };
-  (cursor_term, prev_is_empty_line, next_is_empty_line);
+let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
+  extract_cursor_exp_term(exp);
 }
 and extract_cursor_exp_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));
@@ -381,7 +366,23 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   | ListZ(ztyp) => extract_cursor_type_term(ztyp)
   };
 };
-
+let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
+  let prev_is_empty_line = {
+    let prefix = ZList.prj_prefix(exp);
+    switch (ListUtil.split_last(prefix)) {
+    | None => false
+    | Some((_, elt)) => UHExp.is_empty_line(elt)
+    };
+  };
+  let next_is_empty_line = {
+    let suffix = ZList.prj_suffix(exp);
+    switch (suffix) {
+    | [] => false
+    | ls => UHExp.is_empty_line(List.hd(ls))
+    };
+  };
+  (prev_is_empty_line, next_is_empty_line);
+};
 let is_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) => UHExp.operand_is_hole(exp)
