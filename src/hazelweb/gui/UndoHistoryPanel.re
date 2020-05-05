@@ -144,39 +144,35 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
-  let timestamp_view = (undo_history_group: undo_history_group) =>
-    if (undo_history_group.display_timestamp) {
-      let hour = Unix.localtime(undo_history_group.timestamp).tm_hour;
-      let str_hour =
-        if (hour < 10) {
-          "0" ++ string_of_int(hour);
-        } else {
-          string_of_int(hour);
-        };
-      let min = Unix.localtime(undo_history_group.timestamp).tm_min;
-      let str_min =
-        if (min < 10) {
-          "0" ++ string_of_int(min);
-        } else {
-          string_of_int(min);
-        };
-      let sec = Unix.localtime(undo_history_group.timestamp).tm_sec;
-      let str_sec =
-        if (sec < 10) {
-          "0" ++ string_of_int(sec);
-        } else {
-          string_of_int(sec);
-        };
-      Vdom.(
-            Node.div(
-              [Attr.classes(["timestamp-txt"])],
-              [Node.text(str_hour ++ ":" ++ str_min ++ ":" ++ str_sec)],
-            ),
-          
-      );
-    } else {
-      Vdom.(Node.div([], [] /* The entry which is always displayed*/));
-    };
+  let timestamp_view = (undo_history_entry: undo_history_entry) => {
+    let hour = Unix.localtime(undo_history_entry.timestamp).tm_hour;
+    let str_hour =
+      if (hour < 10) {
+        "0" ++ string_of_int(hour);
+      } else {
+        string_of_int(hour);
+      };
+    let min = Unix.localtime(undo_history_entry.timestamp).tm_min;
+    let str_min =
+      if (min < 10) {
+        "0" ++ string_of_int(min);
+      } else {
+        string_of_int(min);
+      };
+    let sec = Unix.localtime(undo_history_entry.timestamp).tm_sec;
+    let str_sec =
+      if (sec < 10) {
+        "0" ++ string_of_int(sec);
+      } else {
+        string_of_int(sec);
+      };
+    Vdom.(
+      Node.div(
+        [Attr.classes(["timestamp-txt"])],
+        [Node.text(str_hour ++ ":" ++ str_min ++ ":" ++ str_sec)],
+      )
+    );
+  };
 
   let history_title_entry_view =
       (
@@ -220,9 +216,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           },
           [
             Node.div(
-              [],
+              [Attr.classes(["the-history-entry"])],
               [
-                Node.span(
+                Node.div(
                   [
                     Attr.classes(["the-history-title-txt"]),
                     Attr.on_click(_ =>
@@ -234,6 +230,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ],
                   [Node.text(str)],
                 ),
+                timestamp_view(undo_history_entry),
                 history_entry_tab_icon(
                   group_id,
                   has_hidden_part,
@@ -270,32 +267,44 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       if (is_latest_selected) {
         Vdom.(
           Node.div(
+            [Attr.classes(["the-history-entry"])],
             [
-              Attr.classes(["the-hidden-history-entry"]),
-              Attr.id("cur-selected-entry"),
-              Attr.on_click(_ =>
-                Vdom.Event.Many([
-                  inject(Update.Action.ShiftHistory(group_id, elt_id)),
-                  inject(FocusCell),
-                ])
+              Node.div(
+                [
+                  Attr.classes(["the-hidden-history-entry"]),
+                  Attr.id("cur-selected-entry"),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(Update.Action.ShiftHistory(group_id, elt_id)),
+                      inject(FocusCell),
+                    ])
+                  ),
+                ],
+                [Node.text(str)],
               ),
+              timestamp_view(undo_history_entry),
             ],
-            [Node.text(str)],
           )
         );
       } else {
         Vdom.(
           Node.div(
+            [Attr.classes(["the-history-entry"])],
             [
-              Attr.classes(["the-hidden-history-entry"]),
-              Attr.on_click(_ =>
-                Vdom.Event.Many([
-                  inject(Update.Action.ShiftHistory(group_id, elt_id)),
-                  inject(FocusCell),
-                ])
+              Node.div(
+                [
+                  Attr.classes(["the-hidden-history-entry"]),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(Update.Action.ShiftHistory(group_id, elt_id)),
+                      inject(FocusCell),
+                    ])
+                  ),
+                ],
+                [Node.text(str)],
               ),
+              timestamp_view(undo_history_entry),
             ],
-            [Node.text(str)],
           )
         );
       }
@@ -362,7 +371,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group),
                 /* title entry */
                 Vdom.(
                   Node.div(
@@ -406,7 +414,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group),
                 Vdom.(
                   Node.div(
                     [Attr.classes(cur_his_classes)],
@@ -444,7 +451,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group),
                   /* the history title entry */
                   Vdom.(
                     Node.div(
@@ -522,7 +528,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group),
                   Vdom.(
                     Node.div(
                       [Attr.classes(suc_his_classes)],
@@ -548,7 +553,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group),
                   /* title entry */
                   Vdom.(
                     Node.div(
@@ -592,7 +596,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Node.div(
                 [],
                 [
-                  timestamp_view(group),
                   Vdom.(
                     Node.div(
                       [Attr.classes(cur_his_classes)],
@@ -617,7 +620,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group),
                 /* title entry */
                 Vdom.(
                   Node.div(
@@ -661,7 +663,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               [],
               [
-                timestamp_view(group),
                 Vdom.(
                   Node.div(
                     [Attr.classes(prev_his_classes)],

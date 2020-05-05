@@ -32,24 +32,20 @@ let init = (): t => {
         ~cardstacks_after=cardstacks,
         ~cardstacks_before=cardstacks,
       );
+    let timestamp = Unix.time();
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
       cursor_term_info,
       previous_action: None,
       edit_action: Ignore,
+      timestamp,
     };
-    let timestamp = Unix.time();
+
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
       is_expanded: false,
-      timestamp,
-      display_timestamp: false,
     };
-    {
-      groups: ([], undo_history_group, []),
-      latest_timestamp: timestamp,
-      all_hidden_history_expand: false,
-    };
+    {groups: ([], undo_history_group, []), all_hidden_history_expand: false};
   };
   let compute_results = true;
   let selected_instances = {

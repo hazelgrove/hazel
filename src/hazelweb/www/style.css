@@ -1397,11 +1397,9 @@ h1 {
 }
 
 /* edit action history panel */
-.history-entry {
-  font-size: 125%;
-  border: 1px outset #ffffff;
-  border-left: 0px;
-  border-right: 0px;
+.the-history-entry {
+  width: 100%;
+  float: left;
 }
 
 .history-is-empty-msg {
@@ -1415,7 +1413,7 @@ h1 {
   cursor: pointer;
   padding: 5px 5px 5px 20px;
   font-size: 12pt;
-  width: 100%;
+  width: 70%;
   border: 1px outset #ffffff;
 }
 .the-hidden-history-entry:hover {
@@ -1423,22 +1421,28 @@ h1 {
   background-color: lightgoldenrodyellow;
 } 
 
-.the-history-title {
+/* .the-history-title {
   display: inline-block; 
   padding: 5px;
+} */
+/* .the-history-title:hover {
+  color: #b30000;
+  background-color: lightgoldenrodyellow;
+} */
+.the-history-title-entry {
+  padding: 5px;
+  float: left;
+  width: 70%;
+  cursor: pointer;
 }
-.the-history-title:hover {
+.the-history-title-entry:hover {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }
-.the-history-title-entry {
-  float: left;
-  width: 100%;
-}
-.the-history-title-txt {
+/* .the-history-title-txt {
   cursor: pointer;
   float: left;
-}
+} */
 .the-prev-history {
   color: #0d0a05;
   background-color: #f0fff3;
@@ -1453,21 +1457,11 @@ h1 {
   overflow-anchor: auto;
   background-color: lightgoldenrodyellow;
 }
-.timestamp-wrapper{
- background: #FEFEEA;
- width: 100%;
- border: 1px outset #ffffff;
-}
 .timestamp-txt {
+  cursor: pointer;
   width: 20%;
-  background-color:dimgrey;
-  border-radius: 10%;
-  text-align: center;
-  color: white; 
-  margin:0 auto;
-  margin-top:10px;
-  margin-bottom:10px;
-  
+  color: black;
+  float: right; 
 }
 
 .always-display-history-entry {
