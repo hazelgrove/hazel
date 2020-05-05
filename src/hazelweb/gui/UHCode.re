@@ -460,8 +460,8 @@ let focused_view_of_layout =
     };
   let l =
     switch (ci.typed) {
-    | PatAnaVar(_, _, _, [_, ..._] as uses)
-    | PatSynVar(_, _, _, [_, ..._] as uses) =>
+    | PatAnaVar(_, _, _, [_, ..._] as uses, _)
+    | PatSynVar(_, _, _, [_, ..._] as uses, _) =>
       uses
       |> List.fold_left(
            (l, use) =>

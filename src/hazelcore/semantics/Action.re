@@ -1091,7 +1091,7 @@ module Pat = {
     /* Variable-based navigation handled at top level */
     | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
       Failed
-      
+
     /* Invalid swap actions */
     | (SwapUp | SwapDown, _) => Failed
 
@@ -2506,8 +2506,8 @@ module Exp = {
       | GoToFirstUsage =>
         // from binding site to first usage
         switch (ci.typed) {
-        | PatAnaVar(_, _, _, [first_usage, ..._])
-        | PatSynVar(_, _, _, [first_usage, ..._]) =>
+        | PatAnaVar(_, _, _, [first_usage, ..._], _)
+        | PatSynVar(_, _, _, [first_usage, ..._], _) =>
           syn_move(ctx, MoveToBefore(first_usage), (ze, ty, u_gen))
         | _ => Failed
         }
@@ -2529,8 +2529,8 @@ module Exp = {
               | None => Failed
               | Some(ci) =>
                 switch (ci.typed) {
-                | PatAnaVar(_, _, _, [_, ..._] as uses)
-                | PatSynVar(_, _, _, [_, ..._] as uses) =>
+                | PatAnaVar(_, _, _, [_, ..._] as uses, _)
+                | PatSynVar(_, _, _, [_, ..._] as uses, _) =>
                   let result_steps =
                     switch (a) {
                     | GoToNextUsage =>

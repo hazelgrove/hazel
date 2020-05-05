@@ -69,7 +69,16 @@ type typed =
   // cursor is on a variable with duplicated name
   | PatAnaDuplicate(HTyp.t, Var.t)
   // cursor is on a variable bindint site and not in var hole
-  | PatAnaVar(HTyp.t, Var.t, bool, UsageAnalysis.uses_list)
+  | PatAnaVar(
+      HTyp.t,
+      Var.t,
+      // shadowing
+      bool,
+      // number of uses
+      UsageAnalysis.uses_list,
+      // number of recursive uses
+      UsageAnalysis.uses_list,
+    )
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -80,7 +89,16 @@ type typed =
   // cursor is on a variable with duplicated name
   | PatSynDuplicate(Var.t)
   // cursor is on a variable and not in var hole
-  | PatSynVar(HTyp.t, Var.t, bool, UsageAnalysis.uses_list)
+  | PatSynVar(
+      HTyp.t,
+      Var.t,
+      // shadowing
+      bool,
+      // number of uses
+      UsageAnalysis.uses_list,
+      // number of recursive uses
+      UsageAnalysis.uses_list,
+    )
   | PatSynthesized(HTyp.t)
   /* cursor in type position */
   | OnType
@@ -113,7 +131,17 @@ module Typ = {
  */
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
-  | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
+  | CursorOnDeferredVarPat
+      // non-recursive uses
+      (
+        (
+          UsageAnalysis.uses_list,
+          // recursive uses
+          UsageAnalysis.uses_list
+        ) =>
+        't,
+        Var.t,
+      );
 
 module Pat = {
   let rec syn_cursor_info =
@@ -247,9 +275,15 @@ module Pat = {
       Statics.Pat.syn_operand(~steps, ctx, p)
       |> OptUtil.map(((ty, _)) =>
            CursorOnDeferredVarPat(
-             uses =>
+             (uses, rec_uses) =>
                mk(
-                 PatSynVar(ty, x, Contexts.gamma_contains(ctx, x), uses),
+                 PatSynVar(
+                   ty,
+                   x,
+                   Contexts.gamma_contains(ctx, x),
+                   uses,
+                   rec_uses,
+                 ),
                  ctx,
                ),
              x,
@@ -442,9 +476,15 @@ module Pat = {
       | Var(NotInHole, _, _, x) =>
         Some(
           CursorOnDeferredVarPat(
-            uses =>
+            (uses, rec_uses) =>
               mk(
-                PatAnaVar(ty, x, Contexts.gamma_contains(ctx, x), uses),
+                PatAnaVar(
+                  ty,
+                  x,
+                  Contexts.gamma_contains(ctx, x),
+                  uses,
+                  rec_uses,
+                ),
                 ctx,
               ),
             x,
@@ -536,7 +576,7 @@ module Exp = {
             x,
             suffix,
           );
-        Some(uses |> deferred_ci);
+        Some(deferred_ci(uses, []));
       }
     }
   and syn_cursor_info_line =
@@ -569,7 +609,11 @@ module Exp = {
             let rec_uses =
               UsageAnalysis.find_uses(~steps=steps @ [2], x, def);
             Some(
-              CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
+              CursorOnDeferredVarPat(
+                (non_rec_uses, _dumb) =>
+                  deferred(rec_uses @ non_rec_uses, rec_uses),
+                x,
+              ),
             );
           }
         };
@@ -768,7 +812,7 @@ module Exp = {
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
-        Some(uses |> deferred_ci);
+        Some(deferred_ci(uses, []));
       };
     | LamZA(_, _, zann, _) => Typ.cursor_info(~steps=steps @ [1], ctx, zann)
     | LamZE(_, p, ann, zbody) =>
@@ -853,7 +897,7 @@ module Exp = {
               x,
               suffix,
             );
-          Some(uses |> deferred_ci);
+          Some(deferred_ci(uses, []));
         }
       }
     }
@@ -1059,7 +1103,7 @@ module Exp = {
         | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
         | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
           let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
-          Some(uses |> deferred_ci);
+          Some(deferred_ci(uses, []));
         };
       }
     | LamZA(NotInHole, _, zann, _) =>
@@ -1125,7 +1169,7 @@ module Exp = {
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
-        Some(uses |> deferred_ci);
+        Some(deferred_ci(uses, []));
       }
     | RuleZE(p, zclause) =>
       switch (Statics.Pat.ana(~steps=steps @ [0], ctx, p, pat_ty)) {
