@@ -1,13 +1,38 @@
-module Result_ = Result;
-open Core_kernel;
-module Result = Result_;
+module Memo = Core_kernel.Memo;
 
-type t = {edit_state: Statics.edit_state};
+type t = {
+  edit_state: Statics.edit_state,
+  width: int,
+  start_col_of_vertical_movement: option(int),
+  is_focused: bool,
+};
 
-let mk = (edit_state: Statics.edit_state): t => {edit_state: edit_state};
+let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
+  width,
+  edit_state,
+  start_col_of_vertical_movement: None,
+  is_focused,
+};
+
+let get_width = program => program.width;
+
+let get_start_col = program => program.start_col_of_vertical_movement;
+let put_start_col = (start_col, program) => {
+  ...program,
+  start_col_of_vertical_movement: Some(start_col),
+};
+let clear_start_col = program => {
+  ...program,
+  start_col_of_vertical_movement: None,
+};
+
+let is_focused = program => program.is_focused;
+
+let focus = program => {...program, is_focused: true};
+let blur = program => {...program, is_focused: false};
 
 let get_edit_state = program => program.edit_state;
-let put_edit_state = (edit_state, _program) => {edit_state: edit_state};
+let put_edit_state = (edit_state, program) => {...program, edit_state};
 
 let get_zexp = program => {
   let (ze, _, _) = program |> get_edit_state;
@@ -35,19 +60,10 @@ let _cursor_info =
     CursorInfo.Exp.syn_cursor_info(Contexts.empty),
   );
 let get_cursor_info = (program: t) => {
-  let ze = program |> get_zexp;
-  switch (_cursor_info(ze)) {
-  | None => raise(MissingCursorInfo)
-  | Some(ci) =>
-    /* uncomment to see where variable is used
-           switch (ci.node) {
-           | Pat(VarPat(_, uses)) =>
-             JSUtil.log_sexp(UsageAnalysis.sexp_of_uses_list(uses))
-           | _ => JSUtil.log("not varpat")
-           };
-       */
-    ci
-  };
+  program
+  |> get_zexp
+  |> _cursor_info
+  |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
 exception DoesNotExpand;
@@ -101,13 +117,109 @@ let move_to_hole = (u, program) => {
 };
 
 let _doc =
-  Memo.general(
-    ~cache_size_bound=1000,
-    UHDoc.Exp.mk(~steps=[], ~enforce_inline=false),
-  );
+  Memo.general(~cache_size_bound=1000, UHDoc.Exp.mk(~enforce_inline=false));
 let get_doc = program => {
   let e = program |> get_uhexp;
   _doc(e);
+};
+
+let get_layout = program => {
+  let width = program |> get_width;
+  program
+  |> get_doc
+  |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
+  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+};
+
+let decorate_caret = (path, l) =>
+  l
+  |> UHLayout.find_and_decorate_caret(~path)
+  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find caret"));
+let decorate_cursor = (steps, l) =>
+  l
+  |> UHLayout.find_and_decorate_cursor(~steps)
+  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
+let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
+  switch (ci.uses) {
+  | None => l
+  | Some(uses) =>
+    uses
+    |> List.fold_left(
+         (l: UHLayout.t, use) =>
+           l
+           |> UHLayout.find_and_decorate_var_use(~steps=use)
+           |> OptUtil.get(() => {
+                failwith(
+                  __LOC__
+                  ++ ": could not find var use"
+                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+                )
+              }),
+         l,
+       )
+  };
+
+let get_decorated_layout = program => {
+  let (steps, _) as path = program |> get_path;
+  let ci = program |> get_cursor_info;
+  program
+  |> get_layout
+  |> decorate_caret(path)
+  |> decorate_cursor(steps)
+  |> decorate_var_uses(ci);
+};
+
+let get_cursor_map_z = program => {
+  let path = program |> get_path;
+  // TODO figure out how to consolidate decoration
+  program
+  |> get_layout
+  |> decorate_caret(path)
+  |> CursorMap.mk
+  |> (
+    fun
+    | (_, None) => failwith(__LOC__ ++ ": no cursor found")
+    | (map, Some(z)) => (map, z)
+  );
+};
+
+let get_cursor_map = program => program |> get_cursor_map_z |> fst;
+
+let move_via_click = (row_col, program) => {
+  let (_, rev_path) =
+    program |> get_cursor_map |> CursorMap.find_nearest_within_row(row_col);
+  let path = CursorPath.rev(rev_path);
+  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+};
+
+let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
+  let (cmap, ((row, col), _) as z) = program |> get_cursor_map_z;
+  let (from_col, put_col_on_start) =
+    switch (program |> get_start_col) {
+    | None => (col, put_start_col(col))
+    | Some(col) => (col, (p => p))
+    };
+  let (new_z, update_start_col) =
+    switch (move_key) {
+    | ArrowUp => (
+        cmap |> CursorMap.move_up((row, from_col)),
+        put_col_on_start,
+      )
+    | ArrowDown => (
+        cmap |> CursorMap.move_down((row, from_col)),
+        put_col_on_start,
+      )
+    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
+    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
+    | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
+    | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
+    };
+  switch (new_z) {
+  | None => raise(CursorEscaped)
+  | Some((_, rev_path)) =>
+    let path = CursorPath.rev(rev_path);
+    program |> update_start_col |> perform_edit_action(MoveTo(path));
+  };
 };
 
 let _cursor_on_exp_hole =

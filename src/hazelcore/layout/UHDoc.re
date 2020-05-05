@@ -1,56 +1,6 @@
 open Pretty;
-open ViewUtil;
 
 type t = Doc.t(UHAnnot.t);
-
-module Delim = {
-  let mk = (~caret: option(Side.t)=?, ~path: delim_path, delim_text: string) =>
-    Doc.text(delim_text) |> Doc.annot(UHAnnot.mk_Delim(~caret?, ~path, ()));
-
-  let empty_hole_doc =
-      (~caret: option(Side.t)=?, ~steps: CursorPath.steps, hole_lbl: string) =>
-    Doc.text(hole_lbl)
-    |> Doc.annot(
-         UHAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}),
-       )
-    |> Doc.annot(UHAnnot.mk_Delim(~caret?, ~path=(steps, 0), ()));
-
-  let open_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "[");
-  let close_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), "]");
-
-  let open_Parenthesized = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 0), "(");
-  let close_Parenthesized = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 1), ")");
-
-  let open_Inj = (~caret=?, steps, inj_side: InjSide.t) =>
-    mk(~caret?, ~path=(steps, 0), InjSide.to_string(inj_side) ++ "(");
-  let close_Inj = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), ")");
-
-  let sym_Lam = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 0), UnicodeConstants.lamSym);
-  let colon_Lam = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), ":");
-  let open_Lam = (~caret=?, steps) => mk(~caret?, ~path=(steps, 2), ".{");
-  let close_Lam = (~caret=?, steps) => mk(~caret?, ~path=(steps, 3), "}");
-
-  let open_Case = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 0), "case");
-  let close_Case = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 1), "end");
-  let close_Case_ann = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 1), "end :");
-
-  let bar_Rule = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "|");
-  let arrow_Rule = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 1), UnicodeConstants.caseArrowSym);
-
-  let let_LetLine = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 0), "let");
-  let colon_LetLine = (~caret=?, steps) =>
-    mk(~caret?, ~path=(steps, 1), ":");
-  let eq_LetLine = (~caret=?, steps) => mk(~caret?, ~path=(steps, 2), "=");
-  let in_LetLine = (~caret=?, steps) => mk(~caret?, ~path=(steps, 3), "in");
-};
 
 let empty_ = Doc.empty();
 let space_ = Doc.space();
@@ -58,6 +8,53 @@ let space_ = Doc.space();
 let indent_and_align_ = doc =>
   Doc.(hcat(annot(UHAnnot.Indent, indent()), align(doc)));
 
+module Delim = {
+  let mk = (~index: int, delim_text: string): t =>
+    Doc.annot(
+      UHAnnot.mk_Token(
+        ~len=StringUtil.utf8_length(delim_text),
+        ~shape=Delim(index),
+        (),
+      ),
+      Doc.text(delim_text),
+    );
+
+  let empty_hole_doc = (hole_lbl: string): t => {
+    let len = hole_lbl |> StringUtil.utf8_length;
+    Doc.text(hole_lbl)
+    |> Doc.annot(UHAnnot.HoleLabel({len: len}))
+    |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
+  };
+
+  let open_List = () => mk(~index=0, "[");
+  let close_List = () => mk(~index=1, "]");
+
+  let open_Parenthesized = () => mk(~index=0, "(");
+  let close_Parenthesized = () => mk(~index=1, ")");
+
+  let open_Inj = (inj_side: InjSide.t) =>
+    mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
+  let close_Inj = () => mk(~index=1, ")");
+
+  let sym_Lam = () => mk(~index=0, UnicodeConstants.lamSym);
+  let colon_Lam = () => mk(~index=1, ":");
+  let open_Lam = () => mk(~index=2, ".{");
+  let close_Lam = () => mk(~index=3, "}");
+
+  let open_Case = () => mk(~index=0, "case");
+  let close_Case = () => mk(~index=1, "end");
+  let close_Case_ann = () => mk(~index=1, "end :");
+
+  let bar_Rule = () => mk(~index=0, "|");
+  let arrow_Rule = () => mk(~index=1, UnicodeConstants.caseArrowSym);
+
+  let let_LetLine = () => mk(~index=0, "let");
+  let colon_LetLine = () => mk(~index=1, ":");
+  let eq_LetLine = () => mk(~index=2, "=");
+  let in_LetLine = () => mk(~index=3, "in");
+};
+
+let annot_Indent = Doc.annot(UHAnnot.Indent);
 let annot_Padding = (d: Doc.t(UHAnnot.t)) =>
   switch (d.doc) {
   | Text("") => d
@@ -81,26 +78,33 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole) =>
 let annot_Case = (~err: ErrStatus.t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
-let mk_text = (~steps: CursorPath.steps, text: string): t =>
-  Doc.text(text)
-  |> Doc.annot(
-       UHAnnot.mk_Text(~steps, ~length=StringUtil.utf8_length(text), ()),
-     );
+let indent_and_align = (d: t): t =>
+  Doc.(hcats([indent() |> annot_Indent, align(d)]));
+
+let mk_text = (s: string): t =>
+  Doc.annot(
+    UHAnnot.mk_Token(~shape=Text, ~len=StringUtil.utf8_length(s), ()),
+    Doc.text(s),
+  );
 
 let pad_operator =
     (~inline_padding as (left, right): (t, t), operator: t): t => {
-  Doc.(
-    choices([
-      hcats([left |> annot_Padding, operator, right |> annot_Padding]),
-      hcats([linebreak(), operator, right |> annot_Padding]),
-    ])
-  );
+  open Doc;
+  let ldoc = left == empty_ ? empty_ : left |> annot_Padding;
+  let rdoc = right == empty_ ? empty_ : right |> annot_Padding;
+  choices([
+    hcats([ldoc, operator, rdoc]),
+    hcats([linebreak(), operator, rdoc]),
+  ]);
 };
 
-let mk_op = (~steps: CursorPath.steps, op_text: string, ()): t =>
-  Doc.text(op_text) |> Doc.annot(UHAnnot.mk_Op(~steps, ()));
+let mk_op = (op_text: string): t =>
+  Doc.annot(
+    UHAnnot.mk_Token(~len=StringUtil.utf8_length(op_text), ~shape=Op, ()),
+    Doc.text(op_text),
+  );
 
-let mk_space_op = space_ |> Doc.annot(UHAnnot.SpaceOp);
+let mk_space_op = Doc.annot(UHAnnot.SpaceOp, space_);
 
 let user_newline =
   Doc.(
@@ -128,11 +132,15 @@ let pad_child =
   let annot_child = is_open ? annot_OpenChild : annot_ClosedChild;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
-    hcats([left |> annot_Padding, child_doc, right |> annot_Padding])
-    |> annot_child(~is_inline=true);
+    let lpadding = left == empty_ ? [] : [left |> annot_Padding];
+    let rpadding = right == empty_ ? [] : [right |> annot_Padding];
+    hcats([
+      hcats(List.concat([lpadding, [child_doc], rpadding]))
+      |> annot_child(~is_inline=true),
+    ]);
   };
   let para_choice = child_doc =>
-    child_doc |> indent_and_align_ |> annot_child(~is_inline=false);
+    child_doc |> indent_and_align |> annot_child(~is_inline=false);
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
@@ -156,11 +164,13 @@ let pad_left_delimited_child =
     (~is_open: bool, ~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
   let annot_child = is_open ? annot_OpenChild : annot_ClosedChild;
-  let inline_choice = child_doc =>
-    hcats([inline_padding |> annot_Padding, child_doc])
-    |> annot_child(~is_inline=true);
+  let inline_choice = child_doc => {
+    let lpadding =
+      inline_padding == empty_ ? [] : [inline_padding |> annot_Padding];
+    hcats(lpadding @ [child_doc]) |> annot_child(~is_inline=true);
+  };
   let para_choice = child_doc =>
-    child_doc |> indent_and_align_ |> annot_child(~is_inline=false);
+    child_doc |> indent_and_align |> annot_child(~is_inline=false);
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
@@ -176,76 +186,52 @@ let pad_left_delimited_child =
   };
 };
 
-let mk_Unit = (~steps: CursorPath.steps, ()): t =>
-  Delim.mk(~path=(steps, 0), "()") |> annot_Operand(~sort=Typ);
+let mk_Unit = (): t => Delim.mk(~index=0, "()") |> annot_Operand(~sort=Typ);
 
-let mk_Int = (~steps: CursorPath.steps, ()): t =>
-  Delim.mk(~path=(steps, 0), "Int") |> annot_Operand(~sort=Typ);
+let mk_Bool = (): t =>
+  Delim.mk(~index=0, "Bool") |> annot_Operand(~sort=Typ);
 
-let mk_Float = (~steps: CursorPath.steps, ()): t =>
-  Delim.mk(~path=(steps, 0), "Float") |> annot_Operand(~sort=Typ);
+let mk_Int = (): t => Delim.mk(~index=0, "Int") |> annot_Operand(~sort=Typ);
 
-let mk_Bool = (~steps: CursorPath.steps, ()): t =>
-  Delim.mk(~path=(steps, 0), "Bool") |> annot_Operand(~sort=Typ);
+let mk_Float = (): t =>
+  Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
 
-let mk_EmptyHole =
-    (~sort: TermSort.t, ~steps: CursorPath.steps, hole_lbl: string): t =>
-  Delim.empty_hole_doc(~steps, hole_lbl) |> annot_Operand(~sort);
+let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
+let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
+  StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
 
-let mk_Wild = (~err: ErrStatus.t, ~steps: CursorPath.steps): t =>
-  Delim.mk(~path=(steps, 0), "_") |> annot_Operand(~sort=Pat, ~err);
+let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
+  Delim.empty_hole_doc(hole_lbl) |> annot_Operand(~sort);
+
+let mk_Wild = (~err: ErrStatus.t): t =>
+  Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
 
 let mk_Var =
-    (
-      ~sort: TermSort.t,
-      ~err: ErrStatus.t,
-      ~verr: VarErrStatus.t,
-      ~steps: CursorPath.steps,
-      x: Var.t,
-    )
-    : t =>
-  mk_text(~steps, x) |> annot_Var(~sort, ~err, ~verr);
+    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
+  mk_text(x) |> annot_Var(~sort, ~err, ~verr);
 
-let mk_IntLit =
-    (
-      ~sort: TermSort.t,
-      ~err: ErrStatus.t,
-      ~steps: CursorPath.steps,
-      n: string,
-    )
-    : t =>
-  mk_text(~steps, n) |> annot_Operand(~sort, ~err);
+let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
+  mk_text(n) |> annot_Operand(~sort, ~err);
 
-let mk_FloatLit =
-    (
-      ~sort: TermSort.t,
-      ~err: ErrStatus.t,
-      ~steps: CursorPath.steps,
-      f: string,
-    )
-    : t =>
-  mk_text(~steps, f) |> annot_Operand(~sort, ~err);
+let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
+  mk_text(f) |> annot_Operand(~sort, ~err);
 
-let mk_BoolLit =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, b: bool)
-    : t =>
-  mk_text(~steps, string_of_bool(b)) |> annot_Operand(~sort, ~err);
+let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
+  mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
-let mk_ListNil =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~steps: CursorPath.steps, ()): t =>
-  Delim.mk(~path=(steps, 0), "[]") |> annot_Operand(~sort, ~err);
+let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
+  Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);
 
-let mk_Parenthesized =
-    (~sort: TermSort.t, ~steps: CursorPath.steps, body: formatted_child): t => {
-  let open_group = Delim.open_Parenthesized(steps) |> annot_DelimGroup;
-  let close_group = Delim.close_Parenthesized(steps) |> annot_DelimGroup;
+let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
+  let open_group = Delim.open_Parenthesized() |> annot_DelimGroup;
+  let close_group = Delim.close_Parenthesized() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort);
 };
 
-let mk_List = (~steps: CursorPath.steps, body: formatted_child): t => {
-  let open_group = Delim.open_List(steps) |> annot_DelimGroup;
-  let close_group = Delim.close_List(steps) |> annot_DelimGroup;
+let mk_List = (body: formatted_child): t => {
+  let open_group = Delim.open_List() |> annot_DelimGroup;
+  let close_group = Delim.close_List() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort=Typ);
 };
@@ -253,21 +239,19 @@ let mk_List = (~steps: CursorPath.steps, body: formatted_child): t => {
 let mk_Inj =
     (
       ~sort: TermSort.t,
-      ~steps: CursorPath.steps,
       ~err: ErrStatus.t,
       ~inj_side: InjSide.t,
       body: formatted_child,
     )
     : t => {
-  let open_group = Delim.open_Inj(steps, inj_side) |> annot_DelimGroup;
-  let close_group = Delim.close_Inj(steps) |> annot_DelimGroup;
+  let open_group = Delim.open_Inj(inj_side) |> annot_DelimGroup;
+  let close_group = Delim.close_Inj() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort, ~err);
 };
 
 let mk_Lam =
     (
-      ~steps: CursorPath.steps,
       ~err: ErrStatus.t,
       p: formatted_child,
       ann: option(formatted_child),
@@ -275,13 +259,13 @@ let mk_Lam =
     )
     : t => {
   let open_group = {
-    let lam_delim = Delim.sym_Lam(steps);
-    let open_delim = Delim.open_Lam(steps);
+    let lam_delim = Delim.sym_Lam();
+    let open_delim = Delim.open_Lam();
     let doc =
       switch (ann) {
       | None => Doc.hcats([lam_delim, p |> pad_closed_child, open_delim])
       | Some(ann) =>
-        let colon_delim = Delim.colon_Lam(steps);
+        let colon_delim = Delim.colon_Lam();
         Doc.hcats([
           lam_delim,
           p |> pad_closed_child,
@@ -292,21 +276,14 @@ let mk_Lam =
       };
     doc |> annot_DelimGroup;
   };
-  let close_group = Delim.close_Lam(steps) |> annot_DelimGroup;
+  let close_group = Delim.close_Lam() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort=Exp, ~err);
 };
 
-let mk_Case =
-    (
-      ~steps: CursorPath.steps,
-      ~err: ErrStatus.t,
-      scrut: formatted_child,
-      rules: list(t),
-    )
-    : t => {
-  let open_group = Delim.open_Case(steps) |> annot_DelimGroup;
-  let close_group = Delim.close_Case(steps) |> annot_DelimGroup;
+let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
+  let open_group = Delim.open_Case() |> annot_DelimGroup;
+  let close_group = Delim.close_Case() |> annot_DelimGroup;
   Doc.(
     vseps(
       [
@@ -325,44 +302,43 @@ let mk_Case =
 
 let mk_Case_ann =
     (
-      ~steps: CursorPath.steps,
       ~err: ErrStatus.t,
       scrut: formatted_child,
       rules: list(t),
       ann: formatted_child,
     )
     : t => {
-  open Doc;
-  let open_group = Delim.open_Case(steps) |> annot_DelimGroup;
+  let open_group = Delim.open_Case() |> annot_DelimGroup;
   let close_group = {
-    let end_delim = Delim.close_Case_ann(steps);
-    hcats([
+    let end_delim = Delim.close_Case_ann();
+    Doc.hcats([
       end_delim,
       ann |> pad_left_delimited_child(~is_open=false, ~inline_padding=space_),
     ])
     |> annot_DelimGroup;
   };
-  vseps(
-    [
-      hcats([
-        open_group,
-        scrut
-        |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
-      ]),
-      ...rules,
-    ]
-    @ [close_group],
+  Doc.(
+    vseps(
+      [
+        hcats([
+          open_group,
+          scrut
+          |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
+        ]),
+        ...rules,
+      ]
+      @ [close_group],
+    )
   )
   |> annot_Case(~err);
 };
 
-let mk_Rule =
-    (~steps: CursorPath.steps, p: formatted_child, clause: formatted_child): t => {
+let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   let delim_group =
     Doc.hcats([
-      Delim.bar_Rule(steps),
+      Delim.bar_Rule(),
       p |> pad_closed_child(~inline_padding=(space_, space_)),
-      Delim.arrow_Rule(steps),
+      Delim.arrow_Rule(),
     ])
     |> annot_DelimGroup;
   Doc.hcats([
@@ -373,16 +349,11 @@ let mk_Rule =
 };
 
 let mk_LetLine =
-    (
-      ~steps: CursorPath.steps,
-      p: formatted_child,
-      ann: option(formatted_child),
-      def: formatted_child,
-    )
+    (p: formatted_child, ann: option(formatted_child), def: formatted_child)
     : t => {
   let open_group = {
-    let let_delim = Delim.let_LetLine(steps);
-    let eq_delim = Delim.eq_LetLine(steps);
+    let let_delim = Delim.let_LetLine();
+    let eq_delim = Delim.eq_LetLine();
     let doc =
       switch (ann) {
       | None =>
@@ -392,7 +363,7 @@ let mk_LetLine =
           eq_delim,
         ])
       | Some(ann) =>
-        let colon_delim = Delim.colon_LetLine(steps);
+        let colon_delim = Delim.colon_LetLine();
         Doc.hcats([
           let_delim,
           p |> pad_closed_child(~inline_padding=(space_, space_)),
@@ -403,7 +374,7 @@ let mk_LetLine =
       };
     doc |> annot_DelimGroup;
   };
-  let close_group = Delim.in_LetLine(steps) |> annot_DelimGroup;
+  let close_group = Delim.in_LetLine() |> annot_DelimGroup;
   Doc.hcats([
     open_group,
     def |> pad_open_child(~inline_padding=(space_, space_)),
@@ -414,11 +385,9 @@ let mk_LetLine =
 let rec mk_BinOp =
         (
           ~sort: TermSort.t,
-          ~mk_operand:
-             (~steps: CursorPath.steps, ~enforce_inline: bool, 'operand) => t,
-          ~mk_operator: (~steps: CursorPath.steps, 'operator) => t,
+          ~mk_operand: (~enforce_inline: bool, 'operand) => t,
+          ~mk_operator: 'operator => t,
           ~inline_padding_of_operator: 'operator => (t, t),
-          ~steps: CursorPath.steps,
           ~enforce_inline: bool,
           ~seq: Seq.t('operand, 'operator),
           skel: Skel.t('operator),
@@ -430,26 +399,23 @@ let rec mk_BinOp =
       ~mk_operand,
       ~mk_operator,
       ~inline_padding_of_operator,
-      ~steps,
       ~enforce_inline,
       ~seq,
     );
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    mk_operand(~steps=steps @ [n], ~enforce_inline, operand)
-    |> annot_Step(n);
+    mk_operand(~enforce_inline, operand) |> annot_Step(n);
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-    let op_doc =
-      mk_operator(~steps=steps @ [op_index], op)
-      |> annot_Step(op_index)
-      |> annot_DelimGroup;
+    let op_doc = mk_operator(op) |> annot_DelimGroup;
     let skel1_doc = go(skel1);
     let skel2_doc = go(skel2);
     Doc.hcats([
       skel1_doc |> annot_OpenChild(~is_inline=true),
-      op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
+      op_doc
+      |> pad_operator(~inline_padding=inline_padding_of_operator(op))
+      |> annot_Step(op_index),
       skel2_doc |> annot_OpenChild(~is_inline=true),
     ])
     |> Doc.annot(UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()));
@@ -460,11 +426,9 @@ let mk_NTuple =
     (
       ~sort: TermSort.t,
       ~get_tuple_elements: Skel.t('operator) => list(Skel.t('operator)),
-      ~mk_operand:
-         (~steps: CursorPath.steps, ~enforce_inline: bool, 'operand) => t,
-      ~mk_operator: (~steps: CursorPath.steps, 'operator) => t,
+      ~mk_operand: (~enforce_inline: bool, 'operand) => t,
+      ~mk_operator: 'operator => t,
       ~inline_padding_of_operator: 'operator => (t, t),
-      ~steps: CursorPath.steps,
       ~enforce_inline: bool,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
     )
@@ -476,7 +440,6 @@ let mk_NTuple =
       ~mk_operator,
       ~inline_padding_of_operator,
       ~enforce_inline,
-      ~steps,
       ~seq,
     );
   switch (skel |> get_tuple_elements |> ListUtil.map_zip(mk_BinOp)) {
@@ -496,12 +459,7 @@ let mk_NTuple =
              let comma_index =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
              let comma_doc =
-               Doc.text(",")
-               |> Doc.annot(
-                    UHAnnot.mk_Op(~steps=steps @ [comma_index], ()),
-                  )
-               |> annot_Step(comma_index)
-               |> annot_DelimGroup;
+               mk_op(",") |> annot_Step(comma_index) |> annot_DelimGroup;
              let doc =
                Doc.hcats([
                  tuple,
@@ -523,9 +481,9 @@ let mk_NTuple =
 module Typ = {
   let inline_padding_of_operator =
     fun
-    | UHTyp.Prod => (empty_, space_)
+    | UHTyp.Prod => (Doc.empty(), Doc.space())
     | Arrow
-    | Sum => (space_, space_);
+    | Sum => (Doc.space(), Doc.space());
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Typ);
   let mk_Parenthesized = mk_Parenthesized(~sort=Typ);
@@ -536,38 +494,29 @@ module Typ = {
       ~inline_padding_of_operator,
     );
 
-  let rec mk =
-          (~steps: CursorPath.steps, ~enforce_inline: bool, uty: UHTyp.t): t =>
-    mk_opseq(~steps, ~enforce_inline, uty)
-  and mk_opseq =
-      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHTyp.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
-  and mk_operator = (~steps: CursorPath.steps, op: UHTyp.operator): t =>
-    mk_op(~steps, UHTyp.string_of_operator(op), ())
-  and mk_operand =
-      (
-        ~steps: CursorPath.steps,
-        ~enforce_inline: bool,
-        operand: UHTyp.operand,
-      )
-      : t =>
+  let rec mk = (~enforce_inline: bool, uty: UHTyp.t): t =>
+    mk_opseq(~enforce_inline, uty)
+  and mk_opseq = (~enforce_inline: bool, opseq: UHTyp.opseq): t =>
+    mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
+  and mk_operator = (op: UHTyp.operator): t =>
+    mk_op(UHTyp.string_of_operator(op))
+  and mk_operand = (~enforce_inline: bool, operand: UHTyp.operand): t =>
     switch (operand) {
-    | Hole => mk_EmptyHole(~steps, "?")
-    | Unit => mk_Unit(~steps, ())
-    | Int => mk_Int(~steps, ())
-    | Float => mk_Float(~steps, ())
-    | Bool => mk_Bool(~steps, ())
+    | Hole => mk_EmptyHole("?")
+    | Unit => mk_Unit()
+    | Int => mk_Int()
+    | Float => mk_Float()
+    | Bool => mk_Bool()
     | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
-      mk_Parenthesized(~steps, body);
+      let body = mk_child(~enforce_inline, ~child_step=0, body);
+      mk_Parenthesized(body);
     | List(body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
-      mk_List(~steps, body);
+      let body = mk_child(~enforce_inline, ~child_step=0, body);
+      mk_List(body);
     }
-  and mk_child = (~enforce_inline, ~steps, ~child_step, uty): formatted_child => {
+  and mk_child = (~enforce_inline, ~child_step, uty): formatted_child => {
     let formattable = (~enforce_inline: bool) =>
-      mk(~steps=steps @ [child_step], ~enforce_inline, uty)
-      |> annot_Step(child_step);
+      mk(~enforce_inline, uty) |> annot_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
       : Unformatted(formattable);
@@ -576,10 +525,12 @@ module Typ = {
 
 module Pat = {
   let inline_padding_of_operator =
-    fun
-    | UHPat.Comma => (empty_, space_)
-    | Space
-    | Cons => (empty_, empty_);
+    Doc.(
+      fun
+      | UHPat.Comma => (empty(), space())
+      | Space
+      | Cons => (empty(), empty())
+    );
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Pat);
   let mk_IntLit = mk_IntLit(~sort=Pat);
@@ -596,41 +547,31 @@ module Pat = {
       ~inline_padding_of_operator,
     );
 
-  let rec mk =
-          (~steps: CursorPath.steps, ~enforce_inline: bool, p: UHPat.t): t =>
-    mk_opseq(~steps, ~enforce_inline, p)
-  and mk_opseq =
-      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHPat.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
-  and mk_operator = (~steps: CursorPath.steps, op: UHPat.operator): t =>
-    op |> UHPat.is_Space
-      ? mk_space_op : mk_op(~steps, UHPat.string_of_operator(op), ())
-  and mk_operand =
-      (
-        ~steps: CursorPath.steps,
-        ~enforce_inline: bool,
-        operand: UHPat.operand,
-      )
-      : t =>
+  let rec mk = (~enforce_inline: bool, p: UHPat.t): t =>
+    mk_opseq(~enforce_inline, p)
+  and mk_opseq = (~enforce_inline: bool, opseq: UHPat.opseq): t =>
+    mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
+  and mk_operator = (op: UHPat.operator): t =>
+    op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
+  and mk_operand = (~enforce_inline: bool, operand: UHPat.operand): t =>
     switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u + 1))
-    | Wild(err) => mk_Wild(~err, ~steps)
-    | Var(err, verr, x) => mk_Var(~steps, ~err, ~verr, x)
-    | IntLit(err, n) => mk_IntLit(~err, ~steps, n)
-    | FloatLit(err, f) => mk_FloatLit(~err, ~steps, f)
-    | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
-    | ListNil(err) => mk_ListNil(~err, ~steps, ())
+    | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
+    | Wild(err) => mk_Wild(~err)
+    | Var(err, verr, x) => mk_Var(~err, ~verr, x)
+    | IntLit(err, n) => mk_IntLit(~err, n)
+    | FloatLit(err, f) => mk_FloatLit(~err, f)
+    | BoolLit(err, b) => mk_BoolLit(~err, b)
+    | ListNil(err) => mk_ListNil(~err, ())
     | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
-      mk_Parenthesized(~steps, body);
+      let body = mk_child(~enforce_inline, ~child_step=0, body);
+      mk_Parenthesized(body);
     | Inj(err, inj_side, body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
-      mk_Inj(~err, ~steps, ~inj_side, body);
+      let body = mk_child(~enforce_inline, ~child_step=0, body);
+      mk_Inj(~err, ~inj_side, body);
     }
-  and mk_child = (~enforce_inline, ~steps, ~child_step, p): formatted_child => {
+  and mk_child = (~enforce_inline, ~child_step, p): formatted_child => {
     let formattable = (~enforce_inline: bool) =>
-      mk(~steps=steps @ [child_step], ~enforce_inline, p)
-      |> annot_Step(child_step);
+      mk(~enforce_inline, p) |> annot_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
       : Unformatted(formattable);
@@ -675,24 +616,15 @@ module Exp = {
       UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
     );
 
-  let rec mk =
-          (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): t =>
-    mk_block(~enforce_inline, ~steps, e)
-  and mk_block =
-      (
-        ~offset=0,
-        ~steps: CursorPath.steps,
-        ~enforce_inline: bool,
-        block: UHExp.block,
-      )
-      : t =>
+  let rec mk = (~enforce_inline: bool, e: UHExp.t): t =>
+    mk_block(~enforce_inline, e)
+  and mk_block = (~offset=0, ~enforce_inline: bool, block: UHExp.block): t =>
     if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
       Doc.fail();
     } else {
       block
       |> List.mapi((i, line) =>
-           mk_line(~enforce_inline, ~steps=steps @ [offset + i], line)
-           |> annot_Step(offset + i)
+           mk_line(~enforce_inline, line) |> annot_Step(offset + i)
          )
       |> ListUtil.split_last
       |> (
@@ -711,110 +643,91 @@ module Exp = {
           )
       );
     }
-  and mk_line =
-      (~enforce_inline: bool, ~steps: CursorPath.steps, line: UHExp.line): t =>
+  and mk_line = (~enforce_inline: bool, line: UHExp.line): t =>
     switch (line) {
     | EmptyLine =>
-      // TODO: Once we figure out contenteditable cursors, use `mk_text(~steps, "")`
-      mk_text(~steps, UnicodeConstants.zwsp) |> Doc.annot(UHAnnot.EmptyLine)
-    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)
+      empty_
+      |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+      |> Doc.annot(UHAnnot.EmptyLine)
+    | ExpLine(opseq) => mk_opseq(~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
-      let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
+      let p = Pat.mk_child(~enforce_inline, ~child_step=0, p);
       let ann =
         ann
         |> OptUtil.map(ann =>
-             Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
+             Typ.mk_child(~enforce_inline, ~child_step=1, ann)
            );
-      let def = mk_child(~enforce_inline, ~steps, ~child_step=2, def);
-      mk_LetLine(~steps, p, ann, def) |> Doc.annot(UHAnnot.LetLine);
+      let def = mk_child(~enforce_inline, ~child_step=2, def);
+      mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
     }
-  and mk_opseq =
-      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHExp.opseq): t =>
-    mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
-  and mk_operator = (~steps: CursorPath.steps, op: UHExp.operator): t =>
-    op |> UHExp.is_Space
-      ? mk_space_op : mk_op(~steps, UHExp.string_of_operator(op), ())
-  and mk_operand =
-      (
-        ~steps: CursorPath.steps,
-        ~enforce_inline: bool,
-        operand: UHExp.operand,
-      )
-      : t =>
+  and mk_opseq = (~enforce_inline: bool, opseq: UHExp.opseq): t =>
+    mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
+  and mk_operator = (op: UHExp.operator): t =>
+    op |> UHExp.is_Space ? mk_space_op : mk_op(UHExp.string_of_operator(op))
+  and mk_operand = (~enforce_inline: bool, operand: UHExp.operand): t =>
     switch (operand) {
-    | EmptyHole(u) => mk_EmptyHole(~steps, string_of_int(u + 1))
-    | Var(err, verr, x) => mk_Var(~err, ~verr, ~steps, x)
-    | IntLit(err, n) => mk_IntLit(~err, ~steps, n)
-    | FloatLit(err, f) => mk_FloatLit(~err, ~steps, f)
-    | BoolLit(err, b) => mk_BoolLit(~err, ~steps, b)
-    | ListNil(err) => mk_ListNil(~err, ~steps, ())
+    | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
+    | Var(err, verr, x) => mk_Var(~err, ~verr, x)
+    | IntLit(err, n) => mk_IntLit(~err, n)
+    | FloatLit(err, f) => mk_FloatLit(~err, f)
+    | BoolLit(err, b) => mk_BoolLit(~err, b)
+    | ListNil(err) => mk_ListNil(~err, ())
     | Lam(err, p, ann, body) =>
-      let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
+      let p = Pat.mk_child(~enforce_inline, ~child_step=0, p);
       let ann =
         ann
         |> OptUtil.map(ann =>
-             Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
+             Typ.mk_child(~enforce_inline, ~child_step=1, ann)
            );
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=2, body);
-      mk_Lam(~err, ~steps, p, ann, body);
+      let body = mk_child(~enforce_inline, ~child_step=2, body);
+      mk_Lam(~err, p, ann, body);
     | Inj(err, inj_side, body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
-      mk_Inj(~err, ~steps, ~inj_side, body);
+      let body = mk_child(~enforce_inline, ~child_step=0, body);
+      mk_Inj(~err, ~inj_side, body);
     | Parenthesized(body) =>
-      let body = mk_child(~enforce_inline, ~steps, ~child_step=0, body);
-      mk_Parenthesized(~steps, body);
+      let body = mk_child(~enforce_inline, ~child_step=0, body);
+      mk_Parenthesized(body);
     | Case(err, scrut, rules, ann) =>
       if (enforce_inline) {
         Doc.fail();
       } else {
-        let scrut =
-          mk_child(~enforce_inline=false, ~steps, ~child_step=0, scrut);
+        let scrut = mk_child(~enforce_inline=false, ~child_step=0, scrut);
         let rules =
           rules
-          |> List.mapi((i, rule) =>
-               mk_rule(~steps=steps @ [1 + i], rule) |> annot_Step(1 + i)
-             );
+          |> List.mapi((i, rule) => mk_rule(rule) |> annot_Step(1 + i));
         switch (ann) {
-        | None => mk_Case(~err, ~steps, scrut, rules)
+        | None => mk_Case(~err, scrut, rules)
         | Some(ann) =>
           let ann =
             Typ.mk_child(
               ~enforce_inline=false,
-              ~steps,
               ~child_step=1 + List.length(rules),
               ann,
             );
-          mk_Case_ann(~err, ~steps, scrut, rules, ann);
+          mk_Case_ann(~err, scrut, rules, ann);
         };
       }
     | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
     }
-  and mk_rule = (~steps: CursorPath.steps, Rule(p, clause): UHExp.rule): t => {
-    let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);
-    let clause =
-      mk_child(~enforce_inline=false, ~steps, ~child_step=1, clause);
-    mk_Rule(~steps, p, clause);
+  and mk_rule = (Rule(p, clause): UHExp.rule): t => {
+    let p = Pat.mk_child(~enforce_inline=false, ~child_step=0, p);
+    let clause = mk_child(~enforce_inline=false, ~child_step=1, clause);
+    mk_Rule(p, clause);
   }
-  and mk_child = (~enforce_inline, ~steps, ~child_step, e): formatted_child => {
+  and mk_child = (~enforce_inline, ~child_step, e): formatted_child => {
     switch (e) {
     | [EmptyLine, ...subblock] =>
       if (enforce_inline) {
         EnforcedInline(Doc.fail());
       } else {
         let formatted =
-          mk_block(
-            ~offset=1,
-            ~steps=steps @ [child_step],
-            ~enforce_inline=false,
-            subblock,
-          )
+          mk_block(~offset=1, ~enforce_inline=false, subblock)
           |> annot_Step(child_step);
         UserNewline(formatted);
       }
     | _ =>
       let formattable = (~enforce_inline) =>
-        mk(~steps=steps @ [child_step], ~enforce_inline, e)
-        |> annot_Step(child_step);
+        mk(~enforce_inline, e) |> annot_Step(child_step);
       enforce_inline
         ? EnforcedInline(formattable(~enforce_inline=true))
         : Unformatted(formattable);
