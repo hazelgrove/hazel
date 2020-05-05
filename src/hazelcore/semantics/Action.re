@@ -3254,7 +3254,7 @@ module Exp = {
     /* For Float: (.x<|) ==> ( |_ )  */
     | (Backspace, CursorE(OnText(2), FloatLit(_, f)))
         when
-          FloatUtil.less_than_one_str(f) && FloatUtil.num_digits_str(f) == 2 =>
+          FloatUtil.less_than_one_str(f) && String.length(f) == 2 =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       let new_ze = ZExp.ZBlock.wrap(zhole);
       Succeeded(SynDone((new_ze, Hole, u_gen)));
@@ -4440,7 +4440,7 @@ module Exp = {
     /* For Float: (.x<|) ==> ( |_ )  */
     | (Backspace, CursorE(OnText(2), FloatLit(_, f)))
         when
-          FloatUtil.less_than_one_str(f) && FloatUtil.num_digits_str(f) == 2 =>
+          FloatUtil.less_than_one_str(f) && String.length(f) == 2 =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       let new_ze = ZExp.ZBlock.wrap(zhole);
       Succeeded(AnaDone((new_ze, u_gen)));

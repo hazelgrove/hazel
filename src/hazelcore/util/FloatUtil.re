@@ -6,7 +6,6 @@ let num_digits = (f: float): int =>
   } else {
     String.length(string_of_float(f));
   };
-let num_digits_str = (f: string): int => String.length(f);
 let leading_zeros = (f: string): int => {
   let whole_num_str = String.sub(f, 0, String.index(f, '.'));
   if (String.length(whole_num_str) == 0) {
