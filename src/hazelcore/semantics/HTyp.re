@@ -11,10 +11,10 @@ type t =
   | Prod(list(t))
   | List(t);
 
-let precedence_const = 0;
 let precedence_Prod = 1;
-let precedence_Sum = 2;
-let precedence_Arrow = 3;
+let precedence_Arrow = 2;
+let precedence_Sum = 3;
+let precedence_const = 4;
 let precedence = (ty: t): int =>
   switch (ty) {
   | Num
