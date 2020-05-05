@@ -30,7 +30,7 @@ let test = (opt: option(_)): bool =>
   };
 
 let sequence = (l: list(option('a))): option(list('a)) =>
-  List.fold_left(map2((xs, x) => [x, ...xs]), Some([]), l);
+  List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
 
 module Let_syntax = {
   let map = (x, ~f) => Option.map(f, x);
