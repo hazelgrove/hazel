@@ -77,7 +77,9 @@ module Pat = {
         |> ExpandResult.from_option;
       | _ =>
         raise(
-          Invalid_argument("Encountered tuple pattern type with 0 elements!"),
+          Invalid_argument(
+            "Encountered tuple pattern type with less than 2 elements!",
+          ),
         )
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -827,11 +829,11 @@ module Exp = {
       | None => DoesNotExpand
       | Some((pat, ty, delta)) => Expands(pat, ty, delta);
 
-        let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
-          switch (x) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(dp, ty, delta) => f((dp, ty, delta))
-          };
+    let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
+      switch (x) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(dp, ty, delta) => f((dp, ty, delta))
+      };
   };
 
   module Let_syntax = ExpandResult;
@@ -981,10 +983,8 @@ module Exp = {
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHExp.get_tuple_elements(skel)) {
       | [skel1, skel2, ...tail] =>
-        let%bind (dp1, ty1, delta) =
-          syn_expand_skel(ctx, delta, skel1, seq);
-        let%bind (dp2, ty2, delta) =
-          syn_expand_skel(ctx, delta, skel2, seq);
+        let%bind (dp1, ty1, delta) = syn_expand_skel(ctx, delta, skel1, seq);
+        let%bind (dp2, ty2, delta) = syn_expand_skel(ctx, delta, skel2, seq);
         tail
         |> ListUtil.map_with_accumulator_opt(
              ((dp_acc, delta), skel) => {
@@ -1002,7 +1002,9 @@ module Exp = {
         |> ExpandResult.from_option;
       | _ =>
         raise(
-          Invalid_argument("Encountered tuple pattern type with 0 elements!"),
+          Invalid_argument(
+            "Encountered tuple pattern type with less than 2 elements!",
+          ),
         )
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
