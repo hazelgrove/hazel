@@ -1,6 +1,6 @@
 type t = {
   cardstacks: Cardstacks.t,
-  /* UI state */
+  cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   compute_results: bool,
@@ -9,11 +9,9 @@ type t = {
   show_casts: bool,
   show_unevaluated_expansion: bool,
   selected_example: option(UHExp.t),
-  is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
-  show_contenteditable: bool,
-  show_presentation: bool,
+  font_metrics: FontMetrics.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -24,7 +22,8 @@ let cardstack_info = [
 ];
 
 let init = (): t => {
-  let cardstacks = Cardstacks.mk(cardstack_info);
+  let cell_width = 80;
+  let cardstacks = Cardstacks.mk(~width=cell_width, cardstack_info);
   let undo_history = {
     let edit_state =
       cardstacks |> Cardstacks.get_program |> Program.get_edit_state;
@@ -44,6 +43,7 @@ let init = (): t => {
   };
   {
     cardstacks,
+    cell_width,
     selected_instances,
     undo_history,
     compute_results,
@@ -52,11 +52,14 @@ let init = (): t => {
     show_casts: false,
     show_unevaluated_expansion: false,
     selected_example: None,
-    is_cell_focused: false,
     left_sidebar_open: false,
     right_sidebar_open: true,
-    show_contenteditable: false,
-    show_presentation: false,
+    font_metrics:
+      FontMetrics.{
+        // to be set on display
+        row_height: 1.0,
+        col_width: 1.0,
+      },
   };
 };
 
@@ -77,9 +80,6 @@ let put_undo_history = (history: UndoHistory.t, model: t): t => {
   undo_history: history,
 };
 
-let focus_cell = model => {...model, is_cell_focused: true};
-let blur_cell = model => {...model, is_cell_focused: false};
-
 let get_cardstacks = model => model.cardstacks;
 let put_cardstacks = (cardstacks, model) => {...model, cardstacks};
 let map_cardstacks = (f: Cardstacks.t => Cardstacks.t, model: t): t => {
@@ -90,22 +90,16 @@ let map_cardstacks = (f: Cardstacks.t => Cardstacks.t, model: t): t => {
 let get_cardstack = model => model |> get_cardstacks |> Cardstacks.get_z;
 let get_card = model => model |> get_cardstack |> Cardstack.get_z;
 
-let prev_card = model => {
-  model
-  |> map_cardstacks(Cardstacks.map_z(Cardstack.prev_card))
-  |> focus_cell;
-};
-let next_card = model => {
-  model
-  |> map_cardstacks(Cardstacks.map_z(Cardstack.next_card))
-  |> focus_cell;
-};
-
 let map_selected_instances =
     (f: UserSelectedInstances.t => UserSelectedInstances.t, model) => {
   ...model,
   selected_instances: f(model.selected_instances),
 };
+
+let focus_cell = map_program(Program.focus);
+let blur_cell = map_program(Program.blur);
+
+let is_cell_focused = model => model |> get_program |> Program.is_focused;
 
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
@@ -124,9 +118,8 @@ let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
   |> focus_cell;
 
-let perform_edit_action = (a: Action.t, model: t): t => {
+let update_program = (~undoable, new_program, model) => {
   let old_program = model |> get_program;
-  let new_program = old_program |> Program.perform_edit_action(a);
   let update_selected_instances = si => {
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
@@ -147,7 +140,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
   |> put_undo_history(
        {
          let history = model |> get_undo_history;
-         if (UndoHistory.undoable_action(a)) {
+         if (undoable) {
            UndoHistory.push_edit_state(
              history,
              Program.get_edit_state(new_program),
@@ -157,6 +150,33 @@ let perform_edit_action = (a: Action.t, model: t): t => {
          };
        },
      );
+};
+
+let prev_card = model => {
+  model
+  |> map_cardstacks(Cardstacks.map_z(Cardstack.prev_card))
+  |> focus_cell;
+};
+let next_card = model => {
+  model
+  |> map_cardstacks(Cardstacks.map_z(Cardstack.next_card))
+  |> focus_cell;
+};
+
+let perform_edit_action = (a: Action.t, model: t): t => {
+  let new_program = model |> get_program |> Program.perform_edit_action(a);
+  model
+  |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
+};
+
+let move_via_key = (move_key, model) => {
+  let new_program = model |> get_program |> Program.move_via_key(move_key);
+  model |> update_program(~undoable=false, new_program);
+};
+
+let move_via_click = (row_col, model) => {
+  let new_program = model |> get_program |> Program.move_via_click(row_col);
+  model |> update_program(~undoable=false, new_program);
 };
 
 let toggle_left_sidebar = (model: t): t => {
@@ -172,6 +192,7 @@ let load_example = (model: t, e: UHExp.t): t =>
   model
   |> put_program(
        Program.mk(
+         ~width=model.cell_width,
          Statics.Exp.fix_and_renumber_holes_z(
            Contexts.empty,
            ZExp.place_before(e),
