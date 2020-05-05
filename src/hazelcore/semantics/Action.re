@@ -2849,10 +2849,11 @@ module Exp = {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zp, new_ctx, u_gen)) =>
-        let ctx_def = Statics.Exp.ctx_for_let(ctx, zp |> ZPat.erase, ty, def);
-        let (def, u_gen) =
+        let ctx_def =
+          Statics.Exp.ctx_for_let(ctx, new_zp |> ZPat.erase, ty, def);
+        let (new_def, u_gen) =
           Statics.Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
-        let new_zline = ZExp.LetLineZP(new_zp, Some(ann), def);
+        let new_zline = ZExp.LetLineZP(new_zp, Some(ann), new_def);
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       };
 
