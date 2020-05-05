@@ -181,7 +181,7 @@ module Pat = {
 };
 
 module Exp = {
-  let precedence_bin_int_op = (bio: DHExp.bin_int_op) =>
+  let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
     switch (bio) {
     | Times => precedence_Times
     | Plus => precedence_Plus
@@ -190,7 +190,7 @@ module Exp = {
     | LessThan => precedence_LessThan
     | GreaterThan => precedence_GreaterThan
     };
-  let precedence_bin_float_op = (bfo: DHExp.bin_float_op) =>
+  let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
     switch (bfo) {
     | FTimes => precedence_Times
     | FPlus => precedence_Plus
@@ -226,7 +226,7 @@ module Exp = {
     };
   };
 
-  let mk_bin_int_op = (op: DHExp.bin_int_op): t =>
+  let mk_bin_int_op = (op: DHExp.BinIntOp.t): t =>
     Doc.text(
       switch (op) {
       | Minus => "-"
@@ -238,7 +238,7 @@ module Exp = {
       },
     );
 
-  let mk_bin_float_op = (op: DHExp.bin_float_op): t =>
+  let mk_bin_float_op = (op: DHExp.BinFloatOp.t): t =>
     Doc.text(
       switch (op) {
       | FMinus => "-."
