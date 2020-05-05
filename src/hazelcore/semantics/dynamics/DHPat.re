@@ -8,8 +8,8 @@ type t =
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | Var(Var.t)
-  | IntLit(string)
-  | FloatLit(string)
+  | IntLit(int)
+  | FloatLit(float)
   | BoolLit(bool)
   | Inj(InjSide.t, t)
   | ListNil

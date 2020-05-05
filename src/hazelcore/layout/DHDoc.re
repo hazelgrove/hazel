@@ -95,9 +95,9 @@ let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
 
-let mk_IntLit = n => Doc.text(n);
+let mk_IntLit = n => Doc.text(string_of_int(n));
 
-let mk_FloatLit = f => Doc.text(f);
+let mk_FloatLit = f => Doc.text(string_of_float(f));
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
