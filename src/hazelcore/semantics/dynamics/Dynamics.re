@@ -108,8 +108,16 @@ module Pat = {
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
-    | IntLit(NotInHole, n) => Expands(IntLit(n), Int, ctx, delta)
-    | FloatLit(NotInHole, n) => Expands(FloatLit(n), Float, ctx, delta)
+    | IntLit(NotInHole, n) =>
+      switch (int_of_string_opt(n)) {
+      | Some(n) => Expands(IntLit(n), Int, ctx, delta)
+      | None => DoesNotExpand
+      }
+    | FloatLit(NotInHole, f) =>
+      switch (float_of_string_opt(f)) {
+      | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
+      | None => DoesNotExpand
+      }
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
     | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
@@ -1076,8 +1084,9 @@ module Exp = {
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
-    | IntLit(NotInHole, n) => Expands(IntLit(n), Int, delta)
-    | FloatLit(NotInHole, f) => Expands(FloatLit(f), Float, delta)
+    | IntLit(NotInHole, n) => Expands(IntLit(int_of_string(n)), Int, delta)
+    | FloatLit(NotInHole, f) =>
+      Expands(FloatLit(float_of_string(f)), Float, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
@@ -1805,12 +1814,11 @@ module Evaluator = {
     };
 
   let eval_bin_int_op =
-      (op: DHExp.BinIntOp.t, s1: string, s2: string): option(DHExp.t) => {
-    let (n1, n2) = (int_of_string(s1), int_of_string(s2));
+      (op: DHExp.BinIntOp.t, n1: int, n2: int): option(DHExp.t) => {
     switch (op) {
-    | Minus => Some(IntLit(string_of_int(n1 - n2)))
-    | Plus => Some(IntLit(string_of_int(n1 + n2)))
-    | Times => Some(IntLit(string_of_int(n1 * n2)))
+    | Minus => Some(IntLit(n1 - n2))
+    | Plus => Some(IntLit(n1 + n2))
+    | Times => Some(IntLit(n1 * n2))
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))
@@ -1818,12 +1826,11 @@ module Evaluator = {
   };
 
   let eval_bin_float_op =
-      (op: DHExp.BinFloatOp.t, s1: string, s2: string): option(DHExp.t) => {
-    let (f1, f2) = (float_of_string(s1), float_of_string(s2));
+      (op: DHExp.BinFloatOp.t, f1: float, f2: float): option(DHExp.t) => {
     switch (op) {
-    | FPlus => Some(FloatLit(string_of_float(f1 +. f2)))
-    | FMinus => Some(FloatLit(string_of_float(f1 -. f2)))
-    | FTimes => Some(FloatLit(string_of_float(f1 *. f2)))
+    | FPlus => Some(FloatLit(f1 +. f2))
+    | FMinus => Some(FloatLit(f1 -. f2))
+    | FTimes => Some(FloatLit(f1 *. f2))
     };
   };
 
