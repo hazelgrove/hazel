@@ -108,10 +108,8 @@ and is_after_zoperand =
   | CursorP(cursor, Wild(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
-  | CursorP(cursor, IntLit(_, n)) =>
-    cursor == OnText(String.length(n))
-  | CursorP(cursor, FloatLit(_, f)) =>
-    cursor == OnText(String.length(f))
+  | CursorP(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
+  | CursorP(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)

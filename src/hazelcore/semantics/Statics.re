@@ -833,13 +833,13 @@ module Exp = {
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
-    | BinOp(NotInHole, Minus|Plus|Times, skel1, skel2) =>
+    | BinOp(NotInHole, Minus | Plus | Times, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
       | None => None
       | Some(_) =>
         ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
       }
-    | BinOp(NotInHole, FMinus|FPlus|FTimes, skel1, skel2) =>
+    | BinOp(NotInHole, FMinus | FPlus | FTimes, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
       | None => None
       | Some(_) =>
