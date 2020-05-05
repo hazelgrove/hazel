@@ -568,7 +568,7 @@ module Pat = {
         )
       | _ =>
         let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let (opseq, _, ctx, u_gen) =
+        let (opseq, _, _, u_gen) =
           syn_fix_holes_opseq(
             ctx,
             u_gen,
