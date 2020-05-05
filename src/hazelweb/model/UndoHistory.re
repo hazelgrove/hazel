@@ -52,12 +52,17 @@ let get_cursor_info =
   let zexp_before =
     ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
     |> Program.get_zexp;
-  let (cursor_term_before, prev_is_empty_line, next_is_empty_line) =
-    CursorInfo.extract_cursor_term(zexp_before);
+  let (prev_is_empty_line, next_is_empty_line) =
+    CursorInfo.adjacent_is_emptyline(zexp_before);
+  let cursor_info_before =
+    cardstacks_before |> Cardstacks.get_program |> Program.get_cursor_info;
+  let cursor_term_before = cursor_info_before.cursor_term;
   let zexp_after =
     ZList.prj_z(ZList.prj_z(cardstacks_after).zcards).program
     |> Program.get_zexp;
-  let (cursor_term_after, _, _) = CursorInfo.extract_cursor_term(zexp_after);
+  let cursor_info_after =
+    cardstacks_after |> Cardstacks.get_program |> Program.get_cursor_info;
+  let cursor_term_after = cursor_info_after.cursor_term;
 
   {
     cursor_term_before,
