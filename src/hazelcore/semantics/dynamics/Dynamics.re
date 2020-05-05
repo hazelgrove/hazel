@@ -19,18 +19,14 @@ module Pat = {
       | None => DoesNotExpand
       | Some((pat, ty, ctx, delta)) => Expands(pat, ty, ctx, delta);
 
-    // for use with ppx_let. Don't know why I need to wrap it in a module twice
-    module Let_syntax = {
-      module Let_syntax = {
-        let bind =
-            (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
-          switch (x) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
-          };
+    let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
+      switch (x) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
       };
-    };
   };
+
+  module Let_syntax = ExpandResult;
 
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): ExpandResult.t =>
@@ -60,9 +56,9 @@ module Pat = {
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHPat.get_tuple_elements(skel)) {
       | [skel1, skel2, ...tail] =>
-        let%bind.ExpandResult (dp1, ty1, ctx, delta) =
+        let%bind (dp1, ty1, ctx, delta) =
           syn_expand_skel(ctx, delta, skel1, seq);
-        let%bind.ExpandResult (dp2, ty2, ctx, delta) =
+        let%bind (dp2, ty2, ctx, delta) =
           syn_expand_skel(ctx, delta, skel2, seq);
         tail
         |> ListUtil.map_with_accumulator_opt(
@@ -831,16 +827,14 @@ module Exp = {
       | None => DoesNotExpand
       | Some((pat, ty, delta)) => Expands(pat, ty, delta);
 
-    module Let_syntax = {
-      module Let_syntax = {
         let bind = (x: t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t): t =>
           switch (x) {
           | DoesNotExpand => DoesNotExpand
           | Expands(dp, ty, delta) => f((dp, ty, delta))
           };
-      };
-    };
   };
+
+  module Let_syntax = ExpandResult;
 
   let id_env = (ctx: VarCtx.t): Environment.t =>
     VarMap.map(
@@ -987,9 +981,9 @@ module Exp = {
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHExp.get_tuple_elements(skel)) {
       | [skel1, skel2, ...tail] =>
-        let%bind.ExpandResult (dp1, ty1, delta) =
+        let%bind (dp1, ty1, delta) =
           syn_expand_skel(ctx, delta, skel1, seq);
-        let%bind.ExpandResult (dp2, ty2, delta) =
+        let%bind (dp2, ty2, delta) =
           syn_expand_skel(ctx, delta, skel2, seq);
         tail
         |> ListUtil.map_with_accumulator_opt(
