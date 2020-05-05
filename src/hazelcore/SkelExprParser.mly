@@ -20,7 +20,7 @@
 %token SPACEOP
 %token EOF
 
-%right COMMA
+%nonassoc COMMA
 %left OR
 %left AND
 %left LT
