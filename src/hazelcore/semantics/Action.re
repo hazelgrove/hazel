@@ -2195,6 +2195,9 @@ module Exp = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
+      } else if (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else {
         Failed;
       }
@@ -2248,6 +2251,9 @@ module Exp = {
     switch (TextShape.of_text(text)) {
     | None =>
       if (text |> StringUtil.is_empty) {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
+      } else if (text == ".") {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
       } else {
@@ -3251,13 +3257,6 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
       syn_backspace_text(ctx, u_gen, j, n)
-    /* For Float: (.x<|) ==> ( |_ )  */
-    | (Backspace, CursorE(OnText(2), FloatLit(_, f)))
-        when
-          FloatUtil.less_than_one_str(f) && String.length(f) == 2 =>
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      let new_ze = ZExp.ZBlock.wrap(zhole);
-      Succeeded(SynDone((new_ze, Hole, u_gen)));
     | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
       syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
@@ -3375,6 +3374,9 @@ module Exp = {
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
 
+    /* It is a temporary fix so that a new hole isn't created when a dot is inputted by itself.
+       It will later be replaced by invalid var and handled by make syntax */
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -4437,13 +4439,6 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, x, ty)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
       ana_backspace_text(ctx, u_gen, j, n, ty)
-    /* For Float: (.x<|) ==> ( |_ )  */
-    | (Backspace, CursorE(OnText(2), FloatLit(_, f)))
-        when
-          FloatUtil.less_than_one_str(f) && String.length(f) == 2 =>
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      let new_ze = ZExp.ZBlock.wrap(zhole);
-      Succeeded(AnaDone((new_ze, u_gen)));
     | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
       ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
@@ -4497,6 +4492,9 @@ module Exp = {
 
     /* Construction */
 
+    /* It is a temporary fix so that a new hole isn't created when a dot is inputted by itself.
+       It will later be replaced by invalid var and handled by make syntax */
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
