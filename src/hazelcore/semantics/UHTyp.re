@@ -35,12 +35,12 @@ let contract = (ty: HTyp.t): t => {
   let rec mk_seq_operand = (ty, op, ty1, ty2) =>
     Seq.seq_op_seq(
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty1) >= HTyp.precedence(ty),
+        ~parenthesize=HTyp.precedence(ty1) <= HTyp.precedence(ty),
         ty1,
       ),
       op,
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty1) > HTyp.precedence(ty),
+        ~parenthesize=HTyp.precedence(ty2) < HTyp.precedence(ty),
         ty2,
       ),
     )
@@ -54,16 +54,17 @@ let contract = (ty: HTyp.t): t => {
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
-        |> List.map(ty =>
+        |> List.map(elementType =>
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(ty) >= HTyp.precedence_Prod,
-               ty,
+               ~parenthesize=
+                 HTyp.precedence(elementType) <= HTyp.precedence_Prod,
+               elementType,
              )
            )
         |> List.fold_left(
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators.Typ.Prod, seq2),
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(head) >= HTyp.precedence_Prod,
+               ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
                head,
              ),
            )
