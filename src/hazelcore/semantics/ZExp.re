@@ -80,9 +80,9 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | ListNil(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
-  | IntLit(_, n) => CursorPosition.text_cursors(IntUtil.num_digits_str(n))
+  | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) =>
-    CursorPosition.text_cursors(FloatUtil.num_digits_str(f))
+    CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
@@ -200,9 +200,9 @@ and is_after_zoperand =
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorE(cursor, IntLit(_, n)) =>
-    cursor == OnText(IntUtil.num_digits_str(n))
+    cursor == OnText(String.length(n))
   | CursorE(cursor, FloatLit(_, f)) =>
-    cursor == OnText(FloatUtil.num_digits_str(f))
+    cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
@@ -286,8 +286,8 @@ and place_after_operand = operand =>
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
-  | IntLit(_, n) => CursorE(OnText(IntUtil.num_digits_str(n)), operand)
-  | FloatLit(_, f) => CursorE(OnText(FloatUtil.num_digits_str(f)), operand)
+  | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
+  | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)

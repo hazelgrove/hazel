@@ -277,35 +277,6 @@ let qsort_example: UHExp.t = {
       )
     );
 
-  /*
-   Checking if float works
-     let qsort_line =
-       UHExp.(
-         ExpLine(
-           Seq.mk(
-             var("qsort"),
-             [
-               (
-                 Space,
-                 Parenthesized(
-                   Block.wrap'(
-                     Seq.mk(
-                       floatlit(4.0),
-                       [(Cons, floatlit(2.0)), (Cons, listnil())],
-                     )
-                     |> mk_OpSeq_exp,
-                   ),
-                 ),
-               ),
-             ],
-           )
-           |> mk_OpSeq_exp,
-         )
-       );
-
-     UHExp.[append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line];
-   };
-   */
   let qsort_line =
     UHExp.(
       ExpLine(
