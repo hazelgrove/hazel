@@ -32,15 +32,15 @@ let associate = (seq: seq) => {
 let mk_OpSeq = OpSeq.mk(~associate);
 
 let contract = (ty: HTyp.t): t => {
-  let rec mk_seq_operand = (ty, op, ty1, ty2) =>
+  let rec mk_seq_operand = (precedence_op, op, ty1, ty2) =>
     Seq.seq_op_seq(
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty1) <= HTyp.precedence(ty),
+        ~parenthesize=HTyp.precedence(ty1) <= precedence_op,
         ty1,
       ),
       op,
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty2) < HTyp.precedence(ty),
+        ~parenthesize=HTyp.precedence(ty2) < precedence_op,
         ty2,
       ),
     )
@@ -50,7 +50,8 @@ let contract = (ty: HTyp.t): t => {
       | Hole => Seq.wrap(Hole)
       | Num => Seq.wrap(Num)
       | Bool => Seq.wrap(Bool)
-      | Arrow(ty1, ty2) => mk_seq_operand(ty, Operators.Typ.Arrow, ty1, ty2)
+      | Arrow(ty1, ty2) =>
+        mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
@@ -68,7 +69,7 @@ let contract = (ty: HTyp.t): t => {
                head,
              ),
            )
-      | Sum(ty1, ty2) => mk_seq_operand(ty, Sum, ty1, ty2)
+      | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
       };
