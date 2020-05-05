@@ -972,7 +972,7 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Int);
           let dc2 = DHExp.cast(d2, ty2, Int);
-          switch (DHExp.of_int_op(op)) {
+          switch (DHExp.BinIntOp.of_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
             let d = DHExp.BinIntOp(op, dc1, dc2);
@@ -989,7 +989,7 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Float);
           let dc2 = DHExp.cast(d2, ty2, Float);
-          switch (DHExp.of_float_op(op)) {
+          switch (DHExp.BinFloatOp.of_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
             let d = DHExp.BinFloatOp(op, dc1, dc2);
@@ -1006,7 +1006,7 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Bool);
           let dc2 = DHExp.cast(d2, ty2, Bool);
-          switch (DHExp.of_int_op(op)) {
+          switch (DHExp.BinIntOp.of_op(op)) {
           | None => DoesNotExpand
           | Some((op, ty)) =>
             let d = DHExp.BinIntOp(op, dc1, dc2);
@@ -1805,7 +1805,7 @@ module Evaluator = {
     };
 
   let eval_bin_int_op =
-      (op: DHExp.bin_int_op, s1: string, s2: string): option(DHExp.t) => {
+      (op: DHExp.BinIntOp.t, s1: string, s2: string): option(DHExp.t) => {
     let (n1, n2) = (int_of_string(s1), int_of_string(s2));
     switch (op) {
     | Minus => Some(IntLit(string_of_int(n1 - n2)))
@@ -1818,7 +1818,7 @@ module Evaluator = {
   };
 
   let eval_bin_float_op =
-      (op: DHExp.bin_float_op, s1: string, s2: string): option(DHExp.t) => {
+      (op: DHExp.BinFloatOp.t, s1: string, s2: string): option(DHExp.t) => {
     let (f1, f2) = (float_of_string(s1), float_of_string(s2));
     switch (op) {
     | FPlus => Some(FloatLit(string_of_float(f1 +. f2)))
