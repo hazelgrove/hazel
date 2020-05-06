@@ -221,6 +221,7 @@ module Pat = {
     | Wild(InHole(TypeInconsistent, _))
     | Var(InHole(TypeInconsistent, _), _, _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
+    | BoolLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _) =>

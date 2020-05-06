@@ -361,8 +361,9 @@ and is_complete_operand =
   fun
   | EmptyHole(_) => false
   | Var(_, _, _)
-  | NumLit(_, _)
+  | IntLit(_, _)
   | BoolLit(_, _)
+  | FloatLit(_, _)
   | ListNil(_)
   | ApPalette(_, _, _, _) => true
   | Lam(_, _, _, e)

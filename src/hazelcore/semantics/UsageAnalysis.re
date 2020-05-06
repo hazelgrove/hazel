@@ -108,8 +108,9 @@ and ana_var_operand =
   | Wild(_)
   | Var(_, InVarHole(_), _, _)
   | Var(InHole(_), _, _, _)
-  | NumLit(_)
+  | IntLit(_)
   | BoolLit(_)
+  | FloatLit(_)
   | ListNil(_)
   | Inj(InHole(_), _, _) => operand
   | Var(NotInHole, NotInVarHole, _, x) =>

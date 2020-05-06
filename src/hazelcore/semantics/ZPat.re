@@ -152,6 +152,7 @@ and place_after_operand = operand =>
   | ListNil(_) => CursorP(OnDelim(0, After), operand)
   | Var(_, _, _, x) => CursorP(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorP(OnText(String.length(n)), operand)
+  | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
   | FloatLit(_, f) => CursorP(OnText(String.length(f)), operand)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
