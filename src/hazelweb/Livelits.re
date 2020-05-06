@@ -281,25 +281,29 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
           ],
           [Node.text("+")],
         );
-      let formula_bar =
+      let maybe_add_formula_bar = rest =>
         if (!I.is_live) {
-          [];
+          rest;
         } else {
-          [
-            Node.div(
-              [Attr.classes(["matrix-formula-bar"])],
-              [
-                Node.span(
-                  [Attr.classes(["matrix-formula-bar-text"])],
-                  [Node.text("selected cell's formula: ")],
-                ),
-                Node.div(
-                  [Attr.classes(["matrix-formula-bar-splice"])],
-                  [uhcode(selected)],
-                ),
-              ],
-            ),
-          ];
+          Node.div(
+            [Attr.classes(["matrix-livelit"])],
+            [
+              Node.div(
+                [Attr.classes(["matrix-formula-bar"])],
+                [
+                  Node.span(
+                    [Attr.classes(["matrix-formula-bar-text"])],
+                    [Node.text("selected cell's formula: ")],
+                  ),
+                  Node.div(
+                    [Attr.classes(["matrix-formula-bar-splice"])],
+                    [uhcode(selected)],
+                  ),
+                ],
+              ),
+              rest,
+            ],
+          );
         };
       let splices =
         m
@@ -335,29 +339,30 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
            )
         |> List.flatten;
 
-      Node.div(
-        [
-          Attr.classes(["matrix-livelit"]),
-          attr_style(
-            StringUtil.cat([
-              prop_val(
-                "grid-template-columns",
-                StringUtil.sep(ListUtil.replicate(width + 2, "auto")),
-              ),
-              prop_val(
-                "grid-template-rows",
-                StringUtil.sep(ListUtil.replicate(height + 2, "auto")),
-              ),
-            ]),
-          ),
-        ],
-        List.concat([
-          row_header,
-          col_header,
-          formula_bar,
-          splices,
-          [add_row_button, add_col_button],
-        ]),
+      maybe_add_formula_bar(
+        Node.div(
+          [
+            Attr.classes(["matrix-livelit"]),
+            attr_style(
+              StringUtil.cat([
+                prop_val(
+                  "grid-template-columns",
+                  StringUtil.sep(ListUtil.replicate(width + 2, "auto")),
+                ),
+                prop_val(
+                  "grid-template-rows",
+                  StringUtil.sep(ListUtil.replicate(height + 2, "auto")),
+                ),
+              ]),
+            ),
+          ],
+          List.concat([
+            row_header,
+            col_header,
+            splices,
+            [add_row_button, add_col_button],
+          ]),
+        ),
       );
     };
     let num_rows = List.length(m);
