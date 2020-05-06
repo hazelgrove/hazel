@@ -4,202 +4,72 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
 module KeyCombo = JSUtil.KeyCombo;
+module MoveKey = JSUtil.MoveKey;
 open ViewUtil;
 open Sexplib.Std;
 
-type kc_info = {
-  action_fn: CursorInfo.t => Action.t,
-  description: string,
-};
-
-let kc_actions: Hashtbl.t(KeyCombo.t, kc_info) =
+let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
   [
-    (
-      KeyCombo.Backspace,
-      {action_fn: _ => Action.Backspace, description: "Delete Character"},
-    ),
-    (
-      Delete,
-      {action_fn: _ => Action.Delete, description: "Delete Expression"},
-    ),
-    (
-      ShiftTab,
-      {
-        action_fn: _ => Action.MoveToPrevHole,
-        description: "Move to prev hole",
-      },
-    ),
-    (
-      Tab,
-      {
-        action_fn: _ => Action.MoveToNextHole,
-        description: "Move to next hole",
-      },
-    ),
+    (KeyCombo.Backspace, _ => Action.Backspace),
+    (Delete, _ => Action.Delete),
+    (ShiftTab, _ => Action.MoveToPrevHole),
+    (Tab, _ => Action.MoveToNextHole),
     (
       KeyCombo.GT,
-      {
-        action_fn:
-          fun
-          | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
-          | _ => Action.Construct(SOp(SGreaterThan)),
-        description: "Insert > Operator",
-      },
+      fun
+      | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
+      | _ => Action.Construct(SOp(SGreaterThan)),
     ),
-    (
-      Ampersand,
-      {
-        action_fn: _ => Action.Construct(SOp(SAnd)),
-        description: "Insert & operator",
-      },
-    ),
-    (
-      VBar,
-      {
-        action_fn: _ => Action.Construct(SOp(SOr)),
-        description: "Insert | operator",
-      },
-    ),
-    (
-      LeftParen,
-      {
-        action_fn: _ => Action.Construct(SParenthesized),
-        description: "Parenthesize expression",
-      },
-    ),
-    (
-      Colon,
-      {
-        action_fn: _ => Action.Construct(SAsc),
-        description: "Type ascription",
-      },
-    ),
-    (
-      Equals,
-      {
-        action_fn: _ => Action.Construct(SOp(SEquals)),
-        description: "Insert = operator",
-      },
-    ),
-    (
-      Enter,
-      {
-        action_fn: _ => Action.Construct(SLine),
-        description: "Create new line",
-      },
-    ),
-    (
-      Backslash,
-      {
-        action_fn: _ => Action.Construct(SLam),
-        description: "Insert Lambda expression",
-      },
-    ),
-    (
-      Plus,
-      {
-        action_fn: _ => Action.Construct(SOp(SPlus)),
-        description: "Insert + operator",
-      },
-    ),
-    (
-      Minus,
-      {
-        action_fn: _ => Action.Construct(SOp(SMinus)),
-        description: "Insert - operator",
-      },
-    ),
-    (
-      Asterisk,
-      {
-        action_fn: _ => Action.Construct(SOp(STimes)),
-        description: "Insert * operator",
-      },
-    ),
-    (
-      LT,
-      {
-        action_fn: _ => Action.Construct(SOp(SLessThan)),
-        description: "Insert < operator",
-      },
-    ),
-    (
-      Space,
-      {
-        action_fn: _ => Action.Construct(SOp(SSpace)),
-        description: "Separate terms",
-      },
-    ),
-    (
-      Comma,
-      {
-        action_fn: _ => Action.Construct(SOp(SComma)),
-        description: ", operator",
-      },
-    ),
+    (Ampersand, _ => Action.Construct(SOp(SAnd))),
+    (VBar, _ => Action.Construct(SOp(SOr))),
+    (LeftParen, _ => Action.Construct(SParenthesized)),
+    (Colon, _ => Action.Construct(SAsc)),
+    (Equals, _ => Action.Construct(SOp(SEquals))),
+    (Enter, _ => Action.Construct(SLine)),
+    (Backslash, _ => Action.Construct(SLam)),
+    (Plus, _ => Action.Construct(SOp(SPlus))),
+    (Minus, _ => Action.Construct(SOp(SMinus))),
+    (Asterisk, _ => Action.Construct(SOp(STimes))),
+    (LT, _ => Action.Construct(SOp(SLessThan))),
+    (Space, _ => Action.Construct(SOp(SSpace))),
+    (Comma, _ => Action.Construct(SOp(SComma))),
     (
       LeftBracket,
-      {
-        action_fn:
-          fun
-          | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
-          | _ => Action.Construct(SListNil),
-        description: "Insert a list",
-      },
+      fun
+      | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
+      | _ => Action.Construct(SListNil),
     ),
-    (
-      Semicolon,
-      {
-        action_fn: _ => Action.Construct(SOp(SCons)),
-        description: "Cons operator",
-      },
-    ),
-    (
-      Alt_L,
-      {
-        action_fn: _ => Action.Construct(SInj(L)),
-        description: "Left injection",
-      },
-    ),
-    (
-      Alt_R,
-      {
-        action_fn: _ => Action.Construct(SInj(R)),
-        description: "Right injection",
-      },
-    ),
-    (
-      Alt_C,
-      {
-        action_fn: _ => Action.Construct(SCase),
-        description: "Insert case statement",
-      },
-    ),
+    (Semicolon, _ => Action.Construct(SOp(SCons))),
+    (Alt_L, _ => Action.Construct(SInj(L))),
+    (Alt_R, _ => Action.Construct(SInj(R))),
+    (Alt_C, _ => Action.Construct(SCase)),
+    (Ctrl_Alt_Up, _ => Action.SwapUp),
+    (Ctrl_Alt_Down, _ => Action.SwapDown),
+    (Ctrl_Alt_Left, _ => Action.SwapLeft),
+    (Ctrl_Alt_Right, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+let focus = () => {
+  JSUtil.force_get_elem_by_id("cell")##focus;
+};
+
+let view = (~inject, model: Model.t) => {
+  open Vdom;
   let program = model |> Model.get_program;
-  Vdom.(
-    Node.div(
-      [
-        Attr.id(cell_id),
-        Attr.on_keypress(evt =>
-          JSUtil.is_movement_key(evt)
-            ? Event.Many([]) : Event.Prevent_default
-        ),
+  let code_view = UHCode.view(~inject, ~font_metrics=model.font_metrics);
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  let (key_handlers, code_view) =
+    if (Model.is_cell_focused(model)) {
+      let key_handlers = [
+        Attr.on_keypress(_ => Event.Prevent_default),
         Attr.on_keydown(evt => {
-          let prevent_stop_inject = a =>
-            Vdom.Event.Many([
-              Vdom.Event.Prevent_default,
-              Vdom.Event.Stop_propagation,
-              inject(a),
-            ]);
-          if (JSUtil.is_movement_key(evt)) {
-            Event.Many([]);
-          } else {
+          switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+          | Some(move_key) =>
+            prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
+          | None =>
             switch (KeyCombo.of_evt(evt)) {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
             | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
@@ -207,9 +77,13 @@ let view =
               let action_fn = Hashtbl.find(kc_actions, kc).action_fn;
               prevent_stop_inject(
                 Update.Action.EditAction(
-                  program |> Program.get_cursor_info |> action_fn,
+                  Hashtbl.find(
+                    kc_actions,
+                    kc,
+                    program |> Program.get_cursor_info,
+                  ),
                 ),
-              );
+              )
             | None =>
               switch (JSUtil.is_single_key(evt)) {
               | None => Event.Ignore
@@ -220,32 +94,27 @@ let view =
                   ),
                 )
               }
-            };
-          };
+            }
+          }
         }),
-      ],
-      {
-        let (contenteditable, presentation) =
-          model.is_cell_focused
-            ? UHCode.focused_view(
-                ~inject,
-                ~show_contenteditable=model.show_contenteditable,
-                ~path=program |> Program.get_path,
-                ~ci=program |> Program.get_cursor_info,
-                program |> Program.get_doc,
-              )
-            : UHCode.view(
-                ~inject,
-                ~show_contenteditable=model.show_contenteditable,
-                program |> Program.get_doc,
-              );
-        [
-          Node.div(
-            [Attr.id("code-container")],
-            [presentation, contenteditable],
-          ),
-        ];
-      },
-    )
+      ];
+      let view = program |> Program.get_decorated_layout |> code_view;
+      (key_handlers, view);
+    } else {
+      ([], program |> Program.get_layout |> code_view);
+    };
+  Node.div(
+    [
+      Attr.id(cell_id),
+      // necessary to make cell focusable
+      Attr.create("tabindex", "0"),
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+      ...key_handlers,
+    ],
+    [
+      Node.div([Attr.id("font-specimen")], [Node.text("X")]),
+      Node.div([Attr.id("code-container")], [code_view]),
+    ],
   );
 };
