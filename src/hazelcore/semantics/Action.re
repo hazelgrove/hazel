@@ -3389,7 +3389,7 @@ module Exp = {
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
-      syn_insert_text(ctx, u_gen, (j, s), x)
+      syn_insert_text(ctx, u_gen, (j, s), x);
     | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), n)
     | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
