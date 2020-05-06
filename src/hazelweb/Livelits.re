@@ -78,19 +78,25 @@ module PairLivelit: LIVELIT = {
   };
 };
 
-module MatrixLivelit: LIVELIT = {
-  let name = "$matrix";
+module type MAT_INFO = {
+  let name: LivelitName.t;
+  let is_live: bool;
+};
+
+module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
+  let name = I.name;
   let expansion_ty = HTyp.(List(List(Num)));
 
   // assume nonzero height and width
   [@deriving sexp]
-  type model = list(list(SpliceName.t));
+  type model = (SpliceName.t, list(list(SpliceName.t)));
   [@deriving sexp]
   type dim =
     | Row
     | Col;
   [@deriving sexp]
   type action =
+    | Select(SpliceName.t)
     | Add(dim)
     | Del(dim, int);
   type trigger = action => Vdom.Event.t;
@@ -98,8 +104,9 @@ module MatrixLivelit: LIVELIT = {
   let init_height = 2;
   let init_width = 2;
 
-  let get_height = (m: model): int => List.length(m);
-  let get_width = (m: model): int => List.length(List.hd(m));
+  let get_height = (m: list(list(SpliceName.t))): int => List.length(m);
+  let get_width = (m: list(list(SpliceName.t))): int =>
+    List.length(List.hd(m));
 
   let init_model =
     SpliceGenCmd.(
@@ -112,39 +119,58 @@ module MatrixLivelit: LIVELIT = {
             return,
           ),
         ),
-        return,
+        grid =>
+        return((grid |> List.hd |> List.hd, grid))
       )
     );
 
-  let update = m =>
+  let update = ((selected, m)) =>
     fun
+    | Select(to_select) => {
+        let to_select_in_grid =
+          !(m |> List.for_all(List.for_all(s => s != to_select)));
+        if (!to_select_in_grid) {
+          JSUtil.log(
+            Printf.sprintf(
+              "Attempt to select splice name %d, which is not in the matrix",
+              to_select,
+            ),
+          );
+        };
+        SpliceGenCmd.return((to_select_in_grid ? to_select : selected, m));
+      }
     | Add(Row) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
           get_width(m), bind(new_splice(HTyp.Num)), new_row =>
-          m @ [new_row] |> return
+          return((selected, m @ [new_row]))
         )
       )
     | Add(Col) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
           get_height(m), bind(new_splice(HTyp.Num)), new_col =>
-          List.map2((c, r) => r @ [c], new_col, m) |> return
+          return((selected, List.map2((c, r) => r @ [c], new_col, m)))
         )
       )
     | Del(dim, i) => {
-        let drop = (to_drop, ret) =>
+        let drop = (to_drop, ret) => {
+          let selected_in_to_drop =
+            !(to_drop |> List.for_all(s => s != selected));
+          let to_select =
+            selected_in_to_drop ? ret |> List.hd |> List.hd : selected;
           SpliceGenCmd.(
             MonadsUtil.bind_list(
               to_drop,
               d => bind(drop_splice(d)),
-              _ => return(ret),
+              _ => return((to_select, ret)),
             )
           );
+        };
         switch (dim) {
         | Row =>
           if (get_height(m) <= 1) {
-            SpliceGenCmd.return(m);
+            SpliceGenCmd.return((selected, m));
           } else {
             let (before, rest) = ListUtil.split_index(m, i);
             let (to_drop, after) = (List.hd(rest), List.tl(rest));
@@ -152,7 +178,7 @@ module MatrixLivelit: LIVELIT = {
           }
         | Col =>
           if (get_width(m) <= 1) {
-            SpliceGenCmd.return(m);
+            SpliceGenCmd.return((selected, m));
           } else {
             let (before, rest) =
               m |> List.map(r => ListUtil.split_index(r, i)) |> List.split;
@@ -175,9 +201,9 @@ module MatrixLivelit: LIVELIT = {
       ),
     );
 
-  let view = (m, trig) =>
+  let view = ((selected, m), trig) =>
     LivelitView.MultiLine(
-      (get_splice_div, _) => {
+      (get_splice_div, get_splice_value) => {
         open Vdom;
         let width = get_width(m);
         let height = get_height(m);
@@ -245,19 +271,69 @@ module MatrixLivelit: LIVELIT = {
             ],
             [Node.text("+")],
           );
+        let formula_bar =
+          if (!I.is_live) {
+            [];
+          } else {
+            [
+              Node.div(
+                [Attr.classes(["matrix-formula-bar"])],
+                [
+                  Node.span(
+                    [Attr.classes(["matrix-formula-bar-text"])],
+                    [Node.text("selected cell's formula: ")],
+                  ),
+                  Node.div(
+                    [Attr.classes(["matrix-formula-bar-splice"])],
+                    [get_splice_div(selected)],
+                  ),
+                ],
+              ),
+            ];
+          };
         let splices =
           m
           |> List.mapi((i, row) =>
                row
-               |> List.mapi((j, splice) =>
-                    Node.div(
-                      [
-                        attr_style(grid_area(i + 2, j + 2, i + 3, j + 3)),
-                        Attr.classes(["matrix-splice"]),
-                      ],
-                      [get_splice_div(splice)],
-                    )
-                  )
+               |> List.mapi((j, splice) => {
+                    let style =
+                      attr_style(grid_area(i + 2, j + 2, i + 3, j + 3));
+                    if (!I.is_live) {
+                      Node.div(
+                        [style, Attr.classes(["matrix-splice"])],
+                        [get_splice_div(splice)],
+                      );
+                    } else {
+                      let cls =
+                        splice == selected
+                          ? "matrix-selected" : "matrix-unselected";
+                      let cell_str =
+                        switch (get_splice_value(splice)) {
+                        | None => "Uneval'd"
+                        | Some(d) =>
+                          switch (d) {
+                          | DHExp.NumLit(v) => string_of_int(v)
+                          | DHExp.EmptyHole(_) => "?"
+                          | v =>
+                            // TODO we really ought to do something like DHCode.view
+                            let max_len = 15;
+                            let vstr =
+                              v |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string;
+                            String.length(vstr) <= max_len
+                              ? vstr
+                              : String.sub(vstr, 0, max_len - 3) ++ "...";
+                          }
+                        };
+                      Node.div(
+                        [
+                          style,
+                          Attr.classes([cls]),
+                          Attr.on_mousedown(_ => trig(Select(splice))),
+                        ],
+                        [Node.text(cell_str)],
+                      );
+                    };
+                  })
              )
           |> List.flatten;
 
@@ -280,6 +356,7 @@ module MatrixLivelit: LIVELIT = {
           List.concat([
             row_header,
             col_header,
+            formula_bar,
             splices,
             [add_row_button, add_col_button],
           ]),
@@ -287,7 +364,7 @@ module MatrixLivelit: LIVELIT = {
       },
     );
 
-  let expand = m => {
+  let expand = ((_, m)) => {
     let to_uhexp_list =
       fun
       | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
@@ -311,6 +388,17 @@ module MatrixLivelit: LIVELIT = {
     to_uhexp_list(m');
   };
 };
+
+module MatrixLivelitInfo: MAT_INFO = {
+  let name = "$matrix";
+  let is_live = false;
+};
+module MatrixLivelit = MatrixLivelitFunctor(MatrixLivelitInfo);
+module LiveMatrixLivelitInfo: MAT_INFO = {
+  let name = "$live_matrix";
+  let is_live = true;
+};
+module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
 
 module GradeCutoffLivelit: LIVELIT = {
   let name = "$grade_cutoffs";
@@ -1078,6 +1166,7 @@ module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
 module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
+module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
 module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
@@ -1086,10 +1175,13 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
       LivelitContexts.extend(
         LivelitContexts.extend(
           LivelitContexts.extend(
-            empty_livelit_contexts,
-            GradeCutoffLivelitAdapter.contexts_entry,
+            LivelitContexts.extend(
+              empty_livelit_contexts,
+              GradeCutoffLivelitAdapter.contexts_entry,
+            ),
+            MatrixLivelitAdapter.contexts_entry,
           ),
-          MatrixLivelitAdapter.contexts_entry,
+          LiveMatrixLivelitAdapter.contexts_entry,
         ),
         PairLivelitAdapter.contexts_entry,
       ),

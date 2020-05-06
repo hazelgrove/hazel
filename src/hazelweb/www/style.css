@@ -831,6 +831,15 @@ h1 {
   justify-self: right;
 }
 
+.matrix-livelit .matrix-formula-bar-splice,
+.matrix-livelit .matrix-formula-bar {
+  display: inline;
+}
+
+.matrix-livelit .matrix-selected {
+  background-color: lightgray;
+}
+
 .matrix-livelit .add-row,
 .matrix-livelit .add-col {
   background-color: #EEE;
