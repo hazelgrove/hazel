@@ -1,38 +1,76 @@
 open Sexplib.Std;
 
-[@deriving sexp]
-type bin_num_op =
-  | Minus
-  | Plus
-  | Times
-  | LessThan
-  | GreaterThan
-  | Equals;
+module BinIntOp = {
+  [@deriving sexp]
+  type t =
+    | Minus
+    | Plus
+    | Times
+    | LessThan
+    | GreaterThan
+    | Equals;
 
-let of_op = (op: UHExp.operator): option((bin_num_op, HTyp.t)) =>
-  switch (op) {
-  | Minus => Some((Minus, Num))
-  | Plus => Some((Plus, Num))
-  | Times => Some((Times, Num))
-  | LessThan => Some((LessThan, Bool))
-  | GreaterThan => Some((GreaterThan, Bool))
-  | Equals => Some((Equals, Bool))
-  | And
-  | Or
-  | Space
-  | Cons
-  | Comma => None
-  };
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+    switch (op) {
+    | Minus => Some((Minus, Int))
+    | Plus => Some((Plus, Int))
+    | Times => Some((Times, Int))
+    | LessThan => Some((LessThan, Bool))
+    | GreaterThan => Some((GreaterThan, Bool))
+    | Equals => Some((Equals, Bool))
+    | FPlus
+    | FMinus
+    | FTimes
+    | And
+    | Or
+    | Space
+    | Cons
+    | Comma => None
+    };
 
-let to_op = (bno: bin_num_op): UHExp.operator =>
-  switch (bno) {
-  | Minus => Minus
-  | Plus => Plus
-  | Times => Times
-  | LessThan => LessThan
-  | GreaterThan => GreaterThan
-  | Equals => Equals
-  };
+  let to_op = (bio: t): UHExp.operator =>
+    switch (bio) {
+    | Minus => Minus
+    | Plus => Plus
+    | Times => Times
+    | LessThan => LessThan
+    | GreaterThan => GreaterThan
+    | Equals => Equals
+    };
+};
+
+module BinFloatOp = {
+  [@deriving sexp]
+  type t =
+    | FPlus
+    | FMinus
+    | FTimes;
+
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+    switch (op) {
+    | FPlus => Some((FPlus, Float))
+    | FMinus => Some((FMinus, Float))
+    | FTimes => Some((FTimes, Float))
+    | Plus
+    | Minus
+    | Times
+    | LessThan
+    | GreaterThan
+    | Equals
+    | And
+    | Or
+    | Space
+    | Cons
+    | Comma => None
+    };
+
+  let to_op = (bfo: t): UHExp.operator =>
+    switch (bfo) {
+    | FPlus => FPlus
+    | FMinus => FMinus
+    | FTimes => FTimes
+    };
+};
 
 [@deriving sexp]
 type t =
@@ -53,8 +91,10 @@ type t =
   | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
-  | NumLit(int)
-  | BinNumOp(bin_num_op, t, t)
+  | IntLit(int)
+  | FloatLit(float)
+  | BinIntOp(BinIntOp.t, t, t)
+  | BinFloatOp(BinFloatOp.t, t, t)
   | And(t, t)
   | Or(t, t)
   | ListNil(HTyp.t)
@@ -80,8 +120,10 @@ let constructor_string = (d: t): string =>
   | Lam(_, _, _) => "Lam"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
-  | NumLit(_) => "NumLit"
-  | BinNumOp(_, _, _) => "BinNumOp"
+  | IntLit(_) => "IntLit"
+  | FloatLit(_) => "FloatLit"
+  | BinIntOp(_, _, _) => "BinIntOp"
+  | BinFloatOp(_, _, _) => "BinFloatOp"
   | And(_, _) => "And"
   | Or(_, _) => "Or"
   | ListNil(_) => "ListNil"
