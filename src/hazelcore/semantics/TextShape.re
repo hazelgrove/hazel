@@ -25,7 +25,7 @@ let of_text = (text: string): option(t) => {
   | (Some(n), _, _, _) =>
     StringUtil.num_leading_zeros(stripped_text)
     + IntUtil.num_digits(n) == String.length(stripped_text)
-      ? Some(IntLit(text)) : None;
+      ? Some(IntLit(text)) : None
   /* 1 is subtracted from num_digits because Ocaml introduces extra 0 in front of the decimal when float is < 1 */
   | (_, Some(f), _, _) when Float.abs(f) < 1.0 =>
     StringUtil.num_leading_zeros(stripped_text)
@@ -39,7 +39,7 @@ let of_text = (text: string): option(t) => {
     + FloatUtil.num_digits(f)
     + StringUtil.num_trailing_zeros(stripped_text)
     == String.length(stripped_text)
-      ? Some(FloatLit(text)) : None;
+      ? Some(FloatLit(text)) : None
   | (_, _, Some(b), _) => Some(BoolLit(b))
   | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
   | (None, None, None, None) =>
