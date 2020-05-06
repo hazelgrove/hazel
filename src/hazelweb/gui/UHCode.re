@@ -161,7 +161,7 @@ let view =
         let vs = {
           let splice_getters_to_vdom =
             Livelits.LivelitView.get_splice_getters_to_vdom(llview(trigger));
-          let get_splice_div = splice_name => {
+          let uhcode = splice_name => {
             let splice_layout =
               splice_ls |> SpliceMap.get_splice(llu, splice_name);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
@@ -177,16 +177,24 @@ let view =
             );
           };
 
-          let get_splice_value = splice_name =>
+          let dhcode = splice_name =>
             splice_map_opt
             |> OptUtil.map(splice_map =>
                  switch (NatMap.lookup(splice_map, splice_name)) {
                  | None => raise(Not_found)
-                 | Some((_, d)) => d
+                 | Some((_, d)) => (
+                     d,
+                     DHCode.view(
+                       ~inject,
+                       // TODO undo hardcoded width
+                       ~width=80,
+                       d,
+                     ),
+                   )
                  }
                );
 
-          [splice_getters_to_vdom(get_splice_div, get_splice_value)];
+          [splice_getters_to_vdom({uhcode, dhcode})];
         };
         [
           Vdom.Node.span(

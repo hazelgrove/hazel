@@ -57,10 +57,10 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
 let view =
     (
       ~inject,
-      ~show_casts: bool,
-      ~show_fn_bodies: bool,
-      ~show_case_clauses: bool,
-      ~selected_instance: option(TaggedNodeInstance.t),
+      ~show_casts=false,
+      ~show_fn_bodies=false,
+      ~show_case_clauses=false,
+      ~selected_instance: option(TaggedNodeInstance.t)=None,
       ~width: int,
       ~pos=0,
       d: DHExp.t,

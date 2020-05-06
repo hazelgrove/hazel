@@ -7,8 +7,12 @@ module Vdom = Virtual_dom.Vdom;
 
 type div_type = Vdom.Node.t;
 
-type splice_getters_to_vdom =
-  (SpliceName.t => div_type, SpliceName.t => option(DHExp.t)) => div_type;
+type splice_getters = {
+  uhcode: SpliceName.t => div_type,
+  dhcode: SpliceName.t => option((DHExp.t, div_type)),
+};
+
+type splice_getters_to_vdom = splice_getters => div_type;
 
 module LivelitView = {
   type t =
@@ -65,11 +69,11 @@ module PairLivelit: LIVELIT = {
 
   let view = ((leftID, rightID), _) =>
     LivelitView.Inline(
-      (get_splice_div, _) =>
+      ({uhcode, _}) =>
         Vdom.(
           Node.div(
             [Attr.classes(["pair-livelit"])],
-            [get_splice_div(leftID), get_splice_div(rightID)],
+            [uhcode(leftID), uhcode(rightID)],
           )
         ),
       // TODO fix brittle magic constant
@@ -209,7 +213,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     );
 
   let view = ((selected, m), trig) => {
-    let splice_getters_to_vdom = (get_splice_div, get_splice_value) => {
+    let splice_getters_to_vdom = ({uhcode, dhcode}) => {
       open Vdom;
       let width = get_width(m);
       let height = get_height(m);
@@ -291,7 +295,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
                 ),
                 Node.div(
                   [Attr.classes(["matrix-formula-bar-splice"])],
-                  [get_splice_div(selected)],
+                  [uhcode(selected)],
                 ),
               ],
             ),
@@ -307,27 +311,16 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
                   if (!I.is_live) {
                     Node.div(
                       [style, Attr.classes(["matrix-splice"])],
-                      [get_splice_div(splice)],
+                      [uhcode(splice)],
                     );
                   } else {
                     let cls =
                       splice == selected
                         ? "matrix-selected" : "matrix-unselected";
-                    let cell_str =
-                      switch (get_splice_value(splice)) {
-                      | None => "Uneval'd"
-                      | Some(d) =>
-                        switch (d) {
-                        | DHExp.IntLit(v) => string_of_int(v)
-                        | DHExp.EmptyHole(_) => "?"
-                        | v =>
-                          // TODO we really ought to do something like DHCode.view
-                          let max_len = 15;
-                          let vstr =
-                            v |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string;
-                          String.length(vstr) <= max_len
-                            ? vstr : String.sub(vstr, 0, max_len - 3) ++ "...";
-                        }
+                    let child =
+                      switch (dhcode(splice)) {
+                      | None => Node.text("Uneval'd")
+                      | Some((_, view)) => view
                       };
                     Node.div(
                       [
@@ -335,7 +328,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
                         Attr.classes([cls]),
                         Attr.on_mousedown(_ => trig(Select(splice))),
                       ],
-                      [Node.text(cell_str)],
+                      [child],
                     );
                   };
                 })
@@ -667,9 +660,10 @@ module GradeCutoffLivelit: LIVELIT = {
     | _ => None;
 
   let view = ({a, b, c, d, selected_grade, dataID}, trig) => {
-    let splice_getters_to_vdom = (get_splice_div, get_splice_value) => {
-      let data_opt = get_splice_value(dataID);
-      let grades_opt = data_opt |> OptUtil.and_then(dhexp_to_grades([]));
+    let splice_getters_to_vdom = ({uhcode, dhcode}) => {
+      let data_opt = dhcode(dataID);
+      let grades_opt =
+        data_opt |> OptUtil.and_then(((d, _)) => dhexp_to_grades([], d));
       let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
       let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
       let data_err_msg =
@@ -695,7 +689,7 @@ module GradeCutoffLivelit: LIVELIT = {
           [
             Node.div(
               [Attr.classes(["data-splice"])],
-              [Node.text("data = "), get_splice_div(dataID)],
+              [Node.text("data = "), uhcode(dataID)],
             ),
             Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
             Node.div(
@@ -909,7 +903,7 @@ module CheckboxLivelit: LIVELIT = {
         )
       );
     let view_span = Vdom.Node.span([], [input_elt]);
-    LivelitView.Inline((_, _) => view_span, /* TODO! */ 1);
+    LivelitView.Inline(_ => view_span, /* TODO! */ 1);
   };
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
@@ -1115,7 +1109,7 @@ module SliderLivelit: LIVELIT = {
           ),
         ],
       );
-    LivelitView.Inline((_, _) => view_span, 10);
+    LivelitView.Inline(_ => view_span, 10);
   };
 
   let expand = model => UHExp.Block.wrap(UHExp.intlit'(model.value));
