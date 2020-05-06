@@ -1,3 +1,4 @@
+// Anytime a new operator is added, the corresponding Skel[Typ|Pat|Expr]Lexer.mll and Skel[Typ|Pat|Expr].mly files should be updated too
 module Typ = {
   [@deriving sexp]
   type t =
@@ -50,6 +51,9 @@ module Exp = {
     | Plus
     | Minus
     | Times
+    | FPlus
+    | FMinus
+    | FTimes
     | LessThan
     | GreaterThan
     | Equals
@@ -64,6 +68,9 @@ module Exp = {
     | Plus => "+"
     | Minus => "-"
     | Times => "*"
+    | FPlus => "+."
+    | FMinus => "-."
+    | FTimes => "*."
     | LessThan => "<"
     | GreaterThan => ">"
     | Equals => "=="

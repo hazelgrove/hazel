@@ -108,7 +108,7 @@ module type PALETTE = {
  module ColorPalette: PALETTE = {
    let name = "$color";
    let expansion_ty =
-     HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
+     HTyp.(Arrow(Arrow(Int, Arrow(Int, Arrow(Int, Hole))), Hole));
 
    type model = string;
    let init_model = UHExp.HoleRefs.Ret("#c94d4d");
@@ -168,9 +168,9 @@ module type PALETTE = {
        );
      let fVarName = "f";
      let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
-     let r_num = UHExp.(Tm(NotInHole, NumLit(r)));
-     let g_num = UHExp.(Tm(NotInHole, NumLit(g)));
-     let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
+     let r_num = UHExp.(Tm(NotInHole, IntLit(r)));
+     let g_num = UHExp.(Tm(NotInHole, IntLit(g)));
+     let b_num = UHExp.(Tm(NotInHole, IntLit(b)));
      let body =
        UHExp.(
          Seq.(
@@ -199,7 +199,7 @@ module type PALETTE = {
 
  module CheckboxPalette: PALETTE = {
    let name = "$checkbox";
-   let expansion_ty = HTyp.Sum(HTyp.Num, HTyp.Num);
+   let expansion_ty = HTyp.Sum(HTyp.Int, HTyp.Int);
 
    type model = bool;
    let init_model = UHExp.HoleRefs.Ret(false);
@@ -224,7 +224,7 @@ module type PALETTE = {
      Inline(view_span);
    };
 
-   let dummy_num = UHExp.Tm(NotInHole, UHExp.NumLit(0));
+   let dummy_num = UHExp.Tm(NotInHole, UHExp.IntLit(0));
    let true_exp = UHExp.Tm(NotInHole, UHExp.Inj(L, dummy_num));
    let false_exp = UHExp.Tm(NotInHole, UHExp.Inj(R, dummy_num));
    let expand = model => model ? true_exp : false_exp;
@@ -240,7 +240,7 @@ module type PALETTE = {
 
  module SliderPalette: PALETTE = {
    let name = "$slider";
-   let expansion_ty = HTyp.Num;
+   let expansion_ty = HTyp.Int;
 
    type model = (int, int);
    type model_updater = model => unit;
@@ -320,7 +320,7 @@ module type PALETTE = {
    };
 
    let expand = ((value, _)) =>
-     UHExp.Tm(NotInHole, UHExp.NumLit(cropSliderValue(value)));
+     UHExp.Tm(NotInHole, UHExp.IntLit(cropSliderValue(value)));
 
    /* sprintf/sscanf are magical and treat string literals specially -
       attempt to factor out the format string at your own peril */

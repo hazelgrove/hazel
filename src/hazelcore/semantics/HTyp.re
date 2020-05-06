@@ -4,7 +4,8 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Hole
-  | Num
+  | Int
+  | Float
   | Bool
   | Arrow(t, t)
   | Sum(t, t)
@@ -17,7 +18,8 @@ let precedence_Sum = 3;
 let precedence_const = 4;
 let precedence = (ty: t): int =>
   switch (ty) {
-  | Num
+  | Int
+  | Float
   | Bool
   | Hole
   | Prod([])
@@ -37,8 +39,10 @@ let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
-  | (Num, Num) => true
-  | (Num, _) => false
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
@@ -104,7 +108,8 @@ let has_matched_list =
 let rec complete =
   fun
   | Hole => false
-  | Num => true
+  | Int => true
+  | Float => true
   | Bool => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
@@ -115,8 +120,10 @@ let rec join = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (_, Hole) => Some(ty1)
   | (Hole, _) => Some(ty2)
-  | (Num, Num) => Some(ty1)
-  | (Num, _) => None
+  | (Int, Int) => Some(ty1)
+  | (Int, _) => None
+  | (Float, Float) => Some(ty1)
+  | (Float, _) => None
   | (Bool, Bool) => Some(ty1)
   | (Bool, _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
