@@ -758,6 +758,11 @@ module Pat = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
+      } 
+      /* TODO: this should be changed once InvalidVar holes are finished */
+      else if (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else {
         Failed;
       }
@@ -804,6 +809,11 @@ module Pat = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
+      } 
+      /* TODO: this should be changed once InvalidVar holes are finished */
+      else if (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
       } else {
         Failed;
       }
@@ -1338,7 +1348,10 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, f)
-
+    
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+    TODO: remove once we have InvalidVar holes */
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1779,7 +1792,10 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, f, ty)
-
+    
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+    TODO: remove once we have InvalidVar holes */
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -2183,7 +2199,9 @@ module Exp = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
-      } else if (text == ".") {
+      } 
+      /* TODO: this should be changed once InvalidVar holes are finished */
+      else if (text == ".") {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else {
@@ -2241,7 +2259,9 @@ module Exp = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
-      } else if (text == ".") {
+      } 
+      /* TODO: this should be changed once InvalidVar holes are finished */
+      else if (text == ".") {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
       } else {
@@ -3363,8 +3383,8 @@ module Exp = {
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
 
-    /* It is a temporary fix so that a new hole isn't created when a dot is inputted by itself.
-       It will later be replaced by invalid var and handled by make syntax */
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+      TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
@@ -4480,9 +4500,9 @@ module Exp = {
     /* TODO consider deletion of type ascription on case */
 
     /* Construction */
-
-    /* It is a temporary fix so that a new hole isn't created when a dot is inputted by itself.
-       It will later be replaced by invalid var and handled by make syntax */
+    
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+    TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
