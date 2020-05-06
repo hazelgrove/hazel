@@ -85,7 +85,7 @@ module type MAT_INFO = {
 
 module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
   let name = I.name;
-  let expansion_ty = HTyp.(List(List(Num)));
+  let expansion_ty = HTyp.(List(List(Int)));
 
   // assume nonzero height and width
   [@deriving sexp]
@@ -115,7 +115,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
         bind(
           MonadsUtil.bind_count(
             init_width,
-            bind(new_splice(HTyp.Num)),
+            bind(new_splice(HTyp.Int)),
             return,
           ),
         ),
@@ -142,14 +142,14 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     | Add(Row) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
-          get_width(m), bind(new_splice(HTyp.Num)), new_row =>
+          get_width(m), bind(new_splice(HTyp.Int)), new_row =>
           return((selected, m @ [new_row]))
         )
       )
     | Add(Col) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
-          get_height(m), bind(new_splice(HTyp.Num)), new_col =>
+          get_height(m), bind(new_splice(HTyp.Int)), new_col =>
           return((selected, List.map2((c, r) => r @ [c], new_col, m)))
         )
       )
@@ -312,7 +312,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
                         | None => "Uneval'd"
                         | Some(d) =>
                           switch (d) {
-                          | DHExp.NumLit(v) => string_of_int(v)
+                          | DHExp.IntLit(v) => string_of_int(v)
                           | DHExp.EmptyHole(_) => "?"
                           | v =>
                             // TODO we really ought to do something like DHCode.view
@@ -402,7 +402,7 @@ module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
 
 module GradeCutoffLivelit: LIVELIT = {
   let name = "$grade_cutoffs";
-  let expansion_ty = HTyp.(Prod(Num, Prod(Num, Prod(Num, Num))));
+  let expansion_ty = HTyp.(Prod(Int, Prod(Int, Prod(Int, Int))));
 
   [@deriving sexp]
   type letter_grade =
@@ -431,7 +431,7 @@ module GradeCutoffLivelit: LIVELIT = {
 
   let init_model =
     SpliceGenCmd.(
-      bind(new_splice(HTyp.(List(Num))), dataID =>
+      bind(new_splice(HTyp.(List(Int))), dataID =>
         return({a: 90, b: 80, c: 70, d: 60, selected_grade: None, dataID})
       )
     );
@@ -654,7 +654,7 @@ module GradeCutoffLivelit: LIVELIT = {
   let rec dhexp_to_grades = rslt =>
     fun
     | DHExp.ListNil(_) => Some(List.rev(rslt))
-    | DHExp.Cons(DHExp.NumLit(g), d) => dhexp_to_grades([g, ...rslt], d)
+    | DHExp.Cons(DHExp.IntLit(g), d) => dhexp_to_grades([g, ...rslt], d)
     | DHExp.LivelitInfo(_, _, _, _, _, d) => dhexp_to_grades(rslt, d)
     // currently, we are very strict, and the presence of any indet is immediate failure
     | _ => None;
@@ -758,11 +758,11 @@ module GradeCutoffLivelit: LIVELIT = {
     let tupl_seq =
       UHExp.(
         Seq.mk(
-          NumLit(NotInHole, a),
+          intlit'(a),
           [
-            (Comma, NumLit(NotInHole, b)),
-            (Comma, NumLit(NotInHole, c)),
-            (Comma, NumLit(NotInHole, d)),
+            (Comma, intlit'(b)),
+            (Comma, intlit'(c)),
+            (Comma, intlit'(d)),
           ],
         )
       );
@@ -776,7 +776,7 @@ module GradeCutoffLivelit: LIVELIT = {
   module ColorPalette: PALETTE = {
     let name = "$color";
     let expansion_ty =
-      HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
+      HTyp.(Arrow(Arrow(Int, Arrow(Int, Arrow(Int, Hole))), Hole));
 
     type model = string;
     let init_model = UHExp.HoleRefs.Ret("#c94d4d");
@@ -836,9 +836,9 @@ module GradeCutoffLivelit: LIVELIT = {
         );
       let fVarName = "f";
       let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
-      let r_num = UHExp.(Tm(NotInHole, NumLit(r)));
-      let g_num = UHExp.(Tm(NotInHole, NumLit(g)));
-      let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
+      let r_num = UHExp.(Tm(NotInHole, IntLit(r)));
+      let g_num = UHExp.(Tm(NotInHole, IntLit(g)));
+      let b_num = UHExp.(Tm(NotInHole, IntLit(b)));
       let body =
         UHExp.(
           Seq.(
@@ -902,7 +902,7 @@ module CheckboxLivelit: LIVELIT = {
 
 module SliderLivelit: LIVELIT = {
   let name = "$slider";
-  let expansion_ty = HTyp.Num;
+  let expansion_ty = HTyp.Int;
 
   module EditableValue = {
     [@deriving sexp]
@@ -1103,7 +1103,7 @@ module SliderLivelit: LIVELIT = {
     LivelitView.Inline(view_span, 10);
   };
 
-  let expand = model => UHExp.Block.wrap(UHExp.numlit(model.value));
+  let expand = model => UHExp.Block.wrap(UHExp.intlit'(model.value));
 };
 
 /* ----------

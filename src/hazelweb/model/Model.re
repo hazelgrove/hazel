@@ -11,8 +11,6 @@ type t = {
   selected_example: option(UHExp.t),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
-  show_contenteditable: bool,
-  show_presentation: bool,
   font_metrics: FontMetrics.t,
 };
 
@@ -57,8 +55,6 @@ let init = (): t => {
     selected_example: None,
     left_sidebar_open: false,
     right_sidebar_open: true,
-    show_contenteditable: false,
-    show_presentation: false,
     font_metrics:
       FontMetrics.{
         // to be set on display

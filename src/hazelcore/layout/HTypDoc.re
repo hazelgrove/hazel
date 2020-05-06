@@ -10,7 +10,8 @@ let precedence_Sum = 2;
 let precedence_Arrow = 3;
 let precedence = (ty: HTyp.t): int =>
   switch (ty) {
-  | Num
+  | Int
+  | Float
   | Bool
   | Hole
   | Unit
@@ -52,7 +53,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     switch (ty) {
     | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
     | Unit => text("()")
-    | Num => text("Num")
+    | Int => text("Int")
+    | Float => text("Float")
     | Bool => text("Bool")
     | List(ty) =>
       hcats([
