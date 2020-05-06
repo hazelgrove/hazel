@@ -109,15 +109,17 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
     | IntLit(NotInHole, n) =>
-      switch (int_of_string_opt(n)) {
+      let stripped_n = StringUtil.strip_underscores(n);
+      switch (int_of_string_opt(stripped_n)) {
       | Some(n) => Expands(IntLit(n), Int, ctx, delta)
       | None => DoesNotExpand
-      }
+      };
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      let stripped_f = StringUtil.strip_underscores(f);
+      switch (float_of_string_opt(stripped_f)) {
       | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
       | None => DoesNotExpand
-      }
+      };
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
     | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
@@ -1085,15 +1087,17 @@ module Exp = {
         };
       Expands(d, Hole, delta);
     | IntLit(NotInHole, n) =>
-      switch (int_of_string_opt(n)) {
+      let stripped_n = StringUtil.strip_underscores(n);
+      switch (int_of_string_opt(stripped_n)) {
       | Some(n) => Expands(IntLit(n), Int, delta)
       | None => DoesNotExpand
-      }
+      };
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      let stripped_f = StringUtil.strip_underscores(f);
+      switch (float_of_string_opt(stripped_f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
-      }
+      };
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
