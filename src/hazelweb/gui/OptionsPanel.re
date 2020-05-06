@@ -75,18 +75,6 @@ let view =
             ~disabled=!model.compute_results,
             model.show_unevaluated_expansion,
           ),
-          labeled_checkbox(
-            ~id="show_contenteditable",
-            ~label="Show contenteditable (debugging)",
-            ~on_change=() => inject(ToggleShowContenteditable),
-            model.show_contenteditable,
-          ),
-          labeled_checkbox(
-            ~id="show_presentation",
-            ~label="Show presentation (debugging)",
-            ~on_change=() => inject(ToggleShowPresentation),
-            model.show_presentation,
-          ),
         ],
       )
     );

@@ -9,7 +9,8 @@ type t =
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | Duplicate(MetaVar.t, MetaVarInst.t, Var.t)
   | Var(Var.t)
-  | NumLit(int)
+  | IntLit(int)
+  | FloatLit(float)
   | BoolLit(bool)
   | Inj(InjSide.t, t)
   | ListNil
@@ -32,7 +33,8 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | EmptyHole(_, _)
   | NonEmptyHole(_, _, _, _)
   | Wild
-  | NumLit(_)
+  | IntLit(_)
+  | FloatLit(_)
   | BoolLit(_)
   | Triv
   | ListNil

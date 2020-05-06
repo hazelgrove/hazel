@@ -99,7 +99,9 @@ let mk_Duplicate = (u, i, x) =>
   Doc.text(Var.to_string(x))
   |> Doc.annot(DHAnnot.VarHole(Duplicate, (u, i)));
 
-let mk_NumLit = n => Doc.text(string_of_int(n));
+let mk_IntLit = n => Doc.text(string_of_int(n));
+
+let mk_FloatLit = f => Doc.text(string_of_float(f));
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
@@ -131,7 +133,8 @@ module Pat = {
     | Keyword(_)
     | Duplicate(_)
     | Var(_)
-    | NumLit(_)
+    | IntLit(_)
+    | FloatLit(_)
     | BoolLit(_)
     | Inj(_)
     | Triv
@@ -161,7 +164,8 @@ module Pat = {
       | Var(x) => Doc.text(x)
       | Wild => Delim.wild
       | Triv => Delim.triv
-      | NumLit(n) => mk_NumLit(n)
+      | IntLit(n) => mk_IntLit(n)
+      | FloatLit(f) => mk_FloatLit(f)
       | BoolLit(b) => mk_BoolLit(b)
       | Inj(inj_side, dp) =>
         mk_Inj(inj_side, mk(dp) |> pad_child(~enforce_inline))
@@ -183,14 +187,20 @@ module Pat = {
 };
 
 module Exp = {
-  let precedence_bin_num_op = (bno: DHExp.bin_num_op) =>
-    switch (bno) {
+  let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
+    switch (bio) {
     | Times => precedence_Times
     | Plus => precedence_Plus
     | Minus => precedence_Minus
     | Equals => precedence_Equals
     | LessThan => precedence_LessThan
     | GreaterThan => precedence_GreaterThan
+    };
+  let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
+    switch (bfo) {
+    | FTimes => precedence_Times
+    | FPlus => precedence_Plus
+    | FMinus => precedence_Minus
     };
   let rec precedence = (~show_casts: bool, d: DHExp.t) => {
     let precedence' = precedence(~show_casts);
@@ -199,7 +209,8 @@ module Exp = {
     | FreeVar(_)
     | Keyword(_)
     | BoolLit(_)
-    | NumLit(_)
+    | IntLit(_)
+    | FloatLit(_)
     | ListNil(_)
     | Inj(_)
     | EmptyHole(_)
@@ -210,7 +221,8 @@ module Exp = {
     | Let(_)
     | FixF(_)
     | Case(_) => precedence_max
-    | BinNumOp(op, _, _) => precedence_bin_num_op(op)
+    | BinIntOp(op, _, _) => precedence_bin_int_op(op)
+    | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
     | Ap(_) => precedence_Ap
     | Cons(_) => precedence_Cons
     | And(_) => precedence_And
@@ -220,7 +232,7 @@ module Exp = {
     };
   };
 
-  let mk_bin_num_op = (op: DHExp.bin_num_op): t =>
+  let mk_bin_int_op = (op: DHExp.BinIntOp.t): t =>
     Doc.text(
       switch (op) {
       | Minus => "-"
@@ -229,6 +241,15 @@ module Exp = {
       | LessThan => "<"
       | GreaterThan => ">"
       | Equals => "=="
+      },
+    );
+
+  let mk_bin_float_op = (op: DHExp.BinFloatOp.t): t =>
+    Doc.text(
+      switch (op) {
+      | FMinus => "-."
+      | FPlus => "+."
+      | FTimes => "*."
       },
     );
 
@@ -291,7 +312,8 @@ module Exp = {
         | BoundVar(x) => text(x)
         | Triv => Delim.triv
         | BoolLit(b) => mk_BoolLit(b)
-        | NumLit(n) => mk_NumLit(n)
+        | IntLit(n) => mk_IntLit(n)
+        | FloatLit(f) => mk_FloatLit(f)
         | ListNil(_) => Delim.list_nil
         | Inj(_, inj_side, d) =>
           let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
@@ -300,11 +322,20 @@ module Exp = {
           let (doc1, doc2) =
             mk_left_associative_operands(precedence_Ap, d1, d2);
           mk_Ap(mk_cast(doc1), mk_cast(doc2));
-        | BinNumOp(op, d1, d2) =>
-          // TODO assumes all bin num ops are left associative
+        | BinIntOp(op, d1, d2) =>
+          // TODO assumes all bin int ops are left associative
           let (doc1, doc2) =
-            mk_left_associative_operands(precedence_bin_num_op(op), d1, d2);
-          hseps([mk_cast(doc1), mk_bin_num_op(op), mk_cast(doc2)]);
+            mk_left_associative_operands(precedence_bin_int_op(op), d1, d2);
+          hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
+        | BinFloatOp(op, d1, d2) =>
+          // TODO assumes all bin float ops are left associative
+          let (doc1, doc2) =
+            mk_left_associative_operands(
+              precedence_bin_float_op(op),
+              d1,
+              d2,
+            );
+          hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
         | Cons(d1, d2) =>
           let (doc1, doc2) =
             mk_right_associative_operands(precedence_Cons, d1, d2);
