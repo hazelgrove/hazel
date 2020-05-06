@@ -361,7 +361,10 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       );
     };
     let num_rows = List.length(m);
-    LivelitView.MultiLine(splice_getters_to_vdom, num_rows);
+    LivelitView.MultiLine(
+      splice_getters_to_vdom,
+      num_rows + 2 + (I.is_live ? 1 : 0),
+    );
   };
 
   let expand = ((_, m)) => {
