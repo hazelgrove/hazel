@@ -260,8 +260,9 @@ let rec map_with_accumulator_opt =
   switch (xs) {
   | [] => Some((start, []))
   | [x, ...xs] =>
-    let%bind.OptUtil (new_acc, y) = f(start, x);
-    let%map.OptUtil (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
+    module Let_syntax = OptUtil.Let_syntax;
+    let%bind (new_acc, y) = f(start, x);
+    let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
   };
 

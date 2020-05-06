@@ -611,7 +611,13 @@ let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
       | None =>
         switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
         | Some(_) => Some(Letter(key))
-        | None => key == "_" ? Some(Underscore) : None
+        | None =>
+          /* could be later refactored to a separate regex */
+          switch (key) {
+          | "_" => Some(Underscore)
+          | "." => Some(Letter(key))
+          | _ => None
+          }
         }
       };
     };

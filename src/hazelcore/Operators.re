@@ -1,65 +1,59 @@
+// Anytime a new operator is added, the corresponding Skel[Typ|Pat|Expr]Lexer.mll and Skel[Typ|Pat|Expr].mly files should be updated too
 module Typ = {
   [@deriving sexp]
-  type operator =
+  type t =
     | Arrow
     | Prod
     | Sum;
 
-  let string_of_operator =
+  let to_string =
     fun
     | Arrow => UnicodeConstants.typeArrowSym
     | Prod => ","
     | Sum => "|";
 
-  let parse_string_of_operator = op =>
+  let to_parse_string = op =>
     switch (op) {
     | Arrow => "->"
-    | _ => string_of_operator(op)
+    | _ => to_string(op)
     };
-
-  let is_Prod =
-    fun
-    | Prod => true
-    | _ => false;
 };
 
 module Pat = {
   [@deriving sexp]
-  type operator =
+  type t =
     | Comma
     | Space
     | Cons;
 
-  let string_of_operator =
+  let to_string =
     fun
     | Comma => ","
     | Space => " "
     | Cons => "::";
 
-  let parse_string_of_operator = op =>
+  let to_parse_string = op =>
     switch (op) {
     | Space => "_"
-    | _ => string_of_operator(op)
+    | _ => to_string(op)
     };
 
   let is_Space =
     fun
     | Space => true
     | _ => false;
-
-  let is_Comma =
-    fun
-    | Comma => true
-    | _ => false;
 };
 
 module Exp = {
   [@deriving sexp]
-  type operator =
+  type t =
     | Space
     | Plus
     | Minus
     | Times
+    | FPlus
+    | FMinus
+    | FTimes
     | LessThan
     | GreaterThan
     | Equals
@@ -68,12 +62,15 @@ module Exp = {
     | And
     | Or;
 
-  let string_of_operator =
+  let to_string =
     fun
     | Space => " "
     | Plus => "+"
     | Minus => "-"
     | Times => "*"
+    | FPlus => "+."
+    | FMinus => "-."
+    | FTimes => "*."
     | LessThan => "<"
     | GreaterThan => ">"
     | Equals => "=="
@@ -82,22 +79,17 @@ module Exp = {
     | And => "&&"
     | Or => "||";
 
-  let parse_string_of_operator = op =>
+  let to_parse_string = op =>
     switch (op) {
     | Equals => "="
     | Space => "_"
     | And => "&"
     | Or => "|"
-    | _ => string_of_operator(op)
+    | _ => to_string(op)
     };
 
   let is_Space =
     fun
     | Space => true
-    | _ => false;
-
-  let is_Comma =
-    fun
-    | Comma => true
     | _ => false;
 };

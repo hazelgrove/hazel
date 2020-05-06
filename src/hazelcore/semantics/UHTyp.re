@@ -1,4 +1,5 @@
-include Operator.Typ;
+[@deriving sexp]
+type operator = Operators.Typ.t;
 
 [@deriving sexp]
 type t = opseq
@@ -6,7 +7,8 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | Hole
   | Unit
-  | Num
+  | Int
+  | Float
   | Bool
   | Parenthesized(t)
   | List(t);
@@ -27,25 +29,35 @@ let is_EmptyHole =
   | Hole => true
   | _ => false;
 
-let parse = s => {
-  let lexbuf = Lexing.from_string(s);
+let unwrap_parentheses = (operand: operand): t =>
+  switch (operand) {
+  | Hole
+  | Unit
+  | Int
+  | Float
+  | Bool
+  | List(_) => OpSeq.wrap(operand)
+  | Parenthesized(p) => p
+  };
+
+let associate = (seq: seq) => {
+  let (skel_str, _) = Skel.make_skel_str(seq, Operators.Typ.to_parse_string);
+  let lexbuf = Lexing.from_string(skel_str);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
 };
 
-let associate = (seq: seq) => {
-  let (skel_str, _) = Seq.make_skel_str(seq, parse_string_of_operator);
-  parse(skel_str);
-};
+let mk_OpSeq = OpSeq.mk(~associate);
+
 let contract = (ty: HTyp.t): t => {
-  let rec mk_seq_operand = (ty, op, ty1, ty2) =>
+  let rec mk_seq_operand = (precedence_op, op, ty1, ty2) =>
     Seq.seq_op_seq(
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty1) >= HTyp.precedence(ty),
+        ~parenthesize=HTyp.precedence(ty1) <= precedence_op,
         ty1,
       ),
       op,
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty1) > HTyp.precedence(ty),
+        ~parenthesize=HTyp.precedence(ty2) < precedence_op,
         ty2,
       ),
     )
@@ -53,26 +65,29 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole)
-      | Num => Seq.wrap(Num)
-      | Bool => Seq.wrap(Bool)
-      | Arrow(ty1, ty2) => mk_seq_operand(ty, Arrow, ty1, ty2)
+      | Int => Seq.wrap(Int)
+      | Float => Seq.wrap(Float)
+      | Bool => Seq.wrap(Float)
+      | Arrow(ty1, ty2) =>
+        mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
-        |> List.map(ty =>
+        |> List.map(elementType =>
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
-               ty,
+               ~parenthesize=
+                 HTyp.precedence(elementType) <= HTyp.precedence_Prod,
+               elementType,
              )
            )
         |> List.fold_left(
-             (seq1, seq2) => Seq.seq_op_seq(seq1, Prod, seq2),
+             (seq1, seq2) => Seq.seq_op_seq(seq1, Operators.Typ.Prod, seq2),
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(head) >= HTyp.precedence_Prod,
+               ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
                head,
              ),
            )
-      | Sum(ty1, ty2) => mk_seq_operand(ty, Sum, ty1, ty2)
+      | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
       };
@@ -109,7 +124,8 @@ and expand_operand =
   fun
   | Hole => Hole
   | Unit => Prod([])
-  | Num => Num
+  | Int => Int
+  | Float => Float
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));

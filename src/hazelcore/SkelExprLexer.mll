@@ -12,6 +12,9 @@ rule read =
   | "+" { PLUS }
   | "-" { MINUS }
   | "*" { TIMES }
+  | "+." { FPLUS }
+  | "-." { FMINUS }
+  | "*." { FTIMES }
   | "_" { SPACEOP }
   | "," { COMMA }
   | "::" { CONS }

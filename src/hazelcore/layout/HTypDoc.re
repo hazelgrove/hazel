@@ -28,14 +28,15 @@ let mk_delim = s => Doc.(annot(HTypAnnot.Delim, text(s)));
 let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   open Doc;
   let mk' = mk(~enforce_inline);
-  let mk_right_associative_operands = (ty, ty1, ty2) => (
-    mk'(~parenthesize=HTyp.precedence(ty1) >= HTyp.precedence(ty), ty1),
-    mk'(~parenthesize=HTyp.precedence(ty2) > HTyp.precedence(ty), ty2),
+  let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
+    mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
+    mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
   );
   let doc =
     switch (ty) {
     | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
-    | Num => text("Num")
+    | Int => text("Int")
+    | Float => text("Float")
     | Bool => text("Bool")
     | List(ty) =>
       hcats([
@@ -44,7 +45,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         mk_delim("]"),
       ])
     | Arrow(ty1, ty2) =>
-      let (d1, d2) = mk_right_associative_operands(ty, ty1, ty2);
+      let (d1, d2) =
+        mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
       hcats([
         d1,
         hcats([
@@ -57,13 +59,13 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Prod([head, ...tail]) =>
       [
         mk'(
-          ~parenthesize=HTyp.precedence(head) >= HTyp.precedence_Prod,
+          ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
           head,
         ),
         ...List.map(
              ty =>
                mk'(
-                 ~parenthesize=HTyp.precedence(ty) > HTyp.precedence_Prod,
+                 ~parenthesize=HTyp.precedence(ty) <= HTyp.precedence_Prod,
                  ty,
                ),
              tail,
@@ -74,7 +76,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
          )
       |> hcats
     | Sum(ty1, ty2) =>
-      let (d1, d2) = mk_right_associative_operands(ty, ty1, ty2);
+      let (d1, d2) =
+        mk_right_associative_operands(HTyp.precedence_Sum, ty1, ty2);
       hcats([
         d1,
         hcats([choices([linebreak(), space()]), text("| ")]),

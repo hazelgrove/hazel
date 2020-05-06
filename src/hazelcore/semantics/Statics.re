@@ -85,7 +85,8 @@ module Pat = {
     | EmptyHole(_) => Some((Hole, ctx))
     | Wild(InHole(TypeInconsistent, _))
     | Var(InHole(TypeInconsistent, _), _, _)
-    | NumLit(InHole(TypeInconsistent, _), _)
+    | IntLit(InHole(TypeInconsistent, _), _)
+    | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _) =>
@@ -94,7 +95,8 @@ module Pat = {
       |> OptUtil.map(((_, gamma)) => (HTyp.Hole, gamma));
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => None
@@ -107,7 +109,8 @@ module Pat = {
         x,
         Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
       )
-    | NumLit(NotInHole, _) => Some((Num, ctx))
+    | IntLit(NotInHole, _) => Some((Int, ctx))
+    | FloatLit(NotInHole, _) => Some((Float, ctx))
     | BoolLit(NotInHole, _) => Some((Bool, ctx))
     | ListNil(NotInHole) => Some((List(Hole), ctx))
     | Inj(NotInHole, inj_side, p1) =>
@@ -187,7 +190,8 @@ module Pat = {
     | EmptyHole(_) => Some(ctx)
     | Wild(InHole(TypeInconsistent, _))
     | Var(InHole(TypeInconsistent, _), _, _)
-    | NumLit(InHole(TypeInconsistent, _), _)
+    | IntLit(InHole(TypeInconsistent, _), _)
+    | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _) =>
@@ -195,7 +199,8 @@ module Pat = {
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) =>
@@ -206,7 +211,8 @@ module Pat = {
     | Var(NotInHole, NotInVarHole, x) =>
       Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
     | Wild(NotInHole) => Some(ctx)
-    | NumLit(NotInHole, _)
+    | IntLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _) =>
       switch (syn_operand(ctx, operand)) {
       | None => None
@@ -412,7 +418,12 @@ module Pat = {
         );
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
-        Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators.Pat.Space,
+          skel1,
+          skel2,
+        );
       let ty = HTyp.Hole;
       (skel, seq, ty, ctx, u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
@@ -421,7 +432,7 @@ module Pat = {
       let ty = HTyp.List(ty_elt);
       let (skel2, seq, ctx, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-      let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
+      let skel = Skel.BinOp(NotInHole, Operators.Pat.Cons, skel1, skel2);
       (skel, seq, ty, ctx, u_gen);
     }
   and syn_fix_holes_operand =
@@ -447,7 +458,8 @@ module Pat = {
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       (operand_nih, Hole, ctx, u_gen);
-    | NumLit(_, _) => (operand_nih, Num, ctx, u_gen)
+    | IntLit(_, _) => (operand_nih, Int, ctx, u_gen)
+    | FloatLit(_, _) => (operand_nih, Float, ctx, u_gen)
     | BoolLit(_, _) => (operand_nih, Bool, ctx, u_gen)
     | ListNil(_) => (operand_nih, List(Hole), ctx, u_gen)
     | Parenthesized(p) =>
@@ -623,7 +635,12 @@ module Pat = {
         );
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
-        Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators.Pat.Space,
+          skel1,
+          skel2,
+        );
       (skel, seq, ctx, u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
@@ -647,7 +664,7 @@ module Pat = {
             seq,
             ty_list,
           );
-        let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
+        let skel = Skel.BinOp(NotInHole, Operators.Pat.Cons, skel1, skel2);
         (skel, seq, ctx, u_gen);
       | None =>
         let (skel1, seq, ty_elt, ctx, u_gen) =
@@ -664,7 +681,12 @@ module Pat = {
           );
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel =
-          Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Cons, skel1, skel2);
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators.Pat.Cons,
+            skel1,
+            skel2,
+          );
         (skel, seq, ctx, u_gen);
       }
     }
@@ -692,7 +714,8 @@ module Pat = {
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       (operand_nih, ctx, u_gen);
-    | NumLit(_, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
     | BoolLit(_, _) =>
       let (operand', ty', ctx, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
@@ -837,13 +860,17 @@ module Exp = {
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
-    | BinOp(NotInHole, Minus, skel1, skel2)
-    | BinOp(NotInHole, Plus, skel1, skel2)
-    | BinOp(NotInHole, Times, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, HTyp.Num)) {
+    | BinOp(NotInHole, Minus | Plus | Times, skel1, skel2) =>
+      switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
       | None => None
       | Some(_) =>
-        ana_skel(ctx, skel2, seq, Num) |> OptUtil.map(_ => HTyp.Num)
+        ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
+      }
+    | BinOp(NotInHole, FMinus | FPlus | FTimes, skel1, skel2) =>
+      switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
+      | None => None
+      | Some(_) =>
+        ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Float)
       }
     | BinOp(NotInHole, And | Or, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
@@ -852,10 +879,10 @@ module Exp = {
         ana_skel(ctx, skel2, seq, HTyp.Bool) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
-      switch (ana_skel(ctx, skel1, seq, Num)) {
+      switch (ana_skel(ctx, skel1, seq, Int)) {
       | None => None
       | Some(_) =>
-        ana_skel(ctx, skel2, seq, Num) |> OptUtil.map(_ => HTyp.Bool)
+        ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
@@ -886,7 +913,8 @@ module Exp = {
     /* in hole */
     | EmptyHole(_) => Some(Hole)
     | Var(InHole(TypeInconsistent, _), _, _)
-    | NumLit(InHole(TypeInconsistent, _), _)
+    | IntLit(InHole(TypeInconsistent, _), _)
+    | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
@@ -896,7 +924,8 @@ module Exp = {
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
@@ -907,7 +936,8 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, x) =>
       VarMap.lookup(Contexts.gamma(ctx), x)
     | Var(NotInHole, InVarHole(_), _) => Some(Hole)
-    | NumLit(NotInHole, _) => Some(Num)
+    | IntLit(NotInHole, _) => Some(Int)
+    | FloatLit(NotInHole, _) => Some(Float)
     | BoolLit(NotInHole, _) => Some(Bool)
     | ListNil(NotInHole) => Some(List(Hole))
     | Lam(NotInHole, p, ann, body) =>
@@ -1025,7 +1055,9 @@ module Exp = {
     | BinOp(InHole(TypeInconsistent, _), _, _, _)
     | BinOp(
         NotInHole,
-        And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals |
+        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        GreaterThan |
+        Equals |
         Space,
         _,
         _,
@@ -1041,7 +1073,8 @@ module Exp = {
     /* in hole */
     | EmptyHole(_) => Some()
     | Var(InHole(TypeInconsistent, _), _, _)
-    | NumLit(InHole(TypeInconsistent, _), _)
+    | IntLit(InHole(TypeInconsistent, _), _)
+    | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
@@ -1054,7 +1087,8 @@ module Exp = {
       | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
       };
     | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
@@ -1069,7 +1103,8 @@ module Exp = {
       | Some(_) => Some()
       }
     | Var(NotInHole, _, _)
-    | NumLit(NotInHole, _)
+    | IntLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
@@ -1207,7 +1242,10 @@ module Exp = {
           skel2,
         ) =>
         n <= Skel.rightmost_tm_index(skel1)
-          ? ana_go(skel1, Num) : ana_go(skel2, Num)
+          ? ana_go(skel1, Int) : ana_go(skel2, Int)
+      | BinOp(NotInHole, FPlus | FMinus | FTimes, skel1, skel2) =>
+        n <= Skel.rightmost_tm_index(skel1)
+          ? ana_go(skel1, Float) : ana_go(skel2, Float)
       | BinOp(NotInHole, And | Or, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
@@ -1278,7 +1316,9 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals |
+          And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+          GreaterThan |
+          Equals |
           Space,
           _,
           _,
@@ -1417,7 +1457,7 @@ module Exp = {
           ~renumber_empty_holes,
           skel1,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1426,9 +1466,29 @@ module Exp = {
           ~renumber_empty_holes,
           skel2,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
-      (BinOp(NotInHole, op, skel1, skel2), seq, Num, u_gen);
+      (BinOp(NotInHole, op, skel1, skel2), seq, Int, u_gen);
+    | BinOp(_, (FMinus | FPlus | FTimes) as op, skel1, skel2) =>
+      let (skel1, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          HTyp.Float,
+        );
+      let (skel2, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          HTyp.Float,
+        );
+      (BinOp(NotInHole, op, skel1, skel2), seq, Float, u_gen);
     | BinOp(_, (And | Or) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1457,7 +1517,7 @@ module Exp = {
           ~renumber_empty_holes,
           skel1,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(
@@ -1466,7 +1526,7 @@ module Exp = {
           ~renumber_empty_holes,
           skel2,
           seq,
-          HTyp.Num,
+          HTyp.Int,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
@@ -1524,7 +1584,7 @@ module Exp = {
       let ty = HTyp.List(ty_elt);
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-      let skel = Skel.BinOp(NotInHole, UHExp.Cons, skel1, skel2);
+      let skel = Skel.BinOp(NotInHole, Operators.Exp.Cons, skel1, skel2);
       (skel, seq, ty, u_gen);
     }
   and syn_fix_holes_operand =
@@ -1562,7 +1622,8 @@ module Exp = {
           (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
         }
       };
-    | NumLit(_, _) => (e_nih, Num, u_gen)
+    | IntLit(_, _) => (e_nih, Int, u_gen)
+    | FloatLit(_, _) => (e_nih, Float, u_gen)
     | BoolLit(_, _) => (e_nih, Bool, u_gen)
     | ListNil(_) => (e_nih, List(Hole), u_gen)
     | Parenthesized(body) =>
@@ -1889,7 +1950,7 @@ module Exp = {
             seq,
             ty_list,
           );
-        let skel = Skel.BinOp(NotInHole, UHExp.Cons, skel1, skel2);
+        let skel = Skel.BinOp(NotInHole, Operators.Exp.Cons, skel1, skel2);
         (skel, seq, u_gen);
       | None =>
         let (skel1, seq, ty_elt, u_gen) =
@@ -1906,12 +1967,19 @@ module Exp = {
           );
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel =
-          Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators.Exp.Cons,
+            skel1,
+            skel2,
+          );
         (skel, seq, u_gen);
       }
     | BinOp(
         _,
-        And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals |
+        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        GreaterThan |
+        Equals |
         Space,
         _,
         _,
@@ -1944,7 +2012,8 @@ module Exp = {
         (e, u_gen);
       }
     | Var(_, _, _)
-    | NumLit(_, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
     | BoolLit(_, _) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

@@ -80,7 +80,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | ListNil(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
-  | NumLit(_, n) => CursorPosition.text_cursors(IntUtil.num_digits(n))
+  | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
+  | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
@@ -150,7 +151,8 @@ and is_before_zoperand =
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, Var(_))
-  | CursorE(cursor, NumLit(_))
+  | CursorE(cursor, IntLit(_))
+  | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
@@ -196,8 +198,8 @@ and is_after_zoperand =
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
-  | CursorE(cursor, NumLit(_, n)) =>
-    cursor == OnText(IntUtil.num_digits(n))
+  | CursorE(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
+  | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
@@ -246,7 +248,8 @@ and place_before_operand = operand =>
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | Var(_)
-  | NumLit(_)
+  | IntLit(_)
+  | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Lam(_)
   | Inj(_)
@@ -280,7 +283,8 @@ and place_after_operand = operand =>
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
-  | NumLit(_, n) => CursorE(OnText(IntUtil.num_digits(n)), operand)
+  | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
+  | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
@@ -384,6 +388,9 @@ and erase_zrule =
   | RuleZE(p, zclause) => Rule(p, erase(zclause));
 
 let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
+
+let mk_ZOpSeq =
+  ZOpSeq.mk(~associate=UHExp.associate, ~erase_zoperand, ~erase_zoperator);
 
 let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
 let get_err_status_zblock = zblock =>
@@ -633,7 +640,7 @@ and move_cursor_left_zoperand =
       )
     }
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -859,7 +866,7 @@ and move_cursor_right_zoperand =
       ? Some(CaseZE(err, place_before(scrut), rules, Some(ann)))
       : Some(CaseZA(err, scrut, rules, ZTyp.place_before(ann)))
   | CursorE(_, ApPalette(_, _, _, _)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>

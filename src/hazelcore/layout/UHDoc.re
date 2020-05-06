@@ -188,10 +188,13 @@ let pad_left_delimited_child =
 
 let mk_Unit = (): t => Delim.mk(~index=0, "()") |> annot_Operand(~sort=Typ);
 
-let mk_Num = (): t => Delim.mk(~index=0, "Num") |> annot_Operand(~sort=Typ);
-
 let mk_Bool = (): t =>
   Delim.mk(~index=0, "Bool") |> annot_Operand(~sort=Typ);
+
+let mk_Int = (): t => Delim.mk(~index=0, "Int") |> annot_Operand(~sort=Typ);
+
+let mk_Float = (): t =>
+  Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
@@ -207,8 +210,11 @@ let mk_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
   mk_text(x) |> annot_Var(~sort, ~err, ~verr);
 
-let mk_NumLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: int): t =>
-  mk_text(string_of_int(n)) |> annot_Operand(~sort, ~err);
+let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
+  mk_text(n) |> annot_Operand(~sort, ~err);
+
+let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
+  mk_text(f) |> annot_Operand(~sort, ~err);
 
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
@@ -475,7 +481,7 @@ let mk_NTuple =
 module Typ = {
   let inline_padding_of_operator =
     fun
-    | UHTyp.Prod => (Doc.empty(), Doc.space())
+    | Operators.Typ.Prod => (Doc.empty(), Doc.space())
     | Arrow
     | Sum => (Doc.space(), Doc.space());
 
@@ -493,12 +499,13 @@ module Typ = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHTyp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHTyp.operator): t =>
-    mk_op(UHTyp.string_of_operator(op))
+    mk_op(Operators.Typ.to_string(op))
   and mk_operand = (~enforce_inline: bool, operand: UHTyp.operand): t =>
     switch (operand) {
     | Hole => mk_EmptyHole("?")
     | Unit => mk_Unit()
-    | Num => mk_Num()
+    | Int => mk_Int()
+    | Float => mk_Float()
     | Bool => mk_Bool()
     | Parenthesized(body) =>
       let body = mk_child(~enforce_inline, ~child_step=0, body);
@@ -520,13 +527,14 @@ module Pat = {
   let inline_padding_of_operator =
     Doc.(
       fun
-      | UHPat.Comma => (empty(), space())
+      | Operators.Pat.Comma => (empty(), space())
       | Space
       | Cons => (empty(), empty())
     );
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Pat);
-  let mk_NumLit = mk_NumLit(~sort=Pat);
+  let mk_IntLit = mk_IntLit(~sort=Pat);
+  let mk_FloatLit = mk_FloatLit(~sort=Pat);
   let mk_BoolLit = mk_BoolLit(~sort=Pat);
   let mk_ListNil = mk_ListNil(~sort=Pat);
   let mk_Var = mk_Var(~sort=Pat);
@@ -544,13 +552,15 @@ module Pat = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHPat.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHPat.operator): t =>
-    op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
+    op |> Operators.Pat.is_Space
+      ? mk_space_op : mk_op(Operators.Pat.to_string(op))
   and mk_operand = (~enforce_inline: bool, operand: UHPat.operand): t =>
     switch (operand) {
     | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
     | Wild(err) => mk_Wild(~err)
     | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-    | NumLit(err, n) => mk_NumLit(~err, n)
+    | IntLit(err, n) => mk_IntLit(~err, n)
+    | FloatLit(err, f) => mk_FloatLit(~err, f)
     | BoolLit(err, b) => mk_BoolLit(~err, b)
     | ListNil(err) => mk_ListNil(~err, ())
     | Parenthesized(body) =>
@@ -571,23 +581,25 @@ module Pat = {
 
 module Exp = {
   let inline_padding_of_operator =
-    Doc.(
-      fun
-      | UHExp.Space
-      | Times
-      | Cons => (empty(), empty())
-      | Plus
-      | Minus
-      | LessThan
-      | GreaterThan
-      | Equals
-      | And
-      | Or => (space(), space())
-      | Comma => (empty(), space())
-    );
+    fun
+    | Operators.Exp.Space
+    | Times
+    | FTimes
+    | Cons => (empty_, empty_)
+    | Plus
+    | Minus
+    | FPlus
+    | FMinus
+    | LessThan
+    | GreaterThan
+    | Equals
+    | And
+    | Or => (space_, space_)
+    | Comma => (empty_, space_);
 
   let mk_EmptyHole = mk_EmptyHole(~sort=Exp);
-  let mk_NumLit = mk_NumLit(~sort=Exp);
+  let mk_IntLit = mk_IntLit(~sort=Exp);
+  let mk_FloatLit = mk_FloatLit(~sort=Exp);
   let mk_BoolLit = mk_BoolLit(~sort=Exp);
   let mk_ListNil = mk_ListNil(~sort=Exp);
   let mk_Var = mk_Var(~sort=Exp);
@@ -652,12 +664,14 @@ module Exp = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHExp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHExp.operator): t =>
-    op |> UHExp.is_Space ? mk_space_op : mk_op(UHExp.string_of_operator(op))
+    op |> Operators.Exp.is_Space
+      ? mk_space_op : mk_op(Operators.Exp.to_string(op))
   and mk_operand = (~enforce_inline: bool, operand: UHExp.operand): t =>
     switch (operand) {
     | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
     | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-    | NumLit(err, n) => mk_NumLit(~err, n)
+    | IntLit(err, n) => mk_IntLit(~err, n)
+    | FloatLit(err, f) => mk_FloatLit(~err, f)
     | BoolLit(err, b) => mk_BoolLit(~err, b)
     | ListNil(err) => mk_ListNil(~err, ())
     | Lam(err, p, ann, body) =>
