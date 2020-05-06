@@ -1084,9 +1084,16 @@ module Exp = {
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
-    | IntLit(NotInHole, n) => Expands(IntLit(int_of_string(n)), Int, delta)
+    | IntLit(NotInHole, n) =>
+      switch (int_of_string_opt(n)) {
+      | Some(n) => Expands(IntLit(n), Int, delta)
+      | None => DoesNotExpand
+      }
     | FloatLit(NotInHole, f) =>
-      Expands(FloatLit(float_of_string(f)), Float, delta)
+      switch (float_of_string_opt(f)) {
+      | Some(f) => Expands(FloatLit(f), Float, delta)
+      | None => DoesNotExpand
+      }
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
