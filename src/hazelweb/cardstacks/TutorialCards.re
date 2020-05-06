@@ -62,7 +62,7 @@ let intro_card: CardInfo.t = {
      ],
    );
  let backspace_init_zblock =
-   // deserialize("(BlockZE()(CursorE(OnText 5)(NumLit NotInHole 12345)))");
+   // deserialize("(BlockZE()(CursorE(OnText 5)(IntLit NotInHole 12345)))");
  let backspace_card: CardInfo.t = {
    caption: backspace_caption,
    init_zexp: backspace_init_zblock,

@@ -7,7 +7,8 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | Hole
   | Unit
-  | Num
+  | Int
+  | Float
   | Bool
   | Parenthesized(t)
   | List(t);
@@ -22,6 +23,17 @@ let rec get_prod_elements: skel => list(skel) =
   | BinOp(_, Prod, skel1, skel2) =>
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
+
+let unwrap_parentheses = (operand: operand): t =>
+  switch (operand) {
+  | Hole
+  | Unit
+  | Int
+  | Float
+  | Bool
+  | List(_) => OpSeq.wrap(operand)
+  | Parenthesized(p) => p
+  };
 
 let associate = (seq: seq) => {
   let (skel_str, _) = Skel.make_skel_str(seq, Operators.Typ.to_parse_string);
@@ -48,8 +60,9 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Hole => Seq.wrap(Hole)
-      | Num => Seq.wrap(Num)
-      | Bool => Seq.wrap(Bool)
+      | Int => Seq.wrap(Int)
+      | Float => Seq.wrap(Float)
+      | Bool => Seq.wrap(Float)
       | Arrow(ty1, ty2) =>
         mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
@@ -106,7 +119,8 @@ and expand_operand =
   fun
   | Hole => Hole
   | Unit => Prod([])
-  | Num => Num
+  | Int => Int
+  | Float => Float
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
