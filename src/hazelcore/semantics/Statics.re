@@ -973,20 +973,26 @@ module Exp = {
     | Parenthesized(body) => syn(ctx, body)
     }
   and syn_rules =
-      (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) =>
-    List.fold_left(
-      (b, r) =>
-        switch (b) {
-        | None => None
-        | Some(common_type) =>
-          switch (syn_rule(ctx, r, pat_ty)) {
+      (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
+    let clause_types =
+      List.fold_left(
+        (types_opt, r) =>
+          switch (types_opt) {
           | None => None
-          | Some(r_ty) => HTyp.join(common_type, r_ty)
-          }
-        },
-      Some(HTyp.Hole),
-      rules,
-    )
+          | Some(types) =>
+            switch (syn_rule(ctx, r, pat_ty)) {
+            | None => None
+            | Some(r_ty) => Some([r_ty, ...types])
+            }
+          },
+        Some([]),
+        rules,
+      );
+    switch (clause_types) {
+    | None => None
+    | Some(types) => HTyp.glb(types)
+    };
+  }
   and syn_rule =
       (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
     let Rule(p, clause) = rule;
@@ -1661,21 +1667,17 @@ module Exp = {
         pat_ty: HTyp.t,
       )
       : (UHExp.rules, MetaVarGen.t, list(HTyp.t), option(HTyp.t)) => {
-    let (rev_fixed_rules, u_gen, rule_types, common_type) =
+    let (rev_fixed_rules, u_gen, rule_types) =
       List.fold_left(
-        ((rules, u_gen, rule_types, common_type), r) => {
+        ((rules, u_gen, rule_types), r) => {
           let (r, u_gen, r_ty) =
             syn_fix_holes_rule(ctx, u_gen, ~renumber_empty_holes, r, pat_ty);
-          let common_type =
-            switch (common_type) {
-            | None => None
-            | Some(common_type) => HTyp.join(common_type, r_ty)
-            };
-          ([r, ...rules], u_gen, [r_ty, ...rule_types], common_type);
+          ([r, ...rules], u_gen, [r_ty, ...rule_types]);
         },
-        ([], u_gen, [], Some(Hole)),
+        ([], u_gen, []),
         rules,
       );
+    let common_type = HTyp.glb(rule_types);
     (List.rev(rev_fixed_rules), u_gen, List.rev(rule_types), common_type);
   }
   and syn_fix_holes_rule =
