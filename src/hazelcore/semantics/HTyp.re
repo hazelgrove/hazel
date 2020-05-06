@@ -149,8 +149,8 @@ let rec complete =
 
 let rec join = (ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) => Some(ty1)
-  | (Hole, _) => Some(ty2)
+  | (_, Hole) => Some(ty2)
+  | (Hole, _) => Some(ty1)
   | (Unit, Unit) => Some(ty1)
   | (Unit, _) => None
   | (Num, Num) => Some(ty1)
@@ -182,3 +182,34 @@ let rec join = (ty1, ty2) =>
     }
   | (List(_), _) => None
   };
+
+let glb = (types: list(t)): option(t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    let rec exist_inconsistencies = l =>
+      switch (l) {
+      | [] => false
+      | [hd, ...tl] =>
+        if (List.exists(inconsistent(hd), tl)) {
+          true;
+        } else {
+          exist_inconsistencies(tl);
+        }
+      };
+    if (exist_inconsistencies(types)) {
+      None;
+    } else {
+      List.fold_left(
+        (common_opt, ty) =>
+          switch (common_opt) {
+          | None => None
+          | Some(common_ty) => join(common_ty, ty)
+          },
+        Some(hd),
+        tl,
+      );
+    };
+  };
+};
