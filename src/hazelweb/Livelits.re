@@ -12,8 +12,13 @@ type splice_getters_to_vdom =
 
 module LivelitView = {
   type t =
-    | Inline(div_type, int)
-    | MultiLine(splice_getters_to_vdom);
+    | Inline(splice_getters_to_vdom, int)
+    | MultiLine(splice_getters_to_vdom, int);
+
+  let get_splice_getters_to_vdom =
+    fun
+    | Inline(x, _)
+    | MultiLine(x, _) => x;
 };
 
 module type LIVELIT = {
@@ -59,7 +64,7 @@ module PairLivelit: LIVELIT = {
   let update = (m, _) => SpliceGenCmd.return(m);
 
   let view = ((leftID, rightID), _) =>
-    LivelitView.MultiLine(
+    LivelitView.Inline(
       (get_splice_div, _) =>
         Vdom.(
           Node.div(
@@ -67,6 +72,8 @@ module PairLivelit: LIVELIT = {
             [get_splice_div(leftID), get_splice_div(rightID)],
           )
         ),
+      // TODO fix brittle magic constant
+      20,
     );
 
   let expand = ((leftID, rightID)) => {
@@ -201,168 +208,168 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       ),
     );
 
-  let view = ((selected, m), trig) =>
-    LivelitView.MultiLine(
-      (get_splice_div, get_splice_value) => {
-        open Vdom;
-        let width = get_width(m);
-        let height = get_height(m);
-        let row_header =
-          ListUtil.range(height)
-          |> List.map(i =>
-               Node.div(
-                 [
-                   attr_style(grid_area(i + 2, 1, i + 3, 2)),
-                   Attr.classes(["row-header"]),
-                 ],
-                 [
-                   Node.span(
-                     [Attr.classes(["index"])],
-                     [Node.text(string_of_int(i + 1))],
-                   ),
-                   Node.span(
-                     [
-                       Attr.classes(["delete"]),
-                       Attr.on_click(_ => trig(Del(Row, i))),
-                     ],
-                     [Node.text("x")],
-                   ),
-                 ],
-               )
-             );
-        let col_header =
-          ListUtil.range(width)
-          |> List.map(j =>
-               Node.span(
-                 [
-                   attr_style(grid_area(1, j + 2, 2, j + 3)),
-                   Attr.classes(["col-header"]),
-                 ],
-                 [
-                   Node.span(
-                     [Attr.classes(["index"])],
-                     [Node.text(string_of_int(j + 1))],
-                   ),
-                   Node.span(
-                     [
-                       Attr.classes(["delete"]),
-                       Attr.on_click(_ => trig(Del(Col, j))),
-                     ],
-                     [Node.text("x")],
-                   ),
-                 ],
-               )
-             );
-        let add_row_button =
-          Node.button(
-            [
-              attr_style(grid_area(-1, 2, -2, -2)),
-              Attr.classes(["add-row", "pure-button"]),
-              Attr.on_click(_ => trig(Add(Row))),
-            ],
-            [Node.text("+")],
-          );
-        let add_col_button =
-          Node.button(
-            [
-              attr_style(grid_area(2, -2, -2, -1)),
-              Attr.classes(["add-col", "pure-button"]),
-              Attr.on_click(_ => trig(Add(Col))),
-            ],
-            [Node.text("+")],
-          );
-        let formula_bar =
-          if (!I.is_live) {
-            [];
-          } else {
-            [
-              Node.div(
-                [Attr.classes(["matrix-formula-bar"])],
-                [
-                  Node.span(
-                    [Attr.classes(["matrix-formula-bar-text"])],
-                    [Node.text("selected cell's formula: ")],
-                  ),
-                  Node.div(
-                    [Attr.classes(["matrix-formula-bar-splice"])],
-                    [get_splice_div(selected)],
-                  ),
-                ],
-              ),
-            ];
-          };
-        let splices =
-          m
-          |> List.mapi((i, row) =>
-               row
-               |> List.mapi((j, splice) => {
-                    let style =
-                      attr_style(grid_area(i + 2, j + 2, i + 3, j + 3));
-                    if (!I.is_live) {
-                      Node.div(
-                        [style, Attr.classes(["matrix-splice"])],
-                        [get_splice_div(splice)],
-                      );
-                    } else {
-                      let cls =
-                        splice == selected
-                          ? "matrix-selected" : "matrix-unselected";
-                      let cell_str =
-                        switch (get_splice_value(splice)) {
-                        | None => "Uneval'd"
-                        | Some(d) =>
-                          switch (d) {
-                          | DHExp.IntLit(v) => string_of_int(v)
-                          | DHExp.EmptyHole(_) => "?"
-                          | v =>
-                            // TODO we really ought to do something like DHCode.view
-                            let max_len = 15;
-                            let vstr =
-                              v |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string;
-                            String.length(vstr) <= max_len
-                              ? vstr
-                              : String.sub(vstr, 0, max_len - 3) ++ "...";
-                          }
-                        };
-                      Node.div(
-                        [
-                          style,
-                          Attr.classes([cls]),
-                          Attr.on_mousedown(_ => trig(Select(splice))),
-                        ],
-                        [Node.text(cell_str)],
-                      );
-                    };
-                  })
+  let view = ((selected, m), trig) => {
+    let splice_getters_to_vdom = (get_splice_div, get_splice_value) => {
+      open Vdom;
+      let width = get_width(m);
+      let height = get_height(m);
+      let row_header =
+        ListUtil.range(height)
+        |> List.map(i =>
+             Node.div(
+               [
+                 attr_style(grid_area(i + 2, 1, i + 3, 2)),
+                 Attr.classes(["row-header"]),
+               ],
+               [
+                 Node.span(
+                   [Attr.classes(["index"])],
+                   [Node.text(string_of_int(i + 1))],
+                 ),
+                 Node.span(
+                   [
+                     Attr.classes(["delete"]),
+                     Attr.on_click(_ => trig(Del(Row, i))),
+                   ],
+                   [Node.text("x")],
+                 ),
+               ],
              )
-          |> List.flatten;
-
-        Node.div(
+           );
+      let col_header =
+        ListUtil.range(width)
+        |> List.map(j =>
+             Node.span(
+               [
+                 attr_style(grid_area(1, j + 2, 2, j + 3)),
+                 Attr.classes(["col-header"]),
+               ],
+               [
+                 Node.span(
+                   [Attr.classes(["index"])],
+                   [Node.text(string_of_int(j + 1))],
+                 ),
+                 Node.span(
+                   [
+                     Attr.classes(["delete"]),
+                     Attr.on_click(_ => trig(Del(Col, j))),
+                   ],
+                   [Node.text("x")],
+                 ),
+               ],
+             )
+           );
+      let add_row_button =
+        Node.button(
           [
-            Attr.classes(["matrix-livelit"]),
-            attr_style(
-              StringUtil.cat([
-                prop_val(
-                  "grid-template-columns",
-                  StringUtil.sep(ListUtil.replicate(width + 2, "auto")),
-                ),
-                prop_val(
-                  "grid-template-rows",
-                  StringUtil.sep(ListUtil.replicate(height + 2, "auto")),
-                ),
-              ]),
-            ),
+            attr_style(grid_area(-1, 2, -2, -2)),
+            Attr.classes(["add-row", "pure-button"]),
+            Attr.on_click(_ => trig(Add(Row))),
           ],
-          List.concat([
-            row_header,
-            col_header,
-            formula_bar,
-            splices,
-            [add_row_button, add_col_button],
-          ]),
+          [Node.text("+")],
         );
-      },
-    );
+      let add_col_button =
+        Node.button(
+          [
+            attr_style(grid_area(2, -2, -2, -1)),
+            Attr.classes(["add-col", "pure-button"]),
+            Attr.on_click(_ => trig(Add(Col))),
+          ],
+          [Node.text("+")],
+        );
+      let formula_bar =
+        if (!I.is_live) {
+          [];
+        } else {
+          [
+            Node.div(
+              [Attr.classes(["matrix-formula-bar"])],
+              [
+                Node.span(
+                  [Attr.classes(["matrix-formula-bar-text"])],
+                  [Node.text("selected cell's formula: ")],
+                ),
+                Node.div(
+                  [Attr.classes(["matrix-formula-bar-splice"])],
+                  [get_splice_div(selected)],
+                ),
+              ],
+            ),
+          ];
+        };
+      let splices =
+        m
+        |> List.mapi((i, row) =>
+             row
+             |> List.mapi((j, splice) => {
+                  let style =
+                    attr_style(grid_area(i + 2, j + 2, i + 3, j + 3));
+                  if (!I.is_live) {
+                    Node.div(
+                      [style, Attr.classes(["matrix-splice"])],
+                      [get_splice_div(splice)],
+                    );
+                  } else {
+                    let cls =
+                      splice == selected
+                        ? "matrix-selected" : "matrix-unselected";
+                    let cell_str =
+                      switch (get_splice_value(splice)) {
+                      | None => "Uneval'd"
+                      | Some(d) =>
+                        switch (d) {
+                        | DHExp.IntLit(v) => string_of_int(v)
+                        | DHExp.EmptyHole(_) => "?"
+                        | v =>
+                          // TODO we really ought to do something like DHCode.view
+                          let max_len = 15;
+                          let vstr =
+                            v |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string;
+                          String.length(vstr) <= max_len
+                            ? vstr : String.sub(vstr, 0, max_len - 3) ++ "...";
+                        }
+                      };
+                    Node.div(
+                      [
+                        style,
+                        Attr.classes([cls]),
+                        Attr.on_mousedown(_ => trig(Select(splice))),
+                      ],
+                      [Node.text(cell_str)],
+                    );
+                  };
+                })
+           )
+        |> List.flatten;
+
+      Node.div(
+        [
+          Attr.classes(["matrix-livelit"]),
+          attr_style(
+            StringUtil.cat([
+              prop_val(
+                "grid-template-columns",
+                StringUtil.sep(ListUtil.replicate(width + 2, "auto")),
+              ),
+              prop_val(
+                "grid-template-rows",
+                StringUtil.sep(ListUtil.replicate(height + 2, "auto")),
+              ),
+            ]),
+          ),
+        ],
+        List.concat([
+          row_header,
+          col_header,
+          formula_bar,
+          splices,
+          [add_row_button, add_col_button],
+        ]),
+      );
+    };
+    let num_rows = List.length(m);
+    LivelitView.MultiLine(splice_getters_to_vdom, num_rows);
+  };
 
   let expand = ((_, m)) => {
     let to_uhexp_list =
@@ -659,100 +666,104 @@ module GradeCutoffLivelit: LIVELIT = {
     // currently, we are very strict, and the presence of any indet is immediate failure
     | _ => None;
 
-  let view = ({a, b, c, d, selected_grade, dataID}, trig) =>
-    LivelitView.MultiLine(
-      (get_splice_div, get_splice_value) => {
-        let data_opt = get_splice_value(dataID);
-        let grades_opt = data_opt |> OptUtil.and_then(dhexp_to_grades([]));
-        let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
-        let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
-        let data_err_msg =
-          switch (data_opt, grades_opt, grades_svgs_opt) {
-          | (None, _, _) => [
-              Vdom.Node.text("Grades data was never evaluated"),
-            ]
-          | (_, None, _) => [
-              Vdom.Node.text(
-                "Grades data was indeterminate (maybe it contains a hole?)",
-              ),
-            ]
-          | (_, _, None) => [
-              Vdom.Node.text(
-                "Grades data was invalid (i.e. it contains a number < 0 or > 100)",
-              ),
-            ]
-          | _ => []
-          };
-        Vdom.(
-          Node.div(
-            [Attr.classes(["grade-cutoffs-livelit"])],
-            [
-              Node.div(
-                [Attr.classes(["data-splice"])],
-                [Node.text("data = "), get_splice_div(dataID)],
-              ),
-              Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
-              Node.div(
-                [Attr.classes(["grade-display"])],
-                [
-                  _svg(
-                    "svg",
-                    [
-                      ("width", svg_width |> soi),
-                      ("height", svg_height |> soi),
-                    ],
-                    ~attrs=[
-                      Attr.on_mouseup(evt => {
-                        let new_cutoff = get_cutoff_from_evt(evt);
-                        let new_cutoff =
-                          new_cutoff < 0
-                            ? 0 : new_cutoff > 100 ? 100 : new_cutoff;
-                        switch (selected_grade) {
-                        | None => Event.Ignore
-                        | Some(lg) =>
-                          let old_cutoff =
-                            switch (lg) {
-                            | A => a
-                            | B => b
-                            | C => c
-                            | D => d
-                            };
-                          if (new_cutoff == old_cutoff) {
-                            Event.Ignore;
-                          } else {
-                            trig(DragGrade(lg, new_cutoff));
+  let view = ({a, b, c, d, selected_grade, dataID}, trig) => {
+    let splice_getters_to_vdom = (get_splice_div, get_splice_value) => {
+      let data_opt = get_splice_value(dataID);
+      let grades_opt = data_opt |> OptUtil.and_then(dhexp_to_grades([]));
+      let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
+      let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
+      let data_err_msg =
+        switch (data_opt, grades_opt, grades_svgs_opt) {
+        | (None, _, _) => [
+            Vdom.Node.text("Grades data was never evaluated"),
+          ]
+        | (_, None, _) => [
+            Vdom.Node.text(
+              "Grades data was indeterminate (maybe it contains a hole?)",
+            ),
+          ]
+        | (_, _, None) => [
+            Vdom.Node.text(
+              "Grades data was invalid (i.e. it contains a number < 0 or > 100)",
+            ),
+          ]
+        | _ => []
+        };
+      Vdom.(
+        Node.div(
+          [Attr.classes(["grade-cutoffs-livelit"])],
+          [
+            Node.div(
+              [Attr.classes(["data-splice"])],
+              [Node.text("data = "), get_splice_div(dataID)],
+            ),
+            Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+            Node.div(
+              [Attr.classes(["grade-display"])],
+              [
+                _svg(
+                  "svg",
+                  [
+                    ("width", svg_width |> soi),
+                    ("height", svg_height |> soi),
+                  ],
+                  ~attrs=[
+                    Attr.on_mouseup(evt => {
+                      let new_cutoff = get_cutoff_from_evt(evt);
+                      let new_cutoff =
+                        new_cutoff < 0
+                          ? 0 : new_cutoff > 100 ? 100 : new_cutoff;
+                      switch (selected_grade) {
+                      | None => Event.Ignore
+                      | Some(lg) =>
+                        let old_cutoff =
+                          switch (lg) {
+                          | A => a
+                          | B => b
+                          | C => c
+                          | D => d
                           };
+                        if (new_cutoff == old_cutoff) {
+                          Event.Ignore;
+                        } else {
+                          trig(DragGrade(lg, new_cutoff));
                         };
-                      }),
-                    ],
-                    ~children=
-                      [
-                        _svg(
-                          "line",
-                          [
-                            ("x1", margin_x_left |> soi),
-                            ("y1", line_y |> soi),
-                            ("x2", margin_x_left + line_width |> soi),
-                            ("y2", line_y |> soi),
-                            ("stroke", "black"),
-                            ("stroke-width", "4"),
-                          ],
-                          ~attrs=[Attr.classes(["grade-line"])],
-                          (),
-                        ),
-                      ]
-                      @ grade_labels
-                      @ cutoff_svgs(a, b, c, d, selected_grade, trig)
-                      @ grades_svgs,
-                    (),
-                  ),
-                ],
-              ),
-            ],
-          )
-        );
-      },
+                      };
+                    }),
+                  ],
+                  ~children=
+                    [
+                      _svg(
+                        "line",
+                        [
+                          ("x1", margin_x_left |> soi),
+                          ("y1", line_y |> soi),
+                          ("x2", margin_x_left + line_width |> soi),
+                          ("y2", line_y |> soi),
+                          ("stroke", "black"),
+                          ("stroke-width", "4"),
+                        ],
+                        ~attrs=[Attr.classes(["grade-line"])],
+                        (),
+                      ),
+                    ]
+                    @ grade_labels
+                    @ cutoff_svgs(a, b, c, d, selected_grade, trig)
+                    @ grades_svgs,
+                  (),
+                ),
+              ],
+            ),
+          ],
+        )
+      );
+    };
+    LivelitView.MultiLine(
+      splice_getters_to_vdom,
+      // TODO
+      5,
     );
+  };
 
   let expand = ({a, b, c, d, _}) => {
     let tupl_seq =
@@ -773,97 +784,101 @@ module GradeCutoffLivelit: LIVELIT = {
 };
 
 /*
-  module ColorPalette: PALETTE = {
-    let name = "$color";
-    let expansion_ty =
-      HTyp.(Arrow(Arrow(Int, Arrow(Int, Arrow(Int, Hole))), Hole));
+ module ColorLivelit: LIVELIT = {
+   let name = "$color";
+   let expansion_ty = HTyp.Prod(Int, Prod(Int, Int));
 
-    type model = string;
-    let init_model = UHExp.HoleRefs.Ret("#c94d4d");
+   type model = {
+     r: SpliceName.t,
+     g: SpliceName.t,
+     b: SpliceName.t,
+     is_open: bool,
+   };
+   let init_model =
+     SpliceGenCmd.(
+       bind(new_splice(HTyp.Int), r =>
+         bind(new_splice(HTyp.Int), g =>
+           bind(new_splice(HTyp.Int), b => return({r, g, b, is_open: false}))
+         )
+       )
+     );
+   let update = (m, _) => SpliceGenCmd.return(m);
 
-    type model_updater = model => unit;
+   let view = ({r, g, b, is_open: _}, _) => {
+     LivelitView.Inline(
 
-    let colors = [
-      "#c94d4d",
-      "#d8832b",
-      "#dab71f",
-      "#446648",
-      "#165f99",
-      "#242551",
-    ];
+     )
+   };
 
-    let view = (model, model_updater) => {
-      let mk_color_elt = (color, selected_color) => {
-        let selected = color == selected_color ? ["selected"] : [];
-        Html5.(
-          div(
-            ~a=[
-              a_class(["color", ...selected]),
-              a_style("background-color:" ++ color),
-            ],
-            [],
-          )
-        );
-      };
+   let view = (model, model_updater) => {
+     let mk_color_elt = (color, selected_color) => {
+       let selected = color == selected_color ? ["selected"] : [];
+       Html5.(
+         div(
+           ~a=[
+             a_class(["color", ...selected]),
+             a_style("background-color:" ++ color),
+           ],
+           [],
+         )
+       );
+     };
 
-      let color_elts = List.map(c => mk_color_elt(c, model), colors);
-      let _ =
-        List.map2(
-          (c, elt) => {
-            let elt_dom = Tyxml_js.To_dom.of_div(elt);
-            JSUtil.listen_to(
-              Dom_html.Event.click,
-              elt_dom,
-              _ => {
-                model_updater(c);
-                Js._true;
-              },
-            );
-          },
-          colors,
-          color_elts,
-        );
+     let color_elts = List.map(c => mk_color_elt(c, model), colors);
+     let _ =
+       List.map2(
+         (c, elt) => {
+           let elt_dom = Tyxml_js.To_dom.of_div(elt);
+           JSUtil.listen_to(
+             Dom_html.Event.click,
+             elt_dom,
+             _ => {
+               model_updater(c);
+               Js._true;
+             },
+           );
+         },
+         colors,
+         color_elts,
+       );
 
-      let picker = Html5.(div(~a=[a_class(["color-picker"])], color_elts));
-      MultiLine(HTMLWithCells.Ret(picker));
-    };
+     let picker = Html5.(div(~a=[a_class(["color-picker"])], color_elts));
+     MultiLine(HTMLWithCells.Ret(picker));
+   };
 
-    let expand = rgb_hex => {
-      let to_decimal = hex => int_of_string("0x" ++ hex);
-      let (r, g, b) =
-        sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) =>
-          (to_decimal(r), to_decimal(g), to_decimal(b))
-        );
-      let fVarName = "f";
-      let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
-      let r_num = UHExp.(Tm(NotInHole, IntLit(r)));
-      let g_num = UHExp.(Tm(NotInHole, IntLit(g)));
-      let b_num = UHExp.(Tm(NotInHole, IntLit(b)));
-      let body =
-        UHExp.(
-          Seq.(
-            operand_op_seq(
-              Tm(NotInHole, Var(NotInVarHole, fVarName)),
-              Space,
-              operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
-            )
-          )
-        );
-      UHExp.(
-        Tm(
-          NotInHole,
-          Lam(
-            fPat,
-            None,
-            Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
-          ),
-        )
-      );
-    };
-
-    let serialize = model => model;
-    let deserialize = serialized => serialized;
-  };
+   let expand = rgb_hex => {
+     let to_decimal = hex => int_of_string("0x" ++ hex);
+     let (r, g, b) =
+       sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) =>
+         (to_decimal(r), to_decimal(g), to_decimal(b))
+       );
+     let fVarName = "f";
+     let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
+     let r_num = UHExp.(Tm(NotInHole, IntLit(r)));
+     let g_num = UHExp.(Tm(NotInHole, IntLit(g)));
+     let b_num = UHExp.(Tm(NotInHole, IntLit(b)));
+     let body =
+       UHExp.(
+         Seq.(
+           operand_op_seq(
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
+             Space,
+             operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
+           )
+         )
+       );
+     UHExp.(
+       Tm(
+         NotInHole,
+         Lam(
+           fPat,
+           None,
+           Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
+         ),
+       )
+     );
+   };
+ };
  */
 
 module CheckboxLivelit: LIVELIT = {
@@ -894,7 +909,7 @@ module CheckboxLivelit: LIVELIT = {
         )
       );
     let view_span = Vdom.Node.span([], [input_elt]);
-    LivelitView.Inline(view_span, /* TODO! */ 1);
+    LivelitView.Inline((_, _) => view_span, /* TODO! */ 1);
   };
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
@@ -1100,7 +1115,7 @@ module SliderLivelit: LIVELIT = {
           ),
         ],
       );
-    LivelitView.Inline(view_span, 10);
+    LivelitView.Inline((_, _) => view_span, 10);
   };
 
   let expand = model => UHExp.Block.wrap(UHExp.intlit'(model.value));

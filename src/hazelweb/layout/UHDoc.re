@@ -372,12 +372,13 @@ let mk_ApLivelit =
     // TODO resolve hack of passing in dummy trigger
     let spaceholder =
       switch (llview(_ => Vdom.Event.Ignore)) {
-      | Inline(_, width) => String.make(width, ' ')
-      | MultiLine(_) => "" // TODO multiline spaceholders
+      | Inline(_, width) => Doc.text(String.make(width, ' '))
+      | MultiLine(_, height) =>
+        Doc.hcats(ListUtil.replicate(height + 2, Doc.linebreak()))
       };
     Doc.annot(
       UHAnnot.LivelitView({llu, llview, splice_map_opt}),
-      Doc.text(spaceholder),
+      spaceholder,
     );
   };
   annot_ApLivelit(Doc.hseps([lln_doc, llview_doc]));

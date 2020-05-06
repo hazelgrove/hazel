@@ -158,37 +158,36 @@ let view =
     | Annot(LivelitView({llu, llview, splice_map_opt}), _) => {
         let trigger = serialized_action =>
           inject(Update.Action.LivelitAction(llu, serialized_action));
-        let vs =
-          switch (llview(trigger)) {
-          | Inline(view, _) => [view]
-          | MultiLine(splice_getters_to_vdom) =>
-            let get_splice_div = splice_name => {
-              let splice_layout =
-                splice_ls |> SpliceMap.get_splice(llu, splice_name);
-              let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-              Node.div(
-                [
-                  Attr.id(id),
-                  Attr.classes(["splice"]),
-                  Attr.on_mousedown(
-                    on_mousedown(~id, ~splice=Some((llu, splice_name))),
-                  ),
-                ],
-                go(splice_layout),
-              );
-            };
-
-            let get_splice_value = splice_name =>
-              splice_map_opt
-              |> OptUtil.map(splice_map =>
-                   switch (NatMap.lookup(splice_map, splice_name)) {
-                   | None => raise(Not_found)
-                   | Some((_, d)) => d
-                   }
-                 );
-
-            [splice_getters_to_vdom(get_splice_div, get_splice_value)];
+        let vs = {
+          let splice_getters_to_vdom =
+            Livelits.LivelitView.get_splice_getters_to_vdom(llview(trigger));
+          let get_splice_div = splice_name => {
+            let splice_layout =
+              splice_ls |> SpliceMap.get_splice(llu, splice_name);
+            let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+            Node.div(
+              [
+                Attr.id(id),
+                Attr.classes(["splice"]),
+                Attr.on_mousedown(
+                  on_mousedown(~id, ~splice=Some((llu, splice_name))),
+                ),
+              ],
+              go(splice_layout),
+            );
           };
+
+          let get_splice_value = splice_name =>
+            splice_map_opt
+            |> OptUtil.map(splice_map =>
+                 switch (NatMap.lookup(splice_map, splice_name)) {
+                 | None => raise(Not_found)
+                 | Some((_, d)) => d
+                 }
+               );
+
+          [splice_getters_to_vdom(get_splice_div, get_splice_value)];
+        };
         [
           Vdom.Node.span(
             [Vdom.Attr.on_mousedown(_ => Vdom.Event.Stop_propagation)],
