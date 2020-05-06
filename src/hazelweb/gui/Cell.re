@@ -74,7 +74,7 @@ let view = (~inject, model: Model.t) => {
             | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
             | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
             | Some(kc) =>
-              let action_fn = Hashtbl.find(kc_actions, kc).action_fn;
+              // let action_fn = Hashtbl.find(kc_actions, kc).action_fn;
               prevent_stop_inject(
                 Update.Action.EditAction(
                   Hashtbl.find(

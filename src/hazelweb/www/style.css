@@ -433,6 +433,7 @@ html, body {
 }
 
 .action-disabled .action-label,
+.action-disabled.keyboard-shortcut,
 .action-disabled .keyboard-shortcut {
   /* background-color: #888; */
   /* border: 1px outset #999; */
