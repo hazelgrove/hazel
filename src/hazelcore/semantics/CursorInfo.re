@@ -74,6 +74,8 @@ type typed =
       Var.t,
       // shadowing
       bool,
+      // variable warning
+      VarWarnStatus.t,
       // number of uses
       UsageAnalysis.uses_list,
       // number of recursive uses
@@ -94,6 +96,8 @@ type typed =
       Var.t,
       // shadowing
       bool,
+      // variable warning
+      VarWarnStatus.t,
       // number of uses
       UsageAnalysis.uses_list,
       // number of recursive uses
@@ -271,7 +275,7 @@ module Pat = {
       Some(CursorNotOnDeferredVarPat(mk(PatSynKeyword(k), ctx)))
     | CursorP(_, Var(_, InVarHole(Duplicate, _), _, x)) =>
       Some(CursorNotOnDeferredVarPat(mk(PatSynDuplicate(x), ctx)))
-    | CursorP(_, Var(NotInHole, NotInVarHole, _, x) as p) =>
+    | CursorP(_, Var(NotInHole, NotInVarHole, var_warn_status, x) as p) =>
       Statics.Pat.syn_operand(~steps, ctx, p)
       |> OptUtil.map(((ty, _)) =>
            CursorOnDeferredVarPat(
@@ -281,6 +285,7 @@ module Pat = {
                    ty,
                    x,
                    Contexts.gamma_contains(ctx, x),
+                   var_warn_status,
                    uses,
                    rec_uses,
                  ),
@@ -473,7 +478,7 @@ module Pat = {
       | Var(NotInHole, InVarHole(Duplicate, _), _, x) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaDuplicate(ty, x), ctx)))
       // not in hole
-      | Var(NotInHole, _, _, x) =>
+      | Var(NotInHole, _, var_warn_status, x) =>
         Some(
           CursorOnDeferredVarPat(
             (uses, rec_uses) =>
@@ -482,6 +487,7 @@ module Pat = {
                   ty,
                   x,
                   Contexts.gamma_contains(ctx, x),
+                  var_warn_status,
                   uses,
                   rec_uses,
                 ),

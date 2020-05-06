@@ -6,7 +6,7 @@ type err_state_b =
   | OK;
 
 type warn_state_b =
-  | VarShadow
+  | BindingWarn
   | NoWarn;
 
 let view = (model: Model.t): Vdom.Node.t => {
@@ -217,7 +217,7 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK, NoWarn);
-    | PatAnaVar(ty, _, shadow, uses, rec_uses) =>
+    | PatAnaVar(ty, _, shadow, var_warn, uses, rec_uses) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 =
         got_var_indicator(
@@ -225,7 +225,19 @@ let view = (model: Model.t): Vdom.Node.t => {
           List.length(uses) - List.length(rec_uses),
           List.length(rec_uses),
         );
-      (ind1, ind2, OK, shadow ? VarShadow : NoWarn);
+      (
+        ind1,
+        ind2,
+        OK,
+        shadow
+          ? BindingWarn
+          : (
+            switch (var_warn) {
+            | NoWarning => NoWarn
+            | _ => BindingWarn
+            }
+          ),
+      );
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
@@ -263,7 +275,7 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK, NoWarn);
-    | PatSynVar(_, _, shadow, uses, rec_uses) =>
+    | PatSynVar(_, _, shadow, var_warn, uses, rec_uses) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 =
         got_var_indicator(
@@ -271,7 +283,19 @@ let view = (model: Model.t): Vdom.Node.t => {
           List.length(uses) - List.length(rec_uses),
           List.length(rec_uses),
         );
-      (ind1, ind2, OK, shadow ? VarShadow : NoWarn);
+      (
+        ind1,
+        ind2,
+        OK,
+        shadow
+          ? BindingWarn
+          : (
+            switch (var_warn) {
+            | NoWarning => NoWarn
+            | _ => BindingWarn
+            }
+          ),
+      );
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
@@ -301,7 +325,7 @@ let view = (model: Model.t): Vdom.Node.t => {
 
   let cls_of_warn_state_b =
     switch (warn_state_b) {
-    | VarShadow => "cursor-VarShadow"
+    | BindingWarn => "cursor-BindingWarn"
     | NoWarn => "cursor-NoWarn"
     };
 

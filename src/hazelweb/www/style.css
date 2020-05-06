@@ -322,12 +322,12 @@ html, body {
 }
 
   /* warn_state */
-.cursor-VarShadow.cursor-inspector {
-  outline: 1px solid #a7a7a7;
+.cursor-BindingWarn.cursor-inspector {
+  outline: 1px solid #a35fa4;
 }
 
-.cursor-VarShadow .title-bar {
-  background-color: #a7a7a7;
+.cursor-BindingWarn .title-bar {
+  background-color: #a35fa4;
 }
 
 .typebar, .infobar {
@@ -358,6 +358,10 @@ html, body {
 
 .cursor-Keyword .typebar, .cursor-Keyword .infobar {
   background-color: #fef6ea;
+}
+
+.cursor-BindingWarn .typebar, .cursor-BindingWarn .infobar {
+  background-color: #fceafe;
 }
 
 .matched-type-bar > div {
