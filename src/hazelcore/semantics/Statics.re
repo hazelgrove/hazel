@@ -26,6 +26,73 @@ let _tuple_zip =
   };
 };
 
+let rec join = (ty1, ty2) =>
+  switch (ty1, ty2) {
+  | (_, HTyp.Hole) => Some(ty2)
+  | (HTyp.Hole, _) => Some(ty1)
+  | (HTyp.Unit, HTyp.Unit) => Some(ty1)
+  | (HTyp.Unit, _) => None
+  | (HTyp.Num, HTyp.Num) => Some(ty1)
+  | (HTyp.Num, _) => None
+  | (HTyp.Bool, HTyp.Bool) => Some(ty1)
+  | (HTyp.Bool, _) => None
+  | (HTyp.Arrow(ty1, ty2), HTyp.Arrow(ty1', ty2')) =>
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(HTyp.Arrow(ty1, ty2))
+    | _ => None
+    }
+  | (HTyp.Arrow(_), _) => None
+  | (HTyp.Prod(ty1, ty2), HTyp.Prod(ty1', ty2')) =>
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(HTyp.Prod(ty1, ty2))
+    | _ => None
+    }
+  | (HTyp.Prod(_), _) => None
+  | (HTyp.Sum(ty1, ty2), HTyp.Sum(ty1', ty2')) =>
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(HTyp.Sum(ty1, ty2))
+    | _ => None
+    }
+  | (HTyp.Sum(_), _) => None
+  | (HTyp.List(ty), HTyp.List(ty')) =>
+    switch (join(ty, ty')) {
+    | Some(ty) => Some(HTyp.List(ty))
+    | None => None
+    }
+  | (HTyp.List(_), _) => None
+  };
+
+let glb = (types: list(HTyp.t)): option(HTyp.t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    let rec exist_inconsistencies = l =>
+      switch (l) {
+      | [] => false
+      | [hd, ...tl] =>
+        if (List.exists(HTyp.inconsistent(hd), tl)) {
+          true;
+        } else {
+          exist_inconsistencies(tl);
+        }
+      };
+    if (exist_inconsistencies(types)) {
+      None;
+    } else {
+      List.fold_left(
+        (common_opt, ty) =>
+          switch (common_opt) {
+          | None => None
+          | Some(common_ty) => join(common_ty, ty)
+          },
+        Some(hd),
+        tl,
+      );
+    };
+  };
+};
+
 module Pat = {
   let tuple_zip = _tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
@@ -126,11 +193,28 @@ module Pat = {
         Some((ty, ctx));
       }
     | Parenthesized(p) => syn(ctx, p)
-    | ListLit(_, Some(p)) =>
-      // syn(ctx, p);
-      switch (syn(ctx, p)) {
-      | Some((ty, ctx)) => Some((List(ty), ctx))
-      | _ => None
+    | ListLit(_, Some(opseq)) =>
+      switch (opseq) {
+      | OpSeq(skel, seq) =>
+        let subskels = UHPat.get_tuple_elements(skel);
+        let rec syn_subskels = subskels =>
+          switch (subskels) {
+          | [] => failwith("ListNil")
+          | [hd] =>
+            switch (syn_skel(ctx, hd, seq)) {
+            | Some((ty, _)) => [ty]
+            | _ => failwith("Invalid type")
+            }
+          | [hd, ...tl] =>
+            switch (syn_skel(ctx, hd, seq)) {
+            | Some((ty, _)) => [ty, ...syn_subskels(tl)]
+            | _ => failwith("Invalid type")
+            }
+          };
+        switch (glb(syn_subskels(subskels))) {
+        | Some(ty) => Some((List(ty), ctx))
+        | _ => None
+        };
       }
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
@@ -969,14 +1053,30 @@ module Exp = {
       };
     | Parenthesized(body) => syn(ctx, body)
     | ListLit(_, Some(opseq)) =>
-      // syn_opseq(ctx, opseq)
-      switch (syn_opseq(ctx, opseq)) {
-      | Some(ty) => Some(List(ty))
-      | _ => None
+      switch (opseq) {
+      | OpSeq(skel, seq) =>
+        let subskels = UHExp.get_tuple_elements(skel);
+        let rec syn_subskels = subskels =>
+          switch (subskels) {
+          | [] => failwith("ListNil")
+          | [hd] =>
+            switch (syn_skel(ctx, hd, seq)) {
+            | Some(ty) => [ty]
+            | _ => failwith("Invalid type")
+            }
+          | [hd, ...tl] =>
+            switch (syn_skel(ctx, hd, seq)) {
+            | Some(ty) => [ty, ...syn_subskels(tl)]
+            | _ => failwith("Invalid type")
+            }
+          };
+        switch (glb(syn_subskels(subskels))) {
+        | Some(ty) => Some(List(ty))
+        | _ => None
+        };
       }
-    | ListLit(_, None) =>
-      // None
-      Some(List(Hole))
+
+    | ListLit(_, None) => Some(List(Hole))
     }
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
