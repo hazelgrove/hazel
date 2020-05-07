@@ -22,8 +22,7 @@ type t('operand, 'operator) =
  */
 and affix('operand, 'operator) =
   /* Empty */
-  | E
-  /* Affix */
+  | E /* Affix */
   | A('operator, t('operand, 'operator));
 
 let rec mk_affix =
@@ -122,15 +121,13 @@ let rec operands =
 and operands_of_affix =
   fun
   | E => []
-  | A(_, seq) => operands(seq);
-
-/*
+  | A(_, seq) => operands(seq) /*
  let rec join = (operands: ListMinTwo.t('operand), op: 'op): t('operand, 'op) =>
    switch (operands) {
    | Pair(operand1, operand2) => Operand(operand1, op, operand2)
    | Cons(operand, operands) => operand_op_seq(operand, op, join(operands, op))
    };
- */
+ */;
 
 let rec operators =
   fun
@@ -138,9 +135,8 @@ let rec operators =
 and operators_of_affix =
   fun
   | E => []
-  | A(op, seq) => [op, ...operators(seq)];
+  | A(op, seq) => [op, ...operators(seq)] /* update the nth operand in seq, if it exists */;
 
-/* update the nth operand in seq, if it exists */
 let rec opt_update_nth_operand =
         (n: int, operand: 'operand, seq: t('operand, 'operator))
         : option(t('operand, 'operator)) =>

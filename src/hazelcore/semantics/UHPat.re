@@ -74,8 +74,9 @@ let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
   | [skel] => skel
   | [skel, ...skels] =>
     BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
-  } /* helper function for constructing a new empty hole */;
+  };
 
+/* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
   (EmptyHole(u), u_gen);
@@ -122,8 +123,9 @@ let is_inconsistent = (p: t): bool =>
   switch (get_err_status(p)) {
   | InHole(TypeInconsistent, _) => true
   | _ => false
-  } /* put p in a new hole, if it is not already in a hole */;
+  };
 
+/* put p in a new hole, if it is not already in a hole */
 let rec make_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   make_inconsistent_opseq(u_gen, p)
 and make_inconsistent_opseq =
