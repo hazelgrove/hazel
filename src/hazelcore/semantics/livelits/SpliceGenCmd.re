@@ -27,8 +27,7 @@ let drop_splice =
     OptUtil.get(
       () =>
         failwith(
-          "Cannot delete non-existant splice named "
-          ++ SpliceInfo.var_of_splice_name(to_drop),
+          Printf.sprintf("Cannot delete non-existant splice %d", to_drop),
         ),
       NatMap.drop(splice_map, to_drop),
     );
