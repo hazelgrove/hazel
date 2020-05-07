@@ -38,40 +38,15 @@ type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
 };
+
 let get_cardstacks = (history: t): Cardstacks.t => {
   ZList.prj_z(ZList.prj_z(history.groups).group_entries).cardstacks;
 };
+
 let is_empty = (history: t): bool => {
+  /* initial state occupys one entry in undo_history */
   ZList.length(history.groups) <= 1
   && ZList.length(ZList.prj_z(history.groups).group_entries) <= 1;
-};
-
-let get_cursor_info =
-    (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
-    : cursor_term_info => {
-  let zexp_before =
-    ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
-    |> Program.get_zexp;
-  let (prev_is_empty_line, next_is_empty_line) =
-    CursorInfo.adjacent_is_emptyline(zexp_before);
-  let cursor_info_before =
-    cardstacks_before |> Cardstacks.get_program |> Program.get_cursor_info;
-  let cursor_term_before = cursor_info_before.cursor_term;
-  let zexp_after =
-    ZList.prj_z(ZList.prj_z(cardstacks_after).zcards).program
-    |> Program.get_zexp;
-  let cursor_info_after =
-    cardstacks_after |> Cardstacks.get_program |> Program.get_cursor_info;
-  let cursor_term_after = cursor_info_after.cursor_term;
-
-  {
-    cursor_term_before,
-    cursor_term_after,
-    zexp_before,
-    zexp_after,
-    prev_is_empty_line,
-    next_is_empty_line,
-  };
 };
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
@@ -84,22 +59,6 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | TypOp(cursor_pos, _)
   | Line(cursor_pos, _)
   | Rule(cursor_pos, _) => cursor_pos
-  };
-};
-
-let has_typ_ann = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | Exp(_, exp) =>
-    switch (exp) {
-    | Lam(_, _, _, _) => true
-    | _ => false
-    }
-  | Line(_, line_content) =>
-    switch (line_content) {
-    | LetLine(_, _, _) => true
-    | _ => false
-    }
-  | _ => false
   };
 };
 
@@ -117,6 +76,8 @@ let push_history_entry =
       };
     } else {
       {
+        /* push new Ignore entry into history */
+
         ...prev_group,
         group_entries: (
           ZList.prj_prefix(prev_group.group_entries),
@@ -130,6 +91,8 @@ let push_history_entry =
     };
   } else {
     {
+      /* push new non-Ignore entry, and clear the successory history entries */
+
       group_entries: (
         [],
         new_entry,
@@ -143,23 +106,24 @@ let push_history_entry =
   };
 };
 
-let rec drop_prefix_ignore_entries =
+let rec get_first_non_ignore_entry =
         (ls: list(undo_history_entry)): option(undo_history_entry) => {
   switch (ls) {
   | [] => None
   | [head, ...tail] =>
     if (head.edit_action == Ignore) {
-      drop_prefix_ignore_entries(tail);
+      get_first_non_ignore_entry(tail);
     } else {
       Some(head);
     }
   };
 };
 
+/* return true if cursor jump to another term when new action applied */
 let cursor_jump =
     (prev_group: undo_history_group, cardstacks_before: Cardstacks.t): bool => {
   switch (
-    drop_prefix_ignore_entries([
+    get_first_non_ignore_entry([
       ZList.prj_z(prev_group.group_entries),
       ...ZList.prj_suffix(prev_group.group_entries),
     ])
@@ -174,6 +138,7 @@ let cursor_jump =
   };
 };
 
+/* return true if new edit_action can be grouped with the preivous edit_action */
 let group_edit_action =
     (edit_action_1: edit_action, edit_action_2: edit_action): bool =>
   switch (edit_action_1, edit_action_2) {
@@ -217,6 +182,7 @@ let group_edit_action =
   | (ConstructEdit(_), _) => false
   };
 
+/* return true if new entry can be grouped into the previous group */
 let group_entry =
     (
       ~prev_group: undo_history_group,
@@ -227,9 +193,10 @@ let group_entry =
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   let can_group_edit_action =
     switch (prev_entry.edit_action, new_edit_action) {
+    /* ignore entries with "Ignore" edit_action */
     | (Ignore, _) =>
       switch (
-        drop_prefix_ignore_entries([
+        get_first_non_ignore_entry([
           prev_entry,
           ...ZList.prj_suffix(prev_group.group_entries),
         ])
@@ -241,9 +208,11 @@ let group_entry =
     | (_, _) => group_edit_action(prev_entry.edit_action, new_edit_action)
     };
 
+  /* edit actions like construct space/new lines should be grouped together,
+     so cursor jump should be ignored in those cases */
   let ignore_cursor_jump =
     switch (
-      drop_prefix_ignore_entries([
+      get_first_non_ignore_entry([
         prev_entry,
         ...ZList.prj_suffix(prev_group.group_entries),
       ])
@@ -404,6 +373,21 @@ let get_original_deleted_term =
   );
 };
 
+let has_typ_ann = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Exp(_, exp) =>
+    switch (exp) {
+    | Lam(_, _, _, _) => true
+    | _ => false
+    }
+  | Line(_, line_content) =>
+    switch (line_content) {
+    | LetLine(_, _, _) => true
+    | _ => false
+    }
+  | _ => false
+  };
+};
 let delete_edit =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
     : edit_action =>
@@ -671,6 +655,33 @@ let get_new_edit_action =
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
     }
+  };
+};
+let get_cursor_info =
+    (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
+    : cursor_term_info => {
+  let zexp_before =
+    ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
+    |> Program.get_zexp;
+  let (prev_is_empty_line, next_is_empty_line) =
+    CursorInfo.adjacent_is_emptyline(zexp_before);
+  let cursor_info_before =
+    cardstacks_before |> Cardstacks.get_program |> Program.get_cursor_info;
+  let cursor_term_before = cursor_info_before.cursor_term;
+  let zexp_after =
+    ZList.prj_z(ZList.prj_z(cardstacks_after).zcards).program
+    |> Program.get_zexp;
+  let cursor_info_after =
+    cardstacks_after |> Cardstacks.get_program |> Program.get_cursor_info;
+  let cursor_term_after = cursor_info_after.cursor_term;
+
+  {
+    cursor_term_before,
+    cursor_term_after,
+    zexp_before,
+    zexp_after,
+    prev_is_empty_line,
+    next_is_empty_line,
   };
 };
 
