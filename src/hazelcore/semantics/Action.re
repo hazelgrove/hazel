@@ -56,7 +56,7 @@ let shape_to_string = (shape: shape): string => {
   | SChar(str) => str
   | SAsc => "type annotation"
   | SLam => "function"
-  | SListNil => "Nil"
+  | SListNil => "empty list"
   | SInj(side) =>
     switch (side) {
     | L => "left injection"
@@ -75,8 +75,8 @@ let shape_to_string = (shape: shape): string => {
     | SEquals => "=="
     | SSpace => "space"
     | SComma => ","
-    | SArrow => "->"
-    | SVBar => "vbar"
+    | SArrow => UnicodeConstants.typeArrowSym
+    | SVBar => "|"
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"

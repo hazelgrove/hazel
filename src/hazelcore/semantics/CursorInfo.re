@@ -24,7 +24,8 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t) /* cursor in synthetic position */
+  | AnaSubsumed(HTyp.t, HTyp.t)
+  /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
   // with a matched arrow type
@@ -49,7 +50,8 @@ type typed =
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
   // none of the above
-  | Synthesized(HTyp.t) /* cursor in analytic pattern position */
+  | Synthesized(HTyp.t)
+  /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple pattern of the wrong length
@@ -67,11 +69,14 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t) /* cursor in synthetic pattern position */
+  | PatAnaSubsumed(HTyp.t, HTyp.t)
+  /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
-  | PatSynKeyword(ExpandingKeyword.t) /* cursor in type position */
-  | OnType /* (we will have a richer structure here later)*/
+  | PatSynKeyword(ExpandingKeyword.t)
+  /* cursor in type position */
+  | OnType
+  /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;
 
@@ -421,12 +426,13 @@ let get_ctx = ci => ci.ctx;
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(t) =>
     Some(mk(OnType, ctx, extract_cursor_type_term(typ)));
-} /*
+};
+/*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
  * until we could find uses and feed it to (uses_list => 't).
- */;
+ */
 
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)

@@ -388,6 +388,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
   | _ => false
   };
 };
+
 let delete_edit =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
     : edit_action =>
