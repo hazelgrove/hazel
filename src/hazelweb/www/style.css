@@ -1440,10 +1440,28 @@ h1 {
   background-color: lightgoldenrodyellow;
 }
 
-.the-history-title-txt {
+.the-history-title-entry {
   cursor: pointer;
   float: left;
   width: 100%;
+}
+.history-type-tag{
+  display: inline;
+  border-radius: 10%;
+  color: black;
+  margin-right:10px;
+  font-size: 11px;
+  padding:5px;
+  font-weight: bolder; 
+}
+.history-type-tag-typ{
+  background-color:rgb(233, 221, 253);
+}
+.history-type-tag-pat{
+  background-color:#baf1fe;
+}
+.history-type-tag-exp{
+  background-color:rgb(197, 253, 197);
 }
 .the-prev-history {
   color: #0d0a05;
