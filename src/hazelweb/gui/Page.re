@@ -154,18 +154,20 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ],
       );
     };
-  let e = program |> Program.get_uhexp;
-  let doc = lazy(UHDoc.Exp.mk(~enforce_inline=false, e));
-  let layout =
-    lazy(
-      switch (
-        Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
-      ) {
-      | None => Pretty.Layout.Text("layout FAILED") // TODO
-      | Some(l) => l
-      }
-    );
-  let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
+  /*
+   let e = program |> Program.get_uhexp;
+   let doc = lazy(UHDoc.Exp.mk(~enforce_inline=false, e));
+   let layout =
+     lazy(
+       switch (
+         Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
+       ) {
+       | None => Pretty.Layout.Text("layout FAILED") // TODO
+       | Some(l) => l
+       }
+     );
+   let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
+   */
   Node.div(
     [Attr.id("root")],
     [
@@ -238,11 +240,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ),
                       ),
                     ],
-                    if (!model.show_presentation) {
-                      [];
-                    } else {
-                      [JSUtil.vdom_of_box(Lazy.force(box))];
-                    },
+                    [],
+                    /*
+                     if (!model.show_presentation) {
+                       [];
+                     } else {
+                       [JSUtil.vdom_of_box(Lazy.force(box))];
+                     },
+                     */
                   ),
                 ],
               ),

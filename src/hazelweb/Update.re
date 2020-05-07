@@ -26,8 +26,6 @@ module Action = {
     | ToggleShowFnBodies
     | ToggleShowCasts
     | ToggleShowUnevaluatedExpansion
-    | ToggleShowContenteditable
-    | ToggleShowPresentation
     | SelectHoleInstance(HoleInstance.t)
     | InvalidVar(string)
     | FocusCell
@@ -88,8 +86,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleShowFnBodies
   | ToggleShowCasts
   | ToggleShowUnevaluatedExpansion
-  | ToggleShowContenteditable
-  | ToggleShowPresentation
   | SelectHoleInstance(_)
   | InvalidVar(_)
   | FocusCell
@@ -163,14 +159,6 @@ let apply_action =
   | ToggleShowUnevaluatedExpansion => {
       ...model,
       show_unevaluated_expansion: !model.show_unevaluated_expansion,
-    }
-  | ToggleShowContenteditable => {
-      ...model,
-      show_contenteditable: !model.show_contenteditable,
-    }
-  | ToggleShowPresentation => {
-      ...model,
-      show_presentation: !model.show_presentation,
     }
   | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
