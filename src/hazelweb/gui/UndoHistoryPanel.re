@@ -201,6 +201,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
   let timestamp_view = (undo_history_entry: undo_history_entry) => {
     let hour = Unix.localtime(undo_history_entry.timestamp).tm_hour;
+    /* if there is only 1 digit in sec/min/hour, it should be expanded into two digits */
     let str_hour =
       if (hour < 10) {
         "0" ++ string_of_int(hour);
@@ -618,9 +619,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           start_index /*elt_id*/,
                           title_entry,
                         ),
-                      ] /* the successor history entry */,
+                      ],
                     )
                   ),
+                  /* the successor history entry */
                   Vdom.(
                     Node.div(
                       [
@@ -636,9 +638,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         base => base + 1,
                         start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */,
                         suc_entries',
-                      ) /* the selected(current) history entry */,
+                      ),
                     )
                   ),
+                  /* the selected(current) history entry */
                   Vdom.(
                     Node.div(
                       [
@@ -653,9 +656,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           start_index + 1 + List.length(suc_entries') /* elt_id */,
                           cur_entry,
                         ),
-                      ] /* the previous history entry */,
+                      ],
                     )
                   ),
+                  /* the previous history entry */
                   Vdom.(
                     Node.div(
                       [
@@ -720,9 +724,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           start_index /*elt_id*/,
                           title_entry,
                         ),
-                      ] /* hidden entries */,
+                      ],
                     )
                   ),
+                  /* hidden entries */
                   Vdom.(
                     Node.div(
                       [
@@ -787,9 +792,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         start_index /*elt_id*/,
                         title_entry,
                       ),
-                    ] /* hidden entries */,
+                    ],
                   )
                 ),
+                /* hidden entries */
                 Vdom.(
                   Node.div(
                     [
