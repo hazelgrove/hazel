@@ -175,27 +175,21 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     info_button(is_action_allowed(action), text);
   };
 
-  let combo_and_cursor_on_type = (combo, description) => {
-    let is_allowed = action => {
-      switch (cursor_info.typed) {
-      | OnType => is_action_allowed(action)
-      | _ => false
-      };
+  let is_action_allowed_with_on_type_check = (~on_type, action) => {
+    switch (cursor_info.typed) {
+    | OnType when on_type => is_action_allowed(action)
+    | OnType => false
+    | _ when on_type => false
+    | _ => is_action_allowed(action)
     };
+  };
+
+  let combo_and_cursor = (~on_type, combo, description) => {
+    let is_allowed = is_action_allowed_with_on_type_check(~on_type);
     combo_element(is_allowed, combo, description);
   };
 
-  let combo_and_cursor_not_on_type = (combo, description) => {
-    let is_allowed = action => {
-      switch (cursor_info.typed) {
-      | OnType => false
-      | _ => is_action_allowed(action)
-      };
-    };
-    combo_element(is_allowed, combo, description);
-  };
-
-  let operator_list = combos => {
+  let operator_list = (~on_type, combos) => {
     let actions =
       List.map(
         combo => {
@@ -204,6 +198,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         },
         combos,
       );
+    let is_action_allowed = is_action_allowed_with_on_type_check(~on_type);
     action_list(is_action_allowed, inject, actions, "Operators");
   };
 
@@ -226,7 +221,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       "Arithmetic",
       [
         info([text("Enter number literals directly")]),
-        operator_list([Plus, Minus, Asterisk]),
+        operator_list(~on_type=false, [Plus, Minus, Asterisk]),
       ],
     ),
     section(
@@ -253,13 +248,14 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           mono_text("\"true\", \"false\""),
           text(" directly"),
         ]),
-        operator_list([LT, GT, Ampersand, Equals]),
+        operator_list(~on_type=false, [LT, GT, Ampersand, Equals]),
       ],
     ),
     section(
       "Lists",
       [
-        combo_and_cursor_not_on_type(
+        combo_and_cursor(
+          ~on_type=false,
           LeftBracket,
           simple("Insert Empty List (nil)"),
         ),
@@ -286,8 +282,12 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         ),
         combo(Colon, simple("Type ascription")),
         combo(VBar, simple("Insert | operator")),
-        combo_and_cursor_on_type(LeftBracket, simple("Insert type List")),
-        combo_and_cursor_on_type(GT, [text("Create a type arrow")]),
+        combo_and_cursor(
+          ~on_type=true,
+          LeftBracket,
+          simple("Insert type List"),
+        ),
+        combo_and_cursor(~on_type=true, GT, [text("Create a type arrow")]),
       ],
     ),
     section(
