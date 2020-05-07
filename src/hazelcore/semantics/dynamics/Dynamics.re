@@ -1230,24 +1230,26 @@ module Exp = {
       skel_tys
       |> List.fold_left(
            (
-             acc: option((list(DHExp.t), Delta.t)),
+             acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
              (skel: UHExp.skel, ty: HTyp.t),
            ) =>
              switch (acc) {
              | None => None
-             | Some((rev_ds, delta)) =>
+             | Some((rev_ds, rev_tys, delta)) =>
                switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
                | DoesNotExpand => None
-               | Expands(d, _, delta) => Some(([d, ...rev_ds], delta))
+               | Expands(d, ty, delta) =>
+                 Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
                }
              },
-           Some(([], delta)),
+           Some(([], [], delta)),
          )
       |> (
         fun
         | None => DoesNotExpand
-        | Some((rev_ds, delta)) => {
+        | Some((rev_ds, rev_tys, delta)) => {
             let d = rev_ds |> List.rev |> DHExp.make_tuple;
+            let ty = rev_tys |> List.rev |> HTyp.make_tuple;
             Expands(d, ty, delta);
           }
       )
@@ -1256,24 +1258,30 @@ module Exp = {
       | ([Placeholder(n)], _) =>
         ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
       | (_, [Hole]) =>
+        /* Handling case where analyzing tuple against Hole */
         skels
         |> List.fold_left(
-             (acc: option((list(DHExp.t), Delta.t)), skel: UHExp.skel) =>
+             (
+               acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
+               skel: UHExp.skel,
+             ) =>
                switch (acc) {
                | None => None
-               | Some((rev_ds, delta)) =>
+               | Some((rev_ds, rev_tys, delta)) =>
                  switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
                  | DoesNotExpand => None
-                 | Expands(d, _, delta) => Some(([d, ...rev_ds], delta))
+                 | Expands(d, ty, delta) =>
+                   Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
                  }
                },
-             Some(([], delta)),
+             Some(([], [], delta)),
            )
         |> (
           fun
           | None => DoesNotExpand
-          | Some((rev_ds, delta)) => {
+          | Some((rev_ds, rev_tys, delta)) => {
               let d = rev_ds |> List.rev |> DHExp.make_tuple;
+              let ty = rev_tys |> List.rev |> HTyp.make_tuple;
               Expands(d, ty, delta);
             }
         )
@@ -1299,7 +1307,7 @@ module Exp = {
                 delta,
                 (u, (ExpressionHole, ty, gamma)),
               );
-            Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
+            Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
           }
         }
       }
@@ -1331,7 +1339,7 @@ module Exp = {
         let delta =
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
-        Expands(d, ty, delta);
+        Expands(d, Hole, delta);
       };
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
@@ -1387,7 +1395,7 @@ module Exp = {
         let sigma = id_env(gamma);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-        Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
+        Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
     | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
     | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
