@@ -30,6 +30,15 @@ let sub_panel = (title: string, children: list(Vdom.Node.t)): Vdom.Node.t => {
   );
 };
 
+let action_label = (~attrs=[], children) => {
+  Vdom.(
+    Node.div(
+      [Attr.classes(["action-label", "info-label"]), ...attrs],
+      children,
+    )
+  );
+};
+
 let info_button = (can_perform, lbl) =>
   Vdom.(
     Node.div(
@@ -40,7 +49,7 @@ let info_button = (can_perform, lbl) =>
             : ["action-panel-entry", "action-disabled"],
         ),
       ],
-      [Node.div([Attr.classes(["action-label", "info-label"])], lbl)],
+      [action_label(lbl)],
     )
   );
 
@@ -93,6 +102,33 @@ let action_button =
   );
 };
 
+let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes(
+          is_action_allowed(action)
+            ? ["keyboard-shortcut", "action-enabled"]
+            : ["keyboard-shortcut", "action-disabled"],
+        ),
+        Attr.on_click(_ => inject(Update.Action.EditAction(action))),
+        Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
+        Attr.on_keydown(evt =>
+          if (KeyCombo.Details.matches(combo, evt)) {
+            Event.Many([
+              inject(Update.Action.EditAction(action)),
+              Event.Prevent_default,
+            ]);
+          } else {
+            Event.Prevent_default;
+          }
+        ),
+      ],
+      [Node.text(KeyCombo.Details.name(combo))],
+    )
+  );
+};
+
 let action_list =
     (
       is_action_allowed: Action.t => bool,
@@ -101,29 +137,7 @@ let action_list =
       label: string,
     ) => {
   let item = ((combo, action)) => {
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(
-            is_action_allowed(action)
-              ? ["keyboard-shortcut", "action-enabled"]
-              : ["keyboard-shortcut", "action-disabled"],
-          ),
-          Attr.on_click(_ => inject(Update.Action.EditAction(action))),
-          Attr.on_keydown(evt =>
-            if (KeyCombo.Details.matches(combo, evt)) {
-              Event.Many([
-                inject(Update.Action.EditAction(action)),
-                Event.Prevent_default,
-              ]);
-            } else {
-              Event.Prevent_default;
-            }
-          ),
-        ],
-        [Node.text(KeyCombo.Details.name(combo))],
-      )
-    );
+    keyboard_button(is_action_allowed, ~inject, ~action, ~combo);
   };
   let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
   let display_flex =
@@ -145,7 +159,6 @@ let action_list =
 };
 
 let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
-  // Helper functions
   let text = Vdom.Node.text;
   let simple = desc => [Vdom.Node.text(desc)];
 
@@ -202,19 +215,53 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     action_list(is_action_allowed, inject, actions, "Operators");
   };
 
+  let keyboard_button = combo => {
+    let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
+    let combo = KeyCombo.get_details(combo);
+    keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
+  };
+
+  let display_inline_block =
+    Vdom.Attr.(
+      style(Css_gen.(create(~field="display", ~value="inline-block")))
+    );
+
+  let dual_line = (description1, combo1, description2, combo2) => {
+    action_label(
+      ~attrs=[
+        Vdom.Attr.(
+          style(
+            Css_gen.(
+              create(~field="display", ~value="flex")
+              @> create(~field="justify-content", ~value="space-between")
+            ),
+          )
+        ),
+      ],
+      [
+        Vdom.Node.div(
+          [display_inline_block],
+          [text(description1), keyboard_button(combo1)],
+        ),
+        Vdom.Node.div(
+          [display_inline_block],
+          [text(description2), keyboard_button(combo2)],
+        ),
+      ],
+    );
+  };
+
   KeyCombo.[
     section(
       "Movement",
       [
         info([text("Move using arrow keys")]),
-        combo(ShiftTab, simple("Move to previous hole")),
-        combo(Tab, simple("Move to next hole")),
+        dual_line("Move to next hole ", Tab, "Previous hole ", ShiftTab),
         combo(Ctrl_Alt_Up, simple("Swap expression up")),
         combo(Ctrl_Alt_Down, simple("Swap expression down")),
         combo(Ctrl_Alt_Left, simple("Swap expression left")),
         combo(Ctrl_Alt_Right, simple("Swap expression right")),
-        combo(Enter, simple("Create new line")),
-        combo(Delete, simple("Delete expression")),
+        dual_line("Create new line ", Enter, "Delete expression ", Delete),
       ],
     ),
     section(
@@ -236,8 +283,8 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action.Construct(SLet),
         ),
-        combo(Backspace, simple("Delete character")),
         combo(Colon, simple("Type ascription")),
+        combo(Backspace, simple("Delete character")),
       ],
     ),
     section(
