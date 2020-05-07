@@ -54,9 +54,9 @@
        ~ann=
          Typ.mk_OpSeq(
            SeqOpExp(
-             ExpOpExp(List(Num), Arrow, List(Num)),
+             ExpOpExp(List(Int), Arrow, List(Int)),
              Arrow,
-             List(Num),
+             List(Int),
            ),
          ),
        wrap_in_block(append_lam),
@@ -110,20 +110,20 @@
                "Suppose we are implementing a combat game "
                ++ "and, specifically, defining the function ",
              ),
-             centered_code("damage : (Bool, Num) -> Num"),
+             centered_code("damage : (Bool, Int) -> Int"),
              txt("The input tuple of type "),
-             code("(Bool, Num)"),
+             code("(Bool, Int)"),
              txt(
                " represents an enemy attack dealt to the "
                ++ "current player, consisting of a ",
              ),
              code("Bool"),
              txt(" indicating whether the attack is a melee attack, and a "),
-             code("Num"),
+             code("Int"),
              txt(
                " representing the critical hit multiplier. The output type of ",
              ),
-             code("Num"),
+             code("Int"),
              txt(" is the damage points inflicted upon the current player."),
              p(
                [],
@@ -144,9 +144,9 @@
                ~ann=
                  UHTyp.(
                    ExpOpExp(
-                     Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                     Parenthesized(ExpOpExp(Bool, Prod, Int) |> Typ.mk_OpSeq),
                      Arrow,
-                     Num,
+                     Int,
                    )
                    |> Typ.mk_OpSeq
                  ),
@@ -165,14 +165,14 @@
                          [
                            Rule(
                              UHPat.boollit(false),
-                             numlit(5) |> wrap_in_block,
+                             intlit(5) |> wrap_in_block,
                            ),
                            Rule(
                              UHPat.boollit(true),
                              SeqOpExp(
-                               ExpOpExp(numlit(2), Times, var("crit_hit")),
+                               ExpOpExp(intlit(2), Times, var("crit_hit")),
                                Plus,
-                               numlit(1),
+                               intlit(1),
                              )
                              |> Exp.mk_OpSeq
                              |> wrap_in_block,
@@ -199,26 +199,26 @@
                "Suppose we are implementing a combat game "
                ++ "and, specifically, defining the function ",
              ),
-             centered_code("damage : (Bool, Num) -> Num"),
+             centered_code("damage : (Bool, Int) -> Int"),
              txt("The input tuple of type "),
-             code("(Bool, Num)"),
+             code("(Bool, Int)"),
              txt(
                " represents an enemy attack dealt to the "
                ++ "current player, consisting of a ",
              ),
              code("Bool"),
              txt(" indicating whether the attack is a melee attack, and a "),
-             code("Num"),
+             code("Int"),
              txt(
                " representing the critical hit multiplier. The output type of ",
              ),
-             code("Num"),
+             code("Int"),
              txt(" is the damage points inflicted upon the current player."),
              p(
                [Attr.classes(["card-exercise"])],
                [
                  txt("Suppose we have in scope the current player's"),
-                 code(" defense_score : Num "),
+                 code(" defense_score : Int "),
                  txt(
                    "and wish to integrate it into the damage calculation. "
                    ++ "Modify the body of ",
@@ -242,7 +242,7 @@
            [
              UHExp.letline(
                UHPat.var("defense_score"),
-               ~ann=UHTyp.Num,
+               ~ann=UHTyp.Int,
                UHExp.EmptyHole(-1) |> UHExp.Block.wrap',
              ),
              UHExp.EmptyLine,
@@ -251,9 +251,9 @@
                ~ann=
                  UHTyp.(
                    ExpOpExp(
-                     Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                     Parenthesized(ExpOpExp(Bool, Prod, Int) |> Typ.mk_OpSeq),
                      Arrow,
-                     Num,
+                     Int,
                    )
                    |> Typ.mk_OpSeq
                  ),
@@ -272,14 +272,14 @@
                          [
                            Rule(
                              UHPat.boollit(false),
-                             numlit(5) |> wrap_in_block,
+                             intlit(5) |> wrap_in_block,
                            ),
                            Rule(
                              UHPat.boollit(true),
                              SeqOpExp(
-                               ExpOpExp(numlit(2), Times, var("crit_hit")),
+                               ExpOpExp(intlit(2), Times, var("crit_hit")),
                                Plus,
-                               numlit(1),
+                               intlit(1),
                              )
                              |> Exp.mk_OpSeq
                              |> wrap_in_block,
@@ -310,7 +310,7 @@
                ++ "the function",
              ),
              centered_code(
-               "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
+               "step : (List(Int), List(Int), List(Int)) -> (List(Int), List(Int), List(Int))",
              ),
              txt(
                "that takes an inital slot machine state and returns "
@@ -338,7 +338,7 @@
                UHPat.var("rotate"),
                ~ann=
                  UHTyp.(
-                   ExpOpExp(List(Num), Arrow, List(Num)) |> Typ.mk_OpSeq
+                   ExpOpExp(List(Int), Arrow, List(Int)) |> Typ.mk_OpSeq
                  ),
                UHExp.(
                  wrap_in_block(
@@ -383,18 +383,18 @@
                    ExpOpExp(
                      Parenthesized(
                        SeqOpExp(
-                         ExpOpExp(List(Num), Prod, List(Num)),
+                         ExpOpExp(List(Int), Prod, List(Int)),
                          Prod,
-                         List(Num),
+                         List(Int),
                        )
                        |> Typ.mk_OpSeq,
                      ),
                      Arrow,
                      Parenthesized(
                        SeqOpExp(
-                         ExpOpExp(List(Num), Prod, List(Num)),
+                         ExpOpExp(List(Int), Prod, List(Int)),
                          Prod,
-                         List(Num),
+                         List(Int),
                        )
                        |> Typ.mk_OpSeq,
                      ),
@@ -475,7 +475,7 @@
                ++ "the function",
              ),
              centered_code(
-               "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
+               "step : (List(Int), List(Int), List(Int)) -> (List(Int), List(Int), List(Int))",
              ),
              txt(
                "that takes an inital slot machine state and returns "
@@ -491,7 +491,7 @@
                  txt(" so that it takes an additional argument "),
                  code("k"),
                  txt(" of type "),
-                 code("Num"),
+                 code("Int"),
                  txt(" and rotates the given list "),
                  code("k"),
                  txt(" times. Then refactor the body of "),
@@ -513,9 +513,9 @@
                ~ann=
                  UHTyp.(
                    SeqOpExp(
-                     ExpOpExp(Num, Arrow, List(Num)),
+                     ExpOpExp(Int, Arrow, List(Int)),
                      Arrow,
-                     List(Num),
+                     List(Int),
                    )
                    |> Typ.mk_OpSeq
                  ),
@@ -562,18 +562,18 @@
                    ExpOpExp(
                      Parenthesized(
                        SeqOpExp(
-                         ExpOpExp(List(Num), Prod, List(Num)),
+                         ExpOpExp(List(Int), Prod, List(Int)),
                          Prod,
-                         List(Num),
+                         List(Int),
                        )
                        |> Typ.mk_OpSeq,
                      ),
                      Arrow,
                      Parenthesized(
                        SeqOpExp(
-                         ExpOpExp(List(Num), Prod, List(Num)),
+                         ExpOpExp(List(Int), Prod, List(Int)),
                          Prod,
-                         List(Num),
+                         List(Int),
                        )
                        |> Typ.mk_OpSeq,
                      ),
@@ -692,13 +692,13 @@
                ],
              ),
              txt("We model each card as a 3-tuple of type "),
-             code("(Num, Num, Num)"),
+             code("(Int, Int, Int)"),
              txt(
                ", where each tuple position represents a face property. "
                ++ "In this exercise, we will implement a function",
              ),
              centered_code(
-               "is_set : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
+               "is_set : (Int, Int, Int) -> (Int, Int, Int) -> (Int, Int, Int) -> Bool",
              ),
              txt("that returns whether three given cards form a SET."),
              p(
@@ -713,7 +713,7 @@
          let num_triple =
            UHTyp.(
              Parenthesized(
-               SeqOpExp(ExpOpExp(Num, Prod, Num), Prod, Num) |> Typ.mk_OpSeq,
+               SeqOpExp(ExpOpExp(Int, Prod, Int), Prod, Int) |> Typ.mk_OpSeq,
              )
            );
          UHExp.Block(
@@ -794,13 +794,13 @@
                ],
              ),
              txt("We model each card as a 3-tuple of type "),
-             code("(Num, Num, Num)"),
+             code("(Int, Int, Int)"),
              txt(
                ", where each tuple position represents a face property. "
                ++ "In this exercise, we will implement a function",
              ),
              centered_code(
-               "is_set : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
+               "is_set : (Int, Int, Int) -> (Int, Int, Int) -> (Int, Int, Int) -> Bool",
              ),
              txt("that returns whether three given cards form a SET."),
              p(
@@ -866,7 +866,7 @@
          let num_triple =
            UHTyp.(
              Parenthesized(
-               SeqOpExp(ExpOpExp(Num, Prod, Num), Prod, Num) |> Typ.mk_OpSeq,
+               SeqOpExp(ExpOpExp(Int, Prod, Int), Prod, Int) |> Typ.mk_OpSeq,
              )
            );
          UHExp.Block(
@@ -875,7 +875,7 @@
                UHPat.var("same"),
                ~ann=
                  UHTyp.(
-                   SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Bool)
+                   SeqOpExp(ExpOpExp(Int, Arrow, Int), Arrow, Bool)
                    |> Typ.mk_OpSeq
                  ),
                UHExp.(EmptyHole(-1) |> wrap_in_block),
@@ -884,7 +884,7 @@
                UHPat.var("different"),
                ~ann=
                  UHTyp.(
-                   SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Bool)
+                   SeqOpExp(ExpOpExp(Int, Arrow, Int), Arrow, Bool)
                    |> Typ.mk_OpSeq
                  ),
                UHExp.(EmptyHole(-1) |> wrap_in_block),
@@ -895,7 +895,7 @@
                ~ann=
                  UHTyp.(
                    SeqOpExp(
-                     SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Num),
+                     SeqOpExp(ExpOpExp(Int, Arrow, Int), Arrow, Int),
                      Arrow,
                      Bool,
                    )
@@ -908,7 +908,7 @@
                ~ann=
                  UHTyp.(
                    SeqOpExp(
-                     SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Num),
+                     SeqOpExp(ExpOpExp(Int, Arrow, Int), Arrow, Int),
                      Arrow,
                      Bool,
                    )
