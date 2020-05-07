@@ -11,10 +11,6 @@ You can try Hazel online with either the
 [dev](https://hazel.org/build/dev/index.html) version. Note that the master
 branch is updated infrequently and is currently almost two years behind!
 
-### Overview View
-
-- The following covers the theory (with a much older implementation): [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
-
 <!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
 
 ## Building and Running Hazel

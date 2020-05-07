@@ -404,7 +404,8 @@ module Pat = {
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Hole), ctx)))
       | Wild(InHole(TypeInconsistent, _))
       | Var(InHole(TypeInconsistent, _), _, _)
-      | NumLit(InHole(TypeInconsistent, _), _)
+      | IntLit(InHole(TypeInconsistent, _), _)
+      | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
       | Inj(InHole(TypeInconsistent, _), _, _) =>
@@ -420,7 +421,8 @@ module Pat = {
         };
       | Wild(InHole(WrongLength | InconsistentBranches(_), _))
       | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+      | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+      | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
       | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
       | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
       | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) => None
@@ -437,8 +439,10 @@ module Pat = {
       | Wild(NotInHole)
       | ListNil(NotInHole) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
-      | NumLit(NotInHole, _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Num), ctx)))
+      | IntLit(NotInHole, _) =>
+        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Int), ctx)))
+      | FloatLit(NotInHole, _) =>
+        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Float), ctx)))
       | BoolLit(NotInHole, _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Bool), ctx)))
       | Inj(NotInHole, _, _) =>
@@ -637,9 +641,14 @@ module Exp = {
           skel1,
           skel2,
         ) =>
-        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Num)) {
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Int)) {
         | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Num)
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Int)
+        }
+      | BinOp(_, FMinus | FPlus | FTimes, skel1, skel2) =>
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Float)) {
+        | Some(_) as result => result
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Float)
         }
       | BinOp(_, And | Or, skel1, skel2) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Bool)) {
@@ -919,7 +928,11 @@ module Exp = {
         }
       | BinOp(
           _,
-          Plus | Minus | Times | LessThan | GreaterThan | Equals | And | Or |
+          Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan |
+          GreaterThan |
+          Equals |
+          And |
+          Or |
           Space,
           _,
           _,
@@ -944,7 +957,8 @@ module Exp = {
         Some(mk(AnaKeyword(ty, k), ctx))
       | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty), ctx))
       | Var(InHole(TypeInconsistent, _), _, _)
-      | NumLit(InHole(TypeInconsistent, _), _)
+      | IntLit(InHole(TypeInconsistent, _), _)
+      | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
@@ -960,7 +974,8 @@ module Exp = {
         | Some(ty') => Some(mk(AnaTypeInconsistent(ty, ty'), ctx))
         };
       | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+      | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+      | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
       | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
       | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
       | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
@@ -971,7 +986,8 @@ module Exp = {
       /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
-      | NumLit(NotInHole, _)
+      | IntLit(NotInHole, _)
+      | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
       | ApPalette(NotInHole, _, _, _) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
