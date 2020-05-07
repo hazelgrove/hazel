@@ -173,21 +173,25 @@ let get_layout = program => {
     |> OptUtil.get(() =>
          failwith(__LOC__ ++ ": unimplemented on layout failure")
        );
-  let splice_layouts =
-    layout
+  let rec splice_layouts = l =>
+    l
     |> UHLayout.fold(
          ~linebreak=MetaVarMap.empty,
          ~text=_ => MetaVarMap.empty,
          ~align=ls => ls,
-         ~cat=(ls1, ls2) => ls1 @ ls2,
+         ~cat=(@),
          ~annot=
            (pos, annot, ls) =>
              switch (annot) {
              | LivelitView({llu, _}) =>
-               let layouts =
+               let ap_splice_layouts =
                  MetaVarMap.lookup(splice_docs, llu)
-                 |> Option.get
-                 |> SpliceMap.ApMap.map(doc =>
+                 |> OptUtil.get(() =>
+                      failwith(
+                        "no doc for livelit ap " ++ string_of_int(llu),
+                      )
+                    )
+                 |> SpliceMap.ApMap.map(doc => {
                       doc
                       |> Pretty.LayoutOfDoc.layout_of_doc(
                            ~width=width - pos.indent,
@@ -198,12 +202,20 @@ let get_layout = program => {
                              __LOC__ ++ ": unimplemented on layout failure",
                            )
                          )
-                    );
-               MetaVarMap.extend_unique(ls, (llu, layouts));
+                    });
+               SpliceMap.ApMap.fold(
+                 (_, ap_splice_layout, ls) => {
+                   let inner_splice_layouts =
+                     splice_layouts(ap_splice_layout);
+                   MetaVarMap.union(ls, inner_splice_layouts);
+                 },
+                 ap_splice_layouts,
+                 MetaVarMap.extend_unique(ls, (llu, ap_splice_layouts)),
+               );
              | _ => ls
              },
        );
-  (layout, splice_layouts);
+  (layout, splice_layouts(layout));
 };
 
 let decorate_caret = (path, l) =>

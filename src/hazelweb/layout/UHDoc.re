@@ -763,18 +763,15 @@ module Exp = {
             |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
             |> OptUtil.map(((_, _, si)) => SpliceInfo.splice_map(si));
           let llview = svf(m);
-          splice_docs :=
-            splice_docs^
-            |> SpliceMap.put_ap(
-                 llu,
-                 splice_info.splice_map
-                 |> NatMap.to_list
-                 |> List.to_seq
-                 |> SpliceMap.ApMap.of_seq
-                 |> SpliceMap.ApMap.map(((_splice_ty, splice_e)) =>
-                      mk_block(~enforce_inline, splice_e)
-                    ),
+          let ap_docs =
+            splice_info.splice_map
+            |> NatMap.to_list
+            |> List.to_seq
+            |> SpliceMap.ApMap.of_seq
+            |> SpliceMap.ApMap.map(((_splice_ty, splice_e)) =>
+                 mk_block(~enforce_inline, splice_e)
                );
+          splice_docs := splice_docs^ |> SpliceMap.put_ap(llu, ap_docs);
           mk_ApLivelit(llu, lln, llview, sim_opt);
         }
       }
