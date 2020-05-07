@@ -4145,9 +4145,7 @@ module Exp = {
       | Some(op) =>
         let new_zoperator = (pos, op);
         let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
-        Succeeded(
-          AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, Float)),
-        );
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
       | None => Failed
       };
 
