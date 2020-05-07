@@ -104,7 +104,7 @@ let perform_edit_action = (a, program) => {
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
-      if (UHExp.is_complete(ZExp.erase(ze))) {
+      if (UHExp.is_complete(ZExp.erase(ze), false)) {
         (ze, ty, MetaVarGen.init);
       } else {
         (ze, ty, u_gen);
