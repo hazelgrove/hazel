@@ -26,6 +26,21 @@ let new_splice =
     u_gen,
   );
 };
+
+let map_splice =
+    (to_map, f, {splice_map, _} as psi: esi, u_gen): out((HTyp.t, UHExp.t)) => {
+  let old_ =
+    NatMap.lookup(splice_map, to_map)
+    |> OptUtil.get(() =>
+         failwith(
+           Printf.sprintf("Cannot map non-existant splice %d", to_map),
+         )
+       );
+  let (new_, u_gen) = f(old_, u_gen);
+  let new_splice_map = NatMap.insert_or_update(splice_map, (to_map, new_));
+  (old_, {...psi, splice_map: new_splice_map}, u_gen);
+};
+
 let drop_splice =
     (to_drop, {splice_map, splice_order, _} as psi: esi, u_gen)
     : out((HTyp.t, UHExp.t)) => {
