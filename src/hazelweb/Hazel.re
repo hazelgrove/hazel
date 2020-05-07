@@ -57,18 +57,17 @@ let scroll_cursor_into_view_if_needed = caret_elem => {
   };
 };
 
-/* let scroll_history_panel_entry = entry_elem => {
+let scroll_history_panel_entry = entry_elem => {
+  let panel_rect =
+    JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
 
-     let panel_rect =
-       JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
-
-     let entry_rect = entry_elem##getBoundingClientRect;
-     if (entry_rect##.top < panel_rect##.top) {
-       entry_elem##scrollIntoView(Js._true);
-     } else if (entry_rect##.bottom > panel_rect##.bottom) {
-       entry_elem##scrollIntoView(Js._false);
-     };
-   }; */
+  let entry_rect = entry_elem##getBoundingClientRect;
+  if (entry_rect##.top < panel_rect##.top) {
+    entry_elem##scrollIntoView(Js._true);
+  } else if (entry_rect##.bottom > panel_rect##.bottom) {
+    entry_elem##scrollIntoView(Js._false);
+  };
+};
 
 let create =
     (
@@ -81,12 +80,17 @@ let create =
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (_, ~schedule_action as _) =>
+      (_, ~schedule_action as _) => {
+        switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
+        | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
+        | None => ()
+        };
         if (Model.is_cell_focused(model)) {
           let caret_elem = JSUtil.force_get_elem_by_id("caret");
           restart_cursor_animation(caret_elem);
           scroll_cursor_into_view_if_needed(caret_elem);
-        },
+        };
+      },
     model,
     Page.view(~inject, model),
   );
