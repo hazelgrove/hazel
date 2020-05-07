@@ -1,6 +1,8 @@
 include Monads.MONAD;
 
-let new_splice: HTyp.t => t(SpliceName.t);
+let new_splice:
+  (~init_uhexp_gen: MetaVarGen.t => (UHExp.t, MetaVarGen.t)=?, HTyp.t) =>
+  t(SpliceName.t);
 // the return value is the dropped (htyp, uhexp)
 let drop_splice: SpliceName.t => t((HTyp.t, UHExp.t));
 let exec:

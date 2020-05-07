@@ -4,17 +4,23 @@ type out('a) = ('a, esi, MetaVarGen.t);
 type t('a) = (esi, MetaVarGen.t) => out('a);
 let return = (x, psi, u_gen) => (x, psi, u_gen);
 let new_splice =
-    (htyp, {next, splice_map, splice_order}: esi, u_gen): out(SpliceName.t) => {
-  let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+    (
+      ~init_uhexp_gen=u_gen => {
+                        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+                        (UHExp.(Block.wrap(EmptyHole(u))), u_gen);
+                      },
+      htyp,
+      {next, splice_map, splice_order}: esi,
+      u_gen,
+    )
+    : out(SpliceName.t) => {
+  let (init_uhexp, u_gen) = init_uhexp_gen(u_gen);
   (
     next,
     {
       next: next + 1,
       splice_map:
-        NatMap.extend_unique(
-          splice_map,
-          (next, (htyp, UHExp.(Block.wrap(EmptyHole(u))))),
-        ),
+        NatMap.extend_unique(splice_map, (next, (htyp, init_uhexp))),
       splice_order: splice_order @ [next],
     },
     u_gen,
