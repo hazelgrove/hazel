@@ -87,11 +87,11 @@ let map_example: UHExp.t = {
         ~ann=
           Seq.mk(
             UHTyp.Parenthesized(
-              Seq.mk(UHTyp.Num, [(UHTyp.Arrow, Num)]) |> mk_OpSeq_typ,
+              Seq.mk(UHTyp.Int, [(UHTyp.Arrow, Int)]) |> mk_OpSeq_typ,
             ),
             [
-              (UHTyp.Arrow, List(OpSeq.wrap(UHTyp.Num))),
-              (Arrow, List(OpSeq.wrap(UHTyp.Num))),
+              (UHTyp.Arrow, List(OpSeq.wrap(UHTyp.Int))),
+              (Arrow, List(OpSeq.wrap(UHTyp.Int))),
             ],
           )
           |> mk_OpSeq_typ,
@@ -150,10 +150,10 @@ let qsort_example: UHExp.t = {
         ~ann=
           UHTyp.(
             Seq.mk(
-              List(OpSeq.wrap(Num)),
+              List(OpSeq.wrap(Int)),
               [
-                (Arrow, List(OpSeq.wrap(Num))),
-                (Arrow, List(OpSeq.wrap(Num))),
+                (Arrow, List(OpSeq.wrap(Int))),
+                (Arrow, List(OpSeq.wrap(Int))),
               ],
             )
             |> mk_OpSeq_typ
@@ -256,15 +256,15 @@ let qsort_example: UHExp.t = {
         ~ann=
           UHTyp.(
             Seq.mk(
-              Parenthesized(Seq.mk(Num, [(Arrow, Bool)]) |> mk_OpSeq_typ),
+              Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq_typ),
               [
-                (Arrow, List(OpSeq.wrap(Num))),
+                (Arrow, List(OpSeq.wrap(Int))),
                 (
                   Arrow,
                   Parenthesized(
                     Seq.mk(
-                      List(OpSeq.wrap(Num)),
-                      [(Prod, List(OpSeq.wrap(Num)))],
+                      List(OpSeq.wrap(Int)),
+                      [(Prod, List(OpSeq.wrap(Int)))],
                     )
                     |> mk_OpSeq_typ,
                   ),
@@ -288,14 +288,14 @@ let qsort_example: UHExp.t = {
               Parenthesized(
                 Block.wrap'(
                   Seq.mk(
-                    numlit(4),
+                    intlit("4"),
                     [
-                      (Cons, numlit(2)),
-                      (Cons, numlit(6)),
-                      (Cons, numlit(5)),
-                      (Cons, numlit(3)),
-                      (Cons, numlit(1)),
-                      (Cons, numlit(7)),
+                      (Cons, intlit("2")),
+                      (Cons, intlit("6")),
+                      (Cons, intlit("5")),
+                      (Cons, intlit("3")),
+                      (Cons, intlit("1")),
+                      (Cons, intlit("7")),
                       (Cons, listnil()),
                     ],
                   )
