@@ -805,11 +805,19 @@ module ColorLivelit: LIVELIT = {
       )
     );
   [@deriving sexp]
-  type action = unit;
+  type action =
+    | Open
+    | Close;
   type trigger = action => Vdom.Event.t;
-  let update = (m, _) => SpliceGenCmd.return(m);
+  let update = (m, action) =>
+    SpliceGenCmd.return(
+      switch (action) {
+      | Open => {...m, is_open: true}
+      | Close => {...m, is_open: false}
+      },
+    );
 
-  let view = ({r, g, b, is_open: _}, _) => {
+  let view = ({r, g, b, is_open}, trigger) => {
     LivelitView.Inline(
       ({uhcode: _, dhcode}) => {
         open Vdom;
@@ -838,9 +846,7 @@ module ColorLivelit: LIVELIT = {
               [
                 Node.create_svg(
                   "svg",
-                  [
-                    Attr.create("viewBox", "0 0 100 100"),
-                  ],
+                  [Attr.create("viewBox", "0 0 100 100")],
                   [
                     Node.create_svg(
                       "line",
@@ -869,7 +875,21 @@ module ColorLivelit: LIVELIT = {
               ],
             )
           };
-        Vdom.(Node.div([Attr.classes(["color-livelit"])], [color_box]));
+
+        let color_picker =
+          Node.div(
+            [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
+            [],
+          );
+        Node.div(
+          [
+            Attr.classes(["color-livelit"]),
+            Attr.create("tabindex", "0"),
+            Attr.on_focus(_ => trigger(Open)),
+            Attr.on_blur(_ => trigger(Close)),
+          ],
+          [color_box, color_picker],
+        );
       },
       2,
     );

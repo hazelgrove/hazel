@@ -904,6 +904,17 @@ h1 {
   stroke: "black";
   stroke-linecap: round;
 }
+.color-livelit .color-picker.closed {
+  display: none;
+}
+.color-livelit .color-picker.open {
+  position: absolute;
+  top: 1lh;
+  left: 0;
+  height: 30px;
+  width: 30px;
+  background-color: red;
+}
 
 .splice {
   display: inline-block;
