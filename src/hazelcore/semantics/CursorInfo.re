@@ -747,7 +747,8 @@ module Pat = {
         zoperand: ZPat.zoperand,
         ty: HTyp.t,
       )
-      : option(deferrable(t)) =>
+      : option(deferrable(t)) => {
+    let cursor_term = extract_from_zpat_operand(zoperand);
     switch (zoperand) {
     | CursorP(_, operand) =>
       switch (operand) {
@@ -755,16 +756,13 @@ module Pat = {
       | EmptyHole(_) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(
-              PatAnaSubsumed(ty, Hole),
-              ctx,
-              extract_from_zpat_operand(zoperand),
-            ),
+            mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
           ),
         )
       | Wild(InHole(TypeInconsistent, _))
       | Var(InHole(TypeInconsistent, _), _, _)
-      | NumLit(InHole(TypeInconsistent, _), _)
+      | IntLit(InHole(TypeInconsistent, _), _)
+      | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
       | Inj(InHole(TypeInconsistent, _), _, _) =>
@@ -774,86 +772,63 @@ module Pat = {
         | Some((ty', _)) =>
           Some(
             CursorNotOnDeferredVarPat(
-              mk(
-                PatAnaTypeInconsistent(ty, ty'),
-                ctx,
-                extract_from_zpat_operand(zoperand),
-              ),
+              mk(PatAnaTypeInconsistent(ty, ty'), ctx, cursor_term),
             ),
           )
         };
       | Wild(InHole(WrongLength, _))
       | Var(InHole(WrongLength, _), _, _)
-      | NumLit(InHole(WrongLength, _), _)
+      | IntLit(InHole(WrongLength, _), _)
+      | FloatLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
       | Inj(InHole(WrongLength, _), _, _) => None
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(
-              PatAnaKeyword(ty, k),
-              ctx,
-              extract_from_zpat_operand(zoperand),
-            ),
+            mk(PatAnaKeyword(ty, k), ctx, cursor_term),
           ),
         )
       // not in hole
       | Var(NotInHole, _, x) =>
         Some(
           CursorOnDeferredVarPat(
-            uses =>
-              mk(
-                ~uses,
-                PatAnalyzed(ty),
-                ctx,
-                extract_from_zpat_operand(zoperand),
-              ),
+            uses => mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
             x,
           ),
         )
       | Wild(NotInHole)
       | ListNil(NotInHole) =>
         Some(
-          CursorNotOnDeferredVarPat(
-            mk(PatAnalyzed(ty), ctx, extract_from_zpat_operand(zoperand)),
-          ),
+          CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx, cursor_term)),
         )
-      | NumLit(NotInHole, _) =>
+      | IntLit(NotInHole, _) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(
-              PatAnaSubsumed(ty, Num),
-              ctx,
-              extract_from_zpat_operand(zoperand),
-            ),
+            mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
+          ),
+        )
+      | FloatLit(NotInHole, _) =>
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
           ),
         )
       | BoolLit(NotInHole, _) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(
-              PatAnaSubsumed(ty, Bool),
-              ctx,
-              extract_from_zpat_operand(zoperand),
-            ),
+            mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
           ),
         )
       | Inj(NotInHole, _, _) =>
         Some(
-          CursorNotOnDeferredVarPat(
-            mk(PatAnalyzed(ty), ctx, extract_from_zpat_operand(zoperand)),
-          ),
+          CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx, cursor_term)),
         )
       | Parenthesized(body) =>
         Statics.Pat.ana(ctx, body, ty)
         |> OptUtil.map(_ =>
              CursorNotOnDeferredVarPat(
-               mk(
-                 PatAnalyzed(ty),
-                 ctx,
-                 extract_from_zpat_operand(zoperand),
-               ),
+               mk(PatAnalyzed(ty), ctx, cursor_term),
              )
            )
       }
@@ -870,6 +845,7 @@ module Pat = {
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
     };
+  };
 };
 
 module Exp = {
@@ -1053,9 +1029,14 @@ module Exp = {
           skel1,
           skel2,
         ) =>
-        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Num)) {
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Int)) {
         | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Num)
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Int)
+        }
+      | BinOp(_, FMinus | FPlus | FTimes, skel1, skel2) =>
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Float)) {
+        | Some(_) as result => result
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Float)
         }
       | BinOp(_, And | Or, skel1, skel2) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Bool)) {
@@ -1347,7 +1328,11 @@ module Exp = {
         }
       | BinOp(
           _,
-          Plus | Minus | Times | LessThan | GreaterThan | Equals | And | Or |
+          Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan |
+          GreaterThan |
+          Equals |
+          And |
+          Or |
           Space,
           _,
           _,
@@ -1374,7 +1359,8 @@ module Exp = {
       | Var(_, InVarHole(Free, _), _) =>
         Some(mk(AnaFree(ty), ctx, cursor_term))
       | Var(InHole(TypeInconsistent, _), _, _)
-      | NumLit(InHole(TypeInconsistent, _), _)
+      | IntLit(InHole(TypeInconsistent, _), _)
+      | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
@@ -1391,7 +1377,8 @@ module Exp = {
           Some(mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term))
         };
       | Var(InHole(WrongLength, _), _, _)
-      | NumLit(InHole(WrongLength, _), _)
+      | IntLit(InHole(WrongLength, _), _)
+      | FloatLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
       | Lam(InHole(WrongLength, _), _, _, _)
@@ -1400,7 +1387,8 @@ module Exp = {
       | ApPalette(InHole(WrongLength, _), _, _, _) => None /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
-      | NumLit(NotInHole, _)
+      | IntLit(NotInHole, _)
+      | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
       | ApPalette(NotInHole, _, _, _) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
