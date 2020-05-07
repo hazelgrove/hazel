@@ -230,12 +230,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ],
                   [Node.text(str)],
                 ),
-                timestamp_view(undo_history_entry),
-                history_entry_tab_icon(
-                  group_id,
-                  has_hidden_part,
-                  is_expanded,
-                ),
+                Node.div(
+                  [
+                    Attr.classes(["history-entry-right"]),
+                  ],
+                  [timestamp_view(undo_history_entry),
+                  history_entry_tab_icon(
+                    group_id,
+                    has_hidden_part,
+                    is_expanded,
+                  )],
+                )
+                ,
               ],
             ),
           ],

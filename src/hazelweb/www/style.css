@@ -1397,6 +1397,11 @@ h1 {
 }
 
 /* edit action history panel */
+.history-entry-right {
+  width: 100%;
+  float: right;
+  text-align: right;
+}
 .the-history-entry {
   width: 100%;
   float: left;
@@ -1413,7 +1418,7 @@ h1 {
   cursor: pointer;
   padding: 5px 5px 5px 20px;
   font-size: 12pt;
-  width: 70%;
+  width: 100%;
   border: 1px outset #ffffff;
 }
 .the-hidden-history-entry:hover {
@@ -1421,28 +1426,22 @@ h1 {
   background-color: lightgoldenrodyellow;
 } 
 
-/* .the-history-title {
+.the-history-title {
   display: inline-block; 
   padding: 5px;
-} */
-/* .the-history-title:hover {
+}
+.the-history-title:hover {
   color: #b30000;
   background-color: lightgoldenrodyellow;
-} */
+}
 .the-history-title-entry {
-  padding: 5px;
   float: left;
-  width: 70%;
-  cursor: pointer;
+  width: 100%;
 }
-.the-history-title-entry:hover {
-  color: #b30000;
-  background-color: lightgoldenrodyellow;
-}
-/* .the-history-title-txt {
+.the-history-title-txt {
   cursor: pointer;
   float: left;
-} */
+}
 .the-prev-history {
   color: #0d0a05;
   background-color: #f0fff3;
