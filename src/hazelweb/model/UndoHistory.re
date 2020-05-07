@@ -307,7 +307,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
-  | Rule(_, _) => Len(2)
+  | Rule(_, _) => MaxLen
   | Line(_, line) =>
     switch (line) {
     | EmptyLine => Ignore
@@ -343,11 +343,11 @@ let get_original_deleted_term =
         cursor_term;
       } else {
         comp_len_larger(
+          cursor_term,
           comp_len_larger(
             elt.cursor_term_info.cursor_term_after,
             elt.cursor_term_info.cursor_term_before,
           ),
-          cursor_term,
         );
       }
     | [head, ...tail] =>
