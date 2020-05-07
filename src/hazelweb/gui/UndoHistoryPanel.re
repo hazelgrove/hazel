@@ -24,7 +24,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (exp) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
     | Var(_, _, var_str) => "var: " ++ var_str
-    | NumLit(_, num) => "number: " ++ string_of_int(num)
+    | IntLit(_, num)
+    | FloatLit(_, num) => "number: " ++ num
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
     | Lam(_, _, _, _) => "lambada function"
@@ -44,7 +45,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
     | Wild(_) => "wild card"
     | Var(_, _, var_str) => "var: " ++ var_str
-    | NumLit(_, num) => "number: " ++ string_of_int(num)
+    | IntLit(_, num)
+    | FloatLit(_, num) => "number: " ++ num
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
     | Parenthesized(_) => "( )"
@@ -60,7 +62,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (typ) {
     | Hole => "type: Hole"
     | Unit => "type: Unit"
-    | Num => "type: Num"
+    | Int
+    | Float => "type: Num"
     | Bool => "type: Bool"
     | Parenthesized(_) => "( )"
     | List(_) => "[ ]"
