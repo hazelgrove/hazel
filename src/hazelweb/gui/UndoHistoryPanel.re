@@ -1,7 +1,10 @@
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
-
+type tag_typ =
+  | Exp
+  | Pat
+  | Typ;
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
 
@@ -119,6 +122,55 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
+    switch (cursor_term) {
+    | Exp(_, _) => Exp
+    | Pat(_, _) => Pat
+    | Typ(_, _) => Typ
+    | ExpOp(_, _) => Exp
+    | PatOp(_, _) => Pat
+    | TypOp(_, _) => Typ
+    | Line(_, _)
+    | Rule(_, _) => Exp
+    };
+  };
+  let display_tag_typ =
+      (undo_history_entry: undo_history_entry): option(tag_typ) => {
+    switch (undo_history_entry.edit_action) {
+    | DeleteEdit(edit_detail) =>
+      switch (edit_detail) {
+      | Term(cursor_term) => Some(get_cursor_term_tag_typ(cursor_term))
+      | Space
+      | EmptyLine =>
+        Some(
+          get_cursor_term_tag_typ(
+            undo_history_entry.cursor_term_info.cursor_term_before,
+          ),
+        )
+      | TypeAnn => Some(Typ)
+      }
+    | ConstructEdit(edit_detail) =>
+      switch (edit_detail) {
+      | SLet
+      | SCase
+      | SLam => Some(Exp)
+      | _ =>
+        Some(
+          get_cursor_term_tag_typ(
+            undo_history_entry.cursor_term_info.cursor_term_after,
+          ),
+        )
+      }
+    | EditVar =>
+      Some(
+        get_cursor_term_tag_typ(
+          undo_history_entry.cursor_term_info.cursor_term_after,
+        ),
+      )
+    | MatchRule => Some(Exp)
+    | Ignore => None
+    };
+  };
   let history_entry_tab_icon =
       (group_id: int, has_hidden_part: bool, is_expanded: bool) => {
     let icon =
@@ -181,7 +233,35 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
   };
-
+  let history_typ_tag_view = (undo_history_entry: undo_history_entry) => {
+    switch (display_tag_typ(undo_history_entry)) {
+    | None => Vdom.(Node.div([], []))
+    | Some(typ) =>
+      switch (typ) {
+      | Exp =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["history-type-tag", "history-type-tag-exp"])],
+            [Node.text("EXP")],
+          )
+        )
+      | Pat =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["history-type-tag", "history-type-tag-pat"])],
+            [Node.text("PAT")],
+          )
+        )
+      | Typ =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["history-type-tag", "history-type-tag-typ"])],
+            [Node.text("TYP")],
+          )
+        )
+      }
+    };
+  };
   let history_title_entry_view =
       (
         ~is_latest_selected: bool,
@@ -228,7 +308,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [
                 Node.div(
                   [
-                    Attr.classes(["the-history-title-txt"]),
+                    Attr.classes(["the-history-title-entry"]),
                     Attr.on_click(_ =>
                       Vdom.Event.Many([
                         inject(Update.Action.ShiftHistory(group_id, elt_id)),
@@ -237,6 +317,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ),
                   ],
                   [
+                    history_typ_tag_view(undo_history_entry),
                     Node.text(str),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
@@ -298,7 +379,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Node.span(
                     [Attr.classes(["the-hidden-history-txt"])],
-                    [Node.text(str)],
+                    [
+                      history_typ_tag_view(undo_history_entry),
+                      Node.text(str),
+                    ],
                   ),
                   Node.div(
                     [Attr.classes(["history-entry-right"])],
@@ -327,7 +411,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Node.span(
                     [Attr.classes(["the-hidden-history-txt"])],
-                    [Node.text(str)],
+                    [
+                      history_typ_tag_view(undo_history_entry),
+                      Node.text(str),
+                    ],
                   ),
                   Node.div(
                     [Attr.classes(["history-entry-right"])],
