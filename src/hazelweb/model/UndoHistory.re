@@ -38,7 +38,9 @@ type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
 };
-
+let get_cardstacks = (history: t): Cardstacks.t => {
+  ZList.prj_z(ZList.prj_z(history.groups).group_entries).cardstacks;
+};
 let is_empty = (history: t): bool => {
   ZList.length(history.groups) <= 1
   && ZList.length(ZList.prj_z(history.groups).group_entries) <= 1;

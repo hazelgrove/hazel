@@ -315,6 +315,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         inject(FocusCell),
                       ])
                     ),
+                    Attr.on_mouseover(_ =>
+                      Vdom.Event.Many([
+                        inject(Update.Action.ShowHistory(group_id, elt_id)),
+                        inject(FocusCell),
+                      ])
+                    ),
+                    Attr.on_mouseout(_ =>
+                      Vdom.Event.Many([
+                        inject(Update.Action.RecoverHistory),
+                        inject(FocusCell),
+                      ])
+                    ),
                   ],
                   [
                     history_typ_tag_view(undo_history_entry),
@@ -375,6 +387,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       inject(FocusCell),
                     ])
                   ),
+                  Attr.on_mouseover(_ =>
+                    Vdom.Event.Many([
+                      inject(Update.Action.ShowHistory(group_id, elt_id)),
+                      inject(FocusCell),
+                    ])
+                  ),
+                  Attr.on_mouseout(_ =>
+                    Vdom.Event.Many([
+                      inject(Update.Action.RecoverHistory),
+                      inject(FocusCell),
+                    ])
+                  ),
                 ],
                 [
                   Node.span(
@@ -404,6 +428,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(Update.Action.ShiftHistory(group_id, elt_id)),
+                      inject(FocusCell),
+                    ])
+                  ),
+                  Attr.on_mouseover(_ =>
+                    Vdom.Event.Many([
+                      inject(Update.Action.ShowHistory(group_id, elt_id)),
+                      inject(FocusCell),
+                    ])
+                  ),
+                  Attr.on_mouseout(_ =>
+                    Vdom.Event.Many([
+                      inject(Update.Action.RecoverHistory),
                       inject(FocusCell),
                     ])
                   ),
