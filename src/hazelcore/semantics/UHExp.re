@@ -334,7 +334,8 @@ let operand_is_hole = (op: operand): bool => {
   switch (op) {
   | EmptyHole(_) => true
   | Var(_, _, _)
-  | NumLit(_, _)
+  | IntLit(_, _)
+  | FloatLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
   | Lam(_, _, _, _)
