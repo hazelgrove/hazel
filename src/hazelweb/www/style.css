@@ -888,6 +888,23 @@ h1 {
   color: red;
 }
 
+.color-livelit {
+  display: inline-block;
+}
+.color-livelit .color-box {
+  height: 1ch;
+  width: 1ch;
+  border: 2px solid black;
+  border-radius: 3px;
+}
+.color-livelit .color-box svg {
+  stroke-width: 2px;
+  height: 100%;
+  width: 100%;
+  stroke: "black";
+  stroke-linecap: round;
+}
+
 .splice {
   display: inline-block;
 }

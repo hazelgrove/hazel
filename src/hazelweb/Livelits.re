@@ -785,103 +785,107 @@ module GradeCutoffLivelit: LIVELIT = {
   };
 };
 
-/*
- module ColorLivelit: LIVELIT = {
-   let name = "$color";
-   let expansion_ty = HTyp.Prod(Int, Prod(Int, Int));
+module ColorLivelit: LIVELIT = {
+  let name = "$color";
+  let expansion_ty = HTyp.Prod(Int, Prod(Int, Int));
 
-   type model = {
-     r: SpliceName.t,
-     g: SpliceName.t,
-     b: SpliceName.t,
-     is_open: bool,
-   };
-   let init_model =
-     SpliceGenCmd.(
-       bind(new_splice(HTyp.Int), r =>
-         bind(new_splice(HTyp.Int), g =>
-           bind(new_splice(HTyp.Int), b => return({r, g, b, is_open: false}))
-         )
-       )
-     );
-   let update = (m, _) => SpliceGenCmd.return(m);
+  [@deriving sexp]
+  type model = {
+    r: SpliceName.t,
+    g: SpliceName.t,
+    b: SpliceName.t,
+    is_open: bool,
+  };
+  let init_model =
+    SpliceGenCmd.(
+      bind(new_splice(HTyp.Int), r =>
+        bind(new_splice(HTyp.Int), g =>
+          bind(new_splice(HTyp.Int), b => return({r, g, b, is_open: false}))
+        )
+      )
+    );
+  [@deriving sexp]
+  type action = unit;
+  type trigger = action => Vdom.Event.t;
+  let update = (m, _) => SpliceGenCmd.return(m);
 
-   let view = ({r, g, b, is_open: _}, _) => {
-     LivelitView.Inline(
+  let view = ({r, g, b, is_open: _}, _) => {
+    LivelitView.Inline(
+      ({uhcode: _, dhcode}) => {
+        open Vdom;
+        let color_box =
+          switch (dhcode(r), dhcode(g), dhcode(b)) {
+          | (
+              Some((IntLit(r), _)),
+              Some((IntLit(g), _)),
+              Some((IntLit(b), _)),
+            ) =>
+            Node.div(
+              [
+                attr_style(
+                  prop_val(
+                    "background-color",
+                    Printf.sprintf("rgb(%d, %d, %d)", r, g, b),
+                  ),
+                ),
+                Attr.classes(["color-box"]),
+              ],
+              [],
+            )
+          | _ =>
+            Node.div(
+              [Attr.classes(["color-box"])],
+              [
+                Node.create_svg(
+                  "svg",
+                  [
+                    Attr.create("viewBox", "0 0 100 100"),
+                  ],
+                  [
+                    Node.create_svg(
+                      "line",
+                      [
+                        Attr.create("x1", "20"),
+                        Attr.create("y1", "20"),
+                        Attr.create("x2", "80"),
+                        Attr.create("y2", "80"),
+                        Attr.create("vector-effect", "non-scaling-stroke"),
+                      ],
+                      [],
+                    ),
+                    Node.create_svg(
+                      "line",
+                      [
+                        Attr.create("x1", "20"),
+                        Attr.create("y1", "80"),
+                        Attr.create("x2", "80"),
+                        Attr.create("y2", "20"),
+                        Attr.create("vector-effect", "non-scaling-stroke"),
+                      ],
+                      [],
+                    ),
+                  ],
+                ),
+              ],
+            )
+          };
+        Vdom.(Node.div([Attr.classes(["color-livelit"])], [color_box]));
+      },
+      2,
+    );
+  };
 
-     )
-   };
-
-   let view = (model, model_updater) => {
-     let mk_color_elt = (color, selected_color) => {
-       let selected = color == selected_color ? ["selected"] : [];
-       Html5.(
-         div(
-           ~a=[
-             a_class(["color", ...selected]),
-             a_style("background-color:" ++ color),
-           ],
-           [],
-         )
-       );
-     };
-
-     let color_elts = List.map(c => mk_color_elt(c, model), colors);
-     let _ =
-       List.map2(
-         (c, elt) => {
-           let elt_dom = Tyxml_js.To_dom.of_div(elt);
-           JSUtil.listen_to(
-             Dom_html.Event.click,
-             elt_dom,
-             _ => {
-               model_updater(c);
-               Js._true;
-             },
-           );
-         },
-         colors,
-         color_elts,
-       );
-
-     let picker = Html5.(div(~a=[a_class(["color-picker"])], color_elts));
-     MultiLine(HTMLWithCells.Ret(picker));
-   };
-
-   let expand = rgb_hex => {
-     let to_decimal = hex => int_of_string("0x" ++ hex);
-     let (r, g, b) =
-       sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) =>
-         (to_decimal(r), to_decimal(g), to_decimal(b))
-       );
-     let fVarName = "f";
-     let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
-     let r_num = UHExp.(Tm(NotInHole, IntLit(r)));
-     let g_num = UHExp.(Tm(NotInHole, IntLit(g)));
-     let b_num = UHExp.(Tm(NotInHole, IntLit(b)));
-     let body =
-       UHExp.(
-         Seq.(
-           operand_op_seq(
-             Tm(NotInHole, Var(NotInVarHole, fVarName)),
-             Space,
-             operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
-           )
-         )
-       );
-     UHExp.(
-       Tm(
-         NotInHole,
-         Lam(
-           fPat,
-           None,
-           Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
-         ),
-       )
-     );
-   };
- };
- */
+  let expand = ({r, g, b, _}) => {
+    let triple_seq =
+      Seq.mk(
+        _to_uhvar(r),
+        [(UHExp.Comma, _to_uhvar(g)), (UHExp.Comma, _to_uhvar(b))],
+      );
+    UHExp.Block.wrap'(
+      OpSeq.mk(~associate=Associator.Exp.associate, triple_seq),
+    );
+  };
+};
 
 module CheckboxLivelit: LIVELIT = {
   let name = "$checkbox";
@@ -1179,6 +1183,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   let contexts_entry = (L.name, livelit_defn, serialized_view_fn);
 };
 
+module ColorLivelitAdapter = LivelitAdapter(ColorLivelit);
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
@@ -1193,16 +1198,19 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
         LivelitContexts.extend(
           LivelitContexts.extend(
             LivelitContexts.extend(
-              empty_livelit_contexts,
-              GradeCutoffLivelitAdapter.contexts_entry,
+              LivelitContexts.extend(
+                empty_livelit_contexts,
+                GradeCutoffLivelitAdapter.contexts_entry,
+              ),
+              MatrixLivelitAdapter.contexts_entry,
             ),
-            MatrixLivelitAdapter.contexts_entry,
+            LiveMatrixLivelitAdapter.contexts_entry,
           ),
-          LiveMatrixLivelitAdapter.contexts_entry,
+          PairLivelitAdapter.contexts_entry,
         ),
-        PairLivelitAdapter.contexts_entry,
+        CheckboxLivelitAdapter.contexts_entry,
       ),
-      CheckboxLivelitAdapter.contexts_entry,
+      SliderLivelitAdapter.contexts_entry,
     ),
-    SliderLivelitAdapter.contexts_entry,
+    ColorLivelitAdapter.contexts_entry,
   );
