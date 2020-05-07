@@ -22,7 +22,7 @@ type t('operand, 'operator) =
  */
 and affix('operand, 'operator) =
   /* Empty */
-  | E 
+  | E
   /* Affix */
   | A('operator, t('operand, 'operator));
 
