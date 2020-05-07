@@ -1398,9 +1398,9 @@ h1 {
 
 /* edit action history panel */
 .history-entry-right {
-  width: 100%;
+  width: 30%;
   float: right;
-  text-align: right;
+  text-align: center;
 }
 .the-history-entry {
   width: 100%;
@@ -1416,31 +1416,34 @@ h1 {
 
 .the-hidden-history-entry {
   cursor: pointer;
-  padding: 5px 5px 5px 20px;
+  padding: 5px;
   font-size: 12pt;
   width: 100%;
   border: 1px outset #ffffff;
 }
-.the-hidden-history-entry:hover {
-  color: #b30000;
-  background-color: lightgoldenrodyellow;
-} 
+.the-hidden-history-txt{
+  padding-left: 20px;
+  display: inline;
+}
+
 
 .the-history-title {
   display: inline-block; 
   padding: 5px;
 }
-.the-history-title:hover {
+.the-history-title:hover{
+  color: #b30000;
+  background-color: lightgoldenrodyellow;
+} 
+.the-hidden-history-entry:hover {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }
-.the-history-title-entry {
-  float: left;
-  width: 100%;
-}
+
 .the-history-title-txt {
   cursor: pointer;
   float: left;
+  width: 100%;
 }
 .the-prev-history {
   color: #0d0a05;
@@ -1453,28 +1456,38 @@ h1 {
 }
 .the-cur-history {
   color: #b30000;
-  overflow-anchor: auto;
   background-color: lightgoldenrodyellow;
 }
-.timestamp-txt {
+.timestamp-txt{
   cursor: pointer;
-  width: 20%;
   color: black;
-  float: right; 
+  float: left;
 }
 
+.timestamp-txt span{
+  visibility: hidden;
+}
+
+.timestamp-txt:hover span{
+  visibility: visible;
+}
 .always-display-history-entry {
   border: 1px outset #ffffff;
   width: 100%;
   display: grid;
 }
+.hidden-history-entry {
+  width: 100%;
+  display: grid;
+}
 .history-tab-icon {
   cursor: pointer;
-  float: right;
   font-weight: bolder;
+  float: right;
 }
 .entry-tab-icon {
     color: #558e62;
+    padding-right: 8px;
 }
 
 .all-history-tab-icon {

@@ -169,7 +169,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [Attr.classes(["timestamp-txt"])],
-        [Node.text(str_hour ++ ":" ++ str_min ++ ":" ++ str_sec)],
+        [
+          Node.span(
+            [],
+            [Node.text(str_hour ++ ":" ++ str_min ++ ":" ++ str_sec)],
+          ),
+        ],
       )
     );
   };
@@ -228,20 +233,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ])
                     ),
                   ],
-                  [Node.text(str)],
-                ),
-                Node.div(
                   [
-                    Attr.classes(["history-entry-right"]),
+                    Node.text(str),
+                    Node.div(
+                      [Attr.classes(["history-entry-right"])],
+                      [
+                        timestamp_view(undo_history_entry),
+                        history_entry_tab_icon(
+                          group_id,
+                          has_hidden_part,
+                          is_expanded,
+                        ),
+                      ],
+                    ),
                   ],
-                  [timestamp_view(undo_history_entry),
-                  history_entry_tab_icon(
-                    group_id,
-                    has_hidden_part,
-                    is_expanded,
-                  )],
-                )
-                ,
+                ),
               ],
             ),
           ],
@@ -286,9 +292,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                 ],
-                [Node.text(str)],
+                [
+                  Node.span(
+                    [Attr.classes(["the-hidden-history-txt"])],
+                    [Node.text(str)],
+                  ),
+                  Node.div(
+                    [Attr.classes(["history-entry-right"])],
+                    [timestamp_view(undo_history_entry)],
+                  ),
+                ],
               ),
-              timestamp_view(undo_history_entry),
             ],
           )
         );
@@ -307,9 +321,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                 ],
-                [Node.text(str)],
+                [
+                  Node.span(
+                    [Attr.classes(["the-hidden-history-txt"])],
+                    [Node.text(str)],
+                  ),
+                  Node.div(
+                    [Attr.classes(["history-entry-right"])],
+                    [timestamp_view(undo_history_entry)],
+                  ),
+                ],
               ),
-              timestamp_view(undo_history_entry),
             ],
           )
         );
