@@ -333,7 +333,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
-  | Rule(_, _) => MaxLen
+  | Rule(_, _) => Len(2)
   | Line(_, line) =>
     switch (line) {
     | EmptyLine => Ignore
