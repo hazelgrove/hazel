@@ -13,6 +13,9 @@
 %token LT
 %token GT
 %token EQ
+%token FLT
+%token FGT
+%token FEQ
 %token CONS
 %token PLUS
 %token MINUS
@@ -29,6 +32,9 @@
 %left LT
 %left GT
 %left EQ
+%left FLT
+%left FGT
+%left FEQ
 %right CONS
 %left PLUS
 %left MINUS
@@ -70,6 +76,21 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.Equals,
+      e1, e2) }
+  | e1 = expr; FLT; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FLessThan,
+      e1, e2) }
+  | e1 = expr; FGT; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FGreaterThan,
+      e1, e2) }
+  | e1 = expr; FEQ; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FEquals,
       e1, e2) }
   | e1 = expr; CONS; e2 = expr {
     Skel.BinOp(

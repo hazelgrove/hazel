@@ -592,6 +592,9 @@ module Exp = {
     | LessThan
     | GreaterThan
     | Equals
+    | FLessThan
+    | FGreaterThan
+    | FEquals
     | And
     | Or => (space_, space_)
     | Comma => (empty_, space_);
