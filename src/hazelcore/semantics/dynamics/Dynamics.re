@@ -1845,6 +1845,8 @@ module Evaluator = {
 
   let eval_bin_float_op =
       (op: DHExp.BinFloatOp.t, f1: float, f2: float): option(DHExp.t) => {
+    print_endline(string_of_float(f1));
+    print_endline(string_of_float(f2));
     switch (op) {
     | FPlus => Some(FloatLit(f1 +. f2))
     | FMinus => Some(FloatLit(f1 -. f2))

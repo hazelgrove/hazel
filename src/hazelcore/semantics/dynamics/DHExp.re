@@ -57,9 +57,9 @@ module BinFloatOp = {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
     | FTimes => Some((FTimes, Float))
-    | FLessThan => Some((FTimes, Bool))
-    | FGreaterThan => Some((FTimes, Bool))
-    | FEquals => Some((FTimes, Bool))
+    | FLessThan => Some((FLessThan, Bool))
+    | FGreaterThan => Some((FGreaterThan, Bool))
+    | FEquals => Some((FEquals, Bool))
     | Plus
     | Minus
     | Times
