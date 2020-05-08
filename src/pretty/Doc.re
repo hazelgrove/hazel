@@ -6,7 +6,6 @@ module WidthPosKey = {
   let equal = ((w1, p1), (w2, p2)) => w1 == w2 && p1 == p2;
 };
 
-module StrongWidthPosKey = Memoize.Strong(WidthPosKey);
 module M = Hashtbl.Make(WidthPosKey);
 
 // NOTE: pos is relative to most recent `Align`
