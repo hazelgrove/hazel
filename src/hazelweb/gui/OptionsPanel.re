@@ -75,6 +75,12 @@ let view =
             ~disabled=!model.compute_results,
             model.show_unevaluated_expansion,
           ),
+          labeled_checkbox(
+            ~id="memoize_doc",
+            ~label="Memoize doc generation",
+            ~on_change=() => inject(ToggleMemoizeDoc),
+            model.memoize_doc,
+          ),
         ],
       )
     );
