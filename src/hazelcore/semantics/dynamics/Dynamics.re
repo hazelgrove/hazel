@@ -497,9 +497,21 @@ module Exp = {
       let sigma' = subst_var_env(d1, x, sigma);
       LivelitInfo(su, si, sigma', lln, splice_info', d3');
     | LivelitAp(su, si, sigma, lln, splice_info, model) =>
+      let model' =
+        if (List.mem(
+              x,
+              List.map(
+                SpliceInfo.var_of_splice_name,
+                splice_info.splice_order,
+              ),
+            )) {
+          model;
+        } else {
+          subst_var(d1, x, model);
+        };
       let splice_info' = subst_splices(splice_info);
       let sigma' = subst_var_env(d1, x, sigma);
-      LivelitAp(su, si, sigma', lln, splice_info', model);
+      LivelitAp(su, si, sigma', lln, splice_info', model');
     | Cast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       Cast(d', ty1, ty2);
