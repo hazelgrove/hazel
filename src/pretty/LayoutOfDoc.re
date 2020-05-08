@@ -20,6 +20,7 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
 
 type m('a) = Doc.m('a);
 type m'('a) = Doc.m'('a);
+module Table = Hashtbl.Make(Doc.WidthPosKey);
 
 // Note: This union is left biased
 let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
@@ -55,7 +56,7 @@ and memo_table: Lazy.t((unit => unit, Doc.t(unit) => m(Layout.t(unit)))) =
 
 and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
   doc => {
-    let g = ((width, pos): (int, int)): m'(Layout.t(unit)) => {
+    let g = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
       // TODO: lift the switch(doc.doc) outside the lambda
       switch (doc.doc) {
       | Text(string) =>
@@ -99,8 +100,18 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
         m'_union(l1, l2);
       };
     };
-    let (_clear, h) = Doc.StrongWidthPosKey.make(g);
-    (~width, ~pos) => h((width, pos));
+    let table = Table.create(0);
+    let h = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
+      let key = (width, pos);
+      switch (Table.find_opt(table, key)) {
+      | Some(value) => value
+      | None =>
+        let value = g(~width, ~pos);
+        Table.add(table, key, value);
+        value;
+      };
+    };
+    h;
   };
 
 let layout_of_doc =
