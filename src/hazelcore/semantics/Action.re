@@ -4111,6 +4111,36 @@ module Exp = {
       ana_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)
 
     /* Deletion */
+    /* Backspace "." from Float Op to get Int Op */
+    /* ( +.<| ) ==> ( + ) */
+    | (
+        Backspace,
+        ZOperator(
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
+          seq,
+        ),
+      ) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.FPlus => Some(UHExp.Plus)
+        | UHExp.FMinus => Some(UHExp.Minus)
+        | UHExp.FTimes => Some(UHExp.Times)
+        | UHExp.FLessThan => Some(UHExp.LessThan)
+        | UHExp.FGreaterThan => Some(UHExp.GreaterThan)
+        | UHExp.FEquals => Some(UHExp.Equals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+      | None => Failed
+      };
 
     | (Delete, ZOperator((OnOp(After as side), _), _))
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
