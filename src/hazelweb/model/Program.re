@@ -116,21 +116,17 @@ let move_to_hole = (u, program) => {
   };
 };
 
-let doc =
-  Lazy.force(
-    UHDoc.Exp.mk,
-    ~memoize=false /*TODO:memoize*/,
-    ~enforce_inline=false,
-  );
+let doc = (~memoize: bool) =>
+  Lazy.force(UHDoc.Exp.mk, ~memoize, ~enforce_inline=false);
 let get_doc = program => {
   let e = program |> get_uhexp;
   doc(e);
 };
 
-let get_layout = program => {
+let get_layout = (~memoize: bool, program) => {
   let width = program |> get_width;
   program
-  |> get_doc
+  |> get_doc(~memoize)
   |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
@@ -163,21 +159,21 @@ let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
        )
   };
 
-let get_decorated_layout = program => {
+let get_decorated_layout = (~memoize: bool, program) => {
   let (steps, _) as path = program |> get_path;
   let ci = program |> get_cursor_info;
   program
-  |> get_layout
+  |> get_layout(~memoize)
   |> decorate_caret(path)
   |> decorate_cursor(steps)
   |> decorate_var_uses(ci);
 };
 
-let get_cursor_map_z = program => {
+let get_cursor_map_z = (~memoize: bool, program) => {
   let path = program |> get_path;
   // TODO figure out how to consolidate decoration
   program
-  |> get_layout
+  |> get_layout(~memoize)
   |> decorate_caret(path)
   |> CursorMap.mk
   |> (
@@ -187,17 +183,20 @@ let get_cursor_map_z = program => {
   );
 };
 
-let get_cursor_map = program => program |> get_cursor_map_z |> fst;
+let get_cursor_map = (~memoize: bool, program) =>
+  program |> get_cursor_map_z(~memoize: bool) |> fst;
 
-let move_via_click = (row_col, program) => {
+let move_via_click = (~memoize: bool, row_col, program) => {
   let (_, rev_path) =
-    program |> get_cursor_map |> CursorMap.find_nearest_within_row(row_col);
+    program
+    |> get_cursor_map(~memoize)
+    |> CursorMap.find_nearest_within_row(row_col);
   let path = CursorPath.rev(rev_path);
   program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
 };
 
-let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
-  let (cmap, ((row, col), _) as z) = program |> get_cursor_map_z;
+let move_via_key = (~memoize: bool, move_key: JSUtil.MoveKey.t, program) => {
+  let (cmap, ((row, col), _) as z) = program |> get_cursor_map_z(~memoize);
   let (from_col, put_col_on_start) =
     switch (program |> get_start_col) {
     | None => (col, put_start_col(col))
