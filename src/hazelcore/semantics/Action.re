@@ -2962,7 +2962,10 @@ module Exp = {
     | (
         Backspace,
         ZOperator(
-          (OnOp(After) as pos, (FPlus | FMinus | FTimes) as oper),
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
           seq,
         ),
       ) =>
@@ -2971,6 +2974,9 @@ module Exp = {
         | UHExp.FPlus => Some(UHExp.Plus)
         | UHExp.FMinus => Some(UHExp.Minus)
         | UHExp.FTimes => Some(UHExp.Times)
+        | UHExp.FLessThan => Some(UHExp.LessThan)
+        | UHExp.FGreaterThan => Some(UHExp.GreaterThan)
+        | UHExp.FEquals => Some(UHExp.Equals)
         | _ => None
         };
       };
