@@ -324,8 +324,19 @@ module Exp = {
         | LivelitInfo(_, _, _, _, _, d) =>
           let (doc, _) = go'(d);
           doc;
-        | LivelitAp(_, _, _, lln, _, _) =>
-          annot(DHAnnot.Collapsed, text("<" ++ lln ++ " ap>"))
+        | LivelitAp(_, _, _, _, splice_info, model) =>
+          let model' =
+            model
+            |> NatMap.fold(
+                 splice_info.splice_map, (d, (name, (_, to_subst))) =>
+                 Dynamics.Exp.subst_var(
+                   to_subst,
+                   SpliceInfo.var_of_splice_name(name),
+                   d,
+                 )
+               );
+          let (doc, _) = go'(model');
+          doc;
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
