@@ -72,7 +72,7 @@ let init = (): t => {
       show_unevaluated_expansion: false,
     },
     measurements: {
-      measurements: true,
+      measurements: false,
       model_perform_edit_action: true,
       program_get_doc: true,
       layoutOfDoc_layout_of_doc: true,
