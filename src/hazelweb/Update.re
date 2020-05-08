@@ -21,11 +21,23 @@ module Action = {
     | LoadCardstack(int)
     | NextCard
     | PrevCard
+    // Result computation toggles
     | ToggleComputeResults
     | ToggleShowCaseClauses
     | ToggleShowFnBodies
     | ToggleShowCasts
     | ToggleShowUnevaluatedExpansion
+    // Time measurement toggles
+    | ToggleMeasureTimes
+    | ToggleMeasureModel_perform_edit_action
+    | ToggleMeasureProgram_get_doc
+    | ToggleMeasureLayoutOfDoc_layout_of_doc
+    | ToggleMeasureUHCode_view
+    | ToggleMeasureCell_view
+    | ToggleMeasurePage_view
+    | ToggleMeasureHazel_create
+    | ToggleMeasureUpdate_apply_action
+    //
     | ToggleMemoizeDoc
     | SelectHoleInstance(HoleInstance.t)
     | InvalidVar(string)
@@ -88,6 +100,15 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | SelectHoleInstance(_)
   | InvalidVar(_)
   | FocusCell
+  | ToggleMeasureTimes
+  | ToggleMeasureModel_perform_edit_action
+  | ToggleMeasureProgram_get_doc
+  | ToggleMeasureLayoutOfDoc_layout_of_doc
+  | ToggleMeasureUHCode_view
+  | ToggleMeasureCell_view
+  | ToggleMeasurePage_view
+  | ToggleMeasureHazel_create
+  | ToggleMeasureUpdate_apply_action
   | BlurCell
   | Undo
   | Redo
@@ -149,6 +170,7 @@ let apply_action =
       | PrevCard =>
         state.changing_cards := true;
         Model.prev_card(model);
+      //
       | ToggleComputeResults => {
           ...model,
           compute_results: {
@@ -185,6 +207,73 @@ let apply_action =
               !model.compute_results.show_unevaluated_expansion,
           },
         }
+      //
+      | ToggleMeasureTimes => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            measurements: !model.measurements.measurements,
+          },
+        }
+      | ToggleMeasureModel_perform_edit_action => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            model_perform_edit_action:
+              !model.measurements.model_perform_edit_action,
+          },
+        }
+      | ToggleMeasureProgram_get_doc => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            program_get_doc: !model.measurements.program_get_doc,
+          },
+        }
+      | ToggleMeasureLayoutOfDoc_layout_of_doc => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            layoutOfDoc_layout_of_doc:
+              !model.measurements.layoutOfDoc_layout_of_doc,
+          },
+        }
+      | ToggleMeasureUHCode_view => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            uhcode_view: !model.measurements.uhcode_view,
+          },
+        }
+      | ToggleMeasureCell_view => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            cell_view: !model.measurements.cell_view,
+          },
+        }
+      | ToggleMeasurePage_view => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            page_view: !model.measurements.page_view,
+          },
+        }
+      | ToggleMeasureHazel_create => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            hazel_create: !model.measurements.hazel_create,
+          },
+        }
+      | ToggleMeasureUpdate_apply_action => {
+          ...model,
+          measurements: {
+            ...model.measurements,
+            update_apply_action: !model.measurements.update_apply_action,
+          },
+        }
+      //
       | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | InvalidVar(_) => model
