@@ -21,6 +21,9 @@ module BinIntOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals
     | And
     | Or
     | Space
@@ -44,13 +47,19 @@ module BinFloatOp = {
   type t =
     | FPlus
     | FMinus
-    | FTimes;
+    | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals;
 
   let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
     | FTimes => Some((FTimes, Float))
+    | FLessThan => Some((FTimes, Bool))
+    | FGreaterThan => Some((FTimes, Bool))
+    | FEquals => Some((FTimes, Bool))
     | Plus
     | Minus
     | Times
@@ -69,6 +78,9 @@ module BinFloatOp = {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
+    | FLessThan => FLessThan
+    | FGreaterThan => FGreaterThan
+    | FEquals => FEquals
     };
 };
 

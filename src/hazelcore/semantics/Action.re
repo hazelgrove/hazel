@@ -1930,7 +1930,10 @@ module Exp = {
     | Or => Some(SOr)
     | FPlus
     | FMinus
-    | FTimes => None
+    | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -3028,6 +3031,9 @@ module Exp = {
         | UHExp.Plus => Some(UHExp.FPlus)
         | UHExp.Minus => Some(UHExp.FMinus)
         | UHExp.Times => Some(UHExp.FTimes)
+        | UHExp.LessThan => Some(UHExp.FLessThan)
+        | UHExp.GreaterThan => Some(UHExp.FGreaterThan)
+        | UHExp.Equals => Some(UHExp.FEquals)
         | _ => None
         };
       };
@@ -4158,6 +4164,9 @@ module Exp = {
         | UHExp.Plus => Some(UHExp.FPlus)
         | UHExp.Minus => Some(UHExp.FMinus)
         | UHExp.Times => Some(UHExp.FTimes)
+        | UHExp.LessThan => Some(UHExp.FLessThan)
+        | UHExp.GreaterThan => Some(UHExp.FGreaterThan)
+        | UHExp.Equals => Some(UHExp.FEquals)
         | _ => None
         };
       };
