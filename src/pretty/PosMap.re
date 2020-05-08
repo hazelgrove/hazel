@@ -28,6 +28,11 @@ let rec mapi: 'a 'b. ((int, 'a) => 'b, t('a)) => t('b) =
     fun
     | [] => []
     | [(pos, x), ...rest] => [(pos, f(pos, x)), ...mapi(f, rest)];
+let rec mapk: 'a 'b. ((int, 'a) => (int, 'b), t('a)) => t('b) =
+  f =>
+    fun
+    | [] => []
+    | [(pos, x), ...rest] => [f(pos, x), ...mapk(f, rest)];
 let rec fold_left: 'a 'b. ((int, 'b, 'a) => 'b, 'b, t('a)) => 'b =
   (f, z) =>
     fun
