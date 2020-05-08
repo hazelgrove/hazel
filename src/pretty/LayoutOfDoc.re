@@ -18,17 +18,10 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
   };
 };
 
-// TODO: does Reason have 'type classes'? operators?
-// TODO: unions are left biased
 type m('a) = Doc.m('a);
 type m'('a) = Doc.m'('a);
 
-// Functions for m'
-let add_cost: 'a. (int, m'('a)) => m'('a) =
-  (cost, m) => {
-    PosMap.map(((x_cost, x)) => (cost + x_cost, x), m);
-  };
-
+// Note: This union is left biased
 let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
   (p1, p2) => {
     let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
@@ -39,56 +32,6 @@ let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
       };
     PosMap.union(cost_union, p1, p2);
   };
-
-// Monad interface
-module Let_syntax = {
-  let return = (x: 'a): m('a) =>
-    (~width as _: int, ~pos: int) => PosMap.singleton(pos, (0, x));
-  let map = (m: m('a), ~f: 'a => 'b): m('b) =>
-    (~width, ~pos: int) =>
-      m(~width, ~pos) |> PosMap.map(((cost, x)) => (cost, f(x)));
-  let bind: 'a 'b. (m('a), ~f: 'a => m('b)) => m('b) =
-    (m, ~f, ~width: int, ~pos: int) => {
-      PosMap.fold_left(
-        (pos, z, (cost, x)) =>
-          m'_union(z, add_cost(cost, f(x, ~width, ~pos))),
-        PosMap.empty,
-        m(~width, ~pos),
-      );
-    };
-};
-let return = Let_syntax.return;
-
-// Choice (a non-determinism monad)
-let fail: m('a) = (~width as _: int, ~pos as _: int) => PosMap.empty;
-let union: 'a. (m('a), m('a)) => m('a) =
-  (m1, m2, ~width: int, ~pos: int) =>
-    m'_union(m1(~width, ~pos), m2(~width, ~pos));
-
-// Cost (a writer monad)
-let tell_cost = (c: int): m(unit) =>
-  (~width as _: int, ~pos: int) => PosMap.singleton(pos, (c, ()));
-
-// Width (a reader monad)
-let ask_width: m(int) =
-  (~width: int, ~pos: int) => PosMap.singleton(pos, (0, width));
-let with_width: 'a. (int, m('a)) => m('a) =
-  (width, m, ~width as _: int, ~pos: int) => m(~width, ~pos);
-
-// Position (a state monad)
-let get_position: m(int) =
-  (~width as _: int, ~pos: int) => PosMap.singleton(pos, (0, pos));
-let set_position = (pos: int): m(unit) =>
-  (~width: int, ~pos as _: int) =>
-    if (pos > width) {
-      PosMap.empty;
-    } else {
-      PosMap.singleton(pos, (0, ()));
-    };
-let modify_position = (delta: int): m(unit) => {
-  let%bind pos = get_position;
-  set_position(pos + delta);
-};
 
 let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
   (doc, ~width: int, ~pos: int) => {
@@ -160,7 +103,6 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
     (~width, ~pos) => h((width, pos));
   };
 
-// TODO: Change pos to first_width?
 let layout_of_doc =
     (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   let rec minimum =
