@@ -102,8 +102,8 @@ and is_text_cursor_zline =
   | CursorL(_) => false
   | ExpLineZ(zopseq) => zopseq |> is_text_cursor_zopseq
   | LetLineZP(_)
-  | LetLineZA(_)
-  | LetLineZE(_) => false
+  | LetLineZA(_) => false
+  | LetLineZE(_, _, zdef) => zdef |> is_text_cursor
 and is_text_cursor_zopseq =
   fun
   | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> is_text_cursor_zoperand
