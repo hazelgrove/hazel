@@ -41,6 +41,58 @@ module type LIVELIT = {
   let expand: model => UHExp.t;
 };
 
+module LivelitAdapter = (L: LIVELIT) => {
+  let serialize_monad = model => SpliceGenCmd.return(L.sexp_of_model(model));
+
+  /* generate livelit definition for Semantics */
+  let livelit_defn =
+    LivelitDefinition.{
+      expansion_ty: L.expansion_ty,
+      init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
+      update: (serialized_model, serialized_action) =>
+        SpliceGenCmd.bind(
+          L.update(
+            L.model_of_sexp(serialized_model),
+            L.action_of_sexp(serialized_action),
+          ),
+          serialize_monad,
+        ),
+      expand: serialized_model =>
+        L.expand(L.model_of_sexp(serialized_model)),
+    };
+
+  let serialized_view_fn = (serialized_model, update_fn) =>
+    L.view(L.model_of_sexp(serialized_model), action =>
+      update_fn(L.sexp_of_action(action))
+    );
+
+  let contexts_entry = (L.name, livelit_defn, serialized_view_fn);
+};
+
+type trigger_serialized = SerializedAction.t => Vdom.Event.t;
+type serialized_view_fn_t =
+  (SerializedModel.t, trigger_serialized) => LivelitView.t;
+
+module LivelitViewCtx = {
+  type t = VarMap.t_(serialized_view_fn_t);
+  include VarMap;
+};
+
+module LivelitContexts = {
+  type t = (LivelitCtx.t, LivelitViewCtx.t);
+  let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
+  let extend =
+      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => {
+    if (!LivelitName.is_valid(name)) {
+      failwith("Invalid livelit name " ++ name);
+    };
+    (
+      VarMap.extend(livelit_ctx, (name, def)),
+      VarMap.extend(livelit_view_ctx, (name, serialized_view_fn)),
+    );
+  };
+};
+
 let _to_uhvar = id =>
   UHExp.(Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id)));
 
@@ -945,6 +997,161 @@ module ColorLivelit: LIVELIT = {
   };
 };
 
+module ColorLivelitAdapter = LivelitAdapter(ColorLivelit);
+
+module GradientLivelit: LIVELIT = {
+  let name = "$gradient";
+  let expansion_ty = ColorLivelit.expansion_ty;
+
+  let (color_livelit_ctx, _) =
+    LivelitContexts.extend(
+      LivelitContexts.empty,
+      ColorLivelitAdapter.contexts_entry,
+    );
+  let color_ctx = (VarCtx.empty, color_livelit_ctx);
+
+  [@deriving sexp]
+  type model = {
+    lcolor: SpliceName.t,
+    rcolor: SpliceName.t,
+    slider_value: int,
+  };
+  [@deriving sexp]
+  type action =
+    | Slide(int);
+  type trigger = action => Vdom.Event.t;
+
+  let slider_min = 0;
+  let slider_max = 100;
+  let init_slider_value = 50;
+  let init_model = {
+    let init_uhexp_gen = u_gen => {
+      let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+      let (e, _, u_gen) =
+        Statics.Exp.syn_fix_holes(
+          color_ctx,
+          u_gen,
+          UHExp.Block.wrap(FreeLivelit(u, "$color")),
+        );
+      (e, u_gen);
+    };
+    SpliceGenCmd.(
+      bind(new_splice(~init_uhexp_gen, ColorLivelit.expansion_ty), lcolor =>
+        bind(new_splice(~init_uhexp_gen, ColorLivelit.expansion_ty), rcolor =>
+          return({lcolor, rcolor, slider_value: init_slider_value})
+        )
+      )
+    );
+  };
+
+  let update = (model, a) =>
+    switch (a) {
+    | Slide(n) => SpliceGenCmd.return({...model, slider_value: n})
+    };
+
+  let view = (model, trigger) =>
+    LivelitView.Inline(
+      ({uhcode, _}) => {
+        Vdom.(
+          Node.span(
+            [Attr.classes(["gradient-livelit"])],
+            [
+              uhcode(model.lcolor),
+              Node.input(
+                [
+                  Attr.classes(["slider"]),
+                  Attr.type_("range"),
+                  Attr.create("min", string_of_int(slider_min)),
+                  Attr.create("max", string_of_int(slider_max)),
+                  Attr.value(string_of_int(model.slider_value)),
+                  Attr.on_change((_, value_str) => {
+                    let new_value = int_of_string(value_str);
+                    trigger(Slide(new_value));
+                  }),
+                ],
+                [],
+              ),
+              uhcode(model.rcolor),
+            ],
+          )
+        )
+      },
+      10,
+    );
+
+  let expand = ({lcolor, rcolor, slider_value}) => {
+    let pat_opseq = (hd, tl) =>
+      OpSeq.mk(~associate=Associator.Pat.associate, Seq.mk(hd, tl));
+    let exp_opseq = (hd, tl) =>
+      OpSeq.mk(~associate=Associator.Exp.associate, Seq.mk(hd, tl));
+    let pat_triple = (x1, x2, x3) =>
+      UHPat.(pat_opseq(var(x1), [(Comma, var(x2)), (Comma, var(x3))]));
+    let scalar =
+      UHExp.floatlit'(
+        float_of_int(slider_value) /. float_of_int(slider_max),
+      );
+    let interpolate_vars = (x1, x2) =>
+      UHExp.(
+        Parenthesized(
+          Block.wrap'(
+            exp_opseq(
+              var(x1),
+              [
+                (FPlus, scalar),
+                (
+                  FTimes,
+                  Parenthesized(
+                    Block.wrap'(exp_opseq(var(x2), [(FMinus, var(x1))])),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+      );
+    let interpolate =
+      UHExp.lam(
+        UHPat.(
+          pat_opseq(
+            Parenthesized(pat_triple("r1", "g1", "b1")),
+            [(Comma, Parenthesized(pat_triple("r2", "g2", "b2")))],
+          )
+        ),
+        UHExp.(
+          Block.wrap'(
+            exp_opseq(
+              interpolate_vars("r1", "r2"),
+              [
+                (Comma, interpolate_vars("g1", "g2")),
+                (Comma, interpolate_vars("b1", "b2")),
+              ],
+            ),
+          )
+        ),
+      );
+    UHExp.(
+      Block.wrap'(
+        exp_opseq(
+          interpolate,
+          [
+            (
+              Space,
+              Parenthesized(
+                Block.wrap'(
+                  exp_opseq(
+                    _to_uhvar(lcolor),
+                    [(Comma, _to_uhvar(rcolor))],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      )
+    );
+  };
+};
+
 module CheckboxLivelit: LIVELIT = {
   let name = "$checkbox";
   let expansion_ty = HTyp.Bool;
@@ -1189,59 +1396,7 @@ module SliderLivelit: LIVELIT = {
    stuff below is infrastructure
    ---------- */
 
-type trigger_serialized = SerializedAction.t => Vdom.Event.t;
-type serialized_view_fn_t =
-  (SerializedModel.t, trigger_serialized) => LivelitView.t;
-
-module LivelitViewCtx = {
-  type t = VarMap.t_(serialized_view_fn_t);
-  include VarMap;
-};
-
-module LivelitContexts = {
-  type t = (LivelitCtx.t, LivelitViewCtx.t);
-  let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
-  let extend =
-      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => {
-    if (!LivelitName.is_valid(name)) {
-      failwith("Invalid livelit name " ++ name);
-    };
-    (
-      VarMap.extend(livelit_ctx, (name, def)),
-      VarMap.extend(livelit_view_ctx, (name, serialized_view_fn)),
-    );
-  };
-};
-
-module LivelitAdapter = (L: LIVELIT) => {
-  let serialize_monad = model => SpliceGenCmd.return(L.sexp_of_model(model));
-
-  /* generate palette definition for Semantics */
-  let livelit_defn =
-    LivelitDefinition.{
-      expansion_ty: L.expansion_ty,
-      init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
-      update: (serialized_model, serialized_action) =>
-        SpliceGenCmd.bind(
-          L.update(
-            L.model_of_sexp(serialized_model),
-            L.action_of_sexp(serialized_action),
-          ),
-          serialize_monad,
-        ),
-      expand: serialized_model =>
-        L.expand(L.model_of_sexp(serialized_model)),
-    };
-
-  let serialized_view_fn = (serialized_model, update_fn) =>
-    L.view(L.model_of_sexp(serialized_model), action =>
-      update_fn(L.sexp_of_action(action))
-    );
-
-  let contexts_entry = (L.name, livelit_defn, serialized_view_fn);
-};
-
-module ColorLivelitAdapter = LivelitAdapter(ColorLivelit);
+module GradientLivelitAdapter = LivelitAdapter(GradientLivelit);
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
@@ -1257,18 +1412,21 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
           LivelitContexts.extend(
             LivelitContexts.extend(
               LivelitContexts.extend(
-                empty_livelit_contexts,
-                GradeCutoffLivelitAdapter.contexts_entry,
+                LivelitContexts.extend(
+                  empty_livelit_contexts,
+                  GradeCutoffLivelitAdapter.contexts_entry,
+                ),
+                MatrixLivelitAdapter.contexts_entry,
               ),
-              MatrixLivelitAdapter.contexts_entry,
+              LiveMatrixLivelitAdapter.contexts_entry,
             ),
-            LiveMatrixLivelitAdapter.contexts_entry,
+            PairLivelitAdapter.contexts_entry,
           ),
-          PairLivelitAdapter.contexts_entry,
+          CheckboxLivelitAdapter.contexts_entry,
         ),
-        CheckboxLivelitAdapter.contexts_entry,
+        SliderLivelitAdapter.contexts_entry,
       ),
-      SliderLivelitAdapter.contexts_entry,
+      ColorLivelitAdapter.contexts_entry,
     ),
-    ColorLivelitAdapter.contexts_entry,
+    GradientLivelitAdapter.contexts_entry,
   );
