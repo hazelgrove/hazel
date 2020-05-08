@@ -144,17 +144,39 @@ let apply_action =
     Model.prev_card(model);
   | ToggleComputeResults => {
       ...model,
-      compute_results: !model.compute_results,
+      compute_results: {
+        ...model.compute_results,
+        compute_results: !model.compute_results.compute_results,
+      },
     }
   | ToggleShowCaseClauses => {
       ...model,
-      show_case_clauses: !model.show_case_clauses,
+      compute_results: {
+        ...model.compute_results,
+        show_case_clauses: !model.compute_results.show_case_clauses,
+      },
     }
-  | ToggleShowFnBodies => {...model, show_fn_bodies: !model.show_fn_bodies}
-  | ToggleShowCasts => {...model, show_casts: !model.show_casts}
+  | ToggleShowFnBodies => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        show_fn_bodies: !model.compute_results.show_fn_bodies,
+      },
+    }
+  | ToggleShowCasts => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        show_casts: !model.compute_results.show_casts,
+      },
+    }
   | ToggleShowUnevaluatedExpansion => {
       ...model,
-      show_unevaluated_expansion: !model.show_unevaluated_expansion,
+      compute_results: {
+        ...model.compute_results,
+        show_unevaluated_expansion:
+          !model.compute_results.show_unevaluated_expansion,
+      },
     }
   | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
   | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
