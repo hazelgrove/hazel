@@ -94,6 +94,37 @@ let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
 let get_ctx = ci => ci.ctx;
 
+let rec is_text_cursor = (ze: ZExp.t): bool => ze |> is_text_cursor_zblock
+and is_text_cursor_zblock = ((_, zline, _): ZExp.zblock): bool =>
+  zline |> is_text_cursor_zline
+and is_text_cursor_zline =
+  fun
+  | CursorL(_) => false
+  | ExpLineZ(zopseq) => zopseq |> is_text_cursor_zopseq
+  | LetLineZP(_)
+  | LetLineZA(_)
+  | LetLineZE(_) => false
+and is_text_cursor_zopseq =
+  fun
+  | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> is_text_cursor_zoperand
+  | ZOpSeq(_, ZOperator(_)) => false
+and is_text_cursor_zoperator =
+  fun
+  | _ => false
+and is_text_cursor_zoperand =
+  fun
+  | CursorE(OnText(_), StringLit(_, _)) => true
+  | CursorE(_)
+  | ParenthesizedZ(_)
+  | LamZP(_)
+  | LamZA(_)
+  | LamZE(_)
+  | InjZ(_)
+  | CaseZE(_)
+  | CaseZR(_)
+  | CaseZA(_)
+  | ApPaletteZ(_) => false;
+
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
     Some(mk(OnType, ctx));
