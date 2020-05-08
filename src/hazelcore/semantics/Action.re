@@ -1924,7 +1924,10 @@ module Exp = {
     | Or => Some(SOr)
     | FPlus
     | FMinus
-    | FTimes => None
+    | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -2990,7 +2993,10 @@ module Exp = {
     | (
         Backspace,
         ZOperator(
-          (OnOp(After) as pos, (FPlus | FMinus | FTimes) as oper),
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
           seq,
         ),
       ) =>
@@ -2999,6 +3005,9 @@ module Exp = {
         | Operators.Exp.FPlus => Some(Operators.Exp.Plus)
         | Operators.Exp.FMinus => Some(Operators.Exp.Minus)
         | Operators.Exp.FTimes => Some(Operators.Exp.Times)
+        | Operators.Exp.FLessThan => Some(Operators.Exp.LessThan)
+        | Operators.Exp.FGreaterThan => Some(Operators.Exp.GreaterThan)
+        | Operators.Exp.FEquals => Some(Operators.Exp.Equals)
         | _ => None
         };
       };
@@ -3059,6 +3068,9 @@ module Exp = {
         | Operators.Exp.Plus => Some(Operators.Exp.FPlus)
         | Operators.Exp.Minus => Some(Operators.Exp.FMinus)
         | Operators.Exp.Times => Some(Operators.Exp.FTimes)
+        | Operators.Exp.LessThan => Some(Operators.Exp.FLessThan)
+        | Operators.Exp.GreaterThan => Some(Operators.Exp.FGreaterThan)
+        | Operators.Exp.Equals => Some(Operators.Exp.FEquals)
         | _ => None
         };
       };
@@ -4154,6 +4166,36 @@ module Exp = {
       ana_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)
 
     /* Deletion */
+    /* Backspace "." from Float Op to get Int Op */
+    /* ( +.<| ) ==> ( + ) */
+    | (
+        Backspace,
+        ZOperator(
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
+          seq,
+        ),
+      ) =>
+      let new_operator = {
+        switch (oper) {
+        | Operators.Exp.FPlus => Some(Operators.Exp.Plus)
+        | Operators.Exp.FMinus => Some(Operators.Exp.Minus)
+        | Operators.Exp.FTimes => Some(Operators.Exp.Times)
+        | Operators.Exp.FLessThan => Some(Operators.Exp.LessThan)
+        | Operators.Exp.FGreaterThan => Some(Operators.Exp.GreaterThan)
+        | Operators.Exp.FEquals => Some(Operators.Exp.Equals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+      | None => Failed
+      };
 
     | (Delete, ZOperator((OnOp(After as side), _), _))
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
@@ -4213,6 +4255,9 @@ module Exp = {
         | Operators.Exp.Plus => Some(Operators.Exp.FPlus)
         | Operators.Exp.Minus => Some(Operators.Exp.FMinus)
         | Operators.Exp.Times => Some(Operators.Exp.FTimes)
+        | Operators.Exp.LessThan => Some(Operators.Exp.FLessThan)
+        | Operators.Exp.GreaterThan => Some(Operators.Exp.FGreaterThan)
+        | Operators.Exp.Equals => Some(Operators.Exp.FEquals)
         | _ => None
         };
       };
@@ -4220,9 +4265,7 @@ module Exp = {
       | Some(op) =>
         let new_zoperator = (pos, op);
         let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
-        Succeeded(
-          AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, Float)),
-        );
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
       | None => Failed
       };
 
@@ -4253,8 +4296,8 @@ module Exp = {
           // safe because pattern guard
           ty |> HTyp.get_prod_elements |> List.hd,
         );
-      let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-      Succeeded(AnaDone((ZExp.ZBlock.wrap'(new_zopseq), u_gen)));
+      let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | (
         Construct(SParenthesized),
         ZOperand(CursorE(_, EmptyHole(_)), (E, E)),
