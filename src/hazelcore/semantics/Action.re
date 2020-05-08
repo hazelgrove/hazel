@@ -630,54 +630,33 @@ let _delete_operator =
  */
 let _complete_tuple =
     (
-      ~mk_ZOpSeq:
-         ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
-         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~comma: 'operator,
-      ~zcomma: 'zoperator,
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
+      ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
+      ~place_before_operand: 'operand => 'zoperand,
       u_gen: MetaVarGen.t,
-      OpSeq(_, seq): OpSeq.t('operand, 'operator),
+      opSeq: OpSeq.t('operand, 'operator),
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
-  let (new_suffix: Seq.t(_), u_gen) = {
-    // guaranteed to construct at least one empty hole
-    let (new_hole, u_gen) = u_gen |> new_EmptyHole;
-    let (new_holes, u_gen) =
-      ty
-      |> HTyp.get_prod_elements
-      // assuming ty has at least 2 elems
-      |> List.tl
-      |> List.tl
-      // ensure that hole indices increase left to right
-      |> List.fold_left(
-           ((rev_holes, u_gen), _) => {
-             let (new_hole, u_gen) = u_gen |> new_EmptyHole;
-             ([new_hole, ...rev_holes], u_gen);
-           },
-           ([], u_gen),
-         )
-      |> (
-        fun
-        | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
-      );
-    (
-      Seq.S(
-        new_hole,
-        List.fold_right(
-          (new_hole, suffix: Seq.affix(_)) =>
-            A(comma, S(new_hole, suffix)),
-          new_holes,
-          Seq.E,
-        ),
-      ),
+  let tys = HTyp.get_prod_elements(ty);
+  let (OpSeq(skel, seq), u_gen) =
+    OpSeq.make_holy_tuple(
+      ~comma,
+      ~new_EmptyHole,
+      ~mk_OpSeq,
+      ~first_opt=opSeq,
+      tys,
       u_gen,
     );
-  };
-  let new_zopseq =
-    mk_ZOpSeq(ZOperator(zcomma, (seq |> Seq.rev, new_suffix)));
-  (new_zopseq, u_gen);
+  let (second, surround) = Seq.split_nth_operand(1, seq);
+  (
+    ZOpSeq.ZOpSeq(
+      skel,
+      ZSeq.ZOperand(place_before_operand(second), surround),
+    ),
+    u_gen,
+  );
 };
 
 module Pat = {
@@ -928,10 +907,10 @@ module Pat = {
 
   let complete_tuple =
     _complete_tuple(
-      ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
       ~comma=Operators.Pat.Comma,
-      ~zcomma=(OnOp(After), Operators.Pat.Comma),
       ~new_EmptyHole=UHPat.new_EmptyHole,
+      ~mk_OpSeq=UHPat.mk_OpSeq,
+      ~place_before_operand=ZPat.place_before_operand,
     );
 
   let resurround_z =
@@ -2013,15 +1992,15 @@ module Exp = {
 
   let complete_tuple =
     _complete_tuple(
-      ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
       ~comma=Operators.Exp.Comma,
-      ~zcomma=(OnOp(After), Operators.Exp.Comma),
       ~new_EmptyHole=UHExp.new_EmptyHole,
+      ~mk_OpSeq=UHExp.mk_OpSeq,
+      ~place_before_operand=ZExp.place_before_operand,
     );
 
   let lines_of_prefix =
       (u_gen: MetaVarGen.t, prefix: UHExp.affix)
-      : (list(UHExp.line), MetaVarGen.t) =>
+      : (list(UHExp.line), MetaVarGen.t) =>c
     switch (prefix) {
     | E => ([], u_gen)
     | A(_) =>

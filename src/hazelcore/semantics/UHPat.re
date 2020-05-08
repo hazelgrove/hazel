@@ -172,15 +172,16 @@ let patterns_of_type =
     | Bool => ([true, false] |> List.map(b => b |> boollit |> wrap), u_gen)
     | Prod([]) => ([], u_gen)
     | Prod(tys) =>
-      let (firstHole, u_gen) = u_gen |> new_EmptyHole;
-      // List.length(tys) should be >= 1, because we caught the unit-case above and tuple should otherwise have at least 2 elements
-      let (holes, u_gen) = new_EmptyHoles(List.length(tys) - 1, u_gen);
-      let opseq =
-        holes
-        |> List.map(hole => (Operators.Pat.Comma, hole))
-        |> Seq.mk(firstHole)
-        |> mk_OpSeq;
-      ([opseq], u_gen);
+      let (holy_tuple, u_gen) =
+        // List.length(tys) should be >= 1, because we caught the unit-case above and tuple should otherwise have at least 2 elements
+        OpSeq.make_holy_tuple(
+          ~comma=Operators.Pat.Comma,
+          ~new_EmptyHole,
+          ~mk_OpSeq,
+          tys,
+          u_gen,
+        );
+      ([holy_tuple], u_gen);
     | Sum(_, _) =>
       let (holes, u_gen) = new_EmptyHoles(2, u_gen);
       let patterns =
