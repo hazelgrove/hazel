@@ -5,11 +5,15 @@ type t =
   | Underscore
   | NumLit(int)
   | BoolLit(bool)
-  | StringLit(string)
+  // | StringLit(string)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t);
 
 let of_text = (text: string): option(t) =>
+  // if (ExpandingKeyword.mk(text) == None) {
+  //   print_endline("True");
+  // } else {
+  //   print_endline("False");
   switch (
     int_of_string_opt(text),
     bool_of_string_opt(text),
@@ -18,18 +22,25 @@ let of_text = (text: string): option(t) =>
   | (Some(n), _, _) =>
     // OCaml accepts and ignores underscores
     // when parsing ints from strings, we don't
-    IntUtil.num_digits(n) == String.length(text) ? Some(NumLit(n)) : None
-  | (_, Some(b), _) => Some(BoolLit(b))
-  | (_, _, Some(k)) => Some(ExpandingKeyword(k))
+    print_endline("Textshape21");
+    IntUtil.num_digits(n) == String.length(text) ? Some(NumLit(n)) : None;
+  | (_, Some(b), _) =>
+    print_endline("Textshape23");
+    Some(BoolLit(b));
+  | (_, _, Some(k)) =>
+    print_endline("Textshape24");
+    Some(ExpandingKeyword(k));
   | (None, None, None) =>
+    print_endline("Textshape34");
     if (text |> String.equal("_")) {
+      print_endline("Textshape36");
       Some(Underscore);
     } else if (text |> Var.is_valid) {
+      print_endline("Textshape39");
       Some(Var(text));
-    } else if (String.sub(text, 0, 1) == "\"") {
-      print_endline("Textshape31");
-      Some(StringLit(String.sub(text, 1, String.length(text) - 1)));
     } else {
+      print_endline("Textshape39");
       None;
-    }
+    };
   };
+// };
