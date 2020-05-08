@@ -530,9 +530,9 @@ let mk_NTuple =
 module Typ = {
   let inline_padding_of_operator: UHTyp.operator => (t, t) =
     fun
-    | UHTyp.Prod => (Doc.empty(), Doc.space())
+    | UHTyp.Prod => (empty_, space_)
     | Arrow
-    | Sum => (Doc.space(), Doc.space());
+    | Sum => (space_, space_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Typ);
   let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Typ);
@@ -582,12 +582,10 @@ module Typ = {
 
 module Pat = {
   let inline_padding_of_operator: UHPat.operator => (t, t) =
-    Doc.(
-      fun
-      | UHPat.Comma => (empty(), space())
-      | Space
-      | Cons => (empty(), empty())
-    );
+    fun
+    | UHPat.Comma => (empty_, space_)
+    | Space
+    | Cons => (empty_, empty_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Pat);
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Pat);
