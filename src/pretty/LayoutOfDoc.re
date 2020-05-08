@@ -113,47 +113,54 @@ and memo_table: Lazy.t((unit => unit, Doc.t(unit) => m(Layout.t(unit)))) =
 and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
   doc => {
     let g = ((width, pos): (int, int)): m'(Layout.t(unit)) => {
-      let ret: m(Layout.t(unit)) = {
-        switch (doc.doc) {
-        | Text(string) =>
-          let%bind () = modify_position(Unicode.length(string));
-          return(Layout.Text(string));
-        | Cat(d1, d2) =>
-          let%bind l1 = layout_of_doc'(d1);
-          let%bind l2 = layout_of_doc'(d2);
-          return(Layout.Cat(l1, l2));
-        | Linebreak =>
-          let%bind () = tell_cost(1);
-          let%bind () = set_position(0);
-          return(Layout.Linebreak);
-        | Align(d) =>
-          let%bind pos = get_position;
-          let%bind width = ask_width;
-          let%bind l =
-            with_width(
-              width - pos,
-              {
-                let%bind () = set_position(0);
-                layout_of_doc'(d);
-              },
-            );
-          let%bind () = modify_position(pos);
-          return(Layout.Align(l));
-        | Annot(annot, d) =>
-          let%bind l: m(Layout.t(unit)) = layout_of_doc'(d);
-          return(Layout.Annot(annot, l));
-        | Fail => fail
-        | Choice(d1, d2) => union(layout_of_doc'(d1), layout_of_doc'(d2))
+      // TODO: lift the switch(doc.doc) outside the lambda
+      switch (doc.doc) {
+      | Text(string) =>
+        // TODO: cache text length in Text?
+        let pos' = pos + Unicode.length(string);
+        if (pos' > width) {
+          PosMap.empty;
+        } else {
+          PosMap.singleton(pos', (0, Layout.Text(string)));
         };
+      | Cat(d1, d2) =>
+        let l1 = layout_of_doc'(d1, ~width, ~pos);
+        PosMap.fold_left(
+          (pos, z, (cost1, layout1)) => {
+            let l2 = layout_of_doc'(d2, ~width, ~pos);
+            let layouts =
+              PosMap.map(
+                ((cost2, layout2)) =>
+                  (cost1 + cost2, Layout.Cat(layout1, layout2)),
+                l2,
+              );
+            m'_union(z, layouts);
+          },
+          PosMap.empty,
+          l1,
+        );
+      | Linebreak => PosMap.singleton(0, (1, Layout.Linebreak))
+      | Align(d) =>
+        let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
+        PosMap.mapk(
+          (p, (c, l)) => (p + pos, (c, Layout.Align(l))),
+          layout,
+        );
+      | Annot(annot, d) =>
+        let layout = layout_of_doc'(d, ~width, ~pos);
+        PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
+      | Fail => PosMap.empty
+      | Choice(d1, d2) =>
+        let l1 = layout_of_doc'(d1, ~width, ~pos);
+        let l2 = layout_of_doc'(d2, ~width, ~pos);
+        m'_union(l1, l2);
       };
-      ret(~width, ~pos);
     };
-    module StrongWidthPosKey = Memoize.Strong(Doc.WidthPosKey);
-    let (_clear, h) = StrongWidthPosKey.make(g);
+    let (_clear, h) = Doc.StrongWidthPosKey.make(g);
     (~width, ~pos) => h((width, pos));
   };
 
-// Change pos to first_width?
+// TODO: Change pos to first_width?
 let layout_of_doc =
     (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   let rec minimum =
