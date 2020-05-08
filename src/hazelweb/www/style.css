@@ -918,7 +918,7 @@ h1 {
 .color-livelit .color-picker.open {
   display: block;
   position: absolute;
-  top: 1lh;
+  bottom: 1.2ch;
   left: 0;
   height: 30px;
   width: 30px;
