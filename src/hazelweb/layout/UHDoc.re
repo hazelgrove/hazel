@@ -667,8 +667,13 @@ module Exp = {
     );
 
   let rec mk = (~enforce_inline: bool, e: UHExp.t): t =>
-    mk_block(~enforce_inline, e)
-  and mk_block = (~offset=0, ~enforce_inline: bool, block: UHExp.block): t =>
+    mk_block_0(~enforce_inline, e)
+  // Two versions of `mk_block` so we can memoize them
+  and mk_block_0 = (~enforce_inline: bool, block: UHExp.block): t =>
+    mk_block(~offset=0, ~enforce_inline, block)
+  and mk_block_1 = (~enforce_inline: bool, block: UHExp.block): t =>
+    mk_block(~offset=1, ~enforce_inline, block)
+  and mk_block = (~offset, ~enforce_inline: bool, block: UHExp.block): t =>
     if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
       Doc.fail();
     } else {
@@ -771,7 +776,7 @@ module Exp = {
         EnforcedInline(Doc.fail());
       } else {
         let formatted =
-          mk_block(~offset=1, ~enforce_inline=false, subblock)
+          mk_block_1(~enforce_inline=false, subblock)
           |> annot_Step(child_step);
         UserNewline(formatted);
       }
