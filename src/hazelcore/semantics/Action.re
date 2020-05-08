@@ -3629,6 +3629,7 @@ module Exp = {
       print_endline("hello3492");
       let text_cursor = CursorPosition.OnText(j + String.length(s));
       let new_text = StringUtil.insert(j, s, s2);
+      print_endline("string = " ++ new_text);
       let ze =
         ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
       Succeeded(SynDone((ze, HTyp.String, u_gen)));
