@@ -57,6 +57,9 @@ module Exp = {
     | LessThan
     | GreaterThan
     | Equals
+    | FLessThan
+    | FGreaterThan
+    | FEquals
     | Comma
     | Cons
     | And
@@ -74,6 +77,9 @@ module Exp = {
     | LessThan => "<"
     | GreaterThan => ">"
     | Equals => "=="
+    | FLessThan => "<."
+    | FGreaterThan => ">."
+    | FEquals => "==."
     | Comma => ","
     | Cons => "::"
     | And => "&&"
