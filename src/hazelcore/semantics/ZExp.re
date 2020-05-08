@@ -89,7 +89,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   | StringLit(_, s) =>
     List.append(
-      CursorPosition.delim_cursors(1),
+      CursorPosition.delim_cursors(2),
       CursorPosition.text_cursors(String.length(s)),
     )
   /* inner nodes */
