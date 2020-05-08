@@ -46,6 +46,7 @@ let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
 let caret_from_left = (from_left: float): Vdom.Node.t => {
+  print_endline(string_of_float(from_left));
   assert(0.0 <= from_left && from_left <= 100.0);
   let left_attr =
     Vdom.Attr.create(

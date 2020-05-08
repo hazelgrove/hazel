@@ -40,6 +40,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
       | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
       | _ => Action.Construct(SListNil),
     ),
+    (LeftQuotation, _ => Action.Construct(SQuote)),
     (Semicolon, _ => Action.Construct(SOp(SCons))),
     (Alt_L, _ => Action.Construct(SInj(L))),
     (Alt_R, _ => Action.Construct(SInj(R))),
