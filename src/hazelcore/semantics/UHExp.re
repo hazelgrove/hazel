@@ -111,6 +111,8 @@ let intlit' = (~err: ErrStatus.t=NotInHole, n: int) =>
 
 let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
   FloatLit(err, f);
+let floatlit' = (~err: ErrStatus.t=NotInHole, f: float): operand =>
+  floatlit(~err, string_of_float(f));
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);

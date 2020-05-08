@@ -787,7 +787,7 @@ module GradeCutoffLivelit: LIVELIT = {
 
 module ColorLivelit: LIVELIT = {
   let name = "$color";
-  let expansion_ty = HTyp.Prod(Int, Prod(Int, Int));
+  let expansion_ty = HTyp.Prod(Float, Prod(Float, Float));
 
   [@deriving sexp]
   type model = {
@@ -801,22 +801,22 @@ module ColorLivelit: LIVELIT = {
       bind(
         new_splice(
           ~init_uhexp_gen=
-            u_gen => (UHExp.(Block.wrap(intlit'(255))), u_gen),
-          HTyp.Int,
+            u_gen => (UHExp.(Block.wrap(floatlit'(255.0))), u_gen),
+          HTyp.Float,
         ),
         r =>
         bind(
           new_splice(
             ~init_uhexp_gen=
-              u_gen => (UHExp.(Block.wrap(intlit'(0))), u_gen),
-            HTyp.Int,
+              u_gen => (UHExp.(Block.wrap(floatlit'(0.0))), u_gen),
+            HTyp.Float,
           ),
           g =>
           bind(
             new_splice(
               ~init_uhexp_gen=
-                u_gen => (UHExp.(Block.wrap(intlit'(0))), u_gen),
-              HTyp.Int,
+                u_gen => (UHExp.(Block.wrap(floatlit'(0.0))), u_gen),
+              HTyp.Float,
             ),
             b =>
             return({r, g, b, is_open: false})
@@ -837,7 +837,7 @@ module ColorLivelit: LIVELIT = {
       },
     );
 
-  let is_valid = color_value => 0 <= color_value && color_value < 256;
+  let is_valid = color_value => 0.0 <= color_value && color_value < 256.0;
 
   let view = ({r, g, b, is_open}, trigger) => {
     LivelitView.Inline(
@@ -846,9 +846,9 @@ module ColorLivelit: LIVELIT = {
         let color_box =
           switch (dhcode(r), dhcode(g), dhcode(b)) {
           | (
-              Some((IntLit(r), _)),
-              Some((IntLit(g), _)),
-              Some((IntLit(b), _)),
+              Some((FloatLit(r), _)),
+              Some((FloatLit(g), _)),
+              Some((FloatLit(b), _)),
             )
               when is_valid(r) && is_valid(g) && is_valid(b) =>
             Node.div(
@@ -856,7 +856,7 @@ module ColorLivelit: LIVELIT = {
                 attr_style(
                   prop_val(
                     "background-color",
-                    Printf.sprintf("rgb(%d, %d, %d)", r, g, b),
+                    Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
                   ),
                 ),
                 Attr.classes(["color-box"]),
