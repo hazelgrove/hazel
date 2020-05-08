@@ -130,7 +130,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
   | Unit => true
-  | Num => true
+  | Int => true
+  | Float => true
   | Bool => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)

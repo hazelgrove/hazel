@@ -359,8 +359,10 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
-  | NumLit(InHole(_), _) => false
-  | NumLit(NotInHole, _) => true
+  | IntLit(InHole(_), _) => false
+  | IntLit(NotInHole, _) => true
+  | FloatLit(InHole(_), _) => false
+  | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
