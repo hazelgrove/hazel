@@ -12,6 +12,9 @@ type operator =
   | LessThan
   | GreaterThan
   | Equals
+  | FLessThan
+  | FGreaterThan
+  | FEquals
   | Comma
   | Cons
   | And
@@ -29,6 +32,9 @@ let string_of_operator =
   | LessThan => "<"
   | GreaterThan => ">"
   | Equals => "=="
+  | FLessThan => "<."
+  | FGreaterThan => ">."
+  | FEquals => "==."
   | Comma => ","
   | Cons => "::"
   | And => "&&"
