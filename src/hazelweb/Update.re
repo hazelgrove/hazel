@@ -164,12 +164,8 @@ let apply_action =
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
-      | NextCard =>
-        state.changing_cards := true;
-        Model.next_card(model);
-      | PrevCard =>
-        state.changing_cards := true;
-        Model.prev_card(model);
+      | NextCard => Model.next_card(model)
+      | PrevCard => Model.prev_card(model)
       //
       | ToggleComputeResults => {
           ...model,
