@@ -891,6 +891,9 @@ h1 {
 .color-livelit {
   display: inline-block;
 }
+.color-livelit:focus {
+  outline: none;
+}
 .color-livelit .color-box {
   height: 1ch;
   width: 1ch;
