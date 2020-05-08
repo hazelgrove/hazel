@@ -64,8 +64,13 @@ let create =
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
-  Printf.printf("\n== Hazel.create times ==\n");
-  TimeUtil.measure_time("Hazel.create", () =>
+  if (model.measurements.measurements) {
+    Printf.printf("\n== Hazel.create times ==\n");
+  };
+  TimeUtil.measure_time(
+    "Hazel.create",
+    model.measurements.measurements && model.measurements.hazel_create,
+    () =>
     Component.create(
       ~apply_action=Update.apply_action(model),
       ~on_display=
