@@ -906,23 +906,27 @@ h1 {
   /* not sure why this display property is needed
    * but svg becomes offset from container otherwise */
   display: block;
-  stroke-width: 2px;
+  stroke-width: 1.5px;
   height: 100%;
   width: 100%;
-  stroke: "black";
+  stroke: red;
   stroke-linecap: round;
 }
 .color-livelit .color-picker.closed {
   display: none;
 }
 .color-livelit .color-picker.open {
-  display: block;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  grid-template-columns: auto auto;
+  justify-items: right;
+  column-gap: 10px;
   position: absolute;
-  bottom: 1.2ch;
+  top: 1.2ch;
   left: 0;
-  height: 30px;
-  width: 30px;
-  background-color: red;
+  background-color: white;
+  border-radius: 0;
+  border: 1px solid black;
 }
 
 .splice {

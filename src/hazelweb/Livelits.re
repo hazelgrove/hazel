@@ -837,9 +837,11 @@ module ColorLivelit: LIVELIT = {
       },
     );
 
+  let is_valid = color_value => 0 <= color_value && color_value < 256;
+
   let view = ({r, g, b, is_open}, trigger) => {
     LivelitView.Inline(
-      ({uhcode: _, dhcode}) => {
+      ({uhcode, dhcode}) => {
         open Vdom;
         let color_box =
           switch (dhcode(r), dhcode(g), dhcode(b)) {
@@ -847,7 +849,8 @@ module ColorLivelit: LIVELIT = {
               Some((IntLit(r), _)),
               Some((IntLit(g), _)),
               Some((IntLit(b), _)),
-            ) =>
+            )
+              when is_valid(r) && is_valid(g) && is_valid(b) =>
             Node.div(
               [
                 attr_style(
@@ -895,11 +898,26 @@ module ColorLivelit: LIVELIT = {
               ],
             )
           };
-
         let color_picker =
           Node.div(
             [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
-            [],
+            [
+              Node.label([], [Node.text("R")]),
+              Node.div(
+                [Attr.classes(["color-picker-splice"])],
+                [uhcode(r)],
+              ),
+              Node.label([], [Node.text("G")]),
+              Node.div(
+                [Attr.classes(["color-picker-splice"])],
+                [uhcode(g)],
+              ),
+              Node.label([], [Node.text("B")]),
+              Node.div(
+                [Attr.classes(["color-picker-splice"])],
+                [uhcode(b)],
+              ),
+            ],
           );
         Node.div(
           [
