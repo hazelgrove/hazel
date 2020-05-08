@@ -798,9 +798,29 @@ module ColorLivelit: LIVELIT = {
   };
   let init_model =
     SpliceGenCmd.(
-      bind(new_splice(HTyp.Int), r =>
-        bind(new_splice(HTyp.Int), g =>
-          bind(new_splice(HTyp.Int), b => return({r, g, b, is_open: false}))
+      bind(
+        new_splice(
+          ~init_uhexp_gen=
+            u_gen => (UHExp.(Block.wrap(intlit'(255))), u_gen),
+          HTyp.Int,
+        ),
+        r =>
+        bind(
+          new_splice(
+            ~init_uhexp_gen=
+              u_gen => (UHExp.(Block.wrap(intlit'(0))), u_gen),
+            HTyp.Int,
+          ),
+          g =>
+          bind(
+            new_splice(
+              ~init_uhexp_gen=
+                u_gen => (UHExp.(Block.wrap(intlit'(0))), u_gen),
+              HTyp.Int,
+            ),
+            b =>
+            return({r, g, b, is_open: false})
+          )
         )
       )
     );
