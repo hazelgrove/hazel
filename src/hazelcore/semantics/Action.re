@@ -4196,8 +4196,8 @@ module Exp = {
           // safe because pattern guard
           ty |> HTyp.get_prod_elements |> List.hd,
         );
-      let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-      Succeeded(AnaDone((ZExp.ZBlock.wrap'(new_zopseq), u_gen)));
+      let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | (
         Construct(SParenthesized),
         ZOperand(CursorE(_, EmptyHole(_)), (E, E)),
