@@ -162,11 +162,10 @@ let user_newline: t =
     ])
   );
 
-type formattable_child = (~enforce_inline: bool) => t;
 type formatted_child =
   | UserNewline(t)
   | EnforcedInline(t)
-  | Unformatted(formattable_child);
+  | Unformatted((~enforce_inline: bool) => t);
 
 let pad_child =
     (
