@@ -72,8 +72,10 @@ let view = (~inject, model: Model.t) => {
           | Some(move_key) =>
             prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
           | None =>
-            if (CursorInfo.is_text_cursor(program |> Program.get_zexp)) {
-              let s = JSUtil.get_key(evt);
+            let s = JSUtil.get_key(evt);
+            print_endline("Cell, s = " ++ s);
+            if ((s != "Backspace" && s != "Delete")
+                && CursorInfo.is_text_cursor(program |> Program.get_zexp)) {
               if (String.length(s) > 1) {
                 let s' = String.sub(s, 5, String.length(s) - 5);
                 print_endline("Cell, s' = " ++ s');
@@ -113,7 +115,7 @@ let view = (~inject, model: Model.t) => {
                   )
                 }
               };
-            }
+            };
           }
         }),
       ];
