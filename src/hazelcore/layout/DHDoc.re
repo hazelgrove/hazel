@@ -194,7 +194,8 @@ module Exp = {
     | Keyword(_)
     | BoolLit(_)
     | NumLit(_)
-    | ListNil(_)
+    | ListLit(_, _)
+    // | ListNil(_)
     | Inj(_)
     | EmptyHole(_)
     | Triv
@@ -286,7 +287,8 @@ module Exp = {
         | Triv => Delim.triv
         | BoolLit(b) => mk_BoolLit(b)
         | NumLit(n) => mk_NumLit(n)
-        | ListNil(_) => Delim.list_nil
+        // | ListNil(_) => Delim.list_nil
+        | ListLit(_, _) => Delim.list_nil
         | Inj(_, inj_side, d) =>
           let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
           mk_Inj(inj_side, child |> pad_child(~enforce_inline));

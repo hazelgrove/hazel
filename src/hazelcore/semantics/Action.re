@@ -3202,6 +3202,22 @@ module Exp = {
       : Outcome.t(syn_success) => {
     switch (a, zoperand) {
     /* Invalid cursor positions */
+    | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      switch (syn_perform_operand(ctx, a, (zhole, HTyp.Hole, u_gen))) {
+      | (Failed | CursorEscaped(_)) as failed => failed
+      | Succeeded(SynDone((zp, _, u_gen))) =>
+        switch (zp) {
+        | ([], ExpLineZ(z), []) =>
+          let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
+          Succeeded(SynDone((new_ze, ty, u_gen)));
+        | _ => Failed
+        }
+      | _ => Failed
+      };
+    | (Backspace | Delete, CursorE(OnText(_), ListLit(_, None))) =>
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), Hole, u_gen)));
     | (
         _,
         CursorE(
@@ -3412,11 +3428,15 @@ module Exp = {
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorE(_)) => Failed
-
+    | (Construct(SListLit), CursorE(_, EmptyHole(_))) =>
+      let new_ze =
+        ZExp.CursorE(OnText(1), ListLit(NotInHole, None))
+        |> ZExp.ZBlock.wrap;
+      let new_ty = HTyp.List(Hole);
+      Succeeded(SynDone((new_ze, new_ty, u_gen)));
     | (Construct(SListLit), CursorE(_)) =>
       let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
-      Succeeded(SynDone((new_ze, ty, u_gen)));
-    // Succeeded(SynDone((new_ze, HTyp.List(Hole), u_gen)));
+      Succeeded(SynDone((new_ze, HTyp.List(Hole), u_gen)));
 
     | (Construct(SParenthesized), CursorE(_)) =>
       let new_ze =

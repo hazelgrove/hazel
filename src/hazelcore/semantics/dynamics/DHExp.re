@@ -57,7 +57,7 @@ type t =
   | BinNumOp(bin_num_op, t, t)
   | And(t, t)
   | Or(t, t)
-  | ListNil(HTyp.t)
+  | ListLit(HTyp.t, list(t))
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
@@ -84,7 +84,8 @@ let constructor_string = (d: t): string =>
   | BinNumOp(_, _, _) => "BinNumOp"
   | And(_, _) => "And"
   | Or(_, _) => "Or"
-  | ListNil(_) => "ListNil"
+  // | ListNil(_) => "ListNil"
+  | ListLit(_, _) => "ListLit"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
