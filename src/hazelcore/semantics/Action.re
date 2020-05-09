@@ -2000,7 +2000,7 @@ module Exp = {
 
   let lines_of_prefix =
       (u_gen: MetaVarGen.t, prefix: UHExp.affix)
-      : (list(UHExp.line), MetaVarGen.t) =>c
+      : (list(UHExp.line), MetaVarGen.t) =>
     switch (prefix) {
     | E => ([], u_gen)
     | A(_) =>
