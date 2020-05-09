@@ -28,7 +28,7 @@ module BinIntOp = {
     | Or
     | Space
     | Cons
-    | Comma 
+    | Comma
     | PlusPlus => None
     };
 
@@ -71,7 +71,8 @@ module BinFloatOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | PlusPlus => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
@@ -103,7 +104,8 @@ module BinStrOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma 
+    | FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals => None
     };
 
   let to_op = (bso: t): UHExp.operator =>
