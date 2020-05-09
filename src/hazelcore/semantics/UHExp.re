@@ -344,8 +344,18 @@ let text_operand =
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
   | EmptyLine => true
-  | LetLine(pat, _, body) =>
-    UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+  | LetLine(pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+      | Some(ty) =>
+        UHPat.is_complete(pat)
+        && is_complete(body, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
+    }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
   };
