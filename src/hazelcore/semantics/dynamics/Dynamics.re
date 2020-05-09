@@ -434,12 +434,15 @@ module Exp = {
       Ap(d3, d4);
     | BoolLit(_)
     | NumLit(_)
-    | ListNil(_)
+    // | ListNil(_)
     | Triv => d2
     | Cons(d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       Cons(d3, d4);
+    | ListLit(t, types) =>
+      let subst_types = List.map(subst_var(d1, x), types);
+      ListLit(t, subst_types);
     | BinNumOp(op, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
@@ -582,7 +585,7 @@ module Exp = {
     | (Triv, Cast(d, Hole, Unit)) => matches(dp, d)
     | (Triv, Cast(d, Unit, Hole)) => matches(dp, d)
     | (Triv, _) => DoesNotMatch
-    | (ListNil, ListNil(_)) => Matches(Environment.empty)
+    | (ListNil, ListLit(_, _)) => Matches(Environment.empty)
     | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
     | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
     | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
@@ -649,7 +652,8 @@ module Exp = {
     | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
-    | ListNil(_) => DoesNotMatch
+    // | ListNil(_) => DoesNotMatch
+    | ListLit(_, _) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
@@ -704,7 +708,8 @@ module Exp = {
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
-    | ListNil(_) => DoesNotMatch
+    // | ListNil(_) => DoesNotMatch
+    | ListLit(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
     | Case(_, _, _) => Indet
@@ -758,7 +763,8 @@ module Exp = {
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
-    | ListNil(_) => DoesNotMatch
+    // | ListNil(_) => DoesNotMatch
+    | ListLit(_) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
     | Case(_, _, _) => Indet
@@ -1009,6 +1015,7 @@ module Exp = {
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     // | ListNil(InHole(WrongLength, _))
+    | ListLit(InHole(WrongLength, _), _)
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
@@ -1041,15 +1048,32 @@ module Exp = {
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
-    // | ListNil(NotInHole) =>
-    //   let elt_ty = HTyp.Hole;
-    //   Expands(ListNil(elt_ty), List(elt_ty), delta);
     | Parenthesized(body) => syn_expand(ctx, delta, body)
-    | ListLit(_, opseq) =>
-      switch (opseq) {
-      | Some(opseq_) => syn_expand_opseq(ctx, delta, opseq_)
-      | None => DoesNotExpand
-      }
+    | ListLit(_, None) =>
+      Expands(ListLit(List(Hole), []), List(Hole), delta)
+    | ListLit(_, Some(opseq)) =>
+      let OpSeq(skel, seq) = opseq;
+      let subskels = UHExp.get_tuple_elements(skel);
+      let rec syn_subskels = subskels =>
+        switch (subskels) {
+        | [] => failwith("invalid")
+        | [hd] =>
+          switch (syn_expand_skel(ctx, delta, hd, seq)) {
+          | DoesNotExpand => failwith("invalid")
+          | Expands(d1, ty1, _) => [(ty1, d1)]
+          }
+        | [hd, ...tl] =>
+          switch (syn_expand_skel(ctx, delta, hd, seq)) {
+          | DoesNotExpand => failwith("invalid")
+          | Expands(d1, ty1, _) => [(ty1, d1), ...syn_subskels(tl)]
+          }
+        };
+      let (types, deltas) = List.split(syn_subskels(subskels));
+      switch (Statics.glb(types)) {
+      // Add listlit in DHExp.re
+      | Some(ty) => Expands(ListLit(List(ty), deltas), List(ty), delta)
+      | _ => DoesNotExpand
+      };
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1490,12 +1514,16 @@ module Exp = {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
-    | ListNil(_)
+    // | ListNil(_)
     | Triv => (d, hii)
     | Let(dp, d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (Let(dp, d1, d2), hii);
+    | ListLit(t, deltas) =>
+      let (new_deltas, _) =
+        List.split(List.map(renumber_result_only(path, hii), deltas));
+      (ListLit(t, new_deltas), hii);
     | FixF(x, ty, d1) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (FixF(x, ty, d1), hii);
@@ -1581,12 +1609,16 @@ module Exp = {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
-    | ListNil(_)
+    // | ListNil(_)
     | Triv => (d, hii)
     | Let(dp, d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (Let(dp, d1, d2), hii);
+    | ListLit(t, deltas) =>
+      let (new_deltas, _) =
+        List.split(List.map(renumber_sigmas_only(path, hii), deltas));
+      (ListLit(t, new_deltas), hii);
     | FixF(x, ty, d1) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (FixF(x, ty, d1), hii);
@@ -1816,7 +1848,8 @@ module Evaluator = {
         | Indet(d2') => Indet(Ap(d1', d2'))
         }
       }
-    | ListNil(_)
+    // | ListNil(_)
+    | ListLit(_, _)
     | BoolLit(_)
     | NumLit(_)
     | Triv => BoxedValue(d)
