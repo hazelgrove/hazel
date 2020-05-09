@@ -257,11 +257,17 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         info([text("Move using arrow keys")]),
         dual_line("Move to next hole ", Tab, "Previous hole ", ShiftTab),
+        dual_line(
+          "Delete character ",
+          Backspace,
+          "Delete expression ",
+          Delete,
+        ),
         combo(Ctrl_Alt_Up, simple("Swap expression up")),
         combo(Ctrl_Alt_Down, simple("Swap expression down")),
         combo(Ctrl_Alt_Left, simple("Swap expression left")),
         combo(Ctrl_Alt_Right, simple("Swap expression right")),
-        dual_line("Create new line ", Enter, "Delete expression ", Delete),
+        combo(Enter, simple("Create new line ")),
       ],
     ),
     section(
@@ -283,8 +289,6 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action.Construct(SLet),
         ),
-        combo(Colon, simple("Type ascription")),
-        combo(Backspace, simple("Delete character")),
       ],
     ),
     section(
