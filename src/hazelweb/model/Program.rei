@@ -49,9 +49,12 @@ let move_via_click:
 exception NodeNotFound;
 let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => t;
 
-let get_doc: t => UHDoc.with_splices;
-let get_layout: t => UHLayout.with_splices;
-let get_decorated_layout: t => UHLayout.with_splices;
+let get_doc:
+  (~selected_instances: UserSelectedInstances.t=?, t) => UHDoc.with_splices;
+let get_layout:
+  (~selected_instances: UserSelectedInstances.t=?, t) => UHLayout.with_splices;
+let get_decorated_layout:
+  (~selected_instances: UserSelectedInstances.t=?, t) => UHLayout.with_splices;
 let get_cursor_map: t => CursorMap.with_splices;
 
 let cursor_on_inst: t => option((TaggedNodeInstance.kind, MetaVar.t));

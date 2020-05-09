@@ -660,6 +660,7 @@ module Exp = {
         ~enforce_inline: bool,
         ~ctx: Livelits.LivelitViewCtx.t,
         ~llii: LivelitInstanceInfo.t,
+        ~selected_instances: UserSelectedInstances.t,
         e: UHExp.t,
       )
       : with_splices => {
@@ -760,7 +761,15 @@ module Exp = {
         switch (VarMap.lookup(ctx, lln)) {
         | None => assert(false)
         | Some(svf) =>
-          let inst_opt = LivelitInstanceInfo.default_instance(llii, llu);
+          let selected_inst_opt =
+            selected_instances
+            |> UserSelectedInstances.lookup(TaggedNodeInstance.Livelit, llu)
+            |> OptUtil.map(i => (llu, i));
+          let inst_opt =
+            switch (selected_inst_opt) {
+            | None => LivelitInstanceInfo.default_instance(llii, llu)
+            | Some(inst) => Some(inst)
+            };
           let sim_opt =
             inst_opt
             |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))

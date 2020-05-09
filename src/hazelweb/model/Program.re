@@ -149,18 +149,19 @@ let move_to_node = (kind, u, program) => {
 };
 
 let _doc =
-  Memo.general(~cache_size_bound=1000, ((llii, e)) =>
+  Memo.general(~cache_size_bound=1000, ((llii, selected_instances, e)) =>
     UHDoc.Exp.mk(
       ~enforce_inline=false,
       ~ctx=Livelits.initial_livelit_view_ctx,
       ~llii,
+      ~selected_instances,
       e,
     )
   );
-let get_doc = program => {
+let get_doc = (~selected_instances=UserSelectedInstances.init, program) => {
   let e = program |> get_uhexp;
   let (_, _, llii, _) = program |> get_result;
-  _doc((llii, e));
+  _doc((llii, selected_instances, e));
 };
 
 let _cursor_on_inst =
@@ -172,9 +173,9 @@ let _cursor_through_insts =
 let cursor_through_insts = program =>
   program |> get_zexp |> _cursor_through_insts;
 
-let get_layout = program => {
+let get_layout = (~selected_instances=UserSelectedInstances.init, program) => {
   let width = program |> get_width;
-  let (doc, splice_docs) = program |> get_doc;
+  let (doc, splice_docs) = program |> get_doc(~selected_instances);
   let layout =
     doc
     |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
@@ -254,11 +255,12 @@ let decorate_var_uses = (ci: CursorInfo.t, l) =>
        )
   };
 
-let get_decorated_layout = program => {
+let get_decorated_layout =
+    (~selected_instances=UserSelectedInstances.init, program) => {
   let (steps, _) as path = program |> get_path;
   let ci = program |> get_cursor_info;
   program
-  |> get_layout
+  |> get_layout(~selected_instances)
   |> decorate_caret(path)
   |> decorate_cursor(steps)
   |> decorate_var_uses(ci);

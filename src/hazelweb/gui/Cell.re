@@ -62,7 +62,8 @@ let view = (~inject, model: Model.t) => {
   let code_view = UHCode.view(~inject, ~font_metrics=model.font_metrics);
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
-  let (key_handlers, code_view) =
+  let (key_handlers, code_view) = {
+    let selected_instances = model.selected_instances;
     if (Model.is_cell_focused(model)) {
       let key_handlers = [
         Attr.on_keypress(_ => Event.Prevent_default),
@@ -98,11 +99,15 @@ let view = (~inject, model: Model.t) => {
           }
         }),
       ];
-      let view = program |> Program.get_decorated_layout |> code_view;
+      let view =
+        program
+        |> Program.get_decorated_layout(~selected_instances)
+        |> code_view;
       (key_handlers, view);
     } else {
-      ([], program |> Program.get_layout |> code_view);
+      ([], program |> Program.get_layout(~selected_instances) |> code_view);
     };
+  };
   Node.div(
     [
       Attr.id(cell_id),
