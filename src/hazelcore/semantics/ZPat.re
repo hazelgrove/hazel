@@ -88,7 +88,7 @@ and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) 
+  | CursorP(cursor, ListNil(_))
   | CursorP(cursor, StringLit(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, Var(_, _, _))
   | CursorP(cursor, IntLit(_, _))
@@ -127,12 +127,9 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand = operand =>
   switch (operand) {
-  | Var(_)
-  | NumLit(_)
-  | BoolLit(_) => CursorP(OnText(0), operand)
   | EmptyHole(_)
   | Wild(_)
-  | StringLit(_)
+  | StringLit(_, _)
   | ListNil(_) => CursorP(OnDelim(0, Before), operand)
   | Var(_, _, _)
   | IntLit(_, _)
