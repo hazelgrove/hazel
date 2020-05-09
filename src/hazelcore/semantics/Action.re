@@ -1508,7 +1508,8 @@ module Pat = {
         Construct(SQuote),
         CursorP(
           OnText(_),
-          Var(_, _, _) | IntLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+          Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _) |
+          StringLit(_, _),
         ),
       ) =>
       print_endline("hello1418");
@@ -2081,7 +2082,8 @@ module Pat = {
         Construct(SQuote),
         CursorP(
           OnText(_),
-          Var(_, _, _) | IntLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+          Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _) |
+          StringLit(_, _),
         ),
       ) =>
       print_endline("hello1898");
@@ -2204,7 +2206,7 @@ module Exp = {
     | FLessThan
     | FGreaterThan
     | FEquals => None
-    | PlusPlus => SPlusPlus
+    | PlusPlus => Some(SPlusPlus)
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -3805,7 +3807,10 @@ module Exp = {
       Failed;
     | (
         Construct(SQuote),
-        CursorE(OnText(_), Var(_, _, _) | IntLit(_, _) | BoolLit(_, _)),
+        CursorE(
+          OnText(_),
+          Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _),
+        ),
       ) =>
       print_endline("hello3469");
       Failed;
@@ -5149,7 +5154,10 @@ module Exp = {
       Failed;
     | (
         Construct(SQuote),
-        CursorE(OnText(_), Var(_, _, _) | IntLit(_, _) | BoolLit(_, _)),
+        CursorE(
+          OnText(_),
+          Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _),
+        ),
       ) =>
       print_endline("hello4662");
       Failed;
