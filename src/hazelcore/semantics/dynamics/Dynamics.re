@@ -179,6 +179,7 @@ module Pat = {
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
         ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
+      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -1325,6 +1326,7 @@ module Exp = {
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
         ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
+      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
       | (_, [Hole]) =>
         skels
         |> List.fold_left(

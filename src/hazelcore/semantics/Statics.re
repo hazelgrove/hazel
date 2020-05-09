@@ -528,6 +528,17 @@ module Pat = {
             ty,
           );
         (OpSeq.wrap(operand), ctx, u_gen);
+      | ([BinOp(_)], _) =>
+        let (skel, seq, ctx, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel,
+            seq,
+            ty,
+          );
+        (OpSeq.OpSeq(skel, seq), ctx, u_gen);
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -1891,6 +1902,17 @@ module Exp = {
             ty,
           );
         (OpSeq.wrap(operand), u_gen);
+      | ([BinOp(_)], _) =>
+        let (skel, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel,
+            seq,
+            ty,
+          );
+        (OpSeq.OpSeq(skel, seq), u_gen);
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
