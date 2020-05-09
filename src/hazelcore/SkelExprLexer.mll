@@ -16,7 +16,6 @@ rule read =
   | "-." { FMINUS }
   | "*." { FTIMES }
   | "^" { PLUSPLUS }
->>>>>>> dev
   | "_" { SPACEOP }
   | "," { COMMA }
   | "::" { CONS }
