@@ -3,7 +3,8 @@
 type t =
   | Hole
   | Unit
-  | Num
+  | Int
+  | Float
   | Bool
   | String
   | Arrow(t, t)
@@ -11,14 +12,12 @@ type t =
   | Sum(t, t)
   | List(t);
 
-// Prod(Num, Num)  ==  (Num, Num)
-// (Prod(Num, Num), Bool)  ==  (Num, Num, Bool)
-
 let rec num_tms = (ty: t): int =>
   switch (ty) {
   | Hole
   | Unit
-  | Num
+  | Int
+  | Float
   | Bool
   | String
   | List(_) => 1
@@ -34,8 +33,10 @@ let rec eq = (ty1, ty2) =>
   | (Hole, _) => false
   | (Unit, Unit) => true
   | (Unit, _) => false
-  | (Num, Num) => true
-  | (Num, _) => false
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
   | (String, String) => true
@@ -57,8 +58,10 @@ let rec consistent = (x, y) =>
   | (_, Hole) => true
   | (Unit, Unit) => true
   | (Unit, _) => false
-  | (Num, Num) => true
-  | (Num, _) => false
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
   | (String, String) => true
@@ -131,7 +134,8 @@ let rec complete =
   fun
   | Hole => false
   | Unit => true
-  | Num => true
+  | Int => true
+  | Float => true
   | Bool => true
   | String => true
   | Arrow(ty1, ty2) =>
@@ -160,8 +164,10 @@ let rec join = (ty1, ty2) =>
   | (Hole, _) => Some(ty2)
   | (Unit, Unit) => Some(ty1)
   | (Unit, _) => None
-  | (Num, Num) => Some(ty1)
-  | (Num, _) => None
+  | (Int, Int) => Some(ty1)
+  | (Int, _) => None
+  | (Float, Float) => Some(ty1)
+  | (Float, _) => None
   | (Bool, Bool) => Some(ty1)
   | (Bool, _) => None
   | (String, String) => Some(ty1)

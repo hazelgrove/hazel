@@ -12,13 +12,20 @@ rule read =
   | "+" { PLUS }
   | "-" { MINUS }
   | "*" { TIMES }
+  | "+." { FPLUS }
+  | "-." { FMINUS }
+  | "*." { FTIMES }
   | "^" { PLUSPLUS }
+>>>>>>> dev
   | "_" { SPACEOP }
   | "," { COMMA }
   | "::" { CONS }
   | "<" { LT }
   | ">" { GT }
   | "=" { EQ }
+  | "<." { FLT }
+  | ">." { FGT }
+  | "=." { FEQ }
   | "|" { OR }
   | "&" { AND }
   | placeholder { PLACEHOLDER (int_of_string (Lexing.lexeme lexbuf)) }
