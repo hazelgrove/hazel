@@ -1,3 +1,4 @@
+// Anytime a new operator is added, the corresponding Skel[Typ|Pat|Expr]Lexer.mll and Skel[Typ|Pat|Expr].mly files should be updated too
 let rec make_skel_str' =
         (
           string_of_op: 'op => string,
@@ -69,10 +70,16 @@ module Exp = {
     | Plus => "+"
     | Minus => "-"
     | Times => "*"
+    | FPlus => "+."
+    | FMinus => "-."
+    | FTimes => "*."
     | PlusPlus => "^"
     | LessThan => "<"
     | GreaterThan => ">"
     | Equals => "="
+    | FLessThan => "<."
+    | FGreaterThan => ">."
+    | FEquals => "=."
     | Space => "_"
     | Comma => ","
     | Cons => "::"

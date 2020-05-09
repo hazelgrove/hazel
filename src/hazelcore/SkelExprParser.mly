@@ -13,10 +13,16 @@
 %token LT
 %token GT
 %token EQ
+%token FLT
+%token FGT
+%token FEQ
 %token CONS
 %token PLUS
 %token MINUS
 %token TIMES
+%token FPLUS
+%token FMINUS
+%token FTIMES
 %token PLUSPLUS
 %token SPACEOP
 %token EOF
@@ -27,10 +33,16 @@
 %left LT
 %left GT
 %left EQ
+%left FLT
+%left FGT
+%left FEQ
 %right CONS
 %left PLUS
 %left MINUS
 %left TIMES
+%left FPLUS
+%left FMINUS
+%left FTIMES
 %left PLUSPLUS
 %left SPACEOP
 
@@ -67,6 +79,21 @@ expr:
       NotInHole,
       UHExp.Equals,
       e1, e2) }
+  | e1 = expr; FLT; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FLessThan,
+      e1, e2) }
+  | e1 = expr; FGT; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FGreaterThan,
+      e1, e2) }
+  | e1 = expr; FEQ; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FEquals,
+      e1, e2) }
   | e1 = expr; CONS; e2 = expr {
     Skel.BinOp(
       NotInHole,
@@ -81,6 +108,16 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.Minus,
+      e1, e2) }
+  | e1 = expr; FPLUS; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FPlus,
+      e1, e2) }
+  | e1 = expr; FMINUS; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FMinus,
       e1, e2) }
   | e1 = expr; PLUSPLUS; e2 = expr {
     Skel.BinOp(
@@ -101,6 +138,11 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.Times,
+      e1, e2) }
+  | e1 = expr; FTIMES; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.FTimes,
       e1, e2) }
   | e1 = expr; SPACEOP; e2 = expr {
     Skel.BinOp(

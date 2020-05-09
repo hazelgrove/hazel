@@ -26,13 +26,11 @@ To update do the following:
 
 - Test in Firefox, Chrome, and Chromium using:
 
-  - `chrome $(make echo-html)`,
+ - `make firefox`
+ - `make chrome`
+ - `make chromium`
 
-  - `chromium $(make echo-html)`, and
-
-  - `firefox $(make echo-html)`.
-
-  TODO: How to test in browser.
+  TODO: Testing protocol
 
 - Test that the `reason-vscode` extension works with the OCaml version.
 

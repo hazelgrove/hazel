@@ -15,7 +15,8 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
   | Unit
-  | Num
+  | Int
+  | Float
   | Bool => CursorPosition.delim_cursors(1)
   | String => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
@@ -52,11 +53,14 @@ let rec is_before = (zty: t): bool => zty |> is_before_zopseq
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
-  | CursorT(
-      cursor,
-      Hole | Unit | Num | Bool | String | Parenthesized(_) | List(_),
-    ) =>
-    cursor == OnDelim(0, Before)
+  | CursorT(cursor, Hole)
+  | CursorT(cursor, Unit)
+  | CursorT(cursor, Int)
+  | CursorT(cursor, Float)
+  | CursorT(cursor, Bool)
+  | CursorT(cursor, String)
+  | CursorT(cursor, Parenthesized(_))
+  | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
 let is_before_zoperator: zoperator => bool =
@@ -68,10 +72,14 @@ let rec is_after = (zty: t): bool => zty |> is_after_zopseq
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
-  | CursorT(cursor, Hole | Unit | Num | Bool | String) =>
-    cursor == OnDelim(0, After)
-  | CursorT(cursor, Parenthesized(_) | List(_)) =>
-    cursor == OnDelim(1, After)
+  | CursorT(cursor, Hole)
+  | CursorT(cursor, Unit)
+  | CursorT(cursor, Int)
+  | CursorT(cursor, Float)
+  | CursorT(cursor, Bool)
+  | CursorT(cursor, String) => cursor == OnDelim(0, After)
+  | CursorT(cursor, Parenthesized(_))
+  | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
 let is_after_zoperator: zoperator => bool =
@@ -84,7 +92,7 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (Hole | Unit | Num | Bool | String | Parenthesized(_) | List(_)) as operand =>
+  | (Hole | Unit | Int | Float | Bool | String | Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(0, Before), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
@@ -94,7 +102,7 @@ and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand =
   fun
-  | (Hole | Unit | Num | Bool | String) as operand =>
+  | (Hole | Unit | Int | Float | Bool | String) as operand =>
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
@@ -134,8 +142,7 @@ and move_cursor_left_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
-  | CursorT(OnDelim(_, Before), Hole | Unit | Num | Bool) => None
-  | CursorT(OnDelim(_, Before), String) => None
+  | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool | String) => None
   | CursorT(OnDelim(_k, Before), Parenthesized(ty1)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
@@ -177,7 +184,7 @@ and move_cursor_right_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
-  | CursorT(OnDelim(_, After), Hole | Unit | Num | Bool | String) => None
+  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool | String) => None
   | CursorT(OnDelim(_k, After), Parenthesized(ty1)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(ty1)))
