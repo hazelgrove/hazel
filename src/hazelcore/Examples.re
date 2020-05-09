@@ -335,6 +335,19 @@ let qsort_example: UHExp.t = {
   UHExp.[append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line];
 };
 
+let rec qsort_n = (n: int): UHExp.t =>
+  if (n == 0) {
+    [];
+  } else {
+    [
+      UHExp.letline(
+        OpSeq.wrap(UHPat.var("qsort" ++ Int.to_string(n))),
+        qsort_example,
+      ),
+      ...qsort_n(n - 1),
+    ];
+  };
+
 [@deriving sexp]
 type id = string;
 let examples =
@@ -345,5 +358,9 @@ let examples =
     |> add("let_line", let_line)
     |> add("map_example", map_example)
     |> add("qsort_example", qsort_example)
+    |> add("qsort_example_3", qsort_n(3))
+    |> add("qsort_example_10", qsort_n(10))
+    |> add("qsort_example_30", qsort_n(30))
+    |> add("qsort_example_100", qsort_n(100))
   );
 let get = id => StringMap.find(id, examples);

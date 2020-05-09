@@ -1,13 +1,31 @@
-type t = {
-  cardstacks: Cardstacks.t,
-  cell_width: int,
-  selected_instances: UserSelectedInstances.t,
-  undo_history: UndoHistory.t,
+type compute_results = {
   compute_results: bool,
   show_case_clauses: bool,
   show_fn_bodies: bool,
   show_casts: bool,
   show_unevaluated_expansion: bool,
+};
+
+type measurements = {
+  measurements: bool,
+  model_perform_edit_action: bool,
+  program_get_doc: bool,
+  layoutOfDoc_layout_of_doc: bool,
+  uhcode_view: bool,
+  cell_view: bool,
+  page_view: bool,
+  hazel_create: bool,
+  update_apply_action: bool,
+};
+
+type t = {
+  cardstacks: Cardstacks.t,
+  cell_width: int,
+  selected_instances: UserSelectedInstances.t,
+  undo_history: UndoHistory.t,
+  compute_results,
+  measurements,
+  memoize_doc: bool,
   selected_example: option(UHExp.t),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
@@ -46,11 +64,25 @@ let init = (): t => {
     cell_width,
     selected_instances,
     undo_history,
-    compute_results,
-    show_case_clauses: false,
-    show_fn_bodies: false,
-    show_casts: false,
-    show_unevaluated_expansion: false,
+    compute_results: {
+      compute_results,
+      show_case_clauses: false,
+      show_fn_bodies: false,
+      show_casts: false,
+      show_unevaluated_expansion: false,
+    },
+    measurements: {
+      measurements: false,
+      model_perform_edit_action: true,
+      program_get_doc: true,
+      layoutOfDoc_layout_of_doc: true,
+      uhcode_view: true,
+      cell_view: true,
+      page_view: true,
+      hazel_create: true,
+      update_apply_action: true,
+    },
+    memoize_doc: true,
     selected_example: None,
     left_sidebar_open: false,
     right_sidebar_open: true,
@@ -124,7 +156,10 @@ let update_program = (~undoable, new_program, model) => {
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
         ? si : UserSelectedInstances.init;
-    switch (model.compute_results, new_program |> Program.cursor_on_exp_hole) {
+    switch (
+      model.compute_results.compute_results,
+      new_program |> Program.cursor_on_exp_hole,
+    ) {
     | (false, _)
     | (_, None) => si
     | (true, Some(u)) =>
@@ -164,18 +199,53 @@ let next_card = model => {
 };
 
 let perform_edit_action = (a: Action.t, model: t): t => {
-  let new_program = model |> get_program |> Program.perform_edit_action(a);
-  model
-  |> update_program(~undoable=UndoHistory.undoable_action(a), new_program);
+  TimeUtil.measure_time(
+    "Model.perform_edit_action",
+    model.measurements.measurements
+    && model.measurements.model_perform_edit_action,
+    () => {
+      let new_program =
+        model |> get_program |> Program.perform_edit_action(a);
+      model
+      |> update_program(
+           ~undoable=UndoHistory.undoable_action(a),
+           new_program,
+         );
+    },
+  );
 };
 
 let move_via_key = (move_key, model) => {
-  let new_program = model |> get_program |> Program.move_via_key(move_key);
+  let new_program =
+    model
+    |> get_program
+    |> Program.move_via_key(
+         ~measure_program_get_doc=
+           model.measurements.measurements
+           && model.measurements.program_get_doc,
+         ~measure_layoutOfDoc_layout_of_doc=
+           model.measurements.measurements
+           && model.measurements.layoutOfDoc_layout_of_doc,
+         ~memoize_doc=model.memoize_doc,
+         move_key,
+       );
   model |> update_program(~undoable=false, new_program);
 };
 
 let move_via_click = (row_col, model) => {
-  let new_program = model |> get_program |> Program.move_via_click(row_col);
+  let new_program =
+    model
+    |> get_program
+    |> Program.move_via_click(
+         ~measure_program_get_doc=
+           model.measurements.measurements
+           && model.measurements.program_get_doc,
+         ~measure_layoutOfDoc_layout_of_doc=
+           model.measurements.measurements
+           && model.measurements.layoutOfDoc_layout_of_doc,
+         ~memoize_doc=model.memoize_doc,
+         row_col,
+       );
   model |> update_program(~undoable=false, new_program);
 };
 
