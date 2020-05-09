@@ -340,7 +340,10 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool | String)) =>
+    | (
+        Backspace,
+        CursorT(OnDelim(_, After), Unit | Int | Float | Bool | String),
+      ) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
     /* ( _ )<|  ==>  _| */
@@ -1421,7 +1424,7 @@ module Pat = {
         when
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
-      syn_split_text(ctx, u_gen, j, sop, f);
+      syn_split_text(ctx, u_gen, j, sop, f)
     | (Construct(SOp(sop)), CursorP(OnText(j), StringLit(_, s)))
         when
           !ZPat.is_before_zoperand(zoperand)
@@ -1505,7 +1508,7 @@ module Pat = {
         Construct(SQuote),
         CursorP(
           OnText(_),
-          Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+          Var(_, _, _) | IntLit(_, _) | BoolLit(_, _) | StringLit(_, _),
         ),
       ) =>
       print_endline("hello1418");
@@ -2078,7 +2081,7 @@ module Pat = {
         Construct(SQuote),
         CursorP(
           OnText(_),
-          Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | StringLit(_, _),
+          Var(_, _, _) | IntLit(_, _) | BoolLit(_, _) | StringLit(_, _),
         ),
       ) =>
       print_endline("hello1898");
@@ -3802,7 +3805,7 @@ module Exp = {
       Failed;
     | (
         Construct(SQuote),
-        CursorE(OnText(_), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
+        CursorE(OnText(_), Var(_, _, _) | IntLit(_, _) | BoolLit(_, _)),
       ) =>
       print_endline("hello3469");
       Failed;
@@ -5146,7 +5149,7 @@ module Exp = {
       Failed;
     | (
         Construct(SQuote),
-        CursorE(OnText(_), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
+        CursorE(OnText(_), Var(_, _, _) | IntLit(_, _) | BoolLit(_, _)),
       ) =>
       print_endline("hello4662");
       Failed;
