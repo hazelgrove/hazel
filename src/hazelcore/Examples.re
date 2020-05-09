@@ -87,11 +87,11 @@ let map_example: UHExp.t = {
         ~ann=
           Seq.mk(
             UHTyp.Parenthesized(
-              Seq.mk(UHTyp.Num, [(UHTyp.Arrow, Num)]) |> mk_OpSeq_typ,
+              Seq.mk(UHTyp.Int, [(UHTyp.Arrow, Int)]) |> mk_OpSeq_typ,
             ),
             [
-              (UHTyp.Arrow, List(OpSeq.wrap(UHTyp.Num))),
-              (Arrow, List(OpSeq.wrap(UHTyp.Num))),
+              (UHTyp.Arrow, List(OpSeq.wrap(UHTyp.Int))),
+              (Arrow, List(OpSeq.wrap(UHTyp.Int))),
             ],
           )
           |> mk_OpSeq_typ,
@@ -150,10 +150,10 @@ let qsort_example: UHExp.t = {
         ~ann=
           UHTyp.(
             Seq.mk(
-              List(OpSeq.wrap(Num)),
+              List(OpSeq.wrap(Int)),
               [
-                (Arrow, List(OpSeq.wrap(Num))),
-                (Arrow, List(OpSeq.wrap(Num))),
+                (Arrow, List(OpSeq.wrap(Int))),
+                (Arrow, List(OpSeq.wrap(Int))),
               ],
             )
             |> mk_OpSeq_typ
@@ -256,15 +256,15 @@ let qsort_example: UHExp.t = {
         ~ann=
           UHTyp.(
             Seq.mk(
-              Parenthesized(Seq.mk(Num, [(Arrow, Bool)]) |> mk_OpSeq_typ),
+              Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq_typ),
               [
-                (Arrow, List(OpSeq.wrap(Num))),
+                (Arrow, List(OpSeq.wrap(Int))),
                 (
                   Arrow,
                   Parenthesized(
                     Seq.mk(
-                      List(OpSeq.wrap(Num)),
-                      [(Prod, List(OpSeq.wrap(Num)))],
+                      List(OpSeq.wrap(Int)),
+                      [(Prod, List(OpSeq.wrap(Int)))],
                     )
                     |> mk_OpSeq_typ,
                   ),
@@ -288,14 +288,14 @@ let qsort_example: UHExp.t = {
               Parenthesized(
                 Block.wrap'(
                   Seq.mk(
-                    numlit(4),
+                    intlit("4"),
                     [
-                      (Cons, numlit(2)),
-                      (Cons, numlit(6)),
-                      (Cons, numlit(5)),
-                      (Cons, numlit(3)),
-                      (Cons, numlit(1)),
-                      (Cons, numlit(7)),
+                      (Cons, intlit("2")),
+                      (Cons, intlit("6")),
+                      (Cons, intlit("5")),
+                      (Cons, intlit("3")),
+                      (Cons, intlit("1")),
+                      (Cons, intlit("7")),
                       (Cons, listnil()),
                     ],
                   )
@@ -312,6 +312,19 @@ let qsort_example: UHExp.t = {
   UHExp.[append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line];
 };
 
+let rec qsort_n = (n: int): UHExp.t =>
+  if (n == 0) {
+    [];
+  } else {
+    [
+      UHExp.letline(
+        OpSeq.wrap(UHPat.var("qsort" ++ Int.to_string(n))),
+        qsort_example,
+      ),
+      ...qsort_n(n - 1),
+    ];
+  };
+
 [@deriving sexp]
 type id = string;
 let examples =
@@ -322,5 +335,9 @@ let examples =
     |> add("let_line", let_line)
     |> add("map_example", map_example)
     |> add("qsort_example", qsort_example)
+    |> add("qsort_example_3", qsort_n(3))
+    |> add("qsort_example_10", qsort_n(10))
+    |> add("qsort_example_30", qsort_n(30))
+    |> add("qsort_example_100", qsort_n(100))
   );
 let get = id => StringMap.find(id, examples);

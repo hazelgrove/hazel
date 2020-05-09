@@ -31,7 +31,8 @@ and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | NumLit(ErrStatus.t, int)
+  | IntLit(ErrStatus.t, string)
+  | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
@@ -55,7 +56,9 @@ let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
-let numlit = (~err: ErrStatus.t=NotInHole, n: int) => NumLit(err, n);
+let intlit = (~err: ErrStatus.t=NotInHole, n: string) => IntLit(err, n);
+
+let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
@@ -92,7 +95,8 @@ and get_err_status_operand =
   | EmptyHole(_) => NotInHole
   | Wild(err)
   | Var(err, _, _)
-  | NumLit(err, _)
+  | IntLit(err, _)
+  | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
   | Inj(err, _, _) => err
@@ -107,7 +111,8 @@ and set_err_status_operand = (err, operand) =>
   | EmptyHole(_) => operand
   | Wild(_) => Wild(err)
   | Var(_, var_err, x) => Var(err, var_err, x)
-  | NumLit(_, n) => NumLit(err, n)
+  | IntLit(_, n) => IntLit(err, n)
+  | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
@@ -133,14 +138,16 @@ and make_inconsistent_operand =
   | EmptyHole(_)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
-  | NumLit(InHole(TypeInconsistent, _), _)
+  | IntLit(InHole(TypeInconsistent, _), _)
+  | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | NumLit(NotInHole | InHole(WrongLength, _), _)
+  | IntLit(NotInHole | InHole(WrongLength, _), _)
+  | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
@@ -157,7 +164,8 @@ let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
   switch (shape) {
   | Underscore => (wild(), u_gen)
-  | NumLit(n) => (numlit(n), u_gen)
+  | IntLit(n) => (intlit(n), u_gen)
+  | FloatLit(n) => (floatlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
