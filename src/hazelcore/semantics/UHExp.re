@@ -422,8 +422,12 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     }
 
   | Parenthesized(body) => is_complete(body, check_type_holes)
-  | ApPalette(InHole(_), _, _, _) => false
-  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
+  | FreeLivelit(_) => false
+  | ApLivelit(_, InHole(_), _, _, _) => false
+  | ApLivelit(_, NotInHole, _, _, splice_info) =>
+    splice_info.splice_map
+    |> NatMap.to_list
+    |> List.for_all(((_, (_, e))) => is_complete(e, check_type_holes))
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {
