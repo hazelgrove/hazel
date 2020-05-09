@@ -556,7 +556,8 @@ module Exp = {
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
-    | (_, BinIntOp(_, _, _) | BinStrOp(_, _, _) | And(_, _) | Or(_, _)) => Indet
+    | (_, BinIntOp(_, _, _) | BinStrOp(_, _, _) | And(_, _) | Or(_, _)) =>
+      Indet
     | (_, BinFloatOp(_, _, _)) => Indet
     | (_, Case(_, _, _)) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
@@ -1880,11 +1881,10 @@ module Evaluator = {
   let ground_cases_of = (ty: HTyp.t): ground_cases =>
     switch (ty) {
     | Hole => Hole
-    | Unit
     | Bool
+    | String
     | Int
     | Float
-    | String
     | Unit
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
