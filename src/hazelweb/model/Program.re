@@ -127,15 +127,15 @@ let move_to_hole = (u, program) => {
 let doc = (~memoize: bool) =>
   Lazy.force(UHDoc.Exp.mk, ~memoize, ~enforce_inline=false);
 let get_doc = program => {
-  TimeUtil.measure_time("Program.get_doc", () => doc(get_uhexp(program)));
+  let e = program |> get_uhexp;
+  doc(e);
 };
 
 let get_layout = (~memoize: bool, program) => {
   let width = program |> get_width;
-  let doc = get_doc(~memoize, program);
-  TimeUtil.measure_time("LayoutOfDoc.layout_of_doc", () =>
-    Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc)
-  )
+  program
+  |> get_doc(~memoize)
+  |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
 
