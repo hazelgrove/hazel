@@ -1078,8 +1078,11 @@ module GradientLivelit: LIVELIT = {
     );
 
   let expand = ({lcolor, rcolor, slider_value}) => {
+    let typ_opseq = (hd, tl) => UHTyp.mk_OpSeq(Seq.mk(hd, tl));
     let pat_opseq = (hd, tl) => UHPat.mk_OpSeq(Seq.mk(hd, tl));
     let exp_opseq = (hd, tl) => UHExp.mk_OpSeq(Seq.mk(hd, tl));
+    let typ_triple = (x1, x2, x3) =>
+      typ_opseq(x1, [(Operators.Typ.Prod, x2), (Operators.Typ.Prod, x3)]);
     let pat_triple = (x1, x2, x3) =>
       UHPat.(pat_opseq(var(x1), [(Comma, var(x2)), (Comma, var(x3))]));
     let scalar =
@@ -1113,6 +1116,18 @@ module GradientLivelit: LIVELIT = {
             [(Comma, Parenthesized(pat_triple("r2", "g2", "b2")))],
           )
         ),
+        ~ann=
+          UHTyp.(
+            typ_opseq(
+              Parenthesized(typ_triple(Float, Float, Float)),
+              [
+                (
+                  Operators.Typ.Prod,
+                  Parenthesized(typ_triple(Float, Float, Float)),
+                ),
+              ],
+            )
+          ),
         UHExp.(
           Block.wrap'(
             exp_opseq(
