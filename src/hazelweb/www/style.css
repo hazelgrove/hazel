@@ -660,7 +660,9 @@ html, body {
   column-gap: 0.5ch;
   align-items: center;
 }
-#OptionsPanel .indented-option {
+#OptionsPanel #show_unevaluated_expansion,
+#OptionsPanel #show_casts,
+#OptionsPanel #show_fn_bodies {
   position: relative;
   left: 2.5ch;
 }
