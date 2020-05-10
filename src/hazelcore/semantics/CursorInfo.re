@@ -80,6 +80,7 @@ type typed =
   | OnLine
   | OnRule;
 
+[@deriving sexp]
 type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)

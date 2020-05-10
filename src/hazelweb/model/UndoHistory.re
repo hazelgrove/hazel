@@ -1,12 +1,21 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type cursor_term = CursorInfo.cursor_term;
+
+[@deriving sexp]
 type delete_edit =
   | Term(cursor_term)
   | Space
   | EmptyLine
   | TypeAnn;
+
+[@deriving sexp]
 type var_edit =
-| Insert
-| Edit
+  | Insert
+  | Edit;
+
+[@deriving sexp]
 type edit_action =
   | Var(var_edit)
   | DeleteEdit(delete_edit)
@@ -15,6 +24,7 @@ type edit_action =
   | Init
   | Ignore; /* cursor move and init state */
 
+[@deriving sexp]
 type cursor_term_info = {
   cursor_term_before: cursor_term,
   cursor_term_after: cursor_term,
@@ -24,6 +34,7 @@ type cursor_term_info = {
   next_is_empty_line: bool,
 };
 
+[@deriving sexp]
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
   cursor_term_info,
@@ -32,11 +43,13 @@ type undo_history_entry = {
   timestamp: float,
 };
 
+[@deriving sexp]
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
 };
 
+[@deriving sexp]
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
@@ -404,8 +417,9 @@ let delete_edit =
         get_original_deleted_term(prev_group, new_cursor_term_info);
       DeleteEdit(Term(initial_term));
     } else {
-      Var(Edit);
-             /* edit the term */
+      Var
+        (Edit);
+        /* edit the term */
     };
   } else {
     Ignore;
@@ -538,17 +552,19 @@ let backspace =
 };
 
 let rec get_earlist_non_ignore_entry =
-        (ls: list(undo_history_entry), result:option(undo_history_entry)): option(undo_history_entry) => {
+        (ls: list(undo_history_entry), result: option(undo_history_entry))
+        : option(undo_history_entry) => {
   switch (ls) {
   | [] => result
   | [head, ...tail] =>
     if (head.edit_action == Ignore) {
-      get_earlist_non_ignore_entry(tail,result);
+      get_earlist_non_ignore_entry(tail, result);
     } else {
-      get_earlist_non_ignore_entry(tail,Some(head));
+      get_earlist_non_ignore_entry(tail, Some(head));
     }
   };
 };
+
 let get_new_edit_action =
     (
       ~prev_group: undo_history_group,
@@ -595,14 +611,17 @@ let get_new_edit_action =
       | SInj(_)
       | SLet
       | SCase => ConstructEdit(shape)
-      | SChar(_) => {
-        let earlist_non_ignore_entry = get_earlist_non_ignore_entry(ZList.erase(prev_group.group_entries));
-        if(CursorInfo.is_hole(earlist_non_ignore_entry.cursor_term_before)){
+      | SChar(_) =>
+        let earlist_non_ignore_entry =
+          get_earlist_non_ignore_entry(
+            ZList.erase(prev_group.group_entries),
+          );
+
+        if (CursorInfo.is_hole(earlist_non_ignore_entry.cursor_term_before)) {
           Var(Insert);
         } else {
           Var(Edit);
-        }
-      }
+        };
       | SOp(op) =>
         switch (op) {
         | SMinus

@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t = ZList.t(Cardstack.t, Cardstack.t);
 
 let mk = (~width, info: list(CardstackInfo.t)): t => {
