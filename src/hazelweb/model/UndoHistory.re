@@ -4,12 +4,15 @@ type delete_edit =
   | Space
   | EmptyLine
   | TypeAnn;
-
+type var_edit =
+| Insert
+| Edit
 type edit_action =
-  | EditVar
+  | Var(var_edit)
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
   | MatchRule
+  | Init
   | Ignore; /* cursor move and init state */
 
 type cursor_term_info = {
@@ -146,21 +149,21 @@ let group_edit_action =
   | (_, Ignore)
   | (MatchRule, MatchRule) => true
   | (MatchRule, _) => false
-  | (EditVar, EditVar) => true
-  | (EditVar, DeleteEdit(delete_edit)) =>
+  | (Var(_), Var(_)) => true
+  | (Var(_), DeleteEdit(delete_edit)) =>
     switch (delete_edit) {
     | Term(_) => true
     | Space
     | EmptyLine
     | TypeAnn => false
     }
-  | (EditVar, ConstructEdit(construct_edit)) =>
+  | (Var(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
     | SCase => true
     | _ => false
     }
-  | (EditVar, _) => false
+  | (Var(_), _) => false
   | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
     switch (delete_edit_1, delete_edit_2) {
     | (Space, Space)
@@ -401,7 +404,7 @@ let delete_edit =
         get_original_deleted_term(prev_group, new_cursor_term_info);
       DeleteEdit(Term(initial_term));
     } else {
-      EditVar;
+      Var(Edit);
              /* edit the term */
     };
   } else {
@@ -580,7 +583,13 @@ let get_new_edit_action =
       | SInj(_)
       | SLet
       | SCase => ConstructEdit(shape)
-      | SChar(_) => EditVar
+      | SChar(_) => {
+        if(CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)){
+          Var(Insert);
+        } else {
+          Var(Edit);
+        }
+      }
       | SOp(op) =>
         switch (op) {
         | SMinus
