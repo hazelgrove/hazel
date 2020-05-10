@@ -109,13 +109,13 @@ let push_history_entry =
   };
 };
 
-let rec get_first_non_ignore_entry =
+let rec get_recent_non_ignore_entry =
         (ls: list(undo_history_entry)): option(undo_history_entry) => {
   switch (ls) {
   | [] => None
   | [head, ...tail] =>
     if (head.edit_action == Ignore) {
-      get_first_non_ignore_entry(tail);
+      get_recent_non_ignore_entry(tail);
     } else {
       Some(head);
     }
@@ -126,7 +126,7 @@ let rec get_first_non_ignore_entry =
 let cursor_jump =
     (prev_group: undo_history_group, cardstacks_before: Cardstacks.t): bool => {
   switch (
-    get_first_non_ignore_entry([
+    get_recent_non_ignore_entry([
       ZList.prj_z(prev_group.group_entries),
       ...ZList.prj_suffix(prev_group.group_entries),
     ])
@@ -199,7 +199,7 @@ let group_entry =
     /* ignore entries with "Ignore" edit_action */
     | (Ignore, _) =>
       switch (
-        get_first_non_ignore_entry([
+        get_recent_non_ignore_entry([
           prev_entry,
           ...ZList.prj_suffix(prev_group.group_entries),
         ])
@@ -215,7 +215,7 @@ let group_entry =
      so cursor jump should be ignored in those cases */
   let ignore_cursor_jump =
     switch (
-      get_first_non_ignore_entry([
+      get_recent_non_ignore_entry([
         prev_entry,
         ...ZList.prj_suffix(prev_group.group_entries),
       ])
@@ -537,6 +537,18 @@ let backspace =
   };
 };
 
+let rec get_earlist_non_ignore_entry =
+        (ls: list(undo_history_entry), result:option(undo_history_entry)): option(undo_history_entry) => {
+  switch (ls) {
+  | [] => result
+  | [head, ...tail] =>
+    if (head.edit_action == Ignore) {
+      get_earlist_non_ignore_entry(tail,result);
+    } else {
+      get_earlist_non_ignore_entry(tail,Some(head));
+    }
+  };
+};
 let get_new_edit_action =
     (
       ~prev_group: undo_history_group,
@@ -584,7 +596,8 @@ let get_new_edit_action =
       | SLet
       | SCase => ConstructEdit(shape)
       | SChar(_) => {
-        if(CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)){
+        let earlist_non_ignore_entry = get_earlist_non_ignore_entry(ZList.erase(prev_group.group_entries));
+        if(CursorInfo.is_hole(earlist_non_ignore_entry.cursor_term_before)){
           Var(Insert);
         } else {
           Var(Edit);
