@@ -34,7 +34,7 @@ module Action = {
     | Undo
     | ShiftHistory(int, int)
     | ShowHistory(int, int)
-    | RecoverHistory
+    | RecoverHistory(UndoHistory.t)
     | ToggleHistoryGroup(int)
     | ToggleHiddenHistoryAll
     | UpdateFontMetrics(FontMetrics.t);
@@ -96,7 +96,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | Redo
   | ShiftHistory(_, _)
   | ShowHistory(_, _)
-  | RecoverHistory
+  | RecoverHistory(_)
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | UpdateFontMetrics(_) =>
@@ -239,22 +239,9 @@ let apply_action =
         {...new_model', undo_history: model.undo_history};
       };
     }
-  | RecoverHistory =>
+  | RecoverHistory(history) =>
     /* when mouse leave the panel, recover the original history entry */
-    let new_cardstacks =
-      UndoHistory.get_cardstacks(Model.get_undo_history(model));
-    let new_model = model |> Model.put_cardstacks(new_cardstacks);
-    let new_program = Cardstacks.get_program(new_cardstacks);
-    let update_selected_instances = _ => {
-      let si = UserSelectedInstances.init;
-      switch (Program.cursor_on_exp_hole(new_program)) {
-      | None => si
-      | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
-      };
-    };
-    new_model
-    |> Model.put_cardstacks(new_cardstacks)
-    |> Model.map_selected_instances(update_selected_instances);
+    load_undo_history(model, history)
   | ToggleHistoryGroup(toggle_group_id) =>
     let (suc_groups, _, _) = model.undo_history.groups;
     let cur_group_id = List.length(suc_groups);
