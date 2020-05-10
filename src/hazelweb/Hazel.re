@@ -35,7 +35,7 @@ let on_startup = (~schedule_action, _) => {
     });
   Cell.focus();
 
-  Async_kernel.Deferred.return(State.State);
+  Async_kernel.Deferred.return(State.{changing_cards: ref(false)});
 };
 
 let restart_cursor_animation = caret_elem => {
