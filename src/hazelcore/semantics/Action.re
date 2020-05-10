@@ -1682,8 +1682,13 @@ module Pat = {
         | Succeeded((zp, ty', ctx, u_gen)) =>
           if (HTyp.consistent(ty, ty')) {
             Succeeded((zp, ctx, u_gen));
+          } else if (HTyp.get_prod_arity(ty) != HTyp.get_prod_arity(ty')) {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_zp = zp |> ZPat.set_err_status(InHole(WrongLength, u));
+            Succeeded((new_zp, ctx, u_gen));
           } else {
-            Succeeded((zp |> ZPat.set_err_status(err), ctx, u_gen));
+            let new_zp = zp |> ZPat.set_err_status(err);
+            Succeeded((new_zp, ctx, u_gen));
           }
         }
       };
@@ -4445,6 +4450,10 @@ module Exp = {
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
             Succeeded(AnaDone((ze', u_gen)));
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)) {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze = ze' |> ZExp.set_err_status(InHole(WrongLength, u));
+            Succeeded(AnaDone((new_ze, u_gen)));
           } else {
             let new_ze = ze' |> ZExp.set_err_status(err);
             Succeeded(AnaDone((new_ze, u_gen)));
