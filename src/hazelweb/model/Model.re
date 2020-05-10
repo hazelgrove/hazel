@@ -1,17 +1,13 @@
-type compute_results = {
-  compute_results: bool,
-  show_case_clauses: bool,
-  show_fn_bodies: bool,
-  show_casts: bool,
-  show_unevaluated_expansion: bool,
-};
-
 type t = {
   cardstacks: Cardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
-  compute_results,
+  compute_results: bool,
+  show_case_clauses: bool,
+  show_fn_bodies: bool,
+  show_casts: bool,
+  show_unevaluated_expansion: bool,
   memoize_doc: bool,
   selected_example: option(UHExp.t),
   left_sidebar_open: bool,
@@ -51,13 +47,11 @@ let init = (): t => {
     cell_width,
     selected_instances,
     undo_history,
-    compute_results: {
-      compute_results,
-      show_case_clauses: false,
-      show_fn_bodies: false,
-      show_casts: false,
-      show_unevaluated_expansion: false,
-    },
+    compute_results,
+    show_case_clauses: false,
+    show_fn_bodies: false,
+    show_casts: false,
+    show_unevaluated_expansion: false,
     memoize_doc: true,
     selected_example: None,
     left_sidebar_open: false,
@@ -132,10 +126,7 @@ let update_program = (~undoable, new_program, model) => {
     let si =
       Program.get_result(old_program) == Program.get_result(new_program)
         ? si : UserSelectedInstances.init;
-    switch (
-      model.compute_results.compute_results,
-      new_program |> Program.cursor_on_exp_hole,
-    ) {
+    switch (model.compute_results, new_program |> Program.cursor_on_exp_hole) {
     | (false, _)
     | (_, None) => si
     | (true, Some(u)) =>

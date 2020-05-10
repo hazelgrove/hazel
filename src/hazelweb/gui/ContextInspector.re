@@ -44,7 +44,7 @@ let view =
                   ~inject,
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
-                  ~show_casts=model.compute_results.show_casts,
+                  ~show_casts=model.show_casts,
                   ~selected_instance=model |> Model.get_selected_hole_instance,
                   ~width=30,
                   d,
@@ -74,7 +74,7 @@ let view =
       |> CursorInfo.get_ctx
       |> Contexts.gamma;
     let sigma =
-      if (model.compute_results.compute_results) {
+      if (model.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
         | None => Dynamics.Exp.id_env(ctx)
@@ -308,7 +308,7 @@ let view =
   };
 
   let path_viewer =
-    if (model.compute_results.compute_results) {
+    if (model.compute_results) {
       let program = model |> Model.get_program;
       let ctx =
         program

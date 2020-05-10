@@ -106,7 +106,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let card = model |> Model.get_card;
   let program = model |> Model.get_program;
   let cell_status =
-    if (!model.compute_results.compute_results) {
+    if (!model.compute_results) {
       Node.div([], []);
     } else {
       Node.div(
@@ -140,12 +140,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               DHCode.view(
                 ~inject,
-                ~show_fn_bodies=model.compute_results.show_fn_bodies,
-                ~show_case_clauses=model.compute_results.show_case_clauses,
-                ~show_casts=model.compute_results.show_casts,
+                ~show_fn_bodies=model.show_fn_bodies,
+                ~show_case_clauses=model.show_case_clauses,
+                ~show_casts=model.show_casts,
                 ~selected_instance=model |> Model.get_selected_hole_instance,
                 ~width=80,
-                model.compute_results.show_unevaluated_expansion
+                model.show_unevaluated_expansion
                   ? program |> Program.get_expansion
                   : program |> Program.get_result |> Result.get_dhexp,
               ),
