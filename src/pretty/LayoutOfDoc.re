@@ -36,8 +36,23 @@ let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
 
 let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
   (doc, ~width: int, ~pos: int) => {
-    Obj.magic(layout_of_doc'', Obj.magic(doc), ~width, ~pos);
+    Obj.magic(snd(Lazy.force(memo_table), Obj.magic(doc), ~width, ~pos));
   }
+
+and memo_table: Lazy.t((unit => unit, Doc.t(unit) => m(Layout.t(unit)))) =
+  lazy((
+    () => (),
+    (d, ~width, ~pos) => {
+      let key = (width, pos);
+      switch (Doc.M.find_opt(d.mem, key)) {
+      | Some(value) => value
+      | None =>
+        let value = layout_of_doc''(d, ~width, ~pos);
+        Doc.M.add(d.mem, key, value);
+        value;
+      };
+    },
+  ))
 
 and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
   doc => {
@@ -85,13 +100,14 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
         m'_union(l1, l2);
       };
     };
+    let table = Table.create(0);
     let h = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
       let key = (width, pos);
-      switch (Table.find_opt(doc.mem, key)) {
+      switch (Table.find_opt(table, key)) {
       | Some(value) => value
       | None =>
         let value = g(~width, ~pos);
-        Table.add(doc.mem, key, value);
+        Table.add(table, key, value);
         value;
       };
     };
