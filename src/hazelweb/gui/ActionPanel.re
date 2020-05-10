@@ -202,7 +202,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     combo_element(is_allowed, combo, description);
   };
 
-  let operator_list = (~on_type, combos) => {
+  let operator_list = (~on_type, text, combos) => {
     let actions =
       List.map(
         combo => {
@@ -212,7 +212,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combos,
       );
     let is_action_allowed = is_action_allowed_with_on_type_check(~on_type);
-    action_list(is_action_allowed, inject, actions, "Operators");
+    action_list(is_action_allowed, inject, actions, text);
   };
 
   let keyboard_button = combo => {
@@ -273,8 +273,15 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     section(
       "Arithmetic",
       [
-        info([text("Enter number literals directly")]),
-        operator_list(~on_type=false, [Plus, Minus, Asterisk]),
+        info([
+          text("Enter number literals directly e.g. "),
+          mono_text("1.0, 2"),
+        ]),
+        operator_list(
+          ~on_type=false,
+          "Integer operators",
+          [Plus, Minus, Asterisk],
+        ),
       ],
     ),
     section(
@@ -299,7 +306,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           mono_text("\"true\", \"false\""),
           text(" directly"),
         ]),
-        operator_list(~on_type=false, [LT, GT, Ampersand, Equals]),
+        operator_list(
+          ~on_type=false,
+          "Operators",
+          [LT, GT, Ampersand, Equals],
+        ),
       ],
     ),
     section(
@@ -345,17 +356,23 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       "Functions",
       [
         combo(Backslash, simple("Insert Lambda expression")),
-        combo(Space, simple("Separate terms")),
+        combo(Space, simple("Apply function")),
       ],
     ),
+    section("Tuples", [combo(Comma, simple("Create a tuple"))]),
     section(
-      "Miscellaneous",
+      "Pattern Matching",
       [
-        combo(LeftParen, simple("Parenthesize expression")),
-        combo(Comma, simple("Insert , operator")),
+        info([
+          text("Type \""),
+          mono_text("case "),
+          text("\" to add a case expression"),
+        ]),
         combo(Alt_C, simple("Insert case expression")),
+        combo(Enter, simple("Add new rule")),
       ],
     ),
+    section("Miscellaneous", [combo(LeftParen, simple("Parenthesize"))]),
   ];
 };
 
