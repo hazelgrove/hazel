@@ -246,15 +246,16 @@ let view =
 
     let prev_btn =
       if (i > 0) {
+        let prev_inst = (u, i - 1);
         Node.div(
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance((u, i - 1)))] : [];
+                  ? [inject(SelectHoleInstance(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -272,15 +273,16 @@ let view =
 
     let next_btn =
       if (i < num_instances - 1) {
+        let next_inst = (u, i + 1);
         Node.div(
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance((u, i + 1)))] : [];
+                  ? [inject(SelectHoleInstance(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],

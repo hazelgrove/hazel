@@ -78,6 +78,8 @@ let get_prod_elements: t => list(t) =
   | Prod(tys) => tys
   | _ as ty => [ty];
 
+let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
+
 /* matched sum types */
 let matched_sum =
   fun
