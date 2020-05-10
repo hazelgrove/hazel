@@ -97,16 +97,10 @@ let view = (~inject, model: Model.t) => {
           }
         }),
       ];
-      let view =
-        program
-        |> Program.get_decorated_layout(~memoize=model.memoize_doc)
-        |> code_view;
+      let view = program |> Program.get_decorated_layout |> code_view;
       (key_handlers, view);
     } else {
-      (
-        [],
-        program |> Program.get_layout(~memoize=model.memoize_doc) |> code_view,
-      );
+      ([], program |> Program.get_layout |> code_view);
     };
   Node.div(
     [

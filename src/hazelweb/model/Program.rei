@@ -37,16 +37,15 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
-let move_via_key: (~memoize: bool, JSUtil.MoveKey.t, t) => t;
-let move_via_click:
-  (~memoize: bool, (CursorMap.Row.t, CursorMap.Col.t), t) => t;
+let move_via_key: (JSUtil.MoveKey.t, t) => t;
+let move_via_click: ((CursorMap.Row.t, CursorMap.Col.t), t) => t;
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
 
-let get_doc: (t, ~memoize: bool) => UHDoc.t;
-let get_layout: (~memoize: bool, t) => UHLayout.t;
-let get_decorated_layout: (~memoize: bool, t) => UHLayout.t;
-let get_cursor_map: (~memoize: bool, t) => CursorMap.t;
+let get_doc: t => UHDoc.t;
+let get_layout: t => UHLayout.t;
+let get_decorated_layout: t => UHLayout.t;
+let get_cursor_map: t => CursorMap.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
