@@ -124,15 +124,11 @@ let move_to_hole = (u, program) => {
   };
 };
 
-let doc =
-  Lazy.force(
-    UHDoc.Exp.mk,
-    ~memoize=false /*TODO:memoize*/,
-    ~enforce_inline=false,
-  );
+let _doc =
+  Memo.general(~cache_size_bound=1000, UHDoc.Exp.mk(~enforce_inline=false));
 let get_doc = program => {
   let e = program |> get_uhexp;
-  doc(e);
+  _doc(e);
 };
 
 let get_layout = program => {
