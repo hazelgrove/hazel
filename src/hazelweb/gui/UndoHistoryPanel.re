@@ -47,7 +47,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (pat) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
     | Wild(_) => "wild card"
-    | Var(_, _, var_str) => "var: " ++ var_str
+    | Var(_, _, var_str) => {
+      if(Var.is_case(var_str)||Var.is_let(var_str)){
+        "keyword: "++ var_str;
+      }else{
+      "var: " ++ var_str;}
+    }
     | IntLit(_, num) => "Int: " ++ num
     | FloatLit(_, num) => "Float: " ++ num
     | BoolLit(_, bool_val) => "Bool: " ++ string_of_bool(bool_val)
@@ -110,17 +115,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | SLam => Some("construct lambda")
       | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
       }
-    | Var(var_edit) =>
-      switch(var_edit){
-        | Edit => 
-          Some(
+    | Var(var_edit, is_keyword) =>
+      switch (var_edit) {
+      | Edit =>
+        Some(
           "edit "
           ++ display_string_of_cursor_term(
                undo_history_entry.cursor_term_info.cursor_term_after,
              ),
         )
-        | Insert =>
-          Some(
+      | Insert =>
+        Some(
           "insert "
           ++ display_string_of_cursor_term(
                undo_history_entry.cursor_term_info.cursor_term_after,
