@@ -244,7 +244,6 @@ module Exp = {
     | Pair(_) => precedence_Comma
     | NonEmptyHole(_, _, _, _, d)
     | LivelitInfo(_, _, _, _, _, d) => precedence'(d)
-    | LivelitAp(_) => precedence_const
     };
   };
 
@@ -329,19 +328,6 @@ module Exp = {
 
         | LivelitInfo(_, _, _, _, _, d) =>
           let (doc, _) = go'(d);
-          doc;
-        | LivelitAp(_, _, _, _, splice_info, model) =>
-          let model' =
-            model
-            |> NatMap.fold(
-                 splice_info.splice_map, (d, (name, (_, to_subst))) =>
-                 Dynamics.Exp.subst_var(
-                   to_subst,
-                   SpliceInfo.var_of_splice_name(name),
-                   d,
-                 )
-               );
-          let (doc, _) = go'(model');
           doc;
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>

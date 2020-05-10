@@ -113,14 +113,6 @@ type t =
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
-  | LivelitAp(
-      MetaVar.t,
-      MetaVarInst.t,
-      VarMap.t_(t),
-      LivelitName.t,
-      SpliceInfo.t(t),
-      t,
-    )
   | LivelitInfo(
       MetaVar.t,
       MetaVarInst.t,
@@ -159,7 +151,6 @@ let constructor_string = (d: t): string =>
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
-  | LivelitAp(_) => "LivelitAp"
   | LivelitInfo(_) => "LivelitInfo"
   | Triv => "Triv"
   | Case(_, _, _) => "Case"

@@ -497,22 +497,6 @@ module Exp = {
       let splice_info' = subst_splices(splice_info);
       let sigma' = subst_var_env(d1, x, sigma);
       LivelitInfo(su, si, sigma', lln, splice_info', d3');
-    | LivelitAp(su, si, sigma, lln, splice_info, model) =>
-      let model' =
-        if (List.mem(
-              x,
-              List.map(
-                SpliceInfo.var_of_splice_name,
-                splice_info.splice_order,
-              ),
-            )) {
-          model;
-        } else {
-          subst_var(d1, x, model);
-        };
-      let splice_info' = subst_splices(splice_info);
-      let sigma' = subst_var_env(d1, x, sigma);
-      LivelitAp(su, si, sigma', lln, splice_info', model');
     | Cast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       Cast(d', ty1, ty2);
@@ -585,7 +569,6 @@ module Exp = {
       Matches(env);
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
-    | (_, LivelitAp(_)) => Indet
     | (_, LivelitInfo(_, _, _, _, _, d)) => matches(dp, d)
     | (_, FailedCast(_, _, _)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
@@ -731,7 +714,6 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | LivelitAp(_) => Indet
     | LivelitInfo(_, _, _, _, _, d) => matches_cast_Inj(side, dp, d, casts)
     | FailedCast(_, _, _) => Indet
     }
@@ -790,7 +772,6 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | LivelitAp(_) => Indet
     | LivelitInfo(_, _, _, _, _, d) =>
       matches_cast_Pair(dp1, dp2, d, left_casts, right_casts)
     | FailedCast(_, _, _) => Indet
@@ -850,7 +831,6 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | LivelitAp(_) => Indet
     | LivelitInfo(_, _, _, _, _, d) =>
       matches_cast_Cons(dp1, dp2, d, elt_casts)
     | FailedCast(_, _, _) => Indet
@@ -1233,18 +1213,24 @@ module Exp = {
         switch (proto_elaboration_result) {
         | DoesNotExpand => DoesNotExpand
         | Expands(proto_elaboration, _, delta) =>
-          let sim_delta_opt =
-            Some((NatMap.empty, delta))
-            |> NatMap.fold(si.splice_map, (b, (splice_name, (typ, exp))) =>
-                 b
-                 |> OptUtil.and_then(((sim', delta)) => {
+          // For each splice, expand the splice exp and substitute it into the elab
+          let elab_sim_delta_opt =
+            Some((proto_elaboration, NatMap.empty, delta))
+            |> NatMap.fold(
+                 si.splice_map,
+                 (elab_sim_delta_opt, (splice_name, (typ, exp))) =>
+                 elab_sim_delta_opt
+                 |> OptUtil.and_then(((elab, sim, delta)) => {
                       let expanded = ana_expand(ctx, delta, exp, typ);
+                      let splice_var =
+                        SpliceInfo.var_of_splice_name(splice_name);
                       switch (expanded) {
                       | DoesNotExpand => None
                       | Expands(dexp, texp, delta) =>
                         Some((
+                          subst_var(dexp, splice_var, elab),
                           NatMap.insert_or_update(
-                            sim',
+                            sim,
                             (splice_name, (texp, dexp)),
                           ),
                           delta,
@@ -1252,14 +1238,14 @@ module Exp = {
                       };
                     })
                );
-          switch (sim_delta_opt) {
+          switch (elab_sim_delta_opt) {
           | None => DoesNotExpand
-          | Some((sim', delta)) =>
+          | Some((elab, sim, delta)) =>
             let gamma = Contexts.gamma(ctx);
             let sigma = id_env(gamma);
-            let si' = SpliceInfo.update_splice_map(si, sim');
+            let si = SpliceInfo.update_splice_map(si, sim);
             Expands(
-              LivelitAp(llu, 0, sigma, name, si', proto_elaboration),
+              LivelitInfo(llu, 0, sigma, name, si, elab),
               expansion_ty,
               delta,
             );
@@ -1644,22 +1630,6 @@ module Exp = {
     };
   };
 
-  let _renumber_splices =
-      (renumberer, splice_info: SpliceInfo.t(DHExp.t), hii, llii) => {
-    let (sim, hii, llii) =
-      (NatMap.empty, hii, llii)
-      |> NatMap.fold(
-           splice_info.splice_map,
-           ((sim, hii, llii), (name, (typ, dexp))) => {
-             let (dexp, hii, llii) = renumberer(hii, llii, dexp);
-             let sim = NatMap.insert_or_update(sim, (name, (typ, dexp)));
-             (sim, hii, llii);
-           },
-         );
-    let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
-    (splice_info, hii, llii);
-  };
-
   let rec renumber_result_only =
           (
             path: InstancePath.t,
@@ -1737,24 +1707,12 @@ module Exp = {
     | FreeLivelit(u, _, sigma, name) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (FreeLivelit(u, i, sigma, name), hii, llii);
-    | LivelitAp(su, _, sigma, lln, splice_info, d1) =>
-      let (splice_info, hii, llii) =
-        _renumber_splices(
-          renumber_result_only(path),
-          splice_info,
-          hii,
-          llii,
-        );
-      let (si, llii) =
-        LivelitInstanceInfo.next(llii, su, sigma, path, splice_info);
-      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
-      (LivelitAp(su, si, sigma, lln, splice_info, d1), hii, llii);
     | LivelitInfo(su, _, sigma, lln, splice_info, d1) =>
       let (si, llii) =
         LivelitInstanceInfo.next(llii, su, sigma, path, splice_info);
+      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
       // Note: we do _not_ renumber the splices -
       // it's not necessary and not feasible to do so accurately
-      let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
       (LivelitInfo(su, si, sigma, lln, splice_info, d1), hii, llii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
@@ -1867,25 +1825,6 @@ module Exp = {
       let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeLivelit(u, i, sigma, name), hii, llii);
-    | LivelitAp(su, si, sigma, lln, splice_info, d1) =>
-      let (sigma, hii, llii) =
-        renumber_sigma(path, su, si, hii, llii, sigma);
-      let (splice_info, hii, llii) =
-        _renumber_splices(
-          renumber_sigmas_only(path),
-          splice_info,
-          hii,
-          llii,
-        );
-      let llii =
-        LivelitInstanceInfo.update_environment(
-          llii,
-          (su, si),
-          sigma,
-          splice_info,
-        );
-      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
-      (LivelitAp(su, si, sigma, lln, splice_info, d1), hii, llii);
     | LivelitInfo(su, si, sigma, lln, splice_info, d1) =>
       let (sigma, hii, llii) =
         renumber_sigma(path, su, si, hii, llii, sigma);
@@ -1896,9 +1835,9 @@ module Exp = {
           sigma,
           splice_info,
         );
+      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
       // Note: we do _not_ renumber the splices -
       // it's not necessary and not feasible to do so accurately
-      let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
       (LivelitInfo(su, si, sigma, lln, splice_info, d1), hii, llii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
@@ -2226,47 +2165,32 @@ module Evaluator = {
     | Keyword(_) => Indet(d)
     | FreeLivelit(_, _, _, _) => Indet(d)
     | LivelitInfo(su, si, sigma, lln, splice_info, d1) =>
-      switch (evaluate(d1)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d1') =>
-        BoxedValue(LivelitInfo(su, si, sigma, lln, splice_info, d1'))
-      | Indet(d1') =>
-        Indet(LivelitInfo(su, si, sigma, lln, splice_info, d1'))
-      }
-    | LivelitAp(su, si, sigma, lln, splice_info, d1) =>
-      let sim'_and_d1_res =
-        Result.Ok((NatMap.empty, d1))
+      // evaluate the splices
+      let sim_res =
+        Result.Ok(NatMap.empty)
         |> NatMap.fold(
-             splice_info.splice_map,
-             (sim'_and_dexp_res, (name, (typ, to_subst))) =>
-             Result.bind(
-               sim'_and_dexp_res,
-               ((sim', dexp)) => {
-                 let splice_var = SpliceInfo.var_of_splice_name(name);
-                 switch (evaluate(to_subst)) {
-                 | InvalidInput(msg) => Result.Error(msg)
-                 | BoxedValue(to_subst)
-                 | Indet(to_subst) =>
-                   let sim' =
-                     NatMap.insert_or_update(sim', (name, (typ, to_subst)));
-                   Result.Ok((
-                     sim',
-                     Exp.subst_var(to_subst, splice_var, dexp),
-                   ));
-                 };
-               },
-             )
+             splice_info.splice_map, (sim_res, (name, (typ, dexp))) =>
+             Result.bind(sim_res, sim => {
+               switch (evaluate(dexp)) {
+               | InvalidInput(msg) => Result.Error(msg)
+               | BoxedValue(evald)
+               | Indet(evald) =>
+                 Result.Ok(
+                   NatMap.insert_or_update(sim, (name, (typ, evald))),
+                 )
+               }
+             })
            );
-      switch (sim'_and_d1_res) {
+      switch (sim_res) {
       | Error(msg) => InvalidInput(msg)
-      | Ok((sim', d1')) =>
-        let splice_info' = SpliceInfo.update_splice_map(splice_info, sim');
-        switch (evaluate(d1')) {
+      | Ok(sim) =>
+        let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
+        switch (evaluate(d1)) {
         | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(d1') =>
-          BoxedValue(LivelitInfo(su, si, sigma, lln, splice_info', d1'))
-        | Indet(d1') =>
-          Indet(LivelitInfo(su, si, sigma, lln, splice_info', d1'))
+        | BoxedValue(d1) =>
+          BoxedValue(LivelitInfo(su, si, sigma, lln, splice_info, d1))
+        | Indet(d1) =>
+          Indet(LivelitInfo(su, si, sigma, lln, splice_info, d1))
         };
       };
     | Cast(d1, ty, ty') =>
