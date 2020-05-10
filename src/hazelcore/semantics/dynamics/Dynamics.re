@@ -111,9 +111,36 @@ module Pat = {
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
     // | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
-    | ListLit(NotInHole, None) => Expands(ListNil, List(Hole), ctx, delta)
+    | ListLit(NotInHole, None) =>
+      Expands(ListLit(List(Hole), []), List(Hole), ctx, delta)
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
-    | ListLit(_, Some(p1)) => syn_expand(ctx, delta, p1)
+
+    | ListLit(_, Some(opseq)) =>
+      let OpSeq(skel, seq) = opseq;
+      let subskels = UHPat.get_tuple_elements(skel);
+      let rec syn_subskels = subskels =>
+        switch (subskels) {
+        | [] => failwith("invalid")
+        | [hd] =>
+          switch (syn_expand_skel(ctx, delta, hd, seq)) {
+          | DoesNotExpand => failwith("invalid")
+          | Expands(d1, ty1, _, _) => [(ty1, d1)]
+          }
+        | [hd, ...tl] =>
+          switch (syn_expand_skel(ctx, delta, hd, seq)) {
+          | DoesNotExpand => failwith("invalid")
+          | Expands(d1, ty1, _, _) => [(ty1, d1), ...syn_subskels(tl)]
+          }
+        };
+      let (types, deltas) = List.split(syn_subskels(subskels));
+      switch (Statics.glb(types)) {
+      // Add listlit in DHExp.re
+      | Some(ty) =>
+        Expands(ListLit(List(ty), deltas), List(ty), ctx, delta)
+      | _ => DoesNotExpand
+      };
+
+    // | ListLit(_, Some(p1)) => syn_expand(ctx, delta, p1)
     | Inj(NotInHole, side, p) =>
       switch (syn_expand(ctx, delta, p)) {
       | DoesNotExpand => DoesNotExpand
@@ -327,7 +354,8 @@ module Pat = {
     | ListLit(NotInHole, None) =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand
-      | Some(ty_elt) => Expands(ListNil, HTyp.List(ty_elt), ctx, delta)
+      | Some(ty_elt) =>
+        Expands(ListLit(List(ty_elt), []), HTyp.List(ty_elt), ctx, delta)
       }
     | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
     | ListLit(_, Some(p)) => ana_expand(ctx, delta, p, ty)
@@ -357,7 +385,7 @@ module Pat = {
     | Var(_)
     | NumLit(_)
     | BoolLit(_)
-    | ListNil
+    // | ListNil
     | Triv => (dp, hii)
     | EmptyHole(u, _) =>
       let sigma = Environment.empty;
@@ -374,6 +402,10 @@ module Pat = {
       let sigma = Environment.empty;
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, k), hii);
+    | ListLit(t, deltas) =>
+      let (new_deltas, _) =
+        List.split(List.map(renumber_result_only(path, hii), deltas));
+      (ListLit(t, new_deltas), hii);
     | Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only(path, hii, dp1);
       (Inj(side, dp1), hii);
@@ -585,11 +617,12 @@ module Exp = {
     | (Triv, Cast(d, Hole, Unit)) => matches(dp, d)
     | (Triv, Cast(d, Unit, Hole)) => matches(dp, d)
     | (Triv, _) => DoesNotMatch
-    | (ListNil, ListLit(_, _)) => Matches(Environment.empty)
-    | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-    | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-    | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
-    | (ListNil, _) => DoesNotMatch
+    // | (ListNil, ListLit(_, _)) => Matches(Environment.empty)
+    // | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
+    // | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
+    // | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
+    // | (ListNil, _) => DoesNotMatch
+    | (ListLit(_, _), _) => DoesNotMatch // TODO
     | (Cons(dp1, dp2), Cons(d1, d2)) =>
       switch (matches(dp1, d1)) {
       | DoesNotMatch => DoesNotMatch

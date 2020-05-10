@@ -104,6 +104,22 @@ let mk_Inj = (inj_side, padded_child) =>
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
+let rec mk_ListLit = (l, ol) =>
+  switch (l) {
+  | [] =>
+    if (l == ol) {
+      Doc.(hcats([text("["), text("]")]));
+    } else {
+      Doc.(hcats([text("]")]));
+    }
+  | [hd, ...tl] =>
+    if (l == ol) {
+      Doc.(hcats([text("["), hd, mk_ListLit(tl, ol)]));
+    } else {
+      Doc.(hcats([text(","), hd, mk_ListLit(tl, ol)]));
+    }
+  };
+
 let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
@@ -130,7 +146,8 @@ module Pat = {
     | BoolLit(_)
     | Inj(_)
     | Triv
-    | ListNil
+    // | ListNil
+    | ListLit(_)
     | Pair(_) => precedence_const
     | Cons(_) => precedence_Cons
     | Ap(_) => precedence_Ap
@@ -159,7 +176,9 @@ module Pat = {
       | BoolLit(b) => mk_BoolLit(b)
       | Inj(inj_side, dp) =>
         mk_Inj(inj_side, mk(dp) |> pad_child(~enforce_inline))
-      | ListNil => Delim.list_nil
+      | ListLit(_, types) =>
+        let new_list = List.map(mk', types);
+        mk_ListLit(new_list, new_list);
       | Cons(dp1, dp2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_Cons, dp1, dp2);
@@ -287,8 +306,10 @@ module Exp = {
         | Triv => Delim.triv
         | BoolLit(b) => mk_BoolLit(b)
         | NumLit(n) => mk_NumLit(n)
-        // | ListNil(_) => Delim.list_nil
-        | ListLit(_, _) => Delim.list_nil
+        | ListLit(_, types) =>
+          let new_list = List.map(go', types);
+          let new_list = List.map(mk_cast, new_list);
+          mk_ListLit(new_list, new_list);
         | Inj(_, inj_side, d) =>
           let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
           mk_Inj(inj_side, child |> pad_child(~enforce_inline));
