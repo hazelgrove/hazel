@@ -110,13 +110,23 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | SLam => Some("construct lambda")
       | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
       }
-    | EditVar =>
-      Some(
-        "edit "
-        ++ display_string_of_cursor_term(
-             undo_history_entry.cursor_term_info.cursor_term_after,
-           ),
-      )
+    | Var(var_edit) =>
+      switch(var_edit){
+        | Edit => 
+          Some(
+          "edit "
+          ++ display_string_of_cursor_term(
+               undo_history_entry.cursor_term_info.cursor_term_after,
+             ),
+        )
+        | Insert =>
+          Some(
+          "insert "
+          ++ display_string_of_cursor_term(
+               undo_history_entry.cursor_term_info.cursor_term_after,
+             ),
+        )
+      }
     | MatchRule => Some("insert a case rule")
     | Ignore => None
     };
@@ -161,7 +171,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
       }
-    | EditVar =>
+    | Var =>
       Some(
         get_cursor_term_tag_typ(
           undo_history_entry.cursor_term_info.cursor_term_after,
