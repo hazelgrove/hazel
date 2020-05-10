@@ -125,3 +125,28 @@ and expand_operand =
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
+
+let rec is_complete_operand = (operand: 'operand) => {
+  switch (operand) {
+  | Hole => false
+  | Unit => true
+  | Int => true
+  | Float => true
+  | Bool => true
+  | Parenthesized(body) => is_complete(body)
+  | List(body) => is_complete(body)
+  };
+}
+and is_complete_skel = (sk: skel, sq: seq) => {
+  switch (sk) {
+  | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
+  | BinOp(InHole(_), _, _, _) => false
+  | BinOp(NotInHole, _, skel1, skel2) =>
+    is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
+  };
+}
+and is_complete = (ty: t) => {
+  switch (ty) {
+  | OpSeq(sk, sq) => is_complete_skel(sk, sq)
+  };
+};
