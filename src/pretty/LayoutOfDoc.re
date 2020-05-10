@@ -18,8 +18,11 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
   };
 };
 
+type m('a) = Doc.m('a);
+type m'('a) = Doc.m'('a);
+
 // Note: This union is left biased
-let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
+let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
   (p1, p2) => {
     let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
       if (cost1 <= cost2) {
@@ -30,8 +33,8 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
     PosMap.union(cost_union, p1, p2);
   };
 
-let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
-  let g = (~width: int, ~pos: int): Doc.m'(Layout.t(unit)) => {
+let rec layout_of_doc' = (doc: Doc.t(unit)): m(Layout.t(unit)) => {
+  let g = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
     // TODO: lift the switch(doc.doc) outside the lambda
     switch (doc.doc) {
     | Text(string) =>
@@ -75,7 +78,7 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
       m'_union(l1, l2);
     };
   };
-  let h = (~width: int, ~pos: int): Doc.m'(Layout.t(unit)) => {
+  let h = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
     let key = (width, pos);
     switch (Doc.M.find_opt(doc.mem, key)) {
     | Some(value) => value
