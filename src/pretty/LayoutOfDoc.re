@@ -20,6 +20,7 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
 
 type m('a) = Doc.m('a);
 type m'('a) = Doc.m'('a);
+module Table = Hashtbl.Make(Doc.WidthPosKey);
 
 // Note: This union is left biased
 let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
@@ -33,63 +34,69 @@ let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
     PosMap.union(cost_union, p1, p2);
   };
 
-let rec layout_of_doc' = (doc: Doc.t(unit)): m(Layout.t(unit)) => {
-  let g = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
-    // TODO: lift the switch(doc.doc) outside the lambda
-    switch (doc.doc) {
-    | Text(string) =>
-      // TODO: cache text length in Text?
-      let pos' = pos + Unicode.length(string);
-      if (pos' > width) {
-        PosMap.empty;
-      } else {
-        PosMap.singleton(pos', (0, Layout.Text(string)));
+let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
+  (doc, ~width: int, ~pos: int) => {
+    Obj.magic(layout_of_doc'', Obj.magic(doc), ~width, ~pos);
+  }
+
+and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
+  doc => {
+    let g = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
+      // TODO: lift the switch(doc.doc) outside the lambda
+      switch (doc.doc) {
+      | Text(string) =>
+        // TODO: cache text length in Text?
+        let pos' = pos + Unicode.length(string);
+        if (pos' > width) {
+          PosMap.empty;
+        } else {
+          PosMap.singleton(pos', (0, Layout.Text(string)));
+        };
+      | Cat(d1, d2) =>
+        let l1 = layout_of_doc'(d1, ~width, ~pos);
+        PosMap.fold_left(
+          (pos, z, (cost1, layout1)) => {
+            let l2 = layout_of_doc'(d2, ~width, ~pos);
+            let layouts =
+              PosMap.map(
+                ((cost2, layout2)) =>
+                  (cost1 + cost2, Layout.Cat(layout1, layout2)),
+                l2,
+              );
+            m'_union(z, layouts);
+          },
+          PosMap.empty,
+          l1,
+        );
+      | Linebreak => PosMap.singleton(0, (1, Layout.Linebreak))
+      | Align(d) =>
+        let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
+        PosMap.mapk(
+          (p, (c, l)) => (p + pos, (c, Layout.Align(l))),
+          layout,
+        );
+      | Annot(annot, d) =>
+        let layout = layout_of_doc'(d, ~width, ~pos);
+        PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
+      | Fail => PosMap.empty
+      | Choice(d1, d2) =>
+        let l1 = layout_of_doc'(d1, ~width, ~pos);
+        let l2 = layout_of_doc'(d2, ~width, ~pos);
+        m'_union(l1, l2);
       };
-    | Cat(d1, d2) =>
-      let l1 = layout_of_doc'(d1, ~width, ~pos);
-      PosMap.fold_left(
-        (pos, z, (cost1, layout1)) => {
-          let l2 = layout_of_doc'(d2, ~width, ~pos);
-          let layouts =
-            PosMap.map(
-              ((cost2, layout2)) =>
-                (cost1 + cost2, Layout.Cat(layout1, layout2)),
-              l2,
-            );
-          m'_union(z, layouts);
-        },
-        PosMap.empty,
-        l1,
-      );
-    | Linebreak => PosMap.singleton(0, (1, Layout.Linebreak))
-    | Align(d) =>
-      let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
-      PosMap.mapk(
-        (p, (c, l)) => (p + pos, (c, Layout.Align(l))),
-        layout,
-      );
-    | Annot(annot, d) =>
-      let layout = layout_of_doc'(d, ~width, ~pos);
-      PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
-    | Fail => PosMap.empty
-    | Choice(d1, d2) =>
-      let l1 = layout_of_doc'(d1, ~width, ~pos);
-      let l2 = layout_of_doc'(d2, ~width, ~pos);
-      m'_union(l1, l2);
     };
-  };
-  let h = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
-    let key = (width, pos);
-    switch (Doc.M.find_opt(doc.mem, key)) {
-    | Some(value) => value
-    | None =>
-      let value = g(~width, ~pos);
-      Doc.M.add(doc.mem, key, value);
-      value;
+    let h = (~width: int, ~pos: int): m'(Layout.t(unit)) => {
+      let key = (width, pos);
+      switch (Table.find_opt(doc.mem, key)) {
+      | Some(value) => value
+      | None =>
+        let value = g(~width, ~pos);
+        Table.add(doc.mem, key, value);
+        value;
+      };
     };
+    h;
   };
-  h;
-};
 
 let layout_of_doc =
     (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
@@ -110,10 +117,7 @@ let layout_of_doc =
   // TODO: use options instead of max_int
   // let start_time = Sys.time();
   let l =
-    minimum(
-      (max_int, (max_int, None)),
-      Obj.magic(layout_of_doc'(Obj.magic(doc), ~width, ~pos)),
-    );
+    minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
   // let end_time = Sys.time();
   /*
    Printf.printf(
