@@ -150,7 +150,7 @@ module Pat = {
          )
       |> OptUtil.map(((rev_tys, _)) =>
            CursorNotOnDeferredVarPat(
-             mk(PatSynthesized(rev_tys |> List.rev |> HTyp.make_tuple), ctx),
+             mk(PatSynthesized(Prod(rev_tys |> List.rev)), ctx),
            )
          )
     | _ =>

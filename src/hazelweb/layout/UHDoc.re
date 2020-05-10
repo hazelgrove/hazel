@@ -515,9 +515,9 @@ let mk_NTuple =
 };
 
 module Typ = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHTyp.operator => (t, t) =
     fun
-    | UHTyp.Prod => (Doc.empty(), Doc.space())
+    | Prod => (Doc.empty(), Doc.space())
     | Arrow
     | Sum => (Doc.space(), Doc.space());
 
@@ -535,7 +535,7 @@ module Typ = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHTyp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHTyp.operator): t =>
-    mk_op(UHTyp.string_of_operator(op))
+    mk_op(Operators.Typ.to_string(op))
   and mk_operand = (~enforce_inline: bool, operand: UHTyp.operand): t =>
     switch (operand) {
     | Hole => mk_EmptyHole("?")
@@ -560,10 +560,10 @@ module Typ = {
 };
 
 module Pat = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHPat.operator => (t, t) =
     Doc.(
       fun
-      | UHPat.Comma => (empty(), space())
+      | Comma => (empty(), space())
       | Space
       | Cons => (empty(), empty())
     );
@@ -588,7 +588,8 @@ module Pat = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHPat.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHPat.operator): t =>
-    op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
+    op |> Operators.Pat.is_Space
+      ? mk_space_op : mk_op(Operators.Pat.to_string(op))
   and mk_operand = (~enforce_inline: bool, operand: UHPat.operand): t =>
     switch (operand) {
     | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
@@ -615,9 +616,9 @@ module Pat = {
 };
 
 module Exp = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHExp.operator => (t, t) =
     fun
-    | UHExp.Space
+    | Space
     | Times
     | FTimes
     | Cons => (empty_, empty_)
@@ -711,8 +712,8 @@ module Exp = {
     and mk_opseq = (~enforce_inline: bool, opseq: UHExp.opseq): t =>
       mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
     and mk_operator = (op: UHExp.operator): t =>
-      op |> UHExp.is_Space
-        ? mk_space_op : mk_op(UHExp.string_of_operator(op))
+      op |> Operators.Exp.is_Space
+        ? mk_space_op : mk_op(Operators.Exp.to_string(op))
     and mk_operand = (~enforce_inline: bool, operand: UHExp.operand): t =>
       switch (operand) {
       | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))

@@ -103,7 +103,7 @@ let prop_val = (prop: string, value: string) =>
 
 module PairLivelit: LIVELIT = {
   let name = "$pair";
-  let expansion_ty = HTyp.(Prod(Hole, Hole));
+  let expansion_ty = HTyp.(Prod([Hole, Hole]));
 
   [@deriving sexp]
   type model = (int, int);
@@ -134,10 +134,11 @@ module PairLivelit: LIVELIT = {
 
   let expand = ((leftID, rightID)) => {
     let pair_seq =
-      Seq.mk(_to_uhvar(leftID), [(UHExp.Comma, _to_uhvar(rightID))]);
-    UHExp.Block.wrap'(
-      OpSeq.mk(~associate=Associator.Exp.associate, pair_seq),
-    );
+      Seq.mk(
+        _to_uhvar(leftID),
+        [(Operators.Exp.Comma, _to_uhvar(rightID))],
+      );
+    UHExp.Block.wrap'(UHExp.mk_OpSeq(pair_seq));
   };
 };
 
@@ -430,12 +431,10 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
       | [fst, ...rest] => {
           let rest' =
-            (rest |> List.map(item => (UHExp.Cons, item)))
-            @ [(UHExp.Cons, UHExp.ListNil(NotInHole))];
+            (rest |> List.map(item => (Operators.Exp.Cons, item)))
+            @ [(Operators.Exp.Cons, UHExp.ListNil(NotInHole))];
           let seq = Seq.mk(fst, rest');
-          UHExp.Block.wrap'(
-            OpSeq.mk(~associate=Associator.Exp.associate, seq),
-          );
+          UHExp.Block.wrap'(UHExp.mk_OpSeq(seq));
         };
     let m' =
       m
@@ -462,7 +461,7 @@ module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
 
 module GradeCutoffLivelit: LIVELIT = {
   let name = "$grade_cutoffs";
-  let expansion_ty = HTyp.(Prod(Int, Prod(Int, Prod(Int, Int))));
+  let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
 
   [@deriving sexp]
   type letter_grade =
@@ -825,21 +824,19 @@ module GradeCutoffLivelit: LIVELIT = {
         Seq.mk(
           intlit'(a),
           [
-            (Comma, intlit'(b)),
-            (Comma, intlit'(c)),
-            (Comma, intlit'(d)),
+            (Operators.Exp.Comma, intlit'(b)),
+            (Operators.Exp.Comma, intlit'(c)),
+            (Operators.Exp.Comma, intlit'(d)),
           ],
         )
       );
-    UHExp.Block.wrap'(
-      OpSeq.mk(~associate=Associator.Exp.associate, tupl_seq),
-    );
+    UHExp.Block.wrap'(UHExp.mk_OpSeq(tupl_seq));
   };
 };
 
 module ColorLivelit: LIVELIT = {
   let name = "$color";
-  let expansion_ty = HTyp.Prod(Float, Prod(Float, Float));
+  let expansion_ty = HTyp.Prod([Float, Float, Float]);
 
   [@deriving sexp]
   type model = {
@@ -989,11 +986,12 @@ module ColorLivelit: LIVELIT = {
     let triple_seq =
       Seq.mk(
         _to_uhvar(r),
-        [(UHExp.Comma, _to_uhvar(g)), (UHExp.Comma, _to_uhvar(b))],
+        [
+          (Operators.Exp.Comma, _to_uhvar(g)),
+          (Operators.Exp.Comma, _to_uhvar(b)),
+        ],
       );
-    UHExp.Block.wrap'(
-      OpSeq.mk(~associate=Associator.Exp.associate, triple_seq),
-    );
+    UHExp.Block.wrap'(UHExp.mk_OpSeq(triple_seq));
   };
 };
 
@@ -1080,10 +1078,8 @@ module GradientLivelit: LIVELIT = {
     );
 
   let expand = ({lcolor, rcolor, slider_value}) => {
-    let pat_opseq = (hd, tl) =>
-      OpSeq.mk(~associate=Associator.Pat.associate, Seq.mk(hd, tl));
-    let exp_opseq = (hd, tl) =>
-      OpSeq.mk(~associate=Associator.Exp.associate, Seq.mk(hd, tl));
+    let pat_opseq = (hd, tl) => UHPat.mk_OpSeq(Seq.mk(hd, tl));
+    let exp_opseq = (hd, tl) => UHExp.mk_OpSeq(Seq.mk(hd, tl));
     let pat_triple = (x1, x2, x3) =>
       UHPat.(pat_opseq(var(x1), [(Comma, var(x2)), (Comma, var(x3))]));
     let scalar =
