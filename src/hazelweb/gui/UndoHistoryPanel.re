@@ -29,7 +29,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Var(_, _, var_str) => "var: " ++ var_str
     | IntLit(_, num) => "Int: " ++ num
     | FloatLit(_, num) => "Float: " ++ num
-    | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
+    | BoolLit(_, bool_val) => "Bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
     | Lam(_, _, _, _) => "lambada function"
     | Inj(_, side, _) =>
@@ -37,7 +37,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | L => "left injection"
       | R => "right injection"
       }
-    | Case(_, _, _, _) => "case match"
+    | Case(_, _, _, _) => "case"
     | Parenthesized(_) => "( )"
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
@@ -50,9 +50,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Var(_, _, var_str) => "var: " ++ var_str
     | IntLit(_, num) => "Int: " ++ num
     | FloatLit(_, num) => "Float: " ++ num
-    | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
+    | BoolLit(_, bool_val) => "Bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
-    | Parenthesized(_) => "( )"
+    | Parenthesized(_) => "parentheses"
     | Inj(_, side, _) =>
       switch (side) {
       | L => "left injection"
@@ -68,7 +68,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Int => "type: Int"
     | Float => "type: Float"
     | Bool => "type: Bool"
-    | Parenthesized(_) => "( )"
+    | Parenthesized(_) => "parentheses"
     | List(_) => "[ ]"
     };
   };
@@ -88,7 +88,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | LetLine(_, _, _) => "let binding"
       | ExpLine(_) => "expression line"
       }
-    | Rule(_, _) => "match rule"
+    | Rule(_, _) => "case rule"
     };
   };
 
@@ -106,7 +106,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet => Some("construct let binding")
-      | SCase => Some("construct case match")
+      | SCase => Some("construct case")
       | SLam => Some("construct lambda")
       | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
       }
@@ -117,7 +117,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
              undo_history_entry.cursor_term_info.cursor_term_after,
            ),
       )
-    | MatchRule => Some("insert a match rule")
+    | MatchRule => Some("insert a case rule")
     | Ignore => None
     };
   };
