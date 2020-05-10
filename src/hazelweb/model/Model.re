@@ -219,3 +219,20 @@ let load_example = (model: t, e: UHExp.t): t =>
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(Cardstacks.load_cardstack(idx)) |> focus_cell;
 };
+
+let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
+  let cur_group = ZList.prj_z(undo_history.groups);
+  let new_cardstacks = ZList.prj_z(cur_group.group_entries).cardstacks;
+  let new_program = Cardstacks.get_program(new_cardstacks);
+  let update_selected_instances = _ => {
+    let si = UserSelectedInstances.init;
+    switch (Program.cursor_on_exp_hole(new_program)) {
+    | None => si
+    | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    };
+  };
+  model
+  |> put_undo_history(undo_history)
+  |> put_cardstacks(new_cardstacks)
+  |> map_selected_instances(update_selected_instances);
+};
