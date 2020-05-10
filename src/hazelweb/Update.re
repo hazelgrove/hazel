@@ -103,113 +103,104 @@ let log_action = (action: Action.t, _: State.t): unit => {
 let apply_action =
     (model: Model.t, action: Action.t, state: State.t, ~schedule_action as _)
     : Model.t => {
-  if (model.measurements.measurements) {
-    Printf.printf("\n== Update.apply_action times ==\n");
+  log_action(action, state);
+  switch (action) {
+  | EditAction(a) =>
+    switch (model |> Model.perform_edit_action(a)) {
+    | new_model => new_model
+    | exception Program.FailedAction =>
+      JSUtil.log("[Program.FailedAction]");
+      model;
+    | exception Program.CursorEscaped =>
+      JSUtil.log("[Program.CursorEscaped]");
+      model;
+    | exception Program.MissingCursorInfo =>
+      JSUtil.log("[Program.MissingCursorInfo]");
+      model;
+    | exception Program.InvalidInput =>
+      JSUtil.log("[Program.InvalidInput");
+      model;
+    | exception Program.DoesNotExpand =>
+      JSUtil.log("[Program.DoesNotExpand]");
+      model;
+    }
+  | MoveAction(Key(move_key)) =>
+    switch (model |> Model.move_via_key(move_key)) {
+    | new_model => new_model
+    | exception Program.CursorEscaped =>
+      JSUtil.log("[Program.CursorEscaped]");
+      model;
+    }
+  | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
+  | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
+  | ToggleRightSidebar => Model.toggle_right_sidebar(model)
+  | LoadExample(id) => Model.load_example(model, Examples.get(id))
+  | LoadCardstack(idx) => Model.load_cardstack(model, idx)
+  | NextCard =>
+    state.changing_cards := true;
+    Model.next_card(model);
+  | PrevCard =>
+    state.changing_cards := true;
+    Model.prev_card(model);
+  | ToggleComputeResults => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        compute_results: !model.compute_results.compute_results,
+      },
+    }
+  | ToggleShowCaseClauses => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        show_case_clauses: !model.compute_results.show_case_clauses,
+      },
+    }
+  | ToggleShowFnBodies => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        show_fn_bodies: !model.compute_results.show_fn_bodies,
+      },
+    }
+  | ToggleShowCasts => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        show_casts: !model.compute_results.show_casts,
+      },
+    }
+  | ToggleShowUnevaluatedExpansion => {
+      ...model,
+      compute_results: {
+        ...model.compute_results,
+        show_unevaluated_expansion:
+          !model.compute_results.show_unevaluated_expansion,
+      },
+    }
+  | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
+  | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
+  | InvalidVar(_) => model
+  | FocusCell => model |> Model.focus_cell
+  | BlurCell => model |> Model.blur_cell
+  | Undo =>
+    let new_history = UndoHistory.undo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model =
+      model
+      |> Model.put_program(
+           Program.mk(~width=model.cell_width, new_edit_state),
+         );
+    {...new_model, undo_history: new_history};
+  | Redo =>
+    let new_history = UndoHistory.redo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model =
+      model
+      |> Model.put_program(
+           Program.mk(~width=model.cell_width, new_edit_state),
+         );
+    {...new_model, undo_history: new_history};
+  | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
   };
-  TimeUtil.measure_time(
-    "Update.apply_action",
-    model.measurements.measurements && model.measurements.update_apply_action,
-    () => {
-      log_action(action, state);
-      switch (action) {
-      | EditAction(a) =>
-        switch (model |> Model.perform_edit_action(a)) {
-        | new_model => new_model
-        | exception Program.FailedAction =>
-          JSUtil.log("[Program.FailedAction]");
-          model;
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
-          model;
-        | exception Program.MissingCursorInfo =>
-          JSUtil.log("[Program.MissingCursorInfo]");
-          model;
-        | exception Program.InvalidInput =>
-          JSUtil.log("[Program.InvalidInput");
-          model;
-        | exception Program.DoesNotExpand =>
-          JSUtil.log("[Program.DoesNotExpand]");
-          model;
-        }
-      | MoveAction(Key(move_key)) =>
-        switch (model |> Model.move_via_key(move_key)) {
-        | new_model => new_model
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
-          model;
-        }
-      | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
-      | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
-      | ToggleRightSidebar => Model.toggle_right_sidebar(model)
-      | LoadExample(id) => Model.load_example(model, Examples.get(id))
-      | LoadCardstack(idx) => Model.load_cardstack(model, idx)
-      | NextCard =>
-        state.changing_cards := true;
-        Model.next_card(model);
-      | PrevCard =>
-        state.changing_cards := true;
-        Model.prev_card(model);
-      | ToggleComputeResults => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            compute_results: !model.compute_results.compute_results,
-          },
-        }
-      | ToggleShowCaseClauses => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_case_clauses: !model.compute_results.show_case_clauses,
-          },
-        }
-      | ToggleShowFnBodies => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_fn_bodies: !model.compute_results.show_fn_bodies,
-          },
-        }
-      | ToggleShowCasts => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_casts: !model.compute_results.show_casts,
-          },
-        }
-      | ToggleShowUnevaluatedExpansion => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_unevaluated_expansion:
-              !model.compute_results.show_unevaluated_expansion,
-          },
-        }
-      | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
-      | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
-      | InvalidVar(_) => model
-      | FocusCell => model |> Model.focus_cell
-      | BlurCell => model |> Model.blur_cell
-      | Undo =>
-        let new_history = UndoHistory.undo(model.undo_history);
-        let new_edit_state = ZList.prj_z(new_history);
-        let new_model =
-          model
-          |> Model.put_program(
-               Program.mk(~width=model.cell_width, new_edit_state),
-             );
-        {...new_model, undo_history: new_history};
-      | Redo =>
-        let new_history = UndoHistory.redo(model.undo_history);
-        let new_edit_state = ZList.prj_z(new_history);
-        let new_model =
-          model
-          |> Model.put_program(
-               Program.mk(~width=model.cell_width, new_edit_state),
-             );
-        {...new_model, undo_history: new_history};
-      | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
-      };
-    },
-  );
 };

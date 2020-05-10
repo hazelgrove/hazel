@@ -124,28 +124,16 @@ let move_to_hole = (u, program) => {
   };
 };
 
-let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
-  TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () => {
-    Lazy.force(
-      UHDoc.Exp.mk,
-      ~memoize=memoize_doc,
-      ~enforce_inline=false,
-      get_uhexp(program),
-    )
-  });
+let doc = (~memoize: bool) =>
+  Lazy.force(UHDoc.Exp.mk, ~memoize, ~enforce_inline=false);
+let get_doc = program => {
+  TimeUtil.measure_time("Program.get_doc", () => doc(get_uhexp(program)));
 };
 
-let get_layout =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) => {
+let get_layout = (~memoize: bool, program) => {
   let width = program |> get_width;
-  let doc = get_doc(~measure_program_get_doc, ~memoize_doc, program);
-  TimeUtil.measure_time(
-    "LayoutOfDoc.layout_of_doc", measure_layoutOfDoc_layout_of_doc, () =>
+  let doc = get_doc(~memoize, program);
+  TimeUtil.measure_time("LayoutOfDoc.layout_of_doc", () =>
     Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc)
   )
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
@@ -179,41 +167,21 @@ let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
        )
   };
 
-let get_decorated_layout =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) => {
+let get_decorated_layout = (~memoize: bool, program) => {
   let (steps, _) as path = program |> get_path;
   let ci = program |> get_cursor_info;
   program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
+  |> get_layout(~memoize)
   |> decorate_caret(path)
   |> decorate_cursor(steps)
   |> decorate_var_uses(ci);
 };
 
-let get_cursor_map_z =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) => {
+let get_cursor_map_z = (~memoize: bool, program) => {
   let path = program |> get_path;
   // TODO figure out how to consolidate decoration
   program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
+  |> get_layout(~memoize)
   |> decorate_caret(path)
   |> CursorMap.mk
   |> (
@@ -223,56 +191,20 @@ let get_cursor_map_z =
   );
 };
 
-let get_cursor_map =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) =>
-  program
-  |> get_cursor_map_z(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> fst;
+let get_cursor_map = (~memoize: bool, program) =>
+  program |> get_cursor_map_z(~memoize: bool) |> fst;
 
-let move_via_click =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      row_col,
-      program,
-    ) => {
+let move_via_click = (~memoize: bool, row_col, program) => {
   let (_, rev_path) =
     program
-    |> get_cursor_map(
-         ~measure_program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc,
-         ~memoize_doc,
-       )
+    |> get_cursor_map(~memoize)
     |> CursorMap.find_nearest_within_row(row_col);
   let path = CursorPath.rev(rev_path);
   program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
 };
 
-let move_via_key =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      move_key: JSUtil.MoveKey.t,
-      program,
-    ) => {
-  let (cmap, ((row, col), _) as z) =
-    program
-    |> get_cursor_map_z(
-         ~measure_program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc,
-         ~memoize_doc,
-       );
+let move_via_key = (~memoize: bool, move_key: JSUtil.MoveKey.t, program) => {
+  let (cmap, ((row, col), _) as z) = program |> get_cursor_map_z(~memoize);
   let (from_col, put_col_on_start) =
     switch (program |> get_start_col) {
     | None => (col, put_start_col(col))

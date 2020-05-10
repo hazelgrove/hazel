@@ -30,13 +30,10 @@ let print_times =
   Printf.printf(" ]\n%!");
 };
 
-let measure_time = (name: string, measure: bool, f: unit => 'a): 'a =>
-  if (measure) {
-    let start_time = Sys.time();
-    let x = f();
-    let end_time = Sys.time();
-    print_time(name, start_time, end_time);
-    x;
-  } else {
-    f();
-  };
+let measure_time = (name: string, f: unit => 'a): 'a => {
+  let start_time = Sys.time();
+  let x = f();
+  let end_time = Sys.time();
+  print_time(name, start_time, end_time);
+  x;
+};
