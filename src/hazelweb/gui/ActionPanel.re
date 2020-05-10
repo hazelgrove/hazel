@@ -277,6 +277,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           text("Enter number literals directly e.g. "),
           mono_text("1.0, 2"),
         ]),
+        info([
+          text("Floating point operators, type: "),
+          mono_text("+. -. *."),
+        ]),
         operator_list(
           ~on_type=false,
           "Integer operators",
