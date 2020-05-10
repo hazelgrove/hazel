@@ -21,22 +21,6 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
         ),
         Node.option([Attr.value("map_example")], [Node.text("map")]),
         Node.option([Attr.value("qsort_example")], [Node.text("qsort")]),
-        Node.option(
-          [Attr.value("qsort_example_3")],
-          [Node.text("qsort (3x)")],
-        ),
-        Node.option(
-          [Attr.value("qsort_example_10")],
-          [Node.text("qsort (10x)")],
-        ),
-        Node.option(
-          [Attr.value("qsort_example_30")],
-          [Node.text("qsort (30x)")],
-        ),
-        Node.option(
-          [Attr.value("qsort_example_100")],
-          [Node.text("qsort (100x)")],
-        ),
       ],
     )
   );
