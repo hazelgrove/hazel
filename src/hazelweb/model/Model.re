@@ -221,8 +221,7 @@ let load_cardstack = (model, idx) => {
 };
 
 let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
-  let cur_group = ZList.prj_z(undo_history.groups);
-  let new_cardstacks = ZList.prj_z(cur_group.group_entries).cardstacks;
+  let new_cardstacks = UndoHistory.get_cardstacks(undo_history);
   let new_program = Cardstacks.get_program(new_cardstacks);
   let update_selected_instances = _ => {
     let si = UserSelectedInstances.init;
