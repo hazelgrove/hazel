@@ -72,7 +72,8 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(InHole(_), _, _, _)
-  | ApPalette(_) => []
+  | ApPalette(_)
+  | Subscript(InHole(_), _, _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
@@ -87,6 +88,11 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
+  | Subscript(NotInHole, body1, body2, body3) =>
+    let body1_uses = find_uses(~steps=steps @ [0], x, body1);
+    let body2_uses = find_uses(~steps=steps @ [1], x, body2);
+    let body3_uses = find_uses(~steps=steps @ [2], x, body3);
+    body1_uses @ body2_uses @ body3_uses;
   }
 and find_uses_rule =
     (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>

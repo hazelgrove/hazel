@@ -638,7 +638,8 @@ module Pat = {
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Pat);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Pat);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Pat);
-  let mk_StringLit: (~err: ErrStatus.t, string) => t = mk_StringLit(~sort=Pat);
+  let mk_StringLit: (~err: ErrStatus.t, string) => t =
+    mk_StringLit(~sort=Pat);
   let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Pat);
   let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
     mk_Var(~sort=Pat);
@@ -734,7 +735,7 @@ module Exp = {
     | FGreaterThan
     | FEquals
     | And
-    | Or 
+    | Or
     | PlusPlus => (space_, space_)
     | Comma => (empty_, space_);
 
@@ -742,7 +743,8 @@ module Exp = {
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Exp);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Exp);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
-  let mk_StringLit: (~err: ErrStatus.t, string) => t = mk_StringLit(~sort=Exp);
+  let mk_StringLit: (~err: ErrStatus.t, string) => t =
+    mk_StringLit(~sort=Exp);
   let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Exp);
   let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
     mk_Var(~sort=Exp);

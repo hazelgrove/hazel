@@ -51,6 +51,6 @@ let of_text = (text: string): option(t) => {
     } else {
       print_endline("Textshape39");
       None;
-    };
+    }
   };
 };

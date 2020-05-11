@@ -3507,7 +3507,8 @@ module Exp = {
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApPalette(_),
+          ApPalette(_) |
+          Subscript(_),
         ) |
         CursorE(OnOp(_), StringLit(_)),
       ) =>
@@ -3800,7 +3801,8 @@ module Exp = {
         CursorE(
           OnDelim(_, _),
           ListNil(_) | Parenthesized(_) | Inj(_, _, _) | Lam(_, _, _, _) |
-          Case(_, _, _, _),
+          Case(_, _, _, _) |
+          Subscript(_, _, _, _),
         ),
       ) =>
       print_endline("hello3460");
@@ -4135,6 +4137,16 @@ module Exp = {
             ZExp.ZBlock.wrap(CaseZA(NotInHole, scrut, rules, zann));
           Succeeded(SynDone((new_ze, ty, u_gen)));
         }
+      }
+    | (_, SubscriptZE1(_, zbody1, body2, body3)) =>
+      switch (ana_perform(ctx, a, (zbody1, u_gen), String)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
+      | Succeeded((zbody1, u_gen)) =>
+        let new_ze =
+          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
+        Succeeded(SynDone((new_ze, ty, u_gen)));
       }
     };
   }
@@ -4827,7 +4839,8 @@ module Exp = {
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApPalette(_),
+          ApPalette(_) |
+          Subscript(_),
         ) |
         CursorE(OnOp(_), StringLit(_)),
       ) =>
@@ -5147,7 +5160,8 @@ module Exp = {
         CursorE(
           OnDelim(_, _),
           ListNil(_) | Parenthesized(_) | Inj(_, _, _) | Lam(_, _, _, _) |
-          Case(_, _, _, _),
+          Case(_, _, _, _) |
+          Subscript(_, _, _, _),
         ),
       ) =>
       print_endline("hello4653");

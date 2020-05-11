@@ -80,6 +80,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(ErrStatus.t, t, rules, option(UHTyp.t))
   | Parenthesized(t)
+  | Subscript(ErrStatus.t, t, t, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -247,7 +248,8 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(err, _, _, _)
-  | ApPalette(err, _, _, _) => err
+  | ApPalette(err, _, _, _)
+  | Subscript(err, _, _, _) => err
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -273,6 +275,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | Subscript(_, s, _begin, _end) => Subscript(err, s, _begin, _end)
   };
 
 let is_inconsistent = operand =>
@@ -305,7 +308,8 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | Subscript(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -316,7 +320,8 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _, _)
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
+  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

@@ -1088,7 +1088,8 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Subscript(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | DoesNotExpand => DoesNotExpand
@@ -1111,7 +1112,8 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Subscript(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1418,7 +1420,8 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Subscript(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | DoesNotExpand => DoesNotExpand
@@ -1438,7 +1441,8 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Subscript(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);

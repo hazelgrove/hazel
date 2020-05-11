@@ -142,7 +142,8 @@ and move_cursor_left_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
-  | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool | String) => None
+  | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool | String) =>
+    None
   | CursorT(OnDelim(_k, Before), Parenthesized(ty1)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
@@ -184,7 +185,8 @@ and move_cursor_right_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
-  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool | String) => None
+  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool | String) =>
+    None
   | CursorT(OnDelim(_k, After), Parenthesized(ty1)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(ty1)))
