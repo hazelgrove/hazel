@@ -46,6 +46,7 @@ type undo_history_group = {
 type t = {
   groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
+  is_hover: bool,
   cur_group_id: int,
   cur_elt_id: int,
 };
@@ -768,6 +769,7 @@ let push_edit_state =
     {
       ...undo_history,
       groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+      is_hover: false,
       cur_group_id: 0,
       cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
     };
@@ -780,6 +782,7 @@ let push_edit_state =
         new_group,
         [prev_group, ...ZList.prj_suffix(undo_history.groups)],
       ),
+      is_hover: false,
       cur_group_id: 0,
       cur_elt_id: 0,
     };
