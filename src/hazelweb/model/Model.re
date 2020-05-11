@@ -53,7 +53,7 @@ let init = (): t => {
       cardstacks,
       cursor_term_info,
       previous_action: None,
-      edit_action: Ignore,
+      edit_action: Init,
       timestamp,
     };
 

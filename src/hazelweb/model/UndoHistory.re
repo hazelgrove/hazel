@@ -52,12 +52,6 @@ let get_cardstacks = (history: t): Cardstacks.t => {
   ZList.prj_z(ZList.prj_z(history.groups).group_entries).cardstacks;
 };
 
-let is_empty = (history: t): bool => {
-  /* initial state occupys one entry in undo_history */
-  ZList.length(history.groups) <= 1
-  && ZList.length(ZList.prj_z(history.groups).group_entries) <= 1;
-};
-
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
   | Exp(cursor_pos, _)
