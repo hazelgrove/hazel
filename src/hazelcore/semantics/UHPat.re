@@ -184,3 +184,38 @@ let text_operand =
       u_gen,
     );
   };
+
+let rec is_complete_skel = (sk: skel, sq: seq): bool => {
+  switch (sk) {
+  | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
+  | BinOp(InHole(_), _, _, _) => false
+  | BinOp(NotInHole, _, skel1, skel2) =>
+    is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
+  };
+}
+and is_complete = (p: t): bool => {
+  switch (p) {
+  | OpSeq(sk, sq) => is_complete_skel(sk, sq)
+  };
+}
+and is_complete_operand = (operand: 'operand): bool => {
+  switch (operand) {
+  | EmptyHole(_) => false
+  | Wild(InHole(_)) => false
+  | Wild(NotInHole) => true
+  | Var(InHole(_), _, _) => false
+  | Var(NotInHole, InVarHole(_), _) => false
+  | Var(NotInHole, NotInVarHole, _) => true
+  | IntLit(InHole(_), _) => false
+  | IntLit(NotInHole, _) => true
+  | FloatLit(InHole(_), _) => false
+  | FloatLit(NotInHole, _) => true
+  | BoolLit(InHole(_), _) => false
+  | BoolLit(NotInHole, _) => true
+  | ListNil(InHole(_)) => false
+  | ListNil(NotInHole) => true
+  | Parenthesized(body) => is_complete(body)
+  | Inj(InHole(_), _, _) => false
+  | Inj(NotInHole, _, body) => is_complete(body)
+  };
+};
