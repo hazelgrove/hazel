@@ -556,6 +556,7 @@ let rec get_earlist_non_ignore_entry =
 let get_new_edit_action =
     (
       ~prev_group: undo_history_group,
+      ~cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
       ~action: option(Action.t),
     )
@@ -600,21 +601,31 @@ let get_new_edit_action =
       | SLet
       | SCase => ConstructEdit(shape)
       | SChar(_) =>
-        switch (
-          get_earlist_non_ignore_entry(
-            ZList.join(prev_group.group_entries),
-            None,
-          )
-        ) {
-        | None => Var(Edit)
-        | Some(earlist_non_ignore_entry) =>
-          if (CursorInfo.is_hole(
-                earlist_non_ignore_entry.cursor_term_info.cursor_term_before,
-              )) {
-            Var(Insert);
-          } else {
-            Var(Edit);
-          }
+        if (group_entry(
+              ~prev_group,
+              ~cardstacks_before,
+              ~new_edit_action=Var(Edit),
+            )) {
+          switch (
+            get_earlist_non_ignore_entry(
+              ZList.join(prev_group.group_entries),
+              None,
+            )
+          ) {
+          | None => Var(Insert)
+          | Some(earlist_non_ignore_entry) =>
+            if (CursorInfo.is_hole(
+                  earlist_non_ignore_entry.cursor_term_info.cursor_term_before,
+                )) {
+              Var(Insert);
+            } else {
+              Var(Edit);
+            }
+          };
+        } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+          Var(Insert);
+        } else {
+          Var(Edit);
         }
 
       | SOp(op) =>
@@ -734,7 +745,12 @@ let push_edit_state =
   let new_cursor_term_info =
     get_cursor_info(~cardstacks_before, ~cardstacks_after);
   let new_edit_action =
-    get_new_edit_action(~prev_group, ~new_cursor_term_info, ~action);
+    get_new_edit_action(
+      ~prev_group,
+      ~cardstacks_before,
+      ~new_cursor_term_info,
+      ~action,
+    );
   let timestamp = Unix.time();
   let new_entry = {
     cardstacks: cardstacks_after,
@@ -747,7 +763,7 @@ let push_edit_state =
     let new_group = push_history_entry(~prev_group, ~new_entry);
     {
       ...undo_history,
-      groups: ZList.replace_z(new_group, undo_history.groups),
+      groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
     };
   } else {
     let new_group = {group_entries: ([], new_entry, []), is_expanded: false};
