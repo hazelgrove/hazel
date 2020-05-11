@@ -45,9 +45,8 @@ module Action = {
     | BlurCell
     | Redo
     | Undo
-    | ShiftHistory(int, int)
-    | ShowHistory(int, int)
-    | RecoverHistory(UndoHistory.t)
+    | ShiftHistory(int, int, bool)
+    | RecoverHistory
     | ToggleHistoryGroup(int)
     | ToggleHiddenHistoryAll
     | UpdateFontMetrics(FontMetrics.t);
@@ -117,9 +116,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | BlurCell
   | Undo
   | Redo
-  | ShiftHistory(_, _)
-  | ShowHistory(_, _)
-  | RecoverHistory(_)
+  | ShiftHistory(_, _, _)
+  | RecoverHistory
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | UpdateFontMetrics(_) =>
@@ -291,78 +289,15 @@ let apply_action =
       | Redo =>
         let new_history = UndoHistory.shift_to_next(model.undo_history);
         Model.load_undo_history(model, new_history);
-      | ShiftHistory(group_id, elt_id) =>
+      | ShiftHistory(group_id, elt_id, change_history) =>
         /* click the groups panel to shift to the certain groups entry */
         /* shift to the group with group_id */
-        switch (ZList.shift_to(group_id, model.undo_history.groups)) {
-        | None =>
-          failwith("Impossible match, because undo_history is non-empty")
-        | Some(new_groups) =>
-          let cur_group = ZList.prj_z(new_groups);
-          /* shift to the element with elt_id */
-          switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
-          | None => failwith("Impossible because group_entries is non-empty")
-          | Some(new_group_entries) =>
-            let new_cardstacks = ZList.prj_z(new_group_entries).cardstacks;
-            let new_model = model |> Model.put_cardstacks(new_cardstacks);
-            let new_program = Cardstacks.get_program(new_cardstacks);
-            let update_selected_instances = _ => {
-              let si = UserSelectedInstances.init;
-              switch (Program.cursor_on_exp_hole(new_program)) {
-              | None => si
-              | Some(u) =>
-                si |> UserSelectedInstances.insert_or_update((u, 0))
-              };
-            };
-            let new_model' =
-              new_model
-              |> Model.put_cardstacks(new_cardstacks)
-              |> Model.map_selected_instances(update_selected_instances);
-            {
-              ...new_model',
-              undo_history: {
-                ...new_model'.undo_history,
-                groups:
-                  ZList.replace_z(
-                    {...cur_group, group_entries: new_group_entries},
-                    new_groups,
-                  ),
-              },
-            };
-          };
-        }
-      | ShowHistory(group_id, elt_id) =>
-        /* hover the groups panel to show the certain history entry */
-        switch (ZList.shift_to(group_id, model.undo_history.groups)) {
-        | None =>
-          failwith("Impossible match, because undo_history is non-empty")
-        | Some(new_groups) =>
-          let cur_group = ZList.prj_z(new_groups);
-          /* shift to the element with elt_id */
-          switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
-          | None => failwith("Impossible because group_entries is non-empty")
-          | Some(new_group_entries) =>
-            let new_cardstacks = ZList.prj_z(new_group_entries).cardstacks;
-            let new_model = model |> Model.put_cardstacks(new_cardstacks);
-            let new_program = Cardstacks.get_program(new_cardstacks);
-            let update_selected_instances = _ => {
-              let si = UserSelectedInstances.init;
-              switch (Program.cursor_on_exp_hole(new_program)) {
-              | None => si
-              | Some(u) =>
-                si |> UserSelectedInstances.insert_or_update((u, 0))
-              };
-            };
-            let new_model' =
-              new_model
-              |> Model.put_cardstacks(new_cardstacks)
-              |> Model.map_selected_instances(update_selected_instances);
-            {...new_model', undo_history: model.undo_history};
-          };
-        }
-      | RecoverHistory(history) =>
+        Model.shift_history(model, group_id, elt_id, change_history)
+      | RecoverHistory =>
         /* when mouse leave the panel, recover the original history entry */
-        Model.load_undo_history(model, history)
+        let group_id = Model.get_undo_history(model).cur_group_id;
+        let elt_id = Model.get_undo_history(model).cur_elt_id;
+        Model.shift_history(model, group_id, elt_id, true);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
