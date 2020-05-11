@@ -179,6 +179,7 @@ module Pat = {
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
         ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
+      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -988,7 +989,13 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2) =>
+    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
+    | BinOp(
+        NotInHole,
+        (FLessThan | FGreaterThan | FEquals) as op,
+        skel1,
+        skel2,
+      ) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Float)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1228,6 +1235,7 @@ module Exp = {
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
         ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
+      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -1324,14 +1332,19 @@ module Exp = {
           };
         }
       }
-    | BinOp(_, Minus | And | Or, _, _)
-    | BinOp(_, Plus, _, _)
-    | BinOp(_, Times, _, _)
-    | BinOp(_, FMinus, _, _)
-    | BinOp(_, FPlus, _, _)
-    | BinOp(_, FTimes, _, _)
-    | BinOp(_, LessThan | GreaterThan | Equals, _, _)
-    | BinOp(_, Space, _, _) =>
+    | BinOp(
+        _,
+        Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan | GreaterThan |
+        Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
+        And |
+        Or |
+        Space,
+        _,
+        _,
+      ) =>
       switch (syn_expand_skel(ctx, delta, skel, seq)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, ty', delta) =>
@@ -1838,6 +1851,9 @@ module Evaluator = {
     | FPlus => Some(FloatLit(f1 +. f2))
     | FMinus => Some(FloatLit(f1 -. f2))
     | FTimes => Some(FloatLit(f1 *. f2))
+    | FLessThan => Some(BoolLit(f1 < f2))
+    | FGreaterThan => Some(BoolLit(f1 > f2))
+    | FEquals => Some(BoolLit(f1 == f2))
     };
   };
 
