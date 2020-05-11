@@ -97,6 +97,8 @@ let rec get_prod_elements: t => list(t) =
   | Prod(ty1, ty2) => get_prod_elements(ty1) @ get_prod_elements(ty2)
   | _ as ty => [ty];
 
+let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
+
 let rec make_tuple: list(t) => t =
   fun
   | [] => failwith("make_tuple: expected at least 1 element")
