@@ -47,12 +47,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (pat) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
     | Wild(_) => "wild card"
-    | Var(_, _, var_str) => {
-      if(Var.is_case(var_str)||Var.is_let(var_str)){
-        "keyword: "++ var_str;
-      }else{
-      "var: " ++ var_str;}
-    }
+    | Var(_, _, var_str) =>
+      if (Var.is_case(var_str) || Var.is_let(var_str)) {
+        "keyword: " ++ var_str;
+      } else {
+        "var: " ++ var_str;
+      }
     | IntLit(_, num) => "Int: " ++ num
     | FloatLit(_, num) => "Float: " ++ num
     | BoolLit(_, bool_val) => "Bool: " ++ string_of_bool(bool_val)
@@ -115,7 +115,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | SLam => Some("construct lambda")
       | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
       }
-    | Var(var_edit, is_keyword) =>
+    | Var(var_edit) =>
       switch (var_edit) {
       | Edit =>
         Some(
@@ -133,6 +133,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       }
     | MatchRule => Some("insert a case rule")
+    | Init => Some("initial state")
     | Ignore => None
     };
   };
@@ -176,13 +177,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
       }
-    | Var =>
+    | Var(_) =>
       Some(
         get_cursor_term_tag_typ(
           undo_history_entry.cursor_term_info.cursor_term_after,
         ),
       )
     | MatchRule => Some(Exp)
+    | Init => None
     | Ignore => None
     };
   };
@@ -598,6 +600,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(cur_his_classes)],
                     [
                       history_title_entry_view(
+                        ~cur_history,
                         ~is_latest_selected=is_cur_group,
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
@@ -882,7 +885,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let prev_history_view = (history: UndoHistory.t) => {
-    let (_, _, prev_groups) = history.groups;
+    let (suc_groups, _, prev_groups) = history.groups;
     Vdom.(
       Node.div(
         [Attr.classes(["the-prev-history"])],
@@ -925,8 +928,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
   };
-  let history_view = (model: Model.t) => {
-    let (suc_groups, cur_group, prev_groups) = model.undo_history.groups;
+  let history_view = (model: Model.t) =>
     if (UndoHistory.is_empty(model.undo_history)) {
       Vdom.(
         Node.div(
@@ -953,7 +955,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       );
     };
-  };
   let undo_button =
     Vdom.(
       Node.div(
