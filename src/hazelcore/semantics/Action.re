@@ -3217,7 +3217,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | FreeLivelit(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApLivelit(_) |
+          FreeLivelit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3226,7 +3227,6 @@ module Exp = {
         ),
       ) =>
       Failed
-    | (_, CursorE(OnOp(_), ApLivelit(_))) => Failed
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
@@ -3271,7 +3271,7 @@ module Exp = {
       let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
       syn_perform_operand(ctx, Backspace, (new_zoperand, ty, u_gen));
 
-    | (Backspace, CursorE(OnDelim(_, After), ListNil(_) | ApLivelit(_))) =>
+    | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       let new_ze = ZExp.ZBlock.wrap(zhole);
       Succeeded(SynDone((new_ze, Hole, u_gen)));
@@ -3522,6 +3522,7 @@ module Exp = {
       ) =>
       let (_, livelit_ctx) = ctx;
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
+      | None => Failed
       | Some(livelit_defn) =>
         let update_cmd =
           livelit_defn.update(serialized_model, serialized_action);
@@ -3547,7 +3548,6 @@ module Exp = {
             )
           );
         Succeeded(SynDone((new_ze, expansion_ty, u_gen)));
-      | None => Failed
       };
     | (PerformLivelitAction(_), CursorE(_)) => Failed
 
@@ -4445,12 +4445,10 @@ module Exp = {
         CursorE(
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
-          Parenthesized(_) |
-          ApLivelit(_, _, _, _, _),
+          Parenthesized(_),
         ),
       ) =>
       Failed
-
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
@@ -4525,7 +4523,13 @@ module Exp = {
       ana_delete_text(ctx, u_gen, j, f, ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
-    | (Delete, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+    | (
+        Delete,
+        CursorE(
+          OnText(j),
+          FreeLivelit(_, lln) | ApLivelit(_, _, lln, _, _),
+        ),
+      ) =>
       ana_delete_text(ctx, u_gen, j, lln, ty)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -4536,7 +4540,13 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
-    | (Backspace, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+    | (
+        Backspace,
+        CursorE(
+          OnText(j),
+          FreeLivelit(_, lln) | ApLivelit(_, _, lln, _, _),
+        ),
+      ) =>
       ana_backspace_text(ctx, u_gen, j, lln, ty)
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
@@ -4787,6 +4797,43 @@ module Exp = {
       );
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
+
+    | (
+        PerformLivelitAction(serialized_action),
+        CursorE(
+          cpos,
+          ApLivelit(llu, err, lln, serialized_model, splice_info),
+        ),
+      ) =>
+      let (_, livelit_ctx) = ctx;
+      switch (LivelitCtx.lookup(livelit_ctx, lln)) {
+      | None => Failed
+      | Some(livelit_defn) =>
+        let update_cmd =
+          livelit_defn.update(serialized_model, serialized_action);
+        let (serialized_model, splice_info, u_gen) =
+          SpliceGenCmd.exec(update_cmd, splice_info, u_gen);
+        let (splice_map, u_gen) =
+          Statics.Exp.ana_fix_holes_splice_map(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes=true,
+            splice_info.splice_map,
+          );
+        let splice_info =
+          SpliceInfo.update_splice_map(splice_info, splice_map);
+        let new_ze =
+          ZExp.(
+            ZBlock.wrap(
+              CursorE(
+                cpos,
+                ApLivelit(llu, err, lln, serialized_model, splice_info),
+              ),
+            )
+          );
+        Succeeded(AnaDone((new_ze, u_gen)));
+      };
+    | (PerformLivelitAction(_), CursorE(_)) => Failed
 
     /* Invalid Swap actions */
     | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
