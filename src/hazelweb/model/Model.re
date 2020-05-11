@@ -309,7 +309,7 @@ let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
   |> map_selected_instances(update_selected_instances);
 };
 
-let shift_history = (model: t, group_id: int, elt_id: int, is_click: bool, is_hover:bool): t => {
+let shift_history = (model: t, group_id: int, elt_id: int, is_click: bool): t => {
   switch (ZList.shift_to(group_id, model.undo_history.groups)) {
   | None => failwith("Impossible match, because undo_history is non-empty")
   | Some(new_groups) =>
