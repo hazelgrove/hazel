@@ -1,13 +1,13 @@
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
+
 type tag_typ =
   | Exp
   | Pat
   | Typ;
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
-
   let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
     switch (lst) {
     | [] => []
