@@ -289,10 +289,10 @@ let apply_action =
       | Redo =>
         let new_history = UndoHistory.shift_to_next(model.undo_history);
         Model.load_undo_history(model, new_history);
-      | ShiftHistory(group_id, elt_id, is_hover) =>
+      | ShiftHistory(group_id, elt_id, is_click) =>
         /* click the groups panel to shift to the certain groups entry */
         /* shift to the group with group_id */
-        Model.shift_history(model, group_id, elt_id, is_hover)
+        Model.shift_history(model, group_id, elt_id, is_click)
       | RecoverHistory =>
         /* when mouse leave the panel, recover the original history entry */
         let group_id = Model.get_undo_history(model).cur_group_id;
