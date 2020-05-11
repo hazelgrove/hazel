@@ -26,7 +26,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let exp_str = (exp: UHExp.operand): string => {
     switch (exp) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
-    | Var(_, _, var_str) => "var: " ++ var_str
+    | Var(_, _, var_str) =>
+      if (Var.is_case(var_str) || Var.is_let(var_str)) {
+        "keyword: " ++ var_str;
+      } else {
+        "var: " ++ var_str;
+      }
     | IntLit(_, num) => "Int: " ++ num
     | FloatLit(_, num) => "Float: " ++ num
     | BoolLit(_, bool_val) => "Bool: " ++ string_of_bool(bool_val)
@@ -47,12 +52,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (pat) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
     | Wild(_) => "wild card"
-    | Var(_, _, var_str) =>
-      if (Var.is_case(var_str) || Var.is_let(var_str)) {
-        "keyword: " ++ var_str;
-      } else {
-        "var: " ++ var_str;
-      }
+    | Var(_, _, var_str) => "var: " ++ var_str
     | IntLit(_, num) => "Int: " ++ num
     | FloatLit(_, num) => "Float: " ++ num
     | BoolLit(_, bool_val) => "Bool: " ++ string_of_bool(bool_val)
