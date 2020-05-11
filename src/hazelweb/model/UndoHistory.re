@@ -771,8 +771,6 @@ let push_edit_state =
         ...undo_history,
         groups: ZList.replace_z(new_group, undo_history.groups),
         is_hover: false,
-        cur_group_id: 0,
-        cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
       };
     } else {
       {
@@ -780,7 +778,7 @@ let push_edit_state =
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
         is_hover: false,
         cur_group_id: 0,
-        cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
+        cur_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
       };
     };
   } else {
@@ -820,7 +818,12 @@ let rec shift_to_prev = (history: t): t => {
           is_expanded: true,
         };
         let new_groups = ZList.replace_z(new_group', new_groups);
-        {...history, groups: new_groups};
+        {
+          ...history,
+          groups: new_groups,
+          cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+          cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        };
       };
     }
   | Some(new_entries) =>
@@ -840,7 +843,12 @@ let rec shift_to_prev = (history: t): t => {
         is_expanded: true,
       };
       let new_groups = ZList.replace_z(new_group, history.groups);
-      {...history, groups: new_groups};
+      {
+        ...history,
+        groups: new_groups,
+        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+      };
     }
   };
 };
@@ -866,7 +874,12 @@ let rec shift_to_next = (history: t): t => {
           is_expanded: true,
         };
         let new_groups = ZList.replace_z(new_group', new_groups);
-        {...history, groups: new_groups};
+        {
+          ...history,
+          groups: new_groups,
+          cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+          cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        };
       };
     }
   | Some(new_entries) =>
@@ -877,7 +890,12 @@ let rec shift_to_next = (history: t): t => {
         group_entries: new_entries,
       };
       let new_groups = ZList.replace_z(new_group, history.groups);
-      let new_history = {...history, groups: new_groups};
+      let new_history = {
+        ...history,
+        groups: new_groups,
+        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+      };
       shift_to_next(new_history);
     } else {
       let new_group = {
@@ -886,7 +904,12 @@ let rec shift_to_next = (history: t): t => {
         is_expanded: true,
       };
       let new_groups = ZList.replace_z(new_group, history.groups);
-      {...history, groups: new_groups};
+      {
+        ...history,
+        groups: new_groups,
+        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+      };
     }
   };
 };

@@ -292,11 +292,32 @@ let apply_action =
       | ShiftHistory(group_id, elt_id, is_click) =>
         /* click the groups panel to shift to the certain groups entry */
         /* shift to the group with group_id */
-        Model.shift_history(model, group_id, elt_id, is_click)
+        if (is_click) {
+          JSUtil.log(
+            "click_history:"
+            ++ string_of_int(group_id)
+            ++ " g] [e "
+            ++ string_of_int(elt_id),
+          );
+        } else {
+          JSUtil.log(
+            "hover_history:"
+            ++ string_of_int(group_id)
+            ++ " g] [e "
+            ++ string_of_int(elt_id),
+          );
+        };
+        Model.shift_history(model, group_id, elt_id, is_click);
       | RecoverHistory =>
         /* when mouse leave the panel, recover the original history entry */
         let group_id = Model.get_undo_history(model).cur_group_id;
         let elt_id = Model.get_undo_history(model).cur_elt_id;
+        JSUtil.log(
+          "recover_history:"
+          ++ string_of_int(group_id)
+          ++ " g] [e "
+          ++ string_of_int(elt_id),
+        );
         Model.shift_history(model, group_id, elt_id, false);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;

@@ -353,7 +353,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ],
                   [
                     history_typ_tag_view(undo_history_entry),
-                    Node.text(str),
+                    Node.text(
+                      str
+                      ++ " "
+                      ++ string_of_int(group_id)
+                      ++ " g] [e "
+                      ++ string_of_int(elt_id),
+                    ),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
                       [
@@ -432,7 +438,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(["the-hidden-history-txt"])],
                     [
                       history_typ_tag_view(undo_history_entry),
-                      Node.text(str),
+                      Node.text(
+                        str
+                        ++ " "
+                        ++ string_of_int(group_id)
+                        ++ " g] [e "
+                        ++ string_of_int(elt_id),
+                      ),
                     ],
                   ),
                   Node.div(
@@ -480,7 +492,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(["the-hidden-history-txt"])],
                     [
                       history_typ_tag_view(undo_history_entry),
-                      Node.text(str),
+                      Node.text(
+                        str
+                        ++ " "
+                        ++ string_of_int(group_id)
+                        ++ " g] [e "
+                        ++ string_of_int(elt_id),
+                      ),
                     ],
                   ),
                   Node.div(
