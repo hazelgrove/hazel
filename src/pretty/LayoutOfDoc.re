@@ -18,21 +18,11 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
   };
 };
 
-// TODO: does Reason have 'type classes'? operators?
-// TODO: unions are left biased
-type m('a) = Doc.m('a);
-type m'('a) = Doc.m'('a);
-
-// Functions for m'
-let add_cost: 'a. (int, m'('a)) => m'('a) =
-  (cost, m) => {
-    PosMap.map(((x_cost, x)) => (cost + x_cost, x), m);
-  };
-
-let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
+// Note: This union is left biased
+let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
   (p1, p2) => {
-    let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
-      if (cost1 <= cost2) {
+    let cost_union = ((cost1: Cost.t, _) as t1, (cost2: Cost.t, _) as t2) =>
+      if (Cost.leq(cost1, cost2)) {
         t1;
       } else {
         t2;
@@ -40,131 +30,81 @@ let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
     PosMap.union(cost_union, p1, p2);
   };
 
-// Monad interface
-module Let_syntax = {
-  let return = (x: 'a): m('a) =>
-    (~width as _: int, ~pos: int) => PosMap.singleton(pos, (0, x));
-  let map = (m: m('a), ~f: 'a => 'b): m('b) =>
-    (~width, ~pos: int) =>
-      m(~width, ~pos) |> PosMap.map(((cost, x)) => (cost, f(x)));
-  let bind: 'a 'b. (m('a), ~f: 'a => m('b)) => m('b) =
-    (m, ~f, ~width: int, ~pos: int) => {
-      PosMap.fold_left(
-        (pos, z, (cost, x)) =>
-          m'_union(z, add_cost(cost, f(x, ~width, ~pos))),
-        PosMap.empty,
-        m(~width, ~pos),
-      );
-    };
-};
-let return = Let_syntax.return;
-
-// Choice (a non-determinism monad)
-let fail: m('a) = (~width as _: int, ~pos as _: int) => PosMap.empty;
-let union: 'a. (m('a), m('a)) => m('a) =
-  (m1, m2, ~width: int, ~pos: int) =>
-    m'_union(m1(~width, ~pos), m2(~width, ~pos));
-
-// Cost (a writer monad)
-let tell_cost = (c: int): m(unit) =>
-  (~width as _: int, ~pos: int) => PosMap.singleton(pos, (c, ()));
-
-// Width (a reader monad)
-let ask_width: m(int) =
-  (~width: int, ~pos: int) => PosMap.singleton(pos, (0, width));
-let with_width: 'a. (int, m('a)) => m('a) =
-  (width, m, ~width as _: int, ~pos: int) => m(~width, ~pos);
-
-// Position (a state monad)
-let get_position: m(int) =
-  (~width as _: int, ~pos: int) => PosMap.singleton(pos, (0, pos));
-let set_position = (pos: int): m(unit) =>
-  (~width: int, ~pos as _: int) =>
-    if (pos > width) {
-      PosMap.empty;
-    } else {
-      PosMap.singleton(pos, (0, ()));
-    };
-let modify_position = (delta: int): m(unit) => {
-  let%bind pos = get_position;
-  set_position(pos + delta);
-};
-
-let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
-  (doc, ~width: int, ~pos: int) => {
-    Obj.magic(snd(Lazy.force(memo_table), Obj.magic(doc), ~width, ~pos));
-  }
-
-and memo_table: Lazy.t((unit => unit, Doc.t(unit) => m(Layout.t(unit)))) =
-  lazy((
-    () => (),
-    (d, ~width, ~pos) => {
-      let key = (width, pos);
-      switch (Doc.M.find_opt(d.mem, key)) {
-      | Some(value) => value
-      | None =>
-        let value = layout_of_doc''(d, ~width, ~pos);
-        Doc.M.add(d.mem, key, value);
-        value;
-      };
-    },
-  ))
-
-and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
-  doc => {
-    let g = ((width, pos): (int, int)): m'(Layout.t(unit)) => {
-      let ret: m(Layout.t(unit)) = {
-        switch (doc.doc) {
-        | Text(string) =>
-          let%bind () = modify_position(Unicode.length(string));
-          return(Layout.Text(string));
-        | Cat(d1, d2) =>
-          let%bind l1 = layout_of_doc'(d1);
-          let%bind l2 = layout_of_doc'(d2);
-          return(Layout.Cat(l1, l2));
-        | Linebreak =>
-          let%bind () = tell_cost(1);
-          let%bind () = set_position(0);
-          return(Layout.Linebreak);
-        | Align(d) =>
-          let%bind pos = get_position;
-          let%bind width = ask_width;
-          let%bind l =
-            with_width(
-              width - pos,
-              {
-                let%bind () = set_position(0);
-                layout_of_doc'(d);
-              },
-            );
-          let%bind () = modify_position(pos);
-          return(Layout.Align(l));
-        | Annot(annot, d) =>
-          let%bind l: m(Layout.t(unit)) = layout_of_doc'(d);
-          return(Layout.Annot(annot, l));
-        | Fail => fail
-        | Choice(d1, d2) => union(layout_of_doc'(d1), layout_of_doc'(d2))
+let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
+  let g = (~width: int, ~pos: int): Doc.m'(Layout.t(unit)) => {
+    // TODO: lift the switch(doc.doc) outside the lambda
+    switch (doc.doc) {
+    | Text(string) =>
+      // TODO: cache text length in Text?
+      let pos' = pos + String.length(string); //Unicode.length(string);
+      let cost =
+        if (pos' <= width) {
+          Cost.zero;
+        } else {
+          let overflow = pos' - width;
+          // overflow_cost = sum i from 1 to overflow
+          let overflow_cost = overflow * (overflow - 1) / 2;
+          Cost.mk_overflow(overflow_cost);
         };
-      };
-      ret(~width, ~pos);
+      PosMap.singleton(pos', (cost, Layout.Text(string)));
+    | Cat(d1, d2) =>
+      let l1 = layout_of_doc'(d1, ~width, ~pos);
+      PosMap.fold_left(
+        (pos, z, (cost1, layout1)) => {
+          let l2 = layout_of_doc'(d2, ~width, ~pos);
+          let layouts =
+            PosMap.map(
+              ((cost2, layout2)) =>
+                (Cost.add(cost1, cost2), Layout.Cat(layout1, layout2)),
+              l2,
+            );
+          m'_union(z, layouts);
+        },
+        PosMap.empty,
+        l1,
+      );
+    | Linebreak =>
+      PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak))
+    | Align(d) =>
+      let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
+      PosMap.mapk(
+        (p, (c, l)) => (p + pos, (c, Layout.Align(l))),
+        layout,
+      );
+    | Annot(annot, d) =>
+      let layout = layout_of_doc'(d, ~width, ~pos);
+      PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
+    | Fail => PosMap.empty
+    | Choice(d1, d2) =>
+      let l1 = layout_of_doc'(d1, ~width, ~pos);
+      let l2 = layout_of_doc'(d2, ~width, ~pos);
+      m'_union(l1, l2);
     };
-    module StrongWidthPosKey = Memoize.Strong(Doc.WidthPosKey);
-    let (_clear, h) = StrongWidthPosKey.make(g);
-    (~width, ~pos) => h((width, pos));
   };
+  let h = (~width: int, ~pos: int): Doc.m'(Layout.t(unit)) => {
+    let key = (width, pos);
+    switch (Doc.M.find_opt(doc.mem, key)) {
+    | Some(value) => value
+    | None =>
+      let value = g(~width, ~pos);
+      Doc.M.add(doc.mem, key, value);
+      value;
+    };
+  };
+  h;
+};
 
-// Change pos to first_width?
 let layout_of_doc =
     (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   let rec minimum =
-          ((pos, (cost, t)): (int, (int, option('a))))
-          : (list((int, (int, 'a))) => option('a)) => {
+          ((pos, (cost, t)): (int, (Cost.t, option('a))))
+          : (list((int, (Cost.t, 'a))) => option('a)) => {
     fun
     | [] => t
     | [(x_pos, (x_cost, x)), ...rest] =>
       // Prefer lowest cost, or if same cost, prefer ending at an earlier column
       // (Columns are unique by construction of PosMap.)
-      if (x_cost < cost || x_cost == cost && x_pos < pos) {
+      if (Cost.lt(x_cost, cost) || Cost.eq(x_cost, cost) && x_pos < pos) {
         minimum((x_pos, (x_cost, Some(x))), rest);
       } else {
         minimum((pos, (cost, t)), rest);
@@ -173,7 +113,10 @@ let layout_of_doc =
   // TODO: use options instead of max_int
   // let start_time = Sys.time();
   let l =
-    minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
+    minimum(
+      (max_int, (Cost.inf, None)),
+      Obj.magic(layout_of_doc'(Obj.magic(doc), ~width, ~pos)),
+    );
   // let end_time = Sys.time();
   /*
    Printf.printf(

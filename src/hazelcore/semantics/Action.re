@@ -1682,8 +1682,13 @@ module Pat = {
         | Succeeded((zp, ty', ctx, u_gen)) =>
           if (HTyp.consistent(ty, ty')) {
             Succeeded((zp, ctx, u_gen));
+          } else if (HTyp.get_prod_arity(ty) != HTyp.get_prod_arity(ty')) {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_zp = zp |> ZPat.set_err_status(InHole(WrongLength, u));
+            Succeeded((new_zp, ctx, u_gen));
           } else {
-            Succeeded((zp |> ZPat.set_err_status(err), ctx, u_gen));
+            let new_zp = zp |> ZPat.set_err_status(err);
+            Succeeded((new_zp, ctx, u_gen));
           }
         }
       };
@@ -1930,7 +1935,10 @@ module Exp = {
     | Or => Some(SOr)
     | FPlus
     | FMinus
-    | FTimes => None
+    | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -2948,7 +2956,10 @@ module Exp = {
     | (
         Backspace,
         ZOperator(
-          (OnOp(After) as pos, (FPlus | FMinus | FTimes) as oper),
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
           seq,
         ),
       ) =>
@@ -2957,6 +2968,9 @@ module Exp = {
         | UHExp.FPlus => Some(UHExp.Plus)
         | UHExp.FMinus => Some(UHExp.Minus)
         | UHExp.FTimes => Some(UHExp.Times)
+        | UHExp.FLessThan => Some(UHExp.LessThan)
+        | UHExp.FGreaterThan => Some(UHExp.GreaterThan)
+        | UHExp.FEquals => Some(UHExp.Equals)
         | _ => None
         };
       };
@@ -3017,6 +3031,9 @@ module Exp = {
         | UHExp.Plus => Some(UHExp.FPlus)
         | UHExp.Minus => Some(UHExp.FMinus)
         | UHExp.Times => Some(UHExp.FTimes)
+        | UHExp.LessThan => Some(UHExp.FLessThan)
+        | UHExp.GreaterThan => Some(UHExp.FGreaterThan)
+        | UHExp.Equals => Some(UHExp.FEquals)
         | _ => None
         };
       };
@@ -3122,28 +3139,34 @@ module Exp = {
       ) {
       | None => Failed
       | Some(Syn) =>
-        switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
-        | Failed => Failed
-        | CursorEscaped(side) =>
-          syn_perform_opseq(ctx, escape(side), (zopseq, ty, u_gen))
-        | Succeeded(SynExpands(r)) =>
-          let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
-          let (new_subject, u_gen) =
-            resurround(u_gen, r.subject, (E, suffix));
-          Succeeded(
-            SynExpands({
-              ...r,
-              u_gen,
-              prefix: prefix_lines,
-              subject: new_subject,
-              suffix: [],
-            }),
-          );
-        | Succeeded(SynDone((ze, _, u_gen))) =>
-          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-          Succeeded(
-            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-          );
+        switch (Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+        | None => Failed
+        | Some(ty_zoperand) =>
+          switch (
+            syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+          ) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            syn_perform_opseq(ctx, escape(side), (zopseq, ty, u_gen))
+          | Succeeded(SynExpands(r)) =>
+            let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
+            let (new_subject, u_gen) =
+              resurround(u_gen, r.subject, (E, suffix));
+            Succeeded(
+              SynExpands({
+                ...r,
+                u_gen,
+                prefix: prefix_lines,
+                subject: new_subject,
+                suffix: [],
+              }),
+            );
+          | Succeeded(SynDone((ze, _, u_gen))) =>
+            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          }
         }
       | Some(Ana(ty_zoperand)) =>
         switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
@@ -4232,6 +4255,36 @@ module Exp = {
       ana_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)
 
     /* Deletion */
+    /* Backspace "." from Float Op to get Int Op */
+    /* ( +.<| ) ==> ( + ) */
+    | (
+        Backspace,
+        ZOperator(
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
+          seq,
+        ),
+      ) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.FPlus => Some(UHExp.Plus)
+        | UHExp.FMinus => Some(UHExp.Minus)
+        | UHExp.FTimes => Some(UHExp.Times)
+        | UHExp.FLessThan => Some(UHExp.LessThan)
+        | UHExp.FGreaterThan => Some(UHExp.GreaterThan)
+        | UHExp.FEquals => Some(UHExp.Equals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+      | None => Failed
+      };
 
     | (Delete, ZOperator((OnOp(After as side), _), _))
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
@@ -4291,6 +4344,9 @@ module Exp = {
         | UHExp.Plus => Some(UHExp.FPlus)
         | UHExp.Minus => Some(UHExp.FMinus)
         | UHExp.Times => Some(UHExp.FTimes)
+        | UHExp.LessThan => Some(UHExp.FLessThan)
+        | UHExp.GreaterThan => Some(UHExp.FGreaterThan)
+        | UHExp.Equals => Some(UHExp.FEquals)
         | _ => None
         };
       };
@@ -4329,8 +4385,8 @@ module Exp = {
           // safe because pattern guard
           ty |> HTyp.get_prod_elements |> List.hd,
         );
-      let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-      Succeeded(AnaDone((ZExp.ZBlock.wrap'(new_zopseq), u_gen)));
+      let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | (
         Construct(SParenthesized),
         ZOperand(CursorE(_, EmptyHole(_)), (E, E)),
@@ -4430,28 +4486,34 @@ module Exp = {
       ) {
       | None => Failed
       | Some(Syn) =>
-        switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
-        | Failed => Failed
-        | CursorEscaped(side) =>
-          ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), ty)
-        | Succeeded(SynExpands(r)) =>
-          let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
-          let (new_subject, u_gen) =
-            resurround(u_gen, r.subject, (E, suffix));
-          Succeeded(
-            AnaExpands({
-              ...r,
-              u_gen,
-              prefix: prefix_lines,
-              subject: new_subject,
-              suffix: [],
-            }),
-          );
-        | Succeeded(SynDone((ze, _, u_gen))) =>
-          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-          Succeeded(
-            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
-          );
+        switch (Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+        | None => Failed
+        | Some(ty_zoperand) =>
+          switch (
+            syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+          ) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), ty)
+          | Succeeded(SynExpands(r)) =>
+            let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
+            let (new_subject, u_gen) =
+              resurround(u_gen, r.subject, (E, suffix));
+            Succeeded(
+              AnaExpands({
+                ...r,
+                u_gen,
+                prefix: prefix_lines,
+                subject: new_subject,
+                suffix: [],
+              }),
+            );
+          | Succeeded(SynDone((ze, _, u_gen))) =>
+            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+            Succeeded(
+              AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+            );
+          }
         }
       | Some(Ana(ty_zoperand)) =>
         switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
@@ -4521,6 +4583,10 @@ module Exp = {
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
             Succeeded(AnaDone((ze', u_gen)));
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)) {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze = ze' |> ZExp.set_err_status(InHole(WrongLength, u));
+            Succeeded(AnaDone((new_ze, u_gen)));
           } else {
             let new_ze = ze' |> ZExp.set_err_status(err);
             Succeeded(AnaDone((new_ze, u_gen)));
