@@ -104,8 +104,13 @@ module BinStrOp = {
     | Or
     | Space
     | Cons
-    | Comma 
-    | FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals => None
+    | Comma
+    | FPlus
+    | FMinus
+    | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
     };
 
   let to_op = (bso: t): UHExp.operator =>

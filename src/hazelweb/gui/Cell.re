@@ -139,7 +139,7 @@ let view = (~inject, model: Model.t) => {
                           ),
                         )
                       }
-                    };
+                    }
                   };
                 };
               }

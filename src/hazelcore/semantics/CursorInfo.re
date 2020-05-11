@@ -123,7 +123,10 @@ and is_text_cursor_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | CaseZA(_)
-  | ApPaletteZ(_) => false;
+  | ApPaletteZ(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_) => false;
 
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
@@ -833,6 +836,12 @@ module Exp = {
     | ApPaletteZ(_, _, _, zpsi) =>
       let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
       ana_cursor_info(~steps, ctx, ze, ty);
+    | SubscriptZE1(_, zbody1, body2, body3) =>
+      syn_cursor_info(~steps=steps @ [0], ctx, zbody1)
+    | SubscriptZE2(_, body1, zbody2, body3) =>
+      syn_cursor_info(~steps=steps @ [1], ctx, zbody2)
+    | SubscriptZE3(_, body1, body2, zbody3) =>
+      syn_cursor_info(~steps=steps @ [2], ctx, zbody3)
     };
   }
   and ana_cursor_info =
@@ -1014,7 +1023,8 @@ module Exp = {
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
       | Case(InHole(TypeInconsistent, _), _, _, _)
-      | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+      | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+      | Subscript(InHole(TypeInconsistent, _), _, _, _) =>
         let operand' =
           zoperand
           |> ZExp.erase_zoperand
@@ -1084,7 +1094,10 @@ module Exp = {
     | CaseZE(InHole(TypeInconsistent, _), _, _, _)
     | CaseZR(InHole(TypeInconsistent, _), _, _, _)
     | CaseZA(InHole(TypeInconsistent, _), _, _, _)
-    | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _)
+    | SubscriptZE1(InHole(TypeInconsistent, _), _, _, _)
+    | SubscriptZE2(InHole(TypeInconsistent, _), _, _, _)
+    | SubscriptZE3(InHole(TypeInconsistent, _), _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     /* zipper not in hole */
     | LamZP(NotInHole, zp, ann, body) =>
