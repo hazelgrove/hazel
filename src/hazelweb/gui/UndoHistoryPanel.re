@@ -929,32 +929,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
   let history_view = (model: Model.t) =>
-    if (UndoHistory.is_empty(model.undo_history)) {
-      Vdom.(
-        Node.div(
-          [Attr.classes(["the-history"])],
-          [
-            Vdom.(
-              Node.div(
-                [Attr.classes(["history-is-empty-msg"])],
-                [Node.text("no history in scope")],
-              )
-            ),
-          ],
-        )
-      );
-    } else {
-      Vdom.(
-        Node.div(
-          [Attr.classes(["the-history"])],
-          [
-            suc_history_view(model.undo_history),
-            cur_history_view(model.undo_history),
-            prev_history_view(model.undo_history),
-          ],
-        )
-      );
-    };
+    Vdom.(
+      Node.div(
+        [Attr.classes(["the-history"])],
+        [
+          suc_history_view(model.undo_history),
+          cur_history_view(model.undo_history),
+          prev_history_view(model.undo_history),
+        ],
+      )
+    );
+
   let undo_button =
     Vdom.(
       Node.div(
