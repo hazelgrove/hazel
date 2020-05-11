@@ -368,7 +368,7 @@ let mk_ApLivelit =
       splice_map_opt: option(SpliceInfo.splice_map(DHExp.t)),
     )
     : t => {
-  let lln_doc = mk_text(lln);
+  let lln_doc = Doc.annot(UHAnnot.LivelitName, mk_text(lln));
   let llview_doc = {
     // TODO resolve hack of passing in dummy trigger
     let spaceholder =
@@ -384,7 +384,7 @@ let mk_ApLivelit =
       spaceholder,
     );
   };
-  annot_ApLivelit(Doc.hseps([lln_doc, llview_doc]));
+  annot_ApLivelit(Doc.hcats([lln_doc, llview_doc]));
 };
 
 let mk_LetLine =

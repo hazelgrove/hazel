@@ -187,7 +187,8 @@ let find_and_decorate_caret =
                     ),
                )
              | EmptyLine
-             | Term(_) => Skip
+             | Term(_)
+             | LivelitName => Skip
              | _ => Stop
              }
            )

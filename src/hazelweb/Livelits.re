@@ -1397,7 +1397,7 @@ module SliderLivelit: LIVELIT = {
           ),
         ],
       );
-    LivelitView.Inline(_ => view_span, 10);
+    LivelitView.Inline(_ => view_span, 20);
   };
 
   let expand = model => UHExp.Block.wrap(UHExp.intlit'(model.value));

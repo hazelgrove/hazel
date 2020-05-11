@@ -155,6 +155,9 @@ let view =
         ),
       ]
 
+    | Annot(LivelitName, l) => [
+        Node.span([Attr.classes(["LivelitName"])], go(l)),
+      ]
     | Annot(LivelitView({llu, llview, splice_map_opt}), _) => {
         let trigger = serialized_action =>
           inject(Update.Action.LivelitAction(llu, serialized_action));
@@ -197,27 +200,30 @@ let view =
 
           [splice_getters_to_vdom({uhcode, dhcode})];
         };
+        let dim_attr =
+          switch (livelit_view) {
+          | Inline(_, width) =>
+            Attr.create("style", Printf.sprintf("width: %dch;", width))
+          | MultiLine(_, height) =>
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "height: %fpx;",
+                float_of_int(height) *. font_metrics.row_height,
+              ),
+            )
+          };
         Vdom.[
           Node.div(
             [
-              switch (livelit_view) {
-              | Inline(_, width) =>
-                Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "display: inline-block; width: %dch;",
-                    width,
-                  ),
-                )
-              | MultiLine(_, height) =>
-                Attr.create(
-                  "style",
-                  Printf.sprintf(
-                    "display: block; height: %fpx;",
-                    float_of_int(height) *. font_metrics.row_height,
-                  ),
-                )
-              },
+              Attr.classes([
+                "LivelitView",
+                switch (livelit_view) {
+                | Inline(_) => "Inline"
+                | MultiLine(_) => "MultiLine"
+                },
+              ]),
+              dim_attr,
               Attr.on_mousedown(_ => Event.Stop_propagation),
             ],
             vs,

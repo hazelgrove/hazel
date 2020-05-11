@@ -26,6 +26,7 @@ type t =
   | LetLine
   | Step(int)
   | Term(term_data)
+  | LivelitName
   | LivelitView({
       llu: MetaVar.t,
       llview:
