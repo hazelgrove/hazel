@@ -158,9 +158,10 @@ let view =
     | Annot(LivelitView({llu, llview, splice_map_opt}), _) => {
         let trigger = serialized_action =>
           inject(Update.Action.LivelitAction(llu, serialized_action));
+        let livelit_view = llview(trigger);
         let vs = {
           let splice_getters_to_vdom =
-            Livelits.LivelitView.get_splice_getters_to_vdom(llview(trigger));
+            Livelits.LivelitView.get_splice_getters_to_vdom(livelit_view);
           let uhcode = splice_name => {
             let splice_layout =
               splice_ls |> SpliceMap.get_splice(llu, splice_name);
@@ -196,9 +197,29 @@ let view =
 
           [splice_getters_to_vdom({uhcode, dhcode})];
         };
-        [
-          Vdom.Node.span(
-            [Vdom.Attr.on_mousedown(_ => Vdom.Event.Stop_propagation)],
+        Vdom.[
+          Node.div(
+            [
+              switch (livelit_view) {
+              | Inline(_, width) =>
+                Attr.create(
+                  "style",
+                  Printf.sprintf(
+                    "display: inline-block; width: %dch;",
+                    width,
+                  ),
+                )
+              | MultiLine(_, height) =>
+                Attr.create(
+                  "style",
+                  Printf.sprintf(
+                    "display: block; height: %fpx;",
+                    float_of_int(height) *. font_metrics.row_height,
+                  ),
+                )
+              },
+              Attr.on_mousedown(_ => Event.Stop_propagation),
+            ],
             vs,
           ),
         ];

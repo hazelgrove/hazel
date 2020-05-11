@@ -377,7 +377,7 @@ let mk_ApLivelit =
       | MultiLine(_, height) =>
         enforce_inline
           ? Doc.fail()
-          : Doc.hcats(ListUtil.replicate(height + 2, Doc.linebreak()))
+          : Doc.hcats(ListUtil.replicate(height, Doc.linebreak()))
       };
     Doc.annot(
       UHAnnot.LivelitView({llu, llview, splice_map_opt}),

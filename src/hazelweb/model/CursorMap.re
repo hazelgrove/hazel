@@ -121,7 +121,7 @@ let of_layout =
       | Annot(Step(step), l) =>
         go(~rev_steps=[step, ...rev_steps], ~indent, l)
 
-      | Annot(LivelitView({llu, _}), _) =>
+      | Annot(LivelitView({llu, _}), l) =>
         let ap_cmaps =
           splice_ls
           |> SpliceMap.get_ap(llu)
@@ -139,6 +139,8 @@ let of_layout =
           |> List.to_seq
           |> SpliceMap.ApMap.of_seq;
         splice_cmaps := splice_cmaps^ |> SpliceMap.put_ap(llu, ap_cmaps);
+        // to update row col
+        let _ = go'(l);
         empty;
 
       | Annot(Token({shape, has_cursor, len}), l) =>
