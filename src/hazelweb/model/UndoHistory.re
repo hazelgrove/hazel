@@ -766,12 +766,22 @@ let push_edit_state =
   };
   if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
     let new_group = push_history_entry(~prev_group, ~new_entry);
-    {
-      ...undo_history,
-      groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
-      is_hover: false,
-      cur_group_id: 0,
-      cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
+    if (new_edit_action == Ignore) {
+      {
+        ...undo_history,
+        groups: ZList.replace_z(new_group, undo_history.groups),
+        is_hover: false,
+        cur_group_id: 0,
+        cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
+      };
+    } else {
+      {
+        ...undo_history,
+        groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+        is_hover: false,
+        cur_group_id: 0,
+        cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
+      };
     };
   } else {
     let new_group = {group_entries: ([], new_entry, []), is_expanded: false};
