@@ -89,9 +89,11 @@ let create =
       ~apply_action=Update.apply_action(model),
       ~on_display=
         (_, ~schedule_action as _) => {
-          switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
-          | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
-          | None => ()
+          if (!Model.get_undo_history(model).is_hover) {
+            switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
+            | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
+            | None => ()
+            };
           };
           if (Model.is_cell_focused(model)) {
             let caret_elem = JSUtil.force_get_elem_by_id("caret");

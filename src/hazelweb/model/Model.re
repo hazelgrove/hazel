@@ -64,6 +64,7 @@ let init = (): t => {
     {
       groups: ([], undo_history_group, []),
       all_hidden_history_expand: false,
+      is_hover: false,
       cur_group_id: 0,
       cur_elt_id: 0,
     };
@@ -308,8 +309,7 @@ let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
   |> map_selected_instances(update_selected_instances);
 };
 
-let shift_history =
-    (model: t, group_id: int, elt_id: int, change_history: bool): t => {
+let shift_history = (model: t, group_id: int, elt_id: int, is_click: bool, is_hover:bool): t => {
   switch (ZList.shift_to(group_id, model.undo_history.groups)) {
   | None => failwith("Impossible match, because undo_history is non-empty")
   | Some(new_groups) =>
@@ -319,7 +319,7 @@ let shift_history =
     | None => failwith("Impossible because group_entries is non-empty")
     | Some(new_group_entries) =>
       let (cur_group_id, cur_elt_id) =
-        if (change_history) {
+        if (is_click) {
           (group_id, elt_id);
         } else {
           (model.undo_history.cur_group_id, model.undo_history.cur_elt_id);
@@ -331,6 +331,7 @@ let shift_history =
             {...cur_group, group_entries: new_group_entries},
             new_groups,
           ),
+        is_hover: !is_click,
         cur_group_id,
         cur_elt_id,
       };
