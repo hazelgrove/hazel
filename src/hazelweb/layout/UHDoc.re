@@ -361,6 +361,7 @@ let mk_FreeLivelit = (lln: LivelitName.t): t =>
 
 let mk_ApLivelit =
     (
+      ~enforce_inline: bool,
       llu: MetaVar.t,
       lln: LivelitName.t,
       llview: Livelits.trigger_serialized => Livelits.LivelitView.t,
@@ -374,7 +375,9 @@ let mk_ApLivelit =
       switch (llview(_ => Vdom.Event.Ignore)) {
       | Inline(_, width) => Doc.text(String.make(width, ' '))
       | MultiLine(_, height) =>
-        Doc.hcats(ListUtil.replicate(height + 2, Doc.linebreak()))
+        enforce_inline
+          ? Doc.fail()
+          : Doc.hcats(ListUtil.replicate(height + 2, Doc.linebreak()))
       };
     Doc.annot(
       UHAnnot.LivelitView({llu, llview, splice_map_opt}),
@@ -785,7 +788,7 @@ module Exp = {
                  mk_block(~enforce_inline, splice_e)
                );
           splice_docs := splice_docs^ |> SpliceMap.put_ap(llu, ap_docs);
-          mk_ApLivelit(llu, lln, llview, sim_opt);
+          mk_ApLivelit(~enforce_inline, llu, lln, llview, sim_opt);
         }
       }
     and mk_rule = (Rule(p, clause): UHExp.rule): t => {
