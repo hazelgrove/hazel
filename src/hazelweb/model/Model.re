@@ -61,7 +61,12 @@ let init = (): t => {
       group_entries: ([], undo_history_entry, []),
       is_expanded: false,
     };
-    {groups: ([], undo_history_group, []), all_hidden_history_expand: false};
+    {
+      groups: ([], undo_history_group, []),
+      all_hidden_history_expand: false,
+      cur_group_id: 0,
+      cur_elt_id: 0,
+    };
   };
   let compute_results = true;
   let selected_instances = {
@@ -301,4 +306,35 @@ let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
   |> put_undo_history(undo_history)
   |> put_cardstacks(new_cardstacks)
   |> map_selected_instances(update_selected_instances);
+};
+
+let shift_history =
+    (model: t, group_id: int, elt_id: int, change_history: bool): t => {
+  switch (ZList.shift_to(group_id, model.undo_history.groups)) {
+  | None => failwith("Impossible match, because undo_history is non-empty")
+  | Some(new_groups) =>
+    let cur_group = ZList.prj_z(new_groups);
+    /* shift to the element with elt_id */
+    switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
+    | None => failwith("Impossible because group_entries is non-empty")
+    | Some(new_group_entries) =>
+      let (cur_group_id, cur_elt_id) =
+        if (change_history) {
+          (group_id, elt_id);
+        } else {
+          (model.undo_history.cur_group_id, model.undo_history.cur_elt_id);
+        };
+      let new_history = {
+        ...model.undo_history,
+        groups:
+          ZList.replace_z(
+            {...cur_group, group_entries: new_group_entries},
+            new_groups,
+          ),
+        cur_group_id,
+        cur_elt_id,
+      };
+      load_undo_history(model, new_history);
+    };
+  };
 };

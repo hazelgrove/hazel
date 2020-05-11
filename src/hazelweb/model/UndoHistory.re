@@ -46,8 +46,12 @@ type undo_history_group = {
 type t = {
   groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
+  cur_group_id: int,
+  cur_elt_id: int,
 };
-
+let update_id = (cur_group_id: int, cur_elt_id: int, history: t): t => {
+  {...history, cur_group_id, cur_elt_id};
+};
 let get_cardstacks = (history: t): Cardstacks.t => {
   ZList.prj_z(ZList.prj_z(history.groups).group_entries).cardstacks;
 };
@@ -764,6 +768,8 @@ let push_edit_state =
     {
       ...undo_history,
       groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+      cur_group_id: 0,
+      cur_elt_id: List.length(ZList.prj_suffix(new_group.group_entries)),
     };
   } else {
     let new_group = {group_entries: ([], new_entry, []), is_expanded: false};
@@ -774,6 +780,8 @@ let push_edit_state =
         new_group,
         [prev_group, ...ZList.prj_suffix(undo_history.groups)],
       ),
+      cur_group_id: 0,
+      cur_elt_id: 0,
     };
   };
 };
@@ -875,6 +883,7 @@ let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
     is_expanded: expanded,
   };
   {
+    ...undo_history,
     groups: (
       List.map(hidden_group, ZList.prj_prefix(undo_history.groups)),
       hidden_group(ZList.prj_z(undo_history.groups)),
