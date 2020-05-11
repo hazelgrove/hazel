@@ -1040,7 +1040,12 @@ module Exp = {
         | Some(_) as result => result
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Int)
         }
-      | BinOp(_, FMinus | FPlus | FTimes, skel1, skel2) =>
+      | BinOp(
+          _,
+          FMinus | FPlus | FTimes | FLessThan | FGreaterThan | FEquals,
+          skel1,
+          skel2,
+        ) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Float)) {
         | Some(_) as result => result
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Float)
@@ -1338,6 +1343,9 @@ module Exp = {
           Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan |
           GreaterThan |
           Equals |
+          FLessThan |
+          FGreaterThan |
+          FEquals |
           And |
           Or |
           Space,
