@@ -203,12 +203,12 @@ let view =
         let dim_attr =
           switch (livelit_view) {
           | Inline(_, width) =>
-            Attr.create("style", Printf.sprintf("width: %dch;", width))
+            Attr.create("style", Printf.sprintf("min-width: %dch;", width))
           | MultiLine(_, height) =>
             Attr.create(
               "style",
               Printf.sprintf(
-                "height: %fpx;",
+                "min-height: %fpx;",
                 float_of_int(height) *. font_metrics.row_height,
               ),
             )
