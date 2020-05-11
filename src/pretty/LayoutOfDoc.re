@@ -43,7 +43,7 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
         } else {
           let overflow = pos' - width;
           // overflow_cost = sum i from 1 to overflow
-          let overflow_cost = overflow * (overflow - 1) / 2;
+          let overflow_cost = overflow * (overflow + 1) / 2;
           Cost.mk_overflow(overflow_cost);
         };
       PosMap.singleton(pos', (cost, Layout.Text(string)));
