@@ -1,6 +1,3 @@
-open Sexplib.Std;
-
-[@deriving sexp]
 type t = {
   info: CardstackInfo.t,
   zcards: ZList.t(ZCard.t, Card.t),

@@ -241,7 +241,7 @@ let apply_action =
     }
   | RecoverHistory(history) =>
     /* when mouse leave the panel, recover the original history entry */
-    load_undo_history(model, history)
+    Model.load_undo_history(model, history)
   | ToggleHistoryGroup(toggle_group_id) =>
     let (suc_groups, _, _) = model.undo_history.groups;
     let cur_group_id = List.length(suc_groups);
