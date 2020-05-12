@@ -10,6 +10,17 @@ type t =
   | Var(Var.t)
   | LivelitName(LivelitName.t);
 
+let is_reserved_var = s => {
+  let reserved_prefix = SpliceInfo.splice_var_prefix;
+  let slen = String.length(s);
+  let plen = String.length(reserved_prefix);
+  if (slen >= plen) {
+    String.equal(reserved_prefix, String.sub(s, 0, plen));
+  } else {
+    false;
+  };
+};
+
 let of_text = (text: string): option(t) => {
   switch (
     int_of_string_opt(text),
@@ -46,7 +57,7 @@ let of_text = (text: string): option(t) => {
       Some(Underscore);
     } else if (text |> LivelitName.is_valid_free_livelit_name) {
       Some(LivelitName(text));
-    } else if (text |> Var.is_valid) {
+    } else if (Var.is_valid(text) && !is_reserved_var(text)) {
       Some(Var(text));
     } else {
       None;
