@@ -1430,15 +1430,25 @@ h1 {
   display: grid; 
   padding: 5px;
 }
-.the-history-title:hover{
+/* .the-history-title:hover{
   color: #b30000;
   background-color: lightgoldenrodyellow;
 } 
 .the-hidden-history-entry:hover {
   color: #b30000;
   background-color: lightgoldenrodyellow;
-}
+} */
 
+/* .the-history-title:hover{
+  border-style:dashed;
+  border-color: black;
+  background-color: white;
+}
+.the-hidden-history-entry:hover{
+  border-style:dashed;
+  border-color: black;
+  background-color: white;
+} */
 .history-type-tag{
   display: inline;
   border-radius: 10%;

@@ -551,7 +551,31 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         },
         [
           Node.div(
-            [Attr.classes(["the-history-entry"])],
+            [
+              Attr.classes(["the-history-entry"]),
+              Attr.on_mouseenter(_ =>
+                if (show_hover_effect) {
+                  Vdom.Event.Many([
+                    inject(
+                      Update.Action.ShiftHistory(group_id, elt_id, false),
+                    ),
+                    inject(FocusCell),
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
+              ),
+              Attr.on_mouseleave(_ =>
+                if (show_hover_effect) {
+                  Vdom.Event.Many([
+                    inject(Update.Action.RecoverHistory),
+                    inject(FocusCell),
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
+              ),
+            ],
             [
               Node.div(
                 [
@@ -563,28 +587,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ),
                       inject(FocusCell),
                     ])
-                  ),
-                  Attr.on_mouseenter(_ =>
-                    if (show_hover_effect) {
-                      Vdom.Event.Many([
-                        inject(
-                          Update.Action.ShiftHistory(group_id, elt_id, false),
-                        ),
-                        inject(FocusCell),
-                      ]);
-                    } else {
-                      Vdom.Event.Many([]);
-                    }
-                  ),
-                  Attr.on_mouseleave(_ =>
-                    if (show_hover_effect) {
-                      Vdom.Event.Many([
-                        inject(Update.Action.RecoverHistory),
-                        inject(FocusCell),
-                      ]);
-                    } else {
-                      Vdom.Event.Many([]);
-                    }
                   ),
                 ],
                 [
@@ -627,7 +629,31 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     if (is_latest_selected) {
       Vdom.(
         Node.div(
-          [Attr.classes(["the-history-entry"])],
+          [
+            Attr.classes(["the-history-entry"]),
+            Attr.on_mouseenter(_ =>
+              if (show_hover_effect) {
+                Vdom.Event.Many([
+                  inject(
+                    Update.Action.ShiftHistory(group_id, elt_id, false),
+                  ),
+                  inject(FocusCell),
+                ]);
+              } else {
+                Vdom.Event.Many([]);
+              }
+            ),
+            Attr.on_mouseleave(_ =>
+              if (show_hover_effect) {
+                Vdom.Event.Many([
+                  inject(Update.Action.RecoverHistory),
+                  inject(FocusCell),
+                ]);
+              } else {
+                Vdom.Event.Many([]);
+              }
+            ),
+          ],
           [
             Node.div(
               [
@@ -640,28 +666,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ),
                     inject(FocusCell),
                   ])
-                ),
-                Attr.on_mouseenter(_ =>
-                  if (show_hover_effect) {
-                    Vdom.Event.Many([
-                      inject(
-                        Update.Action.ShiftHistory(group_id, elt_id, false),
-                      ),
-                      inject(FocusCell),
-                    ]);
-                  } else {
-                    Vdom.Event.Many([]);
-                  }
-                ),
-                Attr.on_mouseleave(_ =>
-                  if (show_hover_effect) {
-                    Vdom.Event.Many([
-                      inject(Update.Action.RecoverHistory),
-                      inject(FocusCell),
-                    ]);
-                  } else {
-                    Vdom.Event.Many([]);
-                  }
                 ),
               ],
               [
@@ -690,7 +694,31 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     } else {
       Vdom.(
         Node.div(
-          [Attr.classes(["the-history-entry"])],
+          [
+            Attr.classes(["the-history-entry"]),
+            Attr.on_mouseenter(_ =>
+              if (show_hover_effect) {
+                Vdom.Event.Many([
+                  inject(
+                    Update.Action.ShiftHistory(group_id, elt_id, false),
+                  ),
+                  inject(FocusCell),
+                ]);
+              } else {
+                Vdom.Event.Many([]);
+              }
+            ),
+            Attr.on_mouseleave(_ =>
+              if (show_hover_effect) {
+                Vdom.Event.Many([
+                  inject(Update.Action.RecoverHistory),
+                  inject(FocusCell),
+                ]);
+              } else {
+                Vdom.Event.Many([]);
+              }
+            ),
+          ],
           [
             Node.div(
               [
@@ -702,28 +730,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ),
                     inject(FocusCell),
                   ])
-                ),
-                Attr.on_mouseenter(_ =>
-                  if (show_hover_effect) {
-                    Vdom.Event.Many([
-                      inject(
-                        Update.Action.ShiftHistory(group_id, elt_id, false),
-                      ),
-                      inject(FocusCell),
-                    ]);
-                  } else {
-                    Vdom.Event.Many([]);
-                  }
-                ),
-                Attr.on_mouseleave(_ =>
-                  if (show_hover_effect) {
-                    Vdom.Event.Many([
-                      inject(Update.Action.RecoverHistory),
-                      inject(FocusCell),
-                    ]);
-                  } else {
-                    Vdom.Event.Many([]);
-                  }
                 ),
               ],
               [
