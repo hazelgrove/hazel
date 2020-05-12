@@ -81,57 +81,43 @@ let view = (~inject, model: Model.t) => {
               | Some(move_key) =>
                 prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
               | None =>
-                switch (KeyCombo.of_evt(evt)) {
-                | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
-                | Some(Ctrl_Shift_Z) =>
-                  prevent_stop_inject(Update.Action.Redo)
-                | Some(kc) =>
-                  switch (kc) {
-                  | Backspace
-                  | Delete
-                  | ShiftTab
-                  | Tab
-                  | Enter
-                  | Alt_L
-                  | Alt_R
-                  | Alt_C
-                  | Ctrl_Alt_Up
-                  | Ctrl_Alt_Down
-                  | Ctrl_Alt_Left
-                  | Ctrl_Alt_Right =>
-                    prevent_stop_inject(
-                      Update.Action.EditAction(
-                        Hashtbl.find(
-                          kc_actions,
-                          kc,
-                          program |> Program.get_cursor_info,
-                        ),
-                      ),
-                    )
-                  | _ =>
-                    let s = JSUtil.get_key(evt);
-                    print_endline("Cell, s = " ++ s);
-                    if (String.length(s) == 1
-                        && CursorInfo.is_text_cursor(
-                             program |> Program.get_zexp,
-                           )) {
-                      print_endline("Cell, s = " ++ s);
-                      prevent_stop_inject(
-                        Update.Action.EditAction(Construct(SChar(s))),
-                      );
-                    } else {
-                      prevent_stop_inject(
-                        Update.Action.EditAction(
-                          Hashtbl.find(
-                            kc_actions,
-                            kc,
-                            program |> Program.get_cursor_info,
-                          ),
-                        ),
-                      );
-                    };
-                  }
-                | None =>
+                let s = JSUtil.get_key(evt);
+                print_endline("Cell, s = " ++ s);
+                switch (
+                  s,
+                  CursorInfo.is_text_cursor(program |> Program.get_zexp),
+                ) {
+                | (
+                    "~" | "`" | "!" | "@" | "#" | "$" | "%" | "^" | "&" | "*" |
+                    "(" |
+                    ")" |
+                    "-" |
+                    "_" |
+                    "=" |
+                    "+" |
+                    "{" |
+                    "}" |
+                    "[" |
+                    "]" |
+                    ":" |
+                    ";" |
+                    "\"" |
+                    "'" |
+                    "<" |
+                    ">" |
+                    "," |
+                    "." |
+                    "?" |
+                    "/" |
+                    "|" |
+                    "\\" |
+                    " ",
+                    true,
+                  ) =>
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Construct(SChar(s))),
+                  )
+                | (_, _) =>
                   switch (KeyCombo.of_evt(evt)) {
                   | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
                   | Some(Ctrl_Shift_Z) =>
@@ -147,32 +133,19 @@ let view = (~inject, model: Model.t) => {
                       ),
                     )
                   | None =>
-                    let s = JSUtil.get_key(evt);
-                    print_endline("Cell, s = " ++ s);
-                    if (String.length(s) == 1
-                        && CursorInfo.is_text_cursor(
-                             program |> Program.get_zexp,
-                           )) {
-                      print_endline("Cell, s = " ++ s);
+                    switch (JSUtil.is_single_key(evt)) {
+                    | None => Event.Ignore
+                    | Some(single_key) =>
                       prevent_stop_inject(
-                        Update.Action.EditAction(Construct(SChar(s))),
-                      );
-                    } else {
-                      switch (JSUtil.is_single_key(evt)) {
-                      | None => Event.Ignore
-                      | Some(single_key) =>
-                        prevent_stop_inject(
-                          Update.Action.EditAction(
-                            Construct(
-                              SChar(JSUtil.single_key_string(single_key)),
-                            ),
+                        Update.Action.EditAction(
+                          Construct(
+                            SChar(JSUtil.single_key_string(single_key)),
                           ),
-                        )
-                      };
-                    };
-                  //}
+                        ),
+                      )
+                    }
                   }
-                }
+                };
               }
             }),
           ];

@@ -703,6 +703,7 @@ h1 {
   padding-left: 25px;
   padding-bottom: 5px;
   background-color: #EEE;
+  white-space: pre;
 }
 
 .type-indicator {
@@ -1167,6 +1168,7 @@ h1 {
   background-color: white;
   padding: 10px;
   border: 2px solid #CCC;
+  white-space: pre;
 }
 #cell:focus {
   outline: 0px;
