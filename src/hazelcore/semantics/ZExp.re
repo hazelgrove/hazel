@@ -5,14 +5,6 @@ type t = zblock
 and zblock = ZList.t(zline, UHExp.line)
 and zline =
   | CursorL(CursorPosition.t, UHExp.line)
-  // CursorL(OnDelim(0, Before), CommentLine("hello"))
-  // |# hello
-  // CursorL(OnText(3), CommentLine("hello"))
-  // # hell|o
-  // CursorL(OnDelim(0, After), CommentLine("goodbye"))
-  // #| goodbye
-  // CursorL(OnText(0), CommentLine("goodbye"))
-  // # |goodbye
   | ExpLineZ(zopseq)
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
@@ -66,8 +58,6 @@ let line_can_be_swapped = (line: zline): bool =>
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | CommentLine(comment) =>
-    // f(x) == x |> f
-    // [1, 2] @ [3, 4] == [1, 2, 3, 4]
     CursorPosition.[OnDelim(0, Before), OnDelim(0, After)]
     @ (
       ListUtil.range(String.length(comment) + 1)
