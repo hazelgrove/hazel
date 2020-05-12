@@ -742,7 +742,7 @@ module Pat = {
       : Outcome.t(syn_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | None =>
+    | InvalidVar(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
@@ -754,19 +754,19 @@ module Pat = {
       } else {
         Failed;
       }
-    | Some(Underscore) =>
+    | Underscore =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    | Some(IntLit(n)) =>
+    | IntLit(n) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
       Succeeded((zp, HTyp.Int, ctx, u_gen));
-    | Some(FloatLit(f)) =>
+    | FloatLit(f) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
       Succeeded((zp, HTyp.Float, ctx, u_gen));
-    | Some(BoolLit(b)) =>
+    | BoolLit(b) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
-    | Some(ExpandingKeyword(k)) =>
+    | ExpandingKeyword(k) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHPat.var(
@@ -775,7 +775,7 @@ module Pat = {
         );
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    | Some(Var(x)) =>
+    | Var(x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
@@ -793,7 +793,7 @@ module Pat = {
       : Outcome.t(ana_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | None =>
+    | InvalidVar(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
@@ -805,12 +805,12 @@ module Pat = {
       } else {
         Failed;
       }
-    | Some(Underscore) =>
+    | Underscore =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, ctx, u_gen));
-    | Some(IntLit(_))
-    | Some(FloatLit(_))
-    | Some(BoolLit(_)) =>
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zp, ty', ctx, u_gen)) =>
@@ -821,12 +821,12 @@ module Pat = {
           Succeeded((zp, ctx, u_gen));
         }
       }
-    | Some(ExpandingKeyword(k)) =>
+    | ExpandingKeyword(k) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
       Succeeded((zp, ctx, u_gen));
-    | Some(Var(x)) =>
+    | Var(x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, ctx, u_gen));
@@ -855,10 +855,10 @@ module Pat = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (None, _, _)
+    | (InvalidVar(_), _, _)
     | (_, None, _)
-    | (_, _, None) => Failed
-    | (Some(lshape), Some(op), Some(rshape)) =>
+    | (_, _, InvalidVar(_)) => Failed
+    | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
       let new_ze = {
@@ -884,10 +884,10 @@ module Pat = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (None, _, _)
+    | (InvalidVar(_), _, _)
     | (_, None, _)
-    | (_, _, None) => Failed
-    | (Some(lshape), Some(op), Some(rshape)) =>
+    | (_, _, InvalidVar(_)) => Failed
+    | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
       let new_ze = {
@@ -2174,7 +2174,7 @@ module Exp = {
       : Outcome.t(syn_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | None =>
+    | InvalidVar(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
@@ -2186,16 +2186,16 @@ module Exp = {
       } else {
         Failed;
       }
-    | Some(IntLit(n)) =>
+    | IntLit(n) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
       Succeeded(SynDone((ze, HTyp.Int, u_gen)));
-    | Some(FloatLit(f)) =>
+    | FloatLit(f) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
       Succeeded(SynDone((ze, HTyp.Float, u_gen)));
-    | Some(BoolLit(b)) =>
+    | BoolLit(b) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
-    | Some(ExpandingKeyword(k)) =>
+    | ExpandingKeyword(k) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
@@ -2204,7 +2204,8 @@ module Exp = {
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-    | Some((Underscore | Var(_)) as shape) =>
+    | Underscore as shape
+    | Var(_) as shape =>
       let x =
         switch (shape) {
         | Var(x) => x
@@ -2234,7 +2235,7 @@ module Exp = {
       : Outcome.t(_) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | None =>
+    | InvalidVar(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
@@ -2246,7 +2247,7 @@ module Exp = {
       } else {
         Failed;
       }
-    | Some(ExpandingKeyword(k)) =>
+    | ExpandingKeyword(k) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
@@ -2255,7 +2256,11 @@ module Exp = {
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_)
+    | Underscore
+    | Var(_) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -2293,10 +2298,10 @@ module Exp = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (None, _, _)
+    | (InvalidVar(_), _, _)
     | (_, None, _)
-    | (_, _, None) => Failed
-    | (Some(ExpandingKeyword(kw)), Some(Space), Some(rshape)) =>
+    | (_, _, InvalidVar(_)) => Failed
+    | (ExpandingKeyword(kw), Some(Space), rshape) =>
       let (subject, u_gen) = {
         let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
         (UHExp.Block.wrap(operand), u_gen);
@@ -2307,7 +2312,7 @@ module Exp = {
         | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
         },
       );
-    | (Some(lshape), Some(op), Some(rshape)) =>
+    | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
       let new_ze = {
@@ -2335,10 +2340,10 @@ module Exp = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (None, _, _)
+    | (InvalidVar(_), _, _)
     | (_, None, _)
-    | (_, _, None) => Failed
-    | (Some(ExpandingKeyword(kw)), Some(Space), Some(rshape)) =>
+    | (_, _, InvalidVar(_)) => Failed
+    | (ExpandingKeyword(kw), Some(Space), rshape) =>
       let (subject, u_gen) = {
         let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
         (UHExp.Block.wrap(operand), u_gen);
@@ -2349,7 +2354,7 @@ module Exp = {
         | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
         },
       );
-    | (Some(lshape), Some(op), Some(rshape)) =>
+    | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
       let new_ze = {
