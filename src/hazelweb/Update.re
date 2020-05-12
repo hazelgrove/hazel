@@ -4,12 +4,17 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-open ViewUtil;
+
+[@deriving sexp]
+type move_input =
+  | Key(JSUtil.MoveKey.t)
+  | Click((CursorMap.Row.t, CursorMap.Col.t));
 
 module Action = {
   [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
+    | MoveAction(move_input)
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
@@ -25,12 +30,11 @@ module Action = {
     | ToggleShowPresentation
     | SelectHoleInstance(HoleInstance.t)
     | InvalidVar(string)
-    | SelectionChange
     | FocusCell
     | BlurCell
-    | FocusWindow
     | Redo
-    | Undo;
+    | Undo
+    | UpdateFontMetrics(FontMetrics.t);
 };
 
 [@deriving sexp]
@@ -69,6 +73,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
+  | MoveAction(_)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
@@ -86,20 +91,19 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | InvalidVar(_)
   | FocusCell
   | BlurCell
-  | FocusWindow
   | Undo
-  | Redo =>
+  | Redo
+  | UpdateFontMetrics(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
       ),
     )
-  | SelectionChange => ()
   };
 };
 
 let apply_action =
-    (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
+    (model: Model.t, action: Action.t, state: State.t, ~schedule_action as _)
     : Model.t => {
   log_action(action, state);
   switch (action) {
@@ -122,6 +126,14 @@ let apply_action =
       JSUtil.log("[Program.DoesNotExpand]");
       model;
     }
+  | MoveAction(Key(move_key)) =>
+    switch (model |> Model.move_via_key(move_key)) {
+    | new_model => new_model
+    | exception Program.CursorEscaped =>
+      JSUtil.log("[Program.CursorEscaped]");
+      model;
+    }
+  | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
@@ -157,67 +169,25 @@ let apply_action =
   | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
   | InvalidVar(_) => model
   | FocusCell => model |> Model.focus_cell
-  | FocusWindow =>
-    state.setting_caret := true;
-    JSUtil.reset_caret();
-    model;
-  | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
-  | SelectionChange =>
-    if (! state.setting_caret^) {
-      let anchorNode = Dom_html.window##getSelection##.anchorNode;
-      let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
-      let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
-      let id = closest_elem |> JSUtil.force_get_attr("id");
-      let model_path = model |> Model.get_program |> Program.get_path;
-      switch (path_of_path_id(id), steps_of_text_id(id)) {
-      | (None, None) =>
-        JSUtil.log(closest_elem);
-        JSUtil.log(anchorNode);
-        failwith(__LOC__ ++ ": unexpected caret position");
-      | (Some((_, cursor) as path), _) =>
-        if (path == model_path) {
-          switch (cursor) {
-          | OnText(_) => failwith(__LOC__ ++ ": unexpected cursor")
-          | OnOp(Before)
-          | OnDelim(_, Before) =>
-            schedule_action(Action.EditAction(MoveLeft))
-          | OnOp(After)
-          | OnDelim(_, After) =>
-            schedule_action(Action.EditAction(MoveRight))
-          };
-        } else {
-          schedule_action(Action.EditAction(MoveTo(path)));
-        }
-      | (_, Some(steps)) =>
-        if (closest_elem
-            |> JSUtil.force_get_parent_elem
-            |> JSUtil.elem_has_cls("EmptyLine")) {
-          let (model_steps, _) = model_path;
-          if (steps == model_steps) {
-            schedule_action(
-              Action.EditAction(anchorOffset == 0 ? MoveLeft : MoveRight),
-            );
-          } else {
-            schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
-          };
-        } else {
-          schedule_action(
-            Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
-          );
-        }
-      };
-    };
-
-    model;
+  | BlurCell => model |> Model.blur_cell
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
-    let new_model = model |> Model.put_program(Program.mk(new_edit_state));
+    let new_model =
+      model
+      |> Model.put_program(
+           Program.mk(~width=model.cell_width, new_edit_state),
+         );
     {...new_model, undo_history: new_history};
   | Redo =>
     let new_history = UndoHistory.redo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
-    let new_model = model |> Model.put_program(Program.mk(new_edit_state));
+    let new_model =
+      model
+      |> Model.put_program(
+           Program.mk(~width=model.cell_width, new_edit_state),
+         );
     {...new_model, undo_history: new_history};
+  | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
   };
 };
