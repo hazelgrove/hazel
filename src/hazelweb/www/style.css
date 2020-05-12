@@ -792,26 +792,20 @@ h1 {
 }
 
 .LivelitName {
-  border-radius: none;
-  border: 2px solid lightblue;
-  margin: -2px;
+  border-radius: 0;
   background-color: lightblue;
   display: inline-block;
 }
 .LivelitView {
-  border-radius: none;
+  border-radius: 0;
   border: 2px solid lightblue;
 }
 .LivelitView.Inline {
   display: inline-block;
-  margin-top: -2px;
-  margin-bottom: -2px;
   padding: 0 10px;
 }
 .LivelitView.MultiLine {
   display: block;
-  margin-left: -2px;
-  margin-bottom: -2px;
   padding: 10px;
 }
 
