@@ -273,9 +273,11 @@ let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
-let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t =>
+let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
+  print_endline("UHDoc277");
   Doc.hcats([Delim.open_StringLit(), mk_text(s), Delim.close_StringLit()])
   |> annot_Operand(~sort, ~err);
+};
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);

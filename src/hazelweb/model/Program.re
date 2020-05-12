@@ -81,7 +81,8 @@ let get_expansion = (program: t): DHExp.t =>
 exception InvalidInput;
 let _evaluate =
   Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
+let get_result = (program: t): Result.t => {
+  print_endline("Program85");
   switch (program |> get_expansion |> _evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
@@ -93,6 +94,7 @@ let get_result = (program: t): Result.t =>
       Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   };
+};
 
 exception FailedAction;
 exception CursorEscaped;
