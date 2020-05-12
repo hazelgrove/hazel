@@ -144,6 +144,7 @@ module Pat = {
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
+    | Var(NotInHole, InVarHole(Invalid, _), _) => failwith("unimplemented")
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
@@ -365,6 +366,7 @@ module Pat = {
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
+    | Var(NotInHole, InVarHole(Invalid, _), _) => failwith("unimplemented")
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
@@ -1176,6 +1178,7 @@ module Exp = {
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        | Invalid => failwith("unimplemented")
         };
       Expands(d, Hole, delta);
     | IntLit(NotInHole, n) =>
@@ -1492,6 +1495,7 @@ module Exp = {
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
         | Keyword(k) => Keyword(u, 0, sigma, k)
+        | Invalid => failwith("unimplemented")
         };
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
