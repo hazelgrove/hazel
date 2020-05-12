@@ -47,6 +47,7 @@ type t = {
   groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
   is_hover: bool,
+  show_hover_effect: bool,
   cur_group_id: int,
   cur_elt_id: int,
 };

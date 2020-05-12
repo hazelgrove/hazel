@@ -6,6 +6,48 @@ type tag_typ =
   | Exp
   | Pat
   | Typ;
+
+/* just copy OptionsPanel code */
+let labeled_checkbox =
+    (
+      ~id: string,
+      ~classes: List.t(string)=[],
+      ~label: string,
+      ~on_change: unit => Vdom.Event.t,
+      ~disabled=false,
+      checked: bool,
+    )
+    : Vdom.Node.t => {
+  let checkbox_id = id ++ "_checkbox";
+  Vdom.(
+    Node.div(
+      [Attr.id(id), Attr.classes(["labeled-checkbox", ...classes])],
+      [
+        Node.input(
+          [
+            [
+              Attr.id(checkbox_id),
+              Attr.type_("checkbox"),
+              Attr.on_change((_, _) => on_change()),
+            ],
+            checked ? [Attr.checked] : [],
+            disabled ? [Attr.disabled] : [],
+          ]
+          |> List.concat,
+          [],
+        ),
+        Node.label(
+          [
+            Attr.for_(id),
+            Attr.on_click(_ => on_change()),
+            ...disabled ? [Attr.disabled] : [],
+          ],
+          [Node.text(label)],
+        ),
+      ],
+    )
+  );
+};
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
   let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
@@ -1171,11 +1213,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let button_bar_view = (all_hidden_history_expand: bool) =>
+  let hover_effect_checkbox = (show_hover_effect: bool) => {
+    labeled_checkbox(
+      ~id="show_hover_effect",
+      /* ~classes=["indented-option"], */
+      ~label="Show Hover Effect",
+      ~on_change=() => inject(ToggleShowHoverEffect),
+      show_hover_effect,
+    );
+  };
+  let button_bar_view =
+      (show_hover_effect: bool, all_hidden_history_expand: bool) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history_button_bar"])],
-        [undo_button, redo_button, expand_button(all_hidden_history_expand)],
+        [
+          hover_effect_checkbox(show_hover_effect),
+          expand_button(all_hidden_history_expand),
+          redo_button,
+          undo_button,
+        ],
       )
     );
 
@@ -1184,7 +1241,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       [Attr.classes(["panel", "context-inspector-panel"])],
       [
         Panel.view_of_main_title_bar("history"),
-        button_bar_view(model.undo_history.all_hidden_history_expand),
+        button_bar_view(
+          model.undo_history.show_hover_effect,
+          model.undo_history.all_hidden_history_expand,
+        ),
         Node.div(
           [
             Attr.classes(["panel-body", "context-inspector-body"]),
