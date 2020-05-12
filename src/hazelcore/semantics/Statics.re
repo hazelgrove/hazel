@@ -933,21 +933,23 @@ module Exp = {
       switch (syn(ctx, scrut)) {
       | None => None
       | Some(pat_ty) =>
-        List.fold_left2(
-          (ty, rule_type, rule) => {
-            switch (ty) {
-            | None => None
-            | Some(_) =>
-              switch (ana_rule(ctx, rule, pat_ty, rule_type)) {
-              | None => None
-              | Some(_) => Some(HTyp.Hole)
+        /* Make sure the rule synthesizes the type the rule_types says it does */
+        let correct_rule_types =
+          List.for_all2(
+            (rule_ty, rule) => {
+              switch (syn_rule(ctx, rule, pat_ty)) {
+              | None => false
+              | Some(syn_ty) => HTyp.eq(rule_ty, syn_ty)
               }
-            }
-          },
-          Some(HTyp.Hole),
-          rule_types,
-          rules,
-        )
+            },
+            rule_types,
+            rules,
+          );
+        if (correct_rule_types) {
+          Some(HTyp.Hole);
+        } else {
+          None;
+        };
       }
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
@@ -1022,7 +1024,7 @@ module Exp = {
       );
     switch (clause_types) {
     | None => None
-    | Some(types) => HTyp.glb(types)
+    | Some(types) => HTyp.glb_all(types)
     };
   }
   and syn_rule =
@@ -1780,7 +1782,7 @@ module Exp = {
         ([], u_gen, []),
         rules,
       );
-    let common_type = HTyp.glb(rule_types);
+    let common_type = HTyp.glb_all(rule_types);
     (List.rev(rev_fixed_rules), u_gen, List.rev(rule_types), common_type);
   }
   and syn_fix_holes_rule =
