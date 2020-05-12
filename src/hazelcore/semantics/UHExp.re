@@ -22,7 +22,7 @@ type operator =
 
 let string_of_operator =
   fun
-  | Space => " "
+  | Space => "space"
   | Plus => "+"
   | Minus => "-"
   | Times => "*"
