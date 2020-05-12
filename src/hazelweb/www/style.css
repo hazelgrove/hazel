@@ -1540,3 +1540,6 @@ h1 {
   font-family: var(--code-font-family);
   font-weight: bold;
 }
+.panel-code-font{
+  font-family: var(--code-font-family);
+}
