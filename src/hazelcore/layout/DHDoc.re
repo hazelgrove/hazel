@@ -58,6 +58,9 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
+  let open_StringLit = mk("\"");
+  let close_StringLit = mk("\"");
+
   let sym_Lam = mk(UnicodeConstants.lamSym);
   let colon_Lam = mk(":");
   let open_Lam = mk(".{");
@@ -102,7 +105,10 @@ let mk_FloatLit = f => Doc.text(string_of_float(f));
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-let mk_StringLit = Doc.text;
+let mk_StringLit = s => {
+  print_endline("DHDoc106");
+  Doc.hcats([Delim.open_StringLit, Doc.text(s), Delim.open_StringLit]);
+};
 
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
