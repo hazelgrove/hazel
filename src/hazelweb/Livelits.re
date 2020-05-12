@@ -276,43 +276,33 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
              Node.div(
                [
                  attr_style(grid_area(i + 3, 1, i + 4, 2)),
-                 Attr.classes(["row-header"]),
+                 Attr.classes(["row-header", "pure-button"]),
+                 Attr.on_click(_ => trig(Del(Row, i))),
                ],
                [
                  Node.span(
                    [Attr.classes(["index"])],
                    [Node.text(string_of_int(i + 1))],
                  ),
-                 Node.span(
-                   [
-                     Attr.classes(["delete"]),
-                     Attr.on_click(_ => trig(Del(Row, i))),
-                   ],
-                   [Node.text("x")],
-                 ),
+                 Node.span([Attr.classes(["delete"])], [Node.text("x")]),
                ],
              )
            );
       let col_header =
         ListUtil.range(width)
         |> List.map(j =>
-             Node.span(
+             Node.div(
                [
                  attr_style(grid_area(1, j + 3, 2, j + 4)),
-                 Attr.classes(["col-header"]),
+                 Attr.classes(["col-header", "pure-button"]),
+                 Attr.on_click(_ => trig(Del(Col, j))),
                ],
                [
                  Node.span(
                    [Attr.classes(["index"])],
                    [Node.text(string_of_int(j + 1))],
                  ),
-                 Node.span(
-                   [
-                     Attr.classes(["delete"]),
-                     Attr.on_click(_ => trig(Del(Col, j))),
-                   ],
-                   [Node.text("x")],
-                 ),
+                 Node.span([Attr.classes(["delete"])], [Node.text("x")]),
                ],
              )
            );
