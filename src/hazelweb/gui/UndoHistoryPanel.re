@@ -48,7 +48,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let pat_str = (pat: UHPat.operand): string => {
+  let pat_str = (pat: UHPat.operand)=> {
     switch (pat) {
     | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
     | Wild(_) => "wild card"
@@ -60,21 +60,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Parenthesized(_) => "parentheses"
     | Inj(_, side, _) =>
       switch (side) {
-      | L => "left injection"
-      | R => "right injection"
+      | L => Vdom.(Node.span([Attr.classes(["injection"])], [Node.text("left injection")]));
+      | R => Vdom.(Node.span([Attr.classes(["injection"])], [Node.text("right injection")]));
       }
     };
   };
 
   let typ_str = (typ: UHTyp.operand): string => {
     switch (typ) {
-    | Hole => "type: Hole"
-    | Unit => "type: Unit"
-    | Int => "type: Int"
-    | Float => "type: Float"
-    | Bool => "type: Bool"
-    | Parenthesized(_) => "parentheses"
-    | List(_) => "[ ]"
+    | Hole =>Vdom.(Node.span([], [Node.text("type: "),Node.span([Attr.classes(["type-keywords"])], [Node.text("Hole")])]));
+    | Unit => Vdom.(Node.span([], [Node.text("type: "),Node.span([Attr.classes(["type-keywords"])], [Node.text("Unit")])]));
+    | Int => Vdom.(Node.span([], [Node.text("type: "),Node.span([Attr.classes(["type-keywords"])], [Node.text("Int")])]));
+    | Float => Vdom.(Node.span([], [Node.text("type: "),Node.span([Attr.classes(["type-keywords"])], [Node.text("Float")])]));
+    | Bool => Vdom.(Node.span([], [Node.text("type: "),Node.span([Attr.classes(["type-keywords"])], [Node.text("Bool")])]));
+    | Parenthesized(_) => Vdom.(Node.span([], [Node.text("parentheses")]));
+    | List(_) => Vdom.(Node.span([], [Node.text("[ ]")]));
     };
   };
 
@@ -89,52 +89,56 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | TypOp(_, op) => UHTyp.string_of_operator(op)
     | Line(_, line_content) =>
       switch (line_content) {
-      | EmptyLine => "empty line"
-      | LetLine(_, _, _) => "let binding"
-      | ExpLine(_) => "expression line"
+      | EmptyLine => Vdom.(Node.span([], [Node.text("empty line")]));
+      | LetLine(_, _, _) =>Vdom.(Node.span([Attr.classes(["keywords"])], [Node.text("let binding")]));
+      | ExpLine(_) => Vdom.(Node.span([], [Node.text("expression line")]));
       }
-    | Rule(_, _) => "case rule"
+    | Rule(_, _) => Vdom.(Node.span([Attr.classes(["keywords"])], [Node.text("case rule")]));
     };
   };
 
   let display_string_of_history_entry =
-      (undo_history_entry: undo_history_entry): option(string) => {
+      (undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
       | Term(cursor_term) =>
-        Some("delete " ++ display_string_of_cursor_term(cursor_term))
-      | Space => Some("delete space")
-      | EmptyLine => Some("delete empty line")
-      | TypeAnn => Some("delete type annotation")
+      Vdom.(Node.span([], [Node.text("delete empty line"),display_string_of_cursor_term(cursor_term)]));
+      | Space => 
+      Vdom.(Node.span([], [Node.text("delete space")]));
+      | EmptyLine => 
+      Vdom.(Node.span([], [Node.text("delete empty line")]));
+      | TypeAnn => 
+      Vdom.(Node.span([], [Node.text("delete type annotation")]));
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
-      | SLet => Some("construct let binding")
-      | SCase => Some("construct case")
-      | SLam => Some("construct lambda")
+      | SLet => Vdom.(Node.span([], [Node.text("construct "),Node.span([Attr.classes(["keywords"])], [Node.text("let binding")])]));
+      | SCase => Vdom.(Node.span([], [Node.text("construct "),Node.span([Attr.classes(["keywords"])], [Node.text("case")])]));
+      | SLam => Vdom.(Node.span([], [Node.text("construct "),Node.span([Attr.classes(["lambda"])], [Node.text("lambda")])]));
       | _ => Some("insert " ++ Action.shape_to_string(edit_detail))
       }
     | Var(var_edit) =>
       switch (var_edit) {
       | Edit =>
-        Some(
-          "edit "
-          ++ display_string_of_cursor_term(
-               undo_history_entry.cursor_term_info.cursor_term_after,
-             ),
-        )
+      Vdom.(Node.span([], [Node.text("edit "),display_string_of_cursor_term(
+        undo_history_entry.cursor_term_info.cursor_term_after,
+      )]))
+        
       | Insert =>
-        Some(
+      Vdom.(Node.span([], [Node.text("insert "),display_string_of_cursor_term(
+        undo_history_entry.cursor_term_info.cursor_term_after,
+      )]));
+/*         Some(
           "insert "
           ++ display_string_of_cursor_term(
                undo_history_entry.cursor_term_info.cursor_term_after,
              ),
-        )
+        ) */
       }
-    | MatchRule => Some("insert a case rule")
-    | Init => Some("initial state")
-    | Ignore => None
+    | MatchRule => Vdom.(Node.span([], [Node.text("insert "),Node.span([Attr.classes(["keywords"])], [Node.text("case rule")])]));
+    | Init => Vdom.(Node.span([], [Node.text("initial state")]));
+    | Ignore => Vdom.(Node.span([], []));
     };
   };
 
@@ -281,6 +285,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
+  let history_txt_view = (undo_history_entry: undo_history_entry) => {
+    Vdom.(Node.div([Attr.classes([
+      "his-txt",
+    ])], [display_string_of_history_entry(undo_history_entry)]));
+  }
   let history_title_entry_view =
       (
         ~is_latest_selected: bool,
