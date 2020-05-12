@@ -1084,7 +1084,7 @@ module Exp = {
               switch (b) {
               | None => None
               | Some((drs, delta)) =>
-                switch (ana_expand_rule(ctx, delta, r, pat_ty, r_t)) {
+                switch (syn_expand_rule(ctx, delta, r, pat_ty, r_t)) {
                 | None => None
                 | Some((dr, delta)) =>
                   let drs = drs @ [dr];
@@ -1184,9 +1184,9 @@ module Exp = {
       | Expands(d1, ty, delta) =>
         switch (syn_expand_rules(ctx, delta, rules, ty)) {
         | None => DoesNotExpand
-        | Some((drs, delta)) =>
+        | Some((drs, glb, delta)) =>
           let d = DHExp.Case(d1, drs, 0);
-          Expands(d, ty, delta);
+          Expands(d, glb, delta);
         }
       }
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
@@ -1225,25 +1225,30 @@ module Exp = {
         rules: list(UHExp.rule),
         pat_ty: HTyp.t,
       )
-      : option((list(DHExp.rule), Delta.t)) =>
+      : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
     switch (Statics.Exp.syn_rules(ctx, rules, pat_ty)) {
     | None => None
-    | Some(join_ty) =>
-      List.fold_left(
-        (b, r) =>
-          switch (b) {
-          | None => None
-          | Some((drs, delta)) =>
-            switch (syn_expand_rule(ctx, delta, r, pat_ty, join_ty)) {
+    | Some(glb) =>
+      let expanded_rule_info =
+        List.fold_left(
+          (b, r) =>
+            switch (b) {
             | None => None
-            | Some((dr, delta)) =>
-              let drs = drs @ [dr];
-              Some((drs, delta));
-            }
-          },
-        Some(([], delta)),
-        rules,
-      )
+            | Some((drs, delta)) =>
+              switch (syn_expand_rule(ctx, delta, r, pat_ty, glb)) {
+              | None => None
+              | Some((dr, delta)) =>
+                let drs = drs @ [dr];
+                Some((drs, delta));
+              }
+            },
+          Some(([], delta)),
+          rules,
+        );
+      switch (expanded_rule_info) {
+      | None => None
+      | Some((drs, delta)) => Some((drs, glb, delta))
+      };
     }
   and syn_expand_rule =
       (
