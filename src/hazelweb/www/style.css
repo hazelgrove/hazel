@@ -38,6 +38,8 @@
   --code-shadow-thickness: 1.5px;
   --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
+  --matrix-cell-border-color: rgb(220, 220, 220);
+
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
   --delim-group-z: 2;
@@ -817,7 +819,6 @@ h1 {
 
 .matrix-livelit {
   display: grid;
-  column-gap: 10px;
 }
 
 .matrix-livelit .col-header,
@@ -845,7 +846,21 @@ h1 {
   cursor: pointer;
 }
 
-.matrix-livelit .matrix-splice {
+.matrix-livelit .cells-border {
+  border: 1px solid var(--matrix-cell-border-color);
+}
+.matrix-livelit .matrix-cell {
+  height: 100%;
+  width: 100%;
+  min-width: 10ch;
+  outline: 1px solid var(--matrix-cell-border-color);
+  display: grid;
+  grid-template-rows: auto;
+  grid-template-columns: auto;
+  padding: 2px;
+}
+
+.matrix-livelit .matrix-cell .matrix-splice {
   justify-self: right;
 }
 

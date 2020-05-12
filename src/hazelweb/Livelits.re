@@ -275,7 +275,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
         |> List.map(i =>
              Node.div(
                [
-                 attr_style(grid_area(i + 2, 1, i + 3, 2)),
+                 attr_style(grid_area(i + 3, 1, i + 4, 2)),
                  Attr.classes(["row-header"]),
                ],
                [
@@ -298,7 +298,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
         |> List.map(j =>
              Node.span(
                [
-                 attr_style(grid_area(1, j + 2, 2, j + 3)),
+                 attr_style(grid_area(1, j + 3, 2, j + 4)),
                  Attr.classes(["col-header"]),
                ],
                [
@@ -319,7 +319,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       let add_row_button =
         Node.button(
           [
-            attr_style(grid_area(-1, 2, -2, -2)),
+            attr_style(grid_area(-1, 3, -2, -3)),
             Attr.classes(["add-row", "pure-button"]),
             Attr.on_click(_ => trig(Add(Row))),
           ],
@@ -328,7 +328,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       let add_col_button =
         Node.button(
           [
-            attr_style(grid_area(2, -2, -2, -1)),
+            attr_style(grid_area(3, -2, -3, -1)),
             Attr.classes(["add-col", "pure-button"]),
             Attr.on_click(_ => trig(Add(Col))),
           ],
@@ -358,62 +358,79 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
             ],
           );
         };
-      let splices =
+      let cells =
         m
         |> List.mapi((i, row) =>
              row
              |> List.mapi((j, splice) => {
-                  let style =
-                    attr_style(grid_area(i + 2, j + 2, i + 3, j + 3));
-                  if (!I.is_live) {
-                    Node.div(
-                      [style, Attr.classes(["matrix-splice"])],
-                      [uhcode(splice)],
-                    );
-                  } else {
-                    let cls =
-                      splice == selected
-                        ? "matrix-selected" : "matrix-unselected";
-                    let child =
-                      switch (dhcode(splice)) {
-                      | None => Node.text("Uneval'd")
-                      | Some((_, view)) => view
-                      };
-                    Node.div(
-                      [
-                        style,
-                        Attr.classes([cls]),
-                        Attr.on_mousedown(_ => trig(Select(splice))),
-                      ],
-                      [child],
-                    );
-                  };
+                  let contents =
+                    if (!I.is_live) {
+                      Node.div(
+                        [Attr.classes(["matrix-splice"])],
+                        [uhcode(splice)],
+                      );
+                    } else {
+                      let cls =
+                        splice == selected
+                          ? "matrix-selected" : "matrix-unselected";
+                      let child =
+                        switch (dhcode(splice)) {
+                        | None => Node.text("Uneval'd")
+                        | Some((_, view)) => view
+                        };
+                      Node.div(
+                        [
+                          Attr.classes([cls]),
+                          Attr.on_mousedown(_ => trig(Select(splice))),
+                        ],
+                        [child],
+                      );
+                    };
+                  Node.div(
+                    [
+                      attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
+                      Attr.classes(["matrix-cell"]),
+                    ],
+                    [contents],
+                  );
                 })
            )
         |> List.flatten;
 
+      let cells_border =
+        Node.div(
+          [
+            attr_style(grid_area(3, 3, -3, -3)),
+            Attr.classes(["cells-border"]),
+          ],
+          [],
+        );
+
+      let gutter_width = "10px";
+      let dim_template = dim =>
+        StringUtil.sep(
+          List.concat([
+            ["auto", gutter_width],
+            ListUtil.replicate(dim, "auto"),
+            [gutter_width, "auto"],
+          ]),
+        );
       maybe_add_formula_bar(
         Node.div(
           [
             Attr.classes(["matrix-livelit"]),
             attr_style(
               StringUtil.cat([
-                prop_val(
-                  "grid-template-columns",
-                  StringUtil.sep(ListUtil.replicate(width + 2, "auto")),
-                ),
-                prop_val(
-                  "grid-template-rows",
-                  StringUtil.sep(ListUtil.replicate(height + 2, "auto")),
-                ),
+                prop_val("grid-template-columns", dim_template(width)),
+                prop_val("grid-template-rows", dim_template(height)),
               ]),
             ),
           ],
           List.concat([
             row_header,
             col_header,
-            splices,
-            [add_row_button, add_col_button],
+            cells,
+            [cells_border, add_row_button, add_col_button],
           ]),
         ),
       );
