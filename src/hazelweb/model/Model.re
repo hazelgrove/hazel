@@ -106,19 +106,9 @@ let get_selected_instance = model =>
   switch (model |> get_program |> Program.cursor_on_inst) {
   | None => None
   | Some((kind, u)) =>
-    let i =
-      model.selected_instances
-      |> UserSelectedInstances.lookup(kind, u)
-      |> OptUtil.get(() =>
-           failwith(
-             Printf.sprintf(
-               "no selected instance for %s %d",
-               Sexplib.Sexp.to_string(TaggedNodeInstance.sexp_of_kind(kind)),
-               u,
-             ),
-           )
-         );
-    Some((kind, (u, i)));
+    model.selected_instances
+    |> UserSelectedInstances.lookup(kind, u)
+    |> OptUtil.map(i => (kind, (u, i)))
   };
 
 let select_instance =
