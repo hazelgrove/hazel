@@ -892,13 +892,14 @@ module ColorLivelit: LIVELIT = {
       },
     );
 
-  let is_valid = color_value => 0.0 <= color_value && color_value < 256.0;
-
   let view = ({r, g, b, is_open}, trigger) => {
     LivelitView.Inline(
       ({uhcode, dhcode}) => {
         open Vdom;
-        let color_box =
+
+        let is_valid = color_value =>
+          0.0 <= color_value && color_value < 256.0;
+        let rgb_values =
           switch (dhcode(r), dhcode(g), dhcode(b)) {
           | (
               Some((FloatLit(r), _)),
@@ -906,19 +907,13 @@ module ColorLivelit: LIVELIT = {
               Some((FloatLit(b), _)),
             )
               when is_valid(r) && is_valid(g) && is_valid(b) =>
-            Node.div(
-              [
-                attr_style(
-                  prop_val(
-                    "background-color",
-                    Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
-                  ),
-                ),
-                Attr.classes(["color-box"]),
-              ],
-              [],
-            )
-          | _ =>
+            Some((r, g, b))
+          | _ => None
+          };
+
+        let color_box =
+          switch (rgb_values) {
+          | None =>
             Node.div(
               [Attr.classes(["color-box"])],
               [
@@ -952,25 +947,71 @@ module ColorLivelit: LIVELIT = {
                 ),
               ],
             )
+          | Some((r, g, b)) =>
+            Node.div(
+              [
+                attr_style(
+                  prop_val(
+                    "background-color",
+                    Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+                  ),
+                ),
+                Attr.classes(["color-box"]),
+              ],
+              [],
+            )
+          };
+        let saturation_box =
+          switch (rgb_values) {
+          | None => []
+          | Some((r, g, b)) => [
+              Node.div(
+                [
+                  Attr.classes(["saturation-box"]),
+                  attr_style(
+                    prop_val(
+                      "background-color",
+                      Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+                    ),
+                  ),
+                ],
+                [],
+              ),
+            ]
           };
         let color_picker =
           Node.div(
             [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
             [
-              Node.label([], [Node.text("R")]),
               Node.div(
-                [Attr.classes(["color-picker-splice"])],
-                [uhcode(r)],
+                [Attr.classes(["hsv-picker"])],
+                saturation_box
+                @ [
+                  Node.input(
+                    [Attr.type_("range"), Attr.classes(["hue-slider"])],
+                    [],
+                  ),
+                ],
               ),
-              Node.label([], [Node.text("G")]),
               Node.div(
-                [Attr.classes(["color-picker-splice"])],
-                [uhcode(g)],
-              ),
-              Node.label([], [Node.text("B")]),
-              Node.div(
-                [Attr.classes(["color-picker-splice"])],
-                [uhcode(b)],
+                [Attr.classes(["rgb-picker"])],
+                [
+                  Node.label([], [Node.text("R")]),
+                  Node.div(
+                    [Attr.classes(["color-picker-splice"])],
+                    [uhcode(r)],
+                  ),
+                  Node.label([], [Node.text("G")]),
+                  Node.div(
+                    [Attr.classes(["color-picker-splice"])],
+                    [uhcode(g)],
+                  ),
+                  Node.label([], [Node.text("B")]),
+                  Node.div(
+                    [Attr.classes(["color-picker-splice"])],
+                    [uhcode(b)],
+                  ),
+                ],
               ),
             ],
           );
