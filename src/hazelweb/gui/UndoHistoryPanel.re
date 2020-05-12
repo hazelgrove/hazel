@@ -531,6 +531,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        }; */
   let history_title_entry_view =
       (
+        ~show_hover_effect: bool,
         ~is_latest_selected: bool,
         ~is_expanded: bool,
         ~has_hidden_part: bool,
@@ -554,6 +555,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               Node.div(
                 [
+                  Attr.classes(["history-entry-left"]),
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
@@ -563,18 +565,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                   Attr.on_mouseenter(_ =>
-                    Vdom.Event.Many([
-                      inject(
-                        Update.Action.ShiftHistory(group_id, elt_id, false),
-                      ),
-                      inject(FocusCell),
-                    ])
+                    if (show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(group_id, elt_id, false),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
                   ),
                   Attr.on_mouseleave(_ =>
-                    Vdom.Event.Many([
-                      inject(Update.Action.RecoverHistory),
-                      inject(FocusCell),
-                    ])
+                    if (show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(Update.Action.RecoverHistory),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
                   ),
                 ],
                 [
@@ -586,16 +596,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ++ " g] [e "
                     ++ string_of_int(elt_id),
                   ),
-                  Node.div(
-                    [Attr.classes(["history-entry-right"])],
-                    [
-                      timestamp_view(undo_history_entry),
-                      history_entry_tab_icon(
-                        group_id,
-                        has_hidden_part,
-                        is_expanded,
-                      ),
-                    ],
+                ],
+              ),
+              Node.div(
+                [Attr.classes(["history-entry-right"])],
+                [
+                  timestamp_view(undo_history_entry),
+                  history_entry_tab_icon(
+                    group_id,
+                    has_hidden_part,
+                    is_expanded,
                   ),
                 ],
               ),
@@ -608,6 +618,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let history_hidden_entry_view =
       (
+        ~show_hover_effect: bool,
         ~is_latest_selected: bool,
         group_id: int,
         elt_id: int,
@@ -631,18 +642,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ])
                 ),
                 Attr.on_mouseenter(_ =>
-                  Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, false),
-                    ),
-                    inject(FocusCell),
-                  ])
+                  if (show_hover_effect) {
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(group_id, elt_id, false),
+                      ),
+                      inject(FocusCell),
+                    ]);
+                  } else {
+                    Vdom.Event.Many([]);
+                  }
                 ),
                 Attr.on_mouseleave(_ =>
-                  Vdom.Event.Many([
-                    inject(Update.Action.RecoverHistory),
-                    inject(FocusCell),
-                  ])
+                  if (show_hover_effect) {
+                    Vdom.Event.Many([
+                      inject(Update.Action.RecoverHistory),
+                      inject(FocusCell),
+                    ]);
+                  } else {
+                    Vdom.Event.Many([]);
+                  }
                 ),
               ],
               [
@@ -685,18 +704,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ])
                 ),
                 Attr.on_mouseenter(_ =>
-                  Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, false),
-                    ),
-                    inject(FocusCell),
-                  ])
+                  if (show_hover_effect) {
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(group_id, elt_id, false),
+                      ),
+                      inject(FocusCell),
+                    ]);
+                  } else {
+                    Vdom.Event.Many([]);
+                  }
                 ),
                 Attr.on_mouseleave(_ =>
-                  Vdom.Event.Many([
-                    inject(Update.Action.RecoverHistory),
-                    inject(FocusCell),
-                  ])
+                  if (show_hover_effect) {
+                    Vdom.Event.Many([
+                      inject(Update.Action.RecoverHistory),
+                      inject(FocusCell),
+                    ]);
+                  } else {
+                    Vdom.Event.Many([]);
+                  }
                 ),
               ],
               [
@@ -744,7 +771,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let group_view =
-      (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
+      (
+        ~show_hover_effect: bool,
+        ~is_cur_group: bool,
+        group_id: int,
+        group: undo_history_group,
+      ) => {
     /* if the group containning selected history entry, it should be splited into different css styles */
     let suc_his_classes =
       if (is_cur_group) {
@@ -790,6 +822,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(title_class)],
                     [
                       history_title_entry_view(
+                        ~show_hover_effect,
                         ~is_latest_selected=is_cur_group,
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
@@ -809,6 +842,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                     list_map_helper_func(
                       history_hidden_entry_view(
+                        ~show_hover_effect,
                         ~is_latest_selected=false,
                         group_id,
                       ),
@@ -832,6 +866,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(cur_his_classes)],
                     [
                       history_title_entry_view(
+                        ~show_hover_effect,
                         ~is_latest_selected=is_cur_group,
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
@@ -870,6 +905,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       [Attr.classes(suc_his_classes)],
                       [
                         history_title_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=false,
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part,
@@ -890,6 +926,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ],
                       list_map_helper_func(
                         history_hidden_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=false,
                           group_id,
                         ),
@@ -909,6 +946,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ],
                       [
                         history_hidden_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=is_cur_group,
                           group_id,
                           start_index + 1 + List.length(suc_entries') /* elt_id */,
@@ -927,6 +965,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ],
                       list_map_helper_func(
                         history_hidden_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=false,
                           group_id,
                         ),
@@ -949,6 +988,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       [Attr.classes(suc_his_classes)],
                       [
                         history_title_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=is_cur_group,
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part=true,
@@ -975,6 +1015,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       [Attr.classes(cur_his_classes)],
                       [
                         history_title_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=is_cur_group,
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part,
@@ -995,6 +1036,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       ],
                       list_map_helper_func(
                         history_hidden_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=false,
                           group_id,
                         ),
@@ -1018,6 +1060,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       [Attr.classes(cur_his_classes)],
                       [
                         history_title_entry_view(
+                          ~show_hover_effect,
                           ~is_latest_selected=is_cur_group,
                           ~is_expanded=group.is_expanded,
                           ~has_hidden_part,
@@ -1043,6 +1086,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(prev_his_classes)],
                     [
                       history_title_entry_view(
+                        ~show_hover_effect,
                         ~is_latest_selected=is_cur_group,
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
@@ -1063,6 +1107,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                     list_map_helper_func(
                       history_hidden_entry_view(
+                        ~show_hover_effect,
                         ~is_latest_selected=false,
                         group_id,
                       ),
@@ -1086,6 +1131,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     [Attr.classes(prev_his_classes)],
                     [
                       history_title_entry_view(
+                        ~show_hover_effect,
                         ~is_latest_selected=is_cur_group,
                         ~is_expanded=group.is_expanded,
                         ~has_hidden_part,
@@ -1110,7 +1156,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [Attr.classes(["the-prev-history"])],
         list_map_helper_func(
-          group_view(~is_cur_group=false),
+          group_view(
+            ~show_hover_effect=history.show_hover_effect,
+            ~is_cur_group=false,
+          ),
           base => base + 1,
           List.length(suc_groups) + 1,
           prev_groups,
@@ -1124,7 +1173,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [Attr.classes(["the-suc-history"])],
         list_map_helper_func(
-          group_view(~is_cur_group=false),
+          group_view(
+            ~show_hover_effect=history.show_hover_effect,
+            ~is_cur_group=false,
+          ),
           base => base + 1,
           0,
           suc_groups,
@@ -1138,7 +1190,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [],
         [
-          group_view(~is_cur_group=true, List.length(suc_groups), cur_group),
+          group_view(
+            ~show_hover_effect=history.show_hover_effect,
+            ~is_cur_group=true,
+            List.length(suc_groups),
+            cur_group,
+          ),
         ],
       )
     );
