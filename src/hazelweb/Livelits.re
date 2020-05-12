@@ -721,7 +721,6 @@ module GradeCutoffLivelit: LIVELIT = {
     fun
     | DHExp.ListNil(_) => Some(List.rev(rslt))
     | DHExp.Cons(DHExp.IntLit(g), d) => dhexp_to_grades([g, ...rslt], d)
-    | DHExp.LivelitInfo(_, _, _, _, _, d) => dhexp_to_grades(rslt, d)
     // currently, we are very strict, and the presence of any indet is immediate failure
     | _ => None;
 

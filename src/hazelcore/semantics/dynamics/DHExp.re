@@ -113,13 +113,12 @@ type t =
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
-  | LivelitInfo(
+  | LivelitHole(
       MetaVar.t,
       MetaVarInst.t,
       VarMap.t_(t),
       LivelitName.t,
       SpliceInfo.t(t),
-      t,
     )
   | Triv
   | Case(t, list(rule), int)
@@ -151,7 +150,7 @@ let constructor_string = (d: t): string =>
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
-  | LivelitInfo(_) => "LivelitInfo"
+  | LivelitHole(_) => "LivelitHole"
   | Triv => "Triv"
   | Case(_, _, _) => "Case"
   | Cast(_, _, _) => "Cast"

@@ -70,45 +70,47 @@ let get_cursor_info = (program: t) => {
 };
 
 exception DoesNotExpand;
-let _expand =
+let _expand = (~livelit_holes=false) =>
   Memo.general(
     ~cache_size_bound=1000,
     Dynamics.Exp.syn_expand(
+      ~livelit_holes,
       (VarCtx.empty, Livelits.initial_livelit_ctx),
       Delta.empty,
     ),
   );
-let get_expansion = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> _expand) {
+let _get_expansion = (~livelit_holes=false, program: t): DHExp.t =>
+  switch (program |> get_uhexp |> _expand(~livelit_holes)) {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) => d
   };
+let get_expansion = (program: t): DHExp.t =>
+  _get_expansion(~livelit_holes=false, program);
 
 exception InvalidInput;
 let _evaluate = {
   Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
 };
 let get_result = (program: t): Result.t => {
-  switch (program |> get_expansion |> _evaluate) {
+  let renumber =
+    Dynamics.Exp.renumber(
+      [],
+      HoleInstanceInfo.empty,
+      LivelitInstanceInfo.empty,
+    );
+  let ret = (d, wrapper) =>
+    switch (program |> _get_expansion(~livelit_holes=true) |> _evaluate) {
+    | InvalidInput(_) => failwith("Failed evaluation only with livelit_holes")
+    | BoxedValue(d')
+    | Indet(d') =>
+      let (d_renumbered, hii, _) = renumber(d);
+      let (_, _, llii) = renumber(d');
+      (d_renumbered, hii, llii, wrapper(d_renumbered));
+    };
+  switch (program |> _get_expansion(~livelit_holes=false) |> _evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) =>
-    let (d_renumbered, hii, llii) =
-      Dynamics.Exp.renumber(
-        [],
-        HoleInstanceInfo.empty,
-        LivelitInstanceInfo.empty,
-        d,
-      );
-    (d_renumbered, hii, llii, BoxedValue(d_renumbered));
-  | Indet(d) =>
-    let (d_renumbered, hii, llii) =
-      Dynamics.Exp.renumber(
-        [],
-        HoleInstanceInfo.empty,
-        LivelitInstanceInfo.empty,
-        d,
-      );
-    (d_renumbered, hii, llii, Indet(d_renumbered));
+  | BoxedValue(d) => ret(d, d' => Dynamics.Evaluator.BoxedValue(d'))
+  | Indet(d) => ret(d, d' => Dynamics.Evaluator.Indet(d'))
   };
 };
 
