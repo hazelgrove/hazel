@@ -100,20 +100,20 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
   let got_var_indicator = (shadow, num_of_non_rec_uses, num_of_rec_uses) =>
     got_indicator(
-      "Got a variable",
+      "Got a variable ",
       special_msg_bar(
-        (shadow ? " shadowing previous variable, " : "")
-        ++ "used "
-        ++ Int.to_string(num_of_non_rec_uses)
-        ++ (num_of_non_rec_uses <= 1 ? " time" : " times")
+        (
+          shadow
+            ? UnicodeConstants.warning ++ "shadowing previous variable, " : ""
+        )
+        ++ (num_of_non_rec_uses == 0 ? UnicodeConstants.warning : "")
         ++ (
           num_of_rec_uses == 0
-            ? ""
-            : " after being defined"
-              ++ ", "
+            ? Int.to_string(num_of_non_rec_uses) ++ " uses"
+            : Int.to_string(num_of_non_rec_uses)
+              ++ " non-recursive uses and "
               ++ Int.to_string(num_of_rec_uses)
-              ++ (num_of_rec_uses <= 1 ? " time" : " times")
-              ++ " as a recursive call to its own"
+              ++ " recursive uses"
         ),
       ),
     );

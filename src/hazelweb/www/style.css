@@ -300,11 +300,11 @@ html, body {
 }
 
 .cursor-BindingError.cursor-inspector {
-  outline: 1px solid #ce5f00;
+  outline: 1px solid #8e0000;
 }
 
 .cursor-Keyword.cursor-inspector {
-  outline: 1px solid #ce5f00;
+  outline: 1px solid #8e0000;
 }
 
 .cursor-OK .title-bar {
@@ -316,20 +316,20 @@ html, body {
 }
 
 .cursor-BindingError .title-bar {
-  background-color: #ce5f00;
+  background-color: #8e0000;
 }
 
 .cursor-Keyword .titlebar {
-	background-color: #ce5f00;
+  background-color: #8e0000;
 }
 
   /* warn_state */
-.cursor-BindingWarn.cursor-inspector {
-  outline: 1px solid #a35fa4;
+.cursor-OK.cursor-BindingWarn.cursor-inspector {
+  outline: 1px solid #ce5f00;
 }
 
-.cursor-BindingWarn .title-bar {
-  background-color: #a35fa4;
+.cursor-OK.cursor-BindingWarn .title-bar {
+	background-color: #ce5f00;
 }
 
 .typebar, .infobar {
@@ -355,15 +355,15 @@ html, body {
 }
 
 .cursor-BindingError .typebar, .cursor-BindingError .infobar {
-  background-color: #fef6ea;
+  background-color: #ffe0e0;
 }
 
 .cursor-Keyword .typebar, .cursor-Keyword .infobar {
-  background-color: #fef6ea;
+  background-color: #ffe0e0;
 }
 
-.cursor-BindingWarn .typebar, .cursor-BindingWarn .infobar {
-  background-color: #fceafe;
+.cursor-OK.cursor-BindingWarn .typebar, .cursor-OK.cursor-BindingWarn .infobar {
+  background-color: #fef6ea;
 }
 
 .matched-type-bar > div {
