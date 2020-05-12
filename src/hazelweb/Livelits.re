@@ -1030,7 +1030,7 @@ module GradientLivelit: LIVELIT = {
   let init_slider_value = 50;
   let init_model = {
     let init_uhexp_gen = u_gen => {
-      let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+      let (u, u_gen) = MetaVarGen.next_livelit(u_gen);
       let (e, _, u_gen) =
         Statics.Exp.syn_fix_holes(
           color_ctx,
