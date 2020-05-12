@@ -336,7 +336,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         inject(FocusCell),
                       ])
                     ),
-                    Attr.on_mouseover(_ =>
+                    Attr.on_mouseenter(_ =>
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(group_id, elt_id, false),
@@ -344,7 +344,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         inject(FocusCell),
                       ])
                     ),
-                    Attr.on_mouseout(_ =>
+                    Attr.on_mouseleave(_ =>
                       Vdom.Event.Many([
                         inject(Update.Action.RecoverHistory),
                         inject(FocusCell),
@@ -418,7 +418,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       inject(FocusCell),
                     ])
                   ),
-                  Attr.on_mouseover(_ =>
+                  Attr.on_mouseenter(_ =>
                     Vdom.Event.Many([
                       inject(
                         Update.Action.ShiftHistory(group_id, elt_id, false),
@@ -426,7 +426,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       inject(FocusCell),
                     ])
                   ),
-                  Attr.on_mouseout(_ =>
+                  Attr.on_mouseleave(_ =>
                     Vdom.Event.Many([
                       inject(Update.Action.RecoverHistory),
                       inject(FocusCell),
@@ -472,7 +472,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       inject(FocusCell),
                     ])
                   ),
-                  Attr.on_mouseover(_ =>
+                  Attr.on_mouseenter(_ =>
                     Vdom.Event.Many([
                       inject(
                         Update.Action.ShiftHistory(group_id, elt_id, false),
@@ -480,7 +480,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       inject(FocusCell),
                     ])
                   ),
-                  Attr.on_mouseout(_ =>
+                  Attr.on_mouseleave(_ =>
                     Vdom.Event.Many([
                       inject(Update.Action.RecoverHistory),
                       inject(FocusCell),
