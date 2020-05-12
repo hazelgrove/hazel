@@ -1302,35 +1302,12 @@ module Exp = {
         | Expands(proto_elaboration, _, delta) =>
           // For each splice, expand the splice exp and substitute it into the elab
           let elab_sim_delta_opt =
-            Some((proto_elaboration, NatMap.empty, delta))
-            |> NatMap.fold(
-                 si.splice_map,
-                 (elab_sim_delta_opt, (splice_name, (typ, exp))) =>
-                 elab_sim_delta_opt
-                 |> OptUtil.and_then(((elab, sim, delta)) => {
-                      let expanded = ana_expand(ctx, delta, exp, typ);
-                      let splice_var =
-                        SpliceInfo.var_of_splice_name(splice_name);
-                      switch (expanded) {
-                      | DoesNotExpand => None
-                      | Expands(dexp, texp, delta) =>
-                        Some((
-                          subst_var(dexp, splice_var, elab),
-                          NatMap.insert_or_update(
-                            sim,
-                            (splice_name, (texp, dexp)),
-                          ),
-                          delta,
-                        ))
-                      };
-                    })
-               );
+            wrap_proto_expansion(ctx, delta, proto_elaboration, si);
           switch (elab_sim_delta_opt) {
           | None => DoesNotExpand
-          | Some((elab, sim, delta)) =>
+          | Some((elab, si, delta)) =>
             let gamma = Contexts.gamma(ctx);
             let sigma = id_env(gamma);
-            let si = SpliceInfo.update_splice_map(si, sim);
             Expands(
               LivelitInfo(llu, 0, sigma, name, si, elab),
               expansion_ty,
@@ -1340,6 +1317,42 @@ module Exp = {
         };
       };
     }
+  and wrap_proto_expansion =
+      (
+        ctx: Contexts.t,
+        delta: Delta.t,
+        proto_expansion,
+        si: UHExp.splice_info,
+      )
+      : option((DHExp.t, SpliceInfo.t(DHExp.t), Delta.t)) => {
+    let expanded_sim_delta =
+      si.splice_map
+      |> List.fold_left(
+           (
+             res: option((DHExp.t, SpliceInfo.splice_map(DHExp.t), Delta.t)),
+             (name, (ty, exp)),
+           ) => {
+             switch (res) {
+             | None => None
+             | Some((expansion, sim, delta)) =>
+               let var = SpliceInfo.var_of_splice_name(name);
+               switch (ana_expand(ctx, delta, exp, ty)) {
+               | DoesNotExpand => None
+               | Expands(d, _, delta) =>
+                 let expansion =
+                   DHExp.Ap(DHExp.Lam(DHPat.Var(var), ty, expansion), d);
+                 let sim = NatMap.insert_or_update(sim, (name, (ty, d)));
+                 Some((expansion, sim, delta));
+               };
+             }
+           },
+           Some((proto_expansion, NatMap.empty, delta)),
+         );
+    expanded_sim_delta
+    |> OptUtil.map(((expanded, sim, delta)) =>
+         (expanded, SpliceInfo.update_splice_map(si, sim), delta)
+       );
+  }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t)
       : ExpandResult.t =>
