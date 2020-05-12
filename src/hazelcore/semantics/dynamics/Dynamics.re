@@ -406,6 +406,7 @@ module Pat = {
     | Var(_)
     | IntLit(_)
     | FloatLit(_)
+    | InvalidVar(_, _, _)
     | BoolLit(_)
     | ListNil
     | Triv => (dp, hii)
@@ -453,6 +454,7 @@ module Exp = {
         d2;
       }
     | FreeVar(_) => d2
+    | InvalidVar(_, _, _) => failwith("unimplemented")
     | Keyword(_) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -575,6 +577,7 @@ module Exp = {
     | (NonEmptyHole(_, _, _, _), _) => Indet
     | (Wild, _) => Matches(Environment.empty)
     | (Keyword(_, _, _), _) => DoesNotMatch
+    | (InvalidVar(_, _, _), _) => failwith("unimplemented")
     | (Var(x), _) =>
       let env = Environment.extend(Environment.empty, (x, d));
       Matches(env);
@@ -582,6 +585,7 @@ module Exp = {
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
     | (_, FailedCast(_, _, _)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
+    | (_, InvalidVar(_, _, _)) => failwith("unimplemented")
     | (_, Let(_, _, _)) => Indet
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
@@ -713,6 +717,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
+    | InvalidVar(_, _, _) => failwith("unimplemented")
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
@@ -771,6 +776,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
+    | InvalidVar(_, _, _) => failwith("unimplemented")
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
@@ -827,6 +833,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
+    | InvalidVar(_, _, _) => failwith("unimplemented")
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
@@ -1642,6 +1649,7 @@ module Exp = {
           : (DHExp.t, HoleInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
+    | InvalidVar(_, _, _)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -1738,6 +1746,7 @@ module Exp = {
           : (DHExp.t, HoleInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
+    | InvalidVar(_, _, _)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -2120,6 +2129,7 @@ module Evaluator = {
       }
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
+    | InvalidVar(_, _, _) => failwith("unimplemented")
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
