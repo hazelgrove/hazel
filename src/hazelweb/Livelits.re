@@ -429,8 +429,8 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
           List.concat([
             row_header,
             col_header,
-            cells,
-            [cells_border, add_row_button, add_col_button],
+            [cells_border, ...cells],
+            [add_row_button, add_col_button],
           ]),
         ),
       );
