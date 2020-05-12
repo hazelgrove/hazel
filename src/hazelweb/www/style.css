@@ -1401,9 +1401,14 @@ h1 {
   float: right;
   text-align: center;
 }
+.history-entry-left{
+  width: 70%;
+  float: left;
+}
 .the-history-entry {
   width: 100%;
   float: left;
+  cursor: pointer;
 }
 
 .the-hidden-history-entry {
