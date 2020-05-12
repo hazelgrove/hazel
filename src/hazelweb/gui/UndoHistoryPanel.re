@@ -283,7 +283,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SApPalette(_) => failwith("ApPalette not implemented")
     };
   };
-  let history_entry_view = (undo_history_entry: undo_history_entry) => {
+  let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
@@ -525,7 +525,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
          Vdom.(
            Node.span(
              [Attr.classes(["his-txt"])],
-             [history_entry_view(undo_history_entry)],
+             [history_entry_txt_view(undo_history_entry)],
            )
          );
        }; */
@@ -542,19 +542,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         if (is_latest_selected) {
           [
-            Attr.classes([
-              "the-history-title",
-              "always-display-history-entry",
-            ]),
+            Attr.classes(["the-history-title"]),
             Attr.id("cur-selected-entry"),
           ];
         } else {
-          [
-            Attr.classes([
-              "the-history-title",
-              "always-display-history-entry",
-            ]),
-          ];
+          [Attr.classes(["the-history-title"])];
         },
         [
           Node.div(
@@ -562,7 +554,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               Node.div(
                 [
-                  Attr.classes(["the-history-title-entry"]),
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
@@ -588,7 +579,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ],
                 [
                   history_typ_tag_view(undo_history_entry),
-                  history_entry_view(undo_history_entry),
+                  history_entry_txt_view(undo_history_entry),
                   Node.text(
                     " "
                     ++ string_of_int(group_id)
@@ -659,7 +650,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [Attr.classes(["the-hidden-history-txt"])],
                   [
                     history_typ_tag_view(undo_history_entry),
-                    history_entry_view(undo_history_entry),
+                    history_entry_txt_view(undo_history_entry),
                     Node.text(
                       " "
                       ++ string_of_int(group_id)
@@ -713,7 +704,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [Attr.classes(["the-hidden-history-txt"])],
                   [
                     history_typ_tag_view(undo_history_entry),
-                    history_entry_view(undo_history_entry),
+                    history_entry_txt_view(undo_history_entry),
                     Node.text(
                       " "
                       ++ string_of_int(group_id)
@@ -1216,7 +1207,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let hover_effect_checkbox = (show_hover_effect: bool) => {
     labeled_checkbox(
       ~id="show_hover_effect",
-      /* ~classes=["indented-option"], */
       ~label="Show Hover Effect",
       ~on_change=() => inject(ToggleShowHoverEffect),
       show_hover_effect,

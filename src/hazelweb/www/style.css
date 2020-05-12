@@ -1420,7 +1420,9 @@ h1 {
 
 
 .the-history-title {
-  display: inline-block; 
+  border: 1px outset #ffffff;
+  width: 100%;
+  display: grid; 
   padding: 5px;
 }
 .the-history-title:hover{
@@ -1430,12 +1432,6 @@ h1 {
 .the-hidden-history-entry:hover {
   color: #b30000;
   background-color: lightgoldenrodyellow;
-}
-
-.the-history-title-entry {
-  cursor: pointer;
-  float: left;
-  width: 100%;
 }
 
 .history-type-tag{
@@ -1482,11 +1478,7 @@ h1 {
 .timestamp-txt:hover span{
   visibility: visible;
 }
-.always-display-history-entry {
-  border: 1px outset #ffffff;
-  width: 100%;
-  display: grid;
-}
+
 .hidden-history-entry {
   width: 100%;
   display: grid;
