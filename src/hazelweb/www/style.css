@@ -1535,6 +1535,8 @@ h1 {
   margin-right: 5px;
 }
 
-
-
-
+/* panel keywords css */
+.panel-code-keywords-font{
+  font-family: var(--code-font-family);
+  font-weight: bold;
+}
