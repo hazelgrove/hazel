@@ -46,6 +46,9 @@
   --inline-border-z: 3;
   --child-z: 4;
   --caret-z: 5;
+
+  --color-picker-modal-overlay-z: 6;
+  --color-picker-z: 7;
 }
 
 /* general */
@@ -968,12 +971,25 @@ h1 {
   display: none;
 }
 .color-livelit .color-picker.open {
+  z-index: var(--color-picker-z);
   position: absolute;
   top: 1.2ch;
   left: 0;
   background-color: white;
   border-radius: 0;
   border: 1px solid black;
+}
+.color-livelit .modal-overlay.closed {
+  display: none;
+}
+.color-livelit .modal-overlay.open {
+  position: fixed;
+  height: 100vh;
+  width: 100vw;
+  top: 0;
+  left: 0;
+  z-index: var(--color-picker-modal-overlay-z);
+  background-color: transparent;
 }
 .color-livelit .color-picker .rgb-picker {
   display: grid;

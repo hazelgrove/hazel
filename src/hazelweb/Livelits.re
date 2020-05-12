@@ -911,11 +911,12 @@ module ColorLivelit: LIVELIT = {
           | _ => None
           };
 
-        let color_box =
+        let color_box = {
+          let on_click = Attr.on_click(_ => trigger(Open));
           switch (rgb_values) {
           | None =>
             Node.div(
-              [Attr.classes(["color-box"])],
+              [Attr.classes(["color-box"]), on_click],
               [
                 Node.create_svg(
                   "svg",
@@ -957,29 +958,38 @@ module ColorLivelit: LIVELIT = {
                   ),
                 ),
                 Attr.classes(["color-box"]),
+                on_click,
               ],
               [],
             )
           };
-        let saturation_box =
-          switch (rgb_values) {
-          | None => []
-          | Some((r, g, b)) => [
-              Node.div(
-                [
-                  Attr.classes(["saturation-box"]),
-                  attr_style(
-                    prop_val(
-                      "background-color",
-                      Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+        };
+
+        let color_picker = {
+          let saturation_box =
+            switch (rgb_values) {
+            | None => []
+            | Some((r, g, b)) => [
+                Node.div(
+                  [
+                    Attr.classes(["saturation-box"]),
+                    attr_style(
+                      prop_val(
+                        "background-color",
+                        Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+                      ),
                     ),
-                  ),
-                ],
-                [],
-              ),
-            ]
-          };
-        let color_picker =
+                  ],
+                  [],
+                ),
+              ]
+            };
+          let splice = splice_name =>
+            Node.div(
+              [Attr.classes(["color-picker-splice"])],
+              [uhcode(splice_name)],
+            );
+          let splice_label = lbl => Node.label([], [Node.text(lbl)]);
           Node.div(
             [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
             [
@@ -996,33 +1006,28 @@ module ColorLivelit: LIVELIT = {
               Node.div(
                 [Attr.classes(["rgb-picker"])],
                 [
-                  Node.label([], [Node.text("R")]),
-                  Node.div(
-                    [Attr.classes(["color-picker-splice"])],
-                    [uhcode(r)],
-                  ),
-                  Node.label([], [Node.text("G")]),
-                  Node.div(
-                    [Attr.classes(["color-picker-splice"])],
-                    [uhcode(g)],
-                  ),
-                  Node.label([], [Node.text("B")]),
-                  Node.div(
-                    [Attr.classes(["color-picker-splice"])],
-                    [uhcode(b)],
-                  ),
+                  splice_label("R"),
+                  splice(r),
+                  splice_label("G"),
+                  splice(g),
+                  splice_label("B"),
+                  splice(b),
                 ],
               ),
             ],
           );
+        };
+        let modal_overlay =
+          Node.div(
+            [
+              Attr.classes(["modal-overlay", is_open ? "open" : "closed"]),
+              Attr.on_click(_ => trigger(Close)),
+            ],
+            [],
+          );
         Node.div(
-          [
-            Attr.classes(["color-livelit"]),
-            Attr.create("tabindex", "0"),
-            Attr.on_focus(_ => trigger(Open)),
-            Attr.on_blur(_ => trigger(Close)),
-          ],
-          [color_box, color_picker],
+          [Attr.classes(["color-livelit"])],
+          [color_box, color_picker, modal_overlay],
         );
       },
       2,
