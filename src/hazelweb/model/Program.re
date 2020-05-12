@@ -82,7 +82,6 @@ exception InvalidInput;
 let _evaluate =
   Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
 let get_result = (program: t): Result.t => {
-  print_endline("Program85");
   switch (program |> get_expansion |> _evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
