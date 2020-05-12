@@ -65,6 +65,7 @@ let init = (): t => {
       groups: ([], undo_history_group, []),
       all_hidden_history_expand: false,
       is_hover: false,
+      show_hover_effect: true,
       cur_group_id: 0,
       cur_elt_id: 0,
     };
