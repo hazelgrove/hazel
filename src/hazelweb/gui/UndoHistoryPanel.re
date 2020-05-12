@@ -23,28 +23,48 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let code_view = (code: string) => {
+    Vdom.(
+      Node.span([Attr.classes(["panel-code-font"])], [Node.text(code)])
+    );
+  };
+  let code_keywords_view = (code: string) => {
+    Vdom.(
+      Node.span(
+        [Attr.classes(["panel-code-keywords-font"])],
+        [Node.text(code)],
+      )
+    );
+  };
+  let indicate_words_view = (words: string) => {
+    Vdom.(Node.span([], [Node.text(words)]));
+  };
   let exp_view = (exp: UHExp.operand) => {
     switch (exp) {
     | EmptyHole(meta_var) =>
-      Vdom.(
-        Node.span([], [Node.text("hole: " ++ string_of_int(meta_var))])
-      )
+      indicate_words_view("hole: " ++ string_of_int(meta_var))
+
     | Var(_, _, var_str) =>
       if (Var.is_case(var_str) || Var.is_let(var_str)) {
-        Vdom.(Node.span([], [Node.text("keyword: " ++ var_str)]));
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("keyword: "), code_view(var_str)],
+          )
+        );
       } else {
-        Vdom.(Node.span([], [Node.text("var: " ++ var_str)]));
+        Vdom.(
+          Node.span([], [indicate_words_view("var: "), code_view(var_str)])
+        );
       }
     | IntLit(_, num) =>
       Vdom.(
         Node.span(
           [],
           [
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Int")],
-            ),
-            Node.text(": " ++ num),
+            code_keywords_view("Int"),
+            indicate_words_view(": "),
+            code_view(num),
           ],
         )
       )
@@ -53,11 +73,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Float")],
-            ),
-            Node.text(": " ++ num),
+            code_keywords_view("Float"),
+            indicate_words_view(": "),
+            code_view(num),
           ],
         )
       )
@@ -66,51 +84,22 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Bool")],
-            ),
-            Node.text(": "),
-            Node.span(
-              [Attr.classes(["bool-keywords"])],
-              [Node.text(string_of_bool(bool_val))],
-            ),
+            code_keywords_view("Bool"),
+            indicate_words_view(": "),
+            code_view(string_of_bool(bool_val)),
           ],
         )
       )
-    | ListNil(_) => Vdom.(Node.span([], [Node.text("empty list")]))
-    | Lam(_, _, _, _) =>
-      Vdom.(
-        Node.span(
-          [Attr.classes(["panel-code-keywords-font"])],
-          [Node.text("function")],
-        )
-      )
+    | ListNil(_) => indicate_words_view("empty list")
+    | Lam(_, _, _, _) => code_keywords_view("function")
+
     | Inj(_, side, _) =>
       switch (side) {
-      | L =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("left injection")],
-          )
-        )
-      | R =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("right injection")],
-          )
-        )
+      | L => code_keywords_view("left injection")
+      | R => code_keywords_view("right injection")
       }
-    | Case(_, _, _, _) =>
-      Vdom.(
-        Node.span(
-          [Attr.classes(["panel-code-keywords-font"])],
-          [Node.text("case")],
-        )
-      )
-    | Parenthesized(_) => Vdom.(Node.span([], [Node.text("parentheses")]))
+    | Case(_, _, _, _) => code_keywords_view("case")
+    | Parenthesized(_) => indicate_words_view("parentheses")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
@@ -118,22 +107,20 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let pat_view = (pat: UHPat.operand) => {
     switch (pat) {
     | EmptyHole(meta_var) =>
-      Vdom.(
-        Node.span([], [Node.text("hole: " ++ string_of_int(meta_var))])
-      )
-    | Wild(_) => Vdom.(Node.span([], [Node.text("wild card")]))
+      indicate_words_view("hole: " ++ string_of_int(meta_var))
+    | Wild(_) => indicate_words_view("wild card")
     | Var(_, _, var_str) =>
-      Vdom.(Node.span([], [Node.text("var: " ++ var_str)]))
+      Vdom.(
+        Node.span([], [indicate_words_view("var: "), code_view(var_str)])
+      )
     | IntLit(_, num) =>
       Vdom.(
         Node.span(
           [],
           [
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Int")],
-            ),
-            Node.text(": " ++ num),
+            code_keywords_view("Int"),
+            indicate_words_view(": "),
+            code_view(num),
           ],
         )
       )
@@ -142,11 +129,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Float")],
-            ),
-            Node.text(": " ++ num),
+            code_keywords_view("Float"),
+            indicate_words_view(": "),
+            code_view(num),
           ],
         )
       )
@@ -155,36 +140,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Bool")],
-            ),
-            Node.text(": "),
-            Node.span(
-              [Attr.classes(["bool-keywords"])],
-              [Node.text(string_of_bool(bool_val))],
-            ),
+            code_keywords_view("Bool"),
+            indicate_words_view(": "),
+            code_view(string_of_bool(bool_val)),
           ],
         )
       )
-    | ListNil(_) => Vdom.(Node.span([], [Node.text("empty list")]))
-    | Parenthesized(_) => Vdom.(Node.span([], [Node.text("parentheses")]))
+    | ListNil(_) => indicate_words_view("empty list")
+    | Parenthesized(_) => indicate_words_view("parentheses")
     | Inj(_, side, _) =>
       switch (side) {
-      | L =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("left injection")],
-          )
-        )
-      | R =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("right injection")],
-          )
-        )
+      | L => code_keywords_view("left injection")
+      | R => code_keywords_view("right injection")
       }
     };
   };
@@ -195,158 +162,86 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(
         Node.span(
           [],
-          [
-            Node.text("type: "),
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Hole")],
-            ),
-          ],
+          [indicate_words_view("type: "), code_keywords_view("Hole")],
         )
       )
+
     | Unit =>
       Vdom.(
         Node.span(
           [],
-          [
-            Node.text("type: "),
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Unit")],
-            ),
-          ],
+          [indicate_words_view("type: "), code_keywords_view("Unit")],
         )
       )
     | Int =>
       Vdom.(
         Node.span(
           [],
-          [
-            Node.text("type: "),
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Int")],
-            ),
-          ],
+          [indicate_words_view("type: "), code_keywords_view("Int")],
         )
       )
     | Float =>
       Vdom.(
         Node.span(
           [],
-          [
-            Node.text("type: "),
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Float")],
-            ),
-          ],
+          [indicate_words_view("type: "), code_keywords_view("Float")],
         )
       )
     | Bool =>
       Vdom.(
         Node.span(
           [],
-          [
-            Node.text("type: "),
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("Bool")],
-            ),
-          ],
+          [indicate_words_view("type: "), code_keywords_view("Bool")],
         )
       )
-    | Parenthesized(_) => Vdom.(Node.span([], [Node.text("parentheses")]))
-    | List(_) => Vdom.(Node.span([], [Node.text("[ ]")]))
+    | Parenthesized(_) => indicate_words_view("parentheses")
+    | List(_) => code_keywords_view("[ ]")
     };
   };
 
-  let display_string_of_cursor_term = (cursor_term: CursorInfo.cursor_term) => {
+  let cursor_term_view = (cursor_term: CursorInfo.cursor_term) => {
     switch (cursor_term) {
     | Exp(_, exp) => exp_view(exp)
     | Pat(_, pat) => pat_view(pat)
     | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) =>
-      Vdom.(Node.span([], [Node.text(UHExp.string_of_operator(op))]))
-    | PatOp(_, op) =>
-      Vdom.(Node.span([], [Node.text(UHPat.string_of_operator(op))]))
-    | TypOp(_, op) =>
-      Vdom.(Node.span([], [Node.text(UHTyp.string_of_operator(op))]))
+    | ExpOp(_, op) => code_view(UHExp.string_of_operator(op))
+    | PatOp(_, op) => code_view(UHPat.string_of_operator(op))
+    | TypOp(_, op) => code_view(UHTyp.string_of_operator(op))
     | Line(_, line_content) =>
       switch (line_content) {
-      | EmptyLine => Vdom.(Node.span([], [Node.text("empty line")]))
-      | LetLine(_, _, _) =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("let binding")],
-          )
-        )
-      | ExpLine(_) => Vdom.(Node.span([], [Node.text("expression line")]))
+      | EmptyLine => indicate_words_view("empty line")
+      | LetLine(_, _, _) => code_keywords_view("let binding")
+      | ExpLine(_) => indicate_words_view("expression line")
       }
-    | Rule(_, _) =>
-      Vdom.(
-        Node.span(
-          [Attr.classes(["panel-code-keywords-font"])],
-          [Node.text("case rule")],
-        )
-      )
+    | Rule(_, _) => code_keywords_view("case rule")
     };
   };
 
   let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
-    | SLam =>
-      Vdom.(
-        Node.span(
-          [Attr.classes(["panel-code-keywords-font"])],
-          [Node.text("function")],
-        )
-      )
+    | SLam => code_keywords_view("function")
     | SInj(side) =>
       switch (side) {
-      | L =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("left injection")],
-          )
-        )
-      | R =>
-        Vdom.(
-          Node.span(
-            [Attr.classes(["panel-code-keywords-font"])],
-            [Node.text("right injection")],
-          )
-        )
+      | L => code_keywords_view("left injection")
+      | R => code_keywords_view("right injection")
       }
-    | SLet =>
-      Vdom.(
-        Node.span(
-          [Attr.classes(["panel-code-keywords-font"])],
-          [Node.text("let binding")],
-        )
-      )
-    | SCase =>
-      Vdom.(
-        Node.span(
-          [Attr.classes(["panel-code-keywords-font"])],
-          [Node.text("case expression")],
-        )
-      )
+    | SLet => code_keywords_view("let binding")
+    | SCase => code_keywords_view("case expression")
     | SList
-    | SParenthesized
-    | SChar(_)
-    | SAsc
     | SListNil
     | SLine
-    | SOp(_) =>
-      Vdom.(Node.span([], [Node.text(Action.shape_to_string(shape))]))
+    | SAsc
+    | SParenthesized => indicate_words_view(Action.shape_to_string(shape))
+    | SChar(_) => code_view(Action.shape_to_string(shape))
+    | SOp(op) =>
+      switch (op) {
+      | SSpace => indicate_words_view("space")
+      | _ => code_view(Action.shape_to_string(shape))
+      }
     | SApPalette(_) => failwith("ApPalette not implemented")
     };
   };
-  let display_string_of_history_entry =
-      (undo_history_entry: undo_history_entry) => {
+  let history_entry_view = (undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
@@ -354,16 +249,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Vdom.(
           Node.span(
             [],
-            [
-              Node.text("delete empty line"),
-              display_string_of_cursor_term(cursor_term),
-            ],
+            [indicate_words_view("delete "), cursor_term_view(cursor_term)],
           )
         )
-      | Space => Vdom.(Node.span([], [Node.text("delete space")]))
-      | EmptyLine => Vdom.(Node.span([], [Node.text("delete empty line")]))
-      | TypeAnn =>
-        Vdom.(Node.span([], [Node.text("delete type annotation")]))
+      | Space => indicate_words_view("delete space")
+      | EmptyLine => indicate_words_view("delete empty line")
+      | TypeAnn => indicate_words_view("delete type annotation")
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
@@ -372,11 +263,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.span(
             [],
             [
-              Node.text("construct "),
-              Node.span(
-                [Attr.classes(["panel-code-keywords-font"])],
-                [Node.text("let binding")],
-              ),
+              indicate_words_view("construct "),
+              code_keywords_view("let binding"),
             ],
           )
         )
@@ -384,13 +272,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Vdom.(
           Node.span(
             [],
-            [
-              Node.text("construct "),
-              Node.span(
-                [Attr.classes(["panel-code-keywords-font"])],
-                [Node.text("case")],
-              ),
-            ],
+            [indicate_words_view("construct "), code_keywords_view("case")],
           )
         )
       | SLam =>
@@ -398,11 +280,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.span(
             [],
             [
-              Node.text("construct "),
-              Node.span(
-                [Attr.classes(["panel-code-keywords-font"])],
-                [Node.text("function")],
-              ),
+              indicate_words_view("construct "),
+              code_keywords_view("function"),
             ],
           )
         )
@@ -410,7 +289,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Vdom.(
           Node.span(
             [],
-            [Node.text("insert "), action_shape_view(edit_detail)],
+            [
+              indicate_words_view("insert "),
+              action_shape_view(edit_detail),
+            ],
           )
         )
       }
@@ -421,8 +303,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.span(
             [],
             [
-              Node.text("edit "),
-              display_string_of_cursor_term(
+              indicate_words_view("edit "),
+              cursor_term_view(
                 undo_history_entry.cursor_term_info.cursor_term_after,
               ),
             ],
@@ -434,8 +316,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.span(
             [],
             [
-              Node.text("insert "),
-              display_string_of_cursor_term(
+              indicate_words_view("insert "),
+              cursor_term_view(
                 undo_history_entry.cursor_term_info.cursor_term_after,
               ),
             ],
@@ -446,16 +328,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(
         Node.span(
           [],
-          [
-            Node.text("insert "),
-            Node.span(
-              [Attr.classes(["panel-code-keywords-font"])],
-              [Node.text("case rule")],
-            ),
-          ],
+          [indicate_words_view("insert "), code_keywords_view("case rule")],
         )
       )
-    | Init => Vdom.(Node.span([], [Node.text("initial state")]))
+    | Init => indicate_words_view("initial state")
     | Ignore => Vdom.(Node.span([], []))
     };
   };
@@ -607,7 +483,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
          Vdom.(
            Node.span(
              [Attr.classes(["his-txt"])],
-             [display_string_of_history_entry(undo_history_entry)],
+             [history_entry_view(undo_history_entry)],
            )
          );
        }; */
@@ -670,7 +546,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ],
                 [
                   history_typ_tag_view(undo_history_entry),
-                  display_string_of_history_entry(undo_history_entry),
+                  history_entry_view(undo_history_entry),
                   Node.text(
                     " "
                     ++ string_of_int(group_id)
@@ -741,7 +617,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [Attr.classes(["the-hidden-history-txt"])],
                   [
                     history_typ_tag_view(undo_history_entry),
-                    display_string_of_history_entry(undo_history_entry),
+                    history_entry_view(undo_history_entry),
                     Node.text(
                       " "
                       ++ string_of_int(group_id)
@@ -795,7 +671,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [Attr.classes(["the-hidden-history-txt"])],
                   [
                     history_typ_tag_view(undo_history_entry),
-                    display_string_of_history_entry(undo_history_entry),
+                    history_entry_view(undo_history_entry),
                     Node.text(
                       " "
                       ++ string_of_int(group_id)
