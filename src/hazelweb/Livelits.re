@@ -949,8 +949,36 @@ module ColorLivelit: LIVELIT = {
     | Close
     | StartSelectingSatVal
     | StopSelectingSatVal
-    | SelectSatVal(float, float);
+    | SelectSatVal(float, float)
+    | SelectHue(int);
   type trigger = action => Vdom.Event.t;
+
+  let update_hsv = (hsv, model) => {
+    let (r, g, b) = model.rgb;
+    let (rval, gval, bval) = rgb_of_hsv(hsv);
+    SpliceGenCmd.(
+      bind(
+        map_splice(r, (_, u_gen) =>
+          ((HTyp.Float, UHExp.(Block.wrap(floatlit'(rval)))), u_gen)
+        ),
+        _ =>
+        bind(
+          map_splice(g, (_, u_gen) =>
+            ((HTyp.Float, UHExp.(Block.wrap(floatlit'(gval)))), u_gen)
+          ),
+          _ =>
+          bind(
+            map_splice(b, (_, u_gen) =>
+              ((HTyp.Float, UHExp.(Block.wrap(floatlit'(bval)))), u_gen)
+            ),
+            _ =>
+            return({...model, hsv})
+          )
+        )
+      )
+    );
+  };
+
   let update = (m, action) =>
     switch (action) {
     | Open => SpliceGenCmd.return({...m, is_open: true})
@@ -961,29 +989,10 @@ module ColorLivelit: LIVELIT = {
       SpliceGenCmd.return({...m, selecting_sat_val: false})
     | SelectSatVal(s, v) =>
       let (h, _, _) = m.hsv;
-      let (r, g, b) = m.rgb;
-      let (rval, gval, bval) = rgb_of_hsv((h, s, v));
-      SpliceGenCmd.(
-        bind(
-          map_splice(r, (_, u_gen) =>
-            ((HTyp.Float, UHExp.(Block.wrap(floatlit'(rval)))), u_gen)
-          ),
-          _ =>
-          bind(
-            map_splice(g, (_, u_gen) =>
-              ((HTyp.Float, UHExp.(Block.wrap(floatlit'(gval)))), u_gen)
-            ),
-            _ =>
-            bind(
-              map_splice(b, (_, u_gen) =>
-                ((HTyp.Float, UHExp.(Block.wrap(floatlit'(bval)))), u_gen)
-              ),
-              _ =>
-              return({...m, hsv: (h, s, v)})
-            )
-          )
-        )
-      );
+      update_hsv((h, s, v), m);
+    | SelectHue(h) =>
+      let (_, s, v) = m.hsv;
+      update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
     };
 
   let view = ({rgb: (r, g, b), hsv, is_open, selecting_sat_val}, trigger) => {
@@ -1148,6 +1157,7 @@ module ColorLivelit: LIVELIT = {
               [uhcode(splice_name)],
             );
           let splice_label = lbl => Node.label([], [Node.text(lbl)]);
+          let (h, _, _) = hsv;
           Node.div(
             [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
             [
@@ -1164,6 +1174,10 @@ module ColorLivelit: LIVELIT = {
                           Attr.type_("range"),
                           Attr.create("min", "0"),
                           Attr.create("max", "360"),
+                          Attr.value(string_of_int(Float.to_int(h))),
+                          Attr.on_input((_, value_str) =>
+                            trigger(SelectHue(int_of_string(value_str)))
+                          ),
                         ],
                         [],
                       ),
