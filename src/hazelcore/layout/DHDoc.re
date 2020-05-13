@@ -326,8 +326,8 @@ module Exp = {
         | NonEmptyHole(reason, u, i, _sigma, d) =>
           go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
-        | LivelitHole(llu, _, _, _, _) =>
-          failwith(Printf.sprintf("unexpected LivelitHole %d", llu))
+        | LivelitHole(_, _, _, lln, _) =>
+          annot(DHAnnot.Collapsed, text("<" ++ lln ++ " value>"))
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
