@@ -1151,12 +1151,16 @@ module ColorLivelit: LIVELIT = {
                 ),
               ];
             };
-          let splice = splice_name =>
-            Node.div(
-              [Attr.classes(["color-picker-splice"])],
-              [uhcode(splice_name)],
+          let splice_label = lbl =>
+            Node.label(
+              [Attr.classes(["splice-label"])],
+              [Node.text(lbl)],
             );
-          let splice_label = lbl => Node.label([], [Node.text(lbl)]);
+          let splice = (lbl, splice_name) =>
+            Node.div(
+              [Attr.classes(["splice-content"])],
+              [splice_label(lbl), uhcode(splice_name)],
+            );
           let (h, _, _) = hsv;
           Node.div(
             [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
@@ -1187,14 +1191,7 @@ module ColorLivelit: LIVELIT = {
               ),
               Node.div(
                 [Attr.classes(["rgb-picker"])],
-                [
-                  splice_label("R"),
-                  splice(r),
-                  splice_label("G"),
-                  splice(g),
-                  splice_label("B"),
-                  splice(b),
-                ],
+                [splice("R", r), splice("G", g), splice("B", b)],
               ),
             ],
           );
