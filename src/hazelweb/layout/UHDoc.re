@@ -123,7 +123,7 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =
   Doc.annot(
     UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
   );
-let annot_Case = (~err: ErrStatus.t): (t => t) =>
+let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
@@ -330,7 +330,8 @@ let mk_Lam =
   |> annot_Operand(~sort=Exp, ~err);
 };
 
-let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
+let mk_Case =
+    (~err: CaseErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
   let open_group = Delim.open_Case() |> annot_DelimGroup;
   let close_group = Delim.close_Case() |> annot_DelimGroup;
   Doc.(

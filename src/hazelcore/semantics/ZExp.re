@@ -17,8 +17,8 @@ and zoperand =
   | LamZA(ErrStatus.t, UHPat.t, ZTyp.t, UHExp.t)
   | LamZE(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | InjZ(ErrStatus.t, InjSide.t, t)
-  | CaseZE(ErrStatus.t, t, list(UHExp.rule))
-  | CaseZR(ErrStatus.t, UHExp.t, zrules)
+  | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
+  | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
   | ApPaletteZ(
       ErrStatus.t,
       PaletteName.t,
@@ -414,8 +414,10 @@ and set_err_status_zoperand = (err, zoperand) =>
   | LamZA(_, p, zann, body) => LamZA(err, p, zann, body)
   | LamZE(_, p, ann, zbody) => LamZE(err, p, ann, zbody)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
-  | CaseZE(_, zscrut, rules) => CaseZE(err, zscrut, rules)
-  | CaseZR(_, scrut, zrules) => CaseZR(err, scrut, zrules)
+  | CaseZE(_, zscrut, rules) =>
+    CaseZE(StandardErrStatus(err), zscrut, rules)
+  | CaseZR(_, scrut, zrules) =>
+    CaseZR(StandardErrStatus(err), scrut, zrules)
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
@@ -451,45 +453,27 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(InHole(TypeInconsistent, _), _, _)
-  | CaseZR(InHole(TypeInconsistent, _), _, _)
+  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
   /* not in hole */
-  | LamZP(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
-      _,
-      _,
-      _,
-    )
-  | LamZA(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
-      _,
-      _,
-      _,
-    )
-  | LamZE(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
-      _,
-      _,
-      _,
-    )
-  | InjZ(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
+  | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
+  | LamZE(NotInHole | InHole(WrongLength, _), _, _, _)
+  | InjZ(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
       _,
       _,
     )
   | CaseZR(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
       _,
       _,
     )
-  | ApPaletteZ(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
-      _,
-      _,
-      _,
-    ) =>
+  | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));

@@ -1,12 +1,9 @@
-open Sexplib.Std;
-
 module HoleReason = {
   /* Variable: `reason` */
   [@deriving sexp]
   type t =
     | TypeInconsistent
-    | WrongLength
-    | InconsistentBranches(list(HTyp.t));
+    | WrongLength;
 };
 
 /* Variable: `err` */

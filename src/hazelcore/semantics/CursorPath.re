@@ -181,6 +181,21 @@ let holes_verr =
   | InVarHole(_, u) => [(hole_desc(u), rev_steps |> List.rev), ...hs]
   };
 
+let holes_case_err =
+    (
+      ~hole_desc: MetaVar.t => hole_desc,
+      err: CaseErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (err) {
+  | StandardErrStatus(err) => holes_err(~hole_desc, err, rev_steps, hs)
+  | InconsistentBranches(_, u) => [
+      (hole_desc(u), rev_steps |> List.rev),
+      ...hs,
+    ]
+  };
+
 let holes_skel =
     (
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
@@ -1205,6 +1220,7 @@ module Exp = {
 
   let hole_desc = (u: MetaVar.t): hole_desc => ExpHole(u);
   let holes_err = holes_err(~hole_desc);
+  let holes_case_err = holes_case_err(~hole_desc);
   let holes_verr = holes_verr(~hole_desc);
 
   let rec holes = (e: UHExp.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
@@ -1272,7 +1288,7 @@ module Exp = {
            rules,
          )
       |> holes(scrut, [0, ...rev_steps])
-      |> holes_err(err, rev_steps)
+      |> holes_case_err(err, rev_steps)
     | ApPalette(err, _, _, psi) =>
       let splice_map = psi.splice_map;
       let splice_order = psi.splice_order;
@@ -1497,8 +1513,10 @@ module Exp = {
     | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
       let hole_selected =
         switch (err) {
-        | NotInHole => None
-        | InHole(_, u) => Some((ExpHole(u), rev_steps |> List.rev))
+        | StandardErrStatus(NotInHole) => None
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) =>
+          Some((ExpHole(u), rev_steps |> List.rev))
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_rules =
@@ -1597,8 +1615,11 @@ module Exp = {
     | CaseZE(err, zscrut, rules) =>
       let holes_err =
         switch (err) {
-        | NotInHole => []
-        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        | StandardErrStatus(NotInHole) => []
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) => [
+            (ExpHole(u), rev_steps |> List.rev),
+          ]
         };
       let {holes_before, hole_selected, holes_after} =
         holes_z(zscrut, [0, ...rev_steps]);
@@ -1617,8 +1638,11 @@ module Exp = {
     | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
       let holes_err =
         switch (err) {
-        | NotInHole => []
-        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        | StandardErrStatus(NotInHole) => []
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) => [
+            (ExpHole(u), rev_steps |> List.rev),
+          ]
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_prefix =
