@@ -892,6 +892,61 @@ module ColorLivelit: LIVELIT = {
       },
     );
 
+  // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L197
+  let hsv_of_rgb = ((r, g, b)) => {
+    let r = r /. 255.0;
+    let g = g /. 255.0;
+    let b = b /. 255.0;
+    let cmax = max(r, max(g, b));
+    let cmin = min(r, min(g, b));
+    let delta = cmax -. cmin;
+    let s = cmax == 0.0 ? 0.0 : delta /. cmax;
+    let m =
+      if (delta == 0.0) {
+        0.0;
+      } else if (cmax == r) {
+        Float.rem(Float.rem((g -. b) /. delta, 6.0) +. 6.0, 6.0);
+      } else if (cmax == g) {
+        (b -. r) /. delta +. 2.0;
+      } else {
+        (r -. g) /. delta +. 4.0;
+      };
+
+    let h = max(0.0, min(Float.round(m *. 60.0), 360.0));
+    let s = max(0.0, min(s, 1.0));
+    let v = max(0.0, min(cmax, 1.0));
+    (h, s, v);
+  };
+
+  // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L221
+  let _rgb_of_hsv = ((h, s, v)) => {
+    let c = v *. s;
+    let x = c *. (1.0 -. Float.abs(Float.rem(h /. 60.0, 2.0) -. 1.0));
+    let m = v -. c;
+
+    let (r, g, b) =
+      if (h < 60.0) {
+        (c, x, 0.0);
+      } else if (h < 120.0) {
+        (x, c, 0.0);
+      } else if (h < 180.0) {
+        (0.0, c, x);
+      } else if (h < 240.0) {
+        (0.0, x, c);
+      } else if (h < 300.0) {
+        (x, 0.0, c);
+      } else if (h < 360.0) {
+        (c, 0.0, x);
+      } else {
+        (0.0, 0.0, 0.0);
+      };
+    (
+      Float.round((r +. m) *. 255.0),
+      Float.round((g +. m) *. 255.0),
+      Float.round((b +. m) *. 255.0),
+    );
+  };
+
   let view = ({r, g, b, is_open}, trigger) => {
     LivelitView.Inline(
       ({uhcode, dhcode}) => {
@@ -966,23 +1021,45 @@ module ColorLivelit: LIVELIT = {
         };
 
         let color_picker = {
-          let saturation_box =
+          let sat_val_box =
             switch (rgb_values) {
             | None => []
-            | Some((r, g, b)) => [
+            | Some((r, g, b) as rgb) =>
+              let (_h, s, v) = hsv_of_rgb(rgb);
+              let height = 150.0;
+              let width = 200.0;
+              let px = Printf.sprintf("%f0px");
+              [
                 Node.div(
                   [
-                    Attr.classes(["saturation-box"]),
+                    Attr.classes(["sat-val-box"]),
                     attr_style(
-                      prop_val(
-                        "background-color",
-                        Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
-                      ),
+                      StringUtil.cat([
+                        prop_val("height", height |> px),
+                        prop_val("width", width |> px),
+                        prop_val(
+                          "background-color",
+                          Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+                        ),
+                      ]),
                     ),
                   ],
-                  [],
+                  [
+                    Node.div(
+                      [
+                        Attr.classes(["sat-val-selector"]),
+                        attr_style(
+                          StringUtil.cat([
+                            prop_val("left", s *. width |> px),
+                            prop_val("top", height -. v *. height |> px),
+                          ]),
+                        ),
+                      ],
+                      [],
+                    ),
+                  ],
                 ),
-              ]
+              ];
             };
           let splice = splice_name =>
             Node.div(
@@ -995,7 +1072,7 @@ module ColorLivelit: LIVELIT = {
             [
               Node.div(
                 [Attr.classes(["hsv-picker"])],
-                saturation_box
+                sat_val_box
                 @ [
                   Node.div(
                     [Attr.classes(["hue-slider-wrapper"])],
