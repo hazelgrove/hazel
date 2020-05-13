@@ -46,6 +46,7 @@ type undo_history_group = {
 type t = {
   groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
+  /* mute the auto-scrolling when is_hover is true */
   is_hover: bool,
   show_hover_effect: bool,
   cur_group_id: int,
