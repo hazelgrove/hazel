@@ -1091,20 +1091,30 @@ module ColorLivelit: LIVELIT = {
                     ),
                     Attr.on_mousemove(evt =>
                       if (selecting_sat_val) {
-                        let offset_x = Js.Unsafe.get(evt, "offsetX");
-                        let offset_y = Js.Unsafe.get(evt, "offsetY");
+                        let (offset_x, offset_y) = {
+                          let target =
+                            Js.Opt.get(evt##.target, () =>
+                              failwith("no target")
+                            );
+                          if (target |> JSUtil.elem_has_cls("sat-val-box")) {
+                            (
+                              Float.of_int(Js.Unsafe.get(evt, "offsetX")),
+                              Float.of_int(Js.Unsafe.get(evt, "offsetY")),
+                            );
+                          } else {
+                            let box = JSUtil.force_get_parent_elem(target);
+                            let rect = box##getBoundingClientRect;
+                            let client_x = Float.of_int(evt##.clientX);
+                            let client_y = Float.of_int(evt##.clientY);
+                            (client_x -. rect##.left, client_y -. rect##.top);
+                          };
+                        };
                         trigger(
                           SelectSatVal(
+                            max(0.0, min(offset_x /. width, 1.0)),
                             max(
                               0.0,
-                              min(Float.of_int(offset_x) /. width, 1.0),
-                            ),
-                            max(
-                              0.0,
-                              min(
-                                (height -. Float.of_int(offset_y)) /. height,
-                                1.0,
-                              ),
+                              min((height -. offset_y) /. height, 1.0),
                             ),
                           ),
                         );
