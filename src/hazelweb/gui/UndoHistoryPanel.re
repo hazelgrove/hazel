@@ -288,93 +288,118 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
       | Term(cursor_term) =>
-        Vdom.(
-          Node.span(
-            [],
-            [indicate_words_view("delete "), cursor_term_view(cursor_term)],
-          )
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("delete "),
+                cursor_term_view(cursor_term),
+              ],
+            )
+          ),
         )
-      | Space => indicate_words_view("delete space")
-      | EmptyLine => indicate_words_view("delete empty line")
-      | TypeAnn => indicate_words_view("delete type annotation")
+      | Space => Some(indicate_words_view("delete space"))
+      | EmptyLine => Some(indicate_words_view("delete empty line"))
+      | TypeAnn => Some(indicate_words_view("delete type annotation"))
       }
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet =>
-        Vdom.(
-          Node.span(
-            [],
-            [
-              indicate_words_view("construct "),
-              code_keywords_view("let binding"),
-            ],
-          )
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("construct "),
+                code_keywords_view("let binding"),
+              ],
+            )
+          ),
         )
       | SCase =>
-        Vdom.(
-          Node.span(
-            [],
-            [indicate_words_view("construct "), code_keywords_view("case")],
-          )
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("construct "),
+                code_keywords_view("case"),
+              ],
+            )
+          ),
         )
       | SLam =>
-        Vdom.(
-          Node.span(
-            [],
-            [
-              indicate_words_view("construct "),
-              code_keywords_view("function"),
-            ],
-          )
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("construct "),
+                code_keywords_view("function"),
+              ],
+            )
+          ),
         )
       | _ =>
-        Vdom.(
-          Node.span(
-            [],
-            [
-              indicate_words_view("insert "),
-              action_shape_view(edit_detail),
-            ],
-          )
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("insert "),
+                action_shape_view(edit_detail),
+              ],
+            )
+          ),
         )
       }
     | Var(var_edit) =>
       switch (var_edit) {
       | Edit =>
-        Vdom.(
-          Node.span(
-            [],
-            [
-              indicate_words_view("edit "),
-              cursor_term_view(
-                undo_history_entry.cursor_term_info.cursor_term_after,
-              ),
-            ],
-          )
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("edit "),
+                cursor_term_view(
+                  undo_history_entry.cursor_term_info.cursor_term_after,
+                ),
+              ],
+            )
+          ),
         )
 
       | Insert =>
+        Some(
+          Vdom.(
+            Node.span(
+              [],
+              [
+                indicate_words_view("insert "),
+                cursor_term_view(
+                  undo_history_entry.cursor_term_info.cursor_term_after,
+                ),
+              ],
+            )
+          ),
+        )
+      }
+    | MatchRule =>
+      Some(
         Vdom.(
           Node.span(
             [],
             [
               indicate_words_view("insert "),
-              cursor_term_view(
-                undo_history_entry.cursor_term_info.cursor_term_after,
-              ),
+              code_keywords_view("case rule"),
             ],
           )
-        )
-      }
-    | MatchRule =>
-      Vdom.(
-        Node.span(
-          [],
-          [indicate_words_view("insert "), code_keywords_view("case rule")],
-        )
+        ),
       )
-    | Init => indicate_words_view("initial state")
-    | Ignore => Vdom.(Node.span([], []))
+    | Init => Some(indicate_words_view("initial state"))
+    | Ignore => None
     };
   };
 
@@ -532,20 +557,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    Vdom.(
-      Node.div(
-        if (is_latest_selected) {
-          [
-            Attr.classes(["the-history-title"]),
-            Attr.id("cur-selected-entry"),
-          ];
-        } else {
-          [Attr.classes(["the-history-title"])];
-        },
-        [
-          Node.div(
+    switch (history_entry_txt_view(undo_history_entry)) {
+    | None => Vdom.(Node.div([], []))
+    | Some(txt_view) =>
+      Vdom.(
+        Node.div(
+          if (is_latest_selected) {
             [
-              Attr.classes(["the-history-entry"]),
+              Attr.id("cur-selected-entry"),
+              Attr.classes(["the-history-title"]),
               Attr.on_mouseenter(_ =>
                 if (show_hover_effect) {
                   Vdom.Event.Many([
@@ -568,39 +588,70 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Vdom.Event.Many([]);
                 }
               ),
-            ],
+            ];
+          } else {
             [
-              history_typ_tag_view(undo_history_entry),
-              Node.div(
-                [
-                  Attr.classes(["history-entry-left"]),
-                  Attr.on_click(_ =>
-                    Vdom.Event.Many([
-                      inject(
-                        Update.Action.ShiftHistory(group_id, elt_id, true),
-                      ),
-                      inject(FocusCell),
-                    ])
-                  ),
-                ],
-                [history_entry_txt_view(undo_history_entry)],
+              Attr.classes(["the-history-title"]),
+              Attr.on_mouseenter(_ =>
+                if (show_hover_effect) {
+                  Vdom.Event.Many([
+                    inject(
+                      Update.Action.ShiftHistory(group_id, elt_id, false),
+                    ),
+                    inject(FocusCell),
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
               ),
-              Node.div(
-                [Attr.classes(["history-entry-right"])],
-                [
-                  timestamp_view(undo_history_entry),
-                  history_entry_tab_icon(
-                    group_id,
-                    has_hidden_part,
-                    is_expanded,
-                  ),
-                ],
+              Attr.on_mouseleave(_ =>
+                if (show_hover_effect) {
+                  Vdom.Event.Many([
+                    inject(Update.Action.RecoverHistory),
+                    inject(FocusCell),
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
               ),
-            ],
-          ),
-        ],
+            ];
+          },
+          [
+            Node.div(
+              [Attr.classes(["the-history-entry"])],
+              [
+                history_typ_tag_view(undo_history_entry),
+                Node.div(
+                  [
+                    Attr.classes(["history-entry-left"]),
+                    Attr.on_click(_ =>
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(group_id, elt_id, true),
+                        ),
+                        inject(FocusCell),
+                      ])
+                    ),
+                  ],
+                  [txt_view],
+                ),
+                Node.div(
+                  [Attr.classes(["history-entry-right"])],
+                  [
+                    timestamp_view(undo_history_entry),
+                    history_entry_tab_icon(
+                      group_id,
+                      has_hidden_part,
+                      is_expanded,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        )
       )
-    );
+    };
   };
 
   let history_hidden_entry_view =
@@ -611,20 +662,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) =>
-    Vdom.(
-      Node.div(
-        if (is_latest_selected) {
-          [
-            Attr.classes(["the-hidden-history-entry"]),
-            Attr.id("cur-selected-entry"),
-          ];
-        } else {
-          [Attr.classes(["the-hidden-history-entry"])];
-        },
-        [
-          Node.div(
+    switch (history_entry_txt_view(undo_history_entry)) {
+    | None => Vdom.(Node.div([], []))
+    | Some(txt_view) =>
+      Vdom.(
+        Node.div(
+          if (is_latest_selected) {
             [
-              Attr.classes(["the-history-entry"]),
+              Attr.classes(["the-hidden-history-entry"]),
+              Attr.id("cur-selected-entry"),
               Attr.on_mouseenter(_ =>
                 if (show_hover_effect) {
                   Vdom.Event.Many([
@@ -647,38 +693,68 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Vdom.Event.Many([]);
                 }
               ),
-            ],
+            ];
+          } else {
             [
-              history_typ_tag_view(undo_history_entry),
-              Node.div(
-                [
-                  Attr.classes(["history-entry-left"]),
-                  Attr.on_click(_ =>
-                    Vdom.Event.Many([
-                      inject(
-                        Update.Action.ShiftHistory(group_id, elt_id, true),
-                      ),
-                      inject(FocusCell),
-                    ])
-                  ),
-                ],
-                [
-                  Node.span(
-                    [Attr.classes(["the-hidden-history-txt"])],
-                    [history_entry_txt_view(undo_history_entry)],
-                  ),
-                ],
+              Attr.classes(["the-hidden-history-entry"]),
+              Attr.on_mouseenter(_ =>
+                if (show_hover_effect) {
+                  Vdom.Event.Many([
+                    inject(
+                      Update.Action.ShiftHistory(group_id, elt_id, false),
+                    ),
+                    inject(FocusCell),
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
               ),
-              Node.div(
-                [Attr.classes(["history-entry-right"])],
-                [timestamp_view(undo_history_entry)],
+              Attr.on_mouseleave(_ =>
+                if (show_hover_effect) {
+                  Vdom.Event.Many([
+                    inject(Update.Action.RecoverHistory),
+                    inject(FocusCell),
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
               ),
-            ],
-          ),
-        ],
+            ];
+          },
+          [
+            Node.div(
+              [Attr.classes(["the-history-entry"])],
+              [
+                history_typ_tag_view(undo_history_entry),
+                Node.div(
+                  [
+                    Attr.classes(["history-entry-left"]),
+                    Attr.on_click(_ =>
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(group_id, elt_id, true),
+                        ),
+                        inject(FocusCell),
+                      ])
+                    ),
+                  ],
+                  [
+                    Node.span(
+                      [Attr.classes(["the-hidden-history-txt"])],
+                      [txt_view],
+                    ),
+                  ],
+                ),
+                Node.div(
+                  [Attr.classes(["history-entry-right"])],
+                  [timestamp_view(undo_history_entry)],
+                ),
+              ],
+            ),
+          ],
+        )
       )
-    );
-
+    };
   let drop_prefix_undisplay_entries =
       (entries: list(undo_history_entry))
       : (option((undo_history_entry, int)), list(undo_history_entry)) => {
