@@ -14,7 +14,6 @@ let on_startup = (~schedule_action, _) => {
   let update_font_metrics = () => {
     let rect =
       JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
-
     schedule_action(
       Update.Action.UpdateFontMetrics({
         row_height: rect##.bottom -. rect##.top,
