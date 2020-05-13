@@ -521,14 +521,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
-  /*   let history_txt_view = (undo_history_entry: undo_history_entry) => {
-         Vdom.(
-           Node.span(
-             [Attr.classes(["his-txt"])],
-             [history_entry_txt_view(undo_history_entry)],
-           )
-         );
-       }; */
+
   let history_title_entry_view =
       (
         ~show_hover_effect: bool,
@@ -590,15 +583,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                 ],
-                [
-                  history_entry_txt_view(undo_history_entry),
-                  Node.text(
-                    " "
-                    ++ string_of_int(group_id)
-                    ++ " g] [e "
-                    ++ string_of_int(elt_id),
-                  ),
-                ],
+                [history_entry_txt_view(undo_history_entry)],
               ),
               Node.div(
                 [Attr.classes(["history-entry-right"])],
@@ -680,15 +665,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Node.span(
                     [Attr.classes(["the-hidden-history-txt"])],
-                    [
-                      history_entry_txt_view(undo_history_entry),
-                      Node.text(
-                        " "
-                        ++ string_of_int(group_id)
-                        ++ " g] [e "
-                        ++ string_of_int(elt_id),
-                      ),
-                    ],
+                    [history_entry_txt_view(undo_history_entry)],
                   ),
                 ],
               ),
