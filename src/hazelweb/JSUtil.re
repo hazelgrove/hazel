@@ -654,7 +654,7 @@ let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
     | "ArrowLeft"
     | "ArrowRight"
     | "ArrowUp"
-    | "ArrowDown" 
+    | "ArrowDown"
     | "PageUp"
     | "PageDown"
     | "Home"
