@@ -1415,12 +1415,13 @@ h1 {
 .the-hidden-history-entry {
   cursor: pointer;
   padding: 5px;
+  padding-left: 20px;
   font-size: 12pt;
   width: 100%;
   border: 1px outset #ffffff;
 }
 .the-hidden-history-txt{
-  padding-left: 20px;
+  
   display: inline;
   float: left;
 }
@@ -1469,6 +1470,7 @@ h1 {
   cursor: pointer;
   color: black;
   float: left;
+  padding-left: 10px;
 }
 
 .timestamp-txt span{
