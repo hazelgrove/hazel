@@ -123,6 +123,7 @@ and operands_of_affix =
   fun
   | E => []
   | A(_, seq) => operands(seq);
+
 /*
  let rec join = (operands: ListMinTwo.t('operand), op: 'op): t('operand, 'op) =>
    switch (operands) {
