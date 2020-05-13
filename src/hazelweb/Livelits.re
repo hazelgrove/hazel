@@ -986,7 +986,7 @@ module ColorLivelit: LIVELIT = {
       );
     };
 
-  let view = ({rgb: (r, g, b), hsv: _, is_open, selecting_sat_val}, trigger) => {
+  let view = ({rgb: (r, g, b), hsv, is_open, selecting_sat_val}, trigger) => {
     LivelitView.Inline(
       ({uhcode, dhcode}) => {
         open Vdom;
@@ -1063,8 +1063,10 @@ module ColorLivelit: LIVELIT = {
           let sat_val_box =
             switch (rgb_values) {
             | None => []
-            | Some((r, g, b) as rgb) =>
-              let (_h, s, v) = hsv_of_rgb(rgb);
+            | Some(_) =>
+              let (h, s, v) = hsv;
+              let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+              // let (_h, s, v) = hsv_of_rgb(rgb);
               let height = 150.0;
               let width = 200.0;
               let px = Printf.sprintf("%f0px");
@@ -1078,36 +1080,38 @@ module ColorLivelit: LIVELIT = {
                         prop_val("width", width |> px),
                         prop_val(
                           "background-color",
-                          Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+                          Printf.sprintf(
+                            "rgb(%f, %f, %f)",
+                            sat_r,
+                            sat_g,
+                            sat_b,
+                          ),
                         ),
                       ]),
                     ),
-                    ...if (selecting_sat_val) {
-                         [
-                           Attr.on_mousemove(evt => {
-                             let offset_x = Js.Unsafe.get(evt, "offsetX");
-                             let offset_y = Js.Unsafe.get(evt, "offsetY");
-                             trigger(
-                               SelectSatVal(
-                                 max(
-                                   0.0,
-                                   min(Float.of_int(offset_x) /. width, 1.0),
-                                 ),
-                                 max(
-                                   0.0,
-                                   min(
-                                     (height -. Float.of_int(offset_y))
-                                     /. height,
-                                     1.0,
-                                   ),
-                                 ),
-                               ),
-                             );
-                           }),
-                         ];
-                       } else {
-                         [];
-                       },
+                    Attr.on_mousemove(evt =>
+                      if (selecting_sat_val) {
+                        let offset_x = Js.Unsafe.get(evt, "offsetX");
+                        let offset_y = Js.Unsafe.get(evt, "offsetY");
+                        trigger(
+                          SelectSatVal(
+                            max(
+                              0.0,
+                              min(Float.of_int(offset_x) /. width, 1.0),
+                            ),
+                            max(
+                              0.0,
+                              min(
+                                (height -. Float.of_int(offset_y)) /. height,
+                                1.0,
+                              ),
+                            ),
+                          ),
+                        );
+                      } else {
+                        Event.Many([]);
+                      }
+                    ),
                   ],
                   [
                     Node.div(
