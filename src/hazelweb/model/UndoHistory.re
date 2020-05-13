@@ -654,7 +654,7 @@ let get_new_edit_action =
         | SOr => ConstructEdit(shape)
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
-          | Exp(_, uexp_operand) =>
+          | Exp(pos, uexp_operand) =>
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
@@ -692,17 +692,20 @@ let get_new_edit_action =
                 }
               }
             | Var(_, _, var) =>
-              let (left_var, _) = Var.split(3, var);
-              if (Var.is_let(left_var)) {
-                ConstructEdit(SLet);
-              } else {
-                let (left_var, _) = Var.split(4, var);
-                if (Var.is_case(left_var)) {
+              switch (pos) {
+              | OnText(index) =>
+                let (left_var, _) = Var.split(index, var);
+                if (Var.is_let(left_var)) {
+                  ConstructEdit(SLet);
+                } else if (Var.is_case(left_var)) {
                   ConstructEdit(SCase);
                 } else {
                   ConstructEdit(SOp(SSpace));
                 };
-              };
+              | OnDelim(_, _)
+              | OnOp(_) => ConstructEdit(SOp(SSpace))
+              }
+
             | ApPalette(_, _, _, _) =>
               failwith("ApPalette is not implemented")
             | _ => ConstructEdit(SOp(SSpace))
