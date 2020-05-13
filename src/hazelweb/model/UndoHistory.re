@@ -801,20 +801,21 @@ let push_edit_state =
   };
 };
 
-let rec shift_to_prev = (history: t): t => {
+let rec shift_to_prev_non_ignore =
+        (history: t, recent_non_ignore_history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
   /* shift to the previous state in the same group */
   switch (ZList.shift_next(cur_group.group_entries)) {
   | None =>
     /* if current group doesn't have previous state, shfit to the previous group */
     switch (ZList.shift_next(history.groups)) {
-    | None => history
+    | None => recent_non_ignore_history
     | Some(new_groups) =>
       let new_group = ZList.prj_z(new_groups);
       let new_entries = ZList.shift_begin(new_group.group_entries);
       if (ZList.prj_z(new_entries).edit_action == Ignore) {
         let new_history = {...history, groups: new_groups};
-        shift_to_prev(new_history);
+        shift_to_prev_non_ignore(new_history, recent_non_ignore_history);
       } else {
         let new_group' = {
           /* is_expanded=true because the selected group should be expanded */
@@ -839,7 +840,7 @@ let rec shift_to_prev = (history: t): t => {
       };
       let new_groups = ZList.replace_z(new_group, history.groups);
       let new_history = {...history, groups: new_groups};
-      shift_to_prev(new_history);
+      shift_to_prev_non_ignore(new_history, recent_non_ignore_history);
     } else {
       let new_group = {
         /* is_expanded=true because the selected group should be expanded */
@@ -857,20 +858,25 @@ let rec shift_to_prev = (history: t): t => {
   };
 };
 
-let rec shift_to_next = (history: t): t => {
+let shift_to_prev = (history: t): t => {
+  shift_to_prev_non_ignore(history, history);
+};
+
+let rec shift_to_next_non_ignore =
+        (history: t, recent_non_ignore_history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
   /* shift to the previous state in the same group */
   switch (ZList.shift_prev(cur_group.group_entries)) {
   | None =>
     /* if current group doesn't have previous state, shfit to the previous group */
     switch (ZList.shift_prev(history.groups)) {
-    | None => history
+    | None => recent_non_ignore_history
     | Some(new_groups) =>
       let new_group = ZList.prj_z(new_groups);
       let new_entries = ZList.shift_end(new_group.group_entries);
       if (ZList.prj_z(new_entries).edit_action == Ignore) {
         let new_history = {...history, groups: new_groups};
-        shift_to_next(new_history);
+        shift_to_next_non_ignore(new_history, recent_non_ignore_history);
       } else {
         let new_group' = {
           /* is_expanded=true because the selected group should be expanded */
@@ -900,7 +906,7 @@ let rec shift_to_next = (history: t): t => {
         cur_group_id: List.length(ZList.prj_prefix(new_groups)),
         cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
-      shift_to_next(new_history);
+      shift_to_next_non_ignore(new_history, recent_non_ignore_history);
     } else {
       let new_group = {
         /* is_expanded=true because the selected group should be expanded */
@@ -916,6 +922,10 @@ let rec shift_to_next = (history: t): t => {
       };
     }
   };
+};
+
+let shift_to_next = (history: t): t => {
+  shift_to_next_non_ignore(history, history);
 };
 let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
   let hidden_group = (group: undo_history_group) => {
