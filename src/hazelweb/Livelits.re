@@ -844,54 +844,6 @@ module ColorLivelit: LIVELIT = {
   let name = "$color";
   let expansion_ty = HTyp.Prod([Float, Float, Float]);
 
-  [@deriving sexp]
-  type model = {
-    r: SpliceName.t,
-    g: SpliceName.t,
-    b: SpliceName.t,
-    is_open: bool,
-  };
-  let init_model =
-    SpliceGenCmd.(
-      bind(
-        new_splice(
-          ~init_uhexp_gen=
-            u_gen => (UHExp.(Block.wrap(floatlit'(255.0))), u_gen),
-          HTyp.Float,
-        ),
-        r =>
-        bind(
-          new_splice(
-            ~init_uhexp_gen=
-              u_gen => (UHExp.(Block.wrap(floatlit'(0.0))), u_gen),
-            HTyp.Float,
-          ),
-          g =>
-          bind(
-            new_splice(
-              ~init_uhexp_gen=
-                u_gen => (UHExp.(Block.wrap(floatlit'(0.0))), u_gen),
-              HTyp.Float,
-            ),
-            b =>
-            return({r, g, b, is_open: false})
-          )
-        )
-      )
-    );
-  [@deriving sexp]
-  type action =
-    | Open
-    | Close;
-  type trigger = action => Vdom.Event.t;
-  let update = (m, action) =>
-    SpliceGenCmd.return(
-      switch (action) {
-      | Open => {...m, is_open: true}
-      | Close => {...m, is_open: false}
-      },
-    );
-
   // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L197
   let hsv_of_rgb = ((r, g, b)) => {
     let r = r /. 255.0;
@@ -919,7 +871,7 @@ module ColorLivelit: LIVELIT = {
   };
 
   // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L221
-  let _rgb_of_hsv = ((h, s, v)) => {
+  let rgb_of_hsv = ((h, s, v)) => {
     let c = v *. s;
     let x = c *. (1.0 -. Float.abs(Float.rem(h /. 60.0, 2.0) -. 1.0));
     let m = v -. c;
@@ -947,7 +899,94 @@ module ColorLivelit: LIVELIT = {
     );
   };
 
-  let view = ({r, g, b, is_open}, trigger) => {
+  [@deriving sexp]
+  type model = {
+    rgb: (SpliceName.t, SpliceName.t, SpliceName.t),
+    hsv: (float, float, float),
+    is_open: bool,
+    selecting_sat_val: bool,
+  };
+  let init_model = {
+    let (rval, gval, bval) as rgb_vals = (255.0, 0.0, 0.0);
+    let hsv = hsv_of_rgb(rgb_vals);
+    SpliceGenCmd.(
+      bind(
+        new_splice(
+          ~init_uhexp_gen=
+            u_gen => (UHExp.(Block.wrap(floatlit'(rval))), u_gen),
+          HTyp.Float,
+        ),
+        r =>
+        bind(
+          new_splice(
+            ~init_uhexp_gen=
+              u_gen => (UHExp.(Block.wrap(floatlit'(gval))), u_gen),
+            HTyp.Float,
+          ),
+          g =>
+          bind(
+            new_splice(
+              ~init_uhexp_gen=
+                u_gen => (UHExp.(Block.wrap(floatlit'(bval))), u_gen),
+              HTyp.Float,
+            ),
+            b =>
+            return({
+              rgb: (r, g, b),
+              hsv,
+              is_open: false,
+              selecting_sat_val: false,
+            })
+          )
+        )
+      )
+    );
+  };
+
+  [@deriving sexp]
+  type action =
+    | Open
+    | Close
+    | StartSelectingSatVal
+    | StopSelectingSatVal
+    | SelectSatVal(float, float);
+  type trigger = action => Vdom.Event.t;
+  let update = (m, action) =>
+    switch (action) {
+    | Open => SpliceGenCmd.return({...m, is_open: true})
+    | Close => SpliceGenCmd.return({...m, is_open: false})
+    | StartSelectingSatVal =>
+      SpliceGenCmd.return({...m, selecting_sat_val: true})
+    | StopSelectingSatVal =>
+      SpliceGenCmd.return({...m, selecting_sat_val: false})
+    | SelectSatVal(s, v) =>
+      let (h, _, _) = m.hsv;
+      let (r, g, b) = m.rgb;
+      let (rval, gval, bval) = rgb_of_hsv((h, s, v));
+      SpliceGenCmd.(
+        bind(
+          map_splice(r, (_, u_gen) =>
+            ((HTyp.Float, UHExp.(Block.wrap(floatlit'(rval)))), u_gen)
+          ),
+          _ =>
+          bind(
+            map_splice(g, (_, u_gen) =>
+              ((HTyp.Float, UHExp.(Block.wrap(floatlit'(gval)))), u_gen)
+            ),
+            _ =>
+            bind(
+              map_splice(b, (_, u_gen) =>
+                ((HTyp.Float, UHExp.(Block.wrap(floatlit'(bval)))), u_gen)
+              ),
+              _ =>
+              return({...m, hsv: (h, s, v)})
+            )
+          )
+        )
+      );
+    };
+
+  let view = ({rgb: (r, g, b), hsv: _, is_open, selecting_sat_val}, trigger) => {
     LivelitView.Inline(
       ({uhcode, dhcode}) => {
         open Vdom;
@@ -1043,6 +1082,32 @@ module ColorLivelit: LIVELIT = {
                         ),
                       ]),
                     ),
+                    ...if (selecting_sat_val) {
+                         [
+                           Attr.on_mousemove(evt => {
+                             let offset_x = Js.Unsafe.get(evt, "offsetX");
+                             let offset_y = Js.Unsafe.get(evt, "offsetY");
+                             trigger(
+                               SelectSatVal(
+                                 max(
+                                   0.0,
+                                   min(Float.of_int(offset_x) /. width, 1.0),
+                                 ),
+                                 max(
+                                   0.0,
+                                   min(
+                                     (height -. Float.of_int(offset_y))
+                                     /. height,
+                                     1.0,
+                                   ),
+                                 ),
+                               ),
+                             );
+                           }),
+                         ];
+                       } else {
+                         [];
+                       },
                   ],
                   [
                     Node.div(
@@ -1054,6 +1119,8 @@ module ColorLivelit: LIVELIT = {
                             prop_val("top", height -. v *. height |> px),
                           ]),
                         ),
+                        Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
+                        Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
                       ],
                       [],
                     ),
@@ -1121,7 +1188,7 @@ module ColorLivelit: LIVELIT = {
     );
   };
 
-  let expand = ({r, g, b, _}) => {
+  let expand = ({rgb: (r, g, b), _}) => {
     let triple_seq =
       Seq.mk(
         _to_uhvar(r),
