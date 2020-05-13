@@ -997,9 +997,19 @@ module ColorLivelit: LIVELIT = {
                 [Attr.classes(["hsv-picker"])],
                 saturation_box
                 @ [
-                  Node.input(
-                    [Attr.type_("range"), Attr.classes(["hue-slider"])],
-                    [],
+                  Node.div(
+                    [Attr.classes(["hue-slider-wrapper"])],
+                    [
+                      Node.input(
+                        [
+                          Attr.classes(["hue-slider"]),
+                          Attr.type_("range"),
+                          Attr.create("min", "0"),
+                          Attr.create("max", "360"),
+                        ],
+                        [],
+                      ),
+                    ],
                   ),
                 ],
               ),
