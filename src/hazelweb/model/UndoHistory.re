@@ -666,6 +666,7 @@ let get_new_edit_action =
                     /* the caret is at the end of "let" */
                     ConstructEdit(SLet);
                   } else {
+                    JSUtil.log("pos!=3");
                     ConstructEdit(SOp(SSpace));
                   }
                 | OnDelim(_, _)
@@ -689,11 +690,29 @@ let get_new_edit_action =
                 | OnOp(_) => ConstructEdit(SOp(SSpace))
                 }
               }
+            | Var(_, _, var) =>
+              let (left_var, _) = Var.split(3, var);
+              JSUtil.log("left var1:" ++ left_var);
+              if (Var.is_let(left_var)) {
+                ConstructEdit(SLet);
+              } else {
+                let (left_var, _) = Var.split(4, var);
+                JSUtil.log("left var2:" ++ left_var);
+                if (Var.is_case(left_var)) {
+                  ConstructEdit(SCase);
+                } else {
+                  ConstructEdit(SOp(SSpace));
+                };
+              };
             | ApPalette(_, _, _, _) =>
               failwith("ApPalette is not implemented")
-            | _ => ConstructEdit(SOp(SSpace))
+            | _ =>
+              JSUtil.log("not Exp var");
+              ConstructEdit(SOp(SSpace));
             }
-          | _ => ConstructEdit(SOp(SSpace))
+          | _ =>
+            JSUtil.log("not exp");
+            ConstructEdit(SOp(SSpace));
           }
         }
 
