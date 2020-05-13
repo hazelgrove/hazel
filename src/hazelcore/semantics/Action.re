@@ -2172,19 +2172,25 @@ module Exp = {
     | ([ExpLine(OpSeq(_, S(EmptyHole(_), E)))], []) =>
       let zscrut = scrut |> ZExp.place_before;
       let (rule, u_gen) = u_gen |> UHExp.empty_rule;
-      (ZExp.CaseZE(NotInHole, zscrut, [rule]), u_gen);
+      (ZExp.CaseZE(StandardErrStatus(NotInHole), zscrut, [rule]), u_gen);
     | (_, []) =>
       let (zrule, u_gen) = u_gen |> ZExp.empty_zrule;
-      (ZExp.CaseZR(NotInHole, scrut, ([], zrule, [])), u_gen);
+      (
+        ZExp.CaseZR(StandardErrStatus(NotInHole), scrut, ([], zrule, [])),
+        u_gen,
+      );
     | ([ExpLine(OpSeq(_, S(EmptyHole(_), E)))], [_, ..._]) =>
       let zscrut = scrut |> ZExp.place_before;
       let (p_hole, u_gen) = u_gen |> UHPat.new_EmptyHole;
       let rule = UHExp.Rule(OpSeq.wrap(p_hole), suffix);
-      (ZExp.CaseZE(NotInHole, zscrut, [rule]), u_gen);
+      (ZExp.CaseZE(StandardErrStatus(NotInHole), zscrut, [rule]), u_gen);
     | (_, [_, ..._]) =>
       let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       let zrule = ZExp.RuleZP(ZOpSeq.wrap(zp_hole), suffix);
-      (ZExp.CaseZR(NotInHole, scrut, ([], zrule, [])), u_gen);
+      (
+        ZExp.CaseZR(StandardErrStatus(NotInHole), scrut, ([], zrule, [])),
+        u_gen,
+      );
     };
   };
 
@@ -3682,14 +3688,14 @@ module Exp = {
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_ze =
               ZExp.ZBlock.wrap(
-                ZExp.set_err_status_zoperand(
-                  InHole(InconsistentBranches(rule_types), u),
-                  CaseZE(NotInHole, zscrut, rules),
-                ),
+                CaseZE(InconsistentBranches(rule_types, u), zscrut, rules),
               );
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
           | Some(ty) =>
-            let new_ze = ZExp.ZBlock.wrap(CaseZE(NotInHole, zscrut, rules));
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+              );
             Succeeded(SynDone((new_ze, ty, u_gen)));
           };
         }
@@ -3710,15 +3716,18 @@ module Exp = {
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_ze =
               ZExp.ZBlock.wrap(
-                ZExp.set_err_status_zoperand(
-                  InHole(InconsistentBranches(rule_types), u),
-                  CaseZR(NotInHole, scrut, new_zrules),
+                CaseZR(
+                  InconsistentBranches(rule_types, u),
+                  scrut,
+                  new_zrules,
                 ),
               );
             Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
           | Some(ty) =>
             let new_ze =
-              ZExp.ZBlock.wrap(CaseZR(NotInHole, scrut, new_zrules));
+              ZExp.ZBlock.wrap(
+                CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+              );
             Succeeded(SynDone((new_ze, ty, u_gen)));
           };
         }
@@ -4995,7 +5004,10 @@ module Exp = {
         | Succeeded((zscrut, ty1, u_gen)) =>
           let (rules, u_gen) =
             Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-          let new_ze = ZExp.ZBlock.wrap(CaseZE(NotInHole, zscrut, rules));
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+            );
           Succeeded(AnaDone((new_ze, u_gen)));
         }
       }
@@ -5009,7 +5021,9 @@ module Exp = {
           ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
         | Succeeded((new_zrules, u_gen)) =>
           let new_ze =
-            ZExp.ZBlock.wrap(CaseZR(NotInHole, scrut, new_zrules));
+            ZExp.ZBlock.wrap(
+              CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+            );
           Succeeded(AnaDone((new_ze, u_gen)));
         }
       }

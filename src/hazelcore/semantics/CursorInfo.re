@@ -355,7 +355,6 @@ module Pat = {
       // recurse toward cursor
       switch (skel) {
       | Placeholder(_) => None
-      | BinOp(InHole(InconsistentBranches(_), _), _, _, _) => None
       | BinOp(InHole(_), _, _, _) =>
         syn_cursor_info_skel(~steps, ctx, skel, zseq)
       | BinOp(_, Comma, _, _) =>
@@ -419,13 +418,13 @@ module Pat = {
             ),
           )
         };
-      | Wild(InHole(WrongLength | InconsistentBranches(_), _))
-      | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-      | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-      | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-      | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-      | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) => None
+      | Wild(InHole(WrongLength, _))
+      | Var(InHole(WrongLength, _), _, _)
+      | IntLit(InHole(WrongLength, _), _)
+      | FloatLit(InHole(WrongLength, _), _)
+      | BoolLit(InHole(WrongLength, _), _)
+      | ListNil(InHole(WrongLength, _))
+      | Inj(InHole(WrongLength, _), _, _) => None
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaKeyword(ty, k), ctx)))
       // not in hole
@@ -453,7 +452,7 @@ module Pat = {
              CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
            )
       }
-    | InjZ(InHole(WrongLength | InconsistentBranches(_), _), _, _) => None
+    | InjZ(InHole(WrongLength, _), _, _) => None
     | InjZ(InHole(TypeInconsistent, _), _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | InjZ(NotInHole, position, zbody) =>
@@ -630,7 +629,6 @@ module Exp = {
       // recurse toward cursor
       switch (skel) {
       | Placeholder(_) => None
-      | BinOp(InHole(InconsistentBranches(_), _), _, _, _) => None
       | BinOp(_, Comma, _, _) =>
         failwith(
           "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
@@ -671,8 +669,7 @@ module Exp = {
           switch (cursor_on_outer_expr(zoperand)) {
           | None =>
             syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
-          | Some((InHole(WrongLength | InconsistentBranches(_), _), _)) =>
-            None
+          | Some((InHole(WrongLength, _), _)) => None
           | Some((InHole(TypeInconsistent, _), _)) =>
             let operand_nih =
               zoperand
@@ -742,7 +739,7 @@ module Exp = {
     | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
       Some(mk(SynKeyword(k), ctx))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
-    | CursorE(_, Case(InHole(InconsistentBranches(rule_types), _), _, _)) =>
+    | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
       Some(mk(SynInconsistentBranches(rule_types), ctx))
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
@@ -914,7 +911,6 @@ module Exp = {
       // recurse toward cursor
       switch (skel) {
       | Placeholder(_) => None
-      | BinOp(InHole(InconsistentBranches(_), _), _, _, _) => None
       | BinOp(InHole(_), _, _, _) => syn_go(skel)
       | BinOp(_, Comma, _, _) =>
         failwith(
@@ -971,7 +967,7 @@ module Exp = {
       | ListNil(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
-      | Case(InHole(TypeInconsistent, _), _, _)
+      | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
       | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
         let operand' =
           zoperand
@@ -981,16 +977,19 @@ module Exp = {
         | None => None
         | Some(ty') => Some(mk(AnaTypeInconsistent(ty, ty'), ctx))
         };
-      | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-      | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-      | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-      | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-      | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-      | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-      | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-        None
+      | Var(InHole(WrongLength, _), _, _)
+      | IntLit(InHole(WrongLength, _), _)
+      | FloatLit(InHole(WrongLength, _), _)
+      | BoolLit(InHole(WrongLength, _), _)
+      | ListNil(InHole(WrongLength, _))
+      | Lam(InHole(WrongLength, _), _, _, _)
+      | Inj(InHole(WrongLength, _), _, _)
+      | Case(
+          StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+          _,
+          _,
+        )
+      | ApPalette(InHole(WrongLength, _), _, _, _) => None
       /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
@@ -1004,7 +1003,8 @@ module Exp = {
         }
       | ListNil(NotInHole)
       | Inj(NotInHole, _, _)
-      | Case(NotInHole, _, _) => Some(mk(Analyzed(ty), ctx))
+      | Case(StandardErrStatus(NotInHole), _, _) =>
+        Some(mk(Analyzed(ty), ctx))
       | Parenthesized(body) =>
         Statics.Exp.ana(ctx, body, ty)
         |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
@@ -1026,20 +1026,29 @@ module Exp = {
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
     /* zipper in hole */
-    | LamZP(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | LamZA(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | LamZE(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | InjZ(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | CaseZE(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | CaseZR(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | ApPaletteZ(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      None
+    | LamZP(InHole(WrongLength, _), _, _, _)
+    | LamZA(InHole(WrongLength, _), _, _, _)
+    | LamZE(InHole(WrongLength, _), _, _, _)
+    | InjZ(InHole(WrongLength, _), _, _)
+    | CaseZE(
+        StandardErrStatus(InHole(WrongLength, _)) |
+        InconsistentBranches(_, _),
+        _,
+        _,
+      )
+    | CaseZR(
+        StandardErrStatus(InHole(WrongLength, _)) |
+        InconsistentBranches(_, _),
+        _,
+        _,
+      )
+    | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
     | LamZP(InHole(TypeInconsistent, _), _, _, _)
     | LamZA(InHole(TypeInconsistent, _), _, _, _)
     | LamZE(InHole(TypeInconsistent, _), _, _, _)
     | InjZ(InHole(TypeInconsistent, _), _, _)
-    | CaseZE(InHole(TypeInconsistent, _), _, _)
-    | CaseZR(InHole(TypeInconsistent, _), _, _)
+    | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     /* zipper not in hole */
@@ -1087,9 +1096,9 @@ module Exp = {
           InjSide.pick(position, ty1, ty2),
         )
       }
-    | CaseZE(NotInHole, zscrut, _) =>
+    | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-    | CaseZR(NotInHole, scrut, (prefix, zrule, _)) =>
+    | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => None
       | Some(ty1) =>

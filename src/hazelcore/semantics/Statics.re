@@ -42,7 +42,6 @@ module Pat = {
     | Placeholder(n) =>
       let pn = seq |> Seq.nth_operand(n);
       syn_operand(ctx, pn);
-    | BinOp(InHole(InconsistentBranches(_), _), _, _, _) => None
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_skel(ctx, skel_not_in_hole, seq)) {
@@ -94,13 +93,13 @@ module Pat = {
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand')
       |> OptUtil.map(((_, gamma)) => (HTyp.Hole, gamma));
-    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) => None
+    | Wild(InHole(WrongLength, _))
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | Wild(NotInHole) => Some((Hole, ctx))
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -137,7 +136,7 @@ module Pat = {
       switch (opseq |> UHPat.get_err_status_opseq) {
       | NotInHole
       | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength | InconsistentBranches(_), _) =>
+      | InHole(WrongLength, _) =>
         let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
       }
@@ -156,8 +155,7 @@ module Pat = {
       (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
       : option(Contexts.t) =>
     switch (skel) {
-    | BinOp(_, Comma, _, _)
-    | BinOp(InHole(InconsistentBranches(_), _), _, _, _) => None
+    | BinOp(_, Comma, _, _) => None
     | BinOp(InHole(WrongLength, _), _, _, _) =>
       failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
     | Placeholder(n) =>
@@ -199,13 +197,13 @@ module Pat = {
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
-    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) =>
+    | Wild(InHole(WrongLength, _))
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -320,7 +318,7 @@ module Pat = {
     let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
-      | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      | BinOp(InHole(WrongLength, _), _, _, _) =>
         failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
       | Placeholder(n') =>
         assert(n == n');
@@ -843,7 +841,6 @@ module Exp = {
     | Placeholder(n) =>
       let en = Seq.nth_operand(n, seq);
       syn_operand(ctx, en);
-    | BinOp(InHole(InconsistentBranches(_), _), _, _, _) => None
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
@@ -915,21 +912,20 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
-    | Case(InHole(TypeInconsistent, _), _, _)
+    | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength, _), _, _)
-    | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      None
-    | Case(InHole(InconsistentBranches(rule_types), _), scrut, rules) =>
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Lam(InHole(WrongLength, _), _, _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+    | ApPalette(InHole(WrongLength, _), _, _, _) => None
+    | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
       switch (syn(ctx, scrut)) {
       | None => None
       | Some(pat_ty) =>
@@ -982,7 +978,7 @@ module Exp = {
         | R => Some(Sum(Hole, ty))
         }
       }
-    | Case(NotInHole, scrut, rules) =>
+    | Case(StandardErrStatus(NotInHole), scrut, rules) =>
       switch (syn(ctx, scrut)) {
       | None => None
       | Some(b_ty) => syn_rules(ctx, rules, b_ty)
@@ -1075,7 +1071,7 @@ module Exp = {
       switch (opseq |> UHExp.get_err_status_opseq) {
       | NotInHole
       | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength | InconsistentBranches(_), _) =>
+      | InHole(WrongLength, _) =>
         let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
       }
@@ -1089,7 +1085,7 @@ module Exp = {
       : option(unit) =>
     switch (skel) {
     | BinOp(_, Comma, _, _)
-    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+    | BinOp(InHole(WrongLength, _), _, _, _) =>
       failwith(__LOC__ ++ ": tuples handled at opseq level")
     | Placeholder(n) =>
       let en = Seq.nth_operand(n, seq);
@@ -1133,22 +1129,27 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
-    | Case(InHole(TypeInconsistent, _), _, _)
+    | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
       | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
       };
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Lam(InHole(WrongLength, _), _, _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(
+        StandardErrStatus(InHole(WrongLength, _)) |
+        InconsistentBranches(_, _),
+        _,
+        _,
+      )
+    | ApPalette(InHole(WrongLength, _), _, _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */
     | ListNil(NotInHole) =>
@@ -1197,7 +1198,7 @@ module Exp = {
       | None => None
       | Some((ty1, ty2)) => ana(ctx, body, InjSide.pick(side, ty1, ty2))
       }
-    | Case(NotInHole, scrut, rules) =>
+    | Case(StandardErrStatus(NotInHole), scrut, rules) =>
       switch (syn(ctx, scrut)) {
       | None => None
       | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
@@ -1357,7 +1358,7 @@ module Exp = {
     let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
-      | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      | BinOp(InHole(WrongLength, _), _, _, _) =>
         failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
       | Placeholder(n') =>
         assert(n == n');
@@ -1728,15 +1729,12 @@ module Exp = {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (
-          UHExp.set_err_status_operand(
-            InHole(InconsistentBranches(rule_types), u),
-            e,
-          ),
+          Case(InconsistentBranches(rule_types, u), scrut, rules),
           HTyp.Hole,
           u_gen,
         );
       | Some(common_type) => (
-          Case(NotInHole, scrut, rules),
+          Case(StandardErrStatus(NotInHole), scrut, rules),
           common_type,
           u_gen,
         )
@@ -2230,7 +2228,7 @@ module Exp = {
           scrut_ty,
           ty,
         );
-      (Case(NotInHole, scrut, rules), u_gen);
+      (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
     | ApPalette(_, _, _, _) =>
       let (e', ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

@@ -32,8 +32,7 @@ module Pat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
-    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | BinOp(NotInHole, Comma, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
       | DoesNotExpand => DoesNotExpand
@@ -88,14 +87,13 @@ module Pat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
-    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) =>
-      DoesNotExpand
+    | Wild(InHole(WrongLength, _))
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = DHPat.EmptyHole(u, 0);
@@ -211,8 +209,7 @@ module Pat = {
       | _ =>
         switch (opseq |> UHPat.get_err_status_opseq) {
         | NotInHole
-        | InHole(TypeInconsistent | InconsistentBranches(_), _) =>
-          DoesNotExpand
+        | InHole(TypeInconsistent, _) => DoesNotExpand
         | InHole(WrongLength as reason, u) =>
           switch (
             syn_expand_opseq(
@@ -246,8 +243,7 @@ module Pat = {
       : expand_result =>
     switch (skel) {
     | BinOp(_, Comma, _, _)
-    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | Placeholder(n) =>
       let pn = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, pn, ty);
@@ -311,14 +307,13 @@ module Pat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       };
-    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) =>
-      DoesNotExpand
+    | Wild(InHole(WrongLength, _))
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = DHPat.EmptyHole(u, 0);
@@ -475,10 +470,15 @@ module Exp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       Pair(d3, d4);
-    | Case(d3, rules, n) =>
+    | ConsistentCase(Case(d3, rules, n)) =>
       let d3 = subst_var(d1, x, d3);
       let rules = subst_var_rules(d1, x, rules);
-      Case(d3, rules, n);
+      ConsistentCase(Case(d3, rules, n));
+    | InconsistentBranches(u, i, sigma, Case(d3, rules, n)) =>
+      let d3 = subst_var(d1, x, d3);
+      let rules = subst_var_rules(d1, x, rules);
+      let sigma' = subst_var_env(d1, x, sigma);
+      InconsistentBranches(u, i, sigma', Case(d3, rules, n));
     | EmptyHole(u, i, sigma) =>
       let sigma' = subst_var_env(d1, x, sigma);
       EmptyHole(u, i, sigma');
@@ -549,7 +549,7 @@ module Exp = {
     | (_, Ap(_, _)) => Indet
     | (_, BinIntOp(_, _, _) | And(_, _) | Or(_, _)) => Indet
     | (_, BinFloatOp(_, _, _)) => Indet
-    | (_, Case(_, _, _)) => Indet
+    | (_, ConsistentCase(Case(_, _, _))) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
       if (b1 == b2) {
         Matches(Environment.empty);
@@ -681,7 +681,8 @@ module Exp = {
     | Cons(_, _) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
-    | Case(_, _, _) => Indet
+    | ConsistentCase(_)
+    | InconsistentBranches(_) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
@@ -737,7 +738,8 @@ module Exp = {
     | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
-    | Case(_, _, _) => Indet
+    | ConsistentCase(_)
+    | InconsistentBranches(_) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
@@ -793,7 +795,8 @@ module Exp = {
     | ListNil(_) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
-    | Case(_, _, _) => Indet
+    | ConsistentCase(_)
+    | InconsistentBranches(_) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
@@ -926,8 +929,7 @@ module Exp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
       | None => DoesNotExpand
@@ -1045,7 +1047,7 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _)
+    | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
@@ -1060,21 +1062,16 @@ module Exp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength, _), _, _)
-    | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      DoesNotExpand
-    | Case(
-        InHole(InconsistentBranches(rule_types) as reason, u),
-        scrut,
-        rules,
-      ) =>
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Lam(InHole(WrongLength, _), _, _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, pat_ty, delta) =>
@@ -1106,7 +1103,7 @@ module Exp = {
               (u, (ExpressionHole, Hole, gamma)),
             );
           let d = DHExp.Case(d1, drs, 0);
-          Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+          Expands(InconsistentBranches(u, 0, sigma, d), Hole, delta);
         };
       }
     /* not in hole */
@@ -1178,14 +1175,14 @@ module Exp = {
           };
         Expands(d, ty, delta);
       }
-    | Case(NotInHole, scrut, rules) =>
+    | Case(StandardErrStatus(NotInHole), scrut, rules) =>
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty, delta) =>
         switch (syn_expand_rules(ctx, delta, rules, ty)) {
         | None => DoesNotExpand
         | Some((drs, glb, delta)) =>
-          let d = DHExp.Case(d1, drs, 0);
+          let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
           Expands(d, glb, delta);
         }
       }
@@ -1363,8 +1360,7 @@ module Exp = {
       | _ =>
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
-        | InHole(TypeInconsistent | InconsistentBranches(_), _) =>
-          DoesNotExpand
+        | InHole(TypeInconsistent, _) => DoesNotExpand
         | InHole(WrongLength as reason, u) =>
           switch (
             syn_expand_opseq(
@@ -1399,8 +1395,7 @@ module Exp = {
       : expand_result =>
     switch (skel) {
     | BinOp(_, Comma, _, _)
-    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | Placeholder(n) =>
       let en = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, en, ty);
@@ -1469,7 +1464,7 @@ module Exp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _)
+    | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
@@ -1481,16 +1476,20 @@ module Exp = {
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | IntLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | FloatLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
-    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
-    | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
-    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
-    | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
-      DoesNotExpand
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Lam(InHole(WrongLength, _), _, _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(
+        StandardErrStatus(InHole(WrongLength, _)) |
+        InconsistentBranches(_, _),
+        _,
+        _,
+      )
+    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1564,14 +1563,14 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | Case(NotInHole, scrut, rules) =>
+    | Case(StandardErrStatus(NotInHole), scrut, rules) =>
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
         switch (ana_expand_rules(ctx, delta, rules, ty1, ty)) {
         | None => DoesNotExpand
         | Some((drs, delta)) =>
-          let d = DHExp.Case(d1, drs, 0);
+          let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
           Expands(d, ty, delta);
         }
       }
@@ -1684,10 +1683,15 @@ module Exp = {
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (Cons(d1, d2), hii);
-    | Case(d1, rules, n) =>
+    | ConsistentCase(Case(d1, rules, n)) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (drules, hii) = renumber_result_only_rules(path, hii, rules);
-      (Case(d1, drules, n), hii);
+      (ConsistentCase(Case(d1, drules, n)), hii);
+    | InconsistentBranches(u, _, sigma, Case(d1, rules, n)) =>
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (drules, hii) = renumber_result_only_rules(path, hii, rules);
+      (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
     | EmptyHole(u, _, sigma) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (EmptyHole(u, i, sigma), hii);
@@ -1780,10 +1784,16 @@ module Exp = {
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (Cons(d1, d2), hii);
-    | Case(d1, rules, n) =>
+    | ConsistentCase(Case(d1, rules, n)) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
-      (Case(d1, rules, n), hii);
+      (ConsistentCase(Case(d1, rules, n)), hii);
+    | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
+      (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
     | EmptyHole(u, i, sigma) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
@@ -2102,7 +2112,10 @@ module Evaluator = {
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
       | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
       }
-    | Case(d1, rules, n) => evaluate_case(d1, rules, n)
+    | ConsistentCase(Case(d1, rules, n)) =>
+      evaluate_case(None, d1, rules, n)
+    | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+      evaluate_case(Some((u, i, sigma)), d1, rules, n)
     | EmptyHole(_) => Indet(d)
     | NonEmptyHole(reason, u, i, sigma, d1) =>
       switch (evaluate(d1)) {
@@ -2207,19 +2220,42 @@ module Evaluator = {
       }
     }
   and evaluate_case =
-      (scrut: DHExp.t, rules: list(DHExp.rule), current_rule_index: int)
+      (
+        inconsistent_info,
+        scrut: DHExp.t,
+        rules: list(DHExp.rule),
+        current_rule_index: int,
+      )
       : result =>
     switch (evaluate(scrut)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(scrut)
     | Indet(scrut) =>
       switch (List.nth_opt(rules, current_rule_index)) {
-      | None => Indet(Case(scrut, rules, current_rule_index))
+      | None =>
+        let case = DHExp.Case(scrut, rules, current_rule_index);
+        switch (inconsistent_info) {
+        | None => Indet(ConsistentCase(case))
+        | Some((u, i, sigma)) =>
+          Indet(InconsistentBranches(u, i, sigma, case))
+        };
       | Some(Rule(dp, d)) =>
         switch (Exp.matches(dp, scrut)) {
-        | Indet => Indet(Case(scrut, rules, current_rule_index))
+        | Indet =>
+          let case = DHExp.Case(scrut, rules, current_rule_index);
+          switch (inconsistent_info) {
+          | None => Indet(ConsistentCase(case))
+          | Some((u, i, sigma)) =>
+            Indet(InconsistentBranches(u, i, sigma, case))
+          };
         | Matches(env) => evaluate(Exp.subst(env, d))
-        | DoesNotMatch => evaluate_case(scrut, rules, current_rule_index + 1)
+        | DoesNotMatch =>
+          evaluate_case(
+            inconsistent_info,
+            scrut,
+            rules,
+            current_rule_index + 1,
+          )
         }
       }
     };

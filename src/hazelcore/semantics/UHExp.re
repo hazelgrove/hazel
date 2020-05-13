@@ -75,7 +75,7 @@ and operand =
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
-  | Case(ErrStatus.t, t, rules)
+  | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
@@ -122,7 +122,13 @@ let lam =
     : operand =>
   Lam(err, p, ann, body);
 
-let case = (~err: ErrStatus.t=NotInHole, scrut: t, rules: rules): operand =>
+let case =
+    (
+      ~err: CaseErrStatus.t=StandardErrStatus(NotInHole),
+      scrut: t,
+      rules: rules,
+    )
+    : operand =>
   Case(err, scrut, rules);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
@@ -232,8 +238,9 @@ and get_err_status_operand =
   | ListNil(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
-  | Case(err, _, _)
+  | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
+  | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -255,7 +262,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
-  | Case(_, scrut, rules) => Case(err, scrut, rules)
+  | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -288,28 +295,23 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _)
+  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
-  | Var(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
-  | IntLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
-  | FloatLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
-  | BoolLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
-  | ListNil(NotInHole | InHole(WrongLength | InconsistentBranches(_), _))
-  | Lam(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
-      _,
+  | Var(NotInHole | InHole(WrongLength, _), _, _)
+  | IntLit(NotInHole | InHole(WrongLength, _), _)
+  | FloatLit(NotInHole | InHole(WrongLength, _), _)
+  | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | ListNil(NotInHole | InHole(WrongLength, _))
+  | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
+  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | Case(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
       _,
       _,
     )
-  | Inj(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
-  | Case(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
-  | ApPalette(
-      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
-      _,
-      _,
-      _,
-    ) =>
+  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -395,8 +397,10 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     }
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
-  | Case(InHole(_), _, _) => false
-  | Case(NotInHole, body, _) => is_complete(body, check_type_holes)
+  | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
+    false
+  | Case(StandardErrStatus(NotInHole), body, _) =>
+    is_complete(body, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
