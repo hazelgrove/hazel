@@ -637,6 +637,18 @@ module Pat = {
             ty,
           );
         (OpSeq.wrap(operand), ctx, u_gen);
+      | ([BinOp(_)], _) =>
+        let (skel, seq, ctx, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            var_set,
+            ~renumber_empty_holes,
+            skel,
+            seq,
+            ty,
+          );
+        (OpSeq.OpSeq(skel, seq), ctx, u_gen);
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -1021,6 +1033,12 @@ module Exp = {
       | Some(_) =>
         ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Bool)
       }
+    | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
+      switch (ana_skel(ctx, skel1, seq, Float)) {
+      | None => None
+      | Some(_) =>
+        ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Bool)
+      }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
       | None => None
@@ -1198,6 +1216,9 @@ module Exp = {
         And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
         GreaterThan |
         Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
         Space,
         _,
         _,
@@ -1383,13 +1404,27 @@ module Exp = {
         ) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Int) : ana_go(skel2, Int)
-      | BinOp(NotInHole, FPlus | FMinus | FTimes, skel1, skel2) =>
+      | BinOp(
+          NotInHole,
+          FPlus | FMinus | FTimes | FLessThan | FGreaterThan,
+          skel1,
+          skel2,
+        ) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Float) : ana_go(skel2, Float)
       | BinOp(NotInHole, And | Or, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
       | BinOp(NotInHole, Equals, skel1, skel2) =>
+        if (n <= Skel.rightmost_tm_index(skel1)) {
+          go(skel1);
+        } else {
+          switch (syn_skel(ctx, skel1, seq)) {
+          | None => None
+          | Some(ty1) => ana_go(skel2, ty1)
+          };
+        }
+      | BinOp(NotInHole, FEquals, skel1, skel2) =>
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
@@ -1459,6 +1494,9 @@ module Exp = {
           And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
           GreaterThan |
           Equals |
+          FLessThan |
+          FGreaterThan |
+          FEquals |
           Space,
           _,
           _,
@@ -1667,6 +1705,26 @@ module Exp = {
           skel2,
           seq,
           HTyp.Int,
+        );
+      (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
+    | BinOp(_, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
+      let (skel1, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          HTyp.Float,
+        );
+      let (skel2, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          HTyp.Float,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
@@ -1990,6 +2048,17 @@ module Exp = {
             ty,
           );
         (OpSeq.wrap(operand), u_gen);
+      | ([BinOp(_)], _) =>
+        let (skel, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel,
+            seq,
+            ty,
+          );
+        (OpSeq.OpSeq(skel, seq), u_gen);
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -2103,6 +2172,9 @@ module Exp = {
         And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
         GreaterThan |
         Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
         Space,
         _,
         _,

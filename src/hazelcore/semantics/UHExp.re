@@ -14,6 +14,9 @@ type operator =
   | LessThan
   | GreaterThan
   | Equals
+  | FLessThan
+  | FGreaterThan
+  | FEquals
   | Comma
   | Cons
   | And
@@ -31,6 +34,9 @@ let string_of_operator =
   | LessThan => "<"
   | GreaterThan => ">"
   | Equals => "=="
+  | FLessThan => "<."
+  | FGreaterThan => ">."
+  | FEquals => "==."
   | Comma => ","
   | Cons => "::"
   | And => "&&"
@@ -337,43 +343,92 @@ let text_operand =
     );
   };
 
-let rec is_complete = (e: t) => is_complete_block(e)
-and is_complete_block = (b: block) =>
-  List.fold_left(
-    (complete_so_far, line) => complete_so_far && is_complete_line(line),
-    true,
-    b,
-  )
-and is_complete_line =
-  fun
+let rec is_complete_line =
+        (l: line, check_pat: bool, check_type_holes: bool): bool => {
+  switch (l) {
   | EmptyLine => true
-  | LetLine(_, _, e) => is_complete(e)
-  | ExpLine(opseq) => is_complete_opseq(opseq)
-and is_complete_opseq = (OpSeq(_, seq): opseq) =>
-  seq
-  |> Seq.operands
-  |> List.fold_left(
-       (complete_so_far, operand) =>
-         complete_so_far && is_complete_operand(operand),
-       true,
-     )
+  | LetLine(pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None =>
+        UHPat.is_complete(pat)
+        && is_complete(body, check_pat, check_type_holes)
+      | Some(ty) =>
+        (!check_pat || UHPat.is_complete(pat))
+        && is_complete(body, check_pat, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      (!check_pat || UHPat.is_complete(pat))
+      && is_complete(body, check_pat, check_type_holes);
+    }
+  | ExpLine(body) =>
+    OpSeq.is_complete(is_complete_operand, body, check_pat, check_type_holes)
+  };
+}
+and is_complete_block =
+    (b: block, check_pat: bool, check_type_holes: bool): bool => {
+  b |> List.for_all(l => is_complete_line(l, check_pat, check_type_holes));
+}
 and is_complete_operand =
-  fun
+    (operand: 'operand, check_pat: bool, check_type_holes: bool): bool => {
+  switch (operand) {
   | EmptyHole(_) => false
-  | Var(_, _, _)
-  | IntLit(_, _)
-  | BoolLit(_, _)
-  | FloatLit(_, _)
-  | ListNil(_)
-  | ApPalette(_, _, _, _) => true
-  | Lam(_, _, _, e)
-  | Inj(_, _, e)
-  | Parenthesized(e) => is_complete(e)
-  | Case(_, e, rs, _) => is_complete(e) && is_complete_rules(rs)
-and is_complete_rules = (rs: rules) =>
-  List.fold_left(
-    (complete_so_far, r) => complete_so_far && is_complete_rule(r),
-    true,
-    rs,
-  )
-and is_complete_rule = (Rule(_, e): rule) => is_complete(e);
+  | Var(InHole(_), _, _) => false
+  | Var(NotInHole, InVarHole(_), _) => false
+  | Var(NotInHole, NotInVarHole, _) => true
+  | IntLit(InHole(_), _) => false
+  | IntLit(NotInHole, _) => true
+  | FloatLit(InHole(_), _) => false
+  | FloatLit(NotInHole, _) => true
+  | BoolLit(InHole(_), _) => false
+  | BoolLit(NotInHole, _) => true
+  | ListNil(InHole(_)) => false
+  | ListNil(NotInHole) => true
+  | Lam(InHole(_), _, _, _) => false
+  | Lam(NotInHole, pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None =>
+        (!check_pat || UHPat.is_complete(pat))
+        && is_complete(body, check_pat, check_type_holes)
+      | Some(ty) =>
+        (!check_pat || UHPat.is_complete(pat))
+        && is_complete(body, check_pat, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      (!check_pat || UHPat.is_complete(pat))
+      && is_complete(body, check_pat, check_type_holes);
+    }
+  | Inj(InHole(_), _, _) => false
+  | Inj(NotInHole, _, body) => is_complete(body, check_pat, check_type_holes)
+  | Case(InHole(_), _, _, _) => false
+  | Case(NotInHole, scrut, rules, option_ty) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None =>
+        is_complete(scrut, check_pat, check_type_holes)
+        && is_complete_rules(rules, check_pat, check_type_holes)
+      | Some(ty) =>
+        is_complete(scrut, check_pat, check_type_holes)
+        && is_complete_rules(rules, check_pat, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      is_complete(scrut, check_pat, check_type_holes);
+    }
+
+  | Parenthesized(body) => is_complete(body, check_pat, check_type_holes)
+  | ApPalette(InHole(_), _, _, _) => false
+  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
+  };
+}
+and is_complete_rules = (rs: rules, check_pat, check_type_holes) =>
+  rs |> List.for_all(r => is_complete_rule(r, check_pat, check_type_holes))
+and is_complete_rule = (Rule(pat, body): rule, check_pat, check_type_holes) =>
+  (!check_pat || UHPat.is_complete(pat))
+  && is_complete(body, check_pat, check_type_holes)
+and is_complete = (exp: t, check_pat: bool, check_type_holes: bool): bool => {
+  is_complete_block(exp, check_pat, check_type_holes);
+};

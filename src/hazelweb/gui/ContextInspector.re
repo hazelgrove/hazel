@@ -44,7 +44,7 @@ let view =
                   ~inject,
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
-                  ~show_casts=model.show_casts,
+                  ~show_casts=model.compute_results.show_casts,
                   ~selected_instance=model |> Model.get_selected_hole_instance,
                   ~width=30,
                   d,
@@ -74,7 +74,7 @@ let view =
       |> CursorInfo.get_ctx
       |> Contexts.gamma;
     let sigma =
-      if (model.compute_results) {
+      if (model.compute_results.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
         | None => Dynamics.Exp.id_env(ctx)
@@ -246,15 +246,16 @@ let view =
 
     let prev_btn =
       if (i > 0) {
+        let prev_inst = (u, i - 1);
         Node.div(
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance((u, i - 1)))] : [];
+                  ? [inject(SelectHoleInstance(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -272,15 +273,16 @@ let view =
 
     let next_btn =
       if (i < num_instances - 1) {
+        let next_inst = (u, i + 1);
         Node.div(
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.Details.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance((u, i + 1)))] : [];
+                  ? [inject(SelectHoleInstance(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -306,7 +308,7 @@ let view =
   };
 
   let path_viewer =
-    if (model.compute_results) {
+    if (model.compute_results.compute_results) {
       let program = model |> Model.get_program;
       let ctx =
         program

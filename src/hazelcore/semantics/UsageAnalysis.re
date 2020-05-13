@@ -117,7 +117,7 @@ and ana_var_operand =
     Var(
       NotInHole,
       NotInVarHole,
-      if (UHExp.is_complete_block(block)) {
+      if (UHExp.is_complete_block(block, false, false)) {
         switch (find_uses_block(x, block)) {
         | [] => VarWarnStatus.CritUnused
         | [_, ..._] => VarWarnStatus.NoWarning
