@@ -286,10 +286,16 @@ let apply_action =
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>
-        let new_history = UndoHistory.shift_to_prev(model.undo_history);
+        let new_history =
+          model.undo_history
+          |> UndoHistory.shift_to_prev
+          |> UndoHistory.update_is_hover(false);
         Model.load_undo_history(model, new_history);
       | Redo =>
-        let new_history = UndoHistory.shift_to_next(model.undo_history);
+        let new_history =
+          model.undo_history
+          |> UndoHistory.shift_to_next
+          |> UndoHistory.update_is_hover(false);
         Model.load_undo_history(model, new_history);
       | ShiftHistory(group_id, elt_id, is_click) =>
         /* click the groups panel to shift to the certain groups entry */
