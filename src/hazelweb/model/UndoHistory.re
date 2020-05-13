@@ -54,6 +54,9 @@ type t = {
 let update_id = (cur_group_id: int, cur_elt_id: int, history: t): t => {
   {...history, cur_group_id, cur_elt_id};
 };
+let update_is_hover = (is_hover: bool, history: t) => {
+  {...history, is_hover};
+};
 let get_cardstacks = (history: t): Cardstacks.t => {
   ZList.prj_z(ZList.prj_z(history.groups).group_entries).cardstacks;
 };
