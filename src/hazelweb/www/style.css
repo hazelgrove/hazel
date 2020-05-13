@@ -1400,9 +1400,10 @@ h1 {
   width: 30%;
   float: right;
   text-align: center;
+  display:contents;
 }
 .history-entry-left{
-  width: 70%;
+  width: 60%;
   float: left;
 }
 .the-history-entry {
@@ -1421,6 +1422,7 @@ h1 {
 .the-hidden-history-txt{
   padding-left: 20px;
   display: inline;
+  float: left;
 }
 
 
@@ -1430,25 +1432,7 @@ h1 {
   display: grid; 
   padding: 5px;
 }
-/* .the-history-title:hover{
-  color: #b30000;
-  background-color: lightgoldenrodyellow;
-} 
-.the-hidden-history-entry:hover {
-  color: #b30000;
-  background-color: lightgoldenrodyellow;
-} */
 
-/* .the-history-title:hover{
-  border-style:dashed;
-  border-color: black;
-  background-color: white;
-}
-.the-hidden-history-entry:hover{
-  border-style:dashed;
-  border-color: black;
-  background-color: white;
-} */
 .history-type-tag{
   display: inline;
   border-radius: 10%;
@@ -1457,6 +1441,7 @@ h1 {
   font-size: 11px;
   padding:5px;
   font-weight: bolder; 
+  float: left;
 }
 .history-type-tag-typ{
   background-color:rgb(233, 221, 253);

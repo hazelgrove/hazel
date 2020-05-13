@@ -577,6 +577,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               ),
             ],
             [
+              history_typ_tag_view(undo_history_entry),
               Node.div(
                 [
                   Attr.classes(["history-entry-left"]),
@@ -590,7 +591,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ),
                 ],
                 [
-                  history_typ_tag_view(undo_history_entry),
                   history_entry_txt_view(undo_history_entry),
                   Node.text(
                     " "
@@ -626,136 +626,81 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) =>
-    if (is_latest_selected) {
-      Vdom.(
-        Node.div(
+    Vdom.(
+      Node.div(
+        if (is_latest_selected) {
           [
-            Attr.classes(["the-history-entry"]),
-            Attr.on_mouseenter(_ =>
-              if (show_hover_effect) {
-                Vdom.Event.Many([
-                  inject(
-                    Update.Action.ShiftHistory(group_id, elt_id, false),
-                  ),
-                  inject(FocusCell),
-                ]);
-              } else {
-                Vdom.Event.Many([]);
-              }
-            ),
-            Attr.on_mouseleave(_ =>
-              if (show_hover_effect) {
-                Vdom.Event.Many([
-                  inject(Update.Action.RecoverHistory),
-                  inject(FocusCell),
-                ]);
-              } else {
-                Vdom.Event.Many([]);
-              }
-            ),
-          ],
-          [
-            Node.div(
-              [
-                Attr.classes(["the-hidden-history-entry"]),
-                Attr.id("cur-selected-entry"),
-                Attr.on_click(_ =>
+            Attr.classes(["the-hidden-history-entry"]),
+            Attr.id("cur-selected-entry"),
+          ];
+        } else {
+          [Attr.classes(["the-hidden-history-entry"])];
+        },
+        [
+          Node.div(
+            [
+              Attr.classes(["the-history-entry"]),
+              Attr.on_mouseenter(_ =>
+                if (show_hover_effect) {
                   Vdom.Event.Many([
                     inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, true),
+                      Update.Action.ShiftHistory(group_id, elt_id, false),
                     ),
                     inject(FocusCell),
-                  ])
-                ),
-              ],
-              [
-                Node.span(
-                  [Attr.classes(["the-hidden-history-txt"])],
-                  [
-                    history_typ_tag_view(undo_history_entry),
-                    history_entry_txt_view(undo_history_entry),
-                    Node.text(
-                      " "
-                      ++ string_of_int(group_id)
-                      ++ " g] [e "
-                      ++ string_of_int(elt_id),
-                    ),
-                  ],
-                ),
-                Node.div(
-                  [Attr.classes(["history-entry-right"])],
-                  [timestamp_view(undo_history_entry)],
-                ),
-              ],
-            ),
-          ],
-        )
-      );
-    } else {
-      Vdom.(
-        Node.div(
-          [
-            Attr.classes(["the-history-entry"]),
-            Attr.on_mouseenter(_ =>
-              if (show_hover_effect) {
-                Vdom.Event.Many([
-                  inject(
-                    Update.Action.ShiftHistory(group_id, elt_id, false),
-                  ),
-                  inject(FocusCell),
-                ]);
-              } else {
-                Vdom.Event.Many([]);
-              }
-            ),
-            Attr.on_mouseleave(_ =>
-              if (show_hover_effect) {
-                Vdom.Event.Many([
-                  inject(Update.Action.RecoverHistory),
-                  inject(FocusCell),
-                ]);
-              } else {
-                Vdom.Event.Many([]);
-              }
-            ),
-          ],
-          [
-            Node.div(
-              [
-                Attr.classes(["the-hidden-history-entry"]),
-                Attr.on_click(_ =>
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
+              ),
+              Attr.on_mouseleave(_ =>
+                if (show_hover_effect) {
                   Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, true),
-                    ),
+                    inject(Update.Action.RecoverHistory),
                     inject(FocusCell),
-                  ])
-                ),
-              ],
-              [
-                Node.span(
-                  [Attr.classes(["the-hidden-history-txt"])],
-                  [
-                    history_typ_tag_view(undo_history_entry),
-                    history_entry_txt_view(undo_history_entry),
-                    Node.text(
-                      " "
-                      ++ string_of_int(group_id)
-                      ++ " g] [e "
-                      ++ string_of_int(elt_id),
-                    ),
-                  ],
-                ),
-                Node.div(
-                  [Attr.classes(["history-entry-right"])],
-                  [timestamp_view(undo_history_entry)],
-                ),
-              ],
-            ),
-          ],
-        )
-      );
-    };
+                  ]);
+                } else {
+                  Vdom.Event.Many([]);
+                }
+              ),
+            ],
+            [
+              history_typ_tag_view(undo_history_entry),
+              Node.div(
+                [
+                  Attr.classes(["history-entry-left"]),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(group_id, elt_id, true),
+                      ),
+                      inject(FocusCell),
+                    ])
+                  ),
+                ],
+                [
+                  Node.span(
+                    [Attr.classes(["the-hidden-history-txt"])],
+                    [
+                      history_entry_txt_view(undo_history_entry),
+                      Node.text(
+                        " "
+                        ++ string_of_int(group_id)
+                        ++ " g] [e "
+                        ++ string_of_int(elt_id),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Node.div(
+                [Attr.classes(["history-entry-right"])],
+                [timestamp_view(undo_history_entry)],
+              ),
+            ],
+          ),
+        ],
+      )
+    );
 
   let drop_prefix_undisplay_entries =
       (entries: list(undo_history_entry))
