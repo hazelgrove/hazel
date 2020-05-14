@@ -56,7 +56,6 @@ let init = (): t => {
       edit_action: Init,
       timestamp,
     };
-
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
       is_expanded: false,
