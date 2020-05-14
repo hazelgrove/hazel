@@ -558,7 +558,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         undo_history_entry: undo_history_entry,
       ) => {
     switch (history_entry_txt_view(undo_history_entry)) {
-    | None => Vdom.(Node.div([], []))
+    | None =>
+      JSUtil.log("Title is move!!!");
+      Vdom.(Node.div([], [])); /* TBD */
     | Some(txt_view) =>
       Vdom.(
         Node.div(
@@ -663,7 +665,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         undo_history_entry: undo_history_entry,
       ) =>
     switch (history_entry_txt_view(undo_history_entry)) {
-    | None => Vdom.(Node.div([], []))
+    | None =>
+      JSUtil.log("Hidden Title is move!!!");
+      Vdom.(Node.div([], []));
     | Some(txt_view) =>
       Vdom.(
         Node.div(
@@ -806,7 +810,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       let (title, hidden_entries) =
         drop_prefix_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
-      | None => Vdom.(Node.div([Attr.id("cur-selected-entry")], []))
+      | None =>
+        JSUtil.log("empty group ([], cur_entry, prev_entries)");
+        Vdom.(Node.div([], [])); /* TBD */
       | Some((title_entry, start_index)) =>
         let has_hidden_part = List.length(hidden_entries) > 0;
         let title_class =
@@ -834,16 +840,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         start_index /*elt_id*/,
                         title_entry,
                       ),
-                    ] /* hidden entries */,
+                    ],
                   )
                 ),
+                /* hidden entries */
                 Vdom.(
                   Node.div(
-                    [
-                      Attr.classes(
-                        ["hidden-history-entry"] @ prev_his_classes,
-                      ),
-                    ],
+                    [Attr.classes(prev_his_classes)],
                     list_map_helper_func(
                       history_hidden_entry_view(
                         ~show_hover_effect,
@@ -892,7 +895,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           suc_entries @ [cur_entry] @ prev_entries,
         );
       switch (title) {
-      | None => Vdom.(Node.div([Attr.id("cur-selected-entry")], []))
+      | None =>
+        JSUtil.log("empty group!!!!(suc_entries, cur_entry, prev_entries)");
+        Vdom.(Node.div([], []));
       | Some((title_entry, start_index)) =>
         /* title entry is in suc_entries */
         let has_hidden_part = List.length(hidden_entries) > 0;
@@ -923,11 +928,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   /* the successor history entry */
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ suc_his_classes,
-                        ),
-                      ],
+                      [Attr.classes(suc_his_classes)],
                       list_map_helper_func(
                         history_hidden_entry_view(
                           ~show_hover_effect,
@@ -943,11 +944,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   /* the selected(current) history entry */
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ cur_his_classes,
-                        ),
-                      ],
+                      [Attr.classes(cur_his_classes)],
                       [
                         history_hidden_entry_view(
                           ~show_hover_effect,
@@ -962,11 +959,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   /* the previous history entry */
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ prev_his_classes,
-                        ),
-                      ],
+                      [Attr.classes(prev_his_classes)],
                       list_map_helper_func(
                         history_hidden_entry_view(
                           ~show_hover_effect,
@@ -1033,11 +1026,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   /* hidden entries */
                   Vdom.(
                     Node.div(
-                      [
-                        Attr.classes(
-                          ["hidden-history-entry"] @ prev_his_classes,
-                        ),
-                      ],
+                      [Attr.classes(prev_his_classes)],
                       list_map_helper_func(
                         history_hidden_entry_view(
                           ~show_hover_effect,
@@ -1104,11 +1093,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* hidden entries */
                 Vdom.(
                   Node.div(
-                    [
-                      Attr.classes(
-                        ["hidden-history-entry"] @ prev_his_classes,
-                      ),
-                    ],
+                    [Attr.classes(prev_his_classes)],
                     list_map_helper_func(
                       history_hidden_entry_view(
                         ~show_hover_effect,
