@@ -370,9 +370,13 @@ html, body {
   flex-basis: auto;
 }
 
+.inconsistent-branches-ty-bar > span {
+  width: 100%;
+  cursor: pointer;
+}
+
 .inconsistent-branches-ty-bar > :nth-child(even) {
   background-color: #8e000014;
-  width: 100%;
 }
 
 /* action panel */

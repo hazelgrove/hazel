@@ -5,7 +5,8 @@ type err_state_b =
   | BindingError
   | OK;
 
-let view = (model: Model.t): Vdom.Node.t => {
+let view =
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(
@@ -27,11 +28,22 @@ let view = (model: Model.t): Vdom.Node.t => {
         ],
       )
     );
-  let inconsistent_branches_ty_bar = branch_types =>
+  let inconsistent_branches_ty_bar = (branch_types, path_to_case) =>
     Vdom.(
       Node.div(
         [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
-        List.map(ty => Node.span([], [HTypCode.view(ty)]), branch_types),
+        List.mapi(
+          (index, ty) =>
+            Node.span(
+              [
+                Attr.on_click(_ => {
+                  inject(SelectCaseBranch(path_to_case, index))
+                }),
+              ],
+              [HTypCode.view(ty)],
+            ),
+          branch_types,
+        ),
       )
     );
 
@@ -86,10 +98,10 @@ let view = (model: Model.t): Vdom.Node.t => {
       "Got inconsistent type ▶ assumed ",
       matched_ty_bar(got_ty, matched_ty),
     );
-  let got_inconsistent_branches_indicator = branch_types =>
+  let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
     got_indicator(
       "Got inconsistent branch types",
-      inconsistent_branches_ty_bar(branch_types),
+      inconsistent_branches_ty_bar(branch_types, path_to_case),
     );
 
   let got_free_indicator =
@@ -196,9 +208,10 @@ let view = (model: Model.t): Vdom.Node.t => {
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
-    | SynInconsistentBranches(rule_types) =>
+    | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_inconsistent_branches_indicator(rule_types);
+      let ind2 =
+        got_inconsistent_branches_indicator(rule_types, path_to_case);
       (ind1, ind2, TypeInconsistency);
     | OnType =>
       let ind1 = expected_a_type_indicator;
