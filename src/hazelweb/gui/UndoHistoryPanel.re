@@ -709,7 +709,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           ])
                         ),
                       ],
-                      [txt_view],
+                      [
+                        txt_view,
+                        Node.text(
+                          "--g:"
+                          ++ string_of_int(group_id)
+                          ++ " e:"
+                          ++ string_of_int(elt_id),
+                        ),
+                      ],
                     ),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
@@ -864,7 +872,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       [
                         Node.span(
                           [Attr.classes(["the-hidden-history-txt"])],
-                          [txt_view],
+                          [
+                            txt_view,
+                            Node.text(
+                              "--g:"
+                              ++ string_of_int(group_id)
+                              ++ " e:"
+                              ++ string_of_int(elt_id),
+                            ),
+                          ],
                         ),
                       ],
                     ),

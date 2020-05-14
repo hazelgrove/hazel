@@ -855,149 +855,154 @@ let push_edit_state =
   };
 };
 
-let rec shift_to_prev_non_ignore =
-        (history: t, recent_non_ignore_history: t): t => {
+let shift_to_prev = (history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
   /* shift to the previous state in the same group */
   switch (ZList.shift_next(cur_group.group_entries)) {
   | None =>
     /* if current group doesn't have previous state, shfit to the previous group */
     switch (ZList.shift_next(history.groups)) {
-    | None => recent_non_ignore_history
+    | None => history
     | Some(new_groups) =>
       let new_group = ZList.prj_z(new_groups);
       let new_entries = ZList.shift_begin(new_group.group_entries);
-      if (ZList.prj_z(new_entries).edit_action == Move) {
-        let new_history = {...history, groups: new_groups};
-        shift_to_prev_non_ignore(new_history, recent_non_ignore_history);
-      } else {
-        let new_group' = {
-          /* is_expanded=true because the selected group should be expanded */
-          group_entries: new_entries,
-          is_expanded: true,
-        };
-        let new_groups = ZList.replace_z(new_group', new_groups);
-        {
-          ...history,
-          groups: new_groups,
-          hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-          hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-          recent_non_ignore_group_id:
-            List.length(ZList.prj_prefix(new_groups)),
-          recent_non_ignore_elt_id:
-            List.length(ZList.prj_prefix(new_entries)),
-        };
-      };
-    }
-  | Some(new_entries) =>
-    if (ZList.prj_z(new_entries).edit_action == Move) {
-      let new_group = {
-        ...cur_group,
-        /* is_expanded=true because the selected group should be expanded */
-        group_entries: new_entries,
-      };
-      let new_groups = ZList.replace_z(new_group, history.groups);
-      let new_history = {...history, groups: new_groups};
-      shift_to_prev_non_ignore(new_history, recent_non_ignore_history);
-    } else {
-      let new_group = {
+
+      let new_group' = {
         /* is_expanded=true because the selected group should be expanded */
         group_entries: new_entries,
         is_expanded: true,
       };
-      let new_groups = ZList.replace_z(new_group, history.groups);
-      {
+      let new_groups = ZList.replace_z(new_group', new_groups);
+      switch (
+        get_recent_non_ignore_entry_index([
+          ZList.prj_z(new_entries),
+          ...ZList.prj_suffix(new_entries),
+        ])
+      ) {
+      | None =>
+        failwith(
+          "Impossible, Move entry must be grouped into a group with non-Move entry",
+        )
+      | Some(index) => {
+          ...history,
+          groups: new_groups,
+          hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+          hover_recover_elt_id:
+            List.length(ZList.prj_prefix(new_entries)) + index,
+          recent_non_ignore_group_id:
+            List.length(ZList.prj_prefix(new_groups)),
+          recent_non_ignore_elt_id:
+            List.length(ZList.prj_prefix(new_entries)) + index,
+        }
+      };
+    }
+  | Some(new_entries) =>
+    let new_group = {
+      /* is_expanded=true because the selected group should be expanded */
+      group_entries: new_entries,
+      is_expanded: true,
+    };
+    let new_groups = ZList.replace_z(new_group, history.groups);
+    switch (
+      get_recent_non_ignore_entry_index([
+        ZList.prj_z(new_entries),
+        ...ZList.prj_suffix(new_entries),
+      ])
+    ) {
+    | None =>
+      failwith(
+        "Impossible, Move entry must be grouped into a group with non-Move entry",
+      )
+    | Some(index) => {
         ...history,
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        hover_recover_elt_id:
+          List.length(ZList.prj_prefix(new_entries)) + index,
         recent_non_ignore_group_id:
           List.length(ZList.prj_prefix(new_groups)),
-        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      };
-    }
+        recent_non_ignore_elt_id:
+          List.length(ZList.prj_prefix(new_entries)) + index,
+      }
+    };
   };
 };
 
-let shift_to_prev = (history: t): t => {
-  shift_to_prev_non_ignore(history, history);
-};
 
-let rec shift_to_next_non_ignore =
-        (history: t, recent_non_ignore_history: t): t => {
+
+let shift_to_next = (history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
   /* shift to the previous state in the same group */
   switch (ZList.shift_prev(cur_group.group_entries)) {
   | None =>
     /* if current group doesn't have previous state, shfit to the previous group */
     switch (ZList.shift_prev(history.groups)) {
-    | None => recent_non_ignore_history
+    | None => history
     | Some(new_groups) =>
       let new_group = ZList.prj_z(new_groups);
       let new_entries = ZList.shift_end(new_group.group_entries);
-      if (ZList.prj_z(new_entries).edit_action == Move) {
-        let new_history = {...history, groups: new_groups};
-        shift_to_next_non_ignore(new_history, recent_non_ignore_history);
-      } else {
-        let new_group' = {
-          /* is_expanded=true because the selected group should be expanded */
-          group_entries: new_entries,
-          is_expanded: true,
-        };
-        let new_groups = ZList.replace_z(new_group', new_groups);
-        {
-          ...history,
-          groups: new_groups,
-          hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-          hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-          recent_non_ignore_group_id:
-            List.length(ZList.prj_prefix(new_groups)),
-          recent_non_ignore_elt_id:
-            List.length(ZList.prj_prefix(new_entries)),
-        };
-      };
-    }
-  | Some(new_entries) =>
-    if (ZList.prj_z(new_entries).edit_action == Move) {
-      let new_group = {
-        ...cur_group,
-        /* is_expanded=true because the selected group should be expanded */
-        group_entries: new_entries,
-      };
-      let new_groups = ZList.replace_z(new_group, history.groups);
-      let new_history = {
-        ...history,
-        groups: new_groups,
-        hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        recent_non_ignore_group_id:
-          List.length(ZList.prj_prefix(new_groups)),
-        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      };
-      shift_to_next_non_ignore(new_history, recent_non_ignore_history);
-    } else {
-      let new_group = {
+      let new_group' = {
         /* is_expanded=true because the selected group should be expanded */
         group_entries: new_entries,
         is_expanded: true,
       };
-      let new_groups = ZList.replace_z(new_group, history.groups);
-      {
+      let new_groups = ZList.replace_z(new_group', new_groups);
+
+      switch (
+        get_recent_non_ignore_entry_index([
+          ZList.prj_z(new_entries),
+          ...ZList.prj_suffix(new_entries),
+        ])
+      ) {
+      | None =>
+        failwith(
+          "Impossible, Move entry must be grouped into a group with non-Move entry",
+        )
+      | Some(index) => {
+          ...history,
+          groups: new_groups,
+          hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+          hover_recover_elt_id:
+            List.length(ZList.prj_prefix(new_entries)) + index,
+          recent_non_ignore_group_id:
+            List.length(ZList.prj_prefix(new_groups)),
+          recent_non_ignore_elt_id:
+            List.length(ZList.prj_prefix(new_entries)) + index,
+        }
+      };
+    }
+  | Some(new_entries) =>
+    let new_group = {
+      /* is_expanded=true because the selected group should be expanded */
+      group_entries: new_entries,
+      is_expanded: true,
+    };
+    let new_groups = ZList.replace_z(new_group, history.groups);
+    switch (
+      get_recent_non_ignore_entry_index([
+        ZList.prj_z(new_entries),
+        ...ZList.prj_suffix(new_entries),
+      ])
+    ) {
+    | None =>
+      failwith(
+        "Impossible, Move entry must be grouped into a group with non-Move entry",
+      )
+    | Some(index) => {
         ...history,
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        hover_recover_elt_id:
+          List.length(ZList.prj_prefix(new_entries)) + index,
         recent_non_ignore_group_id:
           List.length(ZList.prj_prefix(new_groups)),
-        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      };
-    }
+        recent_non_ignore_elt_id:
+          List.length(ZList.prj_prefix(new_entries)) + index,
+      }
+    };
   };
 };
 
-let shift_to_next = (history: t): t => {
-  shift_to_next_non_ignore(history, history);
-};
 let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
   let hidden_group = (group: undo_history_group) => {
     ...group,
