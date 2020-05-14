@@ -50,7 +50,7 @@ type typed =
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
   // cursor is on a case with branches of inconsistent types
-  | SynInconsistentBranches(list(HTyp.t))
+  | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -740,7 +740,7 @@ module Exp = {
       Some(mk(SynKeyword(k), ctx))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
     | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
-      Some(mk(SynInconsistentBranches(rule_types), ctx))
+      Some(mk(SynInconsistentBranches(rule_types, steps), ctx))
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
