@@ -78,6 +78,10 @@ module Delim = {
   let open_List = (): t => mk(~index=0, "[");
   let close_List = (): t => mk(~index=1, "]");
 
+  let open_Subscript = (): t => mk(~index=0, "[");
+  let colon_Subscript = (): t => mk(~index=1, ":");
+  let close_Subscript = (): t => mk(~index=2, "]");
+
   let open_Parenthesized = (): t => mk(~index=0, "(");
   let close_Parenthesized = (): t => mk(~index=1, ")");
 
@@ -413,15 +417,15 @@ let mk_Subscript =
       body3: formatted_child,
     )
     : t => {
-  let open_group = Delim.open_List() |> annot_DelimGroup;
-  let close_group = Delim.close_List() |> annot_DelimGroup;
+  let open_subscript = Delim.open_Subscript() |> annot_DelimGroup;
+  let close_subscript = Delim.close_Subscript() |> annot_DelimGroup;
   Doc.hcats([
     body1 |> pad_open_child,
-    open_group,
+    open_subscript,
     body2 |> pad_open_child,
-    Delim.colon_Lam(),
+    Delim.colon_Subscript(),
     body3 |> pad_open_child,
-    close_group,
+    close_subscript,
   ])
   |> annot_Operand(~sort=Exp, ~err);
 };

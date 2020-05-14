@@ -4057,6 +4057,7 @@ module Exp = {
         when
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
+      print_endline("Action4060");
       switch (
         syn_perform(
           ctx,
@@ -4067,8 +4068,9 @@ module Exp = {
       | Failed
       | CursorEscaped(_) => Failed
       | Succeeded(new_edit_state) =>
-        syn_perform(ctx, a, new_edit_state) |> wrap_in_SynDone
-      }
+        print_endline("Action4071");
+        syn_perform(ctx, a, new_edit_state) |> wrap_in_SynDone;
+      };
 
     | (Construct(SLine), CursorE(_)) when ZExp.is_before_zoperand(zoperand) =>
       let new_ze = (
@@ -5024,6 +5026,53 @@ module Exp = {
       print_endline("Action5018");
       ana_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), u_gen), ty);
 
+    | (Construct(SList), zoperand) when ZExp.is_after_zoperand(zoperand) =>
+      print_endline("Action5030");
+      switch (zoperand) {
+      | CursorE(OnDelim(k, side), operand) =>
+        let delim_cursor = CursorPosition.OnDelim(k, side);
+        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let ze =
+          ZExp.ZBlock.wrap(
+            CursorE(
+              delim_cursor,
+              UHExp.subscript(
+                UHExp.Block.wrap(operand),
+                UHExp.Block.wrap(hole),
+                UHExp.Block.wrap(hole),
+              ),
+            ),
+          );
+        print_endline("Action5046");
+        if (HTyp.consistent(ty, HTyp.String)) {
+          Succeeded(AnaDone((ze, u_gen)));
+        } else {
+          let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
+          Succeeded(AnaDone((ze, u_gen)));
+        };
+      | CursorE(OnText(k), operand) =>
+        print_endline("Action3552");
+        let text_cursor = CursorPosition.OnText(k);
+        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let ze =
+          ZExp.ZBlock.wrap(
+            CursorE(
+              text_cursor,
+              UHExp.subscript(
+                UHExp.Block.wrap(operand),
+                UHExp.Block.wrap(hole),
+                UHExp.Block.wrap(hole),
+              ),
+            ),
+          );
+        if (HTyp.consistent(ty, HTyp.String)) {
+          Succeeded(AnaDone((ze, u_gen)));
+        } else {
+          let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
+          Succeeded(AnaDone((ze, u_gen)));
+        };
+      | _ => Failed
+      };
     /* Invalid actions at the expression level */
     | (Construct(SList), _) => Failed
 
