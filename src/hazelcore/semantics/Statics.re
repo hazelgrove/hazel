@@ -155,7 +155,7 @@ module Pat = {
       (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
       : option(Contexts.t) =>
     switch (skel) {
-    | BinOp(_, Comma, _, _) => None
+    | BinOp(_, Comma, _, _)
     | BinOp(InHole(WrongLength, _), _, _, _) =>
       failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
     | Placeholder(n) =>
