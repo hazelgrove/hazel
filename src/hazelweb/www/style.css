@@ -1016,7 +1016,7 @@ h1 {
   border: 1px solid lightgray;
   z-index: var(--color-picker-splice-z);
   position: relative;
-  padding: 8px 4px 4px 4=8px;
+  padding: 8px 4px 4px 8px;
   display: grid;
   justify-items: left;
 }
