@@ -152,6 +152,7 @@ type t =
   | Pair(t, t)
   | Triv
   | Case(t, list(rule), int)
+  | Subscript(t, t, t)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
 and rule =
@@ -167,6 +168,7 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
+  | Subscript(_, _, _) => "Subscript"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"

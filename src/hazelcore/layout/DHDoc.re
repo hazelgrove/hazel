@@ -7,6 +7,7 @@ type formattable_child = (~enforce_inline: bool) => t;
 
 let precedence_const = 0;
 let precedence_Ap = 1;
+let precedence_Subscript = 1;
 let precedence_Times = 2;
 let precedence_Plus = 3;
 let precedence_Minus = 3;
@@ -237,6 +238,7 @@ module Exp = {
     | Let(_)
     | FixF(_)
     | Case(_) => precedence_max
+    | Subscript(_) => precedence_Subscript
     | BinIntOp(op, _, _) => precedence_bin_int_op(op)
     | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
     | BinStrOp(op, _, _) => precedence_bin_str_op(op)
@@ -350,6 +352,16 @@ module Exp = {
           let (doc1, doc2) =
             mk_left_associative_operands(precedence_Ap, d1, d2);
           mk_Ap(mk_cast(doc1), mk_cast(doc2));
+        | Subscript(s, n1, n2) =>
+          print_endline("DHDoc356");
+          hcats([
+            mk_cast(go(~enforce_inline=false, s)),
+            Doc.text("["),
+            mk_cast(go(~enforce_inline=false, n1)),
+            Doc.text(":"),
+            mk_cast(go(~enforce_inline=false, n2)),
+            Doc.text("]"),
+          ]);
         | BinIntOp(op, d1, d2) =>
           // TODO assumes all bin int ops are left associative
           let (doc1, doc2) =

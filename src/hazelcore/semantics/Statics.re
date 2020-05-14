@@ -929,9 +929,9 @@ module Exp = {
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(InHole(TypeInconsistent, _), _, _, _)
-    | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
-      // | Subscript(InHole(TypeInconsistent, _), _, _, _)
-
+    | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+    | Subscript(InHole(TypeInconsistent, _), _, _, _) =>
+      print_endline("Statics934");
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
@@ -943,9 +943,10 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) =>
-      // | Subscript(InHole(WrongLength, _), _, _, _)
-      None
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Subscript(InHole(WrongLength, _), _, _, _) =>
+      print_endline("Statics948");
+      None;
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
       VarMap.lookup(Contexts.gamma(ctx), x)
@@ -956,6 +957,7 @@ module Exp = {
     | StringLit(NotInHole, _) => Some(String)
     | ListNil(NotInHole) => Some(List(Hole))
     | Lam(NotInHole, p, ann, body) =>
+      print_endline("Statics960");
       let ty1 =
         switch (ann) {
         | Some(uty) => UHTyp.expand(uty)
@@ -998,19 +1000,20 @@ module Exp = {
         }
       };
     | Parenthesized(body) => syn(ctx, body)
-    // | Subscript(NotInHole, body1, body2, body3) =>
-    //   switch (syn(ctx, body1)) {
-    //   | None => None
-    //   | Some(ty) =>
-    //     if (HTyp.consistent(ty, String) == false) {
-    //       None;
-    //     } else {
-    //       switch (ana(ctx, body2, Int), ana(ctx, body3, Int)) {
-    //       | (Some(_), Some(_)) => Some(String)
-    //       | (_, _) => None
-    //       };
-    //     }
-    //   }
+    | Subscript(NotInHole, body1, body2, body3) =>
+      print_endline("Statics1003");
+      switch (syn(ctx, body1)) {
+      | None => None
+      | Some(ty) =>
+        if (HTyp.consistent(ty, String) == false) {
+          None;
+        } else {
+          switch (ana(ctx, body2, Int), ana(ctx, body3, Int)) {
+          | (Some(_), Some(_)) => Some(String)
+          | (_, _) => None
+          };
+        }
+      };
     }
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
@@ -1113,9 +1116,9 @@ module Exp = {
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(InHole(TypeInconsistent, _), _, _, _)
-    | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
-      // | Subscript(InHole(TypeInconsistent, _), _, _, _)
-
+    | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+    | Subscript(InHole(TypeInconsistent, _), _, _, _) =>
+      print_endline("Statics1120");
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
@@ -1130,10 +1133,10 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) =>
-      // | Subscript(InHole(WrongLength, _), _, _, _)
-
-      ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Subscript(InHole(WrongLength, _), _, _, _) =>
+      print_endline("Statics1137");
+      ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None;
     /* not in hole */
     | ListNil(NotInHole) =>
       switch (HTyp.matched_list(ty)) {
@@ -1208,16 +1211,17 @@ module Exp = {
         }
       }
     | Parenthesized(body) => ana(ctx, body, ty)
-    // | Subscript(NotInHole, body1, body2, body3) =>
-    //   switch (syn_operand(ctx, Subscript(NotInHole, body1, body2, body3))) {
-    //   | None => None
-    //   | Some(ty') =>
-    //     if (HTyp.consistent(ty, ty')) {
-    //       Some();
-    //     } else {
-    //       None;
-    //     }
-    //   }
+    | Subscript(NotInHole, _, _, _) =>
+      print_endline("Statics1214");
+      switch (syn_operand(ctx, operand)) {
+      | None => None
+      | Some(ty') =>
+        if (HTyp.consistent(ty, ty')) {
+          Some();
+        } else {
+          None;
+        }
+      };
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1800,14 +1804,15 @@ module Exp = {
           u_gen,
         );
       };
-    // | Subscript(_, body1, body2, body3) =>
-    //   let (body1, u_gen) =
-    //     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
-    //   let (body2, u_gen) =
-    //     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
-    //   let (body3, u_gen) =
-    //     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
-    //   (Subscript(NotInHole, body1, body2, body3), String, u_gen);
+    | Subscript(_, body1, body2, body3) =>
+      print_endline("Statics1807");
+      let (body1, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
+      let (body2, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
+      let (body3, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
+      (Subscript(NotInHole, body1, body2, body3), String, u_gen);
     };
   }
   and ana_fix_holes_rules =
@@ -2289,14 +2294,19 @@ module Exp = {
           u_gen,
         );
       };
-    // | Subscript(_, body1, body2, body3) =>
-    //   let (body1, u_gen) =
-    //     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
-    //   let (body2, u_gen) =
-    //     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
-    //   let (body3, u_gen) =
-    //     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
-    //   (UHExp.Subscript(NotInHole, body1, body2, body3), u_gen);
+    | Subscript(_, _, _, _) =>
+      print_endline("Statics2297");
+      let (e', ty', u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+      if (HTyp.consistent(ty, ty')) {
+        (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
+      } else {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (
+          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+          u_gen,
+        );
+      };
     };
 
   let syn_fix_holes_z =
