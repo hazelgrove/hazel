@@ -96,11 +96,16 @@ let push_history_entry =
 let cursor_jump =
     (prev_group: undo_history_group, cardstacks_before: Cardstacks.t): bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
+  let cursor_info =
+    prev_entry.cardstacks |> Cardstacks.get_program |> Program.get_cursor_info;
+  let prev_cardstacks_cursor_term = cursor_info.cursor_term;
   let prev_step =
     prev_entry.cardstacks |> Cardstacks.get_program |> Program.get_steps;
   let new_step =
     cardstacks_before |> Cardstacks.get_program |> Program.get_steps;
-  prev_step != new_step;
+  prev_step != new_step
+  || prev_cardstacks_cursor_term
+  != prev_entry.cursor_term_info.cursor_term_after;
 };
 
 /* return true if new edit_action can be grouped with the preivous edit_action */
@@ -680,7 +685,6 @@ let push_edit_state =
     let new_entry = {
       ...ZList.prj_z(prev_group.group_entries),
       cardstacks: cardstacks_after,
-      timestamp,
     };
 
     let new_group = {
