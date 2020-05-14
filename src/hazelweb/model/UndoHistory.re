@@ -50,8 +50,8 @@ type t = {
   show_hover_effect: bool,
   hover_recover_group_id: int,
   hover_recover_elt_id: int,
-  recent_non_ignore_group_id: int,
-  recent_non_ignore_elt_id: int,
+  cur_group_id: int,
+  cur_elt_id: int,
 };
 
 let update_is_hover = (is_hover: bool, history: t) => {
@@ -709,9 +709,8 @@ let push_edit_state =
         hover_recover_group_id: 0,
         hover_recover_elt_id:
           List.length(ZList.prj_prefix(new_group.group_entries)),
-        recent_non_ignore_group_id: 0,
-        recent_non_ignore_elt_id:
-          List.length(ZList.prj_prefix(new_group.group_entries)),
+        cur_group_id: 0,
+        cur_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
       };
     } else {
       let new_group = {
@@ -728,8 +727,8 @@ let push_edit_state =
         is_hover: false,
         hover_recover_group_id: 0,
         hover_recover_elt_id: 0,
-        recent_non_ignore_group_id: 0,
-        recent_non_ignore_elt_id: 0,
+        cur_group_id: 0,
+        cur_elt_id: 0,
       };
     };
   };
@@ -758,9 +757,8 @@ let shift_to_prev = (history: t): t => {
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        recent_non_ignore_group_id:
-          List.length(ZList.prj_prefix(new_groups)),
-        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
     }
   | Some(new_entries) =>
@@ -775,8 +773,8 @@ let shift_to_prev = (history: t): t => {
       groups: new_groups,
       hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
       hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
-      recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
+      cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+      cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
     };
   };
 };
@@ -803,9 +801,8 @@ let shift_to_next = (history: t): t => {
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        recent_non_ignore_group_id:
-          List.length(ZList.prj_prefix(new_groups)),
-        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
     }
   | Some(new_entries) =>
@@ -820,8 +817,8 @@ let shift_to_next = (history: t): t => {
       groups: new_groups,
       hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
       hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
-      recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
+      cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+      cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
     };
   };
 };
