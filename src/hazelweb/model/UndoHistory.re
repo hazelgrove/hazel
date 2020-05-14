@@ -134,6 +134,22 @@ let rec get_recent_non_ignore_entry =
   };
 };
 
+let get_recent_non_ignore_entry_index =
+    (ls: list(undo_history_entry)): option(int) => {
+  let rec helper_func =
+          (ls: list(undo_history_entry), index: int): option(int) => {
+    switch (ls) {
+    | [] => None
+    | [head, ...tail] =>
+      if (head.edit_action == Ignore) {
+        helper_func(tail, index + 1);
+      } else {
+        Some(index);
+      }
+    };
+  };
+  helper_func(ls, 0);
+};
 /* return true if cursor jump to another term when new action applied */
 let cursor_jump =
     (prev_group: undo_history_group, cardstacks_before: Cardstacks.t): bool => {
@@ -790,10 +806,26 @@ let push_edit_state =
   if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
     let new_group = push_history_entry(~prev_group, ~new_entry);
     if (new_edit_action == Ignore) {
-      {
-        ...undo_history,
-        groups: ZList.replace_z(new_group, undo_history.groups),
-        is_hover: false,
+      switch (
+        get_recent_non_ignore_entry_index([
+          ZList.prj_z(new_group.group_entries),
+          ...ZList.prj_suffix(new_group.group_entries),
+        ])
+      ) {
+      | None =>
+        failwith(
+          "Impossible, Ignore entry must be grouped into a group with non-Ignore entry",
+        )
+      | Some(index) =>
+        {
+          ...undo_history,
+          groups: ZList.replace_z(new_group, undo_history.groups),
+          is_hover: false,
+          hover_recover_elt_id:
+            index + List.length(ZList.prj_prefix(new_group.group_entries)),
+          cur_elt_id:
+            index + List.length(ZList.prj_prefix(new_group.group_entries)),
+        };
       };
     } else {
       {

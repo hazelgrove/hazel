@@ -592,8 +592,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       );
     switch (history_entry_txt_view(undo_history_entry)) {
     | None =>
-      JSUtil.log("Title is move!!!");
-      Vdom.(Node.div([], [])); /* TBD */
+      Vdom.(Node.div([], []));
     | Some(txt_view) =>
       Vdom.(
         Node.div(
@@ -746,7 +745,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       );
     switch (history_entry_txt_view(undo_history_entry)) {
     | None =>
-      JSUtil.log("Hidden Title is move!!!");
       Vdom.(Node.div([], []));
     | Some(txt_view) =>
       Vdom.(
@@ -901,8 +899,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         drop_prefix_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
       | None =>
-        JSUtil.log("empty group ([], cur_entry, prev_entries)");
-        Vdom.(Node.div([], [])); /* TBD */
+        Vdom.(Node.div([], [])); 
       | Some((title_entry, start_index)) =>
         let has_hidden_part = List.length(hidden_entries) > 0;
         if (group.is_expanded) {
@@ -948,7 +945,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         );
       switch (title) {
       | None =>
-        JSUtil.log("empty group!!!!(suc_entries, cur_entry, prev_entries)");
         Vdom.(Node.div([], []));
       | Some((title_entry, start_index)) =>
         /* title entry is in suc_entries */
