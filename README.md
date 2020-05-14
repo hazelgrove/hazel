@@ -78,7 +78,7 @@ are a few extensions that might be helpful.
 Hazel is implemented in Reason (a dialect of OCaml) and is compiled to
 Javascript for the web browser via the `js_of_ocaml` compiler.
 
-Though, `make` targets are provided as a convenience, they mostly translate to
+Though `make` targets are provided as a convenience, they mostly translate to
 `dune` commands.
 
 Invoking `make` by itself is equivalent to invoking `make dev`. With these
