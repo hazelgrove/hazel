@@ -51,11 +51,11 @@ type t = {
   show_hover_effect: bool,
   hover_recover_group_id: int,
   hover_recover_elt_id: int,
-  cur_group_id: int,
-  cur_elt_id: int,
+  recent_non_ignore_group_id: int,
+  recent_non_ignore_elt_id: int,
 };
-let update_id = (cur_group_id: int, cur_elt_id: int, history: t): t => {
-  {...history, cur_group_id, cur_elt_id};
+let update_id = (recent_non_ignore_group_id: int, recent_non_ignore_elt_id: int, history: t): t => {
+  {...history, recent_non_ignore_group_id, recent_non_ignore_elt_id};
 };
 let update_is_hover = (is_hover: bool, history: t) => {
   {...history, is_hover};
@@ -823,7 +823,7 @@ let push_edit_state =
           is_hover: false,
           hover_recover_elt_id:
             index + List.length(ZList.prj_prefix(new_group.group_entries)),
-          cur_elt_id:
+          recent_non_ignore_elt_id:
             index + List.length(ZList.prj_prefix(new_group.group_entries)),
         };
       };
@@ -835,8 +835,8 @@ let push_edit_state =
         hover_recover_group_id: 0,
         hover_recover_elt_id:
           List.length(ZList.prj_prefix(new_group.group_entries)),
-        cur_group_id: 0,
-        cur_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
+        recent_non_ignore_group_id: 0,
+        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
       };
     };
   } else {
@@ -851,8 +851,8 @@ let push_edit_state =
       is_hover: false,
       hover_recover_group_id: 0,
       hover_recover_elt_id: 0,
-      cur_group_id: 0,
-      cur_elt_id: 0,
+      recent_non_ignore_group_id: 0,
+      recent_non_ignore_elt_id: 0,
     };
   };
 };
@@ -884,8 +884,8 @@ let rec shift_to_prev_non_ignore =
           groups: new_groups,
           hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
           hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-          cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-          cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+          recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+          recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
         };
       };
     }
@@ -911,8 +911,8 @@ let rec shift_to_prev_non_ignore =
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
     }
   };
@@ -949,8 +949,8 @@ let rec shift_to_next_non_ignore =
           groups: new_groups,
           hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
           hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-          cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-          cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+          recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+          recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
         };
       };
     }
@@ -967,8 +967,8 @@ let rec shift_to_next_non_ignore =
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
       shift_to_next_non_ignore(new_history, recent_non_ignore_history);
     } else {
@@ -983,8 +983,8 @@ let rec shift_to_next_non_ignore =
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
+        recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
     }
   };
