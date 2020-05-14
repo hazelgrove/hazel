@@ -1037,7 +1037,11 @@ module Exp = {
   and follow_steps_block =
       (~side: Side.t, steps: steps, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
-    | [] => None // no block level cursor
+    | [] =>
+      switch (side) {
+      | Before => Some(ZExp.place_before_block(block))
+      | After => Some(ZExp.place_after_block(block))
+      }
     | [x, ...xs] =>
       switch (ZList.split_at(x, block)) {
       | None => None
