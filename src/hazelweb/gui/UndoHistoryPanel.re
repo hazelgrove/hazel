@@ -547,16 +547,49 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let get_status_class =
+      (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
+      : list(string) =>
+    if (cur_group_id > group_id
+        || cur_group_id == group_id
+        && cur_elt_id > elt_id) {
+      ["the-suc-history"];
+    } else if (cur_group_id < group_id
+               || cur_group_id == group_id
+               && cur_elt_id < elt_id) {
+      ["the-prev-history"];
+    } else {
+      ["the-cur-history"];
+    };
+  let is_latest_selected_entry =
+      (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
+      : bool => {
+    cur_group_id == group_id && cur_elt_id == elt_id;
+  };
+
   let history_title_entry_view =
       (
-        ~show_hover_effect: bool,
-        ~is_latest_selected: bool,
+        ~undo_history: UndoHistory.t,
         ~is_expanded: bool,
         ~has_hidden_part: bool,
         group_id: int,
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
+    let status_class =
+      get_status_class(
+        ~cur_group_id=undo_history.cur_group_id,
+        ~cur_elt_id=undo_history.cur_elt_id,
+        ~group_id,
+        ~elt_id,
+      );
+    let is_latest_selected =
+      is_latest_selected_entry(
+        ~cur_group_id=undo_history.cur_group_id,
+        ~cur_elt_id=undo_history.cur_elt_id,
+        ~group_id,
+        ~elt_id,
+      );
     switch (history_entry_txt_view(undo_history_entry)) {
     | None =>
       JSUtil.log("Title is move!!!");
@@ -564,87 +597,121 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Some(txt_view) =>
       Vdom.(
         Node.div(
-          if (is_latest_selected) {
-            [
-              Attr.id("cur-selected-entry"),
-              Attr.classes(["the-history-title"]),
-              Attr.on_mouseenter(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, false),
-                    ),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-              Attr.on_mouseleave(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(Update.Action.RecoverHistory),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-            ];
-          } else {
-            [
-              Attr.classes(["the-history-title"]),
-              Attr.on_mouseenter(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, false),
-                    ),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-              Attr.on_mouseleave(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(Update.Action.RecoverHistory),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-            ];
-          },
+          [Attr.classes(status_class)],
           [
             Node.div(
-              [Attr.classes(["the-history-entry"])],
-              [
-                history_typ_tag_view(undo_history_entry),
-                Node.div(
-                  [
-                    Attr.classes(["history-entry-left"]),
-                    Attr.on_click(_ =>
+              if (is_latest_selected) {
+                [
+                  Attr.id("cur-selected-entry"),
+                  Attr.classes(["the-history-title"]),
+                  Attr.on_mouseenter(_ =>
+                    if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
                         inject(
-                          Update.Action.ShiftHistory(group_id, elt_id, true),
+                          Update.Action.ShiftHistory(
+                            group_id,
+                            elt_id,
+                            false,
+                            true,
+                          ),
                         ),
                         inject(FocusCell),
-                      ])
-                    ),
-                  ],
-                  [txt_view],
-                ),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                  Attr.on_mouseleave(_ =>
+                    if (undo_history.show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(
+                            undo_history.hover_recover_group_id,
+                            undo_history.hover_recover_elt_id,
+                            false,
+                            false,
+                          ),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                ];
+              } else {
+                [
+                  Attr.classes(["the-history-title"]),
+                  Attr.on_mouseenter(_ =>
+                    if (undo_history.show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(
+                            group_id,
+                            elt_id,
+                            false,
+                            true,
+                          ),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                  Attr.on_mouseleave(_ =>
+                    if (undo_history.show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(
+                            undo_history.hover_recover_group_id,
+                            undo_history.hover_recover_elt_id,
+                            false,
+                            false,
+                          ),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                ];
+              },
+              [
                 Node.div(
-                  [Attr.classes(["history-entry-right"])],
+                  [Attr.classes(["the-history-entry"])],
                   [
-                    timestamp_view(undo_history_entry),
-                    history_entry_tab_icon(
-                      group_id,
-                      has_hidden_part,
-                      is_expanded,
+                    history_typ_tag_view(undo_history_entry),
+                    Node.div(
+                      [
+                        Attr.classes(["history-entry-left"]),
+                        Attr.on_click(_ =>
+                          Vdom.Event.Many([
+                            inject(
+                              Update.Action.ShiftHistory(
+                                group_id,
+                                elt_id,
+                                true,
+                                false,
+                              ),
+                            ),
+                            inject(FocusCell),
+                          ])
+                        ),
+                      ],
+                      [txt_view],
+                    ),
+                    Node.div(
+                      [Attr.classes(["history-entry-right"])],
+                      [
+                        timestamp_view(undo_history_entry),
+                        history_entry_tab_icon(
+                          group_id,
+                          has_hidden_part,
+                          is_expanded,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -658,12 +725,25 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let history_hidden_entry_view =
       (
-        ~show_hover_effect: bool,
-        ~is_latest_selected: bool,
+        ~undo_history: UndoHistory.t,
         group_id: int,
         elt_id: int,
         undo_history_entry: undo_history_entry,
-      ) =>
+      ) => {
+    let status_class =
+      get_status_class(
+        ~cur_group_id=undo_history.cur_group_id,
+        ~cur_elt_id=undo_history.cur_elt_id,
+        ~group_id,
+        ~elt_id,
+      );
+    let is_latest_selected =
+      is_latest_selected_entry(
+        ~cur_group_id=undo_history.cur_group_id,
+        ~cur_elt_id=undo_history.cur_elt_id,
+        ~group_id,
+        ~elt_id,
+      );
     switch (history_entry_txt_view(undo_history_entry)) {
     | None =>
       JSUtil.log("Hidden Title is move!!!");
@@ -671,87 +751,121 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Some(txt_view) =>
       Vdom.(
         Node.div(
-          if (is_latest_selected) {
-            [
-              Attr.classes(["the-hidden-history-entry"]),
-              Attr.id("cur-selected-entry"),
-              Attr.on_mouseenter(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, false),
-                    ),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-              Attr.on_mouseleave(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(Update.Action.RecoverHistory),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-            ];
-          } else {
-            [
-              Attr.classes(["the-hidden-history-entry"]),
-              Attr.on_mouseenter(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(
-                      Update.Action.ShiftHistory(group_id, elt_id, false),
-                    ),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-              Attr.on_mouseleave(_ =>
-                if (show_hover_effect) {
-                  Vdom.Event.Many([
-                    inject(Update.Action.RecoverHistory),
-                    inject(FocusCell),
-                  ]);
-                } else {
-                  Vdom.Event.Many([]);
-                }
-              ),
-            ];
-          },
+          [Attr.classes(status_class)],
           [
             Node.div(
-              [Attr.classes(["the-history-entry"])],
-              [
-                history_typ_tag_view(undo_history_entry),
-                Node.div(
-                  [
-                    Attr.classes(["history-entry-left"]),
-                    Attr.on_click(_ =>
+              if (is_latest_selected) {
+                [
+                  Attr.classes(["the-hidden-history-entry"]),
+                  Attr.id("cur-selected-entry"),
+                  Attr.on_mouseenter(_ =>
+                    if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
                         inject(
-                          Update.Action.ShiftHistory(group_id, elt_id, true),
+                          Update.Action.ShiftHistory(
+                            group_id,
+                            elt_id,
+                            false,
+                            true,
+                          ),
                         ),
                         inject(FocusCell),
-                      ])
-                    ),
-                  ],
-                  [
-                    Node.span(
-                      [Attr.classes(["the-hidden-history-txt"])],
-                      [txt_view],
-                    ),
-                  ],
-                ),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                  Attr.on_mouseleave(_ =>
+                    if (undo_history.show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(
+                            undo_history.hover_recover_group_id,
+                            undo_history.hover_recover_elt_id,
+                            false,
+                            false,
+                          ),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                ];
+              } else {
+                [
+                  Attr.classes(["the-hidden-history-entry"]),
+                  Attr.on_mouseenter(_ =>
+                    if (undo_history.show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(
+                            group_id,
+                            elt_id,
+                            false,
+                            true,
+                          ),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                  Attr.on_mouseleave(_ =>
+                    if (undo_history.show_hover_effect) {
+                      Vdom.Event.Many([
+                        inject(
+                          Update.Action.ShiftHistory(
+                            undo_history.hover_recover_group_id,
+                            undo_history.hover_recover_elt_id,
+                            false,
+                            false,
+                          ),
+                        ),
+                        inject(FocusCell),
+                      ]);
+                    } else {
+                      Vdom.Event.Many([]);
+                    }
+                  ),
+                ];
+              },
+              [
                 Node.div(
-                  [Attr.classes(["history-entry-right"])],
-                  [timestamp_view(undo_history_entry)],
+                  [Attr.classes(["the-history-entry"])],
+                  [
+                    history_typ_tag_view(undo_history_entry),
+                    Node.div(
+                      [
+                        Attr.classes(["history-entry-left"]),
+                        Attr.on_click(_ =>
+                          Vdom.Event.Many([
+                            inject(
+                              Update.Action.ShiftHistory(
+                                group_id,
+                                elt_id,
+                                true,
+                                false,
+                              ),
+                            ),
+                            inject(FocusCell),
+                          ])
+                        ),
+                      ],
+                      [
+                        Node.span(
+                          [Attr.classes(["the-hidden-history-txt"])],
+                          [txt_view],
+                        ),
+                      ],
+                    ),
+                    Node.div(
+                      [Attr.classes(["history-entry-right"])],
+                      [timestamp_view(undo_history_entry)],
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -759,6 +873,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     };
+  };
   let drop_prefix_undisplay_entries =
       (entries: list(undo_history_entry))
       : (option((undo_history_entry, int)), list(undo_history_entry)) => {
@@ -779,32 +894,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let group_view =
-      (
-        ~show_hover_effect: bool,
-        ~is_cur_group: bool,
-        group_id: int,
-        group: undo_history_group,
-      ) => {
-    /* if the group containning selected history entry, it should be splited into different css styles */
-    let suc_his_classes =
-      if (is_cur_group) {
-        ["the-suc-history"];
-      } else {
-        [];
-      };
-    let prev_his_classes =
-      if (is_cur_group) {
-        ["the-prev-history"];
-      } else {
-        [];
-      };
-    let cur_his_classes =
-      if (is_cur_group) {
-        ["the-cur-history"];
-      } else {
-        [];
-      };
-
+      (~undo_history: UndoHistory.t, group_id: int, group: undo_history_group) => {
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
       let (title, hidden_entries) =
@@ -815,77 +905,39 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Vdom.(Node.div([], [])); /* TBD */
       | Some((title_entry, start_index)) =>
         let has_hidden_part = List.length(hidden_entries) > 0;
-        let title_class =
-          if (start_index != 0) {
-            prev_his_classes;
-          } else {
-            cur_his_classes;
-          };
         if (group.is_expanded) {
           Vdom.(
             Node.div(
               [],
               [
                 /* title entry */
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(title_class)],
-                    [
-                      history_title_entry_view(
-                        ~show_hover_effect,
-                        ~is_latest_selected=is_cur_group,
-                        ~is_expanded=group.is_expanded,
-                        ~has_hidden_part,
-                        group_id,
-                        start_index /*elt_id*/,
-                        title_entry,
-                      ),
-                    ],
-                  )
+                history_title_entry_view(
+                  ~undo_history,
+                  ~is_expanded=group.is_expanded,
+                  ~has_hidden_part,
+                  group_id,
+                  start_index /*elt_id*/,
+                  title_entry,
                 ),
                 /* hidden entries */
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(prev_his_classes)],
-                    list_map_helper_func(
-                      history_hidden_entry_view(
-                        ~show_hover_effect,
-                        ~is_latest_selected=false,
-                        group_id,
-                      ),
-                      base => base + 1,
-                      start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
-                      hidden_entries,
-                    ),
-                  )
-                ),
+                ...list_map_helper_func(
+                     history_hidden_entry_view(~undo_history, group_id),
+                     base => base + 1,
+                     start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
+                     hidden_entries,
+                   ),
               ],
             )
           );
         } else {
           /* if the group is not expanded, only title entry is displayed */
-          Vdom.(
-            Node.div(
-              [],
-              [
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(cur_his_classes)],
-                    [
-                      history_title_entry_view(
-                        ~show_hover_effect,
-                        ~is_latest_selected=is_cur_group,
-                        ~is_expanded=group.is_expanded,
-                        ~has_hidden_part,
-                        group_id,
-                        start_index /*elt_id*/,
-                        title_entry,
-                      ),
-                    ],
-                  )
-                ),
-              ],
-            )
+          history_title_entry_view(
+            ~undo_history,
+            ~is_expanded=group.is_expanded,
+            ~has_hidden_part,
+            group_id,
+            start_index /*elt_id*/,
+            title_entry,
           );
         };
       };
@@ -901,238 +953,38 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Some((title_entry, start_index)) =>
         /* title entry is in suc_entries */
         let has_hidden_part = List.length(hidden_entries) > 0;
-        if (start_index + 1 <= List.length(suc_entries)) {
-          let suc_entries' = ListUtil.drop(start_index + 1, suc_entries);
-          if (group.is_expanded) {
-            Vdom.(
-              Node.div(
-                [],
-                [
-                  /* the history title entry */
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(suc_his_classes)],
-                      [
-                        history_title_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=false,
-                          ~is_expanded=group.is_expanded,
-                          ~has_hidden_part,
-                          group_id,
-                          start_index /*elt_id*/,
-                          title_entry,
-                        ),
-                      ],
-                    )
-                  ),
-                  /* the successor history entry */
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(suc_his_classes)],
-                      list_map_helper_func(
-                        history_hidden_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=false,
-                          group_id,
-                        ),
-                        base => base + 1,
-                        start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */,
-                        suc_entries',
-                      ),
-                    )
-                  ),
-                  /* the selected(current) history entry */
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(cur_his_classes)],
-                      [
-                        history_hidden_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=is_cur_group,
-                          group_id,
-                          start_index + 1 + List.length(suc_entries') /* elt_id */,
-                          cur_entry,
-                        ),
-                      ],
-                    )
-                  ),
-                  /* the previous history entry */
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(prev_his_classes)],
-                      list_map_helper_func(
-                        history_hidden_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=false,
-                          group_id,
-                        ),
-                        base => base + 1,
-                        start_index + 1 + List.length(suc_entries') + 1 /* base elt_id */,
-                        prev_entries,
-                      ),
-                    )
-                  ),
-                ],
-              )
-            );
-          } else {
-            Vdom.(
-              Node.div(
-                [],
-                [
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(suc_his_classes)],
-                      [
-                        history_title_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=is_cur_group,
-                          ~is_expanded=group.is_expanded,
-                          ~has_hidden_part=true,
-                          group_id,
-                          start_index /*elt_id*/,
-                          title_entry,
-                        ),
-                      ],
-                    )
-                  ),
-                ],
-              )
-            );
-          };
-        } else if (start_index == List.length(suc_entries)) {
-          if (group.is_expanded) {
-            Vdom.(
-              Node.div(
-                [],
-                [
-                  /* title entry */
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(cur_his_classes)],
-                      [
-                        history_title_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=is_cur_group,
-                          ~is_expanded=group.is_expanded,
-                          ~has_hidden_part,
-                          group_id,
-                          start_index /*elt_id*/,
-                          title_entry,
-                        ),
-                      ],
-                    )
-                  ),
-                  /* hidden entries */
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(prev_his_classes)],
-                      list_map_helper_func(
-                        history_hidden_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=false,
-                          group_id,
-                        ),
-                        base => base + 1,
-                        start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
-                        hidden_entries,
-                      ),
-                    )
-                  ),
-                ],
-              )
-            );
-          } else {
-            /* if the group is not expanded, only title entry is displayed */
-            Vdom.(
-              Node.div(
-                [],
-                [
-                  Vdom.(
-                    Node.div(
-                      [Attr.classes(cur_his_classes)],
-                      [
-                        history_title_entry_view(
-                          ~show_hover_effect,
-                          ~is_latest_selected=is_cur_group,
-                          ~is_expanded=group.is_expanded,
-                          ~has_hidden_part,
-                          group_id,
-                          start_index /*elt_id*/,
-                          cur_entry,
-                        ),
-                      ],
-                    )
-                  ),
-                ],
-              )
-            );
-          };
-        } else if (group.is_expanded) {
+        if (group.is_expanded) {
           Vdom.(
             Node.div(
               [],
               [
-                /* title entry */
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(prev_his_classes)],
-                    [
-                      history_title_entry_view(
-                        ~show_hover_effect,
-                        ~is_latest_selected=is_cur_group,
-                        ~is_expanded=group.is_expanded,
-                        ~has_hidden_part,
-                        group_id,
-                        start_index /*elt_id*/,
-                        title_entry,
-                      ),
-                    ],
-                  )
+                /* the history title entry */
+                history_title_entry_view(
+                  ~undo_history,
+                  ~is_expanded=group.is_expanded,
+                  ~has_hidden_part,
+                  group_id,
+                  start_index /*elt_id*/,
+                  title_entry,
                 ),
-                /* hidden entries */
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(prev_his_classes)],
-                    list_map_helper_func(
-                      history_hidden_entry_view(
-                        ~show_hover_effect,
-                        ~is_latest_selected=false,
-                        group_id,
-                      ),
-                      base => base + 1,
-                      start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
-                      hidden_entries,
-                    ),
-                  )
-                ),
+                /* the hidden history entry */
+                ...list_map_helper_func(
+                     history_hidden_entry_view(~undo_history, group_id),
+                     base => base + 1,
+                     start_index + 1 /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */,
+                     hidden_entries,
+                   ),
               ],
             )
           );
         } else {
-          /* if the group is not expanded, only title entry is displayed */
-          Vdom.(
-            Node.div(
-              [],
-              [
-                Vdom.(
-                  Node.div(
-                    [Attr.classes(prev_his_classes)],
-                    [
-                      history_title_entry_view(
-                        ~show_hover_effect,
-                        ~is_latest_selected=is_cur_group,
-                        ~is_expanded=group.is_expanded,
-                        ~has_hidden_part,
-                        group_id,
-                        start_index /*elt_id*/,
-                        title_entry,
-                      ),
-                    ],
-                  )
-                ),
-              ],
-            )
+          history_title_entry_view(
+            ~undo_history,
+            ~is_expanded=group.is_expanded,
+            ~has_hidden_part=true,
+            group_id,
+            start_index /*elt_id*/,
+            title_entry,
           );
         };
       };
@@ -1145,10 +997,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [Attr.classes(["the-prev-history"])],
         list_map_helper_func(
-          group_view(
-            ~show_hover_effect=history.show_hover_effect,
-            ~is_cur_group=false,
-          ),
+          group_view(~undo_history=history),
           base => base + 1,
           List.length(suc_groups) + 1,
           prev_groups,
@@ -1162,10 +1011,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [Attr.classes(["the-suc-history"])],
         list_map_helper_func(
-          group_view(
-            ~show_hover_effect=history.show_hover_effect,
-            ~is_cur_group=false,
-          ),
+          group_view(~undo_history=history),
           base => base + 1,
           0,
           suc_groups,
@@ -1180,8 +1026,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         [],
         [
           group_view(
-            ~show_hover_effect=history.show_hover_effect,
-            ~is_cur_group=true,
+            ~undo_history=history,
             List.length(suc_groups),
             cur_group,
           ),

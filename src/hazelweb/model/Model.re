@@ -66,6 +66,8 @@ let init = (): t => {
       all_hidden_history_expand: false,
       is_hover: false,
       show_hover_effect: true,
+      hover_recover_group_id: 0,
+      hover_recover_elt_id: 0,
       cur_group_id: 0,
       cur_elt_id: 0,
     };
@@ -310,13 +312,15 @@ let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
   |> map_selected_instances(update_selected_instances);
 };
 
-let shift_history = (model: t, group_id: int, elt_id: int, is_click: bool): t => {
-  JSUtil.log(
-    "shift_history:"
-    ++ string_of_int(group_id)
-    ++ " g] [e "
-    ++ string_of_int(elt_id),
-  );
+let shift_history =
+    (
+      model: t,
+      group_id: int,
+      elt_id: int,
+      is_click: bool,
+      is_mouseenter: bool,
+    )
+    : t => {
   switch (ZList.shift_to(group_id, model.undo_history.groups)) {
   | None => failwith("Impossible match, because undo_history is non-empty")
   | Some(new_groups) =>
@@ -325,11 +329,15 @@ let shift_history = (model: t, group_id: int, elt_id: int, is_click: bool): t =>
     switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
     | None => failwith("Impossible because group_entries is non-empty")
     | Some(new_group_entries) =>
-      let (cur_group_id, cur_elt_id) =
-        if (is_click) {
-          (group_id, elt_id);
+      let (cur_group_id, cur_elt_id) = (group_id, elt_id);
+      let (hover_recover_group_id, hover_recover_elt_id) =
+        if (is_mouseenter) {
+          (
+            model.undo_history.hover_recover_group_id,
+            model.undo_history.hover_recover_elt_id,
+          );
         } else {
-          (model.undo_history.cur_group_id, model.undo_history.cur_elt_id);
+          (group_id, elt_id);
         };
       let new_history = {
         ...model.undo_history,
@@ -339,6 +347,8 @@ let shift_history = (model: t, group_id: int, elt_id: int, is_click: bool): t =>
             new_groups,
           ),
         is_hover: !is_click,
+        hover_recover_group_id,
+        hover_recover_elt_id,
         cur_group_id,
         cur_elt_id,
       };
