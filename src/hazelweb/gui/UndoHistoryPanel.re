@@ -399,7 +399,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | Init => Some(indicate_words_view("initial state"))
-    | Ignore => None
+    | Move => None
     };
   };
 
@@ -450,7 +450,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     | MatchRule => Some(Exp)
     | Init => None
-    | Ignore => None
+    | Move => None
     };
   };
   let history_entry_tab_icon =
@@ -548,7 +548,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let get_status_class =
-      (~recent_non_ignore_group_id: int, ~recent_non_ignore_elt_id: int, ~group_id: int, ~elt_id: int)
+      (
+        ~recent_non_ignore_group_id: int,
+        ~recent_non_ignore_elt_id: int,
+        ~group_id: int,
+        ~elt_id: int,
+      )
       : list(string) =>
     if (recent_non_ignore_group_id > group_id
         || recent_non_ignore_group_id == group_id
@@ -562,9 +567,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ["the-cur-history"];
     };
   let is_latest_selected_entry =
-      (~recent_non_ignore_group_id: int, ~recent_non_ignore_elt_id: int, ~group_id: int, ~elt_id: int)
+      (
+        ~recent_non_ignore_group_id: int,
+        ~recent_non_ignore_elt_id: int,
+        ~group_id: int,
+        ~elt_id: int,
+      )
       : bool => {
-    recent_non_ignore_group_id == group_id && recent_non_ignore_elt_id == elt_id;
+    recent_non_ignore_group_id == group_id
+    && recent_non_ignore_elt_id == elt_id;
   };
 
   let history_title_entry_view =
@@ -591,8 +602,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ~elt_id,
       );
     switch (history_entry_txt_view(undo_history_entry)) {
-    | None =>
-      Vdom.(Node.div([], []));
+    | None => Vdom.(Node.div([], []))
     | Some(txt_view) =>
       Vdom.(
         Node.div(
@@ -744,8 +754,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ~elt_id,
       );
     switch (history_entry_txt_view(undo_history_entry)) {
-    | None =>
-      Vdom.(Node.div([], []));
+    | None => Vdom.(Node.div([], []))
     | Some(txt_view) =>
       Vdom.(
         Node.div(
@@ -881,7 +890,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       switch (entries) {
       | [] => (None, [])
       | [head, ...tail] =>
-        if (head.edit_action == Ignore) {
+        if (head.edit_action == Move) {
           helper_func(tail, index + 1);
         } else {
           (Some((head, index)), tail);
@@ -898,8 +907,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       let (title, hidden_entries) =
         drop_prefix_undisplay_entries([cur_entry] @ prev_entries);
       switch (title) {
-      | None =>
-        Vdom.(Node.div([], [])); 
+      | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
         let has_hidden_part = List.length(hidden_entries) > 0;
         if (group.is_expanded) {
@@ -944,8 +952,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           suc_entries @ [cur_entry] @ prev_entries,
         );
       switch (title) {
-      | None =>
-        Vdom.(Node.div([], []));
+      | None => Vdom.(Node.div([], []))
       | Some((title_entry, start_index)) =>
         /* title entry is in suc_entries */
         let has_hidden_part = List.length(hidden_entries) > 0;

@@ -329,7 +329,10 @@ let shift_history =
     switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
     | None => failwith("Impossible because group_entries is non-empty")
     | Some(new_group_entries) =>
-      let (recent_non_ignore_group_id, recent_non_ignore_elt_id) = (group_id, elt_id);
+      let (recent_non_ignore_group_id, recent_non_ignore_elt_id) = (
+        group_id,
+        elt_id,
+      );
       let (hover_recover_group_id, hover_recover_elt_id) =
         if (is_mouseenter) {
           (

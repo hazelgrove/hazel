@@ -18,7 +18,7 @@ type edit_action =
   | ConstructEdit(Action.shape)
   | MatchRule
   | Init
-  | Ignore; /* cursor move and init state */
+  | Move; /* cursor move and init state */
 
 type cursor_term_info = {
   cursor_term_before: cursor_term,
@@ -54,9 +54,7 @@ type t = {
   recent_non_ignore_group_id: int,
   recent_non_ignore_elt_id: int,
 };
-let update_id = (recent_non_ignore_group_id: int, recent_non_ignore_elt_id: int, history: t): t => {
-  {...history, recent_non_ignore_group_id, recent_non_ignore_elt_id};
-};
+
 let update_is_hover = (is_hover: bool, history: t) => {
   {...history, is_hover};
 };
@@ -81,17 +79,17 @@ let push_history_entry =
     (~prev_group: undo_history_group, ~new_entry: undo_history_entry)
     : undo_history_group => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  if (new_entry.edit_action == Ignore) {
-    /* if edit_action is Ignore, the successory history should not be cleared */
-    if (prev_entry.edit_action == Ignore) {
+  if (new_entry.edit_action == Move) {
+    /* if edit_action is Move, the successory history should not be cleared */
+    if (prev_entry.edit_action == Move) {
       {
-        /* only store 1 cursor-move (Ignore) entry if there are consecutive cursor move actions */
+        /* only store 1 cursor-move (Move) entry if there are consecutive cursor move actions */
         ...prev_group,
         group_entries: ZList.replace_z(new_entry, prev_group.group_entries),
       };
     } else {
       {
-        /* push new Ignore entry into history */
+        /* push new Move entry into history */
 
         ...prev_group,
         group_entries: (
@@ -106,7 +104,7 @@ let push_history_entry =
     };
   } else {
     {
-      /* push new non-Ignore entry, and clear the successory history entries */
+      /* push new non-Move entry, and clear the successory history entries */
 
       group_entries: (
         [],
@@ -126,7 +124,7 @@ let rec get_recent_non_ignore_entry =
   switch (ls) {
   | [] => None
   | [head, ...tail] =>
-    if (head.edit_action == Ignore) {
+    if (head.edit_action == Move) {
       get_recent_non_ignore_entry(tail);
     } else {
       Some(head);
@@ -141,7 +139,7 @@ let get_recent_non_ignore_entry_index =
     switch (ls) {
     | [] => None
     | [head, ...tail] =>
-      if (head.edit_action == Ignore) {
+      if (head.edit_action == Move) {
         helper_func(tail, index + 1);
       } else {
         Some(index);
@@ -173,8 +171,8 @@ let cursor_jump =
 let group_edit_action =
     (edit_action_1: edit_action, edit_action_2: edit_action): bool =>
   switch (edit_action_1, edit_action_2) {
-  | (Ignore, _)
-  | (_, Ignore)
+  | (Move, _)
+  | (_, Move)
   | (MatchRule, MatchRule) => true
   | (MatchRule, _) => false
   | (Var(_), Var(_)) => true
@@ -225,8 +223,8 @@ let group_entry =
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   let can_group_edit_action =
     switch (prev_entry.edit_action, new_edit_action) {
-    /* ignore entries with "Ignore" edit_action */
-    | (Ignore, _) =>
+    /* ignore entries with "Move" edit_action */
+    | (Move, _) =>
       switch (
         get_recent_non_ignore_entry([
           prev_entry,
@@ -252,11 +250,11 @@ let group_entry =
     | None => true
     | Some(prev_entry) =>
       switch (prev_entry.edit_action, new_edit_action) {
-      | (Ignore, _) =>
+      | (Move, _) =>
         failwith(
-          "impossible match, prefix Ignore edit action entries have been filtered",
+          "impossible match, prefix Move edit action entries have been filtered",
         )
-      | (_, Ignore) => true
+      | (_, Move) => true
       | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
         switch (delete_edit_1, delete_edit_2) {
         | (Space, Space)
@@ -283,7 +281,7 @@ let group_entry =
 
 type comp_len_typ =
   | MaxLen
-  | Ignore
+  | Move
   | Len(int);
 
 let comp_len_lt =
@@ -291,9 +289,9 @@ let comp_len_lt =
   switch (cursor_len_1, cursor_len_2) {
   | (MaxLen, MaxLen) => false
   | (_, MaxLen) => true
-  | (_, Ignore) => false
+  | (_, Move) => false
   | (MaxLen, _) => false
-  | (Ignore, _) => true
+  | (Move, _) => true
   | (Len(len1), Len(len2)) => len1 < len2
   };
 };
@@ -302,7 +300,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   switch (cursor_term) {
   | Exp(_, operand) =>
     switch (operand) {
-    | EmptyHole(_) => Ignore
+    | EmptyHole(_) => Move
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
@@ -316,7 +314,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     }
   | Pat(_, operand) =>
     switch (operand) {
-    | EmptyHole(_) => Ignore
+    | EmptyHole(_) => Move
     | Wild(_) => Len(1)
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
@@ -328,7 +326,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     }
   | Typ(_, operand) =>
     switch (operand) {
-    | Hole => Ignore
+    | Hole => Move
     | Unit
     | Int
     | Float
@@ -342,7 +340,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Rule(_, _) => MaxLen
   | Line(_, line) =>
     switch (line) {
-    | EmptyLine => Ignore
+    | EmptyLine => Move
     | LetLine(_, _, _)
     | ExpLine(_) => MaxLen
     }
@@ -371,7 +369,7 @@ let get_original_deleted_term =
     switch (ls) {
     | [] => cursor_term
     | [elt] =>
-      if (elt.edit_action == Ignore) {
+      if (elt.edit_action == Move) {
         cursor_term;
       } else {
         comp_len_larger(
@@ -383,7 +381,7 @@ let get_original_deleted_term =
         );
       }
     | [head, ...tail] =>
-      if (head.edit_action == Ignore) {
+      if (head.edit_action == Move) {
         max_len_term(tail, max_len, cursor_term);
       } else {
         let larger_term =
@@ -438,7 +436,7 @@ let delete_edit =
         /* edit the term */
     };
   } else {
-    Ignore;
+    Move;
   };
 let delim_edge_handle =
     (~new_cursor_term_info: cursor_term_info, ~adjacent_is_empty_line: bool)
@@ -452,11 +450,11 @@ let delim_edge_handle =
       /* delete space */
       DeleteEdit(Space);
     } else {
-      Ignore;
-            /* jump to next term */
+      Move;
+          /* jump to next term */
     };
   } else {
-    Ignore;
+    Move;
   };
 let delete =
     (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
@@ -480,8 +478,8 @@ let delete =
       if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
           || ZExp.erase(new_cursor_term_info.zexp_before)
           == ZExp.erase(new_cursor_term_info.zexp_after)) {
-        Ignore;
-              /* move cursor in the hole */
+        Move;
+            /* move cursor in the hole */
       } else if (pos == 1
                  && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
         /* num==1 is the position of ':' in an expression */
@@ -509,7 +507,7 @@ let delete =
       DeleteEdit(Term(initial_term));
     | After =>
       /* move cursor to next term, just ignore this move */
-      Ignore
+      Move
     }
   };
 };
@@ -538,8 +536,8 @@ let backspace =
       )
     | After =>
       if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-        Ignore;
-              /* move cursor in the hole */
+        Move;
+            /* move cursor in the hole */
       } else if (pos == 1
                  && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
         /* num==1 is the position of ':' in an expression */
@@ -557,7 +555,7 @@ let backspace =
     switch (side) {
     | Before =>
       /* move cursor to next term, just ignore this move */
-      Ignore
+      Move
     | After =>
       /* delete and reach a hole */
       let initial_term =
@@ -573,7 +571,7 @@ let rec get_earlist_non_ignore_entry =
   switch (ls) {
   | [] => result
   | [head, ...tail] =>
-    if (head.edit_action == Ignore) {
+    if (head.edit_action == Move) {
       get_earlist_non_ignore_entry(tail, result);
     } else {
       get_earlist_non_ignore_entry(tail, Some(head));
@@ -590,7 +588,7 @@ let get_new_edit_action =
     )
     : edit_action => {
   switch (action) {
-  | None => Ignore
+  | None => Move
   | Some(action') =>
     switch (action') {
     | Delete => delete(~prev_group, ~new_cursor_term_info)
@@ -618,7 +616,7 @@ let get_new_edit_action =
             }
           };
         } else {
-          Ignore;
+          Move;
         }
       | SParenthesized
       | SList
@@ -743,7 +741,7 @@ let get_new_edit_action =
     | SwapUp /* what's that */
     | SwapDown
     | SwapLeft
-    | SwapRight => Ignore
+    | SwapRight => Move
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
     }
@@ -805,7 +803,7 @@ let push_edit_state =
   };
   if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
     let new_group = push_history_entry(~prev_group, ~new_entry);
-    if (new_edit_action == Ignore) {
+    if (new_edit_action == Move) {
       switch (
         get_recent_non_ignore_entry_index([
           ZList.prj_z(new_group.group_entries),
@@ -814,10 +812,9 @@ let push_edit_state =
       ) {
       | None =>
         failwith(
-          "Impossible, Ignore entry must be grouped into a group with non-Ignore entry",
+          "Impossible, Move entry must be grouped into a group with non-Move entry",
         )
-      | Some(index) =>
-        {
+      | Some(index) => {
           ...undo_history,
           groups: ZList.replace_z(new_group, undo_history.groups),
           is_hover: false,
@@ -825,7 +822,7 @@ let push_edit_state =
             index + List.length(ZList.prj_prefix(new_group.group_entries)),
           recent_non_ignore_elt_id:
             index + List.length(ZList.prj_prefix(new_group.group_entries)),
-        };
+        }
       };
     } else {
       {
@@ -836,7 +833,8 @@ let push_edit_state =
         hover_recover_elt_id:
           List.length(ZList.prj_prefix(new_group.group_entries)),
         recent_non_ignore_group_id: 0,
-        recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
+        recent_non_ignore_elt_id:
+          List.length(ZList.prj_prefix(new_group.group_entries)),
       };
     };
   } else {
@@ -869,7 +867,7 @@ let rec shift_to_prev_non_ignore =
     | Some(new_groups) =>
       let new_group = ZList.prj_z(new_groups);
       let new_entries = ZList.shift_begin(new_group.group_entries);
-      if (ZList.prj_z(new_entries).edit_action == Ignore) {
+      if (ZList.prj_z(new_entries).edit_action == Move) {
         let new_history = {...history, groups: new_groups};
         shift_to_prev_non_ignore(new_history, recent_non_ignore_history);
       } else {
@@ -884,13 +882,15 @@ let rec shift_to_prev_non_ignore =
           groups: new_groups,
           hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
           hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-          recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
-          recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
+          recent_non_ignore_group_id:
+            List.length(ZList.prj_prefix(new_groups)),
+          recent_non_ignore_elt_id:
+            List.length(ZList.prj_prefix(new_entries)),
         };
       };
     }
   | Some(new_entries) =>
-    if (ZList.prj_z(new_entries).edit_action == Ignore) {
+    if (ZList.prj_z(new_entries).edit_action == Move) {
       let new_group = {
         ...cur_group,
         /* is_expanded=true because the selected group should be expanded */
@@ -911,7 +911,8 @@ let rec shift_to_prev_non_ignore =
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+        recent_non_ignore_group_id:
+          List.length(ZList.prj_prefix(new_groups)),
         recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
     }
@@ -934,7 +935,7 @@ let rec shift_to_next_non_ignore =
     | Some(new_groups) =>
       let new_group = ZList.prj_z(new_groups);
       let new_entries = ZList.shift_end(new_group.group_entries);
-      if (ZList.prj_z(new_entries).edit_action == Ignore) {
+      if (ZList.prj_z(new_entries).edit_action == Move) {
         let new_history = {...history, groups: new_groups};
         shift_to_next_non_ignore(new_history, recent_non_ignore_history);
       } else {
@@ -949,13 +950,15 @@ let rec shift_to_next_non_ignore =
           groups: new_groups,
           hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
           hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-          recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
-          recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
+          recent_non_ignore_group_id:
+            List.length(ZList.prj_prefix(new_groups)),
+          recent_non_ignore_elt_id:
+            List.length(ZList.prj_prefix(new_entries)),
         };
       };
     }
   | Some(new_entries) =>
-    if (ZList.prj_z(new_entries).edit_action == Ignore) {
+    if (ZList.prj_z(new_entries).edit_action == Move) {
       let new_group = {
         ...cur_group,
         /* is_expanded=true because the selected group should be expanded */
@@ -967,7 +970,8 @@ let rec shift_to_next_non_ignore =
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+        recent_non_ignore_group_id:
+          List.length(ZList.prj_prefix(new_groups)),
         recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
       shift_to_next_non_ignore(new_history, recent_non_ignore_history);
@@ -983,7 +987,8 @@ let rec shift_to_next_non_ignore =
         groups: new_groups,
         hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
         hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        recent_non_ignore_group_id: List.length(ZList.prj_prefix(new_groups)),
+        recent_non_ignore_group_id:
+          List.length(ZList.prj_prefix(new_groups)),
         recent_non_ignore_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
     }
