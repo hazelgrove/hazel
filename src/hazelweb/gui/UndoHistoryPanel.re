@@ -433,7 +433,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam => Some(Exp)
+      | SLam 
+      | SAsc => Some(Exp)
       | _ =>
         Some(
           get_cursor_term_tag_typ(
@@ -708,13 +709,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ),
                       ],
                       [
-                        txt_view,
-                        Node.text(
-                          "--g:"
-                          ++ string_of_int(group_id)
-                          ++ " e:"
-                          ++ string_of_int(elt_id),
-                        ),
+                        txt_view
                       ],
                     ),
                     Node.div(
@@ -871,13 +866,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         Node.span(
                           [Attr.classes(["the-hidden-history-txt"])],
                           [
-                            txt_view,
-                            Node.text(
-                              "--g:"
-                              ++ string_of_int(group_id)
-                              ++ " e:"
-                              ++ string_of_int(elt_id),
-                            ),
+                            txt_view
                           ],
                         ),
                       ],
