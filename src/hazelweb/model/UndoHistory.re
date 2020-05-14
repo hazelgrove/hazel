@@ -17,8 +17,7 @@ type edit_action =
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
   | MatchRule
-  | Init
-  | Move; /* cursor move and init state */
+  | Init;
 
 type cursor_term_info = {
   cursor_term_before: cursor_term,
@@ -794,37 +793,34 @@ let push_edit_state =
       ~action,
     );
   let timestamp = Unix.time();
-  let new_entry = {
-    cardstacks: cardstacks_after,
-    cursor_term_info: new_cursor_term_info,
-    previous_action: action,
-    edit_action: new_edit_action,
-    timestamp,
-  };
-  if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
-    let new_group = push_history_entry(~prev_group, ~new_entry);
-    if (new_edit_action == Move) {
-      switch (
-        get_recent_non_ignore_entry_index([
-          ZList.prj_z(new_group.group_entries),
-          ...ZList.prj_suffix(new_group.group_entries),
-        ])
-      ) {
-      | None =>
-        failwith(
-          "Impossible, Move entry must be grouped into a group with non-Move entry",
-        )
-      | Some(index) => {
-          ...undo_history,
-          groups: ZList.replace_z(new_group, undo_history.groups),
-          is_hover: false,
-          hover_recover_elt_id:
-            index + List.length(ZList.prj_prefix(new_group.group_entries)),
-          recent_non_ignore_elt_id:
-            index + List.length(ZList.prj_prefix(new_group.group_entries)),
-        }
+  let new_entry =
+    if (new_edit_action != Move) {
+      {
+        cardstacks: cardstacks_after,
+        cursor_term_info: new_cursor_term_info,
+        previous_action: action,
+        edit_action: new_edit_action,
+        timestamp,
       };
     } else {
+      {
+        ...ZList.prj_z(prev_group.group_entries),
+        cardstacks: cardstacks_after,
+        timestamp,
+      };
+    };
+  if (new_edit_action == Move) {
+    let new_group = {
+      ...prev_group,
+      group_entries: ZList.replace_z(new_entry, prev_group.group_entries),
+    };
+    {
+      ...undo_history,
+      groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+      is_hover: false,
+    };
+  } else if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
+    let new_group = push_history_entry(~prev_group, ~new_entry);
       {
         ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
@@ -836,7 +832,7 @@ let push_edit_state =
         recent_non_ignore_elt_id:
           List.length(ZList.prj_prefix(new_group.group_entries)),
       };
-    };
+    
   } else {
     let new_group = {group_entries: ([], new_entry, []), is_expanded: false};
     {
@@ -927,8 +923,6 @@ let shift_to_prev = (history: t): t => {
     };
   };
 };
-
-
 
 let shift_to_next = (history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
