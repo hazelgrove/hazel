@@ -1413,6 +1413,7 @@ h1 {
 }
 
 .the-hidden-history-entry {
+  display: grid;
   cursor: pointer;
   padding: 5px;
   padding-left: 20px;
@@ -1421,7 +1422,6 @@ h1 {
   border: 1px outset #ffffff;
 }
 .the-hidden-history-txt{
-  
   display: inline;
   float: left;
 }
@@ -1481,10 +1481,7 @@ h1 {
   visibility: visible;
 }
 
-.hidden-history-entry {
-  width: 100%;
-  display: grid;
-}
+
 .history-tab-icon {
   cursor: pointer;
   font-weight: bolder;
