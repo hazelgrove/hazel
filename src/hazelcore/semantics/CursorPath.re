@@ -854,9 +854,15 @@ module Exp = {
       let zhole_map = zpsi.zsplice_map;
       let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
       cons'(n, of_z(ze));
-    // | SubscriptZE1(_, zbody1, _, _) => cons'(0, of_z(zbody1))
-    // | SubscriptZE2(_, _, zbody2, _) => cons'(1, of_z(zbody2))
-    // | SubscriptZE3(_, _, _, zbody3) => cons'(2, of_z(zbody3))
+    | SubscriptZE1(_, zbody1, _, _) =>
+      print_endline("CursorPath858");
+      cons'(0, of_z(zbody1));
+    | SubscriptZE2(_, _, zbody2, _) =>
+      print_endline("CursorPath861");
+      cons'(1, of_z(zbody2));
+    | SubscriptZE3(_, _, _, zbody3) =>
+      print_endline("CursorPath864");
+      cons'(2, of_z(zbody3));
     }
   and of_zrule = (zrule: ZExp.zrule): t =>
     switch (zrule) {
@@ -940,22 +946,27 @@ module Exp = {
       | Lam(err, p, ann, body) =>
         switch (x) {
         | 0 =>
+          print_endline("CursorPath949");
           p
           |> Pat.follow((xs, cursor))
-          |> OptUtil.map(zp => ZExp.LamZP(err, zp, ann, body))
+          |> OptUtil.map(zp => ZExp.LamZP(err, zp, ann, body));
         | 1 =>
+          print_endline("CursorPath954");
           switch (ann) {
           | None => None
           | Some(ann) =>
             ann
             |> Typ.follow((xs, cursor))
             |> OptUtil.map(zann => ZExp.LamZA(err, p, zann, body))
-          }
+          };
         | 2 =>
+          print_endline("CursorPath963");
           body
           |> follow((xs, cursor))
-          |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody))
-        | _ => None
+          |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody));
+        | _ =>
+          print_endline("CursorPath968");
+          None;
         }
       | Inj(err, side, body) =>
         switch (x) {
@@ -1001,28 +1012,33 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
-      // | Subscript(err, body1, body2, body3) =>
-      //   switch (x) {
-      //   | 0 =>
-      //     body1
-      //     |> follow((xs, cursor))
-      //     |> OptUtil.map(zbody1 =>
-      //          ZExp.SubscriptZE1(err, zbody1, body2, body3)
-      //        )
-      //   | 1 =>
-      //     body2
-      //     |> follow((xs, cursor))
-      //     |> OptUtil.map(zbody2 =>
-      //          ZExp.SubscriptZE2(err, body1, zbody2, body3)
-      //        )
-      //   | 2 =>
-      //     body3
-      //     |> follow((xs, cursor))
-      //     |> OptUtil.map(zbody3 =>
-      //          ZExp.SubscriptZE3(err, body1, body2, zbody3)
-      //        )
-      //   | _ => None
-      //   }
+      | Subscript(err, body1, body2, body3) =>
+        switch (x) {
+        | 0 =>
+          print_endline("CursorPath1013");
+          body1
+          |> follow((xs, cursor))
+          |> OptUtil.map(zbody1 =>
+               ZExp.SubscriptZE1(err, zbody1, body2, body3)
+             );
+        | 1 =>
+          print_endline("CursorPath1020");
+          body2
+          |> follow((xs, cursor))
+          |> OptUtil.map(zbody2 =>
+               ZExp.SubscriptZE2(err, body1, zbody2, body3)
+             );
+        | 2 =>
+          print_endline("CursorPath1027");
+          body3
+          |> follow((xs, cursor))
+          |> OptUtil.map(zbody3 =>
+               ZExp.SubscriptZE3(err, body1, body2, zbody3)
+             );
+        | _ =>
+          print_endline("CursorPath1034");
+          None;
+        }
       }
     }
   and follow_rule =
@@ -1201,28 +1217,31 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
-      // | Subscript(err, body1, body2, body3) =>
-      //   switch (x) {
-      //   | 0 =>
-      //     body1
-      //     |> follow_steps(~side, xs)
-      //     |> OptUtil.map(zbody1 =>
-      //          ZExp.SubscriptZE1(err, zbody1, body2, body3)
-      //        )
-      //   | 1 =>
-      //     body2
-      //     |> follow_steps(~side, xs)
-      //     |> OptUtil.map(zbody2 =>
-      //          ZExp.SubscriptZE2(err, body1, zbody2, body3)
-      //        )
-      //   | 2 =>
-      //     body3
-      //     |> follow_steps(~side, xs)
-      //     |> OptUtil.map(zbody3 =>
-      //          ZExp.SubscriptZE3(err, body1, body2, zbody3)
-      //        )
-      //   | _ => None
-      //   }
+      | Subscript(err, body1, body2, body3) =>
+        switch (x) {
+        | 0 =>
+          print_endline("CursorPath1216");
+          body1
+          |> follow_steps(~side, xs)
+          |> OptUtil.map(zbody1 =>
+               ZExp.SubscriptZE1(err, zbody1, body2, body3)
+             );
+        | 1 =>
+          print_endline("CursorPath1223");
+          body2
+          |> follow_steps(~side, xs)
+          |> OptUtil.map(zbody2 =>
+               ZExp.SubscriptZE2(err, body1, zbody2, body3)
+             );
+        | 2 =>
+          print_endline("CursorPath1230");
+          body3
+          |> follow_steps(~side, xs)
+          |> OptUtil.map(zbody3 =>
+               ZExp.SubscriptZE3(err, body1, body2, zbody3)
+             );
+        | _ => None
+        }
       }
     }
   and follow_steps_rule =
@@ -1353,12 +1372,13 @@ module Exp = {
         hs,
       )
       |> holes_err(err, rev_steps);
-    // | Subscript(err, body1, body2, body3) =>
-    //   hs
-    //   |> holes(body3, [2, ...rev_steps])
-    //   |> holes(body2, [1, ...rev_steps])
-    //   |> holes(body1, [0, ...rev_steps])
-    //   |> holes_err(err, rev_steps)
+    | Subscript(err, body1, body2, body3) =>
+      print_endline("CursorPath1369");
+      hs
+      |> holes(body3, [2, ...rev_steps])
+      |> holes(body2, [1, ...rev_steps])
+      |> holes(body1, [0, ...rev_steps])
+      |> holes_err(err, rev_steps);
     }
   and holes_rule =
       (Rule(p, clause): UHExp.rule, rev_steps: rev_steps, hs: hole_list)
@@ -1603,36 +1623,36 @@ module Exp = {
         )
       | _ => no_holes
       };
-    // | CursorE(OnDelim(k, _), Subscript(err, body1, body2, body3)) =>
-    //   let hole_selected =
-    //     switch (err) {
-    //     | NotInHole => None
-    //     | InHole(_, u) => Some((ExpHole(u), rev_steps |> List.rev))
-    //     };
-    //   let holes_body1 = holes(body1, [0, ...rev_steps], []);
-    //   let holes_body2 = holes(body2, [1, ...rev_steps], []);
-    //   let holes_body3 = holes(body3, [2, ...rev_steps], []);
-    //   switch (k) {
-    //   | 0 =>
-    //     mk_zholes(
-    //       ~holes_before=holes_body1,
-    //       ~hole_selected,
-    //       ~holes_after=holes_body2 @ holes_body3,
-    //       (),
-    //     )
-    //   | 1 =>
-    //     mk_zholes(
-    //       ~holes_before=holes_body1 @ holes_body2,
-    //       ~hole_selected,
-    //       ~holes_after=holes_body3,
-    //       (),
-    //     )
-    //   | _ => no_holes
-    //   };
+    | CursorE(OnDelim(k, _), Subscript(err, body1, body2, body3)) =>
+      print_endline("CursorPath1620");
+      let hole_selected =
+        switch (err) {
+        | NotInHole => None
+        | InHole(_, u) => Some((ExpHole(u), rev_steps |> List.rev))
+        };
+      let holes_body1 = holes(body1, [0, ...rev_steps], []);
+      let holes_body2 = holes(body2, [1, ...rev_steps], []);
+      let holes_body3 = holes(body3, [2, ...rev_steps], []);
+      switch (k) {
+      | 0 =>
+        mk_zholes(
+          ~holes_before=holes_body1,
+          ~hole_selected,
+          ~holes_after=holes_body2 @ holes_body3,
+          (),
+        )
+      | 1 =>
+        mk_zholes(
+          ~holes_before=holes_body1 @ holes_body2,
+          ~hole_selected,
+          ~holes_after=holes_body3,
+          (),
+        )
+      | _ => no_holes
+      };
     | CursorE(
         OnText(_),
-        Inj(_) | Parenthesized(_) | Lam(_) | Case(_),
-        // | Subscript(_)
+        Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | Subscript(_),
       ) =>
       /* invalid cursor position */
       no_holes
@@ -1832,54 +1852,57 @@ module Exp = {
         hole_selected,
         holes_after: holes_after @ holes_splices_after,
       };
-    // | SubscriptZE1(err, zbody1, body2, body3) =>
-    //   let holes_err =
-    //     switch (err) {
-    //     | NotInHole => []
-    //     | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
-    //     };
-    //   let {holes_before, hole_selected, holes_after} =
-    //     holes_z(zbody1, [0, ...rev_steps]);
-    //   let holes_body2 = holes(body2, [1, ...rev_steps], []);
-    //   let holes_body3 = holes(body3, [2, ...rev_steps], []);
-    //   mk_zholes(
-    //     ~holes_before=holes_err @ holes_before,
-    //     ~hole_selected,
-    //     ~holes_after=holes_after @ holes_body2 @ holes_body3,
-    //     (),
-    //   );
-    // | SubscriptZE2(err, body1, zbody2, body3) =>
-    //   let holes_err =
-    //     switch (err) {
-    //     | NotInHole => []
-    //     | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
-    //     };
-    //   let holes_body1 = holes(body1, [0, ...rev_steps], []);
-    //   let {holes_before, hole_selected, holes_after} =
-    //     holes_z(zbody2, [1, ...rev_steps]);
-    //   let holes_body3 = holes(body3, [2, ...rev_steps], []);
-    //   mk_zholes(
-    //     ~holes_before=holes_err @ holes_body1 @ holes_before,
-    //     ~hole_selected,
-    //     ~holes_after=holes_after @ holes_body3,
-    //     (),
-    //   );
-    // | SubscriptZE3(err, body1, body2, zbody3) =>
-    //   let holes_err =
-    //     switch (err) {
-    //     | NotInHole => []
-    //     | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
-    //     };
-    //   let holes_body1 = holes(body1, [0, ...rev_steps], []);
-    //   let holes_body2 = holes(body2, [0, ...rev_steps], []);
-    //   let {holes_before, hole_selected, holes_after} =
-    //     holes_z(zbody3, [2, ...rev_steps]);
-    //   mk_zholes(
-    //     ~holes_before=holes_err @ holes_body1 @ holes_body2 @ holes_before,
-    //     ~hole_selected,
-    //     ~holes_after,
-    //     (),
-    //   );
+    | SubscriptZE1(err, zbody1, body2, body3) =>
+      print_endline("CursorPath1849");
+      let holes_err =
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        };
+      let {holes_before, hole_selected, holes_after} =
+        holes_z(zbody1, [0, ...rev_steps]);
+      let holes_body2 = holes(body2, [1, ...rev_steps], []);
+      let holes_body3 = holes(body3, [2, ...rev_steps], []);
+      mk_zholes(
+        ~holes_before=holes_err @ holes_before,
+        ~hole_selected,
+        ~holes_after=holes_after @ holes_body2 @ holes_body3,
+        (),
+      );
+    | SubscriptZE2(err, body1, zbody2, body3) =>
+      print_endline("CursorPath1866");
+      let holes_err =
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        };
+      let holes_body1 = holes(body1, [0, ...rev_steps], []);
+      let {holes_before, hole_selected, holes_after} =
+        holes_z(zbody2, [1, ...rev_steps]);
+      let holes_body3 = holes(body3, [2, ...rev_steps], []);
+      mk_zholes(
+        ~holes_before=holes_err @ holes_body1 @ holes_before,
+        ~hole_selected,
+        ~holes_after=holes_after @ holes_body3,
+        (),
+      );
+    | SubscriptZE3(err, body1, body2, zbody3) =>
+      print_endline("CursorPath1883");
+      let holes_err =
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        };
+      let holes_body1 = holes(body1, [0, ...rev_steps], []);
+      let holes_body2 = holes(body2, [0, ...rev_steps], []);
+      let {holes_before, hole_selected, holes_after} =
+        holes_z(zbody3, [2, ...rev_steps]);
+      mk_zholes(
+        ~holes_before=holes_err @ holes_body1 @ holes_body2 @ holes_before,
+        ~hole_selected,
+        ~holes_after,
+        (),
+      );
     }
   and holes_zrule = (zrule: ZExp.zrule, rev_steps: rev_steps) =>
     switch (zrule) {

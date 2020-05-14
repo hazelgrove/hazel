@@ -405,6 +405,27 @@ let mk_Case_ann =
   |> annot_Case(~err);
 };
 
+let mk_Subscript =
+    (
+      ~err: ErrStatus.t,
+      body1: formatted_child,
+      body2: formatted_child,
+      body3: formatted_child,
+    )
+    : t => {
+  let open_group = Delim.open_List() |> annot_DelimGroup;
+  let close_group = Delim.close_List() |> annot_DelimGroup;
+  Doc.hcats([
+    body1 |> pad_open_child,
+    open_group,
+    body2 |> pad_open_child,
+    Delim.colon_Lam(),
+    body3 |> pad_open_child,
+    close_group,
+  ])
+  |> annot_Operand(~sort=Exp, ~err);
+};
+
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   let delim_group =
     Doc.hcats([
@@ -870,6 +891,7 @@ module Exp = {
           | StringLit(err, s) => mk_StringLit(~err, s)
           | ListNil(err) => mk_ListNil(~err, ())
           | Lam(err, p, ann, body) =>
+            print_endline("UHDoc894");
             let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let ann =
               ann
@@ -887,6 +909,15 @@ module Exp = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_Parenthesized(body);
+          | Subscript(err, body1, body2, body3) =>
+            print_endline("UHDoc912");
+            let body1 =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body1);
+            let body2 =
+              mk_child(~memoize, ~enforce_inline, ~child_step=1, body2);
+            let body3 =
+              mk_child(~memoize, ~enforce_inline, ~child_step=2, body3);
+            mk_Subscript(~err, body1, body2, body3);
           | Case(err, scrut, rules, ann) =>
             if (enforce_inline) {
               Doc.fail();
