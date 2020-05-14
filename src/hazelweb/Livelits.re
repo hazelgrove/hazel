@@ -1077,7 +1077,7 @@ module ColorLivelit: LIVELIT = {
               let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
               // let (_h, s, v) = hsv_of_rgb(rgb);
               let height = 150.0;
-              let width = 200.0;
+              let width = 150.0;
               let px = Printf.sprintf("%f0px");
               [
                 Node.div(
@@ -1156,10 +1156,10 @@ module ColorLivelit: LIVELIT = {
               [Attr.classes(["splice-label"])],
               [Node.text(lbl)],
             );
-          let splice = (lbl, splice_name) =>
+          let splice = splice_name =>
             Node.div(
               [Attr.classes(["splice-content"])],
-              [splice_label(lbl), uhcode(splice_name)],
+              [uhcode(splice_name)],
             );
           let (h, _, _) = hsv;
           Node.div(
@@ -1191,7 +1191,14 @@ module ColorLivelit: LIVELIT = {
               ),
               Node.div(
                 [Attr.classes(["rgb-picker"])],
-                [splice("R", r), splice("G", g), splice("B", b)],
+                [
+                  splice_label("R"),
+                  splice(r),
+                  splice_label("G"),
+                  splice(g),
+                  splice_label("B"),
+                  splice(b),
+                ],
               ),
             ],
           );

@@ -49,8 +49,6 @@
 
   --color-picker-modal-overlay-z: 6;
   --color-picker-z: 7;
-  --color-picker-splice-z: 7;
-  --color-picker-splice-label-z: 8;
 }
 
 /* general */
@@ -980,7 +978,7 @@ h1 {
   background-color: white;
   border-radius: 0;
   border: 1px solid black;
-  padding: 10px;
+  padding: 8px;
   cursor: default;
 }
 .color-livelit .modal-overlay.closed {
@@ -996,27 +994,23 @@ h1 {
   background-color: transparent;
 }
 .color-livelit .color-picker .rgb-picker {
-  margin-top: 10px;
+  margin-top: 8px;
   display: grid;
-  grid-template-columns: auto auto auto;
-  column-gap: 10px;
+  grid-template-rows: auto auto auto;
+  grid-template-columns: 16px auto;
+  column-gap: 8px;
+  row-gap: 8px;
+  align-items: center;
 }
 .color-livelit .color-picker .rgb-picker .splice-label {
-  position: absolute;
-  background-color: white;
   font-size: 65%;
   color: gray;
-  top: -0.5em;
-  left: 4px;
-  z-index: var(--color-picker-splice-label-z);
-  line-height: 1.0;
   padding: 0 4px;
 }
 .color-livelit .color-picker .rgb-picker .splice-content {
   border: 1px solid lightgray;
-  z-index: var(--color-picker-splice-z);
   position: relative;
-  padding: 8px 4px 4px 8px;
+  padding: 4px;
   display: grid;
   justify-items: left;
 }
@@ -1025,19 +1019,19 @@ h1 {
   display: grid;
   grid-template-rows: auto;
   grid-template-columns: auto auto;
-  column-gap: 10px;
+  column-gap: 8px;
 }
 
 .color-livelit .color-picker .hue-slider-wrapper {
-  width: 25px;
+  width: 20px;
 }
 .color-livelit .color-picker .hue-slider {
-  -webkit-appearance: none;/*slider-vertical;*/
+  -webkit-appearance: none;
   display: block;
   transform-origin: top left;
   transform: rotate(90deg) translate(0, -100%);
   width: 150px;
-  height: 25px;
+  height: 20px;
   cursor: grab;
 }
 .color-livelit .color-picker .hue-slider:focus {
@@ -1053,7 +1047,7 @@ h1 {
 }
 .color-livelit .color-picker .hue-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  border: 1px solid rgb(226, 209, 209);
+  border: 1px solid white;
   height: 10px;
   width: 5px;
   border-radius: 0;
