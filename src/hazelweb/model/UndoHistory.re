@@ -49,6 +49,8 @@ type t = {
   /* mute the auto-scrolling when is_hover is true */
   is_hover: bool,
   show_hover_effect: bool,
+  hover_recover_group_id: int,
+  hover_recover_elt_id: int,
   cur_group_id: int,
   cur_elt_id: int,
 };
@@ -798,6 +800,9 @@ let push_edit_state =
         ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
         is_hover: false,
+        hover_recover_group_id: 0,
+        hover_recover_elt_id:
+          List.length(ZList.prj_prefix(new_group.group_entries)),
         cur_group_id: 0,
         cur_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
       };
@@ -812,6 +817,8 @@ let push_edit_state =
         [prev_group, ...ZList.prj_suffix(undo_history.groups)],
       ),
       is_hover: false,
+      hover_recover_group_id: 0,
+      hover_recover_elt_id: 0,
       cur_group_id: 0,
       cur_elt_id: 0,
     };
@@ -843,6 +850,8 @@ let rec shift_to_prev_non_ignore =
         {
           ...history,
           groups: new_groups,
+          hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+          hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
           cur_group_id: List.length(ZList.prj_prefix(new_groups)),
           cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
         };
@@ -868,6 +877,8 @@ let rec shift_to_prev_non_ignore =
       {
         ...history,
         groups: new_groups,
+        hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
         cur_group_id: List.length(ZList.prj_prefix(new_groups)),
         cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
@@ -904,6 +915,8 @@ let rec shift_to_next_non_ignore =
         {
           ...history,
           groups: new_groups,
+          hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+          hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
           cur_group_id: List.length(ZList.prj_prefix(new_groups)),
           cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
         };
@@ -920,6 +933,8 @@ let rec shift_to_next_non_ignore =
       let new_history = {
         ...history,
         groups: new_groups,
+        hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
         cur_group_id: List.length(ZList.prj_prefix(new_groups)),
         cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
@@ -934,6 +949,8 @@ let rec shift_to_next_non_ignore =
       {
         ...history,
         groups: new_groups,
+        hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
         cur_group_id: List.length(ZList.prj_prefix(new_groups)),
         cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
       };
