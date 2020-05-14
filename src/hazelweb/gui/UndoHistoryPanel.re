@@ -548,23 +548,23 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let get_status_class =
-      (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
+      (~recent_non_ignore_group_id: int, ~recent_non_ignore_elt_id: int, ~group_id: int, ~elt_id: int)
       : list(string) =>
-    if (cur_group_id > group_id
-        || cur_group_id == group_id
-        && cur_elt_id > elt_id) {
+    if (recent_non_ignore_group_id > group_id
+        || recent_non_ignore_group_id == group_id
+        && recent_non_ignore_elt_id > elt_id) {
       ["the-suc-history"];
-    } else if (cur_group_id < group_id
-               || cur_group_id == group_id
-               && cur_elt_id < elt_id) {
+    } else if (recent_non_ignore_group_id < group_id
+               || recent_non_ignore_group_id == group_id
+               && recent_non_ignore_elt_id < elt_id) {
       ["the-prev-history"];
     } else {
       ["the-cur-history"];
     };
   let is_latest_selected_entry =
-      (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
+      (~recent_non_ignore_group_id: int, ~recent_non_ignore_elt_id: int, ~group_id: int, ~elt_id: int)
       : bool => {
-    cur_group_id == group_id && cur_elt_id == elt_id;
+    recent_non_ignore_group_id == group_id && recent_non_ignore_elt_id == elt_id;
   };
 
   let history_title_entry_view =
@@ -578,15 +578,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ) => {
     let status_class =
       get_status_class(
-        ~cur_group_id=undo_history.cur_group_id,
-        ~cur_elt_id=undo_history.cur_elt_id,
+        ~recent_non_ignore_group_id=undo_history.recent_non_ignore_group_id,
+        ~recent_non_ignore_elt_id=undo_history.recent_non_ignore_elt_id,
         ~group_id,
         ~elt_id,
       );
     let is_latest_selected =
       is_latest_selected_entry(
-        ~cur_group_id=undo_history.cur_group_id,
-        ~cur_elt_id=undo_history.cur_elt_id,
+        ~recent_non_ignore_group_id=undo_history.recent_non_ignore_group_id,
+        ~recent_non_ignore_elt_id=undo_history.recent_non_ignore_elt_id,
         ~group_id,
         ~elt_id,
       );
@@ -731,15 +731,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ) => {
     let status_class =
       get_status_class(
-        ~cur_group_id=undo_history.cur_group_id,
-        ~cur_elt_id=undo_history.cur_elt_id,
+        ~recent_non_ignore_group_id=undo_history.recent_non_ignore_group_id,
+        ~recent_non_ignore_elt_id=undo_history.recent_non_ignore_elt_id,
         ~group_id,
         ~elt_id,
       );
     let is_latest_selected =
       is_latest_selected_entry(
-        ~cur_group_id=undo_history.cur_group_id,
-        ~cur_elt_id=undo_history.cur_elt_id,
+        ~recent_non_ignore_group_id=undo_history.recent_non_ignore_group_id,
+        ~recent_non_ignore_elt_id=undo_history.recent_non_ignore_elt_id,
         ~group_id,
         ~elt_id,
       );

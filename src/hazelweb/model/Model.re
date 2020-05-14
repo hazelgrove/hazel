@@ -68,8 +68,8 @@ let init = (): t => {
       show_hover_effect: true,
       hover_recover_group_id: 0,
       hover_recover_elt_id: 0,
-      cur_group_id: 0,
-      cur_elt_id: 0,
+      recent_non_ignore_group_id: 0,
+      recent_non_ignore_elt_id: 0,
     };
   };
   let compute_results = true;
@@ -329,7 +329,7 @@ let shift_history =
     switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
     | None => failwith("Impossible because group_entries is non-empty")
     | Some(new_group_entries) =>
-      let (cur_group_id, cur_elt_id) = (group_id, elt_id);
+      let (recent_non_ignore_group_id, recent_non_ignore_elt_id) = (group_id, elt_id);
       let (hover_recover_group_id, hover_recover_elt_id) =
         if (is_mouseenter) {
           (
@@ -349,8 +349,8 @@ let shift_history =
         is_hover: !is_click,
         hover_recover_group_id,
         hover_recover_elt_id,
-        cur_group_id,
-        cur_elt_id,
+        recent_non_ignore_group_id,
+        recent_non_ignore_elt_id,
       };
       load_undo_history(model, new_history);
     };
