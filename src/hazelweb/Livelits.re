@@ -842,7 +842,7 @@ module GradeCutoffLivelit: LIVELIT = {
 
 module ColorLivelit: LIVELIT = {
   let name = "$color";
-  let expansion_ty = HTyp.Prod([Float, Float, Float]);
+  let expansion_ty = HTyp.Prod([Float, Float, Float, Float]);
 
   // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L197
   let hsv_of_rgb = ((r, g, b)) => {
@@ -902,6 +902,7 @@ module ColorLivelit: LIVELIT = {
   [@deriving sexp]
   type model = {
     rgb: (SpliceName.t, SpliceName.t, SpliceName.t),
+    a: SpliceName.t,
     hsv: (float, float, float),
     is_open: bool,
     selecting_sat_val: bool,
@@ -931,12 +932,21 @@ module ColorLivelit: LIVELIT = {
               HTyp.Float,
             ),
             b =>
-            return({
-              rgb: (r, g, b),
-              hsv,
-              is_open: false,
-              selecting_sat_val: false,
-            })
+            bind(
+              new_splice(
+                ~init_uhexp_gen=
+                  u_gen => (UHExp.(Block.wrap(floatlit'(1.0))), u_gen),
+                HTyp.Float,
+              ),
+              a =>
+              return({
+                rgb: (r, g, b),
+                a,
+                hsv,
+                is_open: false,
+                selecting_sat_val: false,
+              })
+            )
           )
         )
       )
@@ -995,28 +1005,34 @@ module ColorLivelit: LIVELIT = {
       update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
     };
 
-  let view = ({rgb: (r, g, b), hsv, is_open, selecting_sat_val}, trigger) => {
+  let view = ({rgb: (r, g, b), a, hsv, is_open, selecting_sat_val}, trigger) => {
     LivelitView.Inline(
       ({uhcode, dhcode}) => {
         open Vdom;
 
         let is_valid = color_value =>
           0.0 <= color_value && color_value < 256.0;
-        let rgb_values =
-          switch (dhcode(r), dhcode(g), dhcode(b)) {
+        let rgba_values =
+          switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
           | (
               Some((FloatLit(r), _)),
               Some((FloatLit(g), _)),
               Some((FloatLit(b), _)),
+              Some((FloatLit(a), _)),
             )
-              when is_valid(r) && is_valid(g) && is_valid(b) =>
-            Some((r, g, b))
+              when
+                is_valid(r)
+                && is_valid(g)
+                && is_valid(b)
+                && 0.0 <= a
+                && a <= 1.0 =>
+            Some((r, g, b, a))
           | _ => None
           };
 
         let color_box = {
           let on_click = Attr.on_click(_ => trigger(Open));
-          switch (rgb_values) {
+          switch (rgba_values) {
           | None =>
             Node.div(
               [Attr.classes(["color-box"]), on_click],
@@ -1051,13 +1067,13 @@ module ColorLivelit: LIVELIT = {
                 ),
               ],
             )
-          | Some((r, g, b)) =>
+          | Some((r, g, b, a)) =>
             Node.div(
               [
                 attr_style(
                   prop_val(
                     "background-color",
-                    Printf.sprintf("rgb(%f, %f, %f)", r, g, b),
+                    Printf.sprintf("rgba(%f, %f, %f, %f)", r, g, b, a),
                   ),
                 ),
                 Attr.classes(["color-box"]),
@@ -1070,7 +1086,7 @@ module ColorLivelit: LIVELIT = {
 
         let color_picker = {
           let sat_val_box =
-            switch (rgb_values) {
+            switch (rgba_values) {
             | None => []
             | Some(_) =>
               let (h, s, v) = hsv;
@@ -1198,6 +1214,8 @@ module ColorLivelit: LIVELIT = {
                   splice(g),
                   splice_label("B"),
                   splice(b),
+                  splice_label("A"),
+                  splice(a),
                 ],
               ),
             ],
@@ -1220,16 +1238,17 @@ module ColorLivelit: LIVELIT = {
     );
   };
 
-  let expand = ({rgb: (r, g, b), _}) => {
-    let triple_seq =
+  let expand = ({rgb: (r, g, b), a, _}) => {
+    let four_tuple =
       Seq.mk(
         _to_uhvar(r),
         [
           (Operators.Exp.Comma, _to_uhvar(g)),
           (Operators.Exp.Comma, _to_uhvar(b)),
+          (Operators.Exp.Comma, _to_uhvar(a)),
         ],
       );
-    UHExp.Block.wrap'(UHExp.mk_OpSeq(triple_seq));
+    UHExp.Block.wrap'(UHExp.mk_OpSeq(four_tuple));
   };
 };
 
