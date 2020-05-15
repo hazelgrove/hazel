@@ -189,97 +189,83 @@ let group_entry =
   && (!cursor_jump(prev_group, cardstacks_before) || ignore_cursor_jump);
 };
 
-let get_longer_term =
-    (cursor_term_next: cursor_term, cursor_term_prev: cursor_term)
-    : cursor_term => {
-  switch (cursor_term_next, cursor_term_prev) {
-  | (Exp(_, exp1), Exp(_, exp2)) =>
-    switch (exp1, exp2) {
-    | (EmptyHole(_), _) => cursor_term_prev
-    | (_, EmptyHole(_)) => cursor_term_next
-    | (Var(_, _, var_1), Var(_, _, var_2)) =>
-      if (Var.length(var_1) > Var.length(var_2)) {
-        cursor_term_next;
-      } else {
-        cursor_term_prev;
-      }
-    | (IntLit(_, num_1), IntLit(_, num_2))
-    | (FloatLit(_, num_1), FloatLit(_, num_2)) =>
-      if (Var.length(num_1) > Var.length(num_2)) {
-        cursor_term_next;
-      } else {
-        cursor_term_prev;
-      }
-    | (BoolLit(_, _), _)
-    | (ListNil(_), _)
-    | (Lam(_, _, _, _), _)
-    | (Inj(_, _, _), _)
-    | (Case(_, _, _, _), _)
-    | (Parenthesized(_), _) => cursor_term_next
-    | _ => cursor_term_prev
-    }
-  | (Pat(_, pat1), Pat(_, pat2)) =>
-    switch (pat1, pat2) {
-    | (EmptyHole(_), _) => cursor_term_prev
-    | (_, EmptyHole(_)) => cursor_term_next
-    | (Var(_, _, var_1), Var(_, _, var_2)) =>
-      if (Var.length(var_1) > Var.length(var_2)) {
-        cursor_term_next;
-      } else {
-        cursor_term_prev;
-      }
-    | (IntLit(_, num_1), IntLit(_, num_2))
-    | (FloatLit(_, num_1), FloatLit(_, num_2)) =>
-      if (Var.length(num_1) > Var.length(num_2)) {
-        cursor_term_next;
-      } else {
-        cursor_term_prev;
-      }
-    | (Wild(_), _)
-    | (BoolLit(_, _), _)
-    | (ListNil(_), _)
-    | (Inj(_, _, _), _)
-    | (Parenthesized(_), _) => cursor_term_next
-    | _ => cursor_term_prev
-    }
-  | (Exp(_, exp), Line(_, line)) =>
-    switch (line, exp) {
-    | (LetLine(_, _, _), _)
-    | (ExpLine(_), _) => cursor_term_prev
-    | (EmptyLine, _) => cursor_term_next
-    }
-  | (Pat(_, pat), Line(_, line)) =>
-    switch (line, pat) {
-    | (LetLine(_, _, _), _)
-    | (ExpLine(_), _) => cursor_term_prev
-    | (EmptyLine, _) => cursor_term_next
-    }
-  | (Line(_, line), Exp(_, exp)) =>
-    switch (line, exp) {
-    | (LetLine(_, _, _), _)
-    | (ExpLine(_), _) => cursor_term_next
-    | (EmptyLine, _) => cursor_term_prev
-    }
-  | (Line(_, line), Pat(_, pat)) =>
-    switch (line, pat) {
-    | (LetLine(_, _, _), _)
-    | (ExpLine(_), _) => cursor_term_next
-    | (EmptyLine, _) => cursor_term_prev
-    }
-  | (Line(_, line), Pat(_, pat)) =>
-    switch (line, pat) {
-    | (LetLine(_, _, _), _)
-    | (ExpLine(_), _) => cursor_term_next
-    | (EmptyLine, _) => cursor_term_prev
-    }
-  | (ExpOp(_, _), _)
-  | (PatOp(_, _), _)
-  | (TypOp(_, _), _)
-  | (Rule(_, _), _) => cursor_term_next
-  | (_, _) => cursor_term_prev
+type comp_len_typ =
+  | MaxLen
+  | Move
+  | Len(int);
+
+let comp_len_lt =
+    (cursor_len_1: comp_len_typ, cursor_len_2: comp_len_typ): bool => {
+  switch (cursor_len_1, cursor_len_2) {
+  | (MaxLen, MaxLen) => false
+  | (_, MaxLen) => true
+  | (_, Move) => false
+  | (MaxLen, _) => false
+  | (Move, _) => true
+  | (Len(len1), Len(len2)) => len1 < len2
   };
 };
 
+let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
+  switch (cursor_term) {
+  | Exp(_, operand) =>
+    switch (operand) {
+    | EmptyHole(_) => Move
+    | Var(_, _, var) => Len(Var.length(var))
+    | IntLit(_, num)
+    | FloatLit(_, num) => Len(String.length(num))
+    | BoolLit(_, _)
+    | ListNil(_)
+    | Lam(_, _, _, _)
+    | Inj(_, _, _)
+    | Case(_, _, _, _)
+    | Parenthesized(_) => MaxLen
+    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
+    }
+  | Pat(_, operand) =>
+    switch (operand) {
+    | EmptyHole(_) => Move
+    | Wild(_) => Len(1)
+    | Var(_, _, var) => Len(Var.length(var))
+    | IntLit(_, num)
+    | FloatLit(_, num) => Len(String.length(num))
+    | BoolLit(_, _)
+    | ListNil(_)
+    | Parenthesized(_)
+    | Inj(_, _, _) => MaxLen
+    }
+  | Typ(_, operand) =>
+    switch (operand) {
+    | Hole => Move
+    | Unit
+    | Int
+    | Float
+    | Bool
+    | Parenthesized(_)
+    | List(_) => MaxLen
+    }
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Rule(_, _) => MaxLen
+  | Line(_, line) =>
+    switch (line) {
+    | EmptyLine => Move
+    | LetLine(_, _, _)
+    | ExpLine(_) => MaxLen
+    }
+  };
+};
+let comp_len_larger =
+    (cursor_term_1: cursor_term, cursor_term_2: cursor_term): cursor_term =>
+  if (comp_len_lt(
+        cursor_term_len(cursor_term_1),
+        cursor_term_len(cursor_term_2),
+      )) {
+    cursor_term_2;
+  } else {
+    cursor_term_1;
+  };
 let get_original_deleted_term =
     (group: undo_history_group, new_cursor_term_info: cursor_term_info)
     : cursor_term => {
@@ -289,9 +275,9 @@ let get_original_deleted_term =
     switch (ls) {
     | [] => cursor_term
     | [elt] =>
-      get_longer_term(
+      comp_len_larger(
         cursor_term,
-        get_longer_term(
+        comp_len_larger(
           elt.cursor_term_info.cursor_term_after,
           elt.cursor_term_info.cursor_term_before,
         ),
@@ -299,7 +285,7 @@ let get_original_deleted_term =
 
     | [head, ...tail] =>
       let larger_term =
-        get_longer_term(cursor_term, head.cursor_term_info.cursor_term_after);
+        comp_len_larger(cursor_term, head.cursor_term_info.cursor_term_after);
       max_len_term(tail, larger_term);
     };
   };
