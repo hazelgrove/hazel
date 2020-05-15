@@ -21,8 +21,8 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
 // Note: This union is left biased
 let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
   (p1, p2) => {
-    let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
-      if (cost1 <= cost2) {
+    let cost_union = ((cost1: Cost.t, _) as t1, (cost2: Cost.t, _) as t2) =>
+      if (Cost.leq(cost1, cost2)) {
         t1;
       } else {
         t2;
@@ -36,12 +36,17 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
     switch (doc.doc) {
     | Text(string) =>
       // TODO: cache text length in Text?
-      let pos' = pos + Unicode.length(string);
-      if (pos' > width) {
-        PosMap.empty;
-      } else {
-        PosMap.singleton(pos', (0, Layout.Text(string)));
-      };
+      let pos' = pos + String.length(string); //Unicode.length(string);
+      let cost =
+        if (pos' <= width) {
+          Cost.zero;
+        } else {
+          let overflow = pos' - width;
+          // overflow_cost = sum i from 1 to overflow
+          let overflow_cost = overflow * (overflow + 1) / 2;
+          Cost.mk_overflow(overflow_cost);
+        };
+      PosMap.singleton(pos', (cost, Layout.Text(string)));
     | Cat(d1, d2) =>
       let l1 = layout_of_doc'(d1, ~width, ~pos);
       PosMap.fold_left(
@@ -50,7 +55,7 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
           let layouts =
             PosMap.map(
               ((cost2, layout2)) =>
-                (cost1 + cost2, Layout.Cat(layout1, layout2)),
+                (Cost.add(cost1, cost2), Layout.Cat(layout1, layout2)),
               l2,
             );
           m'_union(z, layouts);
@@ -58,7 +63,8 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
         PosMap.empty,
         l1,
       );
-    | Linebreak => PosMap.singleton(0, (1, Layout.Linebreak))
+    | Linebreak =>
+      PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak))
     | Align(d) =>
       let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
       PosMap.mapk(
@@ -91,14 +97,14 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
 let layout_of_doc =
     (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   let rec minimum =
-          ((pos, (cost, t)): (int, (int, option('a))))
-          : (list((int, (int, 'a))) => option('a)) => {
+          ((pos, (cost, t)): (int, (Cost.t, option('a))))
+          : (list((int, (Cost.t, 'a))) => option('a)) => {
     fun
     | [] => t
     | [(x_pos, (x_cost, x)), ...rest] =>
       // Prefer lowest cost, or if same cost, prefer ending at an earlier column
       // (Columns are unique by construction of PosMap.)
-      if (x_cost < cost || x_cost == cost && x_pos < pos) {
+      if (Cost.lt(x_cost, cost) || Cost.eq(x_cost, cost) && x_pos < pos) {
         minimum((x_pos, (x_cost, Some(x))), rest);
       } else {
         minimum((pos, (cost, t)), rest);
@@ -108,7 +114,7 @@ let layout_of_doc =
   // let start_time = Sys.time();
   let l =
     minimum(
-      (max_int, (max_int, None)),
+      (max_int, (Cost.inf, None)),
       Obj.magic(layout_of_doc'(Obj.magic(doc), ~width, ~pos)),
     );
   // let end_time = Sys.time();
