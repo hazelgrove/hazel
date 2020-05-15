@@ -248,8 +248,26 @@ let get_longer_term =
     | (ExpLine(_), _) => cursor_term_prev
     | (EmptyLine, _) => cursor_term_next
     }
+  | (Pat(_, pat), Line(_, line)) =>
+    switch (line, pat) {
+    | (LetLine(_, _, _), _)
+    | (ExpLine(_), _) => cursor_term_prev
+    | (EmptyLine, _) => cursor_term_next
+    }
   | (Line(_, line), Exp(_, exp)) =>
     switch (line, exp) {
+    | (LetLine(_, _, _), _)
+    | (ExpLine(_), _) => cursor_term_next
+    | (EmptyLine, _) => cursor_term_prev
+    }
+  | (Line(_, line), Pat(_, pat)) =>
+    switch (line, pat) {
+    | (LetLine(_, _, _), _)
+    | (ExpLine(_), _) => cursor_term_next
+    | (EmptyLine, _) => cursor_term_prev
+    }
+  | (Line(_, line), Pat(_, pat)) =>
+    switch (line, pat) {
     | (LetLine(_, _, _), _)
     | (ExpLine(_), _) => cursor_term_next
     | (EmptyLine, _) => cursor_term_prev
