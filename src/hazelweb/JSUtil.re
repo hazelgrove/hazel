@@ -431,10 +431,10 @@ module KeyCombo = {
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
-    let ctrl_alt_up = ctrl_alt(Key.the_key("ArrowUp"));
-    let ctrl_alt_down = ctrl_alt(Key.the_key("ArrowDown"));
-    let ctrl_alt_left = ctrl_alt(Key.the_key("ArrowLeft"));
-    let ctrl_alt_right = ctrl_alt(Key.the_key("ArrowRight"));
+    let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
+    let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
+    let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
+    let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
   };
 
   [@deriving sexp]
@@ -466,10 +466,10 @@ module KeyCombo = {
     | Pound
     | Ctrl_Z
     | Ctrl_Shift_Z
-    | Ctrl_Alt_Up
-    | Ctrl_Alt_Down
-    | Ctrl_Alt_Left
-    | Ctrl_Alt_Right;
+    | Ctrl_Alt_I
+    | Ctrl_Alt_K
+    | Ctrl_Alt_J
+    | Ctrl_Alt_L;
 
   let get_details =
     fun
@@ -500,10 +500,10 @@ module KeyCombo = {
     | Alt_C => Details.alt_C
     | Ctrl_Z => Details.ctrl_z
     | Ctrl_Shift_Z => Details.ctrl_shift_z
-    | Ctrl_Alt_Up => Details.ctrl_alt_up
-    | Ctrl_Alt_Down => Details.ctrl_alt_down
-    | Ctrl_Alt_Left => Details.ctrl_alt_left
-    | Ctrl_Alt_Right => Details.ctrl_alt_right;
+    | Ctrl_Alt_I => Details.ctrl_alt_i
+    | Ctrl_Alt_K => Details.ctrl_alt_k
+    | Ctrl_Alt_J => Details.ctrl_alt_j
+    | Ctrl_Alt_L => Details.ctrl_alt_l;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -561,14 +561,14 @@ module KeyCombo = {
       Some(Alt_R);
     } else if (evt_matches(Details.alt_C)) {
       Some(Alt_C);
-    } else if (evt_matches(Details.ctrl_alt_up)) {
-      Some(Ctrl_Alt_Up);
-    } else if (evt_matches(Details.ctrl_alt_down)) {
-      Some(Ctrl_Alt_Down);
-    } else if (evt_matches(Details.ctrl_alt_left)) {
-      Some(Ctrl_Alt_Left);
-    } else if (evt_matches(Details.ctrl_alt_right)) {
-      Some(Ctrl_Alt_Right);
+    } else if (evt_matches(Details.ctrl_alt_i)) {
+      Some(Ctrl_Alt_I);
+    } else if (evt_matches(Details.ctrl_alt_k)) {
+      Some(Ctrl_Alt_K);
+    } else if (evt_matches(Details.ctrl_alt_j)) {
+      Some(Ctrl_Alt_J);
+    } else if (evt_matches(Details.ctrl_alt_l)) {
+      Some(Ctrl_Alt_L);
     } else {
       None;
     };
@@ -654,13 +654,7 @@ let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
     | "ArrowLeft"
     | "ArrowRight"
     | "ArrowUp"
-    | "ArrowDown" =>
-      switch (KeyCombo.of_evt(evt)) {
-      | Some(Ctrl_Alt_Up | Ctrl_Alt_Down | Ctrl_Alt_Left | Ctrl_Alt_Right) =>
-        false
-      | Some(_)
-      | None => true
-      }
+    | "ArrowDown"
     | "PageUp"
     | "PageDown"
     | "Home"
