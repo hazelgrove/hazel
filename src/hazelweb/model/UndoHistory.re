@@ -320,8 +320,12 @@ let delete_edit =
     : option(edit_action) =>
   if (ZExp.erase(new_cursor_term_info.zexp_before)
       != ZExp.erase(new_cursor_term_info.zexp_after)) {
-    if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-        || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
+    if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
+      Some(DeleteEdit(EmptyLine));
+    } else if (CursorInfo.is_empty_line(
+                 new_cursor_term_info.cursor_term_after,
+               )
+               || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
       /* delete the whole term */
       let initial_term =
         get_original_deleted_term(prev_group, new_cursor_term_info);
