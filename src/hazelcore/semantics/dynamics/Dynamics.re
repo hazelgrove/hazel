@@ -1232,20 +1232,19 @@ module Exp = {
     | Case(NotInHole, _, _, None) => DoesNotExpand
     | Subscript(NotInHole, body1, body2, body3) =>
       print_endline("Dynamics1220");
-      switch (syn_expand(ctx, delta, body1)) {
+      switch (ana_expand(ctx, delta, body1, String)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
-        if (HTyp.consistent(String, ty1)) {
-          switch (
-            ana_expand(ctx, delta, body2, Int),
-            ana_expand(ctx, delta, body3, Int),
-          ) {
-          | (Expands(d2, _, _), Expands(d3, _, _)) =>
-            let d = DHExp.Subscript(d1, d2, d3);
-            Expands(d, ty1, delta);
-          | _ => DoesNotExpand
-          };
-        } else {
+        switch (
+          ana_expand(ctx, delta, body2, Int),
+          ana_expand(ctx, delta, body3, Int),
+        ) {
+        | (Expands(d2, _, _), Expands(d3, _, _)) =>
+          print_endline("Dynamics1244");
+          let d = DHExp.Subscript(d1, d2, d3);
+          Expands(d, ty1, delta);
+        | _ =>
+          print_endline("Dynamics1248");
           DoesNotExpand;
         }
       };
@@ -2067,26 +2066,34 @@ module Evaluator = {
           | BoxedValue(_) => InvalidInput(3)
           | Indet(n2') => Indet(Subscript(s1', n1', n2'))
           }
-        | BoxedValue(_) => InvalidInput(4)
+        | BoxedValue(_) =>
+          print_endline("Dynamics2070");
+          InvalidInput(4);
         | Indet(n1') =>
+          print_endline("Dynamics2073");
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(n2')
           | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-          }
+          };
         }
-      | BoxedValue(_) => InvalidInput(9)
+      | BoxedValue(s1')
+      // =>
+      //   print_endline("Dynamics2080");
+      //   InvalidInput(9);
       | Indet(s1') =>
+        print_endline("Dynamics2084");
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(n1')
         | Indet(n1') =>
+          print_endline("Dynamics2089");
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(n2')
           | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-          }
-        }
+          };
+        };
       };
     | ListNil(_)
     | BoolLit(_)
@@ -2146,7 +2153,9 @@ module Evaluator = {
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
         }
-      | BoxedValue(_) => InvalidInput(4)
+      | BoxedValue(_) =>
+        print_endline("Dynamics2156");
+        InvalidInput(4);
       | Indet(d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)

@@ -954,7 +954,9 @@ module Exp = {
     | IntLit(NotInHole, _) => Some(Int)
     | FloatLit(NotInHole, _) => Some(Float)
     | BoolLit(NotInHole, _) => Some(Bool)
-    | StringLit(NotInHole, _) => Some(String)
+    | StringLit(NotInHole, _) =>
+      print_endline("Statics958");
+      Some(String);
     | ListNil(NotInHole) => Some(List(Hole))
     | Lam(NotInHole, p, ann, body) =>
       print_endline("Statics960");
@@ -1004,15 +1006,17 @@ module Exp = {
       print_endline("Statics1003");
       switch (syn(ctx, body1)) {
       | None => None
-      | Some(ty) =>
-        if (HTyp.consistent(ty, String) == false) {
-          None;
-        } else {
-          switch (ana(ctx, body2, Int), ana(ctx, body3, Int)) {
-          | (Some(_), Some(_)) => Some(String)
-          | (_, _) => None
-          };
-        }
+      | Some(_) =>
+        // if (HTyp.consistent(ty, String) == false) {
+        //   print_endline("Statics1009");
+        //   None;
+        // } else {
+        print_endline("Statics1012");
+        switch (ana(ctx, body2, Int), ana(ctx, body3, Int)) {
+        | (Some(_), Some(_)) => Some(String)
+        | (_, _) => None
+        };
+      // }
       };
     }
   and ana_splice_map =
