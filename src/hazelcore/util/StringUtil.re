@@ -55,15 +55,5 @@ let num_trailing_zeros = (num: string): int => {
   helper(String.length(num) - 1);
 };
 
-let strip_underscores = (s: string): string => {
-  let rec helper = (index: int, stripped: string): string =>
-    if (index == String.length(s)) {
-      stripped;
-    } else {
-      switch (String.make(1, s.[index])) {
-      | "_" => helper(index + 1, stripped)
-      | c => helper(index + 1, stripped ++ c)
-      };
-    };
-  helper(0, "");
-};
+let strip_underscore = (s: string): string =>
+  String.concat("", String.split_on_char('_', s));

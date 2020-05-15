@@ -9,8 +9,18 @@ type t =
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t);
 
+let int_of_intlit_opt = (n: string): option(int) => {
+  let stripped_text = StringUtil.strip_underscore(n);
+  int_of_string_opt(stripped_text);
+};
+
+let float_of_floatlit_opt = (f: string): option(float) => {
+  let stripped_text = StringUtil.strip_underscore(f);
+  float_of_string_opt(stripped_text);
+};
+
 let of_text = (text: string): option(t) => {
-  let stripped_text = StringUtil.strip_underscores(text);
+  let stripped_text = StringUtil.strip_underscore(text);
   switch (
     int_of_string_opt(stripped_text),
     float_of_string_opt(stripped_text),
