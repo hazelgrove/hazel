@@ -697,7 +697,7 @@ let push_edit_state =
     };
     {
       ...undo_history,
-      groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
+      groups: ZList.replace_z(new_group, undo_history.groups),
       is_hover: false,
     };
   | Some(new_edit_action) =>
@@ -715,10 +715,9 @@ let push_edit_state =
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
         is_hover: false,
         hover_recover_group_id: 0,
-        hover_recover_elt_id:
-          List.length(ZList.prj_prefix(new_group.group_entries)),
+        hover_recover_elt_id: 0,
         cur_group_id: 0,
-        cur_elt_id: List.length(ZList.prj_prefix(new_group.group_entries)),
+        cur_elt_id: 0,
       };
     } else {
       let new_group = {
@@ -742,6 +741,23 @@ let push_edit_state =
   };
 };
 
+let update_groups =
+    (
+      new_groups: ZList.t(undo_history_group, undo_history_group),
+      undo_history: t,
+    )
+    : t => {
+  {
+    ...undo_history,
+    groups: new_groups,
+    hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
+    hover_recover_elt_id:
+      List.length(ZList.prj_prefix(ZList.prj_z(new_groups).group_entries)),
+    cur_group_id: List.length(ZList.prj_prefix(new_groups)),
+    cur_elt_id:
+      List.length(ZList.prj_prefix(ZList.prj_z(new_groups).group_entries)),
+  };
+};
 let shift_to_prev = (history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
   /* shift to the previous state in the same group */
@@ -760,14 +776,7 @@ let shift_to_prev = (history: t): t => {
         is_expanded: true,
       };
       let new_groups = ZList.replace_z(new_group', new_groups);
-      {
-        ...history,
-        groups: new_groups,
-        hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      };
+      update_groups(new_groups, history);
     }
   | Some(new_entries) =>
     let new_group = {
@@ -776,14 +785,7 @@ let shift_to_prev = (history: t): t => {
       is_expanded: true,
     };
     let new_groups = ZList.replace_z(new_group, history.groups);
-    {
-      ...history,
-      groups: new_groups,
-      hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-      hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-      cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
-    };
+    update_groups(new_groups, history);
   };
 };
 
@@ -804,14 +806,7 @@ let shift_to_next = (history: t): t => {
         is_expanded: true,
       };
       let new_groups = ZList.replace_z(new_group', new_groups);
-      {
-        ...history,
-        groups: new_groups,
-        hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-        hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-        cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-        cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      };
+      update_groups(new_groups, history);
     }
   | Some(new_entries) =>
     let new_group = {
@@ -820,14 +815,7 @@ let shift_to_next = (history: t): t => {
       is_expanded: true,
     };
     let new_groups = ZList.replace_z(new_group, history.groups);
-    {
-      ...history,
-      groups: new_groups,
-      hover_recover_group_id: List.length(ZList.prj_prefix(new_groups)),
-      hover_recover_elt_id: List.length(ZList.prj_prefix(new_entries)),
-      cur_group_id: List.length(ZList.prj_prefix(new_groups)),
-      cur_elt_id: List.length(ZList.prj_prefix(new_entries)),
-    };
+    update_groups(new_groups, history);
   };
 };
 
