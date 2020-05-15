@@ -874,7 +874,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       (~undo_history: UndoHistory.t, group_id: int, group: undo_history_group) => {
     let entries = ZList.join(group.group_entries);
     switch (entries) {
-    | [] => Vdom.(Node.div([], []));
+    | [] => Vdom.(Node.div([], []))
     | [title_entry, ...hidden_entries] =>
       let has_hidden_part = List.length(hidden_entries) > 0;
       if (group.is_expanded) {
