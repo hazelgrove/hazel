@@ -297,7 +297,15 @@ let apply_action =
         Model.load_undo_history(model, new_history);
       | ShiftHistory(group_id, elt_id, is_click, is_mousenter) =>
         /* cshift to the certain entry */
-        Model.shift_history(model, group_id, elt_id, is_click, is_mousenter)
+        let new_history =
+          model.undo_history
+          |> UndoHistory.shift_history(
+               group_id,
+               elt_id,
+               is_click,
+               is_mousenter,
+             );
+        Model.load_undo_history(model, new_history);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);

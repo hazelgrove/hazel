@@ -819,6 +819,50 @@ let shift_to_next = (history: t): t => {
   };
 };
 
+let shift_history =
+    (
+      group_id: int,
+      elt_id: int,
+      is_click: bool,
+      is_mouseenter: bool,
+      undo_history: t,
+    )
+    : t => {
+  switch (ZList.shift_to(group_id, undo_history.groups)) {
+  | None => failwith("Impossible match, because undo_history is non-empty")
+  | Some(new_groups) =>
+    let cur_group = ZList.prj_z(new_groups);
+    /* shift to the element with elt_id */
+    switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
+    | None => failwith("Impossible because group_entries is non-empty")
+    | Some(new_group_entries) =>
+      let (cur_group_id, cur_elt_id) = (group_id, elt_id);
+      let (hover_recover_group_id, hover_recover_elt_id) =
+        if (is_mouseenter) {
+          (
+            undo_history.hover_recover_group_id,
+            undo_history.hover_recover_elt_id,
+          );
+        } else {
+          (group_id, elt_id);
+        };
+      {
+        ...undo_history,
+        groups:
+          ZList.replace_z(
+            {...cur_group, group_entries: new_group_entries},
+            new_groups,
+          ),
+        is_hover: !is_click,
+        hover_recover_group_id,
+        hover_recover_elt_id,
+        cur_group_id,
+        cur_elt_id,
+      };
+    };
+  };
+};
+
 let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
   let hidden_group = (group: undo_history_group) => {
     ...group,
