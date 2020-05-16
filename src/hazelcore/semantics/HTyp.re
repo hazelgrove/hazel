@@ -12,6 +12,11 @@ type t =
   | Prod(list(t))
   | List(t);
 
+let is_Prod =
+  fun
+  | Prod(_) => true
+  | _ => false;
+
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
