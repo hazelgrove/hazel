@@ -132,12 +132,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | ListNil(_) => indicate_words_view("empty list")
-    | Lam(_, _, _, _) => code_keywords_view("function")
+    | Lam(_, _, _, _) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
       switch (side) {
-      | L => code_keywords_view("left injection")
-      | R => code_keywords_view("right injection")
+      | L => indicate_words_view("left injection")
+      | R => indicate_words_view("right injection")
       }
     | Case(_, _, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
@@ -191,8 +191,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Parenthesized(_) => indicate_words_view("parentheses")
     | Inj(_, side, _) =>
       switch (side) {
-      | L => code_keywords_view("left injection")
-      | R => code_keywords_view("right injection")
+      | L => indicate_words_view("left injection")
+      | R => indicate_words_view("right injection")
       }
     };
   };
@@ -251,23 +251,48 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
-      | LetLine(_, _, _) => code_keywords_view("let binding")
+      | LetLine(_, _, _) =>
+        Vdom.(
+          Node.span(
+            [],
+            [code_keywords_view("let"), indicate_words_view(" binding")],
+          )
+        )
+
       | ExpLine(_) => indicate_words_view("expression line")
       }
-    | Rule(_, _) => code_keywords_view("case rule")
+    | Rule(_, _) =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("case"), indicate_words_view(" rule")],
+        )
+      )
     };
   };
 
   let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
-    | SLam => code_keywords_view("function")
+    | SLam => indicate_words_view("function")
     | SInj(side) =>
       switch (side) {
-      | L => code_keywords_view("left injection")
-      | R => code_keywords_view("right injection")
+      | L => indicate_words_view("left injection")
+      | R => indicate_words_view("right injection")
       }
-    | SLet => code_keywords_view("let binding")
-    | SCase => code_keywords_view("case expression")
+    | SLet =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("let"), indicate_words_view(" binding")],
+        )
+      )
+    | SCase =>
+      Vdom.(
+        Node.span(
+          [],
+          [code_keywords_view("case"), indicate_words_view(" expression")],
+        )
+      )
     | SList
     | SListNil
     | SLine
@@ -311,7 +336,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [],
               [
                 indicate_words_view("construct "),
-                code_keywords_view("let binding"),
+                code_keywords_view("let"),
+                indicate_words_view(" binding"),
               ],
             )
           ),
@@ -328,18 +354,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             )
           ),
         )
-      | SLam =>
-        Some(
-          Vdom.(
-            Node.span(
-              [],
-              [
-                indicate_words_view("construct "),
-                code_keywords_view("function"),
-              ],
-            )
-          ),
-        )
+      | SLam => Some(indicate_words_view("construct function"))
+
       | _ =>
         Some(
           Vdom.(
@@ -392,7 +408,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [],
             [
               indicate_words_view("insert "),
-              code_keywords_view("case rule"),
+              code_keywords_view("case"),
+              indicate_words_view(" rule"),
             ],
           )
         ),
