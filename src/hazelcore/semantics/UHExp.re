@@ -233,6 +233,27 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
+let rec find_operand = (e: t): option(operand) => e |> find_operand_block
+and find_operand_block = block =>
+  List.nth(block, List.length(block) - 1) |> find_operand_line
+and find_operand_line =
+  fun
+  | EmptyLine => {
+      let (hole, _) = new_EmptyHole(0);
+      Some(hole);
+    }
+  | ExpLine(opseq) => opseq |> find_operand_opseq
+  | LetLine(_, _, def) => def |> find_operand
+and find_operand_opseq =
+  fun
+  | OpSeq(_, S(operand, _)) => Some(operand)
+and find_operand_operator =
+  fun
+  | _ => None
+and find_operand_operand =
+  fun
+  | e => Some(e);
+
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
   let (_, conclusion) = block |> Block.force_split_conclusion;
