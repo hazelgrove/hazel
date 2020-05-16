@@ -3528,7 +3528,7 @@ module Exp = {
         (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
       )
       : Outcome.t(syn_success) => {
-    print_endline("Action3531");
+    /* print_endline("Action3531"); */
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -3779,23 +3779,64 @@ module Exp = {
         let new_ze = body1 |> ZExp.place_after;
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       | (_, _) =>
-        // syn_perform_operand(ctx, Construct(SOp(SSpace)), (CursorE(OnDelim()), ty, u_gen))
         switch (k) {
         | 0 =>
-          let new_ze = body1 |> ZExp.place_after;
-          Succeeded(
-            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-          );
+          switch (
+            UHExp.find_operand(body1),
+            UHExp.find_operand(body2),
+            UHExp.find_operand(body3),
+          ) {
+          | (Some(op1), Some(op2), Some(op3)) =>
+            let ze = op1 |> ZExp.place_after_operand;
+            let new_zopseq =
+              mk_ZOpSeq(
+                ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))),
+              );
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _, _) => Failed
+          }
         | 1 =>
-          let new_ze = body2 |> ZExp.place_after;
-          Succeeded(
-            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-          );
+          switch (
+            UHExp.find_operand(body1),
+            UHExp.find_operand(body2),
+            UHExp.find_operand(body3),
+          ) {
+          | (Some(op1), Some(op2), Some(op3)) =>
+            let ze = op2 |> ZExp.place_after_operand;
+            let new_zopseq =
+              mk_ZOpSeq(
+                ZOperand(ze, (A(Space, S(op1, E)), A(Space, S(op3, E)))),
+              );
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _, _) => Failed
+          }
         | _two =>
-          let new_ze = body3 |> ZExp.place_after;
-          Succeeded(
-            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-          );
+          switch (
+            UHExp.find_operand(body1),
+            UHExp.find_operand(body2),
+            UHExp.find_operand(body3),
+          ) {
+          | (Some(op1), Some(op2), Some(op3)) =>
+            let ze = op3 |> ZExp.place_after_operand;
+            let new_zopseq =
+              mk_ZOpSeq(
+                ZOperand(ze, (A(Space, S(op2, A(Space, S(op1, E)))), E)),
+              );
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _, _) => Failed
+          }
         }
       };
 
@@ -5322,8 +5363,8 @@ module Exp = {
         Backspace,
         CursorE(OnDelim(k, After), Subscript(_, body1, body2, body3)),
       ) =>
-      print_endline("Action5100");
-      switch (Statics.Exp.syn(ctx, body1), Statics.Exp.syn(ctx, body2)) {
+      print_endline("Action3684");
+      switch (Statics.Exp.syn(ctx, body2), Statics.Exp.syn(ctx, body3)) {
       | (Some(Hole), _)
       | (_, Some(Hole)) =>
         let new_ze = body1 |> ZExp.place_after;
@@ -5333,20 +5374,64 @@ module Exp = {
       | (_, _) =>
         switch (k) {
         | 0 =>
-          let new_ze = body1 |> ZExp.place_after;
-          Succeeded(
-            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, String)),
-          );
+          switch (
+            UHExp.find_operand(body1),
+            UHExp.find_operand(body2),
+            UHExp.find_operand(body3),
+          ) {
+          | (Some(op1), Some(op2), Some(op3)) =>
+            let ze = op1 |> ZExp.place_after_operand;
+            let new_zopseq =
+              mk_ZOpSeq(
+                ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))),
+              );
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              AnaDone(
+                Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, String),
+              ),
+            );
+          | (_, _, _) => Failed
+          }
         | 1 =>
-          let new_ze = body2 |> ZExp.place_after;
-          Succeeded(
-            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, Int)),
-          );
+          switch (
+            UHExp.find_operand(body1),
+            UHExp.find_operand(body2),
+            UHExp.find_operand(body3),
+          ) {
+          | (Some(op1), Some(op2), Some(op3)) =>
+            let ze = op2 |> ZExp.place_after_operand;
+            let new_zopseq =
+              mk_ZOpSeq(
+                ZOperand(ze, (A(Space, S(op1, E)), A(Space, S(op3, E)))),
+              );
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, Int)),
+            );
+          | (_, _, _) => Failed
+          }
         | _two =>
-          let new_ze = body3 |> ZExp.place_after;
-          Succeeded(
-            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, Int)),
-          );
+          switch (
+            UHExp.find_operand(body1),
+            UHExp.find_operand(body2),
+            UHExp.find_operand(body3),
+          ) {
+          | (Some(op1), Some(op2), Some(op3)) =>
+            let ze = op3 |> ZExp.place_after_operand;
+            let new_zopseq =
+              mk_ZOpSeq(
+                ZOperand(ze, (A(Space, S(op2, A(Space, S(op1, E)))), E)),
+              );
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, Int)),
+            );
+          | (_, _, _) => Failed
+          }
         }
       };
 
