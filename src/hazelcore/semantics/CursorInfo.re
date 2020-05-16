@@ -281,6 +281,41 @@ and get_outer_zrules_from_zrule =
   };
 };
 
+let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Exp(_, exp) =>
+    switch (exp) {
+    | EmptyHole(_)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) => true
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    | _ => false
+    }
+  | Pat(_, pat) =>
+    switch (pat) {
+    | EmptyHole(_)
+    | Wild(_)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) => true
+    | _ => false
+    }
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _) => false
+  | Line(_, line) =>
+    switch (line) {
+    | EmptyLine => true
+    | LetLine(_, _, _)
+    | ExpLine(_) => false
+    }
+  | Rule(_, _) => false
+  };
+};
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
   extract_cursor_exp_term(exp);
 }

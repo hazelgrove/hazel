@@ -33,6 +33,7 @@ type undo_history_entry = {
   cursor_term_info,
   previous_action: option(Action.t),
   edit_action,
+  caret_is_jump: bool,
   timestamp: float,
 };
 
@@ -91,19 +92,13 @@ let push_history_entry =
 };
 
 /* return true if cursor jump to another term when new action applied */
-let cursor_jump =
-    (prev_group: undo_history_group, cardstacks_before: Cardstacks.t): bool => {
+let caret_jump =
+    (prev_group: undo_history_group, new_cardstacks: Cardstacks.t): bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let cursor_info =
-    prev_entry.cardstacks |> Cardstacks.get_program |> Program.get_cursor_info;
-  let prev_cardstacks_cursor_term = cursor_info.cursor_term;
   let prev_step =
     prev_entry.cardstacks |> Cardstacks.get_program |> Program.get_steps;
-  let new_step =
-    cardstacks_before |> Cardstacks.get_program |> Program.get_steps;
-  prev_step != new_step
-  || prev_cardstacks_cursor_term
-  != prev_entry.cursor_term_info.cursor_term_after;
+  let new_step = new_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+  prev_step != new_step || prev_entry.caret_is_jump;
 };
 
 /* return true if new edit_action can be grouped with the preivous edit_action */
@@ -163,7 +158,7 @@ let group_entry =
 
   /* edit actions like construct space/new lines should be grouped together,
      so cursor jump should be ignored in those cases */
-  let ignore_cursor_jump =
+  let ignore_caret_jump =
     switch (prev_entry.edit_action, new_edit_action) {
     | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
       switch (delete_edit_1, delete_edit_2) {
@@ -186,7 +181,7 @@ let group_entry =
     };
 
   can_group_edit_action
-  && (!cursor_jump(prev_group, cardstacks_before) || ignore_cursor_jump);
+  && (!caret_jump(prev_group, cardstacks_before) || ignore_caret_jump);
 };
 
 type comp_len_typ =
@@ -536,7 +531,11 @@ let get_new_edit_action =
               Some(Var(Edit));
             }
           };
-        } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+        } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
+                   || !
+                        CursorInfo.cursor_term_is_editable(
+                          new_cursor_term_info.cursor_term_before,
+                        )) {
           Some(Var(Insert));
         } else {
           Some(Var(Edit));
@@ -640,8 +639,7 @@ let get_cursor_info =
     (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
     : cursor_term_info => {
   let zexp_before =
-    ZList.prj_z(ZList.prj_z(cardstacks_before).zcards).program
-    |> Program.get_zexp;
+    cardstacks_before |> Cardstacks.get_program |> Program.get_zexp;
   let (prev_is_empty_line, next_is_empty_line) =
     CursorInfo.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
@@ -687,6 +685,7 @@ let push_edit_state =
   | None =>
     let new_entry = {
       ...ZList.prj_z(prev_group.group_entries),
+      caret_is_jump: caret_jump(prev_group, cardstacks_after),
       cardstacks: cardstacks_after,
     };
 
@@ -702,6 +701,7 @@ let push_edit_state =
   | Some(new_edit_action) =>
     let new_entry = {
       cardstacks: cardstacks_after,
+      caret_is_jump: false,
       cursor_term_info: new_cursor_term_info,
       previous_action: action,
       edit_action: new_edit_action,

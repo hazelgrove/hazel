@@ -51,6 +51,7 @@ let init = (): t => {
     let timestamp = Unix.time();
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
+      caret_is_jump: false,
       cursor_term_info,
       previous_action: None,
       edit_action: Init,
