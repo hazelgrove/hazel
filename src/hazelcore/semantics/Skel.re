@@ -100,10 +100,8 @@ let rec make_skel_str' =
   };
 
 let make_skel_str =
-    (seq: Seq.t('operand, 'op), string_of_op: 'op => string)
-    : (string, Hashtbl.t(int, 'operand)) => {
+    (seq: Seq.t('operand, 'op), string_of_op: 'op => string): string => {
   let counter = ref(0);
   let ph_map = Hashtbl.create(8);
-  let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
-  (skel_str, ph_map);
+  make_skel_str'(string_of_op, seq, counter, ph_map);
 };
