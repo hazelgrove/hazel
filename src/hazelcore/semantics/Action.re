@@ -3573,7 +3573,7 @@ module Exp = {
         print_endline("Action3543");
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
       // Succeeded(SynDone((ze, HTyp.String, u_gen)));
-      | CursorE(OnDelim(_), operand) =>
+      | CursorE(OnDelim(_) | OnText(_), operand) =>
         let delim_cursor = CursorPosition.OnDelim(0, After);
         let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
@@ -3589,44 +3589,8 @@ module Exp = {
           );
         print_endline("Action3543");
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
-      // Succeeded(SynDone((ze, HTyp.String, u_gen)));
-      | CursorE(OnText(_), operand) =>
-        print_endline("Action3552");
-        let text_cursor = CursorPosition.OnDelim(0, After);
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let ze =
-          ZExp.ZBlock.wrap(
-            CursorE(
-              text_cursor,
-              UHExp.subscript(
-                UHExp.Block.wrap(operand),
-                UHExp.Block.wrap(hole),
-                UHExp.Block.wrap(hole),
-              ),
-            ),
-          );
-        print_endline("Action3598");
-        Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
-      // Succeeded(SynDone((ze, HTyp.String, u_gen)));
       | _ => Failed
       };
-    // let delim_cursor = CursorPosition.OnDelim(0, After);
-    // print_endline("Action3529");
-    // let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    // print_endline("Action3531");
-    // let ze =
-    //   ZExp.ZBlock.wrap(
-    //     CursorE(
-    //       delim_cursor,
-    //       UHExp.subscript(
-    //         UHExp.Block.wrap(operand),
-    //         UHExp.Block.wrap(hole),
-    //         UHExp.Block.wrap(hole),
-    //       ),
-    //     ),
-    //   );
-    // print_endline("Action3543");
-    // Succeeded(SynDone((ze, HTyp.String, u_gen)));
 
     /* Invalid actions at expression level */
     | (Construct(SLine), CursorE(OnText(_), _)) => Failed
@@ -5131,7 +5095,7 @@ module Exp = {
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, HTyp.String)),
         );
-      | CursorE(OnDelim(_), operand) =>
+      | CursorE(OnDelim(_) | OnText(_), operand) =>
         let delim_cursor = CursorPosition.OnDelim(0, After);
         let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
@@ -5149,75 +5113,9 @@ module Exp = {
         Succeeded(
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, HTyp.String)),
         );
-      | CursorE(OnText(_), operand) =>
-        print_endline("Action3552");
-        let text_cursor = CursorPosition.OnDelim(0, After);
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let ze =
-          ZExp.ZBlock.wrap(
-            CursorE(
-              text_cursor,
-              UHExp.subscript(
-                UHExp.Block.wrap(operand),
-                UHExp.Block.wrap(hole),
-                UHExp.Block.wrap(hole),
-              ),
-            ),
-          );
-        print_endline("Action3598");
-        Succeeded(
-          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, HTyp.String)),
-        );
       | _ => Failed
       };
-    // | (Construct(SLeftBracket), zoperand)
-    //     when ZExp.is_after_zoperand(zoperand) =>
-    //   print_endline("Action5030");
-    //   switch (zoperand) {
-    //   | CursorE(OnDelim(k, side), operand) =>
-    //     let delim_cursor = CursorPosition.OnDelim(k, side);
-    //     let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    //     let ze =
-    //       ZExp.ZBlock.wrap(
-    //         CursorE(
-    //           delim_cursor,
-    //           UHExp.subscript(
-    //             UHExp.Block.wrap(operand),
-    //             UHExp.Block.wrap(hole),
-    //             UHExp.Block.wrap(hole),
-    //           ),
-    //         ),
-    //       );
-    //     print_endline("Action5046");
-    //     if (HTyp.consistent(ty, HTyp.String)) {
-    //       Succeeded(AnaDone((ze, u_gen)));
-    //     } else {
-    //       let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
-    //       Succeeded(AnaDone((ze, u_gen)));
-    //     };
-    //   | CursorE(OnText(k), operand) =>
-    //     print_endline("Action3552");
-    //     let text_cursor = CursorPosition.OnText(k);
-    //     let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    //     let ze =
-    //       ZExp.ZBlock.wrap(
-    //         CursorE(
-    //           text_cursor,
-    //           UHExp.subscript(
-    //             UHExp.Block.wrap(operand),
-    //             UHExp.Block.wrap(hole),
-    //             UHExp.Block.wrap(hole),
-    //           ),
-    //         ),
-    //       );
-    //     if (HTyp.consistent(ty, HTyp.String)) {
-    //       Succeeded(AnaDone((ze, u_gen)));
-    //     } else {
-    //       let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
-    //       Succeeded(AnaDone((ze, u_gen)));
-    //     };
-    //   | _ => Failed
-    //   };
+
     /* Invalid actions at the expression level */
     | (Construct(SLeftBracket), zoperand)
         when ZExp.is_before_zoperand(zoperand) =>
