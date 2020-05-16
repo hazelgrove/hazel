@@ -113,8 +113,8 @@ let caret_jump =
 
 /* return true if new edit_action can be grouped with the preivous edit_action */
 let group_edit_action =
-    (edit_action_1: edit_action, edit_action_2: edit_action): bool =>
-  switch (edit_action_1, edit_action_2) {
+    (edit_action_prev: edit_action, edit_action_next: edit_action): bool =>
+  switch (edit_action_prev, edit_action_next) {
   | (MatchRule, MatchRule) => true
   | (MatchRule, _) => false
   | (Var(_), Var(_)) => true
@@ -271,6 +271,7 @@ let comp_len_larger =
   } else {
     cursor_term_1;
   };
+
 let get_original_deleted_term =
     (
       prev_group: undo_history_group,
@@ -290,14 +291,51 @@ let get_original_deleted_term =
       switch (ls) {
       | [] => cursor_term
       | [elt] =>
-        comp_len_larger(
-          cursor_term,
-          comp_len_larger(
-            elt.cursor_term_info.cursor_term_after,
-            elt.cursor_term_info.cursor_term_before,
-          ),
-        )
-
+        switch (
+          elt.cursor_term_info.cursor_term_before,
+          elt.cursor_term_info.cursor_term_after,
+        ) {
+        | (Exp(_, exp_1), Exp(_, exp_2)) =>
+          switch (exp_1, exp_2) {
+          | (Var(_, _, _), Var(_, _, _))
+          | (IntLit(_, _), IntLit(_, _))
+          | (FloatLit(_, _), FloatLit(_, _))
+          | (BoolLit(_, _), BoolLit(_, _)) =>
+            comp_len_larger(
+              cursor_term,
+              comp_len_larger(
+                elt.cursor_term_info.cursor_term_after,
+                elt.cursor_term_info.cursor_term_before,
+              ),
+            )
+          | _ =>
+            comp_len_larger(
+              cursor_term,
+              elt.cursor_term_info.cursor_term_after,
+            )
+          }
+        | (Pat(_, pat_1), Pat(_, pat_2)) =>
+          switch (pat_1, pat_2) {
+          | (Var(_, _, _), Var(_, _, _))
+          | (IntLit(_, _), IntLit(_, _))
+          | (FloatLit(_, _), FloatLit(_, _))
+          | (BoolLit(_, _), BoolLit(_, _)) =>
+            comp_len_larger(
+              cursor_term,
+              comp_len_larger(
+                elt.cursor_term_info.cursor_term_after,
+                elt.cursor_term_info.cursor_term_before,
+              ),
+            )
+          | _ =>
+            comp_len_larger(
+              cursor_term,
+              elt.cursor_term_info.cursor_term_after,
+            )
+          }
+        | _ =>
+          comp_len_larger(cursor_term, elt.cursor_term_info.cursor_term_after)
+        }
       | [head, ...tail] =>
         let larger_term =
           comp_len_larger(
