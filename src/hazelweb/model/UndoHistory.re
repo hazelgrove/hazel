@@ -30,10 +30,10 @@ type cursor_term_info = {
 
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
+  caret_jumps_to: option(Cardstacks.t),
   cursor_term_info,
   previous_action: option(Action.t),
   edit_action,
-  caret_is_jump: bool,
   timestamp: float,
 };
 
@@ -58,8 +58,16 @@ type t = {
 let update_is_hover = (is_hover: bool, history: t) => {
   {...history, is_hover};
 };
-let get_cardstacks = (history: t): Cardstacks.t => {
-  ZList.prj_z(ZList.prj_z(history.groups).group_entries).cardstacks;
+let get_cardstacks = (history: t, ignore_caret_jump: bool): Cardstacks.t => {
+  let cur_entry = ZList.prj_z(ZList.prj_z(history.groups).group_entries);
+  if (ignore_caret_jump) {
+    cur_entry.cardstacks;
+  } else {
+    switch (cur_entry.caret_jumps_to) {
+    | None => cur_entry.cardstacks
+    | Some(cardstacks) => cardstacks
+    };
+  };
 };
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
@@ -100,7 +108,7 @@ let caret_jump =
     prev_entry.cardstacks |> Cardstacks.get_program |> Program.get_steps;
   let new_step =
     new_cardstacks_before |> Cardstacks.get_program |> Program.get_steps;
-  prev_step != new_step || prev_entry.caret_is_jump;
+  prev_step != new_step;
 };
 
 /* return true if new edit_action can be grouped with the preivous edit_action */
@@ -744,10 +752,16 @@ let push_edit_state =
   let timestamp = Unix.time();
   switch (new_edit_action) {
   | None =>
+    let prev_entry = ZList.prj_z(prev_group.group_entries);
     let new_entry = {
-      ...ZList.prj_z(prev_group.group_entries),
-      caret_is_jump: caret_jump(prev_group, new_cardstacks_after),
-      cardstacks: new_cardstacks_after,
+      ...prev_entry,
+      caret_jumps_to:
+        if (caret_jump(prev_group, new_cardstacks_after)) {
+          Some(new_cardstacks_after);
+        } else {
+          None;
+        },
+      /* cardstacks: prev_entry.cardstacks new_cardstacks_after, */
     };
 
     let new_group = {
@@ -762,7 +776,7 @@ let push_edit_state =
   | Some(new_edit_action) =>
     let new_entry = {
       cardstacks: new_cardstacks_after,
-      caret_is_jump: false,
+      caret_jumps_to: None,
       cursor_term_info: new_cursor_term_info,
       previous_action: action,
       edit_action: new_edit_action,

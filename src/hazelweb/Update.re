@@ -288,13 +288,13 @@ let apply_action =
           model.undo_history
           |> UndoHistory.shift_to_prev
           |> UndoHistory.update_is_hover(false);
-        Model.load_undo_history(model, new_history);
+        Model.load_undo_history(model, new_history, false);
       | Redo =>
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_next
           |> UndoHistory.update_is_hover(false);
-        Model.load_undo_history(model, new_history);
+        Model.load_undo_history(model, new_history, false);
       | ShiftHistory(group_id, elt_id, is_click, is_mousenter) =>
         /* cshift to the certain entry */
         let new_history =
@@ -305,7 +305,7 @@ let apply_action =
                is_click,
                is_mousenter,
              );
-        Model.load_undo_history(model, new_history);
+        Model.load_undo_history(model, new_history, true);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
