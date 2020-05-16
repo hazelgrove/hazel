@@ -316,6 +316,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | Rule(_, _) => false
   };
 };
+
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
   extract_cursor_exp_term(exp);
 }
