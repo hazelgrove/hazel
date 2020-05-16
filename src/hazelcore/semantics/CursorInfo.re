@@ -49,6 +49,14 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
+  // cursor is on the clause of a case
+  | SynBranchClause
+      // glb of other branches
+      (
+        option(HTyp.t),
+        // info for the clause
+        typed,
+      )
   // cursor is on a case with branches of inconsistent types
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
@@ -775,16 +783,19 @@ module Exp = {
     | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
     | CaseZE(_, zscrut, _) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-    | CaseZR(_, scrut, (prefix, zrule, _)) =>
+    | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => None
       | Some(pat_ty) =>
+        /* glb of all of the branches except the one with the cursor */
+        let glb = Statics.Exp.syn_rules(ctx, prefix @ suffix, pat_ty);
         syn_cursor_info_rule(
           ~steps=steps @ [1 + List.length(prefix)],
           ctx,
           zrule,
           pat_ty,
-        )
+          glb,
+        );
       }
     | ApPaletteZ(_, _, _, zpsi) =>
       let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
@@ -1119,6 +1130,7 @@ module Exp = {
         ctx: Contexts.t,
         zrule: ZExp.zrule,
         pat_ty: HTyp.t,
+        glb: option(HTyp.t),
       )
       : option(t) =>
     switch (zrule) {
@@ -1134,7 +1146,17 @@ module Exp = {
     | RuleZE(p, zclause) =>
       switch (Statics.Pat.ana(ctx, p, pat_ty)) {
       | None => None
-      | Some(ctx) => syn_cursor_info(~steps=steps @ [1], ctx, zclause)
+      | Some(ctx) =>
+        let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause);
+        /* Check if the cursor is on the outermost form of the clause */
+        let is_outer = ZExp.is_outer(zclause);
+        switch (is_outer, cursor_info) {
+        | (_, None) => None
+        | (false, _) => cursor_info
+        | (true, Some({typed, ctx, uses})) =>
+          let typed = SynBranchClause(glb, typed);
+          Some({typed, ctx, uses});
+        };
       }
     }
   and ana_cursor_info_rule =
