@@ -43,7 +43,11 @@ type t =
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
-  | Construct(shape);
+  | Construct(shape)
+  | SwapLeft
+  | SwapRight
+  | SwapUp
+  | SwapDown;
 
 module Outcome = {
   type t('success) =
@@ -154,7 +158,11 @@ module Typ = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -173,7 +181,9 @@ module Typ = {
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
-        ),
+        ) |
+        SwapUp |
+        SwapDown,
         _,
       )
     /* Invalid cursor positions */
@@ -230,6 +240,34 @@ module Typ = {
       | Some(op) => Succeeded(construct_operator(op, zoperand, surround))
       }
 
+    /* SwapLeft and SwapRight is handled at block level */
+
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorT(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorT(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_ZOpSeq(new_zseq));
+    | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorT(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_ZOpSeq(new_zseq));
+
     /* Zipper */
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
       switch (perform_operand(a, zoperand)) {
@@ -260,7 +298,9 @@ module Typ = {
         Construct(
           SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
           SApPalette(_),
-        ),
+        ) |
+        SwapUp |
+        SwapDown,
         _,
       ) =>
       Failed
@@ -297,7 +337,7 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Num | Bool)) =>
+    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
     /* ( _ )<|  ==>  _| */
@@ -322,8 +362,10 @@ module Typ = {
       | Succeeded(zty) => perform(a, zty)
       }
 
-    | (Construct(SChar("N")), CursorT(_, Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Num)))
+    | (Construct(SChar("I")), CursorT(_, Hole)) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Int)))
+    | (Construct(SChar("F")), CursorT(_, Hole)) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
     | (Construct(SChar(_)), CursorT(_)) => Failed
@@ -339,6 +381,9 @@ module Typ = {
       | None => Failed
       | Some(op) => Succeeded(construct_operator(op, zoperand, (E, E)))
       }
+
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorT(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
@@ -356,13 +401,6 @@ module Typ = {
       }
     };
 };
-
-let check_valid = (x: Var.t, outcome: Outcome.t('a)): Outcome.t('a) =>
-  if (Var.is_valid(x)) {
-    outcome;
-  } else {
-    Failed;
-  };
 
 let _syn_insert_text =
     (
@@ -720,15 +758,23 @@ module Pat = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
+      } else if
+        /* TODO: this should be changed once InvalidVar holes are finished */
+        (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+        Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
       } else {
         Failed;
       }
     | Some(Underscore) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    | Some(NumLit(n)) =>
-      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.numlit(n)));
-      Succeeded((zp, HTyp.Num, ctx, u_gen));
+    | Some(IntLit(n)) =>
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
+      Succeeded((zp, HTyp.Int, ctx, u_gen));
+    | Some(FloatLit(f)) =>
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
+      Succeeded((zp, HTyp.Float, ctx, u_gen));
     | Some(BoolLit(b)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
@@ -763,13 +809,19 @@ module Pat = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
+      } else if
+        /* TODO: this should be changed once InvalidVar holes are finished */
+        (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+        Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
       } else {
         Failed;
       }
     | Some(Underscore) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
       Succeeded((zp, ctx, u_gen));
-    | Some(NumLit(_))
+    | Some(IntLit(_))
+    | Some(FloatLit(_))
     | Some(BoolLit(_)) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -945,7 +997,11 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapUp
+    | SwapDown
+    | SwapLeft
+    | SwapRight =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -993,7 +1049,11 @@ module Pat = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapUp
+    | SwapDown
+    | SwapLeft
+    | SwapRight =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1019,6 +1079,9 @@ module Pat = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+    /* Invalid swap actions */
+    | (SwapUp | SwapDown, _) => Failed
 
     /* Movement */
     | (
@@ -1092,6 +1155,33 @@ module Pat = {
       | Some(zp) => syn_perform(ctx, u_gen, a, zp)
       };
 
+    /* SwapLeft and SwapRight actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorP(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    | (SwapRight, ZOperand(CursorP(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
     /* Zipper */
 
     | (_, ZOperand(zoperand, (E, E))) =>
@@ -1134,7 +1224,7 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
+        CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1145,7 +1235,9 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
-        UpdateApPalette(_),
+        UpdateApPalette(_) |
+        SwapUp |
+        SwapDown,
         _,
       ) =>
       Failed
@@ -1193,15 +1285,19 @@ module Pat = {
 
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
-    | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
-      syn_delete_text(ctx, u_gen, j, string_of_int(n))
+    | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
+      syn_delete_text(ctx, u_gen, j, n)
+    | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
+      syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
-    | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
-      syn_backspace_text(ctx, u_gen, j, string_of_int(n))
+    | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
+      syn_backspace_text(ctx, u_gen, j, n)
+    | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
+      syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
@@ -1242,12 +1338,20 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_bool(b))
-    | (Construct(SOp(sop)), CursorP(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorP(OnText(j), IntLit(_, n)))
         when
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
-      syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
+      syn_split_text(ctx, u_gen, j, sop, n)
+    | (Construct(SOp(sop)), CursorP(OnText(j), FloatLit(_, f)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, f)
 
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+       TODO: remove once we have InvalidVar holes */
+    | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1259,8 +1363,10 @@ module Pat = {
       syn_insert_text(ctx, u_gen, (index, s), "_");
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
-    | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
-      syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
+    | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
+      syn_insert_text(ctx, u_gen, (j, s), n)
+    | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
+      syn_insert_text(ctx, u_gen, (j, s), f)
     | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorP(_)) => Failed
@@ -1302,6 +1408,9 @@ module Pat = {
           construct_operator(u_gen, operator, zoperand, (E, E));
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
       }
+
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorP(_)) => Failed
 
     /* Zipper */
     | (_, ParenthesizedZ(zbody)) =>
@@ -1347,6 +1456,7 @@ module Pat = {
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
+    | (SwapUp | SwapDown, _) => Failed
 
     /* Movement handled at top level */
     | (
@@ -1466,6 +1576,33 @@ module Pat = {
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
 
+    /* invalid swap actions */
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorP(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+    | (SwapRight, ZOperand(CursorP(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorP(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
     /* Zipper */
     | (_, ZOperand(zoperand, (E, E))) =>
       ana_perform_operand(ctx, u_gen, a, zoperand, ty)
@@ -1513,7 +1650,7 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
+        CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1524,7 +1661,9 @@ module Pat = {
     /* Invalid actions */
     | (
         Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
-        UpdateApPalette(_),
+        UpdateApPalette(_) |
+        SwapUp |
+        SwapDown,
         _,
       ) =>
       Failed
@@ -1543,8 +1682,13 @@ module Pat = {
         | Succeeded((zp, ty', ctx, u_gen)) =>
           if (HTyp.consistent(ty, ty')) {
             Succeeded((zp, ctx, u_gen));
+          } else if (HTyp.get_prod_arity(ty) != HTyp.get_prod_arity(ty')) {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_zp = zp |> ZPat.set_err_status(InHole(WrongLength, u));
+            Succeeded((new_zp, ctx, u_gen));
           } else {
-            Succeeded((zp |> ZPat.set_err_status(err), ctx, u_gen));
+            let new_zp = zp |> ZPat.set_err_status(err);
+            Succeeded((new_zp, ctx, u_gen));
           }
         }
       };
@@ -1592,15 +1736,19 @@ module Pat = {
 
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
-    | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
-      ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
+      ana_delete_text(ctx, u_gen, j, n, ty)
+    | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
+      ana_delete_text(ctx, u_gen, j, f, ty)
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
-    | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
-      ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
+      ana_backspace_text(ctx, u_gen, j, n, ty)
+    | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
+      ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
@@ -1639,12 +1787,20 @@ module Pat = {
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_bool(b), ty)
-    | (Construct(SOp(sop)), CursorP(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorP(OnText(j), IntLit(_, n)))
         when
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
-      ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
+      ana_split_text(ctx, u_gen, j, sop, n, ty)
+    | (Construct(SOp(sop)), CursorP(OnText(j), FloatLit(_, f)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, f, ty)
 
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+       TODO: remove once we have InvalidVar holes */
+    | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1656,8 +1812,10 @@ module Pat = {
       ana_insert_text(ctx, u_gen, (index, s), "_", ty);
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
-    | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
-      ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
+    | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
+      ana_insert_text(ctx, u_gen, (j, s), n, ty)
+    | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
+      ana_insert_text(ctx, u_gen, (j, s), f, ty)
     | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
     | (Construct(SChar(_)), CursorP(_)) => Failed
@@ -1700,6 +1858,9 @@ module Pat = {
           construct_operator(u_gen, operator, zoperand, (E, E));
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
+
+    /* Invalid SwapLeft and SwapRight actions */
+    | (SwapLeft | SwapRight, CursorP(_)) => Failed
 
     /* Zipper */
     | (_, ParenthesizedZ(zbody)) =>
@@ -1759,19 +1920,25 @@ module Exp = {
     | SVBar => None
     };
 
-  let shape_of_operator = (op: UHExp.operator): operator_shape =>
+  let shape_of_operator = (op: UHExp.operator): option(operator_shape) =>
     switch (op) {
-    | Minus => SMinus
-    | Plus => SPlus
-    | Times => STimes
-    | LessThan => SLessThan
-    | GreaterThan => SGreaterThan
-    | Equals => SEquals
-    | Space => SSpace
-    | Comma => SComma
-    | Cons => SCons
-    | And => SAnd
-    | Or => SOr
+    | Minus => Some(SMinus)
+    | Plus => Some(SPlus)
+    | Times => Some(STimes)
+    | LessThan => Some(SLessThan)
+    | GreaterThan => Some(SGreaterThan)
+    | Equals => Some(SEquals)
+    | Space => Some(SSpace)
+    | Comma => Some(SComma)
+    | Cons => Some(SCons)
+    | And => Some(SAnd)
+    | Or => Some(SOr)
+    | FPlus
+    | FMinus
+    | FTimes
+    | FLessThan
+    | FGreaterThan
+    | FEquals => None
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -1933,6 +2100,21 @@ module Exp = {
         ),
         u_gen,
       );
+    | (
+        [],
+        ExpLineZ(
+          ZOpSeq(_, ZOperator(zoperator, (inner_prefix, inner_suffix))),
+        ),
+        [],
+      ) =>
+      let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+      let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+      (
+        ZExp.ZBlock.wrap'(
+          mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+        ),
+        u_gen,
+      );
     | (prefix_lines, zline, suffix_lines) =>
       let (new_prefix_lines, u_gen) = {
         let (surround_prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
@@ -2025,12 +2207,20 @@ module Exp = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
+      } else if
+        /* TODO: this should be changed once InvalidVar holes are finished */
+        (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else {
         Failed;
       }
-    | Some(NumLit(n)) =>
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.numlit(n)));
-      Succeeded(SynDone((ze, HTyp.Num, u_gen)));
+    | Some(IntLit(n)) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
+      Succeeded(SynDone((ze, HTyp.Int, u_gen)));
+    | Some(FloatLit(f)) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
+      Succeeded(SynDone((ze, HTyp.Float, u_gen)));
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
@@ -2077,6 +2267,11 @@ module Exp = {
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
+      } else if
+        /* TODO: this should be changed once InvalidVar holes are finished */
+        (text == ".") {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
       } else {
         Failed;
       }
@@ -2089,7 +2284,7 @@ module Exp = {
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(NumLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -2242,7 +2437,11 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2295,7 +2494,11 @@ module Exp = {
     | Construct(_)
     | Delete
     | Backspace
-    | UpdateApPalette(_) =>
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2394,6 +2597,51 @@ module Exp = {
       }
 
     /* No construction handled at block level */
+
+    /* SwapUp and SwapDown is handled at block level */
+    | SwapUp when ZExp.line_can_be_swapped(zline) =>
+      switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+      | (None, _, _) => Failed
+      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+        Failed
+      /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
+      | (Some((rest, EmptyLine)), _, []) =>
+        let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let new_zblock =
+          (rest, zline, UHExp.Block.wrap(new_hole))
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      | (Some((rest, last)), _, _) =>
+        let new_zblock =
+          (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      }
+    | SwapDown when ZExp.line_can_be_swapped(zline) =>
+      switch (suffix, zline) {
+      | ([], _) => Failed
+      /* avoid swap down for the Let line if it is second to last */
+      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
+        Failed
+      /* handle corner case when the second to last line is an EmptyLine */
+      | ([last], CursorL(_, EmptyLine)) =>
+        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        let new_zblock =
+          (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), [])
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      | ([hd, ...tl], _) =>
+        let new_zblock =
+          (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock)),
+        );
+      }
 
     /* Zipper */
     | _ =>
@@ -2538,7 +2786,7 @@ module Exp = {
 
     | (Backspace, CursorL(OnDelim(k, After), LetLine(p, _, def))) =>
       if (k == 1) {
-        /* let x :<| Num = 2   ==>   let x| = 2 */
+        /* let x :<| Int = 2   ==>   let x| = 2 */
         let zp = p |> ZPat.place_after;
         let new_zblock = ([], ZExp.LetLineZP(zp, None, def), []);
         fix_and_mk_result(u_gen, new_zblock);
@@ -2590,6 +2838,11 @@ module Exp = {
       };
     | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
 
+    /* Invalid swap actions */
+    | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
+    | (SwapLeft, CursorL(_))
+    | (SwapRight, CursorL(_)) => Failed
+
     /* Zipper */
 
     | (_, ExpLineZ(zopseq)) =>
@@ -2624,10 +2877,11 @@ module Exp = {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zp, new_ctx, u_gen)) =>
-        let ctx_def = Statics.Exp.ctx_for_let(ctx, zp |> ZPat.erase, ty, def);
-        let (def, u_gen) =
+        let ctx_def =
+          Statics.Exp.ctx_for_let(ctx, new_zp |> ZPat.erase, ty, def);
+        let (new_def, u_gen) =
           Statics.Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
-        let new_zline = ZExp.LetLineZP(new_zp, Some(ann), def);
+        let new_zline = ZExp.LetLineZP(new_zp, Some(ann), new_def);
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       };
 
@@ -2708,6 +2962,36 @@ module Exp = {
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
       syn_perform_opseq(ctx, escape(side), (zopseq, ty, u_gen))
 
+    /* Backspace "." from Float Op to get Int Op */
+    /* ( +.<| ) ==> ( + ) */
+    | (
+        Backspace,
+        ZOperator(
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
+          seq,
+        ),
+      ) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.FPlus => Some(UHExp.Plus)
+        | UHExp.FMinus => Some(UHExp.Minus)
+        | UHExp.FTimes => Some(UHExp.Times)
+        | UHExp.FLessThan => Some(UHExp.LessThan)
+        | UHExp.FGreaterThan => Some(UHExp.GreaterThan)
+        | UHExp.FEquals => Some(UHExp.Equals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+      | None => Failed
+      };
     /* Delete before operator == Backspace after operator */
     | (Delete, ZOperator((OnOp(Before), op), surround)) =>
       let new_ze =
@@ -2750,6 +3034,27 @@ module Exp = {
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
     /* Construction */
+
+    /* Making Float Operators from Int Operators */
+    | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.Plus => Some(UHExp.FPlus)
+        | UHExp.Minus => Some(UHExp.FMinus)
+        | UHExp.Times => Some(UHExp.FTimes)
+        | UHExp.LessThan => Some(UHExp.FLessThan)
+        | UHExp.GreaterThan => Some(UHExp.FGreaterThan)
+        | UHExp.Equals => Some(UHExp.FEquals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+      | None => Failed
+      };
 
     /* Space construction on operators becomes movement... */
     | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
@@ -2805,6 +3110,34 @@ module Exp = {
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(SynDone((new_zblock, ty, u_gen)));
 
+    /* Swap actions */
+    | (SwapUp | SwapDown, ZOperator(_))
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | (SwapRight, ZOperand(CursorE(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+
     /* Zipper */
 
     | (_, ZOperand(zoperand, (E, E))) =>
@@ -2817,28 +3150,34 @@ module Exp = {
       ) {
       | None => Failed
       | Some(Syn) =>
-        switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
-        | Failed => Failed
-        | CursorEscaped(side) =>
-          syn_perform_opseq(ctx, escape(side), (zopseq, ty, u_gen))
-        | Succeeded(SynExpands(r)) =>
-          let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
-          let (new_subject, u_gen) =
-            resurround(u_gen, r.subject, (E, suffix));
-          Succeeded(
-            SynExpands({
-              ...r,
-              u_gen,
-              prefix: prefix_lines,
-              subject: new_subject,
-              suffix: [],
-            }),
-          );
-        | Succeeded(SynDone((ze, _, u_gen))) =>
-          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-          Succeeded(
-            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-          );
+        switch (Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+        | None => Failed
+        | Some(ty_zoperand) =>
+          switch (
+            syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+          ) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            syn_perform_opseq(ctx, escape(side), (zopseq, ty, u_gen))
+          | Succeeded(SynExpands(r)) =>
+            let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
+            let (new_subject, u_gen) =
+              resurround(u_gen, r.subject, (E, suffix));
+            Succeeded(
+              SynExpands({
+                ...r,
+                u_gen,
+                prefix: prefix_lines,
+                subject: new_subject,
+                suffix: [],
+              }),
+            );
+          | Succeeded(SynDone((ze, _, u_gen))) =>
+            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          }
         }
       | Some(Ana(ty_zoperand)) =>
         switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
@@ -2879,7 +3218,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -2940,19 +3279,22 @@ module Exp = {
 
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
-    | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
-      syn_delete_text(ctx, u_gen, j, string_of_int(n))
+    | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
+      syn_delete_text(ctx, u_gen, j, n)
+    | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
+      syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
-
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
-    | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
-      syn_backspace_text(ctx, u_gen, j, string_of_int(n))
+    | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
+      syn_backspace_text(ctx, u_gen, j, n)
+    | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
+      syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
-    /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
+    /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
       let (p, body_ctx, u_gen) =
         Statics.Pat.ana_fix_holes(ctx, u_gen, p, Hole);
@@ -3006,11 +3348,16 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_bool(b))
-    | (Construct(SOp(sop)), CursorE(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorE(OnText(j), IntLit(_, n)))
         when
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
-      syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
+      syn_split_text(ctx, u_gen, j, sop, n)
+    | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, f)
 
     | (
         Construct(SOp(SSpace)),
@@ -3059,12 +3406,17 @@ module Exp = {
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
 
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+       TODO: remove once we have InvalidVar holes */
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
-    | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
-      syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
+    | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
+      syn_insert_text(ctx, u_gen, (j, s), n)
+    | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
+      syn_insert_text(ctx, u_gen, (j, s), f)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(_)), CursorE(_)) => Failed
@@ -3230,6 +3582,11 @@ module Exp = {
       );
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
+
+    /* Invalid Swap actions */
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
+      Failed
+    | (SwapLeft | SwapRight, CursorE(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
@@ -3494,6 +3851,25 @@ module Exp = {
       }
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
+    /* Invalid swap actions */
+    | (SwapLeft | SwapRight, CursorR(_)) => Failed
+
+    /* SwapUp and SwapDown actions */
+    | (SwapUp, CursorR(_) | RuleZP(_)) =>
+      switch (ListUtil.split_last(prefix)) {
+      | None => Failed
+      | Some((rest, last)) =>
+        let new_zrules = (rest, zrule, [last, ...suffix]);
+        Succeeded((new_zrules, u_gen));
+      }
+    | (SwapDown, CursorR(_) | RuleZP(_)) =>
+      switch (suffix) {
+      | [] => Failed
+      | [hd, ...tl] =>
+        let new_zrules = (prefix @ [hd], zrule, tl);
+        Succeeded((new_zrules, u_gen));
+      }
+
     /* Zipper */
     | (_, RuleZP(zp, clause)) =>
       switch (Pat.ana_perform(ctx, u_gen, a, zp, pat_ty)) {
@@ -3618,6 +3994,50 @@ module Exp = {
 
     /* No construction handled at block level */
 
+    /* SwapUp and SwapDown is handled at block level */
+    | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
+      switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+      | (None, _, _) => Failed
+      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+        Failed
+      /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
+      | (Some((rest, EmptyLine)), _, []) =>
+        let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+        let new_zblock =
+          (rest, zline, UHExp.Block.wrap(new_hole))
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      | (Some((rest, last)), _, _) =>
+        let new_zblock =
+          (rest, zline, [last, ...suffix]) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      }
+    | (SwapDown, _) when ZExp.line_can_be_swapped(zline) =>
+      switch (suffix, zline) {
+      | ([], _) => Failed
+      /* avoid swap down for the Let line if it is second to last */
+      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
+        Failed
+      /* handle corner case when the second to last line is an EmptyLine */
+      | ([last], CursorL(_, EmptyLine)) =>
+        let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        let new_zblock =
+          (prefix @ [last], ZExp.ExpLineZ(ZOpSeq.wrap(new_hole)), [])
+          |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      | ([hd, ...tl], _) =>
+        let new_zblock =
+          (prefix @ [hd], zline, tl) |> ZExp.prune_empty_hole_lines;
+        Succeeded(
+          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty)),
+        );
+      }
     /* Zipper */
     | _ =>
       switch (Statics.Exp.syn_lines(ctx, prefix)) {
@@ -3702,6 +4122,36 @@ module Exp = {
       ana_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)
 
     /* Deletion */
+    /* Backspace "." from Float Op to get Int Op */
+    /* ( +.<| ) ==> ( + ) */
+    | (
+        Backspace,
+        ZOperator(
+          (
+            OnOp(After) as pos,
+            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+          ),
+          seq,
+        ),
+      ) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.FPlus => Some(UHExp.Plus)
+        | UHExp.FMinus => Some(UHExp.Minus)
+        | UHExp.FTimes => Some(UHExp.Times)
+        | UHExp.FLessThan => Some(UHExp.LessThan)
+        | UHExp.FGreaterThan => Some(UHExp.GreaterThan)
+        | UHExp.FEquals => Some(UHExp.Equals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+      | None => Failed
+      };
 
     | (Delete, ZOperator((OnOp(After as side), _), _))
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
@@ -3754,6 +4204,27 @@ module Exp = {
 
     /* Construction */
 
+    /* contruction of Float Operators from Int Operators */
+    | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
+      let new_operator = {
+        switch (oper) {
+        | UHExp.Plus => Some(UHExp.FPlus)
+        | UHExp.Minus => Some(UHExp.FMinus)
+        | UHExp.Times => Some(UHExp.FTimes)
+        | UHExp.LessThan => Some(UHExp.FLessThan)
+        | UHExp.GreaterThan => Some(UHExp.FGreaterThan)
+        | UHExp.Equals => Some(UHExp.FEquals)
+        | _ => None
+        };
+      };
+      switch (new_operator) {
+      | Some(op) =>
+        let new_zoperator = (pos, op);
+        let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+      | None => Failed
+      };
+
     /* construction on operators either becomes movement... */
     | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
         when ZExp.is_after_zoperator(zoperator) =>
@@ -3781,8 +4252,8 @@ module Exp = {
           // safe because pattern guard
           ty |> HTyp.get_prod_elements |> List.hd,
         );
-      let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-      Succeeded(AnaDone((ZExp.ZBlock.wrap'(new_zopseq), u_gen)));
+      let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | (
         Construct(SParenthesized),
         ZOperand(CursorE(_, EmptyHole(_)), (E, E)),
@@ -3840,6 +4311,36 @@ module Exp = {
       let new_zblock = ([new_line], new_zline, []);
       Succeeded(AnaDone((new_zblock, u_gen)));
 
+    /* Swap actions */
+    | (SwapUp | SwapDown, ZOperator(_))
+    | (SwapLeft, ZOperator(_))
+    | (SwapRight, ZOperator(_)) => Failed
+
+    | (SwapLeft, ZOperand(CursorE(_), (E, _))) => Failed
+    | (
+        SwapLeft,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (A(operator, S(operand, new_prefix)), suffix),
+        ),
+      ) =>
+      let new_suffix = Seq.A(operator, S(operand, suffix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      |> wrap_in_AnaDone;
+    | (SwapRight, ZOperand(CursorE(_), (_, E))) => Failed
+    | (
+        SwapRight,
+        ZOperand(
+          CursorE(_) as zoperand,
+          (prefix, A(operator, S(operand, new_suffix))),
+        ),
+      ) =>
+      let new_prefix = Seq.A(operator, S(operand, prefix));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      |> wrap_in_AnaDone;
+
     /* Zipper */
 
     | (_, ZOperand(zoperand, (E, E))) =>
@@ -3852,28 +4353,34 @@ module Exp = {
       ) {
       | None => Failed
       | Some(Syn) =>
-        switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
-        | Failed => Failed
-        | CursorEscaped(side) =>
-          ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), ty)
-        | Succeeded(SynExpands(r)) =>
-          let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
-          let (new_subject, u_gen) =
-            resurround(u_gen, r.subject, (E, suffix));
-          Succeeded(
-            AnaExpands({
-              ...r,
-              u_gen,
-              prefix: prefix_lines,
-              subject: new_subject,
-              suffix: [],
-            }),
-          );
-        | Succeeded(SynDone((ze, _, u_gen))) =>
-          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-          Succeeded(
-            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
-          );
+        switch (Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+        | None => Failed
+        | Some(ty_zoperand) =>
+          switch (
+            syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+          ) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), ty)
+          | Succeeded(SynExpands(r)) =>
+            let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
+            let (new_subject, u_gen) =
+              resurround(u_gen, r.subject, (E, suffix));
+            Succeeded(
+              AnaExpands({
+                ...r,
+                u_gen,
+                prefix: prefix_lines,
+                subject: new_subject,
+                suffix: [],
+              }),
+            );
+          | Succeeded(SynDone((ze, _, u_gen))) =>
+            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+            Succeeded(
+              AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+            );
+          }
         }
       | Some(Ana(ty_zoperand)) =>
         switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
@@ -3915,7 +4422,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3925,6 +4432,7 @@ module Exp = {
         ),
       ) =>
       Failed
+
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
@@ -3942,6 +4450,10 @@ module Exp = {
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
             Succeeded(AnaDone((ze', u_gen)));
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)) {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze = ze' |> ZExp.set_err_status(InHole(WrongLength, u));
+            Succeeded(AnaDone((new_ze, u_gen)));
           } else {
             let new_ze = ze' |> ZExp.set_err_status(err);
             Succeeded(AnaDone((new_ze, u_gen)));
@@ -3989,19 +4501,23 @@ module Exp = {
 
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
-    | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
-      ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
+      ana_delete_text(ctx, u_gen, j, n, ty)
+    | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
+      ana_delete_text(ctx, u_gen, j, f, ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
-    | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
-      ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
+      ana_backspace_text(ctx, u_gen, j, n, ty)
+    | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
+      ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
-    /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
+    /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => Failed
@@ -4049,12 +4565,17 @@ module Exp = {
 
     /* Construction */
 
+    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
+       TODO: remove once we have InvalidVar holes */
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
-    | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
-      ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
+      ana_insert_text(ctx, u_gen, (j, s), n, ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
+      ana_insert_text(ctx, u_gen, (j, s), f, ty)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
     | (Construct(SChar(_)), CursorE(_)) => Failed
@@ -4087,11 +4608,16 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_bool(b), ty)
-    | (Construct(SOp(sop)), CursorE(OnText(j), NumLit(_, n)))
+    | (Construct(SOp(sop)), CursorE(OnText(j), IntLit(_, n)))
         when
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
-      ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
+      ana_split_text(ctx, u_gen, j, sop, n, ty)
+    | (Construct(SOp(sop)), CursorE(OnText(j), FloatLit(_, f)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, f, ty)
 
     | (Construct(SAsc), LamZP(err, zp, None, body)) =>
       let new_zann = UHTyp.Hole |> ZTyp.place_before_operand |> ZOpSeq.wrap;
@@ -4232,6 +4758,11 @@ module Exp = {
       );
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
+
+    /* Invalid Swap actions */
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
+      Failed
+    | (SwapLeft | SwapRight, CursorE(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>

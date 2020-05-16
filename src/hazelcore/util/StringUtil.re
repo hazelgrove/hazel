@@ -1,5 +1,9 @@
 let is_empty = String.equal("");
 
+let cat = String.concat("");
+
+let replicat = (n: int, s: string) => cat(ListUtil.replicate(n, s));
+
 /**
  * A string of length n has caret positions 0 through n,
  * where 0 places the caret at the start and n places
@@ -30,3 +34,23 @@ let delete = (caret_index: int, s: string): string => {
 };
 
 let utf8_length = CamomileLibrary.UTF8.length;
+
+let num_leading_zeros = (num: string): int => {
+  let rec helper = (index: int) =>
+    if (index == String.length(num) || num.[index] != '0') {
+      0;
+    } else {
+      1 + helper(index + 1);
+    };
+  helper(0);
+};
+
+let num_trailing_zeros = (num: string): int => {
+  let rec helper = (index: int) =>
+    if (index < 0 || num.[index] != '0') {
+      0;
+    } else {
+      1 + helper(index - 1);
+    };
+  helper(String.length(num) - 1);
+};

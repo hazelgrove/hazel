@@ -215,6 +215,15 @@ let force_get_elem_by_id = id => {
   );
 };
 
+let get_elem_by_cls = cls =>
+  switch (
+    Dom_html.document##getElementsByClassName(Js.string(cls))
+    |> Dom.list_of_nodeList
+  ) {
+  | [] => None
+  | [elem, ..._] => Some(elem)
+  };
+
 let force_get_elem_by_cls = cls =>
   switch (
     Dom_html.document##getElementsByClassName(Js.string(cls))
@@ -290,6 +299,7 @@ module ModKeys = {
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
   let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
+  let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -375,6 +385,7 @@ module KeyCombo = {
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
     let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
+    let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -420,6 +431,10 @@ module KeyCombo = {
     let alt_F = alt(Key.the_key("F"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
+    let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
+    let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
+    let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
+    let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
   };
 
   [@deriving sexp]
@@ -450,7 +465,11 @@ module KeyCombo = {
     | Alt_C
     | Pound
     | Ctrl_Z
-    | Ctrl_Shift_Z;
+    | Ctrl_Shift_Z
+    | Ctrl_Alt_I
+    | Ctrl_Alt_K
+    | Ctrl_Alt_J
+    | Ctrl_Alt_L;
 
   let get_details =
     fun
@@ -480,7 +499,11 @@ module KeyCombo = {
     | Alt_R => Details.alt_R
     | Alt_C => Details.alt_C
     | Ctrl_Z => Details.ctrl_z
-    | Ctrl_Shift_Z => Details.ctrl_shift_z;
+    | Ctrl_Shift_Z => Details.ctrl_shift_z
+    | Ctrl_Alt_I => Details.ctrl_alt_i
+    | Ctrl_Alt_K => Details.ctrl_alt_k
+    | Ctrl_Alt_J => Details.ctrl_alt_j
+    | Ctrl_Alt_L => Details.ctrl_alt_l;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -538,6 +561,14 @@ module KeyCombo = {
       Some(Alt_R);
     } else if (evt_matches(Details.alt_C)) {
       Some(Alt_C);
+    } else if (evt_matches(Details.ctrl_alt_i)) {
+      Some(Ctrl_Alt_I);
+    } else if (evt_matches(Details.ctrl_alt_k)) {
+      Some(Ctrl_Alt_K);
+    } else if (evt_matches(Details.ctrl_alt_j)) {
+      Some(Ctrl_Alt_J);
+    } else if (evt_matches(Details.ctrl_alt_l)) {
+      Some(Ctrl_Alt_L);
     } else {
       None;
     };
@@ -560,7 +591,6 @@ type single_key =
   | Underscore;
 
 let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
-let lowercase_letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-z]");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
@@ -576,7 +606,13 @@ let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
       | None =>
         switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
         | Some(_) => Some(Letter(key))
-        | None => key == "_" ? Some(Underscore) : None
+        | None =>
+          /* could be later refactored to a separate regex */
+          switch (key) {
+          | "_" => Some(Underscore)
+          | "." => Some(Letter(key))
+          | _ => None
+          }
         }
       };
     };
@@ -589,6 +625,27 @@ let single_key_string: single_key => string =
     | Letter(x) => x
     | Underscore => "_"
     };
+
+module MoveKey = {
+  [@deriving sexp]
+  type t =
+    | ArrowLeft
+    | ArrowRight
+    | ArrowUp
+    | ArrowDown
+    | Home
+    | End;
+
+  let of_key =
+    fun
+    | "ArrowLeft" => Some(ArrowLeft)
+    | "ArrowRight" => Some(ArrowRight)
+    | "ArrowDown" => Some(ArrowDown)
+    | "ArrowUp" => Some(ArrowUp)
+    | "Home" => Some(Home)
+    | "End" => Some(End)
+    | _ => None;
+};
 
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {
@@ -682,6 +739,7 @@ module Vdom = Virtual_dom.Vdom;
 //     Layout.make_of_layout(record, layout);
 //   };
 
+open Pretty;
 let rec vdom_of_box = (box: Box.t('annot)): Vdom.Node.t =>
   switch (box) {
   | Text(string) =>

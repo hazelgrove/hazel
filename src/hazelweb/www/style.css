@@ -11,6 +11,8 @@
   --title-bar-color: #073f24;
   --page-padding: 15px;
 
+  --code-font-family: "Fira Mono", monospace;
+  --code-font-size: 14pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
@@ -34,6 +36,7 @@
   --code-radius: 4px;
   --child-border-thickness: 4px;
   --code-shadow-thickness: 1.5px;
+  --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
@@ -142,7 +145,7 @@ html, body {
   flex-direction: column;
 }
 
-.page-area {
+#page-area {
   flex-grow: 1;
   /* enable scroll */
   height: 0px;
@@ -159,7 +162,7 @@ html, body {
   width: 400px;
   flex-shrink: 0;
   transition: width 0.3s ease;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .collapsed-sidebar {
@@ -183,8 +186,8 @@ html, body {
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr auto;
   padding-top: 7px;
 }
 
@@ -205,11 +208,11 @@ html, body {
 }
 
 .sidebar-tab-icon {
-  width: 9px;
-  height: 9px;
-  flex-shrink: 0;
   fill: #41392c;
   display: block; /* MUST do this: inline elements have in-built vertical margins */
+  font-family: var(--code-font-family);
+  font-size: 16px;
+  cursor: default;
 }
 
 .sidebar-body-slider {
@@ -277,10 +280,6 @@ html, body {
   background-color: var(--title-bar-color);
 }
 
-.panel-title-bar {
-
-}
-
 .panel-body {
   flex-grow: 1;
   /* enable scroll */
@@ -289,10 +288,6 @@ html, body {
 }
 
 /* cursor inspector */
-
-.cursor-inspector-outer {
-
-}
 
 .cursor-OK.cursor-inspector {
   outline: 1px solid var(--title-bar-color);
@@ -469,7 +464,7 @@ html, body {
   border-bottom: 1px solid #ffffff47;
   background-color: rgba(0,0,0,0);
   color: white;
-  font-family: "Fira Mono", monospace;
+  font-family: var(--code-font-family);
   font-style: italic;
 }
 
@@ -659,13 +654,18 @@ html, body {
 
 /* options panel */
 
-.options-panel {
-  background-color: #EEE;
-  outline: 1px solid #444;
+#OptionsPanel .labeled-checkbox {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5ch;
+  align-items: center;
 }
-
-.options-panel .title-bar {
-  background-color: #444;
+#OptionsPanel .indented-option {
+  position: relative;
+  left: 2.5ch;
+}
+#OptionsPanel label[disabled] {
+  opacity: 0.5;
 }
 
 /* page */
@@ -740,11 +740,30 @@ h1 {
   float: left;
 }
 
+.DHCode * {
+  border-radius: var(--code-radius);
+  line-height: var(--code-line-height);
+}
+.DHCode .CastDecoration,
+.DHCode .FailedCastDecoration {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+.DHCode .FailedCastDelim {
+  color: red;
+}
+.DHCode .CastDecoration {
+  background-color: rgba(150, 0, 255, 0.2);
+}
+.DHCode .FailedCastDecoration {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 .code {
-  font-family: "Fira Mono", monospace;
-  // TODO probably unnecessary if we commit to nbsp
-  white-space: pre;
-  font-size: 14pt;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
 }
 .code.presentation * {
@@ -766,12 +785,21 @@ h1 {
   font-weight: bold;
 }
 
+.DHCode .Align {
+  display: inline-block;
+}
+
 .static-info .code {
   display: inline;
 }
 
-.code-container {
+#code-container {
   position: relative;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
+  width: 80ch;
+  cursor: text;
 }
 .contenteditable {
   background-color: lightgray;
@@ -788,6 +816,18 @@ h1 {
   outline: 0px;
 }
 
+#font-specimen {
+  position: fixed;
+  top: 0;
+  left: 100%;
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
+}
+
+#caret-container {
+  position: relative;
+}
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
 #caret {
   z-index: var(--caret-z);
@@ -797,6 +837,9 @@ h1 {
   margin: calc(0.1 * var(--code-line-height) * 1em) 0;
   height: calc(0.8 * var(--code-line-height) * 1em);
   width: 2px;
+  pointer-events: none;
+}
+#caret.blink {
   -webkit-animation: 1s blink step-end infinite;
   -moz-animation: 1s blink step-end infinite;
   -ms-animation: 1s blink step-end infinite;
@@ -859,6 +902,10 @@ h1 {
   margin: -1px;
 }
 
+.DHCode .Collapsed {
+  color: #999;
+}
+
 .OpenChild.Para {
   display: inline-flex;
   flex-direction: row;
@@ -866,7 +913,7 @@ h1 {
 }
 
 .Cursor.Term::before {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   content: "";
@@ -1005,7 +1052,7 @@ h1 {
 }
 
 .Cursor .DelimGroup {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);
@@ -1067,7 +1114,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 0.5px var(--pat-bright-shadow-color);
+  box-shadow: var(--closed-child-shadow-shape) var(--pat-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
@@ -1086,7 +1133,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 0.5px var(--typ-bright-shadow-color);
+  box-shadow: var(--closed-child-shadow-shape) var(--typ-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
@@ -1114,8 +1161,6 @@ h1 {
 }
 
 #cell {
-  opacity: 0.99;
-  /*background-color: transparent;*/
   position: relative;
   width: auto;
   margin-top: 20px;
@@ -1131,7 +1176,7 @@ h1 {
   position: absolute;
   z-index: var(--hole-indicator-z-index);
   background-color: transparent;
-  font-family: "Fira Mono", monospace;
+  font-family: var(--code-font-family);
   font-size: 20px;
 }
 
@@ -1197,8 +1242,14 @@ h1 {
   vertical-align: top;
 }
 
-.EmptyHole {
-  border-bottom: 1px solid var(--empty-hole-color);
+.DHCode .EmptyHole {
+  /* border-bottom: 1px solid var(--empty-hole-color); */
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.DHCode .EmptyHole.selected {
+  box-sizing: border-box;
+  border: 1px solid var(--empty-hole-color);
 }
 
 .hole-instance {
@@ -1229,7 +1280,7 @@ h1 {
   border-bottom: 1px solid var(--empty-hole-color);
 }
 
-.SEmptyHole-num {
+.HoleLabel {
   vertical-align: text-bottom;
   font-size: 65%;
   color: #BBB;
@@ -1238,6 +1289,10 @@ h1 {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   margin-bottom: -3px;
   /* line-height: initial; */
+}
+.DHCode .CastDecoration .HoleLabel,
+.DHCode .FailedCastDecoration .HoleLabel {
+  color: #777;
 }
 
 .hole-inst-num {

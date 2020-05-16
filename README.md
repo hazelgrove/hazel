@@ -7,23 +7,11 @@ type theory. You can find the relevant papers and more motivation at [the Hazel
 website](http://hazel.org/).
 
 You can try Hazel online with either the
-[stable](https://hazel.org/build/master/index.html) or
-[development](https://hazel.org/build/dev/index.html) version.
+[master](https://hazel.org/build/master/index.html) or
+[dev](https://hazel.org/build/dev/index.html) version. Note that the master
+branch is updated infrequently and is currently almost two years behind!
 
-### Demo
-
-- [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
-
-### Screenshot
-
-![Screenshot of Hazel](hazel-screenshot.png)
-
-Note that this screenshot is of the `master` (i.e., stable) branch circa 2019.
-Hazel is under rapid development, so this screenshot may not reflect the most
-recent version.
-
-<!-- TODO: screenshot with a hole -->
-<!-- TODO: animated gif -->
+<!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
 
 ## Building and Running Hazel
 
@@ -37,8 +25,20 @@ installed, you can build Hazel by running the following commands.
 - `make deps`
 - `make dev`
 
-To run Hazel, run the command `make echo-html`, which will display a filename.
-Then use your preferred browser to open that file.
+To run Hazel, run the command `make echo-html`, which will print a filename.
+Then use your preferred browser to open that file. For convenience, the 
+following make targets open the corresponding browser or invoke the
+corresponding command immediately (see INSTALL.md):
+
+ - `make firefox`
+ - `make chrome`
+ - `make chrome-browser`
+ - `make chromium`
+ - `make chromium-browser`
+ - `make win-chrome`
+ - `make win-firefox`
+ - `make xdg-open`
+ - `make open`
 
 ### Long Version
 
@@ -48,7 +48,7 @@ instructions contained in [INSTALL.md](INSTALL.md).
 
 ## Contributing
 
-### Learning ReasonML
+### From OCaml to ReasonML
 
 This link lets you type OCaml and see what the corresponding ReasonML syntax is:
 <https://reasonml.github.io/en/try>.
@@ -92,7 +92,13 @@ same style.
 
 The `make dev` and `make release` commands do three things:
 
-1. Generate some parsers using `menhir`.
+1. Generate some internal parsers using `menhir`.
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+   
+### Debugging
+
+You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
+
+`js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.

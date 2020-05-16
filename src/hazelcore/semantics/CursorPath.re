@@ -22,6 +22,13 @@ type rev_steps = steps;
 
 [@deriving sexp]
 type t = (steps, CursorPosition.t);
+[@deriving sexp]
+type rev_t = (CursorPosition.t, rev_steps);
+
+let rev = ((cursor, rev_steps): rev_t): t => (
+  rev_steps |> List.rev,
+  cursor,
+);
 
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
@@ -422,7 +429,8 @@ module Typ = {
       switch (operand) {
       | Hole
       | Unit
-      | Num
+      | Int
+      | Float
       | Bool => None
       | Parenthesized(body) =>
         switch (x) {
@@ -474,7 +482,8 @@ module Typ = {
       switch (operand) {
       | Hole
       | Unit
-      | Num
+      | Int
+      | Float
       | Bool => None
       | Parenthesized(body) =>
         switch (x) {
@@ -517,7 +526,8 @@ module Typ = {
     switch (operand) {
     | Hole => [(TypHole, rev_steps |> List.rev), ...hs]
     | Unit
-    | Num
+    | Int
+    | Float
     | Bool => hs
     | Parenthesized(body)
     | List(body) => hs |> holes(body, [0, ...rev_steps])
@@ -540,7 +550,7 @@ module Typ = {
     switch (zoperand) {
     | CursorT(_, Hole) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
-    | CursorT(_, Unit | Num | Bool) => no_holes
+    | CursorT(_, Unit | Int | Float | Bool) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
       let holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
@@ -579,7 +589,8 @@ module Pat = {
       | EmptyHole(_)
       | Wild(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -633,7 +644,8 @@ module Pat = {
       | EmptyHole(_)
       | Wild(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -666,10 +678,10 @@ module Pat = {
     | [_, ..._] => None
     };
 
-  exception UHPatNodeNotFound(t, UHPat.t);
+  exception NotFound(t, UHPat.t);
   let follow_or_fail = (path: t, p: UHPat.t): ZPat.t =>
     switch (follow(path, p)) {
-    | None => raise(UHPatNodeNotFound(path, p))
+    | None => raise(NotFound(path, p))
     | Some(zp) => zp
     };
 
@@ -691,7 +703,8 @@ module Pat = {
     | Wild(InHole(_, u))
     | Var(InHole(_, u), _, _)
     | Var(_, InVarHole(_, u), _)
-    | NumLit(InHole(_, u), _)
+    | IntLit(InHole(_, u), _)
+    | FloatLit(InHole(_, u), _)
     | BoolLit(InHole(_, u), _)
     | ListNil(InHole(_, u)) => [
         (PatHole(u), rev_steps |> List.rev),
@@ -699,7 +712,8 @@ module Pat = {
       ]
     | Var(NotInHole, NotInVarHole, _)
     | Wild(NotInHole)
-    | NumLit(NotInHole, _)
+    | IntLit(NotInHole, _)
+    | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
     | ListNil(NotInHole) => hs
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
@@ -746,7 +760,8 @@ module Pat = {
         )
       }
     | CursorP(_, Wild(err))
-    | CursorP(_, NumLit(err, _))
+    | CursorP(_, IntLit(err, _))
+    | CursorP(_, FloatLit(err, _))
     | CursorP(_, BoolLit(err, _))
     | CursorP(_, ListNil(err)) =>
       switch (err) {
@@ -898,7 +913,8 @@ module Exp = {
       switch (operand) {
       | EmptyHole(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -1000,7 +1016,11 @@ module Exp = {
   and follow_steps_block =
       (~side: Side.t, steps: steps, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
-    | [] => None // no block level cursor
+    | [] =>
+      switch (side) {
+      | Before => Some(ZExp.place_before_block(block))
+      | After => Some(ZExp.place_after_block(block))
+      }
     | [x, ...xs] =>
       switch (ZList.split_at(x, block)) {
       | None => None
@@ -1074,7 +1094,8 @@ module Exp = {
       switch (operand) {
       | EmptyHole(_)
       | Var(_, _, _)
-      | NumLit(_, _)
+      | IntLit(_, _)
+      | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
       | Parenthesized(body) =>
@@ -1174,17 +1195,17 @@ module Exp = {
       }
     };
 
-  exception UHExpNodeNotFound;
+  exception NotFound;
   let follow_or_fail = (path: t, e: UHExp.t): ZExp.t =>
     switch (follow(path, e)) {
-    | None => raise(UHExpNodeNotFound)
+    | None => raise(NotFound)
     | Some(ze) => ze
     };
 
   let follow_operand_or_fail =
       (path: t, operand: UHExp.operand): ZExp.zoperand =>
     switch (follow_operand(path, operand)) {
-    | None => raise(UHExpNodeNotFound)
+    | None => raise(NotFound)
     | Some(zoperand) => zoperand
     };
 
@@ -1231,7 +1252,8 @@ module Exp = {
     | EmptyHole(u) => [(ExpHole(u), rev_steps |> List.rev), ...hs]
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
-    | NumLit(err, _)
+    | IntLit(err, _)
+    | FloatLit(err, _)
     | BoolLit(err, _)
     | ListNil(err) => hs |> holes_err(err, rev_steps)
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
@@ -1418,7 +1440,8 @@ module Exp = {
           (),
         )
       }
-    | CursorE(_, NumLit(err, _))
+    | CursorE(_, IntLit(err, _))
+    | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
     | CursorE(_, ListNil(err)) =>
       switch (err) {

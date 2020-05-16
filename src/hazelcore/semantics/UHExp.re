@@ -6,9 +6,15 @@ type operator =
   | Plus
   | Minus
   | Times
+  | FPlus
+  | FMinus
+  | FTimes
   | LessThan
   | GreaterThan
   | Equals
+  | FLessThan
+  | FGreaterThan
+  | FEquals
   | Comma
   | Cons
   | And
@@ -20,9 +26,15 @@ let string_of_operator =
   | Plus => "+"
   | Minus => "-"
   | Times => "*"
+  | FPlus => "+."
+  | FMinus => "-."
+  | FTimes => "*."
   | LessThan => "<"
   | GreaterThan => ">"
   | Equals => "=="
+  | FLessThan => "<."
+  | FGreaterThan => ">."
+  | FEquals => "==."
   | Comma => ","
   | Cons => "::"
   | And => "&&"
@@ -57,7 +69,8 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | NumLit(ErrStatus.t, int)
+  | IntLit(ErrStatus.t, string)
+  | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
@@ -90,8 +103,11 @@ let var =
     : operand =>
   Var(err, var_err, x);
 
-let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
-  NumLit(err, n);
+let intlit = (~err: ErrStatus.t=NotInHole, n: string): operand =>
+  IntLit(err, n);
+
+let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
+  FloatLit(err, f);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
@@ -217,7 +233,8 @@ and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
   | Var(err, _, _)
-  | NumLit(err, _)
+  | IntLit(err, _)
+  | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
   | Lam(err, _, _, _)
@@ -239,7 +256,8 @@ and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
-  | NumLit(_, n) => NumLit(err, n)
+  | IntLit(_, n) => IntLit(err, n)
+  | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
@@ -271,7 +289,8 @@ and make_inconsistent_operand = (u_gen, operand) =>
   /* already in hole */
   | EmptyHole(_)
   | Var(InHole(TypeInconsistent, _), _, _)
-  | NumLit(InHole(TypeInconsistent, _), _)
+  | IntLit(InHole(TypeInconsistent, _), _)
+  | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
@@ -280,7 +299,8 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | NumLit(NotInHole | InHole(WrongLength, _), _)
+  | IntLit(NotInHole | InHole(WrongLength, _), _)
+  | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -309,7 +329,8 @@ let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
   switch (shape) {
   | Underscore => (var("_"), u_gen)
-  | NumLit(n) => (numlit(n), u_gen)
+  | IntLit(n) => (intlit(n), u_gen)
+  | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
@@ -319,3 +340,75 @@ let text_operand =
       u_gen,
     );
   };
+
+let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
+  switch (l) {
+  | EmptyLine => true
+  | LetLine(pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+      | Some(ty) =>
+        UHPat.is_complete(pat)
+        && is_complete(body, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
+    }
+  | ExpLine(body) =>
+    OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  };
+}
+and is_complete_block = (b: block, check_type_holes: bool): bool => {
+  b |> List.for_all(l => is_complete_line(l, check_type_holes));
+}
+and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
+  switch (operand) {
+  | EmptyHole(_) => false
+  | Var(InHole(_), _, _) => false
+  | Var(NotInHole, InVarHole(_), _) => false
+  | Var(NotInHole, NotInVarHole, _) => true
+  | IntLit(InHole(_), _) => false
+  | IntLit(NotInHole, _) => true
+  | FloatLit(InHole(_), _) => false
+  | FloatLit(NotInHole, _) => true
+  | BoolLit(InHole(_), _) => false
+  | BoolLit(NotInHole, _) => true
+  | ListNil(InHole(_)) => false
+  | ListNil(NotInHole) => true
+  | Lam(InHole(_), _, _, _) => false
+  | Lam(NotInHole, pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+      | Some(ty) =>
+        UHPat.is_complete(pat)
+        && is_complete(body, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
+    }
+  | Inj(InHole(_), _, _) => false
+  | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
+  | Case(InHole(_), _, _, _) => false
+  | Case(NotInHole, body, _, option_ty) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => is_complete(body, check_type_holes)
+      | Some(ty) =>
+        is_complete(body, check_type_holes) && UHTyp.is_complete(ty)
+      };
+    } else {
+      is_complete(body, check_type_holes);
+    }
+
+  | Parenthesized(body) => is_complete(body, check_type_holes)
+  | ApPalette(InHole(_), _, _, _) => false
+  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
+  };
+}
+and is_complete = (exp: t, check_type_holes: bool): bool => {
+  is_complete_block(exp, check_type_holes);
+};
