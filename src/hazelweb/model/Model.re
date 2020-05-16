@@ -45,8 +45,8 @@ let init = (): t => {
   let undo_history: UndoHistory.t = {
     let cursor_term_info =
       UndoHistory.get_cursor_info(
-        ~cardstacks_after=cardstacks,
-        ~cardstacks_before=cardstacks,
+        ~new_cardstacks_after=cardstacks,
+        ~new_cardstacks_before=cardstacks,
       );
     let timestamp = Unix.time();
     let undo_history_entry: UndoHistory.undo_history_entry = {
