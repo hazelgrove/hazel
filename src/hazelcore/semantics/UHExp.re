@@ -295,7 +295,7 @@ let text_operand =
   };
 
 let associate = (seq: seq) => {
-  let (skel_str, _) = Skel.make_skel_str(seq, Operators.Exp.to_parse_string);
+  let skel_str = Skel.make_skel_str(seq, Operators.Exp.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };

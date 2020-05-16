@@ -158,7 +158,7 @@ let text_operand =
   };
 
 let associate = (seq: seq) => {
-  let (skel_str, _) = Skel.make_skel_str(seq, Operators.Pat.to_parse_string);
+  let skel_str = Skel.make_skel_str(seq, Operators.Pat.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
 };
