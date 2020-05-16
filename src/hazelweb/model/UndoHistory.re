@@ -264,36 +264,51 @@ let comp_len_larger =
     cursor_term_1;
   };
 let get_original_deleted_term =
-    (group: undo_history_group, new_cursor_term_info: cursor_term_info)
-    : cursor_term => {
-  let rec max_len_term =
-          (ls: list(undo_history_entry), cursor_term: cursor_term)
-          : cursor_term => {
-    switch (ls) {
-    | [] => cursor_term
-    | [elt] =>
-      comp_len_larger(
-        cursor_term,
+    (
+      prev_group: undo_history_group,
+      new_cardstacks_before: Cardstacks.t,
+      new_cursor_term_info: cursor_term_info,
+    )
+    : cursor_term =>
+  if (group_entry(
+        ~prev_group,
+        ~new_cardstacks_before,
+        ~new_edit_action=
+          DeleteEdit(Term(new_cursor_term_info.cursor_term_before)),
+      )) {
+    let rec max_len_term =
+            (ls: list(undo_history_entry), cursor_term: cursor_term)
+            : cursor_term => {
+      switch (ls) {
+      | [] => cursor_term
+      | [elt] =>
         comp_len_larger(
-          elt.cursor_term_info.cursor_term_after,
-          elt.cursor_term_info.cursor_term_before,
-        ),
-      )
+          cursor_term,
+          comp_len_larger(
+            elt.cursor_term_info.cursor_term_after,
+            elt.cursor_term_info.cursor_term_before,
+          ),
+        )
 
-    | [head, ...tail] =>
-      let larger_term =
-        comp_len_larger(cursor_term, head.cursor_term_info.cursor_term_after);
-      max_len_term(tail, larger_term);
+      | [head, ...tail] =>
+        let larger_term =
+          comp_len_larger(
+            cursor_term,
+            head.cursor_term_info.cursor_term_after,
+          );
+        max_len_term(tail, larger_term);
+      };
     };
+    max_len_term(
+      [
+        ZList.prj_z(prev_group.group_entries),
+        ...ZList.prj_suffix(prev_group.group_entries),
+      ],
+      new_cursor_term_info.cursor_term_before,
+    );
+  } else {
+    new_cursor_term_info.cursor_term_before;
   };
-  max_len_term(
-    [
-      ZList.prj_z(group.group_entries),
-      ...ZList.prj_suffix(group.group_entries),
-    ],
-    new_cursor_term_info.cursor_term_before,
-  );
-};
 
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
@@ -312,7 +327,11 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
 };
 
 let delete_edit =
-    (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
+    (
+      ~prev_group: undo_history_group,
+      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cursor_term_info: cursor_term_info,
+    )
     : option(edit_action) =>
   if (ZExp.erase(new_cursor_term_info.zexp_before)
       != ZExp.erase(new_cursor_term_info.zexp_after)) {
@@ -324,7 +343,11 @@ let delete_edit =
                || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
       /* delete the whole term */
       let initial_term =
-        get_original_deleted_term(prev_group, new_cursor_term_info);
+        get_original_deleted_term(
+          prev_group,
+          new_cardstacks_before,
+          new_cursor_term_info,
+        );
       Some(DeleteEdit(Term(initial_term)));
     } else {
       Some
@@ -353,7 +376,11 @@ let delim_edge_handle =
     None;
   };
 let delete =
-    (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
+    (
+      ~prev_group: undo_history_group,
+      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cursor_term_info: cursor_term_info,
+    )
     : option(edit_action) => {
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
 
@@ -366,7 +393,11 @@ let delete =
       );
     } else {
       //edit var
-      delete_edit(~prev_group, ~new_cursor_term_info);
+      delete_edit(
+        ~prev_group,
+        ~new_cardstacks_before,
+        ~new_cursor_term_info,
+      );
     }
   | OnDelim(pos, side) =>
     switch (side) {
@@ -385,7 +416,11 @@ let delete =
       } else {
         /* delete the whole term */
         let initial_term =
-          get_original_deleted_term(prev_group, new_cursor_term_info);
+          get_original_deleted_term(
+            prev_group,
+            new_cardstacks_before,
+            new_cursor_term_info,
+          );
         Some(DeleteEdit(Term(initial_term)));
       }
     | After =>
@@ -399,7 +434,11 @@ let delete =
     | Before =>
       /* delete and reach a hole */
       let initial_term =
-        get_original_deleted_term(prev_group, new_cursor_term_info);
+        get_original_deleted_term(
+          prev_group,
+          new_cardstacks_before,
+          new_cursor_term_info,
+        );
       Some(DeleteEdit(Term(initial_term)));
     | After =>
       /* move cursor to next term, just ignore this move */
@@ -409,7 +448,11 @@ let delete =
 };
 
 let backspace =
-    (~prev_group: undo_history_group, ~new_cursor_term_info: cursor_term_info)
+    (
+      ~prev_group: undo_history_group,
+      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cursor_term_info: cursor_term_info,
+    )
     : option(edit_action) => {
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
@@ -421,7 +464,11 @@ let backspace =
       );
     } else {
       //edit var
-      delete_edit(~prev_group, ~new_cursor_term_info);
+      delete_edit(
+        ~prev_group,
+        ~new_cardstacks_before,
+        ~new_cursor_term_info,
+      );
     }
   | OnDelim(pos, side) =>
     switch (side) {
@@ -443,7 +490,11 @@ let backspace =
       } else {
         /* delete the whole term */
         let initial_term =
-          get_original_deleted_term(prev_group, new_cursor_term_info);
+          get_original_deleted_term(
+            prev_group,
+            new_cardstacks_before,
+            new_cursor_term_info,
+          );
         Some(DeleteEdit(Term(initial_term)));
       }
     }
@@ -455,7 +506,11 @@ let backspace =
     | After =>
       /* delete and reach a hole */
       let initial_term =
-        get_original_deleted_term(prev_group, new_cursor_term_info);
+        get_original_deleted_term(
+          prev_group,
+          new_cardstacks_before,
+          new_cursor_term_info,
+        );
       Some(DeleteEdit(Term(initial_term)));
     }
   };
@@ -481,8 +536,10 @@ let get_new_edit_action =
   | None => None
   | Some(action') =>
     switch (action') {
-    | Delete => delete(~prev_group, ~new_cursor_term_info)
-    | Backspace => backspace(~prev_group, ~new_cursor_term_info)
+    | Delete =>
+      delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+    | Backspace =>
+      backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
     | Construct(shape) =>
       switch (shape) {
       | SLine =>
