@@ -467,6 +467,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [
             Attr.on_click(_ =>
               Vdom.Event.Many([
+                Event.Prevent_default,
+                Event.Stop_propagation,
                 inject(Update.Action.ToggleHistoryGroup(group_id)),
                 inject(FocusCell),
               ])
@@ -601,6 +603,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Attr.id("cur-selected-entry"),
                   Attr.classes(["the-history-title"]),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(
+                          group_id,
+                          elt_id,
+                          true,
+                          false,
+                        ),
+                      ),
+                      inject(FocusCell),
+                    ])
+                  ),
                   Attr.on_mouseenter(_ =>
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
@@ -639,6 +654,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               } else {
                 [
                   Attr.classes(["the-history-title"]),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(
+                          group_id,
+                          elt_id,
+                          true,
+                          false,
+                        ),
+                      ),
+                      inject(FocusCell),
+                    ])
+                  ),
                   Attr.on_mouseenter(_ =>
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
@@ -681,22 +709,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [
                     history_typ_tag_view(undo_history_entry),
                     Node.div(
-                      [
-                        Attr.classes(["history-entry-left"]),
-                        Attr.on_click(_ =>
-                          Vdom.Event.Many([
-                            inject(
-                              Update.Action.ShiftHistory(
-                                group_id,
-                                elt_id,
-                                true,
-                                false,
-                              ),
-                            ),
-                            inject(FocusCell),
-                          ])
-                        ),
-                      ],
+                      [Attr.classes(["history-entry-left"])],
                       [txt_view],
                     ),
                     Node.div(
@@ -753,6 +766,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   Attr.classes(["the-hidden-history-entry"]),
                   Attr.id("cur-selected-entry"),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(
+                          group_id,
+                          elt_id,
+                          true,
+                          false,
+                        ),
+                      ),
+                      inject(FocusCell),
+                    ])
+                  ),
                   Attr.on_mouseenter(_ =>
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
@@ -791,6 +817,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               } else {
                 [
                   Attr.classes(["the-hidden-history-entry"]),
+                  Attr.on_click(_ =>
+                    Vdom.Event.Many([
+                      inject(
+                        Update.Action.ShiftHistory(
+                          group_id,
+                          elt_id,
+                          true,
+                          false,
+                        ),
+                      ),
+                      inject(FocusCell),
+                    ])
+                  ),
                   Attr.on_mouseenter(_ =>
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
@@ -833,22 +872,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [
                     history_typ_tag_view(undo_history_entry),
                     Node.div(
-                      [
-                        Attr.classes(["history-entry-left"]),
-                        Attr.on_click(_ =>
-                          Vdom.Event.Many([
-                            inject(
-                              Update.Action.ShiftHistory(
-                                group_id,
-                                elt_id,
-                                true,
-                                false,
-                              ),
-                            ),
-                            inject(FocusCell),
-                          ])
-                        ),
-                      ],
+                      [Attr.classes(["history-entry-left"])],
                       [
                         Node.span(
                           [Attr.classes(["the-hidden-history-txt"])],

@@ -1396,6 +1396,9 @@ h1 {
 }
 
 /* edit action history panel */
+.the-history {
+  cursor: pointer;
+}
 .history-entry-right {
   width: 30%;
   float: right;
@@ -1409,12 +1412,10 @@ h1 {
 .the-history-entry {
   width: 100%;
   float: left;
-  cursor: pointer;
 }
 
 .the-hidden-history-entry {
   display: grid;
-  cursor: pointer;
   padding: 5px;
   padding-left: 20px;
   font-size: 12pt;
@@ -1467,7 +1468,6 @@ h1 {
   background-color: lightgoldenrodyellow;
 }
 .timestamp-txt{
-  cursor: pointer;
   color: black;
   float: left;
   padding-left: 10px;
@@ -1512,7 +1512,6 @@ h1 {
 }
 
 .history-button {
-  cursor: pointer;
   display: inline-block;
   vertical-align: middle;
   margin-right: 10px;
