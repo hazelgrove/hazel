@@ -109,12 +109,12 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
     | IntLit(NotInHole, n) =>
-      switch (TextShape.int_of_intlit_opt(n)) {
+      switch (int_of_string_opt(n)) {
       | Some(n) => Expands(IntLit(n), Int, ctx, delta)
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (TextShape.float_of_floatlit_opt(f)) {
+      switch (float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
       | None => DoesNotExpand
       }
@@ -1085,12 +1085,12 @@ module Exp = {
         };
       Expands(d, Hole, delta);
     | IntLit(NotInHole, n) =>
-      switch (TextShape.int_of_intlit_opt(n)) {
+      switch (int_of_string_opt(n)) {
       | Some(n) => Expands(IntLit(n), Int, delta)
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (TextShape.float_of_floatlit_opt(f)) {
+      switch (float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
       }
