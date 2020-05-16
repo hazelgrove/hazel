@@ -1,7 +1,6 @@
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
-
 type tag_typ =
   | Exp
   | Pat
