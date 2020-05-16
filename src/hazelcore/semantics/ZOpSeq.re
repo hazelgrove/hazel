@@ -146,6 +146,14 @@ let is_after =
     : bool =>
   zseq |> ZSeq.is_after(~is_after_zoperand);
 
+let is_outer =
+    (
+      ~is_outer_zoperand: 'zoperand => bool,
+      ZOpSeq(_, zseq): t(_, _, 'zoperand, _),
+    )
+    : bool =>
+  zseq |> ZSeq.is_outer(~is_outer_zoperand);
+
 let place_before =
     (
       ~place_before_operand: 'operand => 'zoperand,

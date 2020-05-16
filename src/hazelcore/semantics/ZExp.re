@@ -221,6 +221,45 @@ let is_after_zoperator: zoperator => bool =
   | (OnOp(After), _) => true
   | _ => false;
 
+let rec is_outer = (ze: t): bool => ze |> is_outer_zblock
+and is_outer_zblock = ((_, zline, suffix): zblock): bool =>
+  switch (suffix) {
+  | [] => is_outer_zline(zline)
+  | _ => false
+  }
+and is_outer_zline = (zline: zline): bool =>
+  switch (zline) {
+  | CursorL(_, EmptyLine)
+  | CursorL(_, LetLine(_, _, _)) => true
+  | CursorL(_, ExpLine(_)) => false /* ghost node */
+  | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
+  | LetLineZP(_)
+  | LetLineZA(_)
+  | LetLineZE(_) => false
+  }
+and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
+and is_outer_zoperand =
+  fun
+  | CursorE(_, EmptyHole(_))
+  | CursorE(_, ListNil(_))
+  | CursorE(_, Var(_))
+  | CursorE(_, IntLit(_))
+  | CursorE(_, FloatLit(_))
+  | CursorE(_, BoolLit(_))
+  | CursorE(_, Lam(_))
+  | CursorE(_, Inj(_))
+  | CursorE(_, Case(_))
+  | CursorE(_, Parenthesized(_))
+  | CursorE(_, ApPalette(_)) => true
+  | ParenthesizedZ(zexp) => is_outer(zexp)
+  | LamZP(_)
+  | LamZA(_)
+  | LamZE(_)
+  | InjZ(_)
+  | CaseZE(_)
+  | CaseZR(_)
+  | ApPaletteZ(_) => false;
+
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
   fun

@@ -118,8 +118,8 @@ let view =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let (ind1, ind2, err_state_b) =
-    switch (ci.typed) {
+  let rec get_indicator_info = (typed: CursorInfo.typed) =>
+    switch (typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
@@ -208,6 +208,27 @@ let view =
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
+    | SynBranchClause(glb, typed) =>
+      let (ind1, ind2, err_state_b) = get_indicator_info(typed);
+      let ind1 =
+        switch (glb) {
+        | None => ind1
+        | Some(ty) => expected_ty_indicator(ty)
+        };
+      let (ind2, err_state_b) =
+        switch (glb, typed) {
+        | (Some(ty), Synthesized(got_ty)) =>
+          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
+          | (true, false) => (got_consistent_indicator(got_ty), OK)
+          | (false, _) => (
+              got_inconsistent_indicator(got_ty),
+              TypeInconsistency,
+            )
+          }
+        | _ => (ind2, err_state_b)
+        };
+      (ind1, ind2, err_state_b);
     | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
       let ind2 =
@@ -269,6 +290,8 @@ let view =
       let ind2 = got_a_rule_indicator;
       (ind1, ind2, OK);
     };
+
+  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
   let cls_of_err_state_b =
     switch (err_state_b) {
