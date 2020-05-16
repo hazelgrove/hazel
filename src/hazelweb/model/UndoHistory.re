@@ -93,11 +93,13 @@ let push_history_entry =
 
 /* return true if cursor jump to another term when new action applied */
 let caret_jump =
-    (prev_group: undo_history_group, new_cardstacks: Cardstacks.t): bool => {
+    (prev_group: undo_history_group, new_cardstacks_before: Cardstacks.t)
+    : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   let prev_step =
     prev_entry.cardstacks |> Cardstacks.get_program |> Program.get_steps;
-  let new_step = new_cardstacks |> Cardstacks.get_program |> Program.get_steps;
+  let new_step =
+    new_cardstacks_before |> Cardstacks.get_program |> Program.get_steps;
   prev_step != new_step || prev_entry.caret_is_jump;
 };
 
@@ -148,7 +150,7 @@ let group_edit_action =
 let group_entry =
     (
       ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: Cardstacks.t,
       ~new_edit_action: edit_action,
     )
     : bool => {
@@ -181,7 +183,7 @@ let group_entry =
     };
 
   can_group_edit_action
-  && (!caret_jump(prev_group, cardstacks_before) || ignore_caret_jump);
+  && (!caret_jump(prev_group, new_cardstacks_before) || ignore_caret_jump);
 };
 
 type comp_len_typ =
@@ -470,7 +472,7 @@ let rec get_earlist_entry =
 let get_new_edit_action =
     (
       ~prev_group: undo_history_group,
-      ~cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
       ~action: option(Action.t),
     )
@@ -517,7 +519,7 @@ let get_new_edit_action =
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
-              ~cardstacks_before,
+              ~new_cardstacks_before,
               ~new_edit_action=Var(Edit),
             )) {
           switch (get_earlist_entry(ZList.join(prev_group.group_entries))) {
@@ -636,20 +638,22 @@ let get_new_edit_action =
   };
 };
 let get_cursor_info =
-    (~cardstacks_after: Cardstacks.t, ~cardstacks_before: Cardstacks.t)
+    (
+      ~new_cardstacks_after: Cardstacks.t,
+      ~new_cardstacks_before: Cardstacks.t,
+    )
     : cursor_term_info => {
   let zexp_before =
-    cardstacks_before |> Cardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_before |> Cardstacks.get_program |> Program.get_zexp;
   let (prev_is_empty_line, next_is_empty_line) =
     CursorInfo.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
-    cardstacks_before |> Cardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_before |> Cardstacks.get_program |> Program.get_cursor_info;
   let cursor_term_before = cursor_info_before.cursor_term;
   let zexp_after =
-    ZList.prj_z(ZList.prj_z(cardstacks_after).zcards).program
-    |> Program.get_zexp;
+    new_cardstacks_after |> Cardstacks.get_program |> Program.get_zexp;
   let cursor_info_after =
-    cardstacks_after |> Cardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_after |> Cardstacks.get_program |> Program.get_cursor_info;
   let cursor_term_after = cursor_info_after.cursor_term;
 
   {
@@ -665,18 +669,18 @@ let get_cursor_info =
 let push_edit_state =
     (
       undo_history: t,
-      cardstacks_before: Cardstacks.t,
-      cardstacks_after: Cardstacks.t,
+      new_cardstacks_before: Cardstacks.t,
+      new_cardstacks_after: Cardstacks.t,
       action: option(Action.t),
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
-    get_cursor_info(~cardstacks_before, ~cardstacks_after);
+    get_cursor_info(~new_cardstacks_before, ~new_cardstacks_after);
   let new_edit_action =
     get_new_edit_action(
       ~prev_group,
-      ~cardstacks_before,
+      ~new_cardstacks_before,
       ~new_cursor_term_info,
       ~action,
     );
@@ -685,8 +689,8 @@ let push_edit_state =
   | None =>
     let new_entry = {
       ...ZList.prj_z(prev_group.group_entries),
-      caret_is_jump: caret_jump(prev_group, cardstacks_after),
-      cardstacks: cardstacks_after,
+      caret_is_jump: caret_jump(prev_group, new_cardstacks_after),
+      cardstacks: new_cardstacks_after,
     };
 
     let new_group = {
@@ -700,14 +704,14 @@ let push_edit_state =
     };
   | Some(new_edit_action) =>
     let new_entry = {
-      cardstacks: cardstacks_after,
+      cardstacks: new_cardstacks_after,
       caret_is_jump: false,
       cursor_term_info: new_cursor_term_info,
       previous_action: action,
       edit_action: new_edit_action,
       timestamp,
     };
-    if (group_entry(~prev_group, ~cardstacks_before, ~new_edit_action)) {
+    if (group_entry(~prev_group, ~new_cardstacks_before, ~new_edit_action)) {
       let new_group = push_history_entry(~prev_group, ~new_entry);
       {
         ...undo_history,
