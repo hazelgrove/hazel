@@ -34,7 +34,7 @@ let is_outer =
     (~is_outer_zoperand: 'zoperand => bool, zseq: t(_, _, 'zoperand, _))
     : bool =>
   switch (zseq) {
-  // Does this work regardless of associativity?
+  // Does this work regardless of associativity/precedence?
   | ZOperator(_, (_, S(_, E))) => true
   | ZOperator(_)
   | ZOperand(_, (A(_), E))

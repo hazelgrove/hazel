@@ -1,54 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type operator =
-  | Space
-  | Plus
-  | Minus
-  | Times
-  | FPlus
-  | FMinus
-  | FTimes
-  | LessThan
-  | GreaterThan
-  | Equals
-  | FLessThan
-  | FGreaterThan
-  | FEquals
-  | Comma
-  | Cons
-  | And
-  | Or;
-
-let string_of_operator =
-  fun
-  | Space => " "
-  | Plus => "+"
-  | Minus => "-"
-  | Times => "*"
-  | FPlus => "+."
-  | FMinus => "-."
-  | FTimes => "*."
-  | LessThan => "<"
-  | GreaterThan => ">"
-  | Equals => "=="
-  | FLessThan => "<."
-  | FGreaterThan => ">."
-  | FEquals => "==."
-  | Comma => ","
-  | Cons => "::"
-  | And => "&&"
-  | Or => "||";
-
-let is_Space =
-  fun
-  | Space => true
-  | _ => false;
-
-let is_Comma =
-  fun
-  | Comma => true
-  | _ => false;
+type operator = Operators.Exp.t;
 
 // TODO
 // type t =
@@ -195,12 +148,12 @@ let rec get_tuple_elements: skel => list(skel) =
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
 
-let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
+let rec make_tuple =
+        (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
   | [] => failwith("make_tuple: expected at least 1 element")
   | [skel] => skel
-  | [skel, ...skels] =>
-    BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
+  | [skel, ...skels] => BinOp(err, Comma, skel, make_tuple(skels))
   };
 
 /* helper function for constructing a new empty hole */
@@ -345,6 +298,14 @@ let text_operand =
       u_gen,
     );
   };
+
+let associate = (seq: seq) => {
+  let skel_str = Skel.make_skel_str(seq, Operators.Exp.to_parse_string);
+  let lexbuf = Lexing.from_string(skel_str);
+  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
+};
+
+let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
