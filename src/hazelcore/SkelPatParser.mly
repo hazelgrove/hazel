@@ -16,8 +16,8 @@
 %right CONS
 %left SPACEOP
 
-%start <UHPat.operator Skel.t> skel_pat
-%type <UHPat.operator Skel.t> pat
+%start <Operators.Pat.t Skel.t> skel_pat
+%type <Operators.Pat.t Skel.t> pat
 
 (* %% ends the declarations section of the grammar definition *)
 
@@ -32,17 +32,17 @@ pat:
   | p1 = pat; COMMA; p2 = pat {
     Skel.BinOp(
       NotInHole,
-      UHPat.Comma,
+      Operators.Pat.Comma,
       p1, p2) }
   | p1 = pat; CONS; p2 = pat {
     Skel.BinOp(
       NotInHole,
-      UHPat.Cons,
+      Operators.Pat.Cons,
       p1, p2) }
   | p1 = pat; SPACEOP; p2 = pat {
     Skel.BinOp(
       NotInHole,
-      UHPat.Space,
+      Operators.Pat.Space,
       p1, p2) }
   ;
 
