@@ -39,8 +39,8 @@ let get_zexp = program => {
   ze;
 };
 
-let _erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
-let get_uhexp = program => program |> get_zexp |> _erase;
+let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
+let get_uhexp = program => program |> get_zexp |> erase;
 
 let get_path = program => program |> get_zexp |> CursorPath.Exp.of_z;
 let get_steps = program => {
@@ -54,7 +54,7 @@ let get_u_gen = program => {
 };
 
 exception MissingCursorInfo;
-let _cursor_info =
+let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
     CursorInfo.Exp.syn_cursor_info(Contexts.empty),
@@ -62,27 +62,27 @@ let _cursor_info =
 let get_cursor_info = (program: t) => {
   program
   |> get_zexp
-  |> _cursor_info
+  |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
 exception DoesNotExpand;
-let _expand =
+let expand =
   Memo.general(
     ~cache_size_bound=1000,
     Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty),
   );
 let get_expansion = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> _expand) {
+  switch (program |> get_uhexp |> expand) {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) => d
   };
 
 exception InvalidInput;
-let _evaluate =
+let evaluate =
   Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
-let get_result = (program: t): Result.t => {
-  switch (program |> get_expansion |> _evaluate) {
+let get_result = (program: t): Result.t =>
+  switch (program |> get_expansion |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
@@ -302,6 +302,6 @@ let move_via_key =
   };
 };
 
-let _cursor_on_exp_hole =
+let cursor_on_exp_hole_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
-let cursor_on_exp_hole = program => program |> get_zexp |> _cursor_on_exp_hole;
+let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
