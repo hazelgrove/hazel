@@ -295,9 +295,81 @@ let text_operand =
   };
 
 let associate = (seq: seq) => {
-  let (skel_str, _) = Skel.make_skel_str(seq, Operators.Exp.to_parse_string);
+  let skel_str = Skel.make_skel_str(seq, Operators.Exp.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };
 
 let mk_OpSeq = OpSeq.mk(~associate);
+
+let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
+  switch (l) {
+  | EmptyLine => true
+  | LetLine(pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+      | Some(ty) =>
+        UHPat.is_complete(pat)
+        && is_complete(body, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
+    }
+  | ExpLine(body) =>
+    OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  };
+}
+and is_complete_block = (b: block, check_type_holes: bool): bool => {
+  b |> List.for_all(l => is_complete_line(l, check_type_holes));
+}
+and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
+  switch (operand) {
+  | EmptyHole(_) => false
+  | Var(InHole(_), _, _) => false
+  | Var(NotInHole, InVarHole(_), _) => false
+  | Var(NotInHole, NotInVarHole, _) => true
+  | IntLit(InHole(_), _) => false
+  | IntLit(NotInHole, _) => true
+  | FloatLit(InHole(_), _) => false
+  | FloatLit(NotInHole, _) => true
+  | BoolLit(InHole(_), _) => false
+  | BoolLit(NotInHole, _) => true
+  | ListNil(InHole(_)) => false
+  | ListNil(NotInHole) => true
+  | Lam(InHole(_), _, _, _) => false
+  | Lam(NotInHole, pat, option_ty, body) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+      | Some(ty) =>
+        UHPat.is_complete(pat)
+        && is_complete(body, check_type_holes)
+        && UHTyp.is_complete(ty)
+      };
+    } else {
+      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
+    }
+  | Inj(InHole(_), _, _) => false
+  | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
+  | Case(InHole(_), _, _, _) => false
+  | Case(NotInHole, body, _, option_ty) =>
+    if (check_type_holes) {
+      switch (option_ty) {
+      | None => is_complete(body, check_type_holes)
+      | Some(ty) =>
+        is_complete(body, check_type_holes) && UHTyp.is_complete(ty)
+      };
+    } else {
+      is_complete(body, check_type_holes);
+    }
+
+  | Parenthesized(body) => is_complete(body, check_type_holes)
+  | ApPalette(InHole(_), _, _, _) => false
+  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
+  };
+}
+and is_complete = (exp: t, check_type_holes: bool): bool => {
+  is_complete_block(exp, check_type_holes);
+};

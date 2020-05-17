@@ -854,7 +854,7 @@ module Exp = {
       : option(t) => {
     let skel_tys = Statics.Exp.tuple_zip(skel, ty);
     switch (zseq) {
-    | ZOperator((_, Comma), _) =>
+    | ZOperator((_, Comma), _) when HTyp.is_Prod(ty) =>
       // cursor on tuple comma
       switch (skel_tys) {
       | Some(_) => Some(mk(Analyzed(ty), ctx))
