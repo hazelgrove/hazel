@@ -119,6 +119,7 @@ type t =
       VarMap.t_(t),
       LivelitName.t,
       SpliceInfo.t(t),
+      t,
     )
   | Triv
   | Case(t, list(rule), int)

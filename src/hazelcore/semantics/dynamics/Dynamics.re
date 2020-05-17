@@ -532,10 +532,22 @@ module Exp = {
       let d3' = subst_var(d1, x, d3);
       let sigma' = subst_var_env(d1, x, sigma);
       NonEmptyHole(reason, u, i, sigma', d3');
-    | LivelitHole(su, si, sigma, lln, splice_info) =>
+    | LivelitHole(su, si, sigma, lln, splice_info, model) =>
+      let model' =
+        if (List.mem(
+              x,
+              List.map(
+                SpliceInfo.var_of_splice_name,
+                splice_info.splice_order,
+              ),
+            )) {
+          model;
+        } else {
+          subst_var(d1, x, model);
+        };
       let splice_info' = subst_splices(splice_info);
       let sigma' = subst_var_env(d1, x, sigma);
-      LivelitHole(su, si, sigma', lln, splice_info');
+      LivelitHole(su, si, sigma', lln, splice_info', model');
     | Cast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       Cast(d', ty1, ty2);
@@ -608,7 +620,7 @@ module Exp = {
       Matches(env);
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
-    | (_, LivelitHole(_, _, _, _, _)) => Indet
+    | (_, LivelitHole(_)) => Indet
     | (_, FailedCast(_, _, _)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
@@ -762,7 +774,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | LivelitHole(_, _, _, _, _) => Indet
+    | LivelitHole(_) => Indet
     | FailedCast(_, _, _) => Indet
     }
   and matches_cast_Pair =
@@ -822,7 +834,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | LivelitHole(_, _, _, _, _) => Indet
+    | LivelitHole(_) => Indet
     | FailedCast(_, _, _) => Indet
     }
   and matches_cast_Cons =
@@ -880,7 +892,7 @@ module Exp = {
     | Case(_, _, _) => Indet
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
-    | LivelitHole(_, _, _, _, _) => Indet
+    | LivelitHole(_) => Indet
     | FailedCast(_, _, _) => Indet
     };
 
@@ -1355,7 +1367,15 @@ module Exp = {
             let sigma = id_env(gamma);
             let rslt_dhexp =
               livelit_holes
-                ? DHExp.LivelitHole(llu, 0, sigma, name, si) : elab;
+                ? DHExp.LivelitHole(
+                    llu,
+                    0,
+                    sigma,
+                    name,
+                    si,
+                    proto_elaboration,
+                  )
+                : elab;
             Expands(rslt_dhexp, expansion_ty, delta);
           };
         };
@@ -1834,6 +1854,22 @@ module Exp = {
     };
   };
 
+  let _renumber_splices =
+      (renumberer, splice_info: SpliceInfo.t(DHExp.t), hii, llii) => {
+    let (sim, hii, llii) =
+      (NatMap.empty, hii, llii)
+      |> NatMap.fold(
+           splice_info.splice_map,
+           ((sim, hii, llii), (name, (typ, dexp))) => {
+             let (dexp, hii, llii) = renumberer(hii, llii, dexp);
+             let sim = NatMap.insert_or_update(sim, (name, (typ, dexp)));
+             (sim, hii, llii);
+           },
+         );
+    let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
+    (splice_info, hii, llii);
+  };
+
   let rec renumber_result_only =
           (
             path: InstancePath.t,
@@ -1911,12 +1947,17 @@ module Exp = {
     | FreeLivelit(u, _, sigma, name) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (FreeLivelit(u, i, sigma, name), hii, llii);
-    | LivelitHole(su, _, sigma, lln, splice_info) =>
-      // Note: we do _not_ renumber the splices -
-      // it's not necessary and not feasible to do so accurately
+    | LivelitHole(su, _, sigma, lln, splice_info, model) =>
+      let (splice_info, hii, llii) =
+        _renumber_splices(
+          renumber_result_only(path),
+          splice_info,
+          hii,
+          llii,
+        );
       let (si, llii) =
         LivelitInstanceInfo.next(llii, su, sigma, path, splice_info);
-      (LivelitHole(su, si, sigma, lln, splice_info), hii, llii);
+      (LivelitHole(su, si, sigma, lln, splice_info, model), hii, llii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
       (Cast(d1, ty1, ty2), hii, llii);
@@ -2028,11 +2069,16 @@ module Exp = {
       let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeLivelit(u, i, sigma, name), hii, llii);
-    | LivelitHole(su, si, sigma, lln, splice_info) =>
+    | LivelitHole(su, si, sigma, lln, splice_info, model) =>
       let (sigma, hii, llii) =
         renumber_sigma(path, su, si, hii, llii, sigma);
-      // Note: we do _not_ renumber the splices -
-      // it's not necessary and not feasible to do so accurately
+      let (splice_info, hii, llii) =
+        _renumber_splices(
+          renumber_sigmas_only(path),
+          splice_info,
+          hii,
+          llii,
+        );
       let llii =
         LivelitInstanceInfo.update_environment(
           llii,
@@ -2040,7 +2086,7 @@ module Exp = {
           sigma,
           splice_info,
         );
-      (LivelitHole(su, si, sigma, lln, splice_info), hii, llii);
+      (LivelitHole(su, si, sigma, lln, splice_info, model), hii, llii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
       (Cast(d1, ty1, ty2), hii, llii);
@@ -2201,27 +2247,28 @@ module Evaluator = {
     };
   };
 
-  let rec evaluate = (d: DHExp.t): result =>
+  let rec evaluate = (~eval_livelit_holes=false, d: DHExp.t): result => {
+    let _eval = evaluate(~eval_livelit_holes);
     switch (d) {
     | BoundVar(_) => InvalidInput(1)
     | Let(dp, d1, d2) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1)
       | Indet(d1) =>
         switch (Exp.matches(dp, d1)) {
         | Indet => Indet(d)
         | DoesNotMatch => Indet(d)
-        | Matches(env) => evaluate(Exp.subst(env, d2))
+        | Matches(env) => _eval(Exp.subst(env, d2))
         }
       }
-    | FixF(x, _, d1) => evaluate(Exp.subst_var(d, x, d1))
+    | FixF(x, _, d1) => _eval(Exp.subst_var(d, x, d1))
     | Lam(_, _, _) => BoxedValue(d)
     | Ap(d1, d2) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(Lam(dp, _, d3)) =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2)
         | Indet(d2) =>
@@ -2230,21 +2277,21 @@ module Evaluator = {
           | Indet => Indet(d)
           | Matches(env) =>
             /* beta rule */
-            evaluate(Exp.subst(env, d3))
+            _eval(Exp.subst(env, d3))
           }
         }
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
         | Indet(d2') =>
           /* ap cast rule */
-          evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+          _eval(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
         }
       | BoxedValue(_) => InvalidInput(2)
       | Indet(d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
         | Indet(d2') => Indet(Ap(d1', d2'))
@@ -2256,10 +2303,10 @@ module Evaluator = {
     | FloatLit(_)
     | Triv => BoxedValue(d)
     | And(d1, d2) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(BoolLit(b1) as d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 && b2))
         | BoxedValue(_) => InvalidInput(3)
@@ -2267,17 +2314,17 @@ module Evaluator = {
         }
       | BoxedValue(_) => InvalidInput(4)
       | Indet(d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
         | Indet(d2') => Indet(And(d1', d2'))
         }
       }
     | Or(d1, d2) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(BoolLit(b1) as d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 || b2))
         | BoxedValue(_) => InvalidInput(3)
@@ -2285,17 +2332,17 @@ module Evaluator = {
         }
       | BoxedValue(_) => InvalidInput(4)
       | Indet(d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
         | Indet(d2') => Indet(Or(d1', d2'))
         }
       }
     | BinIntOp(op, d1, d2) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(IntLit(n1) as d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(IntLit(n2)) =>
           switch (eval_bin_int_op(op, n1, n2)) {
@@ -2307,17 +2354,17 @@ module Evaluator = {
         }
       | BoxedValue(_) => InvalidInput(4)
       | Indet(d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
         }
       }
     | BinFloatOp(op, d1, d2) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(FloatLit(f1) as d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(FloatLit(f2)) =>
           switch (eval_bin_float_op(op, f1, f2)) {
@@ -2329,20 +2376,20 @@ module Evaluator = {
         }
       | BoxedValue(_) => InvalidInput(7)
       | Indet(d1') =>
-        switch (evaluate(d2)) {
+        switch (_eval(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
         }
       }
     | Inj(ty, side, d1) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
       | Indet(d1') => Indet(Inj(ty, side, d1'))
       }
     | Pair(d1, d2) =>
-      switch (evaluate(d1), evaluate(d2)) {
+      switch (_eval(d1), _eval(d2)) {
       | (InvalidInput(msg), _)
       | (_, InvalidInput(msg)) => InvalidInput(msg)
       | (Indet(d1), Indet(d2))
@@ -2351,7 +2398,7 @@ module Evaluator = {
       | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
       }
     | Cons(d1, d2) =>
-      switch (evaluate(d1), evaluate(d2)) {
+      switch (_eval(d1), _eval(d2)) {
       | (InvalidInput(msg), _)
       | (_, InvalidInput(msg)) => InvalidInput(msg)
       | (Indet(d1), Indet(d2))
@@ -2359,10 +2406,10 @@ module Evaluator = {
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
       | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
       }
-    | Case(d1, rules, n) => evaluate_case(d1, rules, n)
+    | Case(d1, rules, n) => evaluate_case(~eval_livelit_holes, d1, rules, n)
     | EmptyHole(_) => Indet(d)
     | NonEmptyHole(reason, u, i, sigma, d1) =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
@@ -2370,14 +2417,14 @@ module Evaluator = {
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
     | FreeLivelit(_, _, _, _) => Indet(d)
-    | LivelitHole(su, si, sigma, lln, splice_info) =>
+    | LivelitHole(su, si, sigma, lln, splice_info, model) =>
       // evaluate the splices
       let sim_res =
         Result.Ok(NatMap.empty)
         |> NatMap.fold(
              splice_info.splice_map, (sim_res, (name, (typ, dexp))) =>
              Result.bind(sim_res, sim => {
-               switch (evaluate(dexp)) {
+               switch (_eval(dexp)) {
                | InvalidInput(msg) => Result.Error(msg)
                | BoxedValue(evald)
                | Indet(evald) =>
@@ -2391,10 +2438,23 @@ module Evaluator = {
       | Error(msg) => InvalidInput(msg)
       | Ok(sim) =>
         let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
-        Indet(LivelitHole(su, si, sigma, lln, splice_info));
+        if (eval_livelit_holes) {
+          let model =
+            model
+            |> NatMap.fold(sim, (model, (name, (_, to_subst))) =>
+                 Exp.subst_var(
+                   to_subst,
+                   SpliceInfo.var_of_splice_name(name),
+                   model,
+                 )
+               );
+          _eval(model);
+        } else {
+          Indet(LivelitHole(su, si, sigma, lln, splice_info, model));
+        };
       };
     | Cast(d1, ty, ty') =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1') as result =>
         switch (ground_cases_of(ty), ground_cases_of(ty')) {
@@ -2422,11 +2482,11 @@ module Evaluator = {
           /* ITExpand rule */
           let d' =
             DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-          evaluate(d');
+          _eval(d');
         | (NotGroundOrHole(ty_grounded), Hole) =>
           /* ITGround rule */
           let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-          evaluate(d');
+          _eval(d');
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
@@ -2462,11 +2522,11 @@ module Evaluator = {
           /* ITExpand rule */
           let d' =
             DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-          evaluate(d');
+          _eval(d');
         | (NotGroundOrHole(ty_grounded), Hole) =>
           /* ITGround rule */
           let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-          evaluate(d');
+          _eval(d');
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
@@ -2481,16 +2541,22 @@ module Evaluator = {
         }
       }
     | FailedCast(d1, ty, ty') =>
-      switch (evaluate(d1)) {
+      switch (_eval(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
       }
-    }
+    };
+  }
   and evaluate_case =
-      (scrut: DHExp.t, rules: list(DHExp.rule), current_rule_index: int)
+      (
+        ~eval_livelit_holes=false,
+        scrut: DHExp.t,
+        rules: list(DHExp.rule),
+        current_rule_index: int,
+      )
       : result =>
-    switch (evaluate(scrut)) {
+    switch (evaluate(~eval_livelit_holes, scrut)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(scrut)
     | Indet(scrut) =>
@@ -2499,8 +2565,14 @@ module Evaluator = {
       | Some(Rule(dp, d)) =>
         switch (Exp.matches(dp, scrut)) {
         | Indet => Indet(Case(scrut, rules, current_rule_index))
-        | Matches(env) => evaluate(Exp.subst(env, d))
-        | DoesNotMatch => evaluate_case(scrut, rules, current_rule_index + 1)
+        | Matches(env) => evaluate(~eval_livelit_holes, Exp.subst(env, d))
+        | DoesNotMatch =>
+          evaluate_case(
+            ~eval_livelit_holes,
+            scrut,
+            rules,
+            current_rule_index + 1,
+          )
         }
       }
     };

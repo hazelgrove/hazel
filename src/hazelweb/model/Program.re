@@ -88,9 +88,40 @@ let get_expansion = (program: t): DHExp.t =>
   _get_expansion(~livelit_holes=false, program);
 
 exception InvalidInput;
-let _evaluate = {
-  Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
+let _evaluate = (~eval_livelit_holes=false) => {
+  Memo.general(
+    ~cache_size_bound=1000,
+    Dynamics.Evaluator.evaluate(~eval_livelit_holes),
+  );
 };
+
+let _fill_and_resume_llii =
+    (llii: LivelitInstanceInfo.t): LivelitInstanceInfo.t =>
+  llii
+  |> MetaVarMap.map(
+       List.map(((env, path, si)) => {
+         let _eval = (stage, d) =>
+           switch (_evaluate(~eval_livelit_holes=true, d)) {
+           | InvalidInput(msg) =>
+             failwith(
+               Printf.sprintf(
+                 "Failed evaluation during %s fill and resume: %d",
+                 stage,
+                 msg,
+               ),
+             )
+           | BoxedValue(d)
+           | Indet(d) => d
+           };
+         let env = env |> List.map(((v, d)) => (v, _eval("sigma", d)));
+         let sim =
+           SpliceInfo.splice_map(si)
+           |> NatMap.map(((typ, d)) => (typ, _eval("splice", d)));
+         let si = SpliceInfo.update_splice_map(si, sim);
+         (env, path, si);
+       }),
+     );
+
 let get_result = (program: t): Result.t => {
   let renumber =
     Dynamics.Exp.renumber(
@@ -105,6 +136,7 @@ let get_result = (program: t): Result.t => {
     | Indet(d') =>
       let (d_renumbered, hii, _) = renumber(d);
       let (_, _, llii) = renumber(d');
+      let llii = _fill_and_resume_llii(llii);
       (d_renumbered, hii, llii, wrapper(d_renumbered));
     };
   switch (program |> _get_expansion(~livelit_holes=false) |> _evaluate) {
