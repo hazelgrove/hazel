@@ -36,6 +36,8 @@ let mk =
     (hd: 'operand, tl: list(('operator, 'operand))): t('operand, 'operator) =>
   S(hd, mk_affix(tl));
 
+let wrap = (operand: 'operand): t('operand, 'operator) => mk(operand, []);
+
 let rev = (seq: t('operand, 'operator)): t('operand, 'operator) => {
   let rec rev_t = (rev: affix(_, _), seq) => {
     let S(hd, tl) = seq;

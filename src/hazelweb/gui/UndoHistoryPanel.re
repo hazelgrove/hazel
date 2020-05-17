@@ -245,9 +245,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Exp(_, exp) => exp_view(exp)
     | Pat(_, pat) => pat_view(pat)
     | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(UHExp.string_of_operator(op))
-    | PatOp(_, op) => code_view(UHPat.string_of_operator(op))
-    | TypOp(_, op) => code_view(UHTyp.string_of_operator(op))
+    | ExpOp(_, op) => code_view(Operators.Exp.to_string(op))
+    | PatOp(_, op) => code_view(Operators.Pat.to_string(op))
+    | TypOp(_, op) => code_view(Operators.Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
