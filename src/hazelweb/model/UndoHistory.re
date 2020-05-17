@@ -47,8 +47,8 @@ type undo_history_group = {
 type t = {
   groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
-  /* mute the auto-scrolling when is_hover is true */
-  is_hover: bool,
+  /* mute the auto-scrolling when disable_auto_scrolling is true */
+  disable_auto_scrolling: bool,
   show_hover_effect: bool,
   hover_recover_group_id: int,
   hover_recover_elt_id: int,
@@ -56,8 +56,8 @@ type t = {
   cur_elt_id: int,
 };
 
-let update_is_hover = (is_hover: bool, history: t) => {
-  {...history, is_hover};
+let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) => {
+  {...history, disable_auto_scrolling};
 };
 let get_cardstacks = (history: t, ignore_caret_jump: bool): Cardstacks.t => {
   let cur_entry = ZList.prj_z(ZList.prj_z(history.groups).group_entries);
@@ -816,7 +816,7 @@ let push_edit_state =
     {
       ...undo_history,
       groups: ZList.replace_z(new_group, undo_history.groups),
-      is_hover: false,
+      disable_auto_scrolling: false,
     };
   | Some(new_edit_action) =>
     let new_entry = {
@@ -832,7 +832,7 @@ let push_edit_state =
       {
         ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
-        is_hover: false,
+        disable_auto_scrolling: false,
         hover_recover_group_id: 0,
         hover_recover_elt_id: 0,
         cur_group_id: 0,
@@ -850,7 +850,7 @@ let push_edit_state =
           new_group,
           [prev_group, ...ZList.prj_suffix(undo_history.groups)],
         ),
-        is_hover: false,
+        disable_auto_scrolling: false,
         hover_recover_group_id: 0,
         hover_recover_elt_id: 0,
         cur_group_id: 0,
@@ -939,14 +939,7 @@ let shift_to_next = (history: t): t => {
 };
 
 let shift_history =
-    (
-      group_id: int,
-      elt_id: int,
-      is_click: bool,
-      is_mouseenter: bool,
-      undo_history: t,
-    )
-    : t => {
+    (group_id: int, elt_id: int, is_mouseenter: bool, undo_history: t): t => {
   switch (ZList.shift_to(group_id, undo_history.groups)) {
   | None => failwith("Impossible match, because undo_history is non-empty")
   | Some(new_groups) =>
@@ -972,7 +965,7 @@ let shift_history =
             {...cur_group, group_entries: new_group_entries},
             new_groups,
           ),
-        is_hover: !is_click,
+        disable_auto_scrolling: true,
         hover_recover_group_id,
         hover_recover_elt_id,
         cur_group_id,

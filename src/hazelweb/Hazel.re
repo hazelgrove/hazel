@@ -88,7 +88,7 @@ let create =
       ~apply_action=Update.apply_action(model),
       ~on_display=
         (_, ~schedule_action as _) => {
-          if (!Model.get_undo_history(model).is_hover) {
+          if (!Model.get_undo_history(model).disable_auto_scrolling) {
             switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
             | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
             | None => ()

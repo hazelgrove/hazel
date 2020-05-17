@@ -623,12 +623,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory(
-                          group_id,
-                          elt_id,
-                          true,
-                          false,
-                        ),
+                        Update.Action.ShiftHistory(group_id, elt_id, false),
                       ),
                       inject(FocusCell),
                     ])
@@ -637,12 +632,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
                         inject(
-                          Update.Action.ShiftHistory(
-                            group_id,
-                            elt_id,
-                            false,
-                            true,
-                          ),
+                          Update.Action.ShiftHistory(group_id, elt_id, true),
                         ),
                         inject(FocusCell),
                       ]);
@@ -657,7 +647,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           Update.Action.ShiftHistory(
                             undo_history.hover_recover_group_id,
                             undo_history.hover_recover_elt_id,
-                            false,
                             false,
                           ),
                         ),
@@ -674,12 +663,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory(
-                          group_id,
-                          elt_id,
-                          true,
-                          false,
-                        ),
+                        Update.Action.ShiftHistory(group_id, elt_id, false),
                       ),
                       inject(FocusCell),
                     ])
@@ -688,12 +672,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
                         inject(
-                          Update.Action.ShiftHistory(
-                            group_id,
-                            elt_id,
-                            false,
-                            true,
-                          ),
+                          Update.Action.ShiftHistory(group_id, elt_id, true),
                         ),
                         inject(FocusCell),
                       ]);
@@ -708,7 +687,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           Update.Action.ShiftHistory(
                             undo_history.hover_recover_group_id,
                             undo_history.hover_recover_elt_id,
-                            false,
                             false,
                           ),
                         ),
@@ -786,12 +764,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory(
-                          group_id,
-                          elt_id,
-                          true,
-                          false,
-                        ),
+                        Update.Action.ShiftHistory(group_id, elt_id, false),
                       ),
                       inject(FocusCell),
                     ])
@@ -800,12 +773,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
                         inject(
-                          Update.Action.ShiftHistory(
-                            group_id,
-                            elt_id,
-                            false,
-                            true,
-                          ),
+                          Update.Action.ShiftHistory(group_id, elt_id, true),
                         ),
                         inject(FocusCell),
                       ]);
@@ -820,7 +788,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           Update.Action.ShiftHistory(
                             undo_history.hover_recover_group_id,
                             undo_history.hover_recover_elt_id,
-                            false,
                             false,
                           ),
                         ),
@@ -837,12 +804,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory(
-                          group_id,
-                          elt_id,
-                          true,
-                          false,
-                        ),
+                        Update.Action.ShiftHistory(group_id, elt_id, false),
                       ),
                       inject(FocusCell),
                     ])
@@ -851,12 +813,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     if (undo_history.show_hover_effect) {
                       Vdom.Event.Many([
                         inject(
-                          Update.Action.ShiftHistory(
-                            group_id,
-                            elt_id,
-                            false,
-                            true,
-                          ),
+                          Update.Action.ShiftHistory(group_id, elt_id, true),
                         ),
                         inject(FocusCell),
                       ]);
@@ -871,7 +828,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           Update.Action.ShiftHistory(
                             undo_history.hover_recover_group_id,
                             undo_history.hover_recover_elt_id,
-                            false,
                             false,
                           ),
                         ),

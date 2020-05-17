@@ -64,7 +64,7 @@ let init = (): t => {
     {
       groups: ([], undo_history_group, []),
       all_hidden_history_expand: false,
-      is_hover: false,
+      disable_auto_scrolling: false,
       show_hover_effect: true,
       hover_recover_group_id: 0,
       hover_recover_elt_id: 0,
