@@ -63,7 +63,8 @@ module Exp = {
     | Comma
     | Cons
     | And
-    | Or;
+    | Or
+    | PlusPlus;
 
   let to_string =
     fun
@@ -83,7 +84,8 @@ module Exp = {
     | Comma => ","
     | Cons => "::"
     | And => "&&"
-    | Or => "||";
+    | Or => "||"
+    | PlusPlus => "^";
 
   let to_parse_string = op =>
     switch (op) {
