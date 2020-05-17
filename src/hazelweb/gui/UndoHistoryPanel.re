@@ -104,7 +104,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             code_keywords_view("Int"),
-            indicate_words_view(": "),
+            indicate_words_view(" literal "),
             code_view(num),
           ],
         )
@@ -115,7 +115,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             code_keywords_view("Float"),
-            indicate_words_view(": "),
+            indicate_words_view(" literal "),
             code_view(num),
           ],
         )
@@ -126,7 +126,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             code_keywords_view("Bool"),
-            indicate_words_view(": "),
+            indicate_words_view(" literal "),
             code_view(string_of_bool(bool_val)),
           ],
         )
@@ -160,7 +160,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             code_keywords_view("Int"),
-            indicate_words_view(": "),
+            indicate_words_view(" literal "),
             code_view(num),
           ],
         )
@@ -171,7 +171,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             code_keywords_view("Float"),
-            indicate_words_view(": "),
+            indicate_words_view(" literal "),
             code_view(num),
           ],
         )
@@ -182,7 +182,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [],
           [
             code_keywords_view("Bool"),
-            indicate_words_view(": "),
+            indicate_words_view(" literal "),
             code_view(string_of_bool(bool_val)),
           ],
         )
@@ -386,7 +386,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
 
-      | Insert =>
+      | Insert
+      | DeleteInsert =>
         Some(
           Vdom.(
             Node.span(
