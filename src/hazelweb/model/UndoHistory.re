@@ -10,6 +10,7 @@ type delete_edit =
 
 type var_edit =
   | Insert
+  | DeleteInsert
   | Edit;
 
 type edit_action =
@@ -372,6 +373,15 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
   };
 };
 
+let rec get_earlist_entry =
+        (ls: list(undo_history_entry)): option(undo_history_entry) => {
+  switch (ls) {
+  | [] => None
+  | [earliest_elt] => Some(earliest_elt)
+  | [_, ...tail] => get_earlist_entry(tail)
+  };
+};
+
 let delete_edit =
     (
       ~prev_group: undo_history_group,
@@ -396,9 +406,14 @@ let delete_edit =
         );
       Some(DeleteEdit(Term(initial_term)));
     } else {
-      Some
-        (Var(Edit));
-        /* edit the term */
+      /* TBD */
+      let prev_entry = ZList.prj_z(prev_group.group_entries);
+      if (prev_entry.edit_action == Var(Insert)
+          || prev_entry.edit_action == Var(DeleteInsert)) {
+        Some(Var(DeleteInsert));
+      } else {
+        Some(Var(Edit));
+      };
     };
   } else {
     None;
@@ -562,14 +577,6 @@ let backspace =
   };
 };
 
-let rec get_earlist_entry =
-        (ls: list(undo_history_entry)): option(undo_history_entry) => {
-  switch (ls) {
-  | [] => None
-  | [earliest_elt] => Some(earliest_elt)
-  | [_, ...tail] => get_earlist_entry(tail)
-  };
-};
 let get_new_edit_action =
     (
       ~prev_group: undo_history_group,
