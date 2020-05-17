@@ -80,6 +80,9 @@ and erase_zoperator =
   fun
   | (_, op) => op;
 
+let mk_ZOpSeq =
+  ZOpSeq.mk(~associate=UHPat.associate, ~erase_zoperand, ~erase_zoperator);
+
 let rec is_before = (zp: t): bool => is_before_zopseq(zp)
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =

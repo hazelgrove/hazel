@@ -1,59 +1,49 @@
+open Sexplib.Std;
+
 /* types with holes */
 [@deriving sexp]
 type t =
   | Hole
-  | Unit
   | Int
   | Float
   | Bool
   | Arrow(t, t)
-  | Prod(t, t)
   | Sum(t, t)
+  | Prod(list(t))
   | List(t);
 
-let rec num_tms = (ty: t): int =>
+let is_Prod =
+  fun
+  | Prod(_) => true
+  | _ => false;
+
+let precedence_Prod = 1;
+let precedence_Arrow = 2;
+let precedence_Sum = 3;
+let precedence_const = 4;
+let precedence = (ty: t): int =>
   switch (ty) {
-  | Hole
-  | Unit
   | Int
   | Float
   | Bool
-  | List(_) => 1
-  | Arrow(ty1, ty2)
-  | Prod(ty1, ty2)
-  | Sum(ty1, ty2) => num_tms(ty1) + num_tms(ty2)
+  | Hole
+  | Prod([])
+  | List(_) => precedence_const
+  | Prod(_) => precedence_Prod
+  | Sum(_, _) => precedence_Sum
+  | Arrow(_, _) => precedence_Arrow
   };
 
-/* eqity */
-let rec eq = (ty1, ty2) =>
-  switch (ty1, ty2) {
-  | (Hole, Hole) => true
-  | (Hole, _) => false
-  | (Unit, Unit) => true
-  | (Unit, _) => false
-  | (Int, Int) => true
-  | (Int, _) => false
-  | (Float, Float) => true
-  | (Float, _) => false
-  | (Bool, Bool) => true
-  | (Bool, _) => false
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
-  | (Arrow(_, _), _) => false
-  | (Prod(ty1, ty2), Prod(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
-  | (Prod(_, _), _) => false
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) => eq(ty1, ty1') && eq(ty2, ty2')
-  | (Sum(_, _), _) => false
-  | (List(ty), List(ty')) => eq(ty, ty')
-  | (List(_), _) => false
-  };
+/* equality
+   At the moment, this coincides with default equality,
+   but this will change when polymorphic types are implemented */
+let eq = (==);
 
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
-  | (Unit, Unit) => true
-  | (Unit, _) => false
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -61,12 +51,14 @@ let rec consistent = (x, y) =>
   | (Bool, Bool) => true
   | (Bool, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Prod(ty1, ty2), Prod(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
   | (Arrow(_, _), _) => false
-  | (Prod(_, _), _) => false
   | (Sum(_, _), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    ListUtil.for_all2_opt(consistent, tys1, tys2)
+    |> Option.value(~default=false)
+  | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
   };
@@ -86,18 +78,12 @@ let has_matched_arrow =
   | Arrow(_) => true
   | _ => false;
 
-let rec get_prod_elements: t => list(t) =
+let get_prod_elements: t => list(t) =
   fun
-  | Prod(ty1, ty2) => get_prod_elements(ty1) @ get_prod_elements(ty2)
+  | Prod(tys) => tys
   | _ as ty => [ty];
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
-
-let rec make_tuple: list(t) => t =
-  fun
-  | [] => failwith("make_tuple: expected at least 1 element")
-  | [ty] => ty
-  | [ty, ...tys] => Prod(ty, make_tuple(tys));
 
 /* matched sum types */
 let matched_sum =
@@ -129,36 +115,18 @@ let has_matched_list =
 let rec complete =
   fun
   | Hole => false
-  | Unit => true
   | Int => true
   | Float => true
   | Bool => true
-  | Arrow(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | Prod(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | Sum(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
+  | Arrow(ty1, ty2)
+  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
 let rec join = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (_, Hole) => Some(ty1)
   | (Hole, _) => Some(ty2)
-  | (Unit, Unit) => Some(ty1)
-  | (Unit, _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -171,18 +139,18 @@ let rec join = (ty1, ty2) =>
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
-    switch (join(ty1, ty1'), join(ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
-    | _ => None
-    }
-  | (Prod(_), _) => None
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
     | _ => None
     }
   | (Sum(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    ListUtil.map2_opt(join, tys1, tys2)
+    |> Option.map(OptUtil.sequence)
+    |> Option.join
+    |> Option.map(joined_types => Prod(joined_types))
+  | (Prod(_), _) => None
   | (List(ty), List(ty')) =>
     switch (join(ty, ty')) {
     | Some(ty) => Some(List(ty))
