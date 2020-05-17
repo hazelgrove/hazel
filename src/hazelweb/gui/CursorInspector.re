@@ -108,6 +108,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
+      print_endline("CursorInspector111");
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
@@ -130,6 +131,7 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
     | AnaSubsumed(expected_ty, got_ty) =>
+      print_endline("CursorInspector133");
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
