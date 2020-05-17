@@ -783,10 +783,11 @@ module Exp = {
       Some(mk(SynKeyword(k), ctx))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
     | CursorE(_, e) =>
+      print_endline("CursorInfo786");
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty) => Some(mk(Synthesized(ty), ctx))
-      }
+      };
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
     | LamZP(_, zp, ann, body) =>
@@ -838,13 +839,13 @@ module Exp = {
       ana_cursor_info(~steps, ctx, ze, ty);
     | SubscriptZE1(_, zbody1, _, _) =>
       print_endline("CursorInfo840");
-      syn_cursor_info(~steps=steps @ [0], ctx, zbody1);
+      ana_cursor_info(~steps=steps @ [0], ctx, zbody1, String);
     | SubscriptZE2(_, _, zbody2, _) =>
       print_endline("CursorInfo843");
-      syn_cursor_info(~steps=steps @ [1], ctx, zbody2);
+      ana_cursor_info(~steps=steps @ [1], ctx, zbody2, Int);
     | SubscriptZE3(_, _, _, zbody3) =>
       print_endline("CursorInfo846");
-      syn_cursor_info(~steps=steps @ [1], ctx, zbody3);
+      ana_cursor_info(~steps=steps @ [1], ctx, zbody3, Int);
     };
   }
   and ana_cursor_info =
