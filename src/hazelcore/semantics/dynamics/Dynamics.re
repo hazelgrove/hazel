@@ -562,9 +562,12 @@ module Exp = {
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
-    | (_, Subscript(_, _, _)) => Indet
+    | (_, Subscript(_, _, _)) =>
+      print_endline("Dynamics566");
+      Indet;
     | (_, BinIntOp(_, _, _) | BinStrOp(_, _, _) | And(_, _) | Or(_, _)) =>
-      Indet
+      print_endline("Dynamics569");
+      Indet;
     | (_, BinFloatOp(_, _, _)) => Indet
     | (_, Case(_, _, _)) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
@@ -775,7 +778,9 @@ module Exp = {
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
     | And(_, _)
-    | Or(_, _) => Indet
+    | Or(_, _) =>
+      print_endline("Dynamics782");
+      Indet;
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -836,7 +841,9 @@ module Exp = {
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
     | And(_, _)
-    | Or(_, _) => Indet
+    | Or(_, _) =>
+      print_endline("Dynamics845");
+      Indet;
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -1070,8 +1077,11 @@ module Exp = {
     | BinOp(NotInHole, PlusPlus as op, skel1, skel2) =>
       print_endline("Dynamics1071");
       switch (ana_expand_skel(ctx, delta, skel1, seq, String)) {
-      | DoesNotExpand => DoesNotExpand
+      | DoesNotExpand =>
+        print_endline("Dynamics1081");
+        DoesNotExpand;
       | Expands(d1, ty1, delta) =>
+        print_endline("Dynamics1084");
         switch (ana_expand_skel(ctx, delta, skel2, seq, String)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d2, ty2, delta) =>
@@ -1081,9 +1091,10 @@ module Exp = {
           | None => DoesNotExpand
           | Some((op, ty)) =>
             let d = DHExp.BinStrOp(op, dc1, dc2);
+            print_endline("Dynamics1094");
             Expands(d, ty, delta);
           };
-        }
+        };
       };
     | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Bool)) {
@@ -1235,17 +1246,20 @@ module Exp = {
       switch (ana_expand(ctx, delta, body1, String)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
-        switch (
-          ana_expand(ctx, delta, body2, Int),
-          ana_expand(ctx, delta, body3, Int),
-        ) {
-        | (Expands(d2, _, _), Expands(d3, _, _)) =>
+        switch (ana_expand(ctx, delta, body2, Int)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d2, ty2, delta) =>
           print_endline("Dynamics1244");
-          let d = DHExp.Subscript(d1, d2, d3);
-          Expands(d, ty1, delta);
-        | _ =>
-          print_endline("Dynamics1248");
-          DoesNotExpand;
+          switch (ana_expand(ctx, delta, body3, Int)) {
+          | DoesNotExpand => DoesNotExpand
+          | Expands(d3, ty3, delta) =>
+            print_endline("Dynamics1255");
+            let dc1 = DHExp.cast(d1, ty1, String);
+            let dc2 = DHExp.cast(d2, ty2, Int);
+            let dc3 = DHExp.cast(d3, ty3, Int);
+            let d = DHExp.Subscript(dc1, dc2, dc3);
+            Expands(d, String, delta);
+          };
         }
       };
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
@@ -1394,16 +1408,20 @@ module Exp = {
         seq: UHExp.seq,
         ty: HTyp.t,
       )
-      : expand_result =>
+      : expand_result => {
+    print_endline("Dynamics1412");
     switch (skel) {
     | BinOp(_, Comma, _, _)
     | BinOp(InHole(WrongLength, _), _, _, _) =>
       // tuples handled at opseq level
-      DoesNotExpand
+      print_endline("Dynamics1417");
+      DoesNotExpand;
     | Placeholder(n) =>
+      print_endline("Dynamics1420");
       let en = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, en, ty);
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
+      print_endline("Dynamics1421");
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
       | DoesNotExpand => DoesNotExpand
@@ -1457,7 +1475,8 @@ module Exp = {
           DoesNotExpand;
         }
       };
-    }
+    };
+  }
   and ana_expand_operand =
       (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
       : expand_result =>
@@ -2186,6 +2205,7 @@ module Evaluator = {
         }
       }
     | BinStrOp(op, d1, d2) =>
+      print_endline("Dynamics2196");
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(StringLit(n1) as d1') =>
@@ -2203,7 +2223,7 @@ module Evaluator = {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
         }
-      }
+      };
     | Inj(ty, side, d1) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
