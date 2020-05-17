@@ -93,7 +93,6 @@ let get_result = (program: t): Result.t =>
       Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   };
-};
 
 exception FailedAction;
 exception CursorEscaped;
