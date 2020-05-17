@@ -45,7 +45,7 @@ module Action = {
     | BlurCell
     | Redo
     | Undo
-    | ShiftHistory(int, int, bool, bool)
+    | ShiftHistory(int, int, bool)
     | ToggleHistoryGroup(int)
     | ToggleHiddenHistoryAll
     | ToggleShowHoverEffect
@@ -116,7 +116,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | BlurCell
   | Undo
   | Redo
-  | ShiftHistory(_, _, _, _)
+  | ShiftHistory(_, _, _)
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | ToggleShowHoverEffect
@@ -287,24 +287,19 @@ let apply_action =
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_prev
-          |> UndoHistory.update_is_hover(false);
+          |> UndoHistory.update_disable_auto_scrolling(false);
         Model.load_undo_history(model, new_history, false);
       | Redo =>
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_next
-          |> UndoHistory.update_is_hover(false);
+          |> UndoHistory.update_disable_auto_scrolling(false);
         Model.load_undo_history(model, new_history, false);
-      | ShiftHistory(group_id, elt_id, is_click, is_mousenter) =>
+      | ShiftHistory(group_id, elt_id, is_mousenter) =>
         /* cshift to the certain entry */
         let new_history =
           model.undo_history
-          |> UndoHistory.shift_history(
-               group_id,
-               elt_id,
-               is_click,
-               is_mousenter,
-             );
+          |> UndoHistory.shift_history(group_id, elt_id, is_mousenter);
         Model.load_undo_history(model, new_history, true);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
