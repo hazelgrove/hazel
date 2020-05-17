@@ -3724,7 +3724,7 @@ module Exp = {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op1 |> ZExp.place_after_operand;
             let new_zopseq =
-              mk_ZOpSeq(
+              ZExp.mk_ZOpSeq(
                 ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
@@ -3743,7 +3743,7 @@ module Exp = {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op2 |> ZExp.place_after_operand;
             let new_zopseq =
-              mk_ZOpSeq(
+              ZExp.mk_ZOpSeq(
                 ZOperand(ze, (A(Space, S(op1, E)), A(Space, S(op3, E)))),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
@@ -3762,7 +3762,7 @@ module Exp = {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op3 |> ZExp.place_after_operand;
             let new_zopseq =
-              mk_ZOpSeq(
+              ZExp.mk_ZOpSeq(
                 ZOperand(ze, (A(Space, S(op2, A(Space, S(op1, E)))), E)),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
@@ -5235,7 +5235,7 @@ module Exp = {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op1 |> ZExp.place_after_operand;
             let new_zopseq =
-              mk_ZOpSeq(
+              ZExp.mk_ZOpSeq(
                 ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
@@ -5256,7 +5256,7 @@ module Exp = {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op2 |> ZExp.place_after_operand;
             let new_zopseq =
-              mk_ZOpSeq(
+              ZExp.mk_ZOpSeq(
                 ZOperand(ze, (A(Space, S(op1, E)), A(Space, S(op3, E)))),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
@@ -5275,7 +5275,7 @@ module Exp = {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op3 |> ZExp.place_after_operand;
             let new_zopseq =
-              mk_ZOpSeq(
+              ZExp.mk_ZOpSeq(
                 ZOperand(ze, (A(Space, S(op2, A(Space, S(op1, E)))), E)),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
