@@ -1349,8 +1349,7 @@ module Exp = {
           };
         }
       };
-    | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-      ExpandResult.DoesNotExpand
+    | ApPalette(NotInHole, _name, _serialized_model, _hole_data) => ExpandResult.DoesNotExpand
     /* TODO fix me */
     /* let (_, palette_ctx) = ctx in
        begin match (VarMap.lookup palette_ctx name) with

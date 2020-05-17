@@ -27,6 +27,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
+  | String
   | Hole
   | Prod([])
   | List(_) => precedence_const
@@ -121,6 +122,7 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
+  | String => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
