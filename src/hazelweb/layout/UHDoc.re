@@ -498,7 +498,7 @@ let mk_NTuple =
 module Typ = {
   let inline_padding_of_operator: UHTyp.operator => (t, t) =
     fun
-    | UHTyp.Prod => (empty_, space_)
+    | Prod => (empty_, space_)
     | Arrow
     | Sum => (space_, space_);
 
@@ -538,7 +538,7 @@ module Typ = {
       )
     )
   and mk_operator = (op: UHTyp.operator): t =>
-    mk_op(UHTyp.string_of_operator(op))
+    mk_op(Operators.Typ.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
@@ -576,7 +576,7 @@ module Typ = {
 module Pat = {
   let inline_padding_of_operator: UHPat.operator => (t, t) =
     fun
-    | UHPat.Comma => (empty_, space_)
+    | Comma => (empty_, space_)
     | Space
     | Cons => (empty_, empty_);
 
@@ -624,7 +624,8 @@ module Pat = {
       )
     )
   and mk_operator = (op: UHPat.operator): t =>
-    op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
+    op |> Operators.Pat.is_Space
+      ? mk_space_op : mk_op(Operators.Pat.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
@@ -661,9 +662,9 @@ module Pat = {
 };
 
 module Exp = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHExp.operator => (t, t) =
     fun
-    | UHExp.Space
+    | Space
     | Times
     | FTimes
     | Cons => (empty_, empty_)
@@ -794,7 +795,8 @@ module Exp = {
       )
     )
   and mk_operator = (op: UHExp.operator): t =>
-    op |> UHExp.is_Space ? mk_space_op : mk_op(UHExp.string_of_operator(op))
+    op |> Operators.Exp.is_Space
+      ? mk_space_op : mk_op(Operators.Exp.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>

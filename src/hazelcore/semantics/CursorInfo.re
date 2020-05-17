@@ -156,7 +156,7 @@ module Pat = {
          )
       |> OptUtil.map(((rev_tys, _)) =>
            CursorNotOnDeferredVarPat(
-             mk(PatSynthesized(rev_tys |> List.rev |> HTyp.make_tuple), ctx),
+             mk(PatSynthesized(Prod(rev_tys |> List.rev)), ctx),
            )
          )
     | _ =>
@@ -863,7 +863,7 @@ module Exp = {
       : option(t) => {
     let skel_tys = Statics.Exp.tuple_zip(skel, ty);
     switch (zseq) {
-    | ZOperator((_, Comma), _) =>
+    | ZOperator((_, Comma), _) when HTyp.is_Prod(ty) =>
       // cursor on tuple comma
       switch (skel_tys) {
       | Some(_) => Some(mk(Analyzed(ty), ctx))
