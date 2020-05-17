@@ -448,7 +448,7 @@ module Exp = {
         splice_info,
         splice_info.splice_map
         |> NatMap.map(((splice_typ, splice_d)) =>
-             (splice_typ, subst_var(d1, x, splice_d))
+             (splice_typ, splice_d |> OptUtil.map(subst_var(d1, x)))
            ),
       );
     switch (d2) {
@@ -1389,12 +1389,15 @@ module Exp = {
         proto_expansion,
         si: UHExp.splice_info,
       )
-      : option((DHExp.t, SpliceInfo.t(DHExp.t), Delta.t)) => {
+      : option((DHExp.t, SpliceInfo.t(option(DHExp.t)), Delta.t)) => {
     let expanded_sim_delta =
       si.splice_map
       |> List.fold_left(
            (
-             res: option((DHExp.t, SpliceInfo.splice_map(DHExp.t), Delta.t)),
+             res:
+               option(
+                 (DHExp.t, SpliceInfo.splice_map(option(DHExp.t)), Delta.t),
+               ),
              (name, (ty, exp)),
            ) => {
              switch (res) {
@@ -1406,7 +1409,8 @@ module Exp = {
                | Expands(d, _, delta) =>
                  let expansion =
                    DHExp.Ap(DHExp.Lam(DHPat.Var(var), ty, expansion), d);
-                 let sim = NatMap.insert_or_update(sim, (name, (ty, d)));
+                 let sim =
+                   NatMap.insert_or_update(sim, (name, (ty, Some(d))));
                  Some((expansion, sim, delta));
                };
              }
@@ -1855,16 +1859,20 @@ module Exp = {
   };
 
   let _renumber_splices =
-      (renumberer, splice_info: SpliceInfo.t(DHExp.t), hii, llii) => {
+      (renumberer, splice_info: SpliceInfo.t(option(DHExp.t)), hii, llii) => {
     let (sim, hii, llii) =
       (NatMap.empty, hii, llii)
       |> NatMap.fold(
            splice_info.splice_map,
-           ((sim, hii, llii), (name, (typ, dexp))) => {
+           ((sim, hii, llii), (name, (typ, dexp_opt))) =>
+           switch (dexp_opt) {
+           | None => (sim, hii, llii)
+           | Some(dexp) =>
              let (dexp, hii, llii) = renumberer(hii, llii, dexp);
-             let sim = NatMap.insert_or_update(sim, (name, (typ, dexp)));
+             let sim =
+               NatMap.insert_or_update(sim, (name, (typ, Some(dexp))));
              (sim, hii, llii);
-           },
+           }
          );
     let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
     (splice_info, hii, llii);
@@ -2189,6 +2197,7 @@ module Evaluator = {
      6 = Cast BV Hole Ground
      7 = boxed value not a float literal 1
      8 = boxed value not a float literal 2
+     9 = attempt to evaluate LivelitHole with missing splices
    */
 
   [@deriving sexp]
@@ -2422,15 +2431,22 @@ module Evaluator = {
       let sim_res =
         Result.Ok(NatMap.empty)
         |> NatMap.fold(
-             splice_info.splice_map, (sim_res, (name, (typ, dexp))) =>
+             splice_info.splice_map, (sim_res, (name, (typ, dexp_opt))) =>
              Result.bind(sim_res, sim => {
-               switch (_eval(dexp)) {
-               | InvalidInput(msg) => Result.Error(msg)
-               | BoxedValue(evald)
-               | Indet(evald) =>
-                 Result.Ok(
-                   NatMap.insert_or_update(sim, (name, (typ, evald))),
-                 )
+               switch (dexp_opt) {
+               | None => Result.Ok(sim)
+               | Some(dexp) =>
+                 switch (_eval(dexp)) {
+                 | InvalidInput(msg) => Result.Error(msg)
+                 | BoxedValue(evald)
+                 | Indet(evald) =>
+                   Result.Ok(
+                     NatMap.insert_or_update(
+                       sim,
+                       (name, (typ, Some(evald))),
+                     ),
+                   )
+                 }
                }
              })
            );
@@ -2439,16 +2455,27 @@ module Evaluator = {
       | Ok(sim) =>
         let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
         if (eval_livelit_holes) {
-          let model =
-            model
-            |> NatMap.fold(sim, (model, (name, (_, to_subst))) =>
-                 Exp.subst_var(
-                   to_subst,
-                   SpliceInfo.var_of_splice_name(name),
-                   model,
+          let model_res =
+            Result.Ok(model)
+            |> NatMap.fold(sim, (model_res, (name, (_, to_subst_opt))) =>
+                 Result.bind(model_res, model =>
+                   switch (to_subst_opt) {
+                   | None => Result.Error(9)
+                   | Some(to_subst) =>
+                     Result.Ok(
+                       Exp.subst_var(
+                         to_subst,
+                         SpliceInfo.var_of_splice_name(name),
+                         model,
+                       ),
+                     )
+                   }
                  )
                );
-          _eval(model);
+          switch (model_res) {
+          | Result.Error(msg) => InvalidInput(msg)
+          | Result.Ok(model) => _eval(model)
+          };
         } else {
           Indet(LivelitHole(su, si, sigma, lln, splice_info, model));
         };

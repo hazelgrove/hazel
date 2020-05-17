@@ -118,7 +118,7 @@ type t =
       MetaVarInst.t,
       VarMap.t_(t),
       LivelitName.t,
-      SpliceInfo.t(t),
+      SpliceInfo.t(option(t)),
       t,
     )
   | Triv

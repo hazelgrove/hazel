@@ -365,7 +365,7 @@ let mk_ApLivelit =
       llu: MetaVar.t,
       lln: LivelitName.t,
       llview: Livelits.trigger_serialized => Livelits.LivelitView.t,
-      splice_map_opt: option(SpliceInfo.splice_map(DHExp.t)),
+      splice_map_opt: option(SpliceInfo.splice_map(option(DHExp.t))),
     )
     : t => {
   let lln_doc = Doc.annot(UHAnnot.LivelitName, mk_text(lln));

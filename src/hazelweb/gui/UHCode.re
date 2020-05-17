@@ -183,18 +183,22 @@ let view =
 
           let dhcode = splice_name =>
             splice_map_opt
-            |> OptUtil.map(splice_map =>
+            |> OptUtil.and_then(splice_map =>
                  switch (NatMap.lookup(splice_map, splice_name)) {
                  | None => raise(Not_found)
-                 | Some((_, d)) => (
-                     d,
-                     DHCode.view(
-                       ~inject,
-                       // TODO undo hardcoded width
-                       ~width=80,
-                       d,
-                     ),
-                   )
+                 | Some((_, d_opt)) =>
+                   d_opt
+                   |> OptUtil.map(d =>
+                        (
+                          d,
+                          DHCode.view(
+                            ~inject,
+                            // TODO undo hardcoded width
+                            ~width=80,
+                            d,
+                          ),
+                        )
+                      )
                  }
                );
 

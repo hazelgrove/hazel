@@ -100,23 +100,43 @@ let _fill_and_resume_llii =
   llii
   |> MetaVarMap.map(
        List.map(((env, path, si)) => {
-         let _eval = (stage, d) =>
-           switch (_evaluate(~eval_livelit_holes=true, d)) {
-           | InvalidInput(msg) =>
-             failwith(
-               Printf.sprintf(
-                 "Failed evaluation during %s fill and resume: %d",
-                 stage,
-                 msg,
-               ),
-             )
-           | BoxedValue(d)
-           | Indet(d) => d
-           };
-         let env = env |> List.map(((v, d)) => (v, _eval("sigma", d)));
+         let env =
+           env
+           |> List.map(((v, d)) =>
+                (
+                  v,
+                  switch (d) {
+                  | DHExp.BoundVar(_) => d
+                  | _ =>
+                    switch (_evaluate(~eval_livelit_holes=true, d)) {
+                    | InvalidInput(msg) =>
+                      failwith(
+                        Printf.sprintf(
+                          "Unexpected evaluation failure during env fill and resume: %d",
+                          msg,
+                        ),
+                      )
+                    | BoxedValue(d)
+                    | Indet(d) => d
+                    }
+                  },
+                )
+              );
          let sim =
            SpliceInfo.splice_map(si)
-           |> NatMap.map(((typ, d)) => (typ, _eval("splice", d)));
+           |> NatMap.map(((typ, d_opt)) =>
+                (
+                  typ,
+                  d_opt
+                  |> OptUtil.and_then(d =>
+                       switch (_evaluate(~eval_livelit_holes=true, d)) {
+                       | InvalidInput(_) => None
+                       | BoxedValue(d)
+                       | Indet(d) => Some(d)
+                       }
+                     ),
+                )
+              );
          let si = SpliceInfo.update_splice_map(si, sim);
          (env, path, si);
        }),
