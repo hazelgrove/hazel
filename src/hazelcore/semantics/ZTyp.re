@@ -46,6 +46,9 @@ and erase_zoperand =
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
   | ListZ(zty) => List(erase(zty));
 
+let mk_ZOpSeq: zseq => zopseq =
+  ZOpSeq.mk(~associate=UHTyp.associate, ~erase_zoperand, ~erase_zoperator);
+
 let erase_zseq = zseq =>
   zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
