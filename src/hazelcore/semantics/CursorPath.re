@@ -692,7 +692,7 @@ module Pat = {
     |> holes_opseq(
          ~holes_operand,
          ~hole_desc,
-         ~is_space=UHPat.is_Space,
+         ~is_space=Operators.Pat.is_Space,
          ~rev_steps,
          p,
        )
@@ -735,7 +735,7 @@ module Pat = {
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
-      ~is_space=UHPat.is_Space,
+      ~is_space=Operators.Pat.is_Space,
       ~rev_steps,
       ~erase_zopseq=ZPat.erase_zopseq,
       zopseq,
@@ -1016,7 +1016,11 @@ module Exp = {
   and follow_steps_block =
       (~side: Side.t, steps: steps, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
-    | [] => None // no block level cursor
+    | [] =>
+      switch (side) {
+      | Before => Some(ZExp.place_before_block(block))
+      | After => Some(ZExp.place_after_block(block))
+      }
     | [x, ...xs] =>
       switch (ZList.split_at(x, block)) {
       | None => None
@@ -1237,7 +1241,7 @@ module Exp = {
       |> holes_opseq(
            ~holes_operand,
            ~hole_desc,
-           ~is_space=UHExp.is_Space,
+           ~is_space=Operators.Exp.is_Space,
            ~rev_steps,
            opseq,
          )
@@ -1412,7 +1416,7 @@ module Exp = {
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
-      ~is_space=UHExp.is_Space,
+      ~is_space=Operators.Exp.is_Space,
       ~rev_steps,
       ~erase_zopseq=ZExp.erase_zopseq,
       zopseq,

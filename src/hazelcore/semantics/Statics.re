@@ -48,15 +48,15 @@ module Pat = {
       | None => None
       | Some((_, ctx)) => Some((HTyp.Hole, ctx))
       };
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (syn_skel(ctx, skel1, seq)) {
-      | None => None
-      | Some((ty1, ctx)) =>
-        switch (syn_skel(ctx, skel2, seq)) {
-        | None => None
-        | Some((ty2, ctx)) => Some((Prod(ty1, ty2), ctx))
-        }
-      }
+    | BinOp(NotInHole, Comma, _, _) =>
+      skel
+      |> UHPat.get_tuple_elements
+      |> ListUtil.map_with_accumulator_opt(
+           (ctx, skel) =>
+             syn_skel(ctx, skel, seq) |> Option.map(TupleUtil.swap),
+           ctx,
+         )
+      |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
       | None => None
@@ -377,14 +377,26 @@ module Pat = {
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, pn);
       let seq = seq |> Seq.update_nth_operand(n, pn);
       (skel, seq, ty, ctx, u_gen);
-    | BinOp(_, Comma, skel1, skel2) =>
-      let (skel1, seq, ty1, ctx, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      let (skel2, seq, ty2, ctx, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
-      let skel = Skel.BinOp(NotInHole, UHPat.Comma, skel1, skel2);
-      let ty = HTyp.Prod(ty1, ty2);
-      (skel, seq, ty, ctx, u_gen);
+    | BinOp(_, Comma, _, _) =>
+      let ((ctx, u_gen, seq), pairs) =
+        skel
+        |> UHPat.get_tuple_elements
+        |> ListUtil.map_with_accumulator(
+             ((ctx, u_gen, seq), skel) => {
+               let (skel, seq, ty, ctx, u_gen) =
+                 syn_fix_holes_skel(
+                   ctx,
+                   u_gen,
+                   ~renumber_empty_holes,
+                   skel,
+                   seq,
+                 );
+               ((ctx, u_gen, seq), (skel, ty));
+             },
+             (ctx, u_gen, seq),
+           );
+      let (skels, tys) = List.split(pairs);
+      (UHPat.make_tuple(skels), seq, Prod(tys), ctx, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
       let (skel1, seq, ctx, u_gen) =
         ana_fix_holes_skel(
@@ -406,7 +418,12 @@ module Pat = {
         );
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
-        Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators.Pat.Space,
+          skel1,
+          skel2,
+        );
       let ty = HTyp.Hole;
       (skel, seq, ty, ctx, u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
@@ -415,7 +432,7 @@ module Pat = {
       let ty = HTyp.List(ty_elt);
       let (skel2, seq, ctx, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-      let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
+      let skel = Skel.BinOp(NotInHole, Operators.Pat.Cons, skel1, skel2);
       (skel, seq, ty, ctx, u_gen);
     }
   and syn_fix_holes_operand =
@@ -512,7 +529,7 @@ module Pat = {
       |> (
         fun
         | (rev_skels, seq, ctx, u_gen) => {
-            let skel = rev_skels |> List.rev |> UHPat.make_tuple(NotInHole);
+            let skel = rev_skels |> List.rev |> UHPat.make_tuple;
             (OpSeq.OpSeq(skel, seq), ctx, u_gen);
           }
       )
@@ -529,6 +546,17 @@ module Pat = {
             ty,
           );
         (OpSeq.wrap(operand), ctx, u_gen);
+      | ([BinOp(_)], _) =>
+        let (skel, seq, ctx, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel,
+            seq,
+            ty,
+          );
+        (OpSeq.OpSeq(skel, seq), ctx, u_gen);
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -557,7 +585,7 @@ module Pat = {
         |> (
           fun
           | (rev_skels, seq, ctx, u_gen) => {
-              let skel = rev_skels |> List.rev |> UHPat.make_tuple(NotInHole);
+              let skel = rev_skels |> List.rev |> UHPat.make_tuple;
               (OpSeq.OpSeq(skel, seq), ctx, u_gen);
             }
         )
@@ -618,7 +646,12 @@ module Pat = {
         );
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let skel =
-        Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Space, skel1, skel2);
+        Skel.BinOp(
+          InHole(TypeInconsistent, u),
+          Operators.Pat.Space,
+          skel1,
+          skel2,
+        );
       (skel, seq, ctx, u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
@@ -642,7 +675,7 @@ module Pat = {
             seq,
             ty_list,
           );
-        let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
+        let skel = Skel.BinOp(NotInHole, Operators.Pat.Cons, skel1, skel2);
         (skel, seq, ctx, u_gen);
       | None =>
         let (skel1, seq, ty_elt, ctx, u_gen) =
@@ -659,7 +692,12 @@ module Pat = {
           );
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel =
-          Skel.BinOp(InHole(TypeInconsistent, u), UHPat.Cons, skel1, skel2);
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators.Pat.Cons,
+            skel1,
+            skel2,
+          );
         (skel, seq, ctx, u_gen);
       }
     }
@@ -857,6 +895,12 @@ module Exp = {
       | Some(_) =>
         ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Bool)
       }
+    | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
+      switch (ana_skel(ctx, skel1, seq, Float)) {
+      | None => None
+      | Some(_) =>
+        ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Bool)
+      }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
       | None => None
@@ -867,15 +911,12 @@ module Exp = {
           ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
         }
       }
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (syn_skel(ctx, skel1, seq)) {
-      | None => None
-      | Some(ty1) =>
-        switch (syn_skel(ctx, skel2, seq)) {
-        | None => None
-        | Some(ty2) => Some(Prod(ty1, ty2))
-        }
-      }
+    | BinOp(NotInHole, Comma, _, _) =>
+      skel
+      |> UHExp.get_tuple_elements
+      |> List.map(skel => syn_skel(ctx, skel, seq))
+      |> OptUtil.sequence
+      |> Option.map(tys => HTyp.Prod(tys))
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
       | None => None
@@ -1034,6 +1075,9 @@ module Exp = {
         And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
         GreaterThan |
         Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
         Space,
         _,
         _,
@@ -1219,13 +1263,27 @@ module Exp = {
         ) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Int) : ana_go(skel2, Int)
-      | BinOp(NotInHole, FPlus | FMinus | FTimes, skel1, skel2) =>
+      | BinOp(
+          NotInHole,
+          FPlus | FMinus | FTimes | FLessThan | FGreaterThan,
+          skel1,
+          skel2,
+        ) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Float) : ana_go(skel2, Float)
       | BinOp(NotInHole, And | Or, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
       | BinOp(NotInHole, Equals, skel1, skel2) =>
+        if (n <= Skel.rightmost_tm_index(skel1)) {
+          go(skel1);
+        } else {
+          switch (syn_skel(ctx, skel1, seq)) {
+          | None => None
+          | Some(ty1) => ana_go(skel2, ty1)
+          };
+        }
+      | BinOp(NotInHole, FEquals, skel1, skel2) =>
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
@@ -1295,6 +1353,9 @@ module Exp = {
           And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
           GreaterThan |
           Equals |
+          FLessThan |
+          FGreaterThan |
+          FEquals |
           Space,
           _,
           _,
@@ -1505,6 +1566,26 @@ module Exp = {
           HTyp.Int,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
+    | BinOp(_, (FLessThan | FGreaterThan | FEquals) as op, skel1, skel2) =>
+      let (skel1, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          HTyp.Float,
+        );
+      let (skel2, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          HTyp.Float,
+        );
+      (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
       let (skel1, seq, ty1, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
@@ -1534,21 +1615,33 @@ module Exp = {
           UHExp.make_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
         (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
       };
-    | BinOp(_, Comma, skel1, skel2) =>
-      let (skel1, seq, ty1, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      let (skel2, seq, ty2, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
-      let skel = Skel.BinOp(NotInHole, UHExp.Comma, skel1, skel2);
-      let ty = HTyp.Prod(ty1, ty2);
-      (skel, seq, ty, u_gen);
+    | BinOp(_, Comma, _, _) =>
+      let ((u_gen, seq), pairs) =
+        skel
+        |> UHExp.get_tuple_elements
+        |> ListUtil.map_with_accumulator(
+             ((u_gen, seq), skel) => {
+               let (skel, seq, ty, u_gen) =
+                 syn_fix_holes_skel(
+                   ctx,
+                   u_gen,
+                   ~renumber_empty_holes,
+                   skel,
+                   seq,
+                 );
+               ((u_gen, seq), (skel, ty));
+             },
+             (u_gen, seq),
+           );
+      let (skels, tys) = List.split(pairs);
+      (UHExp.make_tuple(skels), seq, Prod(tys), u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
       let (skel1, seq, ty_elt, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
       let ty = HTyp.List(ty_elt);
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
-      let skel = Skel.BinOp(NotInHole, UHExp.Cons, skel1, skel2);
+      let skel = Skel.BinOp(NotInHole, Operators.Exp.Cons, skel1, skel2);
       (skel, seq, ty, u_gen);
     }
   and syn_fix_holes_operand =
@@ -1809,7 +1902,7 @@ module Exp = {
       |> (
         fun
         | (rev_skels, seq, u_gen) => {
-            let skel = rev_skels |> List.rev |> UHExp.make_tuple(NotInHole);
+            let skel = rev_skels |> List.rev |> UHExp.make_tuple;
             (OpSeq.OpSeq(skel, seq), u_gen);
           }
       )
@@ -1826,6 +1919,17 @@ module Exp = {
             ty,
           );
         (OpSeq.wrap(operand), u_gen);
+      | ([BinOp(_)], _) =>
+        let (skel, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel,
+            seq,
+            ty,
+          );
+        (OpSeq.OpSeq(skel, seq), u_gen);
       | (_, [Hole]) =>
         skels
         |> List.fold_left(
@@ -1853,7 +1957,7 @@ module Exp = {
         |> (
           fun
           | (rev_skels, seq, u_gen) => {
-              let skel = rev_skels |> List.rev |> UHExp.make_tuple(NotInHole);
+              let skel = rev_skels |> List.rev |> UHExp.make_tuple;
               (OpSeq.OpSeq(skel, seq), u_gen);
             }
         )
@@ -1914,7 +2018,7 @@ module Exp = {
             seq,
             ty_list,
           );
-        let skel = Skel.BinOp(NotInHole, UHExp.Cons, skel1, skel2);
+        let skel = Skel.BinOp(NotInHole, Operators.Exp.Cons, skel1, skel2);
         (skel, seq, u_gen);
       | None =>
         let (skel1, seq, ty_elt, u_gen) =
@@ -1931,7 +2035,12 @@ module Exp = {
           );
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel =
-          Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
+          Skel.BinOp(
+            InHole(TypeInconsistent, u),
+            Operators.Exp.Cons,
+            skel1,
+            skel2,
+          );
         (skel, seq, u_gen);
       }
     | BinOp(
@@ -1939,6 +2048,9 @@ module Exp = {
         And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
         GreaterThan |
         Equals |
+        FLessThan |
+        FGreaterThan |
+        FEquals |
         Space,
         _,
         _,
