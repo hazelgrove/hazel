@@ -125,6 +125,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
+    | AnaInvalid(_) => failwith("unimplemented")
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
@@ -144,6 +145,7 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
+    | SynInvalid => failwith("unimplemented")
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -176,6 +178,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
+    | SynInvalidArrow(_) => failwith("unimplemented")
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
