@@ -85,7 +85,11 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
 };
 
 let push_history_entry =
-    (~prev_group: undo_history_group, ~new_entry: undo_history_entry)
+    (
+      ~prev_group: undo_history_group,
+      ~new_entry: undo_history_entry,
+      ~is_expanded: bool,
+    )
     : undo_history_group => {
   {
     group_entries: (
@@ -96,7 +100,7 @@ let push_history_entry =
         ...ZList.prj_suffix(prev_group.group_entries),
       ],
     ),
-    is_expanded: false,
+    is_expanded,
   };
 };
 
@@ -828,7 +832,12 @@ let push_edit_state =
       timestamp,
     };
     if (group_entry(~prev_group, ~new_cardstacks_before, ~new_edit_action)) {
-      let new_group = push_history_entry(~prev_group, ~new_entry);
+      let new_group =
+        push_history_entry(
+          ~prev_group,
+          ~new_entry,
+          ~is_expanded=undo_history.all_hidden_history_expand,
+        );
       {
         ...undo_history,
         groups: ([], new_group, ZList.prj_suffix(undo_history.groups)),
@@ -841,7 +850,7 @@ let push_edit_state =
     } else {
       let new_group = {
         group_entries: ([], new_entry, []),
-        is_expanded: false,
+        is_expanded: undo_history.all_hidden_history_expand,
       };
       {
         ...undo_history,

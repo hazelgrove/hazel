@@ -1083,7 +1083,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   Vdom.(
     Node.div(
-      [Attr.classes(["panel", "context-inspector-panel"])],
+      [
+        Attr.id("history-panel"),
+        Attr.classes(["panel", "context-inspector-panel"]),
+      ],
       [
         Panel.view_of_main_title_bar("history"),
         button_bar_view(
