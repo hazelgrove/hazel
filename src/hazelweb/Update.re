@@ -48,7 +48,7 @@ module Action = {
     | ShiftHistory(int, int, bool)
     | ToggleHistoryGroup(int)
     | ToggleHiddenHistoryAll
-    | ToggleShowHoverEffect
+    | TogglePreviewOnHover
     | UpdateFontMetrics(FontMetrics.t);
 };
 
@@ -119,7 +119,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ShiftHistory(_, _, _)
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
-  | ToggleShowHoverEffect
+  | TogglePreviewOnHover
   | UpdateFontMetrics(_) =>
     Logger.append(
       Sexp.to_string(
@@ -347,11 +347,11 @@ let apply_action =
               UndoHistory.set_all_hidden_history(model.undo_history, true),
           };
         }
-      | ToggleShowHoverEffect => {
+      | TogglePreviewOnHover => {
           ...model,
           undo_history: {
             ...model.undo_history,
-            show_hover_effect: !model.undo_history.show_hover_effect,
+            preview_on_hover: !model.undo_history.preview_on_hover,
           },
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}

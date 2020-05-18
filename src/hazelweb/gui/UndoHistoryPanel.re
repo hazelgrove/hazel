@@ -80,46 +80,61 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let indicate_words_view = (words: string) => {
     Vdom.(Node.span([], [Node.text(words)]));
   };
-  let exp_view = (exp: UHExp.operand) => {
+  let exp_view = (exp: UHExp.operand, show_indicate_word: bool) => {
     switch (exp) {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
 
     | Var(_, _, var_str) =>
-      if (Var.is_case(var_str) || Var.is_let(var_str)) {
+      if (show_indicate_word) {
+        if (Var.is_case(var_str) || Var.is_let(var_str)) {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("keyword: "), code_view(var_str)],
+            )
+          );
+        } else {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("var: "), code_view(var_str)],
+            )
+          );
+        };
+      } else {
+        code_view(var_str);
+      }
+    | IntLit(_, num) =>
+      if (show_indicate_word) {
         Vdom.(
           Node.span(
             [],
-            [indicate_words_view("keyword: "), code_view(var_str)],
+            [
+              code_keywords_view("Int"),
+              indicate_words_view(" literal "),
+              code_view(num),
+            ],
           )
         );
       } else {
-        Vdom.(
-          Node.span([], [indicate_words_view("var: "), code_view(var_str)])
-        );
+        code_view(num);
       }
-    | IntLit(_, num) =>
-      Vdom.(
-        Node.span(
-          [],
-          [
-            code_keywords_view("Int"),
-            indicate_words_view(" literal "),
-            code_view(num),
-          ],
-        )
-      )
     | FloatLit(_, num) =>
-      Vdom.(
-        Node.span(
-          [],
-          [
-            code_keywords_view("Float"),
-            indicate_words_view(" literal "),
-            code_view(num),
-          ],
-        )
-      )
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("Float"),
+              indicate_words_view(" literal "),
+              code_view(num),
+            ],
+          )
+        );
+      } else {
+        code_view(num);
+      }
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -145,37 +160,49 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let pat_view = (pat: UHPat.operand) => {
+  let pat_view = (pat: UHPat.operand, show_indicate_word: bool) => {
     switch (pat) {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
     | Wild(_) => indicate_words_view("wild card")
     | Var(_, _, var_str) =>
-      Vdom.(
-        Node.span([], [indicate_words_view("var: "), code_view(var_str)])
-      )
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span([], [indicate_words_view("var: "), code_view(var_str)])
+        );
+      } else {
+        code_view(var_str);
+      }
     | IntLit(_, num) =>
-      Vdom.(
-        Node.span(
-          [],
-          [
-            code_keywords_view("Int"),
-            indicate_words_view(" literal "),
-            code_view(num),
-          ],
-        )
-      )
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("Int"),
+              indicate_words_view(" literal "),
+              code_view(num),
+            ],
+          )
+        );
+      } else {
+        code_view(num);
+      }
     | FloatLit(_, num) =>
-      Vdom.(
-        Node.span(
-          [],
-          [
-            code_keywords_view("Float"),
-            indicate_words_view(" literal "),
-            code_view(num),
-          ],
-        )
-      )
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("Float"),
+              indicate_words_view(" literal "),
+              code_view(num),
+            ],
+          )
+        );
+      } else {
+        code_view(num);
+      }
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -240,10 +267,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let cursor_term_view = (cursor_term: CursorInfo.cursor_term) => {
+  let cursor_term_view =
+      (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
-    | Exp(_, exp) => exp_view(exp)
-    | Pat(_, pat) => pat_view(pat)
+    | Exp(_, exp) => exp_view(exp, show_indicate_word)
+    | Pat(_, pat) => pat_view(pat, show_indicate_word)
     | Typ(_, typ) => typ_view(typ)
     | ExpOp(_, op) => code_view(Operators.Exp.to_string(op))
     | PatOp(_, op) => code_view(Operators.Pat.to_string(op))
@@ -318,7 +346,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [],
               [
                 indicate_words_view("delete "),
-                cursor_term_view(cursor_term),
+                cursor_term_view(cursor_term, true),
               ],
             )
           ),
@@ -379,7 +407,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [
                 indicate_words_view("edit "),
                 cursor_term_view(
+                  undo_history_entry.cursor_term_info.cursor_term_before,
+                  true,
+                ),
+                indicate_words_view(" to "),
+                cursor_term_view(
                   undo_history_entry.cursor_term_info.cursor_term_after,
+                  false,
                 ),
               ],
             )
@@ -396,6 +430,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 indicate_words_view("insert "),
                 cursor_term_view(
                   undo_history_entry.cursor_term_info.cursor_term_after,
+                  true,
                 ),
               ],
             )
@@ -629,7 +664,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                   Attr.on_mouseenter(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(group_id, elt_id, true),
@@ -641,7 +676,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     }
                   ),
                   Attr.on_mouseleave(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(
@@ -669,7 +704,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                   Attr.on_mouseenter(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(group_id, elt_id, true),
@@ -681,7 +716,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     }
                   ),
                   Attr.on_mouseleave(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(
@@ -770,7 +805,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                   Attr.on_mouseenter(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(group_id, elt_id, true),
@@ -782,7 +817,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     }
                   ),
                   Attr.on_mouseleave(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(
@@ -810,7 +845,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ])
                   ),
                   Attr.on_mouseenter(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(group_id, elt_id, true),
@@ -822,7 +857,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     }
                   ),
                   Attr.on_mouseleave(_ =>
-                    if (undo_history.show_hover_effect) {
+                    if (undo_history.preview_on_hover) {
                       Vdom.Event.Many([
                         inject(
                           Update.Action.ShiftHistory(
@@ -1016,21 +1051,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let hover_effect_checkbox = (show_hover_effect: bool) => {
+  let hover_effect_checkbox = (preview_on_hover: bool) => {
     labeled_checkbox(
-      ~id="show_hover_effect",
-      ~label="Show Hover Effect",
-      ~on_change=() => inject(ToggleShowHoverEffect),
-      show_hover_effect,
+      ~id="preview_on_hover",
+      ~label="Preview On Hover",
+      ~on_change=() => inject(TogglePreviewOnHover),
+      preview_on_hover,
     );
   };
   let button_bar_view =
-      (show_hover_effect: bool, all_hidden_history_expand: bool) =>
+      (preview_on_hover: bool, all_hidden_history_expand: bool) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history_button_bar"])],
         [
-          hover_effect_checkbox(show_hover_effect),
+          hover_effect_checkbox(preview_on_hover),
           expand_button(all_hidden_history_expand),
           redo_button,
           undo_button,
@@ -1044,7 +1079,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       [
         Panel.view_of_main_title_bar("history"),
         button_bar_view(
-          model.undo_history.show_hover_effect,
+          model.undo_history.preview_on_hover,
           model.undo_history.all_hidden_history_expand,
         ),
         Node.div(

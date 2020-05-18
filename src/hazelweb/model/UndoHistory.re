@@ -49,7 +49,7 @@ type t = {
   all_hidden_history_expand: bool,
   /* mute the auto-scrolling when disable_auto_scrolling is true */
   disable_auto_scrolling: bool,
-  show_hover_effect: bool,
+  preview_on_hover: bool,
   hover_recover_group_id: int,
   hover_recover_elt_id: int,
   cur_group_id: int,
@@ -100,7 +100,7 @@ let push_history_entry =
   };
 };
 
-/* return true if cursor jump to another term when new action applied */
+/* return true if caret jump to another term when new action applied */
 let caret_jump =
     (prev_group: undo_history_group, new_cardstacks_before: Cardstacks.t)
     : bool => {
@@ -406,10 +406,12 @@ let delete_edit =
         );
       Some(DeleteEdit(Term(initial_term)));
     } else {
-      /* TBD */
       let prev_entry = ZList.prj_z(prev_group.group_entries);
-      if (prev_entry.edit_action == Var(Insert)
-          || prev_entry.edit_action == Var(DeleteInsert)) {
+      if (!caret_jump(prev_group, new_cardstacks_before)
+          && (
+            prev_entry.edit_action == Var(Insert)
+            || prev_entry.edit_action == Var(DeleteInsert)
+          )) {
         Some(Var(DeleteInsert));
       } else {
         Some(Var(Edit));
@@ -635,9 +637,7 @@ let get_new_edit_action =
           switch (get_earlist_entry(ZList.join(prev_group.group_entries))) {
           | None => Some(Var(Insert))
           | Some(earlist_entry) =>
-            if (CursorInfo.is_hole(
-                  earlist_entry.cursor_term_info.cursor_term_before,
-                )) {
+            if (earlist_entry.edit_action == Var(Insert)) {
               Some(Var(Insert));
             } else {
               Some(Var(Edit));
