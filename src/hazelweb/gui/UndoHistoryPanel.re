@@ -614,6 +614,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     } else {
       ["the-cur-history"];
     };
+
   let is_latest_selected_entry =
       (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
       : bool => {
@@ -654,7 +655,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               if (is_current_entry) {
                 [
                   Attr.id("cur-selected-entry"),
-                  Attr.classes(["the-history-title"]),
+                  Attr.classes(["history-entry"]),
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
@@ -694,7 +695,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ];
               } else {
                 [
-                  Attr.classes(["the-history-title"]),
+                  Attr.classes(["history-entry"]),
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
@@ -735,7 +736,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               },
               [
                 Node.div(
-                  [Attr.classes(["the-history-entry"])],
+                  [],
                   [
                     history_typ_tag_view(undo_history_entry),
                     Node.div(
@@ -794,7 +795,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Node.div(
               if (is_current_entry) {
                 [
-                  Attr.classes(["the-hidden-history-entry"]),
+                  Attr.classes(["history-entry"]),
                   Attr.id("cur-selected-entry"),
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
@@ -835,7 +836,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ];
               } else {
                 [
-                  Attr.classes(["the-hidden-history-entry"]),
+                  Attr.classes(["history-entry"]),
                   Attr.on_click(_ =>
                     Vdom.Event.Many([
                       inject(
@@ -876,17 +877,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               },
               [
                 Node.div(
-                  [Attr.classes(["the-history-entry"])],
+                  [Attr.classes(["hidden-history-entry"])],
                   [
                     history_typ_tag_view(undo_history_entry),
                     Node.div(
                       [Attr.classes(["history-entry-left"])],
-                      [
-                        Node.span(
-                          [Attr.classes(["the-hidden-history-txt"])],
-                          [txt_view],
-                        ),
-                      ],
+                      [Node.span([], [txt_view])],
                     ),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
@@ -947,57 +943,20 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let prev_history_view = (history: UndoHistory.t) => {
-    let (suc_groups, _, prev_groups) = history.groups;
-    Vdom.(
-      Node.div(
-        [Attr.classes(["the-prev-history"])],
-        list_map_helper_func(
-          group_view(~undo_history=history),
-          base => base + 1,
-          List.length(suc_groups) + 1,
-          prev_groups,
-        ),
-      )
-    );
-  };
-  let suc_history_view = (history: UndoHistory.t) => {
-    let (suc_groups, _, _) = history.groups;
-    Vdom.(
-      Node.div(
-        [Attr.classes(["the-suc-history"])],
-        list_map_helper_func(
-          group_view(~undo_history=history),
-          base => base + 1,
-          0,
-          suc_groups,
-        ),
-      )
-    );
-  };
-  let cur_history_view = (history: UndoHistory.t) => {
-    let (suc_groups, cur_group, _) = history.groups;
-    Vdom.(
-      Node.div(
-        [],
-        [
-          group_view(
-            ~undo_history=history,
-            List.length(suc_groups),
-            cur_group,
-          ),
-        ],
-      )
-    );
-  };
   let history_view = (model: Model.t) =>
     Vdom.(
       Node.div(
         [Attr.classes(["the-history"])],
         [
-          suc_history_view(model.undo_history),
-          cur_history_view(model.undo_history),
-          prev_history_view(model.undo_history),
+          Node.div(
+            [Attr.classes(["the-suc-history"])],
+            list_map_helper_func(
+              group_view(~undo_history=model.undo_history),
+              base => base + 1,
+              0,
+              ZList.join(model.undo_history.groups),
+            ),
+          ),
         ],
       )
     );
