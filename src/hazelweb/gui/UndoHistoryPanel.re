@@ -961,31 +961,38 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let undo_button =
+  let undo_button = is_mac => {
+    let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
+    JSUtil.log(title);
     Vdom.(
       Node.div(
         [
-          Attr.classes(["redo-undo-button"]),
+          Attr.classes(["history-button"]),
           Attr.on_click(_ =>
             Vdom.Event.Many([inject(Update.Action.Undo), inject(FocusCell)])
           ),
         ],
-        [Node.text("Undo (Ctrl+Z)"), Icons.undo(["redo-undo-icon"])],
+        [Icons.undo(["redo-undo-icon"])],
       )
     );
+  };
 
-  let redo_button =
+  let redo_button = is_mac => {
+    let title =
+      if (is_mac) {"Undo (Cmd+Shift+Z)"} else {"Undo (Ctrl+Shift+Z)"};
+    JSUtil.log(title);
     Vdom.(
       Node.div(
         [
-          Attr.classes(["redo-undo-button"]),
+          Attr.classes(["history-button"]),
           Attr.on_click(_ =>
             Vdom.Event.Many([inject(Update.Action.Redo), inject(FocusCell)])
           ),
         ],
-        [Icons.redo(["redo-undo-icon"]), Node.text("Redo (Ctrl+Shift+Z)")],
+        [Icons.redo(["redo-undo-icon"])],
       )
     );
+  };
 
   let expand_button = (all_hidden_history_expand: bool) => {
     let icon =
@@ -1020,22 +1027,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let button_bar_view =
-      (preview_on_hover: bool, all_hidden_history_expand: bool) =>
+      (preview_on_hover: bool, all_hidden_history_expand: bool, is_mac: bool) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history_button_bar"])],
         [
-          Node.div(
-            [Attr.classes(["history_button"])],
-            [undo_button, redo_button],
-          ),
-          Node.div(
-            [],
-            [
-              preview_on_hover_checkbox(preview_on_hover),
-              expand_button(all_hidden_history_expand),
-            ],
-          ),
+          preview_on_hover_checkbox(preview_on_hover),
+          expand_button(all_hidden_history_expand),
+          redo_button(is_mac),
+          undo_button(is_mac),
         ],
       )
     );
@@ -1051,6 +1051,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         button_bar_view(
           model.undo_history.preview_on_hover,
           model.undo_history.all_hidden_history_expand,
+          model.is_mac,
         ),
         Node.div(
           [
