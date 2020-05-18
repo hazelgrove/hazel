@@ -64,10 +64,13 @@ let view =
     );
   let expected_ty_title = "Expecting an expression of type";
   let expected_ty_title_pat = "Expecting a pattern of type";
+  let expected_ty_title_consistent = "Expecting an expression consistent with type";
   let expected_ty_indicator = ty =>
     expected_indicator(expected_ty_title, typebar(ty));
   let expected_ty_indicator_pat = ty =>
     expected_indicator(expected_ty_title_pat, typebar(ty));
+  let expected_ty_indicator_consistent = ty =>
+    expected_indicator(expected_ty_title_consistent, typebar(ty));
   let expected_msg_indicator = msg =>
     expected_indicator("Expecting an expression of ", special_msg_bar(msg));
   let expected_msg_indicator_pat = msg =>
@@ -213,7 +216,7 @@ let view =
       let ind1 =
         switch (glb) {
         | None => ind1
-        | Some(ty) => expected_ty_indicator(ty)
+        | Some(ty) => expected_ty_indicator_consistent(ty)
         };
       let (ind2, err_state_b) =
         switch (glb, typed) {
