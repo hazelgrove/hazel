@@ -1488,8 +1488,8 @@ h1 {
   float: right;
 }
 .entry-tab-icon {
-    color: #558e62;
-    padding-right: 8px;
+  color: #558e62;
+  padding-right: 8px;
 }
 
 .all-history-tab-icon {
@@ -1503,7 +1503,6 @@ h1 {
 }
 
 .history_button_bar {
-  text-transform: uppercase;
   color: white;
   padding: 3px 5px 3px 3px;
   font-size: 10pt;
@@ -1524,6 +1523,13 @@ h1 {
 .redo-undo-button:hover{
   color: lightgoldenrodyellow;
   cursor: pointer;
+}
+
+#history-panel .labeled-checkbox {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5ch;
+  align-items: center;
 }
 
 #preview_on_hover_checkbox{
