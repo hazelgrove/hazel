@@ -195,6 +195,9 @@ module Exp = {
     | FTimes => precedence_Times
     | FPlus => precedence_Plus
     | FMinus => precedence_Minus
+    | FEquals => precedence_Equals
+    | FLessThan => precedence_LessThan
+    | FGreaterThan => precedence_GreaterThan
     };
   let rec precedence = (~show_casts: bool, d: DHExp.t) => {
     let precedence' = precedence(~show_casts);
@@ -244,6 +247,9 @@ module Exp = {
       | FMinus => "-."
       | FPlus => "+."
       | FTimes => "*."
+      | FLessThan => "<."
+      | FGreaterThan => ">."
+      | FEquals => "==."
       },
     );
 
