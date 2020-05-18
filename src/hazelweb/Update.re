@@ -49,7 +49,8 @@ module Action = {
     | ToggleHistoryGroup(int)
     | ToggleHiddenHistoryAll
     | TogglePreviewOnHover
-    | UpdateFontMetrics(FontMetrics.t);
+    | UpdateFontMetrics(FontMetrics.t)
+    | UpdateIsMac(bool);
 };
 
 [@deriving sexp]
@@ -120,7 +121,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
-  | UpdateFontMetrics(_) =>
+  | UpdateFontMetrics(_)
+  | UpdateIsMac(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -355,6 +357,7 @@ let apply_action =
           },
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
+      | UpdateIsMac(is_mac) => {...model, is_mac}
       };
     },
   );

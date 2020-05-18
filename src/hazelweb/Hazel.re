@@ -21,6 +21,14 @@ let on_startup = (~schedule_action, _) => {
       }),
     );
   };
+
+  let is_mac =
+    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
+      Js.string("Win"),
+    )
+    >= 0;
+  schedule_action(UpdateIsMac(is_mac));
+
   Dom_html.window##.onresize :=
     Dom_html.handler(_ => {
       update_font_metrics();
