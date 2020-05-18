@@ -30,19 +30,6 @@ let is_before =
   | ZOperand(zoperand, (E, _)) => is_before_zoperand(zoperand)
   };
 
-let is_outer =
-    (~is_outer_zoperand: 'zoperand => bool, zseq: t(_, _, 'zoperand, _))
-    : bool =>
-  switch (zseq) {
-  // Does this work regardless of associativity/precedence?
-  | ZOperator(_, (_, S(_, E))) => true
-  | ZOperator(_)
-  | ZOperand(_, (A(_), E))
-  | ZOperand(_, (E, A(_)))
-  | ZOperand(_, (A(_), A(_))) => false
-  | ZOperand(zoperand, (E, E)) => is_outer_zoperand(zoperand)
-  };
-
 let is_after =
     (~is_after_zoperand: 'zoperand => bool, zseq: t(_, _, 'zoperand, _))
     : bool =>
