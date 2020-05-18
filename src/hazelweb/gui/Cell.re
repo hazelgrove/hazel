@@ -80,11 +80,30 @@ let view = (~inject, model: Model.t) => {
                 prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
               | None =>
                 switch (KeyCombo.of_evt(evt)) {
-                | Some(Ctrl_Z)
-                | Some(Meta_Z) => prevent_stop_inject(Update.Action.Undo)
-                | Some(Ctrl_Shift_Z)
+                | Some(Ctrl_Z) =>
+                  if (model.is_mac) {
+                    Event.Many([]);
+                  } else {
+                    prevent_stop_inject(Update.Action.Undo);
+                  }
+                | Some(Meta_Z) =>
+                  if (model.is_mac) {
+                    prevent_stop_inject(Update.Action.Undo);
+                  } else {
+                    Event.Many([]);
+                  }
+                | Some(Ctrl_Shift_Z) =>
+                  if (model.is_mac) {
+                    Event.Many([]);
+                  } else {
+                    prevent_stop_inject(Update.Action.Redo);
+                  }
                 | Some(Meta_Shift_Z) =>
-                  prevent_stop_inject(Update.Action.Redo)
+                  if (model.is_mac) {
+                    prevent_stop_inject(Update.Action.Redo);
+                  } else {
+                    Event.Many([]);
+                  }
                 | Some(kc) =>
                   prevent_stop_inject(
                     Update.Action.EditAction(
