@@ -49,17 +49,12 @@ let labeled_checkbox =
 };
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
-  let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
+  let rec list_map_helper_func = (func_to_list, base, lst) => {
     switch (lst) {
     | [] => []
     | [head, ...tail] => [
         func_to_list(base, head),
-        ...list_map_helper_func(
-             func_to_list,
-             func_to_base,
-             func_to_base(base),
-             tail,
-           ),
+        ...list_map_helper_func(func_to_list, base + 1, tail),
       ]
     };
   };
@@ -935,7 +930,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                      ~undo_history_group=group,
                      group_id,
                    ),
-                   base => base + 1,
                    1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
                    hidden_entries,
                  ),
@@ -966,7 +960,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [Attr.classes(["the-suc-history"])],
             list_map_helper_func(
               group_view(~undo_history=model.undo_history),
-              base => base + 1,
               0,
               ZList.join(model.undo_history.groups),
             ),
