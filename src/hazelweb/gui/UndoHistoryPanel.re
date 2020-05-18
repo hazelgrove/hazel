@@ -335,7 +335,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SApPalette(_) => failwith("ApPalette not implemented")
     };
   };
-  let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {
+  let history_entry_txt_view =
+      (
+        undo_history_group: undo_history_group,
+        undo_history_entry: undo_history_entry,
+      ) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
@@ -400,16 +404,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Var(var_edit) =>
       switch (var_edit) {
       | Edit =>
+        let initial_term =
+          switch (List.rev(ZList.join(undo_history_group.group_entries))) {
+          | [] => undo_history_entry.cursor_term_info.cursor_term_before
+          | [head, ..._] => head.cursor_term_info.cursor_term_before
+          };
         Some(
           Vdom.(
             Node.span(
               [],
               [
                 indicate_words_view("edit "),
-                cursor_term_view(
-                  undo_history_entry.cursor_term_info.cursor_term_before,
-                  true,
-                ),
+                cursor_term_view(initial_term, true),
                 indicate_words_view(" to "),
                 cursor_term_view(
                   undo_history_entry.cursor_term_info.cursor_term_after,
@@ -418,7 +424,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               ],
             )
           ),
-        )
+        );
 
       | Insert
       | DeleteInsert =>
@@ -624,6 +630,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let history_title_entry_view =
       (
         ~undo_history: UndoHistory.t,
+        ~undo_history_group: undo_history_group,
         ~is_expanded: bool,
         ~has_hidden_part: bool,
         group_id: int,
@@ -644,7 +651,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ~group_id,
         ~elt_id,
       );
-    switch (history_entry_txt_view(undo_history_entry)) {
+    switch (history_entry_txt_view(undo_history_group, undo_history_entry)) {
     | None => Vdom.(Node.div([], []))
     | Some(txt_view) =>
       Vdom.(
@@ -767,6 +774,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let history_hidden_entry_view =
       (
         ~undo_history: UndoHistory.t,
+        ~undo_history_group: undo_history_group,
         group_id: int,
         elt_id: int,
         undo_history_entry: undo_history_entry,
@@ -785,7 +793,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ~group_id,
         ~elt_id,
       );
-    switch (history_entry_txt_view(undo_history_entry)) {
+    switch (history_entry_txt_view(undo_history_group, undo_history_entry)) {
     | None => Vdom.(Node.div([], []))
     | Some(txt_view) =>
       Vdom.(
@@ -913,6 +921,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               /* title entry */
               history_title_entry_view(
                 ~undo_history,
+                ~undo_history_group=group,
                 ~is_expanded=group.is_expanded,
                 ~has_hidden_part,
                 group_id,
@@ -921,7 +930,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               ),
               /* hidden entries */
               ...list_map_helper_func(
-                   history_hidden_entry_view(~undo_history, group_id),
+                   history_hidden_entry_view(
+                     ~undo_history,
+                     ~undo_history_group=group,
+                     group_id,
+                   ),
                    base => base + 1,
                    1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
                    hidden_entries,
@@ -933,6 +946,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         /* if the group is not expanded, only title entry is displayed */
         history_title_entry_view(
           ~undo_history,
+          ~undo_history_group=group,
           ~is_expanded=group.is_expanded,
           ~has_hidden_part,
           group_id,
