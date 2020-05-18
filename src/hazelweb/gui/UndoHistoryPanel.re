@@ -1006,12 +1006,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [
-          Attr.classes(["history-button"]),
+          Attr.classes(["redo-undo-button"]),
           Attr.on_click(_ =>
             Vdom.Event.Many([inject(Update.Action.Undo), inject(FocusCell)])
           ),
         ],
-        [Icons.undo(["redo-undo-icon"])],
+        [Node.text("Undo (Ctrl+Z)"), Icons.undo(["redo-undo-icon"])],
       )
     );
 
@@ -1019,12 +1019,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [
-          Attr.classes(["history-button"]),
+          Attr.classes(["redo-undo-button"]),
           Attr.on_click(_ =>
             Vdom.Event.Many([inject(Update.Action.Redo), inject(FocusCell)])
           ),
         ],
-        [Icons.redo(["redo-undo-icon"])],
+        [Icons.redo(["redo-undo-icon"]), Node.text("Redo (Ctrl+Shift+Z)")],
       )
     );
 
@@ -1051,7 +1051,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let hover_effect_checkbox = (preview_on_hover: bool) => {
+  let preview_on_hover_checkbox = (preview_on_hover: bool) => {
     labeled_checkbox(
       ~id="preview_on_hover",
       ~label="Preview On Hover",
@@ -1059,16 +1059,24 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       preview_on_hover,
     );
   };
+
   let button_bar_view =
       (preview_on_hover: bool, all_hidden_history_expand: bool) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history_button_bar"])],
         [
-          hover_effect_checkbox(preview_on_hover),
-          expand_button(all_hidden_history_expand),
-          redo_button,
-          undo_button,
+          Node.div(
+            [Attr.classes(["history_button"])],
+            [undo_button, redo_button],
+          ),
+          Node.div(
+            [],
+            [
+              preview_on_hover_checkbox(preview_on_hover),
+              expand_button(all_hidden_history_expand),
+            ],
+          ),
         ],
       )
     );

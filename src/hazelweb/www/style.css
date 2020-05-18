@@ -1512,14 +1512,25 @@ h1 {
 }
 
 .history-button {
-  display: inline-block;
   vertical-align: middle;
   margin-right: 10px;
-  float:right;
+  margin-left: 5px;
 }
+
+.redo-undo-button{
+  display: inline-block;
+}
+
+.redo-undo-button:hover{
+  color: lightgoldenrodyellow;
+  cursor: pointer;
+}
+
+#preview_on_hover_checkbox{
+  margin-left: 0px;
+}
+
 .redo-undo-icon {
- 
-  color: white;
   display: inline-block;
   vertical-align: middle;
   font-weight: 1000;
@@ -1529,6 +1540,7 @@ h1 {
 
 #preview_on_hover{
   display: inline-block;
+  float: left;
 }
 /* panel keywords css */
 .panel-code-keywords-font{

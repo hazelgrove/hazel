@@ -80,8 +80,10 @@ let view = (~inject, model: Model.t) => {
                 prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
               | None =>
                 switch (KeyCombo.of_evt(evt)) {
-                | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
-                | Some(Ctrl_Shift_Z) =>
+                | Some(Ctrl_Z)
+                | Some(Meta_Z) => prevent_stop_inject(Update.Action.Undo)
+                | Some(Ctrl_Shift_Z)
+                | Some(Meta_Shift_Z) =>
                   prevent_stop_inject(Update.Action.Redo)
                 | Some(kc) =>
                   prevent_stop_inject(
