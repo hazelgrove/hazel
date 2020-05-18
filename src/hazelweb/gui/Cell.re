@@ -82,7 +82,7 @@ let view = (~inject, model: Model.t) => {
                 switch (KeyCombo.of_evt(evt)) {
                 | Some(Ctrl_Z) =>
                   if (model.is_mac) {
-                    Event.Many([]);
+                    Event.Ignore;
                   } else {
                     prevent_stop_inject(Update.Action.Undo);
                   }
@@ -90,11 +90,11 @@ let view = (~inject, model: Model.t) => {
                   if (model.is_mac) {
                     prevent_stop_inject(Update.Action.Undo);
                   } else {
-                    Event.Many([]);
+                    Event.Ignore;
                   }
                 | Some(Ctrl_Shift_Z) =>
                   if (model.is_mac) {
-                    Event.Many([]);
+                    Event.Ignore;
                   } else {
                     prevent_stop_inject(Update.Action.Redo);
                   }
@@ -102,7 +102,7 @@ let view = (~inject, model: Model.t) => {
                   if (model.is_mac) {
                     prevent_stop_inject(Update.Action.Redo);
                   } else {
-                    Event.Many([]);
+                    Event.Ignore;
                   }
                 | Some(kc) =>
                   prevent_stop_inject(
