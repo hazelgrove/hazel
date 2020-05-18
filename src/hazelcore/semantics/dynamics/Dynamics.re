@@ -144,7 +144,8 @@ module Pat = {
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
-    | Var(NotInHole, InVarHole(Invalid, _), _) => failwith("unimplemented")
+    | Var(NotInHole, InVarHole(Invalid, u), x) =>
+      Expands(InvalidVar(u, 0, x), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
@@ -366,7 +367,8 @@ module Pat = {
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
-    | Var(NotInHole, InVarHole(Invalid, _), _) => failwith("unimplemented")
+    | Var(NotInHole, InVarHole(Invalid, u), x) =>
+      Expands(InvalidVar(u, 0, x), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
@@ -454,7 +456,7 @@ module Exp = {
         d2;
       }
     | FreeVar(_) => d2
-    | InvalidVar(_, _, _) => failwith("unimplemented")
+    | InvalidVar(_, _, _) => d2
     | Keyword(_) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -577,7 +579,7 @@ module Exp = {
     | (NonEmptyHole(_, _, _, _), _) => Indet
     | (Wild, _) => Matches(Environment.empty)
     | (Keyword(_, _, _), _) => DoesNotMatch
-    | (InvalidVar(_, _, _), _) => failwith("unimplemented")
+    | (InvalidVar(_, _, _), _) => Indet
     | (Var(x), _) =>
       let env = Environment.extend(Environment.empty, (x, d));
       Matches(env);
@@ -585,7 +587,7 @@ module Exp = {
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
     | (_, FailedCast(_, _, _)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
-    | (_, InvalidVar(_, _, _)) => failwith("unimplemented")
+    | (_, InvalidVar(_, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
@@ -717,7 +719,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | InvalidVar(_, _, _) => failwith("unimplemented")
+    | InvalidVar(_, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
@@ -776,7 +778,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | InvalidVar(_, _, _) => failwith("unimplemented")
+    | InvalidVar(_, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
@@ -833,7 +835,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | InvalidVar(_, _, _) => failwith("unimplemented")
+    | InvalidVar(_, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
@@ -1185,7 +1187,7 @@ module Exp = {
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
-        | Invalid => failwith("unimplemented")
+        | Invalid => DHExp.InvalidVar(u, 0, x)
         };
       Expands(d, Hole, delta);
     | IntLit(NotInHole, n) =>
@@ -1502,7 +1504,7 @@ module Exp = {
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
         | Keyword(k) => Keyword(u, 0, sigma, k)
-        | Invalid => failwith("unimplemented")
+        | Invalid => InvalidVar(u, 0, x)
         };
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
@@ -2129,7 +2131,7 @@ module Evaluator = {
       }
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
-    | InvalidVar(_, _, _) => failwith("unimplemented")
+    | InvalidVar(_, _, _) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
