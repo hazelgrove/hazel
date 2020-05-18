@@ -1473,11 +1473,13 @@ h1 {
 .entry-tab-icon {
   color: #558e62;
   padding-right: 8px;
+  min-width: 13px;
 }
 .all-history-tab-icon {
   color: white;
   display: inline-block;
   vertical-align: middle;
+  min-width: 13px;
   float:right;
 }
 .all-history-tab-icon-wrapper {
@@ -1496,15 +1498,13 @@ h1 {
   vertical-align: middle;
   margin-right: 10px;
   margin-left: 5px;
-}
-
-.redo-undo-button{
   display: inline-block;
+  float: right;
+  cursor: pointer;
 }
 
-.redo-undo-button:hover{
-  color: lightgoldenrodyellow;
-  cursor: pointer;
+.history-button:hover{
+  color: #b30000;
 }
 
 #history-panel .labeled-checkbox {
