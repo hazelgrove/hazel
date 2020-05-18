@@ -83,6 +83,9 @@ let view = (model: Model.t): Vdom.Node.t => {
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
 
+  let got_invalid_indicator =
+    got_indicator("Got an invalid variable", typebar(HTyp.Hole));
+
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
@@ -125,7 +128,10 @@ let view = (model: Model.t): Vdom.Node.t => {
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
-    | AnaInvalid(_) => failwith("unimplemented")
+    | AnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
@@ -145,7 +151,10 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
-    | SynInvalid => failwith("unimplemented")
+    | SynInvalid =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -178,7 +187,14 @@ let view = (model: Model.t): Vdom.Node.t => {
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
-    | SynInvalidArrow(_) => failwith("unimplemented")
+    | SynInvalidArrow(matched_ty) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_indicator(
+          "Got an invalid variable ▶ matched to",
+          matched_ty_bar(HTyp.Hole, matched_ty),
+        );
+      (ind1, ind2, BindingError);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
