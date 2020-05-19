@@ -1413,14 +1413,8 @@ h1 {
   padding: 5px;
   position: relative;
 }
-.history-entry-right {
-  float: right;
-  text-align: center;
-  position: absolute;
-  top: 5px;
-  right: 35px;
-}
-.history-entry-left{
+
+.history-entry-txt{
   width: 80%;
   float: left;
   height: 100%;
@@ -1463,8 +1457,12 @@ h1 {
 }
 
 .timestamp-txt{
-  color: white;
+  float: right;
   text-align: center;
+  position: absolute;
+  top: 5px;
+  right: 35px;
+  color: white;
 }
 .timestamp-txt span{
   visibility: hidden;
