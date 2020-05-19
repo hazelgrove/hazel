@@ -44,6 +44,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(CastDecoration, l) => [
         Node.div([Attr.classes(["CastDecoration"])], go(l)),
       ]
+    | Annot(FailedSubscriptDecoration, l) => [
+        Node.span([Attr.classes(["FailedSubscriptDecoration"])], go(l)),
+      ]
     };
   Node.div([Attr.classes(["code", "DHCode"])], go(l));
 };

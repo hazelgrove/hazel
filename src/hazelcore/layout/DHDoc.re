@@ -233,6 +233,7 @@ module Exp = {
     | EmptyHole(_)
     | Triv
     | FailedCast(_)
+    | FailedSubscript(_)
     | Lam(_) => precedence_const
     | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
@@ -464,6 +465,25 @@ module Exp = {
           hcats([d_doc, cast_decoration]);
         | FailedCast(_d, _ty1, _ty2) =>
           failwith("unexpected FailedCast without inner cast")
+        | FailedSubscript(Subscript(d1, d2, d3)) =>
+          switch (d1, d2, d3) {
+          | (StringLit(d1'), IntLit(d2'), IntLit(_))
+              when d2' < 0 || d2' >= String.length(d1') =>
+            let (d_doc, _) = go'(Subscript(d1, d2, d3));
+            let subscript_decoration =
+              Doc.text("Error: index out of bound")
+              |> annot(DHAnnot.FailedSubscriptDecoration);
+            hcats([d_doc, subscript_decoration]);
+          | (StringLit(d1'), IntLit(_), IntLit(d3'))
+              when d3' < 0 || d3' >= String.length(d1') =>
+            let (d_doc, _) = go'(Subscript(d1, d2, d3));
+            let subscript_decoration =
+              Doc.text("Error: index out of bound")
+              |> annot(DHAnnot.FailedSubscriptDecoration);
+            hcats([d_doc, subscript_decoration]);
+          | (_, _, _) => failwith("impossible")
+          }
+        | FailedSubscript(_) => failwith("impossible")
         /*
          let (d_doc, d_cast) as dcast_doc = go'(d);
          let cast_decoration =

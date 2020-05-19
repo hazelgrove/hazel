@@ -155,6 +155,7 @@ type t =
   | Subscript(t, t, t)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
+  | FailedSubscript(t)
 and rule =
   | Rule(DHPat.t, t);
 
@@ -187,6 +188,7 @@ let constructor_string = (d: t): string =>
   | Case(_, _, _) => "Case"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
+  | FailedSubscript(_) => "FailedSubscript"
   };
 
 let rec make_tuple: list(t) => t =
