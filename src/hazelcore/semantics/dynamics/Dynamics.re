@@ -2189,7 +2189,9 @@ module Evaluator = {
                 && n1 < String.length(s1)
                 && n2 >= 0
                 && n2 < String.length(s1)) {
-              BoxedValue(StringLit(String.sub(s1, n1, n2 - n1 + 1)));
+              BoxedValue(
+                StringLit(String.sub(s1, n1, max(0, n2 - n1 + 1))),
+              );
             } else {
               Indet(FailedSubscript(Subscript(s1', n1', n2')));
             }
