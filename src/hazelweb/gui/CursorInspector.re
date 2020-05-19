@@ -107,7 +107,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           shadow
             ? UnicodeConstants.warning ++ "shadowing previous variable, " : ""
         )
-        ++ (num_of_non_rec_uses == 0 ? UnicodeConstants.warning : "")
+        ++ (num_of_non_rec_uses == 0 ? UnicodeConstants.warning ++ " " : "")
         ++ (
           num_of_rec_uses == 0
             ? Int.to_string(num_of_non_rec_uses) ++ uses(num_of_non_rec_uses)
