@@ -98,7 +98,8 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
   let got_duplicate_indicator =
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
-  let got_var_indicator = (shadow, num_of_non_rec_uses, num_of_rec_uses) =>
+  let got_var_indicator = (shadow, num_of_non_rec_uses, num_of_rec_uses) => {
+    let uses = num_of_uses => num_of_uses == 1 ? " use" : " uses";
     got_indicator(
       "Got a variable ",
       special_msg_bar(
@@ -109,14 +110,18 @@ let view = (model: Model.t): Vdom.Node.t => {
         ++ (num_of_non_rec_uses == 0 ? UnicodeConstants.warning : "")
         ++ (
           num_of_rec_uses == 0
-            ? Int.to_string(num_of_non_rec_uses) ++ " uses"
+            ? Int.to_string(num_of_non_rec_uses) ++ uses(num_of_non_rec_uses)
             : Int.to_string(num_of_non_rec_uses)
-              ++ " non-recursive uses and "
+              ++ " non-recursive"
+              ++ uses(num_of_non_rec_uses)
+              ++ " and "
               ++ Int.to_string(num_of_rec_uses)
-              ++ " recursive uses"
+              ++ " recursive"
+              ++ uses(num_of_rec_uses)
         ),
       ),
     );
+  };
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let (ind1, ind2, err_state_b, warn_state_b) =
