@@ -1468,20 +1468,26 @@ h1 {
 .history-tab-icon {
   cursor: pointer;
   font-weight: bolder;
+  width: 25px;
+  height:20px;
+  padding-left: 5px;
+  padding-right: 5px;
   float: right;
+  font-size: 16px;
+}
+.history-tab-icon:hover{
+  border-radius: 40%;
+  color: white;
+  background-color: #073f24;
 }
 .entry-tab-icon {
   color: #558e62;
-  padding-right: 8px;
-  min-width: 13px;
 }
-
 
 .all-history-tab-icon {
   color: white;
   display: inline-block;
   vertical-align: middle;
-  min-width: 13px;
   float:right;
 }
 
@@ -1489,7 +1495,7 @@ h1 {
   float: right;
 }
 
-.history_button_bar {
+.history-button-bar {
   color: white;
   padding: 3px 5px 3px 3px;
   font-size: 10pt;
@@ -1499,7 +1505,6 @@ h1 {
 
 .history-button {
   vertical-align: middle;
-  margin-right: 10px;
   margin-left: 5px;
   display: inline-block;
   float: right;
