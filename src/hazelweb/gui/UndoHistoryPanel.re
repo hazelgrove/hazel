@@ -437,7 +437,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
       }
-    | MatchRule =>
+    | CaseRule =>
       Some(
         Vdom.(
           Node.span(
@@ -500,7 +500,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           undo_history_entry.cursor_term_info.cursor_term_after,
         ),
       )
-    | MatchRule => Some(Exp)
+    | CaseRule => Some(Exp)
     | Init => None
     };
   };
