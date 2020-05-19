@@ -1475,9 +1475,7 @@ h1 {
   padding-right: 8px;
   min-width: 13px;
 }
-.entry-tab-icon:hover {
-  color: #073f24;
-}
+
 
 .all-history-tab-icon {
   color: white;
@@ -1487,9 +1485,6 @@ h1 {
   float:right;
 }
 
-.all-history-tab-icon:hover{
-  color: #b30000;
-}
 .all-history-tab-icon-wrapper {
   float: right;
 }
@@ -1503,7 +1498,6 @@ h1 {
 }
 
 .history-button {
-  text-transform: uppercase;
   vertical-align: middle;
   margin-right: 10px;
   margin-left: 5px;
@@ -1512,9 +1506,6 @@ h1 {
   cursor: pointer;
 }
 
-.history-button:hover{
-  color: #b30000;
-}
 
 #history-panel .labeled-checkbox {
   display: grid;
@@ -1537,10 +1528,13 @@ h1 {
   display: inline-block;
   vertical-align: middle;
   font-weight: 1000;
-  margin-left: 5px;
-  margin-right: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
 }
-
+.redo-undo-icon:hover{
+  border-radius: 40%;
+  background-color: #073f24;
+}
 #preview_on_hover{
   display: inline-block;
   float: left;
