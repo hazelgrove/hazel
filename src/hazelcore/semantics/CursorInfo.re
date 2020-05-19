@@ -65,7 +65,7 @@ type typed =
         HTyp.t,
       )
   // cursor is on a keyword
-  | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
+  | PatAnaKeyword(HTyp.t, PatInvalidKeyword.t)
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -73,7 +73,7 @@ type typed =
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
-  | PatSynKeyword(ExpandingKeyword.t)
+  | PatSynKeyword(PatInvalidKeyword.t)
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
@@ -967,6 +967,7 @@ module Exp = {
       | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
+      | AssertLit(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
       | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -984,6 +985,7 @@ module Exp = {
       | FloatLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
+      | AssertLit(InHole(WrongLength, _))
       | Lam(InHole(WrongLength, _), _, _, _)
       | Inj(InHole(WrongLength, _), _, _)
       | Case(InHole(WrongLength, _), _, _, _)
@@ -992,6 +994,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
       | IntLit(NotInHole, _)
+      | AssertLit(NotInHole)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
       | ApPalette(NotInHole, _, _, _) =>

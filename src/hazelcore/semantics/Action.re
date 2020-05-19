@@ -770,7 +770,7 @@ module Pat = {
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHPat.var(
-          ~var_err=InVarHole(Keyword(k), u),
+          ~var_err=InVarHole(Keyword(Expanding(k)), u),
           k |> ExpandingKeyword.to_string,
         );
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
@@ -823,7 +823,8 @@ module Pat = {
       }
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
-      let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+      let var =
+        UHPat.var(~var_err=InVarHole(Keyword(Expanding(k)), u), text);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
       Succeeded((zp, ctx, u_gen));
     | Some(Var(x)) =>
@@ -3189,7 +3190,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+          AssertLit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3256,6 +3258,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+    | (Delete, CursorE(OnText(j), AssertLit(_))) =>
+      syn_delete_text(ctx, u_gen, j, "assert")
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
@@ -3264,6 +3268,8 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+    | (Backspace, CursorE(OnText(j), AssertLit(_))) =>
+      syn_backspace_text(ctx, u_gen, j, "assert")
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -4377,7 +4383,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+          AssertLit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -4462,6 +4469,8 @@ module Exp = {
       ana_delete_text(ctx, u_gen, j, f, ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Delete, CursorE(OnText(j), AssertLit(_))) =>
+      ana_delete_text(ctx, u_gen, j, "assert", ty)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -4471,6 +4480,8 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Backspace, CursorE(OnText(j), AssertLit(_))) =>
+      ana_backspace_text(ctx, u_gen, j, "assert", ty)
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>

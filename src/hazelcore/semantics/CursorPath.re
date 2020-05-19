@@ -914,6 +914,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | IntLit(_, _)
+      | AssertLit(_)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -1095,6 +1096,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | IntLit(_, _)
+      | AssertLit(_)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -1255,6 +1257,7 @@ module Exp = {
     | IntLit(err, _)
     | FloatLit(err, _)
     | BoolLit(err, _)
+    | AssertLit(err)
     | ListNil(err) => hs |> holes_err(err, rev_steps)
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
     | Inj(err, _, body) =>
@@ -1443,6 +1446,7 @@ module Exp = {
     | CursorE(_, IntLit(err, _))
     | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
+    | CursorE(_, AssertLit(err))
     | CursorE(_, ListNil(err)) =>
       switch (err) {
       | NotInHole => no_holes

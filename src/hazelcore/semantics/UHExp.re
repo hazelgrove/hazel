@@ -26,6 +26,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+  | AssertLit(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(ErrStatus.t, t, rules, option(UHTyp.t))
@@ -190,6 +191,7 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | AssertLit(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(err, _, _, _)
@@ -213,6 +215,7 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
+  | AssertLit(_) => AssertLit(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
@@ -246,6 +249,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | AssertLit(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -256,6 +260,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
+  | AssertLit(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -332,6 +337,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Var(NotInHole, NotInVarHole, _) => true
   | IntLit(InHole(_), _) => false
   | IntLit(NotInHole, _) => true
+  | AssertLit(InHole(_)) => false //not quite sure
+  | AssertLit(NotInHole) => true
   | FloatLit(InHole(_), _) => false
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false

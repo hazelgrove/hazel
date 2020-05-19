@@ -53,6 +53,8 @@ module Delim = {
   let list_nil = mk("[]");
   let triv = mk("()");
   let wild = mk("_");
+  let assert_lit = mk("assert");
+  let failed_assert = mk("failed_assert");
 
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
@@ -209,6 +211,8 @@ module Exp = {
     | IntLit(_)
     | FloatLit(_)
     | ListNil(_)
+    | AssertLit
+    | FailedAssert
     | Inj(_)
     | EmptyHole(_)
     | Triv
@@ -311,6 +315,8 @@ module Exp = {
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
         | BoundVar(x) => text(x)
         | Triv => Delim.triv
+        | AssertLit => Delim.assert_lit
+        | FailedAssert => Delim.failed_assert
         | BoolLit(b) => mk_BoolLit(b)
         | IntLit(n) => mk_IntLit(n)
         | FloatLit(f) => mk_FloatLit(f)

@@ -20,6 +20,8 @@ let check_valid = (s, result) =>
 
 let is_true = eq("true");
 
+let is_assert = eq("assert");
+
 let is_false = eq("false");
 
 let is_let = eq("let");

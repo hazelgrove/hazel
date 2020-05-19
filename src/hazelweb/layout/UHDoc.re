@@ -88,6 +88,8 @@ module Delim = {
   let open_Lam = (): t => mk(~index=2, ".{");
   let close_Lam = (): t => mk(~index=3, "}");
 
+  //let assertlit = (): t => mk(~index=0, "assert");
+
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
@@ -261,6 +263,9 @@ let mk_Var =
 
 let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
   mk_text(n) |> annot_Operand(~sort, ~err);
+
+let mk_AssertLit = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
+  mk_text("assert") |> annot_Operand(~sort, ~err);
 
 let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
   mk_text(f) |> annot_Operand(~sort, ~err);
@@ -718,6 +723,7 @@ module Exp = {
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Exp);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Exp);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
+  let mk_AssertLit: (~err: ErrStatus.t, unit) => t = mk_AssertLit(~sort=Exp);
   let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Exp);
   let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
     mk_Var(~sort=Exp);
@@ -837,6 +843,7 @@ module Exp = {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
+          | AssertLit(err) => mk_AssertLit(~err, ())
           | FloatLit(err, f) => mk_FloatLit(~err, f)
           | BoolLit(err, b) => mk_BoolLit(~err, b)
           | ListNil(err) => mk_ListNil(~err, ())
