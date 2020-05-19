@@ -1057,7 +1057,7 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
+    | BinOp(NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1421,7 +1421,8 @@ module Exp = {
       }
     | BinOp(
         _,
-        Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan | GreaterThan |
+        Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | LessThan |
+        GreaterThan |
         Equals |
         FLessThan |
         FGreaterThan |
@@ -1930,6 +1931,7 @@ module Evaluator = {
     | Minus => Some(IntLit(n1 - n2))
     | Plus => Some(IntLit(n1 + n2))
     | Times => Some(IntLit(n1 * n2))
+    | Divide => Some(IntLit(n1 / n2))
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))

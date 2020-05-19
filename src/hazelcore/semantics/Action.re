@@ -6,6 +6,7 @@ type operator_shape =
   | SMinus
   | SPlus
   | STimes
+  | SDivide
   | SLessThan
   | SGreaterThan
   | SEquals
@@ -75,6 +76,7 @@ module Typ = {
     | SMinus
     | SPlus
     | STimes
+    | SDivide
     | SAnd
     | SOr
     | SLessThan
@@ -689,6 +691,7 @@ module Pat = {
     | SMinus
     | SPlus
     | STimes
+    | SDivide
     | SLessThan
     | SGreaterThan
     | SEquals
@@ -1887,6 +1890,7 @@ module Exp = {
     | SPlus => Some(Plus)
     | SMinus => Some(Minus)
     | STimes => Some(Times)
+    | SDivide => Some(Divide)
     | SLessThan => Some(LessThan)
     | SGreaterThan => Some(GreaterThan)
     | SEquals => Some(Equals)
@@ -1904,6 +1908,7 @@ module Exp = {
     | Minus => Some(SMinus)
     | Plus => Some(SPlus)
     | Times => Some(STimes)
+    | Divide => Some(SDivide)
     | LessThan => Some(SLessThan)
     | GreaterThan => Some(SGreaterThan)
     | Equals => Some(SEquals)

@@ -6,6 +6,7 @@ module BinIntOp = {
     | Minus
     | Plus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals;
@@ -15,6 +16,7 @@ module BinIntOp = {
     | Minus => Some((Minus, Int))
     | Plus => Some((Plus, Int))
     | Times => Some((Times, Int))
+    | Divide => Some((Divide, Int))
     | LessThan => Some((LessThan, Bool))
     | GreaterThan => Some((GreaterThan, Bool))
     | Equals => Some((Equals, Bool))
@@ -36,6 +38,7 @@ module BinIntOp = {
     | Minus => Minus
     | Plus => Plus
     | Times => Times
+    | Divide => Divide
     | LessThan => LessThan
     | GreaterThan => GreaterThan
     | Equals => Equals
@@ -63,6 +66,7 @@ module BinFloatOp = {
     | Plus
     | Minus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals

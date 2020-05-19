@@ -871,7 +871,7 @@ module Exp = {
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
-    | BinOp(NotInHole, Minus | Plus | Times, skel1, skel2) =>
+    | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
       | None => None
       | Some(_) =>
@@ -1072,7 +1072,8 @@ module Exp = {
     | BinOp(InHole(TypeInconsistent, _), _, _, _)
     | BinOp(
         NotInHole,
-        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
@@ -1257,7 +1258,7 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          Plus | Minus | Times | LessThan | GreaterThan,
+          Plus | Minus | Times | Divide | LessThan | GreaterThan,
           skel1,
           skel2,
         ) =>
@@ -1350,7 +1351,8 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+          And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |
@@ -1486,7 +1488,7 @@ module Exp = {
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en);
       let seq = seq |> Seq.update_nth_operand(n, en);
       (skel, seq, ty, u_gen);
-    | BinOp(_, (Minus | Plus | Times) as op, skel1, skel2) =>
+    | BinOp(_, (Minus | Plus | Times | Divide) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -2045,7 +2047,8 @@ module Exp = {
       }
     | BinOp(
         _,
-        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
