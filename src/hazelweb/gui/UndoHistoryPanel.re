@@ -506,36 +506,50 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Init => None
     };
   };
+
   let history_entry_tab_icon =
-      (group_id: int, has_hidden_part: bool, is_expanded: bool) => {
-    let icon =
-      if (is_expanded) {
-        Icons.down_arrow(["entry-tab-icon", "history-tab-icon"]);
-      } else {
-        Icons.left_arrow(["entry-tab-icon", "history-tab-icon"]);
-      };
+      (group_id: int, has_hidden_part: bool, is_expanded: bool) =>
     if (has_hidden_part) {
       /* expand icon*/
-      Vdom.(
-        Node.div(
-          [
-            Attr.on_click(_ =>
-              Vdom.Event.Many([
-                Event.Prevent_default,
-                Event.Stop_propagation,
-                inject(Update.Action.ToggleHistoryGroup(group_id)),
-                inject(FocusCell),
-              ])
-            ),
-          ],
-          [icon],
-        )
-      );
+      if (is_expanded) {
+        Vdom.(
+          Node.div(
+            [
+              Attr.on_click(_ =>
+                Vdom.Event.Many([
+                  Event.Prevent_default,
+                  Event.Stop_propagation,
+                  inject(Update.Action.ToggleHistoryGroup(group_id)),
+                  inject(FocusCell),
+                ])
+              ),
+              Attr.create("title", "Collapse Group"),
+            ],
+            [Icons.down_arrow(["entry-tab-icon", "history-tab-icon"])],
+          )
+        );
+      } else {
+        Vdom.(
+          Node.div(
+            [
+              Attr.on_click(_ =>
+                Vdom.Event.Many([
+                  Event.Prevent_default,
+                  Event.Stop_propagation,
+                  inject(Update.Action.ToggleHistoryGroup(group_id)),
+                  inject(FocusCell),
+                ])
+              ),
+              Attr.create("title", "Expand Group"),
+            ],
+            [Icons.left_arrow(["entry-tab-icon", "history-tab-icon"])],
+          )
+        );
+      };
     } else {
       /* no expand icon if there is no hidden part */
       Vdom.(Node.div([], []));
     };
-  };
   let timestamp_view = (undo_history_entry: undo_history_entry) => {
     let hour = Unix.localtime(undo_history_entry.timestamp).tm_hour;
     /* if there is only 1 digit in sec/min/hour, it should be expanded into two digits */
@@ -1004,28 +1018,40 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let expand_button = (all_hidden_history_expand: bool) => {
-    let icon =
-      if (all_hidden_history_expand) {
-        Icons.down_arrow(["all-history-tab-icon", "history-tab-icon"]);
-      } else {
-        Icons.left_arrow(["all-history-tab-icon", "history-tab-icon"]);
-      };
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([
-              inject(Update.Action.ToggleHiddenHistoryAll),
-              inject(FocusCell),
-            ])
-          ),
-        ],
-        [icon],
-      )
-    );
-  };
+  let expand_button = (all_hidden_history_expand: bool) =>
+    if (all_hidden_history_expand) {
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                inject(Update.Action.ToggleHiddenHistoryAll),
+                inject(FocusCell),
+              ])
+            ),
+            Attr.create("title", "Collapse Groups"),
+          ],
+          [Icons.down_arrow(["all-history-tab-icon", "history-tab-icon"])],
+        )
+      );
+    } else {
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                inject(Update.Action.ToggleHiddenHistoryAll),
+                inject(FocusCell),
+              ])
+            ),
+            Attr.create("title", "Expand Groups"),
+          ],
+          [Icons.left_arrow(["all-history-tab-icon", "history-tab-icon"])],
+        )
+      );
+    };
 
   let preview_on_hover_checkbox = (preview_on_hover: bool) => {
     labeled_checkbox(
