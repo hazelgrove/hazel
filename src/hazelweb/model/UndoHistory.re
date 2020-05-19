@@ -16,7 +16,7 @@ type edit_action =
   | Var(var_edit)
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
-  | MatchRule
+  | CaseRule
   | Init;
 
 type cursor_term_info = {
@@ -119,8 +119,8 @@ let caret_jump =
 let group_edit_action =
     (edit_action_prev: edit_action, edit_action_next: edit_action): bool =>
   switch (edit_action_prev, edit_action_next) {
-  | (MatchRule, MatchRule) => true
-  | (MatchRule, _) => false
+  | (CaseRule, CaseRule) => true
+  | (CaseRule, _) => false
   | (Var(_), Var(_)) => true
   | (Var(_), DeleteEdit(delete_edit)) =>
     switch (delete_edit) {
@@ -623,7 +623,7 @@ let get_new_edit_action =
             | None => Some(ConstructEdit(shape))
             | Some(zrules_after) =>
               if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
-                Some(MatchRule);
+                Some(CaseRule);
               } else {
                 Some(ConstructEdit(shape));
               }
