@@ -755,20 +755,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Node.div(
                   [],
                   [
+                    history_typ_tag_view(undo_history_entry),
                     Node.div(
                       [Attr.classes(["history-entry-left"])],
-                      [history_typ_tag_view(undo_history_entry), txt_view],
+                      [txt_view],
                     ),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
-                      [
-                        timestamp_view(undo_history_entry),
-                        history_entry_tab_icon(
-                          group_id,
-                          has_hidden_part,
-                          is_expanded,
-                        ),
-                      ],
+                      [timestamp_view(undo_history_entry)],
+                    ),
+                    history_entry_tab_icon(
+                      group_id,
+                      has_hidden_part,
+                      is_expanded,
                     ),
                   ],
                 ),

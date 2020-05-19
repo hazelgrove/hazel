@@ -1411,17 +1411,18 @@ h1 {
   width: 100%;
   display: grid; 
   padding: 5px;
+  position: relative;
 }
 .history-entry-right {
-  width: 30%;
   float: right;
   text-align: center;
-  display:contents;
+  position: absolute;
+  top: 5px;
+  right: 35px;
 }
 .history-entry-left{
-  width: 70%;
+  width: 80%;
   float: left;
-  position: relative;
   height: 100%;
 }
 .hidden-history-entry {
@@ -1462,14 +1463,14 @@ h1 {
 }
 
 .timestamp-txt{
-  color: black;
-  float: left;
-  background-color: gray;
-  padding: 1px;
-  border-radius: 5px;
+  color: white;
+  text-align: center;
 }
 .timestamp-txt span{
   visibility: hidden;
+  background-color: gray;
+  padding: 0px 3px 0px 3px;
+  border-radius: 5px;
 }
 .timestamp-txt:hover span{
   visibility: visible;
@@ -1479,7 +1480,7 @@ h1 {
   cursor: pointer;
   font-weight: bolder;
   width: 25px;
-  height:20px;
+  height: 20px;
   padding-left: 5px;
   padding-right: 5px;
   float: right;
