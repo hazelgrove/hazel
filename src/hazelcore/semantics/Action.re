@@ -752,10 +752,7 @@ module Pat = {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
       } else {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHPat.var(~var_err=InVarHole(Invalid, u), text);
-        let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-        Succeeded((zp, HTyp.Hole, ctx, u_gen));
+        Failed;
       }
     | Underscore =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
@@ -806,10 +803,7 @@ module Pat = {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
       } else {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHPat.var(~var_err=InVarHole(Invalid, u), text);
-        let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-        Succeeded((zp, ctx, u_gen));
+        Failed;
       }
     | Underscore =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
@@ -2190,10 +2184,7 @@ module Exp = {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHExp.var(~var_err=InVarHole(Invalid, u), text);
-        let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-        Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+        Failed;
       }
     | IntLit(n) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
@@ -2254,10 +2245,7 @@ module Exp = {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
       } else {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHExp.var(~var_err=InVarHole(Invalid, u), text);
-        let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-        Succeeded(AnaDone((ze, u_gen)));
+        Failed;
       }
     | ExpandingKeyword(k) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;

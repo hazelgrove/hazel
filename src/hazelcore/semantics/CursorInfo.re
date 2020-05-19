@@ -685,8 +685,6 @@ module Exp = {
             Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
           | Some((_, InVarHole(Keyword(k), _))) =>
             Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
-          | Some((_, InVarHole(Invalid, _))) =>
-            Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
           | Some((NotInHole, NotInVarHole)) =>
             switch (
               Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
@@ -745,8 +743,6 @@ module Exp = {
     | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
       Some(mk(SynKeyword(k), ctx))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
-    | CursorE(_, Var(_, InVarHole(Invalid, _), _)) =>
-      Some(mk(SynInvalid, ctx))
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
@@ -972,7 +968,6 @@ module Exp = {
       | Var(_, InVarHole(Keyword(k), _), _) =>
         Some(mk(AnaKeyword(ty, k), ctx))
       | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty), ctx))
-      | Var(_, InVarHole(Invalid, _), _) => Some(mk(AnaInvalid(ty), ctx))
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)

@@ -4,8 +4,7 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | Free
-    | Keyword(ExpandingKeyword.t)
-    | Invalid;
+    | Keyword(ExpandingKeyword.t);
 };
 
 /* Variable: var_err */

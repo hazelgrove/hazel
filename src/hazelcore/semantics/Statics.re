@@ -104,7 +104,6 @@ module Pat = {
     | Wild(NotInHole) => Some((Hole, ctx))
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
-    | Var(NotInHole, InVarHole(Invalid, _), _) => Some((Hole, ctx))
     | Var(NotInHole, NotInVarHole, x) =>
       Var.check_valid(
         x,
@@ -209,7 +208,6 @@ module Pat = {
     /* not in hole */
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
-    | Var(NotInHole, InVarHole(Invalid, _), _) => Some(ctx)
     | Var(NotInHole, NotInVarHole, x) =>
       Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
     | Wild(NotInHole) => Some(ctx)
@@ -457,7 +455,6 @@ module Pat = {
     | Wild(_) => (operand_nih, Hole, ctx, u_gen)
     | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
-    | Var(_, InVarHole(Invalid, _), _) => (operand_nih, Hole, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       (operand_nih, Hole, ctx, u_gen);
@@ -725,7 +722,6 @@ module Pat = {
     | Wild(_) => (operand_nih, ctx, u_gen)
     | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
-    | Var(_, InVarHole(Invalid, _), _) => (operand_nih, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       (operand_nih, ctx, u_gen);
