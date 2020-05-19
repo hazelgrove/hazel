@@ -739,10 +739,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Node.div(
                   [],
                   [
-                    history_typ_tag_view(undo_history_entry),
                     Node.div(
                       [Attr.classes(["history-entry-left"])],
-                      [txt_view],
+                      [history_typ_tag_view(undo_history_entry), txt_view],
                     ),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
@@ -881,10 +880,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Node.div(
                   [Attr.classes(["hidden-history-entry"])],
                   [
-                    history_typ_tag_view(undo_history_entry),
                     Node.div(
                       [Attr.classes(["history-entry-left"])],
-                      [Node.span([], [txt_view])],
+                      [
+                        history_typ_tag_view(undo_history_entry),
+                        Node.span([], [txt_view]),
+                      ],
                     ),
                     Node.div(
                       [Attr.classes(["history-entry-right"])],
