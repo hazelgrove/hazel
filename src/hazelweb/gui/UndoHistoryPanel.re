@@ -757,13 +757,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [
                     history_typ_tag_view(undo_history_entry),
                     Node.div(
-                      [Attr.classes(["history-entry-left"])],
+                      [Attr.classes(["history-entry-txt"])],
                       [txt_view],
                     ),
-                    Node.div(
-                      [Attr.classes(["history-entry-right"])],
-                      [timestamp_view(undo_history_entry)],
-                    ),
+                    timestamp_view(undo_history_entry),
                     history_entry_tab_icon(
                       group_id,
                       has_hidden_part,
@@ -896,16 +893,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [Attr.classes(["hidden-history-entry"])],
                   [
                     Node.div(
-                      [Attr.classes(["history-entry-left"])],
+                      [Attr.classes(["history-entry-txt"])],
                       [
                         history_typ_tag_view(undo_history_entry),
                         Node.span([], [txt_view]),
                       ],
                     ),
-                    Node.div(
-                      [Attr.classes(["history-entry-right"])],
-                      [timestamp_view(undo_history_entry)],
-                    ),
+                    timestamp_view(undo_history_entry),
                   ],
                 ),
               ],
