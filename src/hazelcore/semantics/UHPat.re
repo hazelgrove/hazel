@@ -155,9 +155,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidVar(x) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (var(~var_err=InVarHole(Invalid, u), x), u_gen);
+  | InvalidVar(_) => failwith("unimplemented")
   };
 
 let associate = (seq: seq) => {
