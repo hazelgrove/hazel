@@ -10,4 +10,5 @@ type t =
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
   | FailedCastDelim
   | FailedCastDecoration
-  | CastDecoration;
+  | CastDecoration
+  | FailedSubscriptDecoration;
