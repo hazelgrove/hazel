@@ -1475,12 +1475,20 @@ h1 {
   padding-right: 8px;
   min-width: 13px;
 }
+.entry-tab-icon:hover {
+  color: #073f24;
+}
+
 .all-history-tab-icon {
   color: white;
   display: inline-block;
   vertical-align: middle;
   min-width: 13px;
   float:right;
+}
+
+.all-history-tab-icon:hover{
+  color: #b30000;
 }
 .all-history-tab-icon-wrapper {
   float: right;
