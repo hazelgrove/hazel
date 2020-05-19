@@ -16,9 +16,9 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
-  --err-hole-color: red;
-  --verr-hole-color: #ce5f00;
-  --vwarn-hole-color: #ce5fff;
+  --err-hole-color: #8e0000;
+  --verr-hole-color: #8e0000;
+  --vwarn-hole-color: #ce5f00;
 
   --default-code-bg-color: transparent;
   --caret-color: red;
