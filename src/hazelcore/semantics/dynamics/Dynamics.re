@@ -1075,7 +1075,12 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
+    | BinOp(
+        NotInHole,
+        (FPlus | FMinus | FTimes | FDivide) as op,
+        skel1,
+        skel2,
+      )
     | BinOp(
         NotInHole,
         (FLessThan | FGreaterThan | FEquals) as op,
@@ -1421,7 +1426,8 @@ module Exp = {
       }
     | BinOp(
         _,
-        Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | LessThan |
+        Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
@@ -1944,6 +1950,7 @@ module Evaluator = {
     | FPlus => Some(FloatLit(f1 +. f2))
     | FMinus => Some(FloatLit(f1 -. f2))
     | FTimes => Some(FloatLit(f1 *. f2))
+    | FDivide => Some(FloatLit(f1 /. f2))
     | FLessThan => Some(BoolLit(f1 < f2))
     | FGreaterThan => Some(BoolLit(f1 > f2))
     | FEquals => Some(BoolLit(f1 == f2))

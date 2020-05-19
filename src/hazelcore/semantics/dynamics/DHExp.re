@@ -23,6 +23,7 @@ module BinIntOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals
@@ -51,6 +52,7 @@ module BinFloatOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals;
@@ -60,6 +62,7 @@ module BinFloatOp = {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
     | FTimes => Some((FTimes, Float))
+    | FDivide => Some((FDivide, Float))
     | FLessThan => Some((FLessThan, Bool))
     | FGreaterThan => Some((FGreaterThan, Bool))
     | FEquals => Some((FEquals, Bool))
@@ -82,6 +85,7 @@ module BinFloatOp = {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
+    | FDivide => FDivide
     | FLessThan => FLessThan
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals

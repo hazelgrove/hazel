@@ -195,6 +195,7 @@ module Exp = {
   let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
     switch (bfo) {
     | FTimes => precedence_Times
+    | FDivide => precedence_Divide
     | FPlus => precedence_Plus
     | FMinus => precedence_Minus
     | FEquals => precedence_Equals
@@ -250,6 +251,7 @@ module Exp = {
       | FMinus => "-."
       | FPlus => "+."
       | FTimes => "*."
+      | FDivide => "/."
       | FLessThan => "<."
       | FGreaterThan => ">."
       | FEquals => "==."

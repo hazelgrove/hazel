@@ -643,7 +643,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          FMinus | FPlus | FTimes | FLessThan | FGreaterThan | FEquals,
+          FMinus | FPlus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
           skel1,
           skel2,
         ) =>
@@ -931,7 +932,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | LessThan |
+          Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |

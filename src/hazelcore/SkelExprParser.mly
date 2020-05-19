@@ -24,6 +24,7 @@
 %token FPLUS
 %token FMINUS
 %token FTIMES
+%token FDIVIDE
 %token SPACEOP
 %token EOF
 
@@ -44,6 +45,7 @@
 %left FPLUS
 %left FMINUS
 %left FTIMES
+%left FDIVIDE
 %left SPACEOP
 
 %start <Operators.Exp.t Skel.t> skel_expr
@@ -143,6 +145,11 @@ expr:
     Skel.BinOp(
       NotInHole,
       Operators.Exp.FTimes,
+      e1, e2) }
+  | e1 = expr; FDIVIDE; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      Operators.Exp.FDivide,
       e1, e2) }
   | e1 = expr; SPACEOP; e2 = expr {
     Skel.BinOp(
