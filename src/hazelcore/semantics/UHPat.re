@@ -155,7 +155,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidVar(_) => failwith("unimplemented")
+  | InvalidText(_) => failwith("unimplemented")
   };
 
 let associate = (seq: seq) => {
