@@ -2185,9 +2185,9 @@ module Evaluator = {
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(IntLit(n2) as n2') =>
-            if (n1 > 0
+            if (n1 >= 0
                 && n1 < String.length(s1)
-                && n2 > 0
+                && n2 >= 0
                 && n2 < String.length(s1)) {
               BoxedValue(StringLit(String.sub(s1, n1, n2 - n1 + 1)));
             } else {
