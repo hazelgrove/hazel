@@ -979,7 +979,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let undo_button = is_mac => {
     let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
-    JSUtil.log(title);
     Vdom.(
       Node.div(
         [
