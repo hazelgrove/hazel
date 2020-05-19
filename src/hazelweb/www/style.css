@@ -1413,11 +1413,11 @@ h1 {
   display:contents;
 }
 .history-entry-left{
-  width: 60%;
+  width: 70%;
   float: left;
 }
 .hidden-history-entry {
-  padding-left: 20px;
+  padding-left: 10px;
 }
 
 .history-type-tag{
