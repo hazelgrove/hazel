@@ -1066,7 +1066,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       (preview_on_hover: bool, all_hidden_history_expand: bool, is_mac: bool) =>
     Vdom.(
       Node.div(
-        [Attr.classes(["history_button_bar"])],
+        [Attr.classes(["history-button-bar"])],
         [
           preview_on_hover_checkbox(preview_on_hover),
           expand_button(all_hidden_history_expand),
