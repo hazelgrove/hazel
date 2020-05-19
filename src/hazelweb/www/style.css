@@ -1526,7 +1526,13 @@ h1 {
 #preview_on_hover_checkbox{
   margin-left: 0px;
 }
-
+.horizontal-flip {
+  -moz-transform: scale(-1, 1);
+  -webkit-transform: scale(-1, 1);
+  -o-transform: scale(-1, 1);
+  -ms-transform: scale(-1, 1);
+  transform: scale(-1, 1);
+}
 .redo-undo-icon {
   display: inline-block;
   vertical-align: middle;

@@ -2,8 +2,9 @@ open Sexplib.Std;
 
 type cursor_term = CursorInfo.cursor_term;
 
+type start_from_insertion = bool;
 type delete_edit =
-  | Term(cursor_term)
+  | Term(cursor_term, start_from_insertion)
   | Space
   | EmptyLine
   | TypeAnn;
@@ -124,7 +125,7 @@ let group_edit_action =
   | (Var(_), Var(_)) => true
   | (Var(_), DeleteEdit(delete_edit)) =>
     switch (delete_edit) {
-    | Term(_) => true
+    | Term(_, _) => true
     | Space
     | EmptyLine
     | TypeAnn => false
@@ -140,7 +141,7 @@ let group_edit_action =
     switch (delete_edit_1, delete_edit_2) {
     | (Space, Space)
     | (EmptyLine, EmptyLine) => true
-    | (Term(term_1), Term(term_2)) =>
+    | (Term(term_1, _), Term(term_2, _)) =>
       switch (term_1, term_2) {
       | (Rule(_, _), Rule(_, _)) => true
       | _ => false
@@ -178,7 +179,7 @@ let group_entry =
       switch (delete_edit_1, delete_edit_2) {
       | (Space, Space)
       | (EmptyLine, EmptyLine) => true
-      | (Term(term_1), Term(term_2)) =>
+      | (Term(term_1, _), Term(term_2, _)) =>
         switch (term_1, term_2) {
         | (Rule(_, _), Rule(_, _)) => true
         | _ => false
@@ -284,25 +285,28 @@ let get_initial_entry_in_group =
   };
 };
 
-let get_deleted_term =
+let get_delete_edit_action =
     (
       prev_group: undo_history_group,
       new_cardstacks_before: Cardstacks.t,
       new_cursor_term_info: cursor_term_info,
     )
-    : cursor_term =>
+    : edit_action =>
   if (group_entry(
         ~prev_group,
         ~new_cardstacks_before,
         ~new_edit_action=
-          DeleteEdit(Term(new_cursor_term_info.cursor_term_before)),
+          DeleteEdit(Term(new_cursor_term_info.cursor_term_before, true)),
       )) {
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     if (prev_entry.edit_action == Var(Edit)) {
       switch (get_initial_entry_in_group(prev_group)) {
-      | None => new_cursor_term_info.cursor_term_before
+      | None =>
+        DeleteEdit(Term(new_cursor_term_info.cursor_term_before, false))
       | Some(initial_entry) =>
-        initial_entry.cursor_term_info.cursor_term_before
+        DeleteEdit(
+          Term(initial_entry.cursor_term_info.cursor_term_before, false),
+        )
       };
     } else if (prev_entry.edit_action == Var(Insert)) {
       let rec max_len_term =
@@ -368,18 +372,23 @@ let get_deleted_term =
           max_len_term(tail, larger_term);
         };
       };
-      max_len_term(
-        [
-          ZList.prj_z(prev_group.group_entries),
-          ...ZList.prj_suffix(prev_group.group_entries),
-        ],
-        new_cursor_term_info.cursor_term_before,
+      DeleteEdit(
+        Term(
+          max_len_term(
+            [
+              ZList.prj_z(prev_group.group_entries),
+              ...ZList.prj_suffix(prev_group.group_entries),
+            ],
+            new_cursor_term_info.cursor_term_before,
+          ),
+          true,
+        ),
       );
     } else {
-      new_cursor_term_info.cursor_term_before;
+      DeleteEdit(Term(new_cursor_term_info.cursor_term_before, false));
     };
   } else {
-    new_cursor_term_info.cursor_term_before;
+    DeleteEdit(Term(new_cursor_term_info.cursor_term_before, false));
   };
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
@@ -413,13 +422,13 @@ let delete_edit =
                )
                || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
       /* delete the whole term */
-      let initial_term =
-        get_deleted_term(
+      Some(
+        get_delete_edit_action(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
-        );
-      Some(DeleteEdit(Term(initial_term)));
+        ),
+      );
     } else {
       let prev_entry = ZList.prj_z(prev_group.group_entries);
       if (!caret_jump(prev_group, new_cardstacks_before)
@@ -490,13 +499,13 @@ let delete =
         );
       } else {
         /* delete the whole term */
-        let initial_term =
-          get_deleted_term(
+        Some(
+          get_delete_edit_action(
             prev_group,
             new_cardstacks_before,
             new_cursor_term_info,
-          );
-        Some(DeleteEdit(Term(initial_term)));
+          ),
+        );
       }
     | After =>
       delim_edge_handle(
@@ -508,13 +517,13 @@ let delete =
     switch (side) {
     | Before =>
       /* delete and reach a hole */
-      let initial_term =
-        get_deleted_term(
+      Some(
+        get_delete_edit_action(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
-        );
-      Some(DeleteEdit(Term(initial_term)));
+        ),
+      )
     | After =>
       /* move cursor to next term, just ignore this move */
       None
@@ -564,13 +573,13 @@ let backspace =
         );
       } else {
         /* delete the whole term */
-        let initial_term =
-          get_deleted_term(
+        Some(
+          get_delete_edit_action(
             prev_group,
             new_cardstacks_before,
             new_cursor_term_info,
-          );
-        Some(DeleteEdit(Term(initial_term)));
+          ),
+        );
       }
     }
   | OnOp(side) =>
@@ -580,13 +589,13 @@ let backspace =
       None
     | After =>
       /* delete and reach a hole */
-      let initial_term =
-        get_deleted_term(
+      Some(
+        get_delete_edit_action(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
-        );
-      Some(DeleteEdit(Term(initial_term)));
+        ),
+      )
     }
   };
 };

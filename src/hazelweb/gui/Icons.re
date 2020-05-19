@@ -11,5 +11,3 @@ let down_arrow = (classes: list(string)): Vdom.Node.t =>
   arrow(classes, UnicodeConstants.down_triangle);
 let undo = (classes: list(string)): Vdom.Node.t =>
   arrow(classes, UnicodeConstants.undo);
-let redo = (classes: list(string)): Vdom.Node.t =>
-  arrow(classes, UnicodeConstants.redo);
