@@ -698,6 +698,7 @@ module Exp = {
     fun
     | Space
     | Times
+    | Divide
     | FTimes
     | Cons => (empty_, empty_)
     | Plus

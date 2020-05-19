@@ -51,6 +51,7 @@ module Exp = {
     | Plus
     | Minus
     | Times
+    | Divide
     | FPlus
     | FMinus
     | FTimes
@@ -71,6 +72,7 @@ module Exp = {
     | Plus => "+"
     | Minus => "-"
     | Times => "*"
+    | Divide => "/"
     | FPlus => "+."
     | FMinus => "-."
     | FTimes => "*."

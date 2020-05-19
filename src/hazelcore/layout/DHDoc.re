@@ -8,6 +8,7 @@ type formattable_child = (~enforce_inline: bool) => t;
 let precedence_const = 0;
 let precedence_Ap = 1;
 let precedence_Times = 2;
+let precedence_Divide = 2;
 let precedence_Plus = 3;
 let precedence_Minus = 3;
 let precedence_Cons = 4;
@@ -184,6 +185,7 @@ module Exp = {
   let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
     switch (bio) {
     | Times => precedence_Times
+    | Divide => precedence_Divide
     | Plus => precedence_Plus
     | Minus => precedence_Minus
     | Equals => precedence_Equals
@@ -235,6 +237,7 @@ module Exp = {
       | Minus => "-"
       | Plus => "+"
       | Times => "*"
+      | Divide => "/"
       | LessThan => "<"
       | GreaterThan => ">"
       | Equals => "=="
