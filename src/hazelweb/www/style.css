@@ -1406,6 +1406,12 @@ h1 {
   display: grid; 
   padding: 5px;
 }
+.history-entry {
+  border: 1px outset #ffffff;
+  width: 100%;
+  display: grid; 
+  padding: 5px;
+}
 .history-entry-right {
   width: 30%;
   float: right;
@@ -1415,6 +1421,8 @@ h1 {
 .history-entry-left{
   width: 70%;
   float: left;
+  position: relative;
+  height: 100%;
 }
 .hidden-history-entry {
   padding-left: 10px;
@@ -1456,7 +1464,9 @@ h1 {
 .timestamp-txt{
   color: black;
   float: left;
-  padding-left: 10px;
+  background-color: gray;
+  padding: 1px;
+  border-radius: 5px;
 }
 .timestamp-txt span{
   visibility: hidden;
