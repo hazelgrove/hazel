@@ -488,7 +488,6 @@ module Exp = {
       let d4 = subst_var(d1, x, d4);
       Ap(d3, d4);
     | Subscript(d3, d4, d5) =>
-      print_endline("Dynamics451");
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       let d5 = subst_var(d1, x, d5);
@@ -607,10 +606,8 @@ module Exp = {
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
     | (_, Subscript(_, _, _)) =>
-      print_endline("Dynamics566");
       Indet;
     | (_, BinIntOp(_, _, _) | BinStrOp(_, _, _) | And(_, _) | Or(_, _)) =>
-      print_endline("Dynamics569");
       Indet;
     | (_, BinFloatOp(_, _, _)) => Indet
     | (_, Case(_, _, _)) => Indet
@@ -642,20 +639,16 @@ module Exp = {
     | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
     | (FloatLit(_), _) => DoesNotMatch
     | (StringLit(n1), StringLit(n2)) =>
-      print_endline("Dynamics598");
       if (n1 == n2) {
         Matches(Environment.empty);
       } else {
         DoesNotMatch;
       };
     | (StringLit(_), Cast(d, String, Hole)) =>
-      print_endline("Dynamics605");
       matches(dp, d);
     | (StringLit(_), Cast(d, Hole, String)) =>
-      print_endline("Dynamics608");
       matches(dp, d);
     | (StringLit(_), _) =>
-      print_endline("Dynamics611");
       DoesNotMatch;
     | (Inj(side1, dp), Inj(_, side2, d)) =>
       switch (side1, side2) {
@@ -759,7 +752,6 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Subscript(_, _, _) =>
-      print_endline("Dynamics699");
       DoesNotMatch;
     | Ap(_, _) => Indet
     | BinIntOp(_, _, _)
@@ -767,13 +759,11 @@ module Exp = {
     | BinStrOp(_, _, _)
     | And(_, _)
     | Or(_, _) =>
-      print_endline("Dynamics714");
       Indet;
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
     | StringLit(_) =>
-      print_endline("Dynamics720");
       DoesNotMatch;
     | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
@@ -827,7 +817,6 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Subscript(_, _, _) =>
-      print_endline("Dynamics760");
       DoesNotMatch;
     | Ap(_, _) => Indet
     | BinIntOp(_, _, _)
@@ -835,7 +824,6 @@ module Exp = {
     | BinStrOp(_, _, _)
     | And(_, _)
     | Or(_, _) =>
-      print_endline("Dynamics782");
       Indet;
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
@@ -899,7 +887,6 @@ module Exp = {
     | BinStrOp(_, _, _)
     | And(_, _)
     | Or(_, _) =>
-      print_endline("Dynamics845");
       Indet;
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
