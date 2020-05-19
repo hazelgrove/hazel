@@ -421,8 +421,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         );
 
-      | Insert
-      | DeleteInsert =>
+      | Insert =>
         Some(
           Vdom.(
             Node.span(
@@ -978,6 +977,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Attr.on_click(_ =>
             Vdom.Event.Many([inject(Update.Action.Undo), inject(FocusCell)])
           ),
+          Attr.create("title", title),
         ],
         [Icons.undo(["redo-undo-icon"])],
       )
@@ -987,7 +987,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let redo_button = is_mac => {
     let title =
       if (is_mac) {"Undo (Cmd+Shift+Z)"} else {"Undo (Ctrl+Shift+Z)"};
-    JSUtil.log(title);
     Vdom.(
       Node.div(
         [
@@ -995,6 +994,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Attr.on_click(_ =>
             Vdom.Event.Many([inject(Update.Action.Redo), inject(FocusCell)])
           ),
+          Attr.create("title", title),
         ],
         [Icons.redo(["redo-undo-icon"])],
       )

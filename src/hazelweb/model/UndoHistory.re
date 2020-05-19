@@ -10,7 +10,6 @@ type delete_edit =
 
 type var_edit =
   | Insert
-  | DeleteInsert
   | Edit;
 
 type edit_action =
@@ -277,7 +276,15 @@ let comp_len_larger =
     cursor_term_1;
   };
 
-let get_original_deleted_term =
+let get_initial_entry_in_group =
+    (undo_history_group: undo_history_group): option(undo_history_entry) => {
+  switch (List.rev(ZList.join(undo_history_group.group_entries))) {
+  | [] => None
+  | [head, ..._] => Some(head)
+  };
+};
+
+let get_deleted_term =
     (
       prev_group: undo_history_group,
       new_cardstacks_before: Cardstacks.t,
@@ -290,77 +297,90 @@ let get_original_deleted_term =
         ~new_edit_action=
           DeleteEdit(Term(new_cursor_term_info.cursor_term_before)),
       )) {
-    let rec max_len_term =
-            (ls: list(undo_history_entry), cursor_term: cursor_term)
-            : cursor_term => {
-      switch (ls) {
-      | [] => cursor_term
-      | [elt] =>
-        switch (
-          elt.cursor_term_info.cursor_term_before,
-          elt.cursor_term_info.cursor_term_after,
-        ) {
-        | (Exp(_, exp_1), Exp(_, exp_2)) =>
-          switch (exp_1, exp_2) {
-          | (Var(_, _, _), Var(_, _, _))
-          | (IntLit(_, _), IntLit(_, _))
-          | (FloatLit(_, _), FloatLit(_, _))
-          | (BoolLit(_, _), BoolLit(_, _)) =>
-            comp_len_larger(
-              cursor_term,
-              comp_len_larger(
-                elt.cursor_term_info.cursor_term_after,
-                elt.cursor_term_info.cursor_term_before,
-              ),
-            )
-          | _ =>
-            comp_len_larger(
-              cursor_term,
-              elt.cursor_term_info.cursor_term_after,
-            )
-          }
-        | (Pat(_, pat_1), Pat(_, pat_2)) =>
-          switch (pat_1, pat_2) {
-          | (Var(_, _, _), Var(_, _, _))
-          | (IntLit(_, _), IntLit(_, _))
-          | (FloatLit(_, _), FloatLit(_, _))
-          | (BoolLit(_, _), BoolLit(_, _)) =>
-            comp_len_larger(
-              cursor_term,
-              comp_len_larger(
-                elt.cursor_term_info.cursor_term_after,
-                elt.cursor_term_info.cursor_term_before,
-              ),
-            )
-          | _ =>
-            comp_len_larger(
-              cursor_term,
-              elt.cursor_term_info.cursor_term_after,
-            )
-          }
-        | _ =>
-          comp_len_larger(cursor_term, elt.cursor_term_info.cursor_term_after)
-        }
-      | [head, ...tail] =>
-        let larger_term =
-          comp_len_larger(
-            cursor_term,
-            head.cursor_term_info.cursor_term_after,
-          );
-        max_len_term(tail, larger_term);
+    let prev_entry = ZList.prj_z(prev_group.group_entries);
+    if (prev_entry.edit_action == Var(Edit)) {
+      switch (get_initial_entry_in_group(prev_group)) {
+      | None => new_cursor_term_info.cursor_term_before
+      | Some(initial_entry) =>
+        initial_entry.cursor_term_info.cursor_term_before
       };
+    } else if (prev_entry.edit_action == Var(Insert)) {
+      let rec max_len_term =
+              (ls: list(undo_history_entry), cursor_term: cursor_term)
+              : cursor_term => {
+        switch (ls) {
+        | [] => cursor_term
+        | [elt] =>
+          switch (
+            elt.cursor_term_info.cursor_term_before,
+            elt.cursor_term_info.cursor_term_after,
+          ) {
+          | (Exp(_, exp_1), Exp(_, exp_2)) =>
+            switch (exp_1, exp_2) {
+            | (Var(_, _, _), Var(_, _, _))
+            | (IntLit(_, _), IntLit(_, _))
+            | (FloatLit(_, _), FloatLit(_, _))
+            | (BoolLit(_, _), BoolLit(_, _)) =>
+              comp_len_larger(
+                cursor_term,
+                comp_len_larger(
+                  elt.cursor_term_info.cursor_term_after,
+                  elt.cursor_term_info.cursor_term_before,
+                ),
+              )
+            | _ =>
+              comp_len_larger(
+                cursor_term,
+                elt.cursor_term_info.cursor_term_after,
+              )
+            }
+          | (Pat(_, pat_1), Pat(_, pat_2)) =>
+            switch (pat_1, pat_2) {
+            | (Var(_, _, _), Var(_, _, _))
+            | (IntLit(_, _), IntLit(_, _))
+            | (FloatLit(_, _), FloatLit(_, _))
+            | (BoolLit(_, _), BoolLit(_, _)) =>
+              comp_len_larger(
+                cursor_term,
+                comp_len_larger(
+                  elt.cursor_term_info.cursor_term_after,
+                  elt.cursor_term_info.cursor_term_before,
+                ),
+              )
+            | _ =>
+              comp_len_larger(
+                cursor_term,
+                elt.cursor_term_info.cursor_term_after,
+              )
+            }
+          | _ =>
+            comp_len_larger(
+              cursor_term,
+              elt.cursor_term_info.cursor_term_after,
+            )
+          }
+        | [head, ...tail] =>
+          let larger_term =
+            comp_len_larger(
+              cursor_term,
+              head.cursor_term_info.cursor_term_after,
+            );
+          max_len_term(tail, larger_term);
+        };
+      };
+      max_len_term(
+        [
+          ZList.prj_z(prev_group.group_entries),
+          ...ZList.prj_suffix(prev_group.group_entries),
+        ],
+        new_cursor_term_info.cursor_term_before,
+      );
+    } else {
+      new_cursor_term_info.cursor_term_before;
     };
-    max_len_term(
-      [
-        ZList.prj_z(prev_group.group_entries),
-        ...ZList.prj_suffix(prev_group.group_entries),
-      ],
-      new_cursor_term_info.cursor_term_before,
-    );
   } else {
     new_cursor_term_info.cursor_term_before;
   };
-
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
@@ -374,15 +394,6 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
     | _ => false
     }
   | _ => false
-  };
-};
-
-let rec get_earlist_entry =
-        (ls: list(undo_history_entry)): option(undo_history_entry) => {
-  switch (ls) {
-  | [] => None
-  | [earliest_elt] => Some(earliest_elt)
-  | [_, ...tail] => get_earlist_entry(tail)
   };
 };
 
@@ -403,7 +414,7 @@ let delete_edit =
                || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
       /* delete the whole term */
       let initial_term =
-        get_original_deleted_term(
+        get_deleted_term(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
@@ -412,11 +423,8 @@ let delete_edit =
     } else {
       let prev_entry = ZList.prj_z(prev_group.group_entries);
       if (!caret_jump(prev_group, new_cardstacks_before)
-          && (
-            prev_entry.edit_action == Var(Insert)
-            || prev_entry.edit_action == Var(DeleteInsert)
-          )) {
-        Some(Var(DeleteInsert));
+          && prev_entry.edit_action == Var(Insert)) {
+        Some(Var(Insert));
       } else {
         Some(Var(Edit));
       };
@@ -483,7 +491,7 @@ let delete =
       } else {
         /* delete the whole term */
         let initial_term =
-          get_original_deleted_term(
+          get_deleted_term(
             prev_group,
             new_cardstacks_before,
             new_cursor_term_info,
@@ -501,7 +509,7 @@ let delete =
     | Before =>
       /* delete and reach a hole */
       let initial_term =
-        get_original_deleted_term(
+        get_deleted_term(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
@@ -557,7 +565,7 @@ let backspace =
       } else {
         /* delete the whole term */
         let initial_term =
-          get_original_deleted_term(
+          get_deleted_term(
             prev_group,
             new_cardstacks_before,
             new_cursor_term_info,
@@ -573,7 +581,7 @@ let backspace =
     | After =>
       /* delete and reach a hole */
       let initial_term =
-        get_original_deleted_term(
+        get_deleted_term(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
@@ -638,10 +646,10 @@ let get_new_edit_action =
               ~new_cardstacks_before,
               ~new_edit_action=Var(Edit),
             )) {
-          switch (get_earlist_entry(ZList.join(prev_group.group_entries))) {
+          switch (get_initial_entry_in_group(prev_group)) {
           | None => Some(Var(Insert))
-          | Some(earlist_entry) =>
-            if (earlist_entry.edit_action == Var(Insert)) {
+          | Some(initial_entry) =>
+            if (initial_entry.edit_action == Var(Insert)) {
               Some(Var(Insert));
             } else {
               Some(Var(Edit));
