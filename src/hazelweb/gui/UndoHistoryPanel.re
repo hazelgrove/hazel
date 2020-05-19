@@ -986,7 +986,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let redo_button = is_mac => {
     let title =
-      if (is_mac) {"Undo (Cmd+Shift+Z)"} else {"Undo (Ctrl+Shift+Z)"};
+      if (is_mac) {"Redo (Cmd+Shift+Z)"} else {"Redo (Ctrl+Shift+Z)"};
     Vdom.(
       Node.div(
         [
