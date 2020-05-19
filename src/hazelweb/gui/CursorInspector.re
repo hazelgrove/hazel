@@ -105,7 +105,7 @@ let view = (model: Model.t): Vdom.Node.t => {
       special_msg_bar(
         (
           shadow
-            ? UnicodeConstants.warning ++ "shadowing previous variable, " : ""
+            ? UnicodeConstants.info ++ " shadowing previous variable, " : ""
         )
         ++ (num_of_non_rec_uses == 0 ? UnicodeConstants.warning ++ " " : "")
         ++ (
@@ -234,14 +234,10 @@ let view = (model: Model.t): Vdom.Node.t => {
         ind1,
         ind2,
         OK,
-        shadow
-          ? BindingWarn
-          : (
-            switch (var_warn) {
-            | NoWarning => NoWarn
-            | _ => BindingWarn
-            }
-          ),
+        switch (var_warn) {
+        | NoWarning => NoWarn
+        | _ => BindingWarn
+        },
       );
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
@@ -292,14 +288,10 @@ let view = (model: Model.t): Vdom.Node.t => {
         ind1,
         ind2,
         OK,
-        shadow
-          ? BindingWarn
-          : (
-            switch (var_warn) {
-            | NoWarning => NoWarn
-            | _ => BindingWarn
-            }
-          ),
+        switch (var_warn) {
+        | NoWarning => NoWarn
+        | _ => BindingWarn
+        },
       );
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;

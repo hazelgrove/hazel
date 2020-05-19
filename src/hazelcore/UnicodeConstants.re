@@ -18,3 +18,4 @@ let zwsp = "\xE2\x80\x8B"; // UTF-8 encoding for U+200B "Zero-width space"
 let ellipsis = "\xE2\x80\xA6";
 
 let warning = "\xE2\x9A\xA0"; //UTF-8 encoding for U+26A0 "Warning sign"
+let info = "\xE2\x93\x98";
