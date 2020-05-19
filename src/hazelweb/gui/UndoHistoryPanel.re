@@ -338,18 +338,20 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
-      | Term(cursor_term) =>
+      | Term(cursor_term, start_from_insertion) =>
+        let indicate_words =
+          if (start_from_insertion) {"insert and delete "} else {"delete "};
         Some(
           Vdom.(
             Node.span(
               [],
               [
-                indicate_words_view("delete "),
+                indicate_words_view(indicate_words),
                 cursor_term_view(cursor_term, true),
               ],
             )
           ),
-        )
+        );
       | Space => Some(indicate_words_view("delete space"))
       | EmptyLine => Some(indicate_words_view("delete empty line"))
       | TypeAnn => Some(indicate_words_view("delete type annotation"))
@@ -471,7 +473,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (undo_history_entry.edit_action) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
-      | Term(cursor_term) => Some(get_cursor_term_tag_typ(cursor_term))
+      | Term(cursor_term, _) => Some(get_cursor_term_tag_typ(cursor_term))
       | Space
       | EmptyLine =>
         Some(
@@ -997,7 +999,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
           Attr.create("title", title),
         ],
-        [Icons.redo(["redo-undo-icon"])],
+        [Icons.undo(["redo-undo-icon", "horizontal-flip"])],
       )
     );
   };
