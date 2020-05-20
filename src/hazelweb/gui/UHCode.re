@@ -72,70 +72,91 @@ let view =
     () => {
       open Vdom;
 
-      let rec go: UHLayout.t => _ =
-        fun
+      let rec go = (layout: UHLayout.t, ci_shown: bool): list(Node.t) => {
+        switch (layout) {
         | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
         | Linebreak => [Node.br([])]
-        | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
-        | Cat(l1, l2) => go(l1) @ go(l2)
+        | Align(l) => [
+            Node.div([Attr.classes(["Align"])], go(l, ci_shown)),
+          ]
+        | Cat(l1, l2) => go(l1, ci_shown) @ go(l2, ci_shown)
 
-        | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
+        | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l, ci_shown)
 
-        | Annot(Token({shape, len, has_cursor}), l) => {
-            let clss =
-              switch (shape) {
-              | Text => ["code-text"]
-              | Op => ["code-op"]
-              | Delim(_) => ["code-delim"]
-              };
-            let children =
-              switch (has_cursor) {
-              | None => go(l)
-              | Some(j) => [
-                  caret_from_left(
-                    len == 0
-                      ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
-                  ),
-                  ...go(l),
-                ]
-              };
-            [Node.span([Attr.classes(clss)], children)];
-          }
+        | Annot(Token({shape, len, has_cursor}), l) =>
+          let clss =
+            switch (shape) {
+            | Text => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          let children =
+            switch (has_cursor) {
+            | None => go(l, ci_shown)
+            | Some(j) => [
+                caret_from_left(
+                  len == 0
+                    ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
+                ),
+                ...go(l, true),
+              ]
+            };
+          switch (has_cursor, ci_shown) {
+          | (_, true)
+          | (None, _) => [Node.span([Attr.classes(clss)], children)]
+          | (Some(_), false) => [
+              Node.span([Attr.classes(clss)], children),
+              CursorInspector.view(model),
+            ]
+          };
         | Annot(DelimGroup, l) => [
-            Node.span([Attr.classes(["DelimGroup"])], go(l)),
+            Node.span([Attr.classes(["DelimGroup"])], go(l, ci_shown)),
           ]
         | Annot(LetLine, l) => [
-            Node.span([Attr.classes(["LetLine"])], go(l)),
+            Node.span([Attr.classes(["LetLine"])], go(l, ci_shown)),
           ]
 
         | Annot(Padding, l) => [
-            Node.span([Attr.classes(["Padding"])], go(l)),
+            Node.span([Attr.classes(["Padding"])], go(l, ci_shown)),
           ]
         | Annot(Indent, l) => [
-            Node.span([Attr.classes(["Indent"])], go(l)),
+            Node.span([Attr.classes(["Indent"])], go(l, ci_shown)),
           ]
 
         | Annot(HoleLabel(_), l) => [
-            Node.span([Attr.classes(["HoleLabel"])], go(l)),
+            Node.span([Attr.classes(["HoleLabel"])], go(l, ci_shown)),
           ]
         | Annot(UserNewline, l) => [
-            Node.span([Attr.classes(["UserNewline"])], go(l)),
+            Node.span([Attr.classes(["UserNewline"])], go(l, ci_shown)),
           ]
 
         | Annot(OpenChild({is_inline}), l) => [
             Node.span(
               [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
-              go(l),
+              go(l, ci_shown),
             ),
           ]
         | Annot(ClosedChild({is_inline}), l) => [
             Node.span(
               [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
-              go(l),
+              go(l, ci_shown),
             ),
           ]
 
-        | Annot(Term({has_cursor, shape, sort}), l) => [
+        | Annot(Term({has_cursor, shape, sort}), l) =>
+          let show_ci =
+            switch (has_cursor, UHLayout.has_para_OpenChild(l), shape) {
+            | (false, _, _) => ci_shown
+            | (true, true, _)
+            | (true, _, Case(_))
+            | (true, _, SubBlock(_)) => true
+            | (true, _, Rule)
+            | (true, _, Var(_))
+            | (true, _, Operand(_))
+            | (true, _, BinOp(_))
+            | (true, _, NTuple(_)) => false
+            };
+          let node =
             Node.span(
               [
                 Attr.classes(
@@ -152,9 +173,15 @@ let view =
                   ]),
                 ),
               ],
-              go(l),
-            ),
-          ];
+              go(l, show_ci),
+            );
+          if (show_ci && !ci_shown) {
+            [node, CursorInspector.view(model)];
+          } else {
+            [node];
+          };
+        };
+      };
 
       let id = "code-root";
       Node.div(
@@ -183,7 +210,7 @@ let view =
             inject(Update.Action.MoveAction(Click(row_col)));
           }),
         ],
-        go(l),
+        go(l, false),
       );
     },
   );

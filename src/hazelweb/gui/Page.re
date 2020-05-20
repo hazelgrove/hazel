@@ -291,7 +291,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 ~inject,
                 model,
                 [
-                  CursorInspector.view(model),
                   ContextInspector.view(~inject, model),
                   OptionsPanel.view(~inject, model),
                 ],
