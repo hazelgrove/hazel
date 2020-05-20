@@ -1848,13 +1848,16 @@ module Exp = {
         );
       };
     | Subscript(_, body1, body2, body3) =>
-      print_endline("Statics1807");
+      print_endline("Statics1807 " ++ string_of_int(u_gen));
       let (body1, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
+      print_endline("1854 " ++ string_of_int(u_gen));
       let (body2, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
+      print_endline("1857 " ++ string_of_int(u_gen));
       let (body3, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
+      print_endline("1860 " ++ string_of_int(u_gen));
       (Subscript(NotInHole, body1, body2, body3), String, u_gen);
     };
   }
