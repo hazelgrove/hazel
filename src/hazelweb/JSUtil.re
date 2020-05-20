@@ -378,7 +378,7 @@ module KeyCombo = {
       key: Key.t,
     };
 
-    let make = (mod_keys, key) => {mod_keys, key};
+    let mk = (mod_keys, key) => {mod_keys, key};
     let plain = key => {mod_keys: ModKeys.not_held, key};
     let no_ctrl_alt_meta = key => {mod_keys: ModKeys.no_ctrl_alt_meta, key};
     let shift = key => {mod_keys: ModKeys.shift, key};
@@ -736,7 +736,7 @@ module Vdom = Virtual_dom.Vdom;
 //       imp_newline: _ => [Vdom.Node.br([])],
 //       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
 //     };
-//     Layout.make_of_layout(record, layout);
+//     Layout.mk_of_layout(record, layout);
 //   };
 
 open Pretty;

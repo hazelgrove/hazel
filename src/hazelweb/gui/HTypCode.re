@@ -2,7 +2,7 @@ module Vdom = Virtual_dom.Vdom;
 open Pretty;
 
 let view_of_layout =
-  Layout.make_of_layout(
+  Layout.mk_of_layout(
     Vdom.{
       imp_of_string: s => [Node.text(s)],
       imp_append: (@),
