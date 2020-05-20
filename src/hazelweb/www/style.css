@@ -703,9 +703,9 @@ h1 {
   padding-left: 25px;
   padding-bottom: 5px;
   background-color: #EEE;
-  width: 900px;
+  width: 910px;
   white-space: pre;
-  overflow-x: scroll;
+  overflow-x: auto;
 }
 
 .type-indicator {
@@ -1174,13 +1174,16 @@ h1 {
 
 #cell {
   position: relative;
-  width: 900px;
+  width: 910px;
   margin-top: 20px;
   background-color: white;
   padding: 10px;
   border: 2px solid #CCC;
-  white-space: pre;
-  overflow-x: scroll;
+  /* -webkit-box-sizing: border-box; 
+  -moz-box-sizing: border-box;   
+  box-sizing: border-box;  */    
+  white-space: pre; 
+  overflow-x: auto;
 }
 #cell:focus {
   outline: 0px;
