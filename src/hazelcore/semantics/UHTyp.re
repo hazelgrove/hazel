@@ -36,7 +36,7 @@ let unwrap_parentheses = (operand: operand): t =>
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.make_skel_str(seq, Operators.Typ.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators.Typ.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
 };

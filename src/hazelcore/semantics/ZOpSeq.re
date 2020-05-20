@@ -89,9 +89,9 @@ let set_err_status =
   ZOpSeq(skel, zseq);
 };
 
-let make_inconsistent =
+let mk_inconsistent =
     (
-      ~make_inconsistent_zoperand:
+      ~mk_inconsistent_zoperand:
          (MetaVarGen.t, 'zoperand) => ('zoperand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
       ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
@@ -108,7 +108,7 @@ let make_inconsistent =
         u_gen,
       );
     | (Placeholder(_), ZOperand(zoperand, surround)) =>
-      let (zoperand, u_gen) = zoperand |> make_inconsistent_zoperand(u_gen);
+      let (zoperand, u_gen) = zoperand |> mk_inconsistent_zoperand(u_gen);
       (skel, ZOperand(zoperand, surround), u_gen);
     | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;

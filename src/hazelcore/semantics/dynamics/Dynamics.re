@@ -211,7 +211,7 @@ module Pat = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_dps, ctx, delta)) => {
-            let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+            let dp = rev_dps |> List.rev |> DHPat.mk_tuple;
             Expands(dp, ty, ctx, delta);
           }
       )
@@ -242,7 +242,7 @@ module Pat = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_dps, ctx, delta)) => {
-              let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+              let dp = rev_dps |> List.rev |> DHPat.mk_tuple;
               Expands(dp, ty, ctx, delta);
             }
         )
@@ -1314,7 +1314,7 @@ module Exp = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_ds, delta)) => {
-            let d = rev_ds |> List.rev |> DHExp.make_tuple;
+            let d = rev_ds |> List.rev |> DHExp.mk_tuple;
             Expands(d, ty, delta);
           }
       )
@@ -1341,7 +1341,7 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, delta)) => {
-              let d = rev_ds |> List.rev |> DHExp.make_tuple;
+              let d = rev_ds |> List.rev |> DHExp.mk_tuple;
               Expands(d, ty, delta);
             }
         )

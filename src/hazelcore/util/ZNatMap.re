@@ -4,7 +4,7 @@ open Sexplib.Std;
  * i.e. there is a selected element of type Z and the rest is a int map of type A */
 [@deriving sexp]
 type t('a, 'z) = (NatMap.t('a), (int, 'z));
-let make = (m: NatMap.t('a), (n, _) as nz: (int, 'z)): option(t('a, 'z)) =>
+let mk = (m: NatMap.t('a), (n, _) as nz: (int, 'z)): option(t('a, 'z)) =>
   switch (NatMap.lookup(m, n)) {
   | Some(_) => None
   | None => Some((m, nz))
