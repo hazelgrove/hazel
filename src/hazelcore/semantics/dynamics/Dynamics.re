@@ -605,10 +605,9 @@ module Exp = {
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
-    | (_, Subscript(_, _, _)) =>
-      Indet;
+    | (_, Subscript(_, _, _)) => Indet
     | (_, BinIntOp(_, _, _) | BinStrOp(_, _, _) | And(_, _) | Or(_, _)) =>
-      Indet;
+      Indet
     | (_, BinFloatOp(_, _, _)) => Indet
     | (_, Case(_, _, _)) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
@@ -643,13 +642,10 @@ module Exp = {
         Matches(Environment.empty);
       } else {
         DoesNotMatch;
-      };
-    | (StringLit(_), Cast(d, String, Hole)) =>
-      matches(dp, d);
-    | (StringLit(_), Cast(d, Hole, String)) =>
-      matches(dp, d);
-    | (StringLit(_), _) =>
-      DoesNotMatch;
+      }
+    | (StringLit(_), Cast(d, String, Hole)) => matches(dp, d)
+    | (StringLit(_), Cast(d, Hole, String)) => matches(dp, d)
+    | (StringLit(_), _) => DoesNotMatch
     | (Inj(side1, dp), Inj(_, side2, d)) =>
       switch (side1, side2) {
       | (L, L)
@@ -751,20 +747,17 @@ module Exp = {
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
-    | Subscript(_, _, _) =>
-      DoesNotMatch;
+    | Subscript(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
     | And(_, _)
-    | Or(_, _) =>
-      Indet;
+    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
-    | StringLit(_) =>
-      DoesNotMatch;
+    | StringLit(_) => DoesNotMatch
     | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
@@ -816,15 +809,13 @@ module Exp = {
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
-    | Subscript(_, _, _) =>
-      DoesNotMatch;
+    | Subscript(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
     | And(_, _)
-    | Or(_, _) =>
-      Indet;
+    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -886,8 +877,7 @@ module Exp = {
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
     | And(_, _)
-    | Or(_, _) =>
-      Indet;
+    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -2173,12 +2163,10 @@ module Evaluator = {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(IntLit(n2) as n2') =>
             if (n1 >= 0
-                && n1 < String.length(s1)
+                && n1 <= String.length(s1)
                 && n2 >= 0
-                && n2 < String.length(s1)) {
-              BoxedValue(
-                StringLit(String.sub(s1, n1, max(0, n2 - n1 + 1))),
-              );
+                && n2 <= String.length(s1)) {
+              BoxedValue(StringLit(String.sub(s1, n1, max(0, n2 - n1))));
             } else {
               Indet(FailedSubscript(Subscript(s1', n1', n2')));
             }
