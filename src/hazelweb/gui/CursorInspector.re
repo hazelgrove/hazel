@@ -98,10 +98,11 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
   let got_duplicate_indicator =
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
-  let got_var_indicator = (shadow, num_of_non_rec_uses, num_of_rec_uses) => {
-    let uses = num_of_uses => num_of_uses == 1 ? " use" : " uses";
+
+  let uses = num_of_uses => num_of_uses == 1 ? " use" : " uses";
+  let got_var_pat_indicator = (shadow, num_of_non_rec_uses, num_of_rec_uses) => {
     got_indicator(
-      "Got a variable ",
+      "Got a variable pattern",
       special_msg_bar(
         (
           shadow
@@ -122,6 +123,13 @@ let view = (model: Model.t): Vdom.Node.t => {
       ),
     );
   };
+  let got_var_indicator = num_of_other_uses =>
+    got_indicator(
+      "Got a variable",
+      special_msg_bar(
+        Int.to_string(num_of_other_uses) ++ uses(num_of_other_uses),
+      ),
+    );
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let (ind1, ind2, err_state_b, warn_state_b) =
@@ -136,6 +144,10 @@ let view = (model: Model.t): Vdom.Node.t => {
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
+      (ind1, ind2, OK, NoWarn);
+    | AnaVar(ty, _, _, other_uses) =>
+      let ind1 = expected_ty_indicator_pat(ty);
+      let ind2 = got_var_indicator(List.length(other_uses));
       (ind1, ind2, OK, NoWarn);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -173,6 +185,10 @@ let view = (model: Model.t): Vdom.Node.t => {
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
+      (ind1, ind2, OK, NoWarn);
+    | SynVar(_, _, _, other_uses) =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_var_indicator(List.length(other_uses));
       (ind1, ind2, OK, NoWarn);
     | SynFree =>
       let ind1 = expected_any_indicator;
@@ -225,7 +241,7 @@ let view = (model: Model.t): Vdom.Node.t => {
     | PatAnaVar(ty, _, shadow, var_warn, uses, rec_uses) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 =
-        got_var_indicator(
+        got_var_pat_indicator(
           shadow,
           List.length(uses) - List.length(rec_uses),
           List.length(rec_uses),
@@ -279,7 +295,7 @@ let view = (model: Model.t): Vdom.Node.t => {
     | PatSynVar(_, _, shadow, var_warn, uses, rec_uses) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 =
-        got_var_indicator(
+        got_var_pat_indicator(
           shadow,
           List.length(uses) - List.length(rec_uses),
           List.length(rec_uses),

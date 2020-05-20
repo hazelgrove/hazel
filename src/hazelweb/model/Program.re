@@ -161,6 +161,32 @@ let decorate_cursor = (steps, l) =>
   |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
 let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
   switch (ci.typed) {
+  | AnaVar(_, _, var_def, other_uses)
+  | SynVar(_, _, var_def, other_uses) =>
+    let l =
+      l
+      |> UHLayout.find_and_decorate_var_def(~steps=var_def)
+      |> OptUtil.get(() => {
+           failwith(
+             __LOC__
+             ++ ": could not find var def"
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(var_def)),
+           )
+         });
+    other_uses
+    |> List.fold_left(
+         (l: UHLayout.t, use) =>
+           l
+           |> UHLayout.find_and_decorate_var_use(~steps=use)
+           |> OptUtil.get(() => {
+                failwith(
+                  __LOC__
+                  ++ ": could not find var use"
+                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+                )
+              }),
+         l,
+       );
   | PatAnaVar(_, _, _, _, [_, ..._] as uses, _)
   | PatSynVar(_, _, _, _, [_, ..._] as uses, _) =>
     uses

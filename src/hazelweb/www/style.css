@@ -1066,6 +1066,11 @@ h1 {
 }
 */
 
+.Var.show-def {
+  border: 2px solid rgba(175, 175, 175, 0.3);
+  margin: -2px;
+}
+
 .Var.show-use {
   background-color: rgba(175, 175, 175, 0.3);
 }

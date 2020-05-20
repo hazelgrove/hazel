@@ -21,6 +21,15 @@ type typed =
   | AnaFree(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // Cursor is on a variable expression
+  | AnaVar(
+      HTyp.t,
+      Var.t,
+      // steps of binding site
+      CursorPath.steps,
+      // other uses
+      UsageAnalysis.uses_list,
+    )
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -49,6 +58,15 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
+  // cursor is on a variable expression
+  | SynVar(
+      HTyp.t,
+      Var.t,
+      // steps of binding site
+      CursorPath.steps,
+      // other uses
+      UsageAnalysis.uses_list,
+    )
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -98,9 +116,9 @@ type typed =
       bool,
       // variable warning
       VarWarnStatus.t,
-      // number of uses
+      // total variables uses
       UsageAnalysis.uses_list,
-      // number of recursive uses
+      // recursive variable uses
       UsageAnalysis.uses_list,
     )
   | PatSynthesized(HTyp.t)
@@ -814,6 +832,11 @@ module Exp = {
     | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
       Some(mk(SynKeyword(k), ctx))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
+    | CursorE(_, Var(NotInHole, NotInVarHole, x)) =>
+      switch ((ctx |> Contexts.gamma |> VarCtx.lookup)(x)) {
+      | None => None
+      | Some((ty, steps)) => Some(mk(SynVar(ty, x, steps, []), ctx)) //TODO
+      }
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
@@ -1067,8 +1090,12 @@ module Exp = {
       | Case(InHole(WrongLength, _), _, _, _)
       | ApPalette(InHole(WrongLength, _), _, _, _) => None
       /* not in hole */
+      | Var(NotInHole, NotInVarHole, x) =>
+        switch ((ctx |> Contexts.gamma |> VarCtx.lookup_steps)(x)) {
+        | None => None
+        | Some(steps) => Some(mk(AnaVar(ty, x, steps, []), ctx)) //TODO
+        }
       | EmptyHole(_)
-      | Var(NotInHole, NotInVarHole, _)
       | IntLit(NotInHole, _)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)

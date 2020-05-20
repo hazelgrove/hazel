@@ -225,6 +225,21 @@ let find_and_decorate_cursor =
     l |> Layout.annot(UHAnnot.Term({...term_data, has_cursor: true}))
   );
 
+let find_and_decorate_var_def =
+  find_and_decorate_Term(~decorate_Term=(term_data, l) =>
+    switch (term_data) {
+    | {shape: Var(var_data), _} =>
+      l
+      |> Layout.annot(
+           UHAnnot.Term({
+             ...term_data,
+             shape: Var({...var_data, show_def: true}),
+           }),
+         )
+    | _ => failwith(__LOC__ ++ ": var not found")
+    }
+  );
+
 let find_and_decorate_var_use =
   find_and_decorate_Term(~decorate_Term=(term_data, l) =>
     switch (term_data) {

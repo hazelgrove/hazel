@@ -32,10 +32,11 @@ let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
   | Case({err}) => ["Case", ...clss_of_err(err)]
-  | Var({err, verr, vwarn, show_use}) =>
+  | Var({err, verr, vwarn, show_def, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
     @ clss_of_verr(verr)
     @ clss_of_vwarn(vwarn)
+    @ (show_def ? ["show-def"] : [])
     @ (show_use ? ["show-use"] : [])
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
