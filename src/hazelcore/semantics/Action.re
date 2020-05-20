@@ -3545,17 +3545,6 @@ module Exp = {
       | CursorE(OnDelim(_) | OnText(_), operand) =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        // let ze =
-        //   ZExp.ZBlock.wrap(
-        //     CursorE(
-        //       delim_cursor,
-        //       UHExp.subscript(
-        //         UHExp.Block.wrap(operand),
-        //         UHExp.Block.wrap(hole),
-        //         UHExp.Block.wrap(hole),
-        //       ),
-        //     ),
-        //   );
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE2(
@@ -3570,6 +3559,78 @@ module Exp = {
       | _ => Failed
       };
 
+    | (Construct(SLeftBracket), SubscriptZE1(_, zbody1, body2, body3))
+        when ZExp.is_after(zbody1) =>
+      switch (Statics.Exp.syn(ctx, ZExp.erase(zbody1))) {
+      | Some(ty') =>
+        switch (
+          syn_perform(ctx, Construct(SLeftBracket), (zbody1, ty', u_gen))
+        ) {
+        | Succeeded((ze, _, _)) =>
+          let ze =
+            ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, ze, body2, body3));
+          Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
+        | _ => Failed
+        }
+      | _ => Failed
+      }
+
+    | (Construct(SLeftBracket), SubscriptZE2(_, body1, zbody2, body3))
+        when ZExp.is_after(zbody2) =>
+      switch (Statics.Exp.syn(ctx, ZExp.erase(zbody2))) {
+      | Some(ty') =>
+        switch (
+          syn_perform(ctx, Construct(SLeftBracket), (zbody2, ty', u_gen))
+        ) {
+        | Succeeded((ze, _, _)) =>
+          let ze =
+            ZExp.ZBlock.wrap(SubscriptZE2(NotInHole, body1, ze, body3));
+          Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
+        | _ => Failed
+        }
+      | _ => Failed
+      }
+
+    | (Construct(SLeftBracket), SubscriptZE3(_, body1, body2, zbody3))
+        when ZExp.is_after(zbody3) =>
+      switch (Statics.Exp.syn(ctx, ZExp.erase(zbody3))) {
+      | Some(ty') =>
+        switch (
+          syn_perform(ctx, Construct(SLeftBracket), (zbody3, ty', u_gen))
+        ) {
+        | Succeeded((ze, _, _)) =>
+          let ze =
+            ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, body1, body2, ze));
+          Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
+        | _ => Failed
+        }
+      | _ => Failed
+      }
+
+    | (Construct(SLeftBracket), SubscriptZE2(_, body1, zbody2, body3))
+        when ZExp.is_before(zbody2) =>
+      let ze =
+        ZExp.ZBlock.wrap(
+          SubscriptZE2(
+            NotInHole,
+            body1,
+            UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap,
+            body3,
+          ),
+        );
+      Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
+    | (Construct(SLeftBracket), SubscriptZE3(_, body1, body2, zbody3))
+        when ZExp.is_before(zbody3) =>
+      let ze =
+        ZExp.ZBlock.wrap(
+          SubscriptZE3(
+            NotInHole,
+            body1,
+            body2,
+            UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap,
+          ),
+        );
+      Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
     /* Invalid actions at expression level */
     | (Construct(SLine), CursorE(OnText(_), _)) => Failed
     | (Construct(SLeftBracket), zoperand)
