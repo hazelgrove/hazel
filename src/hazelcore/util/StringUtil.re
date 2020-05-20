@@ -33,4 +33,9 @@ let delete = (caret_index: int, s: string): string => {
   l ++ r;
 };
 
-let utf8_length = CamomileLibrary.UTF8.length;
+let utf8_length: string => int = {
+  let folder = (len: int, _: int, _): int => {
+    len + 1;
+  };
+  Uutf.String.fold_utf_8(folder, 0);
+};
