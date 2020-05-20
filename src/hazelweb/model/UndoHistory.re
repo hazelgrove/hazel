@@ -148,6 +148,7 @@ let group_edit_action =
       }
     | (_, _) => false
     }
+  | (DeleteEdit(_), Var(Insert)) => true
   | (DeleteEdit(_), _) => false
   | (ConstructEdit(construct_edit_1), ConstructEdit(construct_edit_2)) =>
     switch (construct_edit_1, construct_edit_2) {
