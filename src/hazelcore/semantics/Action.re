@@ -3532,30 +3532,37 @@ module Exp = {
         let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
           ZExp.ZBlock.wrap(
-            CursorE(
-              delim_cursor,
-              UHExp.subscript(
-                UHExp.Block.wrap(operand),
-                UHExp.Block.wrap(hole),
-                UHExp.Block.wrap(hole),
-              ),
+            SubscriptZE1(
+              NotInHole,
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
+              UHExp.Block.wrap(hole),
+              UHExp.Block.wrap(hole),
             ),
           );
         print_endline("Action3543");
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
       // Succeeded(SynDone((ze, HTyp.String, u_gen)));
       | CursorE(OnDelim(_) | OnText(_), operand) =>
-        let delim_cursor = CursorPosition.OnDelim(0, After);
+        let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        // let ze =
+        //   ZExp.ZBlock.wrap(
+        //     CursorE(
+        //       delim_cursor,
+        //       UHExp.subscript(
+        //         UHExp.Block.wrap(operand),
+        //         UHExp.Block.wrap(hole),
+        //         UHExp.Block.wrap(hole),
+        //       ),
+        //     ),
+        //   );
         let ze =
           ZExp.ZBlock.wrap(
-            CursorE(
-              delim_cursor,
-              UHExp.subscript(
-                UHExp.Block.wrap(operand),
-                UHExp.Block.wrap(hole),
-                UHExp.Block.wrap(hole),
-              ),
+            SubscriptZE2(
+              NotInHole,
+              UHExp.Block.wrap(operand),
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole)),
+              UHExp.Block.wrap(hole),
             ),
           );
         print_endline("Action3543");
