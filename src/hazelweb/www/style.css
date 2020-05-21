@@ -278,6 +278,7 @@ html, body {
   font-size: 10pt;
   font-weight: bold;
   background-color: var(--title-bar-color);
+  min-height: 23px;
 }
 
 .panel-body {
