@@ -1669,9 +1669,9 @@ module Exp = {
           [],
         );
       {
-        holes_before: holes_err @ holes_scrut @ holes_before @ holes_prefix,
+        holes_before: holes_err @ holes_scrut @ holes_prefix @ holes_before,
         hole_selected,
-        holes_after: holes_suffix @ holes_after,
+        holes_after: holes_after @ holes_suffix,
       };
     | ApPaletteZ(_, _, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
@@ -1714,8 +1714,8 @@ module Exp = {
       // invalid cursor position
       no_holes
     | CursorR(OnDelim(k, _), Rule(p, clause)) =>
-      let holes_p = Pat.holes(p, [1, ...rev_steps], []);
-      let holes_clause = holes(clause, [0, ...rev_steps], []);
+      let holes_p = Pat.holes(p, [0, ...rev_steps], []);
+      let holes_clause = holes(clause, [1, ...rev_steps], []);
       switch (k) {
       | 0 => mk_zholes(~holes_after=holes_p @ holes_clause, ())
       | 1 => mk_zholes(~holes_before=holes_p, ~holes_after=holes_clause, ())
