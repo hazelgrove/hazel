@@ -24,7 +24,7 @@ let on_startup = (~schedule_action, _) => {
 
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-      Js.string("Win"),
+      Js.string("Mac"),
     )
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
