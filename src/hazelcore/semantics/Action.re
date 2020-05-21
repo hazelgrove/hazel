@@ -4526,9 +4526,31 @@ module Exp = {
       | CursorEscaped(side) =>
         syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
       | Succeeded((zbody1, u_gen)) =>
-        let new_ze =
-          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
-        Succeeded(SynDone((new_ze, ty, u_gen)));
+        switch (ZExp.is_opseq(zbody1)) {
+        | Some(ZOperator(zoperator, (prefix, suffix))) =>
+          switch (suffix) {
+          | S(operand, affix) =>
+            let e =
+              UHExp.Subscript(
+                NotInHole,
+                UHExp.Block.wrap(operand),
+                body2,
+                body3,
+              );
+            /* let new_e = Seq.S(e, affix); */
+            let new_zopseq =
+              ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          }
+        /* let new_zopseq = ZExp.mk_ZOpSeq(ZOperator(zoperator, surround));
+           let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+           Succeeded(SynDone((new_ze, ty, u_gen))); */
+        | _ =>
+          let new_ze =
+            ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
+          Succeeded(SynDone((new_ze, ty, u_gen)));
+        }
       };
     | (_, SubscriptZE2(_, body1, zbody2, body3)) =>
       print_endline("Action4208");

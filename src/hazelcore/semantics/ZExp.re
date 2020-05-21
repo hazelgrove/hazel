@@ -40,6 +40,25 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
+let rec is_opseq =
+        (ze: t): option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  ze |> is_opseq_zblock
+and is_opseq_zblock =
+    ((_, zline, _): zblock)
+    : option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  zline |> is_opseq_zline
+and is_opseq_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => zopseq |> is_opseq_zopseq
+  | LetLineZP(_)
+  | LetLineZA(_) => None
+  | LetLineZE(_, _, zdef) => zdef |> is_opseq
+and is_opseq_zopseq =
+  fun
+  | ZOpSeq(_, ZOperand(_, _)) => None
+  | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
+
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)
