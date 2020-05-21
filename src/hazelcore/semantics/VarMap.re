@@ -30,7 +30,9 @@ let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
 
 let rec lookup = (ctx, x) =>
   switch (ctx) {
-  | [] => None
+  | [] =>
+    print_endline("VarMap34");
+    None;
   | [(y, elt), ...ctx'] =>
     if (Var.eq(x, y)) {
       Some(elt);

@@ -25,3 +25,40 @@ let force_get_OnText =
   | OnDelim(_, _)
   | OnOp(_) => failwith("force_get_OnText: expected OnText")
   | OnText(j) => j;
+
+/* let rec find_cursor = (ze: ZExp.t): option(t) => ze |> find_cursor_zblock
+   and find_cursor_zblock = ((_, zline, _): ZExp.zblock): t =>
+     zline |> find_cursor_zline
+   and find_cursor_zline =
+     fun
+     | CursorL(_) => None
+     | ExpLineZ(zopseq) => zopseq |> find_cursor_zopseq
+     | LetLineZP(_)
+     | LetLineZA(_) => None
+     | LetLineZE(_, _, zdef) => zdef |> find_cursor
+   and find_cursor_zopseq =
+     fun
+     | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> find_cursor_zoperand
+     | ZOpSeq(_, ZOperator(_)) => None
+   and find_cursor_zoperator =
+     fun
+     | _ => None
+   and find_cursor_zoperand =
+     fun
+     | CursorE(cursor, StringLit(_, _)) => option(cursor)
+     | ParenthesizedZ(zbody) => find_cursor(zbody)
+     | LamZP(_)
+     | LamZA(_) => None
+     | LamZE(_, _, _, zbody) => find_cursor(zbody)
+     | InjZ(_, _, zbody) => find_cursor(zbody)
+     | CaseZE(_, zbody, _, _) => find_cursor(zbody)
+     | CaseZR(_)
+     | CaseZA(_) => None
+     | ApPaletteZ(_, _, _, zpsi) => {
+         let zhole_map = zpsi.zsplice_map;
+         let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
+         find_cursor(ze);
+       }
+     | SubscriptZE1(_, zbody, _, _) => find_cursor(zbody)
+     | SubscriptZE2(_, _, zbody, _) => find_cursor(zbody)
+     | SubscriptZE3(_, _, _, zbody) => find_cursor(zbody); */
