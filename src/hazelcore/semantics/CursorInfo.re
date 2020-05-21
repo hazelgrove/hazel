@@ -413,14 +413,30 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
     let prefix = ZList.prj_prefix(exp);
     switch (ListUtil.split_last(prefix)) {
     | None => false
-    | Some((_, elt)) => UHExp.is_empty_line(elt)
+    | Some((_, elt)) =>
+      switch (ZList.prj_z(exp)) {
+      | ExpLineZ(zopseq) =>
+        ZExp.is_before_zopseq(zopseq) && UHExp.is_empty_line(elt)
+      | CursorL(_, _)
+      | LetLineZP(_, _, _)
+      | LetLineZA(_, _, _)
+      | LetLineZE(_, _, _) => UHExp.is_empty_line(elt)
+      }
     };
   };
   let next_is_empty_line = {
     let suffix = ZList.prj_suffix(exp);
     switch (suffix) {
     | [] => false
-    | ls => UHExp.is_empty_line(List.hd(ls))
+    | ls =>
+      switch (ZList.prj_z(exp)) {
+      | ExpLineZ(zopseq) =>
+        ZExp.is_after_zopseq(zopseq) && UHExp.is_empty_line(List.hd(ls))
+      | CursorL(_, _)
+      | LetLineZP(_, _, _)
+      | LetLineZA(_, _, _)
+      | LetLineZE(_, _, _) => UHExp.is_empty_line(List.hd(ls))
+      }
     };
   };
   (prev_is_empty_line, next_is_empty_line);
