@@ -23,7 +23,7 @@ let gamma_contains = (ctx: t, x: Var.t): bool =>
   VarCtx.contains(gamma(ctx), x);
 
 let delta = (ctx: t): TVarCtx.t => ctx.tvars;
-let extend_delta = (ctx: t, binding: (Vat.t, Kint.t)): t => {
+let extend_delta = (ctx: t, binding: (Var.t, Kind.t)): t => {
   ...ctx,
   tvars: TVarCtx.extend(ctx.tvars, binding)
 };
