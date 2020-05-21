@@ -51,7 +51,7 @@ type typed =
   | SynKeyword(ExpandingKeyword.t)
   // cursor is on the clause of a case
   | SynBranchClause
-      // glb of other branches
+      // lub of other branches
       (
         option(HTyp.t),
         // info for the clause
@@ -787,14 +787,15 @@ module Exp = {
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => None
       | Some(pat_ty) =>
-        /* glb of all of the branches except the one with the cursor */
-        let glb = Statics.Exp.syn_rules(ctx, prefix @ suffix, pat_ty);
+        /* lub of all of the branches except the one with the cursor */
+        let lub =
+          Statics.Exp.syn_rules(~join=LUB, ctx, prefix @ suffix, pat_ty);
         syn_cursor_info_rule(
           ~steps=steps @ [1 + List.length(prefix)],
           ctx,
           zrule,
           pat_ty,
-          glb,
+          lub,
         );
       }
     | ApPaletteZ(_, _, _, zpsi) =>
@@ -1130,7 +1131,7 @@ module Exp = {
         ctx: Contexts.t,
         zrule: ZExp.zrule,
         pat_ty: HTyp.t,
-        glb: option(HTyp.t),
+        lub: option(HTyp.t),
       )
       : option(t) =>
     switch (zrule) {
@@ -1154,7 +1155,7 @@ module Exp = {
         | (_, None) => None
         | (false, _) => cursor_info
         | (true, Some({typed, ctx, uses})) =>
-          let typed = SynBranchClause(glb, typed);
+          let typed = SynBranchClause(lub, typed);
           Some({typed, ctx, uses});
         };
       }
