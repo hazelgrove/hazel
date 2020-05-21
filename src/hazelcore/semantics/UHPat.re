@@ -72,6 +72,14 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
+let rec find_operand = (p: t): option(operand) => p |> find_operand_opseq
+and find_operand_opseq =
+  fun
+  | OpSeq(_, S(operand, _)) => Some(operand)
+and find_operand_operand =
+  fun
+  | p => Some(p);
+
 let rec get_err_status = (p: t) => get_err_status_opseq(p)
 and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
