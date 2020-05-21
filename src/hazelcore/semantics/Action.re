@@ -630,28 +630,24 @@ let _delete_operator =
  */
 let _complete_tuple =
     (
-      ~comma: 'operator,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
-      ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
+      ~make_holy_tuple:
+         (
+           ~first_opt: OpSeq.t('operand, 'operator)=?,
+           list(HTyp.t),
+           MetaVarGen.t
+         ) =>
+         (OpSeq.t('operand, 'operator), MetaVarGen.t),
       ~place_before_opseq:
          OpSeq.t('operand, 'operator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       u_gen: MetaVarGen.t,
-      opSeq: OpSeq.t('operand, 'operator),
+      opseq: OpSeq.t('operand, 'operator),
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
   let tys = HTyp.get_prod_elements(ty);
-  let (opSeq, u_gen) =
-    OpSeq.make_holy_tuple(
-      ~comma,
-      ~new_EmptyHole,
-      ~mk_OpSeq,
-      ~first_opt=opSeq,
-      tys,
-      u_gen,
-    );
-  (place_before_opseq(opSeq), u_gen);
+  let (opseq, u_gen) = make_holy_tuple(~first_opt=opseq, tys, u_gen);
+  (place_before_opseq(opseq), u_gen);
 };
 
 module Pat = {
@@ -902,9 +898,7 @@ module Pat = {
 
   let complete_tuple =
     _complete_tuple(
-      ~comma=Operators.Pat.Comma,
-      ~new_EmptyHole=UHPat.new_EmptyHole,
-      ~mk_OpSeq=UHPat.mk_OpSeq,
+      ~make_holy_tuple=UHPat.make_holy_tuple,
       ~place_before_opseq=ZPat.place_before,
     );
 
@@ -1502,7 +1496,7 @@ module Pat = {
           ZPat.is_after_zopseq(zopseq)
           && !(zopseq |> has_Comma)
           && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-      let (ZOpSeq(_, zseq), u_gen) =
+      let (ZOpSeq.ZOpSeq(_, zseq), u_gen) =
         complete_tuple(u_gen, ZPat.erase_zopseq(zopseq), ty);
       let (new_zpat, ctx, u_gen) =
         mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
@@ -1978,9 +1972,7 @@ module Exp = {
 
   let complete_tuple =
     _complete_tuple(
-      ~comma=Operators.Exp.Comma,
-      ~new_EmptyHole=UHExp.new_EmptyHole,
-      ~mk_OpSeq=UHExp.mk_OpSeq,
+      ~make_holy_tuple=UHExp.make_holy_tuple,
       ~place_before_opseq=ZExp.place_before_opseq,
     );
 

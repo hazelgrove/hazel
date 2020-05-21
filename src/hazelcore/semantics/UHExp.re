@@ -302,6 +302,13 @@ let associate = (seq: seq) => {
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
+let make_holy_tuple =
+  OpSeq.make_holy_tuple(
+    ~comma=Operators.Exp.Comma,
+    ~new_EmptyHole,
+    ~mk_OpSeq,
+  );
+
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
   | EmptyLine => true

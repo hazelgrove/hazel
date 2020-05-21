@@ -154,6 +154,13 @@ let associate = (seq: seq) => {
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
+let make_holy_tuple =
+  OpSeq.make_holy_tuple(
+    ~comma=Operators.Pat.Comma,
+    ~new_EmptyHole,
+    ~mk_OpSeq,
+  );
+
 let patterns_of_type =
     (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) =>
   OpSeq.(
