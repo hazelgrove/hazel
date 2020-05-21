@@ -835,6 +835,7 @@ module Exp = {
         (
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
+          | InvalidText => failwith("unimplemented")
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
