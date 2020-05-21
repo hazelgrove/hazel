@@ -633,14 +633,16 @@ let _complete_tuple =
       ~comma: 'operator,
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
-      ~place_before_operand: 'operand => 'zoperand,
+      ~place_before_opseq:
+         OpSeq.t('operand, 'operator) =>
+         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       u_gen: MetaVarGen.t,
       opSeq: OpSeq.t('operand, 'operator),
       ty: HTyp.t,
     )
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
   let tys = HTyp.get_prod_elements(ty);
-  let (OpSeq(skel, seq), u_gen) =
+  let (opSeq, u_gen) =
     OpSeq.make_holy_tuple(
       ~comma,
       ~new_EmptyHole,
@@ -649,14 +651,7 @@ let _complete_tuple =
       tys,
       u_gen,
     );
-  let (second, surround) = Seq.split_nth_operand(1, seq);
-  (
-    ZOpSeq.ZOpSeq(
-      skel,
-      ZSeq.ZOperand(place_before_operand(second), surround),
-    ),
-    u_gen,
-  );
+  (place_before_opseq(opSeq), u_gen);
 };
 
 module Pat = {
@@ -910,7 +905,7 @@ module Pat = {
       ~comma=Operators.Pat.Comma,
       ~new_EmptyHole=UHPat.new_EmptyHole,
       ~mk_OpSeq=UHPat.mk_OpSeq,
-      ~place_before_operand=ZPat.place_before_operand,
+      ~place_before_opseq=ZPat.place_before,
     );
 
   let resurround_z =
@@ -1507,16 +1502,11 @@ module Pat = {
           ZPat.is_after_zopseq(zopseq)
           && !(zopseq |> has_Comma)
           && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-      let (opseq, ctx, u_gen) =
-        Statics.Pat.ana_fix_holes_opseq(
-          ctx,
-          u_gen,
-          zopseq |> ZPat.erase_zopseq,
-          // safe because pattern guard
-          ty |> HTyp.get_prod_elements |> List.hd,
-        );
-      let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-      Succeeded((new_zopseq, ctx, u_gen));
+      let (ZOpSeq(_, zseq), u_gen) =
+        complete_tuple(u_gen, ZPat.erase_zopseq(zopseq), ty);
+      let (new_zpat, ctx, u_gen) =
+        mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
+      ana_perform(ctx, u_gen, MoveToNextHole, new_zpat, ty);
 
     | (Construct(SOp(os)), ZOperand(zoperand, surround))
         when
@@ -1991,7 +1981,7 @@ module Exp = {
       ~comma=Operators.Exp.Comma,
       ~new_EmptyHole=UHExp.new_EmptyHole,
       ~mk_OpSeq=UHExp.mk_OpSeq,
-      ~place_before_operand=ZExp.place_before_operand,
+      ~place_before_opseq=ZExp.place_before_opseq,
     );
 
   let lines_of_prefix =
@@ -4269,16 +4259,11 @@ module Exp = {
           ZExp.is_after_zopseq(zopseq)
           && !(zopseq |> has_Comma)
           && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-      let (opseq, u_gen) =
-        Statics.Exp.ana_fix_holes_opseq(
-          ctx,
-          u_gen,
-          zopseq |> ZExp.erase_zopseq,
-          // safe because pattern guard
-          ty |> HTyp.get_prod_elements |> List.hd,
-        );
-      let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
-      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+      let (ZOpSeq(_, zseq), u_gen) =
+        complete_tuple(u_gen, ZExp.erase_zopseq(zopseq), ty);
+      let (new_zexp, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
+      ana_perform(ctx, MoveToNextHole, (new_zexp, u_gen), ty)
+      |> wrap_in_AnaDone;
 
     | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
         when zoperand |> ZExp.is_after_zoperand =>
