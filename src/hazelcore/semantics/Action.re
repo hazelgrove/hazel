@@ -2782,57 +2782,6 @@ module Exp = {
       )
     };
 
-  /* 1: after zoperand; 0: before zoperand; -1: inapplicable */
-  let rec find_cursor = (ze: ZExp.t): int => {
-    print_endline("Action2787");
-    ze |> find_cursor_zblock;
-  }
-  and find_cursor_zblock = ((_, zline, _): ZExp.zblock): int =>
-    zline |> find_cursor_zline
-  and find_cursor_zline =
-    fun
-    | CursorL(_) => (-1)
-    | ExpLineZ(zopseq) => zopseq |> find_cursor_zopseq
-    | LetLineZP(_)
-    | LetLineZA(_) => (-1)
-    | LetLineZE(_, _, zdef) => zdef |> find_cursor
-  and find_cursor_zopseq =
-    fun
-    | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> find_cursor_zoperand
-    | ZOpSeq(_, ZOperator(_)) => (-1)
-  and find_cursor_zoperator =
-    fun
-    | _ => (-1)
-  and find_cursor_zoperand =
-    fun
-    | CursorE(cursor, operand) =>
-      if (ZExp.is_after_zoperand(CursorE(cursor, operand))) {
-        1;
-      } else if (ZExp.is_before_zoperand(CursorE(cursor, operand))) {
-        0;
-      } else {
-        (-1);
-      }
-    | ParenthesizedZ(zbody) => find_cursor(zbody)
-    | LamZP(_)
-    | LamZA(_) => (-1)
-    | LamZE(_, _, _, zbody) => find_cursor(zbody)
-    | InjZ(_, _, zbody) => find_cursor(zbody)
-    | CaseZE(_, zbody, _, _) => {
-        print_endline("Action2819");
-        find_cursor(zbody);
-      }
-    | CaseZR(_)
-    | CaseZA(_) => (-1)
-    | ApPaletteZ(_, _, _, zpsi) => {
-        let zhole_map = zpsi.zsplice_map;
-        let (_, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
-        find_cursor(ze);
-      }
-    | SubscriptZE1(_, zbody, _, _) => find_cursor(zbody)
-    | SubscriptZE2(_, _, zbody, _) => find_cursor(zbody)
-    | SubscriptZE3(_, _, _, zbody) => find_cursor(zbody);
-
   let rec syn_perform =
           (
             ctx: Contexts.t,
