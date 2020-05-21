@@ -987,10 +987,10 @@ let shift_history =
   };
 };
 
-let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
+let toggle_all_hidden_history = (undo_history: t): t => {
   let hidden_group = (group: undo_history_group) => {
     ...group,
-    is_expanded: expanded,
+    is_expanded: !undo_history.all_hidden_history_expand,
   };
   {
     ...undo_history,
@@ -999,6 +999,6 @@ let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
       hidden_group(ZList.prj_z(undo_history.groups)),
       List.map(hidden_group, ZList.prj_suffix(undo_history.groups)),
     ),
-    all_hidden_history_expand: expanded,
+    all_hidden_history_expand: !undo_history.all_hidden_history_expand,
   };
 };

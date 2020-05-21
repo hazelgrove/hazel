@@ -290,23 +290,23 @@ let apply_action =
           model.undo_history
           |> UndoHistory.shift_to_prev
           |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history, false);
+        Model.load_undo_history(model, new_history, ~ignore_caret_jump=false);
       | Redo =>
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_next
           |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history, false);
+        Model.load_undo_history(model, new_history, ~ignore_caret_jump=false);
       | ShiftHistory(group_id, elt_id, is_mousenter) =>
         /* cshift to the certain entry */
         let new_history =
           model.undo_history
           |> UndoHistory.shift_history(group_id, elt_id, is_mousenter);
-        Model.load_undo_history(model, new_history, true);
+        Model.load_undo_history(model, new_history, ~ignore_caret_jump=true);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
-        /*shift to the toggle-target group and change its expanded state*/
+        /* shift to the toggle-target group and change its expanded state */
         switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
         | None =>
           failwith("Impossible match, because undo_history is non-empty")
@@ -336,19 +336,10 @@ let apply_action =
           };
         };
       | ToggleHiddenHistoryAll =>
-        if (model.undo_history.all_hidden_history_expand) {
-          {
-            ...model,
-            undo_history:
-              UndoHistory.set_all_hidden_history(model.undo_history, false),
-          };
-        } else {
-          {
-            ...model,
-            undo_history:
-              UndoHistory.set_all_hidden_history(model.undo_history, true),
-          };
-        }
+        model
+        |> Model.put_undo_history(
+             UndoHistory.toggle_all_hidden_history(model.undo_history),
+           )
       | TogglePreviewOnHover => {
           ...model,
           undo_history: {
