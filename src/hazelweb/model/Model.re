@@ -299,7 +299,7 @@ let load_cardstack = (model, idx) => {
 };
 
 let load_undo_history =
-    (model: t, undo_history: UndoHistory.t, ignore_caret_jump: bool): t => {
+    (model: t, undo_history: UndoHistory.t, ~ignore_caret_jump: bool): t => {
   let new_cardstacks =
     UndoHistory.get_cardstacks(undo_history, ignore_caret_jump);
   let new_program = Cardstacks.get_program(new_cardstacks);
