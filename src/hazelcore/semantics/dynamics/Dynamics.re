@@ -1150,6 +1150,7 @@ module Exp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
+    | InvalidText => failwith("unimplemented")
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1473,6 +1474,7 @@ module Exp = {
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
       };
+    | InvalidText => failwith("unimplemented")
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)

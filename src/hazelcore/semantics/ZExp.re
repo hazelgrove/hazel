@@ -79,6 +79,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | EmptyHole(_)
   | ListNil(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
+  | InvalidText => failwith("unimplemented")
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
@@ -150,6 +151,7 @@ and is_before_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
+  | CursorE(_, InvalidText) => failwith("unimplemented")
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
@@ -197,6 +199,7 @@ and is_after_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
+  | CursorE(_, InvalidText) => failwith("unimplemented")
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorE(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
@@ -247,6 +250,7 @@ and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
+  | InvalidText => failwith("unimplemented")
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
@@ -282,6 +286,7 @@ and place_after_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
+  | InvalidText => failwith("unimplemented")
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
@@ -602,6 +607,8 @@ and move_cursor_left_zoperator =
   | (OnOp(After), op) => Some((OnOp(Before), op))
 and move_cursor_left_zoperand =
   fun
+  // FIXME: Figure out the proper case
+  | CursorE(OnDelim(_, Before), InvalidText) => failwith("unimplemented")
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
@@ -835,6 +842,8 @@ and move_cursor_right_zoperator =
   | (OnOp(Before), op) => Some((OnOp(After), op))
 and move_cursor_right_zoperand =
   fun
+  // FIXME: Figure out the proper case
+  | CursorE(OnDelim(_, After), InvalidText) => failwith("unimplemented")
   | z when is_after_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))

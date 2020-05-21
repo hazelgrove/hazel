@@ -929,6 +929,7 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some(Hole)
+    | InvalidText => failwith("unimplemented")
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1092,6 +1093,7 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some()
+    | InvalidText => failwith("unimplemented")
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1661,6 +1663,7 @@ module Exp = {
       } else {
         (e, Hole, u_gen);
       }
+    | InvalidText => failwith("unimplemented")
     | Var(_, var_err_status, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -2082,6 +2085,7 @@ module Exp = {
       } else {
         (e, u_gen);
       }
+    | InvalidText => failwith("unimplemented")
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
