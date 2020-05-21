@@ -2075,7 +2075,7 @@ module Exp = {
         },
         rules,
       )
-    | CaseZR(_, _, ([], RuleZP(zpat, _), []), _) => {
+    | CaseZR(_, _, (_, RuleZP(zpat, _), _), _) => {
         let OpSeq(_, seq) = ZPat.erase(zpat);
         // Only try to derive type and continue if the only rule was just an empty hole
         seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
@@ -3601,7 +3601,7 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZR(err, scrut, (_, RuleZP(_, exp), _), typeAscription) as zop,
+        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix), typeAscription) as zop,
       )
         when can_split_cases(zop) =>
       switch (split_cases(ctx, u_gen, scrut, exp)) {
@@ -3610,7 +3610,12 @@ module Exp = {
         Succeeded(
           SynDone((
             ZExp.ZBlock.wrap(
-              ZExp.CaseZR(err, scrut, zrules, typeAscription),
+              ZExp.CaseZR(
+                err,
+                scrut,
+                ZList.surround((prefix, suffix), zrules),
+                typeAscription,
+              ),
             ),
             ty,
             u_gen,
@@ -4811,7 +4816,7 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZR(err, scrut, (_, RuleZP(_, exp), _), typeAscription) as zop,
+        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix), typeAscription) as zop,
       )
         when can_split_cases(zop) =>
       switch (split_cases(ctx, u_gen, scrut, exp)) {
@@ -4820,7 +4825,12 @@ module Exp = {
         Succeeded(
           AnaDone((
             ZExp.ZBlock.wrap(
-              ZExp.CaseZR(err, scrut, zrules, typeAscription),
+              ZExp.CaseZR(
+                err,
+                scrut,
+                ZList.surround((prefix, suffix), zrules),
+                typeAscription,
+              ),
             ),
             u_gen,
           )),
