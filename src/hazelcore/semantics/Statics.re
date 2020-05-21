@@ -1027,7 +1027,13 @@ module Exp = {
     | Parenthesized(body) => syn(ctx, body)
     }
   and syn_rules =
-      (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
+      (
+        ~join: HTyp.join=GLB,
+        ctx: Contexts.t,
+        rules: UHExp.rules,
+        pat_ty: HTyp.t,
+      )
+      : option(HTyp.t) => {
     let clause_types =
       List.fold_left(
         (types_opt, r) =>
@@ -1044,7 +1050,7 @@ module Exp = {
       );
     switch (clause_types) {
     | None => None
-    | Some(types) => HTyp.glb_all(types)
+    | Some(types) => HTyp.join_all(join, types)
     };
   }
   and syn_rule =
@@ -1816,7 +1822,7 @@ module Exp = {
         ([], u_gen, []),
         rules,
       );
-    let common_type = HTyp.glb_all(rule_types);
+    let common_type = HTyp.join_all(GLB, rule_types);
     (List.rev(rev_fixed_rules), u_gen, List.rev(rule_types), common_type);
   }
   and syn_fix_holes_rule =
