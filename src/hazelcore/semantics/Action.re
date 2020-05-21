@@ -2067,6 +2067,14 @@ module Exp = {
 
   let can_split_cases: ZExp.zoperand => bool =
     fun
+    | CaseZE(_, _, rules, _) =>
+      List.for_all(
+        rule => {
+          let UHExp.Rule(OpSeq(_, seq), _) = rule;
+          seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
+        },
+        rules,
+      )
     | CaseZR(_, _, ([], RuleZP(zpat, _), []), _) => {
         let OpSeq(_, seq) = ZPat.erase(zpat);
         // Only try to derive type and continue if the only rule was just an empty hole
@@ -3568,6 +3576,31 @@ module Exp = {
 
     | (
         SplitCases,
+        CaseZE(
+          err,
+          zscrut,
+          [UHExp.Rule(OpSeq(_, seq) as pat, exp)],
+          typeAscription,
+        ),
+      )
+        when seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole =>
+      syn_perform_operand(
+        ctx,
+        SplitCases,
+        (
+          ZExp.CaseZR(
+            err,
+            ZExp.erase(zscrut),
+            ZList.singleton(ZExp.RuleZP(ZPat.place_before(pat), exp)),
+            typeAscription,
+          ),
+          ty,
+          u_gen,
+        ),
+      )
+
+    | (
+        SplitCases,
         CaseZR(err, scrut, (_, RuleZP(_, exp), _), typeAscription) as zop,
       )
         when can_split_cases(zop) =>
@@ -4750,6 +4783,31 @@ module Exp = {
       );
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SLine), CursorE(_)) => Failed
+
+    | (
+        SplitCases,
+        CaseZE(
+          err,
+          zscrut,
+          [UHExp.Rule(OpSeq(_, seq) as pat, exp)],
+          typeAscription,
+        ),
+      )
+        when seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole =>
+      ana_perform_operand(
+        ctx,
+        SplitCases,
+        (
+          ZExp.CaseZR(
+            err,
+            ZExp.erase(zscrut),
+            ZList.singleton(ZExp.RuleZP(ZPat.place_before(pat), exp)),
+            typeAscription,
+          ),
+          u_gen,
+        ),
+        ty,
+      )
 
     | (
         SplitCases,
