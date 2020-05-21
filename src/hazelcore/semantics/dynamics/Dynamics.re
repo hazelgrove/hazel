@@ -1897,6 +1897,7 @@ module Evaluator = {
      6 = Cast BV Hole Ground
      7 = boxed value not a float literal 1
      8 = boxed value not a float literal 2
+     9 = integer divide by zero error
    */
 
   [@deriving sexp]
@@ -1937,7 +1938,10 @@ module Evaluator = {
     | Minus => Some(IntLit(n1 - n2))
     | Plus => Some(IntLit(n1 + n2))
     | Times => Some(IntLit(n1 * n2))
-    | Divide => Some(IntLit(n1 / n2))
+    | Divide =>
+      /* TODO: this is a temporary fix to show the error until there is a proper way to represent errors */
+      n2 == 0
+        ? Some(BoundVar("divide by zero error")) : Some(IntLit(n1 / n2))
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))
