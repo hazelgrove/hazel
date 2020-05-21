@@ -379,8 +379,8 @@ module Typ = {
     //   Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
     | (Construct(SChar(_)), CursorT(_)) => Failed
 
-    | (Construct(SLeftBracket), CursorT(_)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
+    | (Construct(SLeftBracket), CursorT(_)) => Failed
+    /* Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand)))) */
 
     | (Construct(SQuote), CursorT(_)) =>
       print_endline("hello383");
@@ -1245,6 +1245,7 @@ module Pat = {
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
       : Outcome.t(syn_success) => {
+    print_endline("Action1248");
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -1260,12 +1261,9 @@ module Pat = {
     | (_, CursorP(cursor, operand))
         when !ZPat.is_valid_cursor_operand(cursor, operand) =>
       Failed
-
     /* Invalid actions */
     | (
-        Construct(
-          SApPalette(_) | SLeftBracket | SAsc | SLet | SLine | SLam | SCase,
-        ) |
+        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
         UpdateApPalette(_) |
         SwapUp |
         SwapDown,
@@ -1469,6 +1467,11 @@ module Pat = {
     //   syn_insert_text(ctx, u_gen, (index, "\""), s2);
     | (Construct(SChar(_)), CursorP(_)) => Failed
 
+    | (Construct(SLeftBracket), CursorP(OnDelim(_, Before), EmptyHole(_))) =>
+      print_endline("Action1471");
+      let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
+      Succeeded((zp, List(Hole), ctx, u_gen));
+    | (Construct(SLeftBracket), CursorP(_, _)) => Failed
     | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
       let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
       Succeeded((zp, List(Hole), ctx, u_gen));
@@ -1782,9 +1785,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(
-          SApPalette(_) | SLeftBracket | SAsc | SLet | SLine | SLam | SCase,
-        ) |
+        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
         UpdateApPalette(_) |
         SwapUp |
         SwapDown,
@@ -2149,6 +2150,18 @@ module Pat = {
       }
 
     /* Subsumption */
+    | (Construct(SLeftBracket), CursorP(_)) =>
+      switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((zp, ty', ctx, u_gen)) =>
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((zp, ctx, u_gen));
+        } else {
+          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
+          Succeeded((zp, ctx, u_gen));
+        }
+      }
+
     | (Construct(SListNil), _) =>
       switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
       | (Failed | CursorEscaped(_)) as err => err
