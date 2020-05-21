@@ -31,6 +31,7 @@ type cursor_term_info = {
 
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
+  /* may jump to another position after a move action */
   caret_jumps_to: option(Cardstacks.t),
   cursor_term_info,
   previous_action: option(Action.t),
@@ -47,7 +48,7 @@ type undo_history_group = {
 type t = {
   groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
-  /* mute the auto-scrolling when disable_auto_scrolling is true */
+  /* disable the auto-scrolling when disable_auto_scrolling is true */
   disable_auto_scrolling: bool,
   preview_on_hover: bool,
   hover_recover_group_id: int,
@@ -173,7 +174,7 @@ let group_entry =
     group_edit_action(prev_entry.edit_action, new_edit_action);
 
   /* edit actions like construct space/new lines should be grouped together,
-     so cursor jump should be ignored in those cases */
+     so caret jump should be ignored in those cases */
   let ignore_caret_jump =
     switch (prev_entry.edit_action, new_edit_action) {
     | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
@@ -202,18 +203,18 @@ let group_entry =
 
 type comp_len_typ =
   | MaxLen
-  | Move
+  | MinLen
   | Len(int);
 
 let comp_len_lt =
-    (cursor_len_1: comp_len_typ, cursor_len_2: comp_len_typ): bool => {
-  switch (cursor_len_1, cursor_len_2) {
+    (cursor_len_prev: comp_len_typ, cursor_len_next: comp_len_typ): bool => {
+  switch (cursor_len_prev, cursor_len_next) {
   | (MaxLen, MaxLen) => false
   | (_, MaxLen) => true
-  | (_, Move) => false
+  | (MinLen, _) => true
+  | (_, MinLen) => false
   | (MaxLen, _) => false
-  | (Move, _) => true
-  | (Len(len1), Len(len2)) => len1 < len2
+  | (Len(len1), Len(len2)) => len1 <= len2
   };
 };
 
@@ -221,7 +222,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   switch (cursor_term) {
   | Exp(_, operand) =>
     switch (operand) {
-    | EmptyHole(_) => Move
+    | EmptyHole(_) => MinLen
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
@@ -235,7 +236,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     }
   | Pat(_, operand) =>
     switch (operand) {
-    | EmptyHole(_) => Move
+    | EmptyHole(_) => MinLen
     | Wild(_) => Len(1)
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
@@ -247,7 +248,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     }
   | Typ(_, operand) =>
     switch (operand) {
-    | Hole => Move
+    | Hole => MinLen
     | Unit
     | Int
     | Float
@@ -261,21 +262,22 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Rule(_, _) => MaxLen
   | Line(_, line) =>
     switch (line) {
-    | EmptyLine => Move
+    | EmptyLine => MinLen
     | LetLine(_, _, _)
     | ExpLine(_) => MaxLen
     }
   };
 };
 let comp_len_larger =
-    (cursor_term_1: cursor_term, cursor_term_2: cursor_term): cursor_term =>
+    (cursor_term_prev: cursor_term, cursor_term_next: cursor_term)
+    : cursor_term =>
   if (comp_len_lt(
-        cursor_term_len(cursor_term_1),
-        cursor_term_len(cursor_term_2),
+        cursor_term_len(cursor_term_prev),
+        cursor_term_len(cursor_term_next),
       )) {
-    cursor_term_2;
+    cursor_term_next;
   } else {
-    cursor_term_1;
+    cursor_term_prev;
   };
 
 let get_initial_entry_in_group =
@@ -407,6 +409,10 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
   };
 };
 
+let is_move_action = (cursor_term_info: cursor_term_info): bool => {
+  ZExp.erase(cursor_term_info.zexp_before)
+  == ZExp.erase(cursor_term_info.zexp_after);
+};
 let delete_edit =
     (
       ~prev_group: undo_history_group,
@@ -414,51 +420,39 @@ let delete_edit =
       ~new_cursor_term_info: cursor_term_info,
     )
     : option(edit_action) =>
-  if (ZExp.erase(new_cursor_term_info.zexp_before)
-      != ZExp.erase(new_cursor_term_info.zexp_after)) {
-    if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
-      Some(DeleteEdit(EmptyLine));
-    } else if (CursorInfo.is_empty_line(
-                 new_cursor_term_info.cursor_term_after,
-               )
-               || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
-      /* delete the whole term */
-      Some(
-        get_delete_edit_action(
-          prev_group,
-          new_cardstacks_before,
-          new_cursor_term_info,
-        ),
-      );
-    } else {
-      let prev_entry = ZList.prj_z(prev_group.group_entries);
-      if (!caret_jump(prev_group, new_cardstacks_before)
-          && prev_entry.edit_action == Var(Insert)) {
-        Some(Var(Insert));
-      } else {
-        Some(Var(Edit));
-      };
-    };
+  if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
+    Some(DeleteEdit(EmptyLine));
+  } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
+             || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
+    /* delete the whole term */
+    Some(
+      get_delete_edit_action(
+        prev_group,
+        new_cardstacks_before,
+        new_cursor_term_info,
+      ),
+    );
   } else {
-    None;
+    let prev_entry = ZList.prj_z(prev_group.group_entries);
+    if (!caret_jump(prev_group, new_cardstacks_before)
+        && prev_entry.edit_action == Var(Insert)) {
+      Some(Var(Insert));
+    } else {
+      Some(Var(Edit));
+    };
   };
 let delim_edge_handle =
     (~new_cursor_term_info: cursor_term_info, ~adjacent_is_empty_line: bool)
     : option(edit_action) =>
-  if (ZExp.erase(new_cursor_term_info.zexp_before)
-      != ZExp.erase(new_cursor_term_info.zexp_after)) {
-    if (adjacent_is_empty_line) {
-      /* delete adjacent empty line */
-      Some(DeleteEdit(EmptyLine));
-    } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-      /* delete space */
-      Some(DeleteEdit(Space));
-    } else {
-      None;
-          /* jump to next term */
-    };
+  if (adjacent_is_empty_line) {
+    /* delete adjacent empty line */
+    Some(DeleteEdit(EmptyLine));
+  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+    /* delete space */
+    Some(DeleteEdit(Space));
   } else {
     None;
+        /* jump to next term */
   };
 let delete =
     (
@@ -487,13 +481,7 @@ let delete =
   | OnDelim(pos, side) =>
     switch (side) {
     | Before =>
-      if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
-          || ZExp.erase(new_cursor_term_info.zexp_before)
-          == ZExp.erase(new_cursor_term_info.zexp_after)) {
-        None;
-            /* move cursor in the hole */
-      } else if (pos == 1
-                 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
+      if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
         /* num==1 is the position of ':' in an expression */
         Some(
           DeleteEdit(TypeAnn),
@@ -526,7 +514,7 @@ let delete =
         ),
       )
     | After =>
-      /* move cursor to next term, just ignore this move */
+      /* move caret to next term, just ignore this move */
       None
     }
   };
@@ -563,11 +551,7 @@ let backspace =
         ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
       )
     | After =>
-      if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
-        None;
-            /* move cursor in the hole */
-      } else if (pos == 1
-                 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
+      if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
         /* num==1 is the position of ':' in an expression */
         Some(
           DeleteEdit(TypeAnn),
@@ -586,7 +570,7 @@ let backspace =
   | OnOp(side) =>
     switch (side) {
     | Before =>
-      /* move cursor to next term, just ignore this move */
+      /* move caret to next term, just ignore this move */
       None
     | After =>
       /* delete and reach a hole */
@@ -608,20 +592,22 @@ let get_new_edit_action =
       ~new_cursor_term_info: cursor_term_info,
       ~action: option(Action.t),
     )
-    : option(edit_action) => {
-  switch (action) {
-  | None => None
-  | Some(action') =>
-    switch (action') {
-    | Delete =>
-      delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
-    | Backspace =>
-      backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
-    | Construct(shape) =>
-      switch (shape) {
-      | SLine =>
-        if (ZExp.erase(new_cursor_term_info.zexp_before)
-            != ZExp.erase(new_cursor_term_info.zexp_after)) {
+    : option(edit_action) =>
+  if (is_move_action(new_cursor_term_info)) {
+    None;
+        /* It's a caret movement */
+  } else {
+    switch (action) {
+    | None => None
+    | Some(action') =>
+      switch (action') {
+      | Delete =>
+        delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+      | Backspace =>
+        backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+      | Construct(shape) =>
+        switch (shape) {
+        | SLine =>
           switch (
             CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)
           ) {
@@ -638,137 +624,136 @@ let get_new_edit_action =
                 Some(ConstructEdit(shape));
               }
             }
-          };
-        } else {
-          None;
-        }
-      | SParenthesized
-      | SList
-      | SAsc
-      | SLam
-      | SListNil
-      | SInj(_)
-      | SLet
-      | SCase => Some(ConstructEdit(shape))
-      | SChar(_) =>
-        if (group_entry(
-              ~prev_group,
-              ~new_cardstacks_before,
-              ~new_edit_action=Var(Edit),
-            )) {
-          switch (get_initial_entry_in_group(prev_group)) {
-          | None => Some(Var(Insert))
-          | Some(initial_entry) =>
-            if (initial_entry.edit_action == Var(Insert)) {
-              Some(Var(Insert));
-            } else {
-              Some(Var(Edit));
-            }
-          };
-        } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
-                   || !
-                        CursorInfo.cursor_term_is_editable(
-                          new_cursor_term_info.cursor_term_before,
-                        )) {
-          Some(Var(Insert));
-        } else {
-          Some(Var(Edit));
-        }
+          }
+        | SParenthesized
+        | SList
+        | SAsc
+        | SLam
+        | SListNil
+        | SInj(_)
+        | SLet
+        | SCase => Some(ConstructEdit(shape))
+        | SChar(_) =>
+          if (group_entry(
+                ~prev_group,
+                ~new_cardstacks_before,
+                ~new_edit_action=Var(Edit),
+              )) {
+            switch (get_initial_entry_in_group(prev_group)) {
+            | None => Some(Var(Insert))
+            | Some(initial_entry) =>
+              if (initial_entry.edit_action == Var(Insert)) {
+                Some(Var(Insert));
+              } else {
+                Some(Var(Edit));
+              }
+            };
+          } else if (CursorInfo.is_hole(
+                       new_cursor_term_info.cursor_term_before,
+                     )
+                     || !
+                          CursorInfo.cursor_term_is_editable(
+                            new_cursor_term_info.cursor_term_before,
+                          )) {
+            Some(Var(Insert));
+          } else {
+            Some(Var(Edit));
+          }
 
-      | SOp(op) =>
-        switch (op) {
-        | SMinus
-        | SPlus
-        | STimes
-        | SLessThan
-        | SGreaterThan
-        | SEquals
-        | SComma
-        | SArrow
-        | SVBar
-        | SCons
-        | SAnd
-        | SOr => Some(ConstructEdit(shape))
-        | SSpace =>
-          switch (new_cursor_term_info.cursor_term_before) {
-          | Exp(pos, uexp_operand) =>
-            switch (uexp_operand) {
-            | Var(_, InVarHole(Keyword(k), _), _) =>
-              switch (k) {
-              | Let =>
-                switch (
-                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
-                ) {
-                | OnText(pos) =>
-                  if (pos == 3) {
-                    /* the caret is at the end of "let" */
-                    Some(
-                      ConstructEdit(SLet),
-                    );
+        | SOp(op) =>
+          switch (op) {
+          | SMinus
+          | SPlus
+          | STimes
+          | SLessThan
+          | SGreaterThan
+          | SEquals
+          | SComma
+          | SArrow
+          | SVBar
+          | SCons
+          | SAnd
+          | SOr => Some(ConstructEdit(shape))
+          | SSpace =>
+            switch (new_cursor_term_info.cursor_term_before) {
+            | Exp(pos, uexp_operand) =>
+              switch (uexp_operand) {
+              | Var(_, InVarHole(Keyword(k), _), _) =>
+                switch (k) {
+                | Let =>
+                  switch (
+                    get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                  ) {
+                  | OnText(pos) =>
+                    if (pos == 3) {
+                      /* the caret is at the end of "let" */
+                      Some(
+                        ConstructEdit(SLet),
+                      );
+                    } else {
+                      Some(ConstructEdit(SOp(SSpace)));
+                    }
+                  | OnDelim(_, _)
+                  | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                  }
+
+                | Case =>
+                  switch (
+                    get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                  ) {
+                  | OnText(pos) =>
+                    if (pos == 4) {
+                      /* the caret is at the end of "case" */
+                      Some(
+                        ConstructEdit(SCase),
+                      );
+                    } else {
+                      Some(ConstructEdit(SOp(SSpace)));
+                    }
+                  | OnDelim(_, _)
+                  | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                  }
+                }
+              | Var(_, _, var) =>
+                switch (pos) {
+                | OnText(index) =>
+                  let (left_var, _) = Var.split(index, var);
+                  if (Var.is_let(left_var)) {
+                    Some(ConstructEdit(SLet));
+                  } else if (Var.is_case(left_var)) {
+                    Some(ConstructEdit(SCase));
                   } else {
                     Some(ConstructEdit(SOp(SSpace)));
-                  }
+                  };
                 | OnDelim(_, _)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
 
-              | Case =>
-                switch (
-                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
-                ) {
-                | OnText(pos) =>
-                  if (pos == 4) {
-                    /* the caret is at the end of "case" */
-                    Some(
-                      ConstructEdit(SCase),
-                    );
-                  } else {
-                    Some(ConstructEdit(SOp(SSpace)));
-                  }
-                | OnDelim(_, _)
-                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-                }
+              | ApPalette(_, _, _, _) =>
+                failwith("ApPalette is not implemented")
+              | _ => Some(ConstructEdit(SOp(SSpace)))
               }
-            | Var(_, _, var) =>
-              switch (pos) {
-              | OnText(index) =>
-                let (left_var, _) = Var.split(index, var);
-                if (Var.is_let(left_var)) {
-                  Some(ConstructEdit(SLet));
-                } else if (Var.is_case(left_var)) {
-                  Some(ConstructEdit(SCase));
-                } else {
-                  Some(ConstructEdit(SOp(SSpace)));
-                };
-              | OnDelim(_, _)
-              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-              }
-
-            | ApPalette(_, _, _, _) =>
-              failwith("ApPalette is not implemented")
             | _ => Some(ConstructEdit(SOp(SSpace)))
             }
-          | _ => Some(ConstructEdit(SOp(SSpace)))
           }
-        }
 
-      | SApPalette(_) => failwith("ApPalette is not implemented")
+        | SApPalette(_) => failwith("ApPalette is not implemented")
+        }
+      | MoveTo(_)
+      | MoveToBefore(_)
+      | MoveLeft
+      | MoveRight
+      | MoveToNextHole
+      | MoveToPrevHole
+      | SwapUp /* what's that */
+      | SwapDown
+      | SwapLeft
+      | SwapRight => None
+      | UpdateApPalette(_) =>
+        failwith("ApPalette is not implemented in undo_history")
       }
-    | MoveTo(_)
-    | MoveToBefore(_)
-    | MoveLeft
-    | MoveRight
-    | MoveToNextHole
-    | MoveToPrevHole
-    | SwapUp /* what's that */
-    | SwapDown
-    | SwapLeft
-    | SwapRight => None
-    | UpdateApPalette(_) =>
-      failwith("ApPalette is not implemented in undo_history")
-    }
+    };
   };
-};
 let get_cursor_info =
     (
       ~new_cardstacks_after: Cardstacks.t,
