@@ -32,6 +32,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
+  | TyVar(_)
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
@@ -64,6 +65,8 @@ let contract = (ty: HTyp.t): t => {
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Float)
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
+      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
       | Arrow(ty1, ty2) =>
         mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
@@ -123,6 +126,9 @@ and expand_operand =
   | Int => Int
   | Float => Float
   | Bool => Bool
+  // Since we only add type variables, set index to 0 at this time
+  | TyVar(NotInVarHole, t) => TyVar(0, t)
+  | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
 
@@ -133,6 +139,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
+  | TyVar(NotInVarHole, _) => true
+  | TyVar(InVarHole(_), _) => false
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
