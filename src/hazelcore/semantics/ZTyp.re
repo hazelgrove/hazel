@@ -18,7 +18,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Int
   | Float
   | Bool => CursorPosition.delim_cursors(1)
-  | TyVar(_, _, x) => CursorPosition.text_cursors(Var.length(x))
+  | TyVar(_, x) => CursorPosition.text_cursors(Var.length(x))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
 
