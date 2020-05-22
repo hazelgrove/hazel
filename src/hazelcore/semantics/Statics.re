@@ -1040,6 +1040,14 @@ module Exp = {
         | (Some(_), Some(_)) => Some(String)
         | (_, _) => None
         };
+      // switch (ana(ctx, body2, Int)) {
+      // | Some(_) =>
+      //   switch (ana(ctx, body3, Int)) {
+      //   | Some(_) => Some(String)
+      //   | _ => None
+      //   }
+      // | _ => None
+      // };
       // }
       };
     }
@@ -1855,13 +1863,13 @@ module Exp = {
       print_endline("Statics1807 " ++ string_of_int(u_gen));
       let (body1, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
-      print_endline("1854 " ++ string_of_int(u_gen));
+      print_endline("Statics1854 " ++ string_of_int(u_gen));
       let (body2, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
-      print_endline("1857 " ++ string_of_int(u_gen));
+      print_endline("Statics1857 " ++ string_of_int(u_gen));
       let (body3, u_gen) =
-        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
-      print_endline("1860 " ++ string_of_int(u_gen));
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes=true, body3, Int);
+      print_endline("Statics1860 " ++ string_of_int(u_gen));
       (Subscript(NotInHole, body1, body2, body3), String, u_gen);
     };
   }
@@ -2184,9 +2192,11 @@ module Exp = {
     switch (e) {
     | EmptyHole(_) =>
       if (renumber_empty_holes) {
+        print_endline("Statics2195");
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (EmptyHole(u), u_gen);
       } else {
+        print_endline("Statics2199");
         (e, u_gen);
       }
     | Var(_, _, _)
@@ -2354,6 +2364,7 @@ module Exp = {
       print_endline("Statics2297");
       let (e', ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+      print_endline("Statics2365");
       if (HTyp.consistent(ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
       } else {

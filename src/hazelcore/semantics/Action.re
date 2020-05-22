@@ -4070,7 +4070,7 @@ module Exp = {
               UHExp.Block.wrap(hole),
             ),
           );
-        print_endline("Action3543");
+        print_endline("Action3543 " ++ string_of_int(u_gen));
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
       | operand =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
@@ -5396,7 +5396,7 @@ module Exp = {
         let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
         Succeeded(AnaDone((ze, u_gen)));
       };
-   
+
     | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (
