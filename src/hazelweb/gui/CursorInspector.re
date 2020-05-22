@@ -28,20 +28,32 @@ let view =
         ],
       )
     );
-  let inconsistent_branches_ty_bar = (branch_types, path_to_case) =>
+  let inconsistent_branches_ty_bar =
+      (branch_types, path_to_case, skipped_index) =>
     Vdom.(
       Node.div(
         [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
         List.mapi(
-          (index, ty) =>
+          (index, ty) => {
+            let shifted_index =
+              switch (skipped_index) {
+              | None => index
+              | Some(skipped_index) =>
+                if (index >= skipped_index) {
+                  index + 1;
+                } else {
+                  index;
+                }
+              };
             Node.span(
               [
                 Attr.on_click(_ => {
-                  inject(SelectCaseBranch(path_to_case, index))
+                  inject(SelectCaseBranch(path_to_case, shifted_index))
                 }),
               ],
               [HTypCode.view(ty)],
-            ),
+            );
+          },
           branch_types,
         ),
       )
@@ -83,6 +95,16 @@ let view =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
     expected_indicator("Expecting ", special_msg_bar("a case rule"));
+  let expected_inconsistent_branches_indicator =
+      (branch_types, path_to_case, skipped_index) =>
+    expected_indicator(
+      "No consistent expected type",
+      inconsistent_branches_ty_bar(
+        branch_types,
+        path_to_case,
+        Some(skipped_index),
+      ),
+    );
 
   let got_indicator = (title_text, type_div) =>
     Vdom.(
@@ -104,7 +126,7 @@ let view =
   let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
     got_indicator(
       "Got inconsistent branch types",
-      inconsistent_branches_ty_bar(branch_types, path_to_case),
+      inconsistent_branches_ty_bar(branch_types, path_to_case, None),
     );
 
   let got_free_indicator =
@@ -211,16 +233,22 @@ let view =
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
-    | SynBranchClause(glb, typed) =>
+    | SynBranchClause(join, typed, branch_index) =>
       let (ind1, ind2, err_state_b) = get_indicator_info(typed);
       let ind1 =
-        switch (glb) {
-        | None => ind1
-        | Some(ty) => expected_ty_indicator_consistent(ty)
+        switch (join) {
+        | NoBranches => ind1
+        | InconsistentBranchTys(rule_types, path_to_case) =>
+          expected_inconsistent_branches_indicator(
+            rule_types,
+            path_to_case,
+            branch_index,
+          )
+        | JoinTy(ty) => expected_ty_indicator_consistent(ty)
         };
       let (ind2, err_state_b) =
-        switch (glb, typed) {
-        | (Some(ty), Synthesized(got_ty)) =>
+        switch (join, typed) {
+        | (JoinTy(ty), Synthesized(got_ty)) =>
           switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
           | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
           | (true, false) => (got_consistent_indicator(got_ty), OK)
@@ -229,6 +257,7 @@ let view =
               TypeInconsistency,
             )
           }
+        | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
         | _ => (ind2, err_state_b)
         };
       (ind1, ind2, err_state_b);
