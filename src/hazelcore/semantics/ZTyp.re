@@ -146,6 +146,7 @@ and move_cursor_left_zoperand =
   | z when is_before_zoperand(z) => None
   | CursorT(OnOp(_), _) => None
   | CursorT(OnText(j), e) => Some(CursorT(OnText(j - 1), e))
+  | CursorT(_, TyVar(_)) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool) => None
@@ -189,6 +190,7 @@ and move_cursor_right_zoperand =
   | z when is_after_zoperand(z) => None
   | CursorT(OnOp(_), _) => None
   | CursorT(OnText(j), e) => Some(CursorT(OnText(j + 1), e))
+  | CursorT(_, TyVar(_)) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
   | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool) => None
