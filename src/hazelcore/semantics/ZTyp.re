@@ -18,6 +18,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Int
   | Float
   | Bool => CursorPosition.delim_cursors(1)
+  | TyVar(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
 
@@ -62,6 +63,7 @@ and is_before_zoperand =
   | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
+  | CursorT(cursor, TyVar(_)) => cursor == OnText(0)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
 let is_before_zoperator: zoperator => bool =
@@ -78,6 +80,7 @@ and is_after_zoperand =
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
+  | CursorT(cursor, TyVar(_)) => cursor == OnText(Var.length(x))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -93,7 +96,8 @@ and place_before_opseq = opseq =>
 and place_before_operand =
   fun
   | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(0, Before), operand);
+    CursorT(OnDelim(0, Before), operand)
+  | TyVar(_) as operand => CursorT(OnText(0), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
 
@@ -105,7 +109,8 @@ and place_after_operand =
   | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(1, After), operand);
+    CursorT(OnDelim(1, After), operand)
+  | TyVar(_, x) as operand => CursorT(OnText(Var.length(x)), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
 
@@ -139,7 +144,8 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorT(OnOp(_) | OnText(_), _) => None
+  | CursorT(OnOp(_), _) => None
+  | CursorT(OnText(j), e) => Some(Cursor(OnText(j - 1), e))
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool) => None
@@ -181,7 +187,8 @@ and move_cursor_right_zopseq = zopseq =>
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-  | CursorT(OnOp(_) | OnText(_), _) => None
+  | CursorT(OnOp(_), _) => None
+  | CursorT(OnText(j), e) => Some(CursorT(OnText(j + 1), e))
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
   | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool) => None
