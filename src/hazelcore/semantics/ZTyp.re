@@ -80,7 +80,7 @@ and is_after_zoperand =
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
-  | CursorT(cursor, TyVar(_)) => cursor == OnText(Var.length(x))
+  | CursorT(cursor, TyVar(_, x)) => cursor == OnText(Var.length(x))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
