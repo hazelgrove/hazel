@@ -1,8 +1,13 @@
 open Sexplib.Std;
 
+[@deriving sexp]
+type idx = int; /* we use de Bruijn indices */
+
 /* types with holes */
 [@deriving sexp]
 type t =
+  | TyVar(idx, Vat.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, Var.t) /* free type variables */
   | Hole
   | Int
   | Float
