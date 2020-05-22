@@ -968,7 +968,7 @@ module Exp = {
       | Var(_, InVarHole(Keyword(k), _), _) =>
         Some(mk(AnaKeyword(ty, k), ctx))
       | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty), ctx))
-      | InvalidText
+      | InvalidText(_, _)
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)

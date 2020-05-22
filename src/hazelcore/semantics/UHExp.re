@@ -21,7 +21,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
-  | InvalidText
+  | InvalidText(ErrStatus.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -186,7 +186,7 @@ and get_err_status_opseq = opseq =>
 and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
-  | InvalidText => failwith("unimplemented")
+  | InvalidText(err, _)
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -210,7 +210,7 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
-  | InvalidText => failwith("unimplemented")
+  | InvalidText(err, s) => InvalidText(err, s)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -244,7 +244,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
-  | InvalidText
+  | InvalidText(_, _)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -332,7 +332,7 @@ and is_complete_block = (b: block, check_type_holes: bool): bool => {
 and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   switch (operand) {
   | EmptyHole(_) => false
-  | InvalidText => failwith("unimplemented")
+  | InvalidText(_, _) => false
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
