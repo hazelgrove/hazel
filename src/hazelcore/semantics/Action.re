@@ -742,7 +742,7 @@ module Pat = {
       : Outcome.t(syn_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | InvalidText(_) =>
+    | InvalidTextShape(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
@@ -793,7 +793,7 @@ module Pat = {
       : Outcome.t(ana_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | InvalidText(_) =>
+    | InvalidTextShape(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
@@ -855,9 +855,9 @@ module Pat = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidText(_), _, _)
+    | (InvalidTextShape(_), _, _)
     | (_, None, _)
-    | (_, _, InvalidText(_)) => Failed
+    | (_, _, InvalidTextShape(_)) => Failed
     | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
@@ -884,9 +884,9 @@ module Pat = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidText(_), _, _)
+    | (InvalidTextShape(_), _, _)
     | (_, None, _)
-    | (_, _, InvalidText(_)) => Failed
+    | (_, _, InvalidTextShape(_)) => Failed
     | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
@@ -2174,7 +2174,7 @@ module Exp = {
       : Outcome.t(syn_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | InvalidText(_) =>
+    | InvalidTextShape(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
@@ -2235,7 +2235,7 @@ module Exp = {
       : Outcome.t(_) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
-    | InvalidText(_) =>
+    | InvalidTextShape(_) =>
       if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
@@ -2298,9 +2298,9 @@ module Exp = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidText(_), _, _)
+    | (InvalidTextShape(_), _, _)
     | (_, None, _)
-    | (_, _, InvalidText(_)) => Failed
+    | (_, _, InvalidTextShape(_)) => Failed
     | (ExpandingKeyword(kw), Some(Space), rshape) =>
       let (subject, u_gen) = {
         let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
@@ -2340,9 +2340,9 @@ module Exp = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidText(_), _, _)
+    | (InvalidTextShape(_), _, _)
     | (_, None, _)
-    | (_, _, InvalidText(_)) => Failed
+    | (_, _, InvalidTextShape(_)) => Failed
     | (ExpandingKeyword(kw), Some(Space), rshape) =>
       let (subject, u_gen) = {
         let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
