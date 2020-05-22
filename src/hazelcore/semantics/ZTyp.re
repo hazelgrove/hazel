@@ -145,7 +145,7 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorT(OnOp(_), _) => None
-  | CursorT(OnText(j), e) => Some(Cursor(OnText(j - 1), e))
+  | CursorT(OnText(j), e) => Some(CursorT(OnText(j - 1), e))
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool) => None
