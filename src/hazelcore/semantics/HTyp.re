@@ -33,6 +33,8 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
+  | TyVar(_)
+  | TyVarHole(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -49,6 +51,11 @@ let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
+  | (TyVarHole(_), _)
+  | (_, TyVarHole(_)) => true
+  | (TyVar(i, _), TyVar(j, _)) => i == j
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => false
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -123,11 +130,13 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
+  | TyVar(_) => true
+  | TyVarHole(_) => false
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
-
+/*
 let rec join = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (_, Hole) => Some(ty1)
@@ -163,3 +172,4 @@ let rec join = (ty1, ty2) =>
     }
   | (List(_), _) => None
   };
+  */
