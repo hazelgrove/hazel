@@ -912,7 +912,7 @@ module Exp = {
     | [x, ...xs] =>
       switch (operand) {
       | EmptyHole(_)
-      | InvalidText
+      | InvalidText(_, _)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -1094,7 +1094,7 @@ module Exp = {
     | [x, ...xs] =>
       switch (operand) {
       | EmptyHole(_)
-      | InvalidText
+      | InvalidText(_, _)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -1252,7 +1252,7 @@ module Exp = {
       (operand: UHExp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
     | EmptyHole(u) => [(ExpHole(u), rev_steps |> List.rev), ...hs]
-    | InvalidText => failwith("unimplemented")
+    | InvalidText(_, _) => failwith("unimplemented")
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
     | IntLit(err, _)
@@ -1428,7 +1428,7 @@ module Exp = {
       (zoperand: ZExp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
     // FIXME: Figure out correct case
-    | CursorE(_, InvalidText) => failwith("unimplemented")
+    | CursorE(_, InvalidText(_, _)) => failwith("unimplemented")
     | CursorE(OnOp(_), _) => no_holes
     | CursorE(_, EmptyHole(u)) =>
       mk_zholes(

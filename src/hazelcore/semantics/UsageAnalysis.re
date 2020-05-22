@@ -62,7 +62,7 @@ and find_uses_opseq =
 and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   switch (operand) {
   | EmptyHole(_)
-  | InvalidText
+  | InvalidText(_, _)
   | Var(_, InVarHole(_), _)
   | IntLit(_)
   | FloatLit(_)
