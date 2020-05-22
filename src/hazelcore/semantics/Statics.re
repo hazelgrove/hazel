@@ -1281,15 +1281,19 @@ module Exp = {
    */
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
-          : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
+          : option(type_mode) => {
+    print_endline("Statics1285");
+    _syn_nth_type_mode(ctx, n, skel, seq);
+  }
   and _syn_nth_type_mode =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
       : option(type_mode) => {
+    print_endline("Statics1290");
     let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
     let rec go = (skel: UHExp.skel) =>
       switch (skel) {
       | Placeholder(n') =>
+        print_endline("Statics1293");
         assert(n == n');
         Some(Syn);
       | BinOp(InHole(_), op, skel1, skel2) =>
