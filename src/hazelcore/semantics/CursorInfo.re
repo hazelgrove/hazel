@@ -1,6 +1,13 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type join_of_branches =
+  | NoBranches
+  // steps to the case
+  | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
+  | JoinTy(HTyp.t);
+
+[@deriving sexp]
 type typed =
   /* cursor in analytic position */
   // cursor is on a lambda with an argument type annotation
@@ -53,11 +60,14 @@ type typed =
   | SynBranchClause
       // lub of other branches
       (
-        option(HTyp.t),
+        join_of_branches,
         // info for the clause
         typed,
+        // index of the branch
+        int,
       )
   // cursor is on a case with branches of inconsistent types
+  // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
@@ -788,15 +798,45 @@ module Exp = {
       | None => None
       | Some(pat_ty) =>
         /* lub of all of the branches except the one with the cursor */
-        let lub =
-          Statics.Exp.syn_rules(~join=LUB, ctx, prefix @ suffix, pat_ty);
-        syn_cursor_info_rule(
-          ~steps=steps @ [1 + List.length(prefix)],
-          ctx,
-          zrule,
-          pat_ty,
-          lub,
-        );
+        let lub_opt =
+          switch (prefix @ suffix) {
+          | [] => Some(NoBranches)
+          | other_branches =>
+            let clause_types =
+              List.fold_left(
+                (types_opt, r) =>
+                  switch (types_opt) {
+                  | None => None
+                  | Some(types) =>
+                    switch (Statics.Exp.syn_rule(ctx, r, pat_ty)) {
+                    | None => None
+                    | Some(r_ty) => Some([r_ty, ...types])
+                    }
+                  },
+                Some([]),
+                other_branches,
+              );
+            switch (clause_types) {
+            | None => None
+            | Some(types) =>
+              switch (HTyp.join_all(LUB, types)) {
+              | None => Some(InconsistentBranchTys(List.rev(types), steps))
+              | Some(lub) => Some(JoinTy(lub))
+              }
+            };
+          };
+        switch (lub_opt) {
+        | None => None
+        | Some(lub) =>
+          syn_cursor_info_rule(
+            ~steps=steps @ [1 + List.length(prefix)],
+            ctx,
+            zrule,
+            pat_ty,
+            lub,
+            List.length(prefix),
+          )
+        };
       }
     | ApPaletteZ(_, _, _, zpsi) =>
       let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
@@ -1131,7 +1171,8 @@ module Exp = {
         ctx: Contexts.t,
         zrule: ZExp.zrule,
         pat_ty: HTyp.t,
-        lub: option(HTyp.t),
+        lub: join_of_branches,
+        rule_index: int,
       )
       : option(t) =>
     switch (zrule) {
@@ -1155,7 +1196,7 @@ module Exp = {
         | (_, None) => None
         | (false, _) => cursor_info
         | (true, Some({typed, ctx, uses})) =>
-          let typed = SynBranchClause(lub, typed);
+          let typed = SynBranchClause(lub, typed, rule_index);
           Some({typed, ctx, uses});
         };
       }
