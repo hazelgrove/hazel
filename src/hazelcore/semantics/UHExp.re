@@ -296,7 +296,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidText(_) => failwith("unimplemented")
+  | InvalidTextShape(_) => failwith("unimplemented")
   };
 
 let associate = (seq: seq) => {

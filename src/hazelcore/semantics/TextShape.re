@@ -8,7 +8,7 @@ type t =
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
-  | InvalidText(string);
+  | InvalidTextShape(string);
 
 /* Eventually replace Ocaml's ___of_string_opt with our own rules */
 /* Ocaml accepts _1 as a float */
@@ -36,6 +36,6 @@ let of_text = (text: string): t =>
     } else if (text |> Var.is_valid) {
       Var(text);
     } else {
-      InvalidText(text);
+      InvalidTextShape(text);
     }
   };
