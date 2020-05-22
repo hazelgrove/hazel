@@ -3442,11 +3442,6 @@ module Exp = {
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
     /* Zipper */
-
-    | (_, ZOperand(zoperand, (E, E))) =>
-      print_endline("Action3444");
-      syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
-
     | (Construct(SLeftBracket), ZOperand(zoperand, (prefix, suffix))) =>
       switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
       | Succeeded(SynDone((ze, _, u_gen))) =>
@@ -3461,9 +3456,13 @@ module Exp = {
           );
         | _ => Failed
         }
-
       | _ => Failed
       }
+
+    | (_, ZOperand(zoperand, (E, E))) =>
+      print_endline("Action3444");
+      syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
+
     | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
       print_endline("Action3448");
       let n = Seq.length_of_affix(prefix);
@@ -3936,12 +3935,6 @@ module Exp = {
     | (Construct(SQuote), CursorE(OnText(_), StringLit(_, _))) =>
       print_endline("hello3541");
       Failed;
-    // let text_cursor = CursorPosition.OnText(0);
-    // let ze =
-    //   ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit("\"")));
-    // Succeeded(SynDone((ze, HTyp.String, u_gen)));
-    // syn_insert_str(u_gen, (0, "\""), "");
-    // | (Construct(SQuote), CursorE(_, _)) => Failed
 
     | (Construct(SParenthesized), CursorE(_)) =>
       let new_ze =
@@ -4529,7 +4522,9 @@ module Exp = {
       )
       : Outcome.t((ZExp.t, MetaVarGen.t)) =>
     switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
-    | (Failed | CursorEscaped(_)) as err => err
+    | (Failed | CursorEscaped(_)) as err =>
+      print_endline("Action4533");
+      err;
     | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
     | Succeeded(AnaExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
       let (zcase, u_gen) =
@@ -4667,7 +4662,9 @@ module Exp = {
     /* Zipper */
     | _ =>
       switch (Statics.Exp.syn_lines(ctx, prefix)) {
-      | None => Failed
+      | None =>
+        print_endline("Action4673");
+        Failed;
       | Some(ctx_zline) =>
         switch (suffix) {
         | [] =>
@@ -4678,7 +4675,9 @@ module Exp = {
           | LetLineZE(_) => Failed
           | ExpLineZ(zopseq) =>
             switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
-            | Failed => Failed
+            | Failed =>
+              print_endline("Action4686");
+              Failed;
             | CursorEscaped(side) =>
               ana_perform_block(ctx, escape(side), (zblock, u_gen), ty)
             | Succeeded(AnaExpands(r)) =>
@@ -4696,7 +4695,9 @@ module Exp = {
           }
         | [_, ..._] =>
           switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
-          | Failed => Failed
+          | Failed =>
+            print_endline("Action4706");
+            Failed;
           | CursorEscaped(side) =>
             ana_perform_block(ctx, escape(side), (zblock, u_gen), ty)
           | Succeeded(LineExpands(r)) =>
@@ -4734,7 +4735,9 @@ module Exp = {
       : Outcome.t(ana_success) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
-    | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+    | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) =>
+      print_endline("Action4746");
+      Failed;
 
     /* Invalid actions */
     | (UpdateApPalette(_), ZOperator(_)) => Failed
@@ -4955,9 +4958,26 @@ module Exp = {
       |> wrap_in_AnaDone;
 
     /* Zipper */
+    | (Construct(SLeftBracket), ZOperand(zoperand, (prefix, suffix))) =>
+      switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
+      | Succeeded(AnaDone((ze, u_gen))) =>
+        switch (ZExp.find_zoperand(ze)) {
+        | Some(zoperand') =>
+          let new_ze =
+            ZExp.ZBlock.wrap'(
+              ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
+            );
+          Succeeded(
+            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+          );
+        | _ => Failed
+        }
+      | _ => Failed
+      }
 
     | (_, ZOperand(zoperand, (E, E))) =>
-      ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
+      print_endline("Action4970");
+      ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
 
     | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
       let n = Seq.length_of_affix(prefix);
@@ -5051,17 +5071,22 @@ module Exp = {
 
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
-      Failed
+      print_endline("Action5101");
+      Failed;
 
     | _ when ZExp.is_inconsistent(zoperand) =>
       let err = zoperand |> ZExp.get_err_status_zoperand;
       let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
       let operand' = zoperand' |> ZExp.erase_zoperand;
       switch (Statics.Exp.syn_operand(ctx, operand')) {
-      | None => Failed
+      | None =>
+        print_endline("Action5110");
+        Failed;
       | Some(ty') =>
         switch (syn_perform_operand(ctx, a, (zoperand', ty', u_gen))) {
-        | (Failed | CursorEscaped(_)) as outcome => outcome
+        | (Failed | CursorEscaped(_)) as outcome =>
+          print_endline("Action5115");
+          outcome;
         | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
@@ -5106,6 +5131,7 @@ module Exp = {
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, HTyp.String)),
         );
       | operand =>
+        print_endline("Action5161");
         let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
@@ -5122,55 +5148,13 @@ module Exp = {
         );
       }
 
-    // | (Construct(SLeftBracket), zoperand)
-    //       when ZExp.is_after_zoperand(zoperand) =>
-    //     print_endline("Action3527");
-    //     switch (zoperand) {
-    //     | CursorE(OnDelim(_), EmptyHole(_) as operand) =>
-    //       let delim_cursor = CursorPosition.OnDelim(0, Before);
-    //       let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    //       let ze =
-    //         ZExp.ZBlock.wrap(
-    //           CursorE(
-    //             delim_cursor,
-    //             UHExp.subscript(
-    //               UHExp.Block.wrap(operand),
-    //               UHExp.Block.wrap(hole),
-    //               UHExp.Block.wrap(hole),
-    //             ),
-    //           ),
-    //         );
-    //       print_endline("Action3543");
-    //       Succeeded(
-    //         AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, HTyp.String)),
-    //       );
-    //     | CursorE(OnDelim(_) | OnText(_), operand) =>
-    //       let delim_cursor = CursorPosition.OnDelim(0, After);
-    //       let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    //       let ze =
-    //         ZExp.ZBlock.wrap(
-    //           CursorE(
-    //             delim_cursor,
-    //             UHExp.subscript(
-    //               UHExp.Block.wrap(operand),
-    //               UHExp.Block.wrap(hole),
-    //               UHExp.Block.wrap(hole),
-    //             ),
-    //           ),
-    //         );
-    //       print_endline("Action3543");
-    //       Succeeded(
-    //         AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, HTyp.String)),
-    //       );
-    //     | _ => Failed
-    //     };
-
-    | (Construct(SLeftBracket), zoperand)
-        when ZExp.is_before_zoperand(zoperand) =>
+    | (Construct(SLeftBracket), CursorE(OnDelim(0, Before), EmptyHole(_))) =>
       print_endline("Action5089");
       ana_perform_operand(ctx, Construct(SListNil), (zoperand, u_gen), ty);
     /* Invalid actions at the expression level */
-    | (Construct(SLeftBracket), _) => Failed
+    // | (Construct(SLeftBracket), _) =>
+    //   print_endline("Action5227");
+    //   Failed;
 
     /* Backspace & Delete */
 
@@ -5412,17 +5396,7 @@ module Exp = {
         let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
         Succeeded(AnaDone((ze, u_gen)));
       };
-    // ana_insert_text(ctx, u_gen, (j, s), s2, ty);
-    // | (
-    //     Construct(SChar("\"")),
-    //     CursorE(OnDelim(_, side), StringLit(_, s2)),
-    //   ) =>
-    //   let index =
-    //     switch (side) {
-    //     | Before => 0
-    //     | After => 1
-    //     };
-    //   ana_insert_text(ctx, u_gen, (index, "\""), s2, ty);
+   
     | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (
@@ -5840,6 +5814,9 @@ module Exp = {
     | (_, SubscriptZE3(_)) =>
       print_endline("Action5586");
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty);
+    | (Construct(SLeftBracket), _) =>
+      print_endline("Action5899");
+      Failed;
     }
   and ana_perform_subsume =
       (
@@ -5848,7 +5825,8 @@ module Exp = {
         (zoperand: ZExp.zoperand, u_gen: MetaVarGen.t),
         ty: HTyp.t,
       )
-      : Outcome.t(ana_success) =>
+      : Outcome.t(ana_success) => {
+    print_endline("Action5852");
     switch (Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
     | None => Failed
     | Some(ty1) =>
@@ -5859,12 +5837,14 @@ module Exp = {
       | CursorEscaped(_) => Failed
       | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
       | Succeeded(SynDone((ze, ty1, u_gen))) =>
+        print_endline("Action5862");
         if (HTyp.consistent(ty, ty1)) {
           Succeeded(AnaDone((ze, u_gen)));
         } else {
           let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
           Succeeded(AnaDone((ze, u_gen)));
-        }
+        };
       }
     };
+  };
 };
