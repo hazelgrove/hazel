@@ -142,7 +142,6 @@ and is_text_cursor_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | CaseZA(_)
   | ApPaletteZ(_)
   | SubscriptZE1(_)
   | SubscriptZE2(_)

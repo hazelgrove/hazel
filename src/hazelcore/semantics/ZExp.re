@@ -232,7 +232,7 @@ and is_before_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApPaletteZ(_) 
+  | ApPaletteZ(_)
   | SubscriptZE2(_)
   | SubscriptZE3(_) => false;
 let is_before_zrule =
@@ -274,9 +274,9 @@ and is_after_zoperand =
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, StringLit(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Subscript(_)) => {
-    print_endline("ZExp233");
-    cursor == OnDelim(2, After);
-  }
+      print_endline("ZExp233");
+      cursor == OnDelim(2, After);
+    }
   | CursorE(_, ApPalette(_)) => false /* TODO[livelits] */
   | ParenthesizedZ(_)
   | LamZP(_)
@@ -323,11 +323,13 @@ and is_outer_zoperand =
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
+  | CursorE(_, StringLit(_))
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_))
-  | CursorE(_, ApPalette(_)) => true
+  | CursorE(_, ApPalette(_))
+  | CursorE(_, Subscript(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | LamZP(_)
   | LamZA(_)
@@ -335,7 +337,10 @@ and is_outer_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApPaletteZ(_) => false;
+  | ApPaletteZ(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
@@ -607,7 +612,6 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
   | SubscriptZE1(InHole(TypeInconsistent, _), _, _, _)
   | SubscriptZE2(InHole(TypeInconsistent, _), _, _, _)
   | SubscriptZE3(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
->>>>>>> dev
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -1063,11 +1067,11 @@ and move_cursor_right_zoperand =
     Some(CaseZE(err, place_before(scrut), rules))
   | CursorE(_, ApPalette(_)) => None
   | CursorE(OnDelim(k, After), Subscript(err, body1, body2, body3)) => {
-    print_endline("ZExp963");
-    k == 0
-      ? Some(SubscriptZE2(err, body1, place_before(body2), body3))
-      : Some(SubscriptZE3(err, body1, body2, place_before(body3)));
-  }
+      print_endline("ZExp963");
+      k == 0
+        ? Some(SubscriptZE2(err, body1, place_before(body2), body3))
+        : Some(SubscriptZE3(err, body1, body2, place_before(body3)));
+    }
   | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
     // invalid cursor position
     None
@@ -1249,11 +1253,11 @@ and cursor_on_EmptyHole_zoperand =
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
   | ApPaletteZ(_) => failwith("unimplemented")
-  | CaseZR(_, _, (_, zrule, _))
+  | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
   | SubscriptZE1(_, ze1, _, _) => {
-    print_endline("ZExp1200");
-    cursor_on_EmptyHole(ze1);
-  }
+      print_endline("ZExp1200");
+      cursor_on_EmptyHole(ze1);
+    }
   | SubscriptZE2(_, _, ze2, _) => {
       print_endline("ZExp1204");
       cursor_on_EmptyHole(ze2);
@@ -1261,7 +1265,7 @@ and cursor_on_EmptyHole_zoperand =
   | SubscriptZE3(_, _, _, ze3) => {
       print_endline("ZExp1208");
       cursor_on_EmptyHole(ze3);
-    } => cursor_on_EmptyHole_zrule(zrule)
+    }
 and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)
