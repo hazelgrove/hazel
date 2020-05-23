@@ -98,7 +98,12 @@ let mk_Keyword = (u, i, k) =>
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
-let mk_FloatLit = f => Doc.text(string_of_float(f));
+let mk_FloatLit = (f: float) =>
+  switch (Float.is_infinite(f), Float.is_nan(f)) {
+  | (true, _) => Doc.text("Inf")
+  | (_, true) => Doc.text("NaN")
+  | _ => Doc.text(string_of_float(f))
+  };
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
