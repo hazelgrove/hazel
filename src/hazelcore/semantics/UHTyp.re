@@ -107,15 +107,15 @@ and expand_skel = (skel, seq, ctx) =>
   switch (skel) {
   | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
   | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq， ctx);
-    let ty2 = expand_skel(skel2, seq， ctx);
+    let ty1 = expand_skel(skel1, seq, ctx);
+    let ty2 = expand_skel(skel2, seq, ctx);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
     Prod(
       skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq， ctx)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq，ctx);
+    let ty1 = expand_skel(skel1, seq, ctx);
     let ty2 = expand_skel(skel2, seq, ctx);
     Sum(ty1, ty2);
   }
