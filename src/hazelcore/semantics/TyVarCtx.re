@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type t = list((TyId.t, Kind.t));
 

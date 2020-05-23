@@ -112,7 +112,7 @@ and expand_skel = (skel, seq, ctx) =>
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
     Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq， ctx)),
+      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq, ctx)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq, ctx);
