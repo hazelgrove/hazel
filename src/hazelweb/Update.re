@@ -130,11 +130,7 @@ let apply_action =
   | LivelitAction(llu, serialized_action) =>
     model
     |> Model.map_program(Program.move_to_node(Livelit, llu))
-    |> Model.map_program(
-         Program.perform_edit_action(
-           PerformLivelitAction(serialized_action),
-         ),
-       )
+    |> Model.perform_edit_action(PerformLivelitAction(serialized_action))
   | MoveAction(Key(move_key)) =>
     switch (model |> Model.move_via_key(move_key)) {
     | new_model => new_model
