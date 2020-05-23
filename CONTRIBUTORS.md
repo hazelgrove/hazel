@@ -24,6 +24,6 @@
 - Matthew Hammer
 - Ravi Chugh
 
-# Art Contributions
+# Art Contributors
 - Vincent Zeng
 - Rainy Sinclair
