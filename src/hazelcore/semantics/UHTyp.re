@@ -10,7 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
-  | TyVar(VarErrStatus.t, Var.t)
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -64,7 +64,7 @@ let contract = (ty: HTyp.t): t => {
       | Hole => Seq.wrap(Hole)
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
-      | Bool => Seq.wrap(Float)
+      | Bool => Seq.wrap(Bool)
       | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
       | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
       | Arrow(ty1, ty2) =>
@@ -99,38 +99,38 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
+let rec expand = (ty: t, ctx: TyVarCtx.t): HTyp.t => expand_opseq(ty, ctx)
 and expand_opseq =
   fun
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
-and expand_skel = (skel, seq) =>
+  | OpSeq(skel, seq) => expand_skel(skel, seq, ctx)
+and expand_skel = (skel, seq, ctx) =>
   switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
+  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
   | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
+    let ty1 = expand_skel(skel1, seq， ctx);
+    let ty2 = expand_skel(skel2, seq， ctx);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
     Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
+      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq， ctx)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
+    let ty1 = expand_skel(skel1, seq，ctx);
+    let ty2 = expand_skel(skel2, seq, ctx);
     Sum(ty1, ty2);
   }
-and expand_operand =
-  fun
+and expand_operand = (ctx, operand) =>
+  switch (operand) {
   | Hole => Hole
   | Unit => Prod([])
   | Int => Int
   | Float => Float
   | Bool => Bool
-  // Since we only add type variables, set index to 0 at this time
-  | TyVar(NotInVarHole, t) => TyVar(0, t)
+  | TyVar(NotInVarHole, t) => TyVar(TyVarCtx.index_of(ctx, t), t)
   | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
   | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
+  | List(opseq) => List(expand(opseq))
+  };
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
