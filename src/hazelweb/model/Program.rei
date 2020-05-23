@@ -58,6 +58,7 @@ let move_via_click:
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
+let move_to_case_branch: (CursorPath.steps, int, t) => t;
 
 let get_doc:
   (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc.t;
