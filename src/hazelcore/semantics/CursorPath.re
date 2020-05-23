@@ -577,8 +577,7 @@ module Typ = {
       | 1 => mk_zholes(~holes_after=holes, ())
       | _ => no_holes
       };
-    | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_))
-    | CursorT(OnOp(_) | OnDelim(_), TyVar(_)) =>
+    | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_)) =>
       /* invalid cursor position */
       no_holes
     | ParenthesizedZ(zbody)
