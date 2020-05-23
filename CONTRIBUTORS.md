@@ -14,3 +14,10 @@ Contributors (roughly in order of first major commit to the `dev` branch):
 - Yunsoo Kim
 - Colin de Roos
 - Hannah Potter
+
+Additional Contributors (helped develop theory, but no code contributions to Hazel):
+
+- Ian Voysey
+- Jonathan Aldrich
+- Matthew Hammer
+- Ravi Chugh
