@@ -1,12 +1,12 @@
 [@deriving sexp]
 type t = {
   vars: VarCtx.t,
-  tvars: TVarCtx.t,
+  tyvars: TyVarCtx.t,
   palettes: PaletteCtx.t
 }
 let empty = {
   vars: VarCtx.empty,
-  tvars: TVarCtx.empty,
+  tyvars: TyVarCtx.empty,
   palettes: PaletteCtx.empty
 }
 
@@ -22,16 +22,6 @@ let gamma_union = (ctx: t, gamma': VarCtx.t): t => {
 let gamma_contains = (ctx: t, x: Var.t): bool =>
   VarCtx.contains(gamma(ctx), x);
 
-let delta = (ctx: t): TVarCtx.t => ctx.tvars;
-let extend_delta = (ctx: t, binding: (Var.t, Kind.t)): t => {
-  ...ctx,
-  tvars: TVarCtx.extend(ctx.tvars, binding)
-};
-let delta_union = (ctx: t, delta': TVarCtx.t): t => {
-  ...ctx,
-  tvars: TVarCtx.union(ctx.tvars, delta')
-}
-let delta_contains = (ctx: t, x: Var.t): bool => 
-  TVarCtx.contains(delta(ctx), x)
+let tyvars = (ctx: t): TyVarCtx.t = ctx.tyvar;
 
 let palette_ctx = (ctx: t): PaletteCtx.t => ctx.palettes
