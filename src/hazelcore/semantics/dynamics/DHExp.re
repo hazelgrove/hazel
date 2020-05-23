@@ -115,9 +115,13 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
-  | Case(t, list(rule), int)
+  /* TODO: Is this the right way to handle things? */
+  | ConsistentCase(case)
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
+and case =
+  | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t);
 
@@ -145,7 +149,8 @@ let constructor_string = (d: t): string =>
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
   | Triv => "Triv"
-  | Case(_, _, _) => "Case"
+  | ConsistentCase(_) => "ConsistentCase"
+  | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   };
