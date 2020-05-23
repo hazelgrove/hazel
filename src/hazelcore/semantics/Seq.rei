@@ -57,7 +57,7 @@ let operators_of_affix: affix(_, 'operator) => list('operator);
 
 let opt_update_nth_operand: (int, 'operand, t('operand, 'operator)) =>
   option(t('operand, 'operator));
-let opt_update_nth_operand_of_affix: (int, 'operand, t('operand, 'operator)) =>
+let opt_update_nth_operand_of_affix: (int, 'operand, affix('operand, 'operator)) =>
   option(affix('operand, 'operator));
 
 let update_nth_operand: (int, 'operand, t('operand, 'operator)) =>
