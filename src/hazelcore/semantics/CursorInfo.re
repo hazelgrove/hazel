@@ -634,6 +634,7 @@ module Exp = {
       |> OptUtil.map(ty => mk(Synthesized(ty), ctx))
     | _ =>
       // cursor within tuple element
+      print_endline("CursorInfo639");
       let cursor_skel =
         skel
         |> UHExp.get_tuple_elements
@@ -649,19 +650,22 @@ module Exp = {
         zseq: ZExp.zseq,
       )
       : option(t) => {
+    print_endline("CursorInfo653");
     let seq = zseq |> ZExp.erase_zseq;
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        print_endline("CursorInfo658");
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
           zoperand,
-        )
+        );
       | ZOperator(_) =>
+        print_endline("CursorInfo666");
         Statics.Exp.syn_skel(ctx, skel, seq)
-        |> OptUtil.map(ty => mk(Synthesized(ty), ctx))
+        |> OptUtil.map(ty => mk(Synthesized(ty), ctx));
       };
     } else {
       // recurse toward cursor
@@ -697,10 +701,11 @@ module Exp = {
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Bool)
         }
       | BinOp(_, PlusPlus, skel1, skel2) =>
+        print_endline("CursorInfo704");
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, String)) {
         | Some(_) as result => result
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, String)
-        }
+        };
       | BinOp(_, Space, Placeholder(n) as skel1, skel2) =>
         if (ZOpSeq.skel_contains_cursor(skel1, zseq)) {
           let zoperand =
@@ -737,6 +742,7 @@ module Exp = {
             }
           };
         } else {
+          print_endline("CursorInfo745");
           switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
           | None => None
           | Some(ty) =>
@@ -1180,13 +1186,13 @@ module Exp = {
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | SubscriptZE1(_, zbody1, _, _) =>
       print_endline("CursorInfo1181");
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody1, ty);
+      ana_cursor_info(~steps=steps @ [0], ctx, zbody1, String);
     | SubscriptZE2(_, _, zbody2, _) =>
       print_endline("CursorInfo1184");
-      ana_cursor_info(~steps=steps @ [1], ctx, zbody2, ty);
+      ana_cursor_info(~steps=steps @ [1], ctx, zbody2, Int);
     | SubscriptZE3(_, _, _, zbody3) =>
       print_endline("CursorInfo1187");
-      ana_cursor_info(~steps=steps @ [2], ctx, zbody3, ty);
+      ana_cursor_info(~steps=steps @ [2], ctx, zbody3, Int);
     }
   and ana_cursor_info_rule =
       (

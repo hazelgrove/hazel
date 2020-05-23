@@ -4318,6 +4318,9 @@ module Exp = {
               ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
             Succeeded(SynDone((new_ze, ty, u_gen)));
+          // Succeeded(
+          //   SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+          // );
           }
         | _ =>
           let new_ze =
