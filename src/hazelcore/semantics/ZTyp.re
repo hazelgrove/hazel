@@ -18,7 +18,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Int
   | Float
   | Bool => CursorPosition.delim_cursors(1)
-  | TyVar(_, x) => CursorPosition.text_cursors(Var.length(x))
+  | TyVar(_, x) => CursorPosition.text_cursors(TyId.length(x))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
 
@@ -80,7 +80,7 @@ and is_after_zoperand =
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
-  | CursorT(cursor, TyVar(_, x)) => cursor == OnText(Var.length(x))
+  | CursorT(cursor, TyVar(_, x)) => cursor == OnText(TyId.length(x))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -110,7 +110,7 @@ and place_after_operand =
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand)
-  | TyVar(_, x) as operand => CursorT(OnText(Var.length(x)), operand);
+  | TyVar(_, x) as operand => CursorT(OnText(TyId.length(x)), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
 

@@ -446,7 +446,8 @@ module Typ = {
       | Unit
       | Int
       | Float
-      | Bool => None
+      | Bool
+      | TyVar(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -499,7 +500,8 @@ module Typ = {
       | Unit
       | Int
       | Float
-      | Bool => None
+      | Bool
+      | TyVar(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -539,11 +541,13 @@ module Typ = {
   and holes_operand =
       (operand: UHTyp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
-    | Hole => [(TypHole, rev_steps |> List.rev), ...hs]
+    | Hole
+    | TyVar(InVarHole(_)) => [(TypHole, rev_steps |> List.rev), ...hs]
     | Unit
     | Int
     | Float
-    | Bool => hs
+    | Bool
+    | TyVar(NotInVarHole, _) => hs
     | Parenthesized(body)
     | List(body) => hs |> holes(body, [0, ...rev_steps])
     };
@@ -563,9 +567,9 @@ module Typ = {
   and holes_zoperand =
       (zoperand: ZTyp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    | CursorT(_, Hole) =>
+    | CursorT(_, Hole | TyVar(InVarHole, _)) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
-    | CursorT(_, Unit | Int | Float | Bool) => no_holes
+    | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInVarHole, _)) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
       let holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
@@ -573,7 +577,8 @@ module Typ = {
       | 1 => mk_zholes(~holes_after=holes, ())
       | _ => no_holes
       };
-    | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_)) =>
+    | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_))
+    | CursorT(OnOp(_) | OnDelim(_), TyVar(_)) =>
       /* invalid cursor position */
       no_holes
     | ParenthesizedZ(zbody)

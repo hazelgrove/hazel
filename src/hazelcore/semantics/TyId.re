@@ -4,3 +4,5 @@ open Sexplib.Std;
 type t = string;
 
 let eq = String.equal;
+
+let length = String.length;
