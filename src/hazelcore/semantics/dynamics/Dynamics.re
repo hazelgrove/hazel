@@ -1206,7 +1206,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) 
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
     | Subscript(InHole(TypeInconsistent as reason, u), _, _, _) =>
       print_endline("Dynamics1103");
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -1351,7 +1351,7 @@ module Exp = {
           let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
           Expands(d, glb, delta);
         }
-      };
+      }
     | Subscript(NotInHole, body1, body2, body3) =>
       print_endline("Dynamics1220");
       switch (ana_expand(ctx, delta, body1, String)) {
