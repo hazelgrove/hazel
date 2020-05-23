@@ -32,9 +32,12 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
   switch (xs, ys) {
   | ([], [_, ..._])
   | ([_, ..._], []) => None
-  | ([], []) => Some([])
+  | ([], []) =>
+    print_endline("ListUtil36");
+    Some([]);
   | ([x, ...xs], [y, ...ys]) =>
-    opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys])
+    print_endline("ListUtil39");
+    opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys]);
   };
 
 let for_all2_opt =

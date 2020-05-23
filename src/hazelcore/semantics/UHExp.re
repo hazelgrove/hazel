@@ -155,7 +155,10 @@ let rec get_tuple_elements: skel => list(skel) =
   fun
   | BinOp(_, Comma, skel1, skel2) =>
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
-  | skel => [skel];
+  | skel => {
+      print_endline("UHExpSkel159");
+      [skel];
+    };
 
 let rec make_tuple =
         (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
