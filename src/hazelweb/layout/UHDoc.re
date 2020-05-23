@@ -129,7 +129,7 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =
   Doc.annot(
     UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
   );
-let annot_Case = (~err: ErrStatus.t): (t => t) =>
+let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
@@ -357,7 +357,8 @@ let mk_Lam =
   |> annot_Operand(~sort=Exp, ~err);
 };
 
-let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
+let mk_Case =
+    (~err: CaseErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
   let open_group = Delim.open_Case() |> annot_DelimGroup;
   let close_group = Delim.close_Case() |> annot_DelimGroup;
   Doc.(
@@ -376,38 +377,38 @@ let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => 
   |> annot_Case(~err);
 };
 
-let mk_Case_ann =
-    (
-      ~err: ErrStatus.t,
-      scrut: formatted_child,
-      rules: list(t),
-      ann: formatted_child,
-    )
-    : t => {
-  let open_group = Delim.open_Case() |> annot_DelimGroup;
-  let close_group = {
-    let end_delim = Delim.close_Case_ann();
-    Doc.hcats([
-      end_delim,
-      ann |> pad_left_delimited_child(~is_open=false, ~inline_padding=space_),
-    ])
-    |> annot_DelimGroup;
-  };
-  Doc.(
-    vseps(
-      [
-        hcats([
-          open_group,
-          scrut
-          |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
-        ]),
-        ...rules,
-      ]
-      @ [close_group],
-    )
-  )
-  |> annot_Case(~err);
-};
+// let mk_Case_ann =
+//     (
+//       ~err: ErrStatus.t,
+//       scrut: formatted_child,
+//       rules: list(t),
+//       ann: formatted_child,
+//     )
+//     : t => {
+//   let open_group = Delim.open_Case() |> annot_DelimGroup;
+//   let close_group = {
+//     let end_delim = Delim.close_Case_ann();
+//     Doc.hcats([
+//       end_delim,
+//       ann |> pad_left_delimited_child(~is_open=false, ~inline_padding=space_),
+//     ])
+//     |> annot_DelimGroup;
+//   };
+//   Doc.(
+//     vseps(
+//       [
+//         hcats([
+//           open_group,
+//           scrut
+//           |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
+//         ]),
+//         ...rules,
+//       ]
+//       @ [close_group],
+//     )
+//   )
+//   |> annot_Case(~err);
+// };
 
 let mk_Subscript =
     (
@@ -924,7 +925,7 @@ module Exp = {
             let body3 =
               mk_child(~memoize, ~enforce_inline, ~child_step=2, body3);
             mk_Subscript(~err, body1, body2, body3);
-          | Case(err, scrut, rules, ann) =>
+          | Case(err, scrut, rules) =>
             if (enforce_inline) {
               Doc.fail();
             } else {
@@ -941,18 +942,7 @@ module Exp = {
                      Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
                      |> annot_Step(1 + i)
                    );
-              switch (ann) {
-              | None => mk_Case(~err, scrut, rules)
-              | Some(ann) =>
-                let ann =
-                  Typ.mk_child(
-                    ~memoize,
-                    ~enforce_inline=false,
-                    ~child_step=1 + List.length(rules),
-                    ann,
-                  );
-                mk_Case_ann(~err, scrut, rules, ann);
-              };
+              mk_Case(~err, scrut, rules);
             }
           | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
           }: t
