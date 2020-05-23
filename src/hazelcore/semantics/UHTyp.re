@@ -100,9 +100,10 @@ let contract = (ty: HTyp.t): t => {
 };
 
 let rec expand = (ty: t, ctx: TyVarCtx.t): HTyp.t => expand_opseq(ty, ctx)
-and expand_opseq =
-  fun
+and expand_opseq = (ty, ctx) =>
+  switch (ty) {
   | OpSeq(skel, seq) => expand_skel(skel, seq, ctx)
+  }
 and expand_skel = (skel, seq, ctx) =>
   switch (skel) {
   | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
