@@ -129,8 +129,8 @@ and expand_operand = (ctx, operand) =>
   | Bool => Bool
   | TyVar(NotInVarHole, t) => TyVar(TyVarCtx.index_of(ctx, t), t)
   | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
-  | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq))
+  | Parenthesized(opseq) => expand(opseq, ctx)
+  | List(opseq) => List(expand(opseq, ctx))
   };
 
 let rec is_complete_operand = (operand: 'operand) => {
