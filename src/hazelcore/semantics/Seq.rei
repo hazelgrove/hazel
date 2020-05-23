@@ -42,7 +42,7 @@ let seq_affix: (t('operand, 'operator), affix('operand, 'operator)) =>
 
 let length: t('operand, 'operator) => int;
 
-let length_of_affix: t('operand, 'operator) => int;
+let length_of_affix: affix('operand, 'operator) => int;
 
 let nth_operand: (int, t('operand, _)) => 'operand;
 let nth_operand_of_affix: (int, affix('operand, _)) => 'operand;
