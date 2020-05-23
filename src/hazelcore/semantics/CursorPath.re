@@ -542,7 +542,7 @@ module Typ = {
       (operand: UHTyp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
     | Hole
-    | TyVar(InVarHole(_)) => [(TypHole, rev_steps |> List.rev), ...hs]
+    | TyVar(InVarHole(_), _) => [(TypHole, rev_steps |> List.rev), ...hs]
     | Unit
     | Int
     | Float
@@ -567,7 +567,7 @@ module Typ = {
   and holes_zoperand =
       (zoperand: ZTyp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    | CursorT(_, Hole | TyVar(InVarHole, _)) =>
+    | CursorT(_, Hole | TyVar(InVarHole(_), _)) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
     | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInVarHole, _)) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
