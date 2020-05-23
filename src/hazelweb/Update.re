@@ -12,6 +12,14 @@ type move_input =
 
 module Action = {
   [@deriving sexp]
+  type shift_history_info = {
+    group_id: int,
+    elt_id: int,
+    call_by_mouseenter: bool,
+  };
+  [@deriving sexp]
+  type group_id = int;
+  [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
     | MoveAction(move_input)
@@ -45,8 +53,8 @@ module Action = {
     | BlurCell
     | Redo
     | Undo
-    | ShiftHistory(int, int, bool)
-    | ToggleHistoryGroup(int)
+    | ShiftHistory(shift_history_info)
+    | ToggleHistoryGroup(group_id)
     | ToggleHiddenHistoryAll
     | TogglePreviewOnHover
     | UpdateFontMetrics(FontMetrics.t)
@@ -117,7 +125,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | BlurCell
   | Undo
   | Redo
-  | ShiftHistory(_, _, _)
+  | ShiftHistory(_)
   | ToggleHistoryGroup(_)
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
@@ -290,19 +298,23 @@ let apply_action =
           model.undo_history
           |> UndoHistory.shift_to_prev
           |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history, ~ignore_caret_jump=false);
+        Model.load_undo_history(model, new_history);
       | Redo =>
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_next
           |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history, ~ignore_caret_jump=false);
-      | ShiftHistory(group_id, elt_id, is_mousenter) =>
+        Model.load_undo_history(model, new_history);
+      | ShiftHistory(shift_history_info) =>
         /* cshift to the certain entry */
         let new_history =
           model.undo_history
-          |> UndoHistory.shift_history(group_id, elt_id, is_mousenter);
-        Model.load_undo_history(model, new_history, ~ignore_caret_jump=true);
+          |> UndoHistory.shift_history(
+               shift_history_info.group_id,
+               shift_history_info.elt_id,
+               shift_history_info.call_by_mouseenter,
+             );
+        Model.load_undo_history(model, new_history);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);
