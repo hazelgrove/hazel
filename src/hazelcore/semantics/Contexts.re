@@ -22,6 +22,6 @@ let gamma_union = (ctx: t, gamma': VarCtx.t): t => {
 let gamma_contains = (ctx: t, x: Var.t): bool =>
   VarCtx.contains(gamma(ctx), x);
 
-let tyvars = (ctx: t): TyVarCtx.t => ctx.tyvar;
+let tyvars = (ctx: t): TyVarCtx.t => ctx.tyvars;
 
 let palette_ctx = (ctx: t): PaletteCtx.t => ctx.palettes
