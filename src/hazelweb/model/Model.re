@@ -51,8 +51,9 @@ let init = (): t => {
       );
     let timestamp = Unix.time();
     let undo_history_entry: UndoHistory.undo_history_entry = {
-      cardstacks,
-      caret_jumps_to: None,
+      cardstacks_before: cardstacks,
+      cardstacks_after: cardstacks,
+      cur_is_after: true,
       cursor_term_info,
       previous_action: None,
       edit_action: Init,
@@ -298,10 +299,8 @@ let load_cardstack = (model, idx) => {
   model |> map_cardstacks(Cardstacks.load_cardstack(idx)) |> focus_cell;
 };
 
-let load_undo_history =
-    (model: t, undo_history: UndoHistory.t, ~ignore_caret_jump: bool): t => {
-  let new_cardstacks =
-    UndoHistory.get_cardstacks(undo_history, ignore_caret_jump);
+let load_undo_history = (model: t, undo_history: UndoHistory.t): t => {
+  let new_cardstacks = UndoHistory.get_cardstacks(undo_history);
   let new_program = Cardstacks.get_program(new_cardstacks);
   let update_selected_instances = _ => {
     let si = UserSelectedInstances.init;
