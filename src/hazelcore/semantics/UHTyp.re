@@ -64,7 +64,7 @@ let contract = (ty: HTyp.t): t => {
       | Hole => Seq.wrap(Hole)
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
-      | Bool => Seq.wrap(Float)
+      | Bool => Seq.wrap(Bool)
       | String => Seq.wrap(String)
       | Arrow(ty1, ty2) =>
         mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
