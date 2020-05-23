@@ -21,3 +21,7 @@ Additional Contributors (helped develop theory, but no code contributions to Haz
 - Jonathan Aldrich
 - Matthew Hammer
 - Ravi Chugh
+
+Art Contributions:
+- Vincent Zeng
+- Rainy Sinclair
