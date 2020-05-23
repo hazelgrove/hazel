@@ -14,6 +14,7 @@
 - Yuning Wang
 - Yunsoo Kim
 - Colin de Roos
+- Utkarsh Mehta
 - Hannah Potter
 
 # Theory Contributors 
