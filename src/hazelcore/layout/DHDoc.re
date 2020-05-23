@@ -220,7 +220,8 @@ module Exp = {
     | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
     | FixF(_)
-    | Case(_) => precedence_max
+    | ConsistentCase(_)
+    | InconsistentBranches(_) => precedence_max /* TODO: is this right */
     | BinIntOp(op, _, _) => precedence_bin_int_op(op)
     | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
     | Ap(_) => precedence_Ap
@@ -284,6 +285,36 @@ module Exp = {
             : (t, option(HTyp.t)) => {
       open Doc;
       let go' = go(~enforce_inline);
+      let go_case = (dscrut, drs) =>
+        if (enforce_inline) {
+          fail();
+        } else {
+          let scrut_doc =
+            choices([
+              hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
+              hcats([
+                linebreak(),
+                indent_and_align(
+                  mk_cast(go(~enforce_inline=false, dscrut)),
+                ),
+              ]),
+            ]);
+          vseps(
+            List.concat([
+              [hcat(Delim.open_Case, scrut_doc)],
+              drs
+              |> List.map(
+                   mk_rule(
+                     ~show_fn_bodies,
+                     ~show_case_clauses,
+                     ~show_casts,
+                     ~selected_instance,
+                   ),
+                 ),
+              [Delim.close_Case],
+            ]),
+          );
+        };
       let mk_left_associative_operands = (precedence_op, d1, d2) => (
         go'(~parenthesize=precedence(d1) > precedence_op, d1),
         go'(~parenthesize=precedence(d2) >= precedence_op, d2),
@@ -353,36 +384,10 @@ module Exp = {
             mk_right_associative_operands(precedence_Or, d1, d2);
           hseps([mk_cast(doc1), text("||"), mk_cast(doc2)]);
         | Pair(d1, d2) => mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-        | Case(dscrut, drs, _) =>
-          if (enforce_inline) {
-            fail();
-          } else {
-            let scrut_doc =
-              choices([
-                hcats([space(), mk_cast(go(~enforce_inline=true, dscrut))]),
-                hcats([
-                  linebreak(),
-                  indent_and_align(
-                    mk_cast(go(~enforce_inline=false, dscrut)),
-                  ),
-                ]),
-              ]);
-            vseps(
-              List.concat([
-                [hcat(Delim.open_Case, scrut_doc)],
-                drs
-                |> List.map(
-                     mk_rule(
-                       ~show_fn_bodies,
-                       ~show_case_clauses,
-                       ~show_casts,
-                       ~selected_instance,
-                     ),
-                   ),
-                [Delim.close_Case],
-              ]),
-            );
-          }
+        | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
+          go_case(dscrut, drs)
+          |> annot(DHAnnot.InconsistentBranches((u, i)))
+        | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
         | Cast(d, _, _) =>
           let (doc, _) = go'(d);
           doc;

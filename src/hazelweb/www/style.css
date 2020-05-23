@@ -325,6 +325,10 @@ html, body {
   font-size: 125%;
   padding: 5px;
   min-height: 35px;
+  max-height: 100px;
+  /* enable scroll */
+  overflow-y: auto;
+
   display: flex;
   align-items: center;
 }
@@ -358,6 +362,21 @@ html, body {
 .matched-connective {
   padding-left: 5px;
   padding-right: 5px;
+}
+
+.inconsistent-branches-ty-bar {
+  flex-direction: column;
+  align-items: flex-start;
+  flex-basis: auto;
+}
+
+.inconsistent-branches-ty-bar > span {
+  width: 100%;
+  cursor: pointer;
+}
+
+.inconsistent-branches-ty-bar > :nth-child(even) {
+  background-color: #8e000014;
 }
 
 /* action panel */
@@ -899,6 +918,10 @@ h1 {
 }
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
+  margin: -1px;
+}
+.InconsistentBranches {
+  border: 1px dashed var(--err-hole-color);
   margin: -1px;
 }
 
