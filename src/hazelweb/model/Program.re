@@ -124,6 +124,14 @@ let move_to_hole = (u, program) => {
   };
 };
 
+let move_to_case_branch = (steps_to_case, branch_index, program) => {
+  let steps_to_branch = steps_to_case @ [1 + branch_index];
+  perform_edit_action(
+    MoveTo((steps_to_branch, OnDelim(1, After))),
+    program,
+  );
+};
+
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
   TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () => {
     Lazy.force(
