@@ -152,7 +152,7 @@ let rec complete =
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
-
+/*
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
   | (_, Hole) =>
@@ -197,7 +197,7 @@ let rec join = (j, ty1, ty2) =>
   | (List(_), _) => None
   };
 
-/*
+
 let join_all = (j: join, types: list(t)): option(t) => {
   switch (types) {
   | [] => None
