@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 [@deriving sexp]
 type t =
   /* Might be useful if/when we add type keywords or Undescore */
