@@ -35,7 +35,6 @@ type undo_history_entry = {
   /* cardstacks_after_move is initially the same as cardstacks_after_action.
      if there is a movement action, update it. */
   cardstacks_after_move: Cardstacks.t,
-  /* may jump to another position after a move action */
   cursor_term_info,
   previous_action: option(Action.t),
   edit_action,
@@ -73,12 +72,6 @@ let get_cardstacks = (history: t, ~is_after_move: bool): Cardstacks.t => {
   };
 };
 
-//TBD
-let is_at_initial_state = (history: t): bool => {
-  /* there is not previous groups */
-  JSUtil.log("is_at_initial");
-  List.length(ZList.prj_suffix(history.groups)) == 0;
-};
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
   | Exp(cursor_pos, _)
@@ -147,25 +140,8 @@ let group_edit_action =
     | _ => false
     }
   | (Var(_), _) => false
-  | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
-    switch (delete_edit_1, delete_edit_2) {
-    | (Space, Space)
-    | (EmptyLine, EmptyLine) => true
-    | (Term(term_1, _), Term(term_2, _)) =>
-      switch (term_1, term_2) {
-      | (Rule(_, _), Rule(_, _)) => true
-      | _ => false
-      }
-    | (_, _) => false
-    }
   | (DeleteEdit(Term(_, _)), Var(Insert)) => true
   | (DeleteEdit(_), _) => false
-  | (ConstructEdit(construct_edit_1), ConstructEdit(construct_edit_2)) =>
-    switch (construct_edit_1, construct_edit_2) {
-    | (SOp(SSpace), SOp(SSpace))
-    | (SLine, SLine) => true
-    | (_, _) => false
-    }
   | (ConstructEdit(_), _) => false
   | (Init, _) => false
   };
@@ -179,35 +155,8 @@ let group_entry =
     )
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let can_group_edit_action =
-    group_edit_action(prev_entry.edit_action, new_edit_action);
-
-  /* edit actions like construct space/new lines should be grouped together,
-     so caret jump should be ignored in those cases */
-  let ignore_caret_jump =
-    switch (prev_entry.edit_action, new_edit_action) {
-    | (DeleteEdit(delete_edit_1), DeleteEdit(delete_edit_2)) =>
-      switch (delete_edit_1, delete_edit_2) {
-      | (Space, Space)
-      | (EmptyLine, EmptyLine) => true
-      | (Term(term_1, _), Term(term_2, _)) =>
-        switch (term_1, term_2) {
-        | (Rule(_, _), Rule(_, _)) => true
-        | _ => false
-        }
-      | _ => false
-      }
-    | (ConstructEdit(construct_edit_1), ConstructEdit(construct_edit_2)) =>
-      switch (construct_edit_1, construct_edit_2) {
-      | (SOp(SSpace), SOp(SSpace))
-      | (SLine, SLine) => true
-      | _ => false
-      }
-    | _ => false
-    };
-
-  can_group_edit_action
-  && (!caret_jump(prev_group, new_cardstacks_before) || ignore_caret_jump);
+  group_edit_action(prev_entry.edit_action, new_edit_action)
+  && !caret_jump(prev_group, new_cardstacks_before);
 };
 
 type comp_len_typ =
@@ -660,6 +609,9 @@ let get_new_edit_action =
           } else if (CursorInfo.is_hole(
                        new_cursor_term_info.cursor_term_before,
                      )
+                     || CursorInfo.is_empty_line(
+                          new_cursor_term_info.cursor_term_before,
+                        )
                      || !
                           CursorInfo.cursor_term_is_editable(
                             new_cursor_term_info.cursor_term_before,
