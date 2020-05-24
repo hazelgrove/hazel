@@ -108,7 +108,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
-    | Case(_, _, _, _) => code_keywords_view("case")
+    | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };

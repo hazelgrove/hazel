@@ -124,6 +124,17 @@ let move_to_hole = (u, program) => {
   };
 };
 
+let move_to_case_branch =
+    (steps_to_case, branch_index, program): (t, Action.t) => {
+  let steps_to_branch = steps_to_case @ [1 + branch_index];
+  let new_program =
+    perform_edit_action(
+      MoveTo((steps_to_branch, OnDelim(1, After))),
+      program,
+    );
+  (new_program, MoveTo((steps_to_branch, OnDelim(1, After))));
+};
+
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
   TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () => {
     Lazy.force(
@@ -297,6 +308,7 @@ let move_via_key =
     | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
     | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
     };
+
   switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
