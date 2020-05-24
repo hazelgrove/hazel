@@ -3709,22 +3709,46 @@ module Exp = {
         let new_ze = body1 |> ZExp.place_after;
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       | (_, _) =>
+        let option_op1 =
+          UHExp.is_operand(body1)
+            ? UHExp.find_operand(body1) : Some(Parenthesized(body1));
+        let option_op2 =
+          UHExp.is_operand(body2)
+            ? UHExp.find_operand(body2) : Some(Parenthesized(body2));
+        let option_op3 =
+          UHExp.is_operand(body3)
+            ? UHExp.find_operand(body3) : Some(Parenthesized(body3));
         switch (k) {
         | 0 =>
-          switch (
-            UHExp.find_operand(body1),
-            UHExp.find_seq(body2),
-            UHExp.find_seq(body3),
-          ) {
+          /* switch (
+               UHExp.find_operand(body1),
+               UHExp.find_seq(body2),
+               UHExp.find_seq(body3),
+             ) {
+             | (Some(op1), Some(op2), Some(op3)) =>
+               let ze = op1 |> ZExp.place_after_operand;
+               let new_zopseq =
+                 ZExp.mk_ZOpSeq(
+                   /* ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))), */
+                   ZOperand(
+                     ze,
+                     (E, A(Space, Seq.seq_op_seq(op2, Space, op3))),
+                   ),
+                 );
+               let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+               /* let new_ze = body1 |> ZExp.place_after; */
+               Succeeded(
+                 SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+               );
+             | (_, _, _) => Failed
+             } */
+
+          switch (option_op1, option_op2, option_op3) {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op1 |> ZExp.place_after_operand;
             let new_zopseq =
               ZExp.mk_ZOpSeq(
-                /* ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))), */
-                ZOperand(
-                  ze,
-                  (E, A(Space, Seq.seq_op_seq(op2, Space, op3))),
-                ),
+                ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))),
               );
             let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
             /* let new_ze = body1 |> ZExp.place_after; */
@@ -3734,11 +3758,7 @@ module Exp = {
           | (_, _, _) => Failed
           }
         | 1 =>
-          switch (
-            UHExp.find_operand(body1),
-            UHExp.find_operand(body2),
-            UHExp.find_operand(body3),
-          ) {
+          switch (option_op1, option_op2, option_op3) {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op2 |> ZExp.place_after_operand;
             let new_zopseq =
@@ -3753,11 +3773,7 @@ module Exp = {
           | (_, _, _) => Failed
           }
         | _two =>
-          switch (
-            UHExp.find_operand(body1),
-            UHExp.find_operand(body2),
-            UHExp.find_operand(body3),
-          ) {
+          switch (option_op1, option_op2, option_op3) {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op3 |> ZExp.place_after_operand;
             let new_zopseq =
@@ -3771,7 +3787,7 @@ module Exp = {
             );
           | (_, _, _) => Failed
           }
-        }
+        };
       };
 
     /* TODO consider deletion of type ascription on case */
@@ -5455,13 +5471,18 @@ module Exp = {
           AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, String)),
         );
       | (_, _) =>
+        let option_op1 =
+          UHExp.is_operand(body1)
+            ? UHExp.find_operand(body1) : Some(Parenthesized(body1));
+        let option_op2 =
+          UHExp.is_operand(body2)
+            ? UHExp.find_operand(body2) : Some(Parenthesized(body2));
+        let option_op3 =
+          UHExp.is_operand(body3)
+            ? UHExp.find_operand(body3) : Some(Parenthesized(body3));
         switch (k) {
         | 0 =>
-          switch (
-            UHExp.find_operand(body1),
-            UHExp.find_operand(body2),
-            UHExp.find_operand(body3),
-          ) {
+          switch (option_op1, option_op2, option_op3) {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op1 |> ZExp.place_after_operand;
             let new_zopseq =
@@ -5478,11 +5499,7 @@ module Exp = {
           | (_, _, _) => Failed
           }
         | 1 =>
-          switch (
-            UHExp.find_operand(body1),
-            UHExp.find_operand(body2),
-            UHExp.find_operand(body3),
-          ) {
+          switch (option_op1, option_op2, option_op3) {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op2 |> ZExp.place_after_operand;
             let new_zopseq =
@@ -5497,11 +5514,7 @@ module Exp = {
           | (_, _, _) => Failed
           }
         | _two =>
-          switch (
-            UHExp.find_operand(body1),
-            UHExp.find_operand(body2),
-            UHExp.find_operand(body3),
-          ) {
+          switch (option_op1, option_op2, option_op3) {
           | (Some(op1), Some(op2), Some(op3)) =>
             let ze = op3 |> ZExp.place_after_operand;
             let new_zopseq =
@@ -5515,7 +5528,7 @@ module Exp = {
             );
           | (_, _, _) => Failed
           }
-        }
+        };
       };
 
     /* TODO consider deletion of type ascription on case */
