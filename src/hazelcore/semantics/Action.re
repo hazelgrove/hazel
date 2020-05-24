@@ -2067,7 +2067,7 @@ module Exp = {
 
   let can_split_cases: ZExp.zoperand => bool =
     fun
-    | CaseZE(_, _, rules, _) =>
+    | CaseZE(_, _, rules) =>
       List.for_all(
         rule => {
           let UHExp.Rule(OpSeq(_, seq), _) = rule;
@@ -2075,7 +2075,7 @@ module Exp = {
         },
         rules,
       )
-    | CaseZR(_, _, (_, RuleZP(zpat, _), _), _) => {
+    | CaseZR(_, _, (_, RuleZP(zpat, _), _)) => {
         let OpSeq(_, seq) = ZPat.erase(zpat);
         // Only try to derive type and continue if the only rule was just an empty hole
         seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
@@ -2152,35 +2152,31 @@ module Exp = {
     | Succeeded(ana_done) => Succeeded(AnaDone(ana_done));
 
   let zcase_of_scrut_and_suffix =
-      (
-        mode: Statics.type_mode,
-        u_gen: MetaVarGen.t,
-        scrut: UHExp.t,
-        suffix: list(UHExp.line),
-      )
+      (u_gen: MetaVarGen.t, scrut: UHExp.t, suffix: list(UHExp.line))
       : (ZExp.zoperand, MetaVarGen.t) => {
-    let ann =
-      switch (mode) {
-      | Syn => Some(OpSeq.wrap(UHTyp.Hole))
-      | Ana(_) => None
-      };
     switch (scrut, suffix) {
     | ([ExpLine(OpSeq(_, S(EmptyHole(_), E)))], []) =>
       let zscrut = scrut |> ZExp.place_before;
       let (rule, u_gen) = u_gen |> UHExp.empty_rule;
-      (ZExp.CaseZE(NotInHole, zscrut, [rule], ann), u_gen);
+      (ZExp.CaseZE(StandardErrStatus(NotInHole), zscrut, [rule]), u_gen);
     | (_, []) =>
       let (zrule, u_gen) = u_gen |> ZExp.empty_zrule;
-      (ZExp.CaseZR(NotInHole, scrut, ([], zrule, []), ann), u_gen);
+      (
+        ZExp.CaseZR(StandardErrStatus(NotInHole), scrut, ([], zrule, [])),
+        u_gen,
+      );
     | ([ExpLine(OpSeq(_, S(EmptyHole(_), E)))], [_, ..._]) =>
       let zscrut = scrut |> ZExp.place_before;
       let (p_hole, u_gen) = u_gen |> UHPat.new_EmptyHole;
       let rule = UHExp.Rule(OpSeq.wrap(p_hole), suffix);
-      (ZExp.CaseZE(NotInHole, zscrut, [rule], ann), u_gen);
+      (ZExp.CaseZE(StandardErrStatus(NotInHole), zscrut, [rule]), u_gen);
     | (_, [_, ..._]) =>
       let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       let zrule = ZExp.RuleZP(ZOpSeq.wrap(zp_hole), suffix);
-      (ZExp.CaseZR(NotInHole, scrut, ([], zrule, []), ann), u_gen);
+      (
+        ZExp.CaseZR(StandardErrStatus(NotInHole), scrut, ([], zrule, [])),
+        u_gen,
+      );
     };
   };
 
@@ -2505,8 +2501,7 @@ module Exp = {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
     | Succeeded(SynExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
-      let (zcase, u_gen) =
-        zcase_of_scrut_and_suffix(Syn, u_gen, subject, suffix);
+      let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
       let new_ze =
         (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
         |> ZExp.prune_empty_hole_lines;
@@ -3301,8 +3296,7 @@ module Exp = {
         CursorE(
           OnDelim(k, After),
           (
-            Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _, _) |
-            Parenthesized(e)
+            Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)
           ) as operand,
         ),
       ) =>
@@ -3388,12 +3382,6 @@ module Exp = {
       let new_zann = ann |> ZTyp.place_before;
       let new_ze =
         ZExp.ZBlock.wrap(LamZA(err, zp |> ZPat.erase, new_zann, body));
-      Succeeded(SynDone((new_ze, ty, u_gen)));
-    | (Construct(SAsc), CursorE(_, Case(_, scrut, rules, Some(ann)))) =>
-      /* just move the cursor over if there is already an ascription */
-      let new_zann = ann |> ZTyp.place_before;
-      let new_ze =
-        ZExp.ZBlock.wrap(CaseZA(NotInHole, scrut, rules, new_zann));
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
 
@@ -3576,12 +3564,7 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZE(
-          err,
-          zscrut,
-          [UHExp.Rule(OpSeq(_, seq) as pat, exp)],
-          typeAscription,
-        ),
+        CaseZE(err, zscrut, [UHExp.Rule(OpSeq(_, seq) as pat, exp)]),
       )
         when seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole =>
       syn_perform_operand(
@@ -3592,7 +3575,6 @@ module Exp = {
             err,
             ZExp.erase(zscrut),
             ZList.singleton(ZExp.RuleZP(ZPat.place_before(pat), exp)),
-            typeAscription,
           ),
           ty,
           u_gen,
@@ -3601,7 +3583,7 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix), typeAscription) as zop,
+        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix)) as zop,
       )
         when can_split_cases(zop) =>
       switch (split_cases(ctx, u_gen, scrut, exp)) {
@@ -3614,7 +3596,6 @@ module Exp = {
                 err,
                 scrut,
                 ZList.surround((prefix, suffix), zrules),
-                typeAscription,
               ),
             ),
             ty,
@@ -3625,8 +3606,7 @@ module Exp = {
     | (SplitCases, CursorE(_)) => Failed
 
     /* Invalid Swap actions */
-    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
-      Failed
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
     | (SwapLeft | SwapRight, CursorE(_)) => Failed
 
     /* Zipper Cases */
@@ -3726,8 +3706,7 @@ module Exp = {
            u_gen',
          ));
        }; */
-    | (_, CaseZE(_, _, _, None) | CaseZR(_, _, _, None)) => Failed
-    | (_, CaseZE(_, zscrut, rules, Some(uty) as ann)) =>
+    | (_, CaseZE(_, zscrut, rules)) =>
       switch (Statics.Exp.syn(ctx, ZExp.erase(zscrut))) {
       | None => Failed
       | Some(ty1) =>
@@ -3736,48 +3715,207 @@ module Exp = {
         | CursorEscaped(side) =>
           syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
         | Succeeded((zscrut, ty1, u_gen)) =>
-          let ty = UHTyp.expand(uty);
-          let (rules, u_gen) =
-            Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-          let new_ze =
-            ZExp.ZBlock.wrap(CaseZE(NotInHole, zscrut, rules, ann));
-          Succeeded(SynDone((new_ze, ty, u_gen)));
+          let (rules, u_gen, rule_types, common_type) =
+            Statics.Exp.syn_fix_holes_rules(ctx, u_gen, rules, ty1);
+          switch (common_type) {
+          | None =>
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                CaseZE(InconsistentBranches(rule_types, u), zscrut, rules),
+              );
+            Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          | Some(ty) =>
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+              );
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          };
         }
       }
-    | (_, CaseZR(_, scrut, zrules, Some(ann))) =>
+    | (_, CaseZR(_, scrut, zrules)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => Failed
       | Some(pat_ty) =>
-        let clause_ty = ann |> UHTyp.expand;
-        switch (
-          ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, clause_ty)
-        ) {
+        switch (syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)) {
         | Failed => Failed
         | CursorEscaped(side) =>
           syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
         | Succeeded((new_zrules, u_gen)) =>
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              CaseZR(NotInHole, scrut, new_zrules, Some(ann)),
-            );
-          Succeeded(SynDone((new_ze, clause_ty, u_gen)));
-        };
+          let (new_zrules, rule_types, common_type, u_gen) =
+            Statics.Exp.syn_fix_holes_zrules(ctx, u_gen, new_zrules, pat_ty);
+          switch (common_type) {
+          | None =>
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                CaseZR(
+                  InconsistentBranches(rule_types, u),
+                  scrut,
+                  new_zrules,
+                ),
+              );
+            Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+          | Some(ty) =>
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+              );
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          };
+        }
       }
-    | (_, CaseZA(_, scrut, rules, zann)) =>
-      switch (Statics.Exp.syn(ctx, scrut)) {
+    };
+  }
+  and syn_perform_rules =
+      (
+        ctx: Contexts.t,
+        a: t,
+        (
+          (prefix, zrule, suffix) as zrules: ZExp.zrules,
+          u_gen: MetaVarGen.t,
+        ),
+        pat_ty: HTyp.t,
+      )
+      : Outcome.t((ZExp.zrules, MetaVarGen.t)) => {
+    let escape = (side: Side.t) => {
+      let move_cursor =
+        switch (side) {
+        | Before => ZExp.move_cursor_left_zrules
+        | After => ZExp.move_cursor_right_zrules
+        };
+      zrules
+      |> move_cursor
+      |> OptUtil.map_default(~default=Outcome.CursorEscaped(side), new_zrules =>
+           Succeeded((new_zrules, u_gen))
+         );
+    };
+
+    switch (a, zrule) {
+    /* Invalid cursor positions */
+    | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
+
+    /* Movement handled at top level */
+    | (
+        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
+        MoveRight,
+        _,
+      ) =>
+      failwith("unimplemented")
+
+    /* Backspace & Delete */
+
+    | (Backspace, CursorR(OnDelim(_, Before as side), _))
+    | (Delete, CursorR(OnDelim(_, After as side), _)) => escape(side)
+
+    // Delete before delim == Backspace after delim
+    | (Delete, CursorR(OnDelim(k, Before), rule)) =>
+      let new_zrules =
+        zrules |> ZList.replace_z(ZExp.CursorR(OnDelim(k, After), rule));
+      syn_perform_rules(ctx, Backspace, (new_zrules, u_gen), pat_ty);
+    | (Backspace, CursorR(OnDelim(_, After), _)) =>
+      switch (prefix |> ListUtil.split_last, suffix) {
+      | (None, []) =>
+        let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+        let new_zrules = ([], new_zrule, []);
+        Succeeded((new_zrules, u_gen));
+      | (_, [suffix_hd, ...new_suffix]) =>
+        let new_zrule = suffix_hd |> ZExp.place_before_rule;
+        let new_zrules = (prefix, new_zrule, new_suffix);
+        Succeeded((new_zrules, u_gen));
+      | (Some((new_prefix, prefix_last)), _) =>
+        let new_zrule = prefix_last |> ZExp.place_after_rule;
+        let new_zrules = (new_prefix, new_zrule, suffix);
+        Succeeded((new_zrules, u_gen));
+      }
+
+    /* Construction */
+
+    | (Construct(SOp(SSpace)), CursorR(OnDelim(_, After), _))
+        when !ZExp.is_after_zrule(zrule) =>
+      escape(After)
+
+    | (Construct(SLine), RuleZP(zp, _)) when zp |> ZPat.is_before =>
+      let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+      let new_zrules = (
+        prefix,
+        new_zrule,
+        [zrule |> ZExp.erase_zrule, ...suffix],
+      );
+      Succeeded((new_zrules, u_gen));
+    | (Construct(SLine), RuleZP(zp, _)) when zp |> ZPat.is_after =>
+      let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+      let new_zrules = (
+        prefix @ [zrule |> ZExp.erase_zrule],
+        new_zrule,
+        suffix,
+      );
+      Succeeded((new_zrules, u_gen));
+    | (Construct(SLine), RuleZE(_, zclause)) when zclause |> ZExp.is_after =>
+      let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
+      let new_zrules = (
+        prefix @ [zrule |> ZExp.erase_zrule],
+        new_zrule,
+        suffix,
+      );
+      Succeeded((new_zrules, u_gen));
+
+    | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_, side), _))
+        when !ZExp.is_before_zrule(zrule) && !ZExp.is_after_zrule(zrule) =>
+      switch (escape(side)) {
+      | Failed
+      | CursorEscaped(_) => Failed
+      | Succeeded((zrules, u_gen)) =>
+        syn_perform_rules(ctx, a, (zrules, u_gen), pat_ty)
+      }
+    | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
+
+    | (SplitCases, CursorR(OnDelim(_), _)) => Failed
+
+    /* Invalid swap actions */
+    | (SwapLeft | SwapRight, CursorR(_)) => Failed
+
+    /* SwapUp and SwapDown actions */
+    | (SwapUp, CursorR(_) | RuleZP(_)) =>
+      switch (ListUtil.split_last(prefix)) {
       | None => Failed
-      | Some(ty1) =>
-        switch (Typ.perform(a, zann)) {
+      | Some((rest, last)) =>
+        let new_zrules = (rest, zrule, [last, ...suffix]);
+        Succeeded((new_zrules, u_gen));
+      }
+    | (SwapDown, CursorR(_) | RuleZP(_)) =>
+      switch (suffix) {
+      | [] => Failed
+      | [hd, ...tl] =>
+        let new_zrules = (prefix @ [hd], zrule, tl);
+        Succeeded((new_zrules, u_gen));
+      }
+
+    /* Zipper */
+    | (_, RuleZP(zp, clause)) =>
+      switch (Pat.ana_perform(ctx, u_gen, a, zp, pat_ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(side)
+      | Succeeded((new_zp, ctx, u_gen)) =>
+        let (clause, _, u_gen) =
+          Statics.Exp.syn_fix_holes(ctx, u_gen, clause);
+        let new_zrules =
+          zrules |> ZList.replace_z(ZExp.RuleZP(new_zp, clause));
+        Succeeded((new_zrules, u_gen));
+      }
+
+    | (_, RuleZE(p, zclause)) =>
+      switch (Statics.Pat.ana(ctx, p, pat_ty)) {
+      | None => Failed
+      | Some(ctx) =>
+        switch (syn_perform(ctx, a, (zclause, pat_ty, u_gen))) {
         | Failed => Failed
-        | CursorEscaped(side) =>
-          syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-        | Succeeded(zann) =>
-          let ty = UHTyp.expand(ZTyp.erase(zann));
-          let (rules, u_gen) =
-            Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-          let new_ze =
-            ZExp.ZBlock.wrap(CaseZA(NotInHole, scrut, rules, zann));
-          Succeeded(SynDone((new_ze, ty, u_gen)));
+        | CursorEscaped(side) => escape(side)
+        | Succeeded((new_zclause, _, u_gen)) =>
+          let new_zrules =
+            zrules |> ZList.replace_z(ZExp.RuleZE(p, new_zclause));
+          Succeeded((new_zrules, u_gen));
         }
       }
     };
@@ -3955,8 +4093,7 @@ module Exp = {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
     | Succeeded(AnaExpands({kw: Case, prefix, subject, suffix, u_gen})) =>
-      let (zcase, u_gen) =
-        zcase_of_scrut_and_suffix(Syn, u_gen, subject, suffix);
+      let (zcase, u_gen) = zcase_of_scrut_and_suffix(u_gen, subject, suffix);
       let new_zblock =
         (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
         |> ZExp.prune_empty_hole_lines;
@@ -4561,8 +4698,7 @@ module Exp = {
         CursorE(
           OnDelim(k, After),
           (
-            Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _, _) |
-            Parenthesized(e)
+            Lam(_, _, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)
           ) as operand,
         ),
       ) =>
@@ -4653,16 +4789,6 @@ module Exp = {
       let new_zann = ann |> ZTyp.place_before;
       let new_ze =
         ZExp.ZBlock.wrap(LamZA(err, zp |> ZPat.erase, new_zann, body));
-      Succeeded(AnaDone((new_ze, u_gen)));
-    | (Construct(SAsc), CursorE(_, Case(_, e1, rules, None))) =>
-      let new_zann = UHTyp.Hole |> ZTyp.place_before_operand |> ZOpSeq.wrap;
-      let new_ze = ZExp.ZBlock.wrap(CaseZA(NotInHole, e1, rules, new_zann));
-      Succeeded(AnaDone((new_ze, u_gen)));
-    | (Construct(SAsc), CursorE(_, Case(_, scrut, rules, Some(ann)))) =>
-      /* just move the cursor over if there is already an ascription */
-      let new_zann = ann |> ZTyp.place_before;
-      let new_ze =
-        ZExp.ZBlock.wrap(CaseZA(NotInHole, scrut, rules, new_zann));
       Succeeded(AnaDone((new_ze, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
 
@@ -4791,12 +4917,7 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZE(
-          err,
-          zscrut,
-          [UHExp.Rule(OpSeq(_, seq) as pat, exp)],
-          typeAscription,
-        ),
+        CaseZE(err, zscrut, [UHExp.Rule(OpSeq(_, seq) as pat, exp)]),
       )
         when seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole =>
       ana_perform_operand(
@@ -4807,7 +4928,6 @@ module Exp = {
             err,
             ZExp.erase(zscrut),
             ZList.singleton(ZExp.RuleZP(ZPat.place_before(pat), exp)),
-            typeAscription,
           ),
           u_gen,
         ),
@@ -4816,7 +4936,7 @@ module Exp = {
 
     | (
         SplitCases,
-        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix), typeAscription) as zop,
+        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix)) as zop,
       )
         when can_split_cases(zop) =>
       switch (split_cases(ctx, u_gen, scrut, exp)) {
@@ -4829,7 +4949,6 @@ module Exp = {
                 err,
                 scrut,
                 ZList.surround((prefix, suffix), zrules),
-                typeAscription,
               ),
             ),
             u_gen,
@@ -4839,8 +4958,7 @@ module Exp = {
     | (SplitCases, CursorE(_)) => Failed
 
     /* Invalid Swap actions */
-    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_) | CaseZA(_)) =>
-      Failed
+    | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
     | (SwapLeft | SwapRight, CursorE(_)) => Failed
 
     /* Zipper Cases */
@@ -4942,8 +5060,7 @@ module Exp = {
           Succeeded(AnaDone((new_ze, u_gen)));
         };
       }
-    | (_, CaseZE(_, zscrut, rules, ann)) =>
-      // TODO: need to check consistency of ann with expected ty
+    | (_, CaseZE(_, zscrut, rules)) =>
       switch (Statics.Exp.syn(ctx, zscrut |> ZExp.erase)) {
       | None => Failed
       | Some(ty1) =>
@@ -4955,12 +5072,13 @@ module Exp = {
           let (rules, u_gen) =
             Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
           let new_ze =
-            ZExp.ZBlock.wrap(CaseZE(NotInHole, zscrut, rules, ann));
+            ZExp.ZBlock.wrap(
+              CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+            );
           Succeeded(AnaDone((new_ze, u_gen)));
         }
       }
-    | (_, CaseZR(_, scrut, zrules, ann)) =>
-      // TODO: need to check consistency of ann with expected ty
+    | (_, CaseZR(_, scrut, zrules)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => Failed
       | Some(pat_ty) =>
@@ -4970,28 +5088,10 @@ module Exp = {
           ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
         | Succeeded((new_zrules, u_gen)) =>
           let new_ze =
-            ZExp.ZBlock.wrap(CaseZR(NotInHole, scrut, new_zrules, ann));
+            ZExp.ZBlock.wrap(
+              CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+            );
           Succeeded(AnaDone((new_ze, u_gen)));
-        }
-      }
-    | (_, CaseZA(_, scrut, rules, zann)) =>
-      // TODO: need to check consistency of ann with expected ty
-      switch (Statics.Exp.syn(ctx, scrut)) {
-      | None => Failed
-      | Some(ty1) =>
-        switch (Typ.perform(a, zann)) {
-        | Failed => Failed
-        | CursorEscaped(side) =>
-          ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
-        | Succeeded(zann) =>
-          let ty2 = UHTyp.expand(ZTyp.erase(zann));
-          let (rules, u_gen) =
-            Statics.Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty2);
-          let new_ze =
-            ZExp.ZBlock.wrap(CaseZA(NotInHole, scrut, rules, zann));
-          Succeeded(
-            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
-          );
         }
       }
 
