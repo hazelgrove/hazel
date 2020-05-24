@@ -17,7 +17,7 @@ type var_edit =
   | Insert(cursor_term)
   | Edit(edit_term);
 
-type edit_action =
+type action_group =
   | Var(var_edit)
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
@@ -43,7 +43,7 @@ type undo_history_entry = {
   cardstacks_after_move: Cardstacks.t,
   cursor_term_info,
   previous_action: Action.t,
-  edit_action,
+  action_group,
   timestamp,
 };
 
@@ -144,10 +144,10 @@ let caret_jump =
   prev_step != new_step;
 };
 
-/* return true if new edit_action can be grouped with the preivous edit_action */
-let group_edit_action =
-    (edit_action_prev: edit_action, edit_action_next: edit_action): bool =>
-  switch (edit_action_prev, edit_action_next) {
+/* return true if new action_group can be grouped with the preivous action_group */
+let group_action_group =
+    (action_group_prev: action_group, action_group_next: action_group): bool =>
+  switch (action_group_prev, action_group_next) {
   | (CaseRule, CaseRule) => true
   | (CaseRule, _) => false
   | (Var(_), Var(_)) => true
@@ -177,11 +177,11 @@ let group_entry =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: Cardstacks.t,
-      ~new_edit_action: edit_action,
+      ~new_action_group: action_group,
     )
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  group_edit_action(prev_entry.edit_action, new_edit_action)
+  group_action_group(prev_entry.action_group, new_action_group)
   && !caret_jump(prev_group, new_cardstacks_before);
 };
 
@@ -272,8 +272,8 @@ let get_initial_entry_in_group =
   };
 };
 
-let is_var_insert = (edit_action): bool => {
-  switch (edit_action) {
+let is_var_insert = (action_group): bool => {
+  switch (action_group) {
   | Var(var_edit) =>
     switch (var_edit) {
     | Insert(_) => true
@@ -283,8 +283,8 @@ let is_var_insert = (edit_action): bool => {
   };
 };
 
-let is_var_edit = (edit_action): bool => {
-  switch (edit_action) {
+let is_var_edit = (action_group): bool => {
+  switch (action_group) {
   | Var(var_edit) =>
     switch (var_edit) {
     | Insert(_) => false
@@ -293,21 +293,21 @@ let is_var_edit = (edit_action): bool => {
   | _ => false
   };
 };
-let get_delete_edit_action =
+let get_delete_action_group =
     (
       prev_group: undo_history_group,
       new_cardstacks_before: Cardstacks.t,
       new_cursor_term_info: cursor_term_info,
     )
-    : edit_action =>
+    : action_group =>
   if (group_entry(
         ~prev_group,
         ~new_cardstacks_before,
-        ~new_edit_action=
+        ~new_action_group=
           DeleteEdit(Term(new_cursor_term_info.cursor_term_before, true)),
       )) {
     let prev_entry = ZList.prj_z(prev_group.group_entries);
-    if (is_var_edit(prev_entry.edit_action)) {
+    if (is_var_edit(prev_entry.action_group)) {
       /* if delete group start from var edition, the deleted term is the initial term in this group */
       switch (get_initial_entry_in_group(prev_group)) {
       | None =>
@@ -317,7 +317,7 @@ let get_delete_edit_action =
           Term(initial_entry.cursor_term_info.cursor_term_before, false),
         )
       };
-    } else if (is_var_insert(prev_entry.edit_action)) {
+    } else if (is_var_insert(prev_entry.action_group)) {
       /* if delete group start from var insertion, the deleted term is the longest term in this group */
       let rec max_len_term =
               (ls: list(undo_history_entry), cursor_term: cursor_term)
@@ -426,31 +426,31 @@ let delete_edit =
       ~new_cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
     )
-    : option(edit_action) =>
+    : option(action_group) =>
   if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
     Some(DeleteEdit(EmptyLine));
   } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
              || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
-    /* if the term becomes hole or empty line, the edit action is deleting the whole term */
+    /* if the term becomes hole or empty line, the action group is deleting the whole term */
     Some(
-      get_delete_edit_action(
+      get_delete_action_group(
         prev_group,
         new_cardstacks_before,
         new_cursor_term_info,
       ),
     );
   } else {
-    /* the edit action is editing the term */
+    /* the action group is editing the term */
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     if (!caret_jump(prev_group, new_cardstacks_before)
-        && is_var_insert(prev_entry.edit_action)) {
+        && is_var_insert(prev_entry.action_group)) {
       Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
     } else {
       let initial_term =
         if (group_entry(
               ~prev_group,
               ~new_cardstacks_before,
-              ~new_edit_action=
+              ~new_action_group=
                 Var(
                   Edit({
                     start_from: new_cursor_term_info.cursor_term_before,
@@ -478,7 +478,7 @@ let delete_edit =
   };
 let delim_edge_handle =
     (~new_cursor_term_info: cursor_term_info, ~adjacent_is_empty_line: bool)
-    : option(edit_action) =>
+    : option(action_group) =>
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
@@ -495,7 +495,7 @@ let delete =
       ~new_cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
     )
-    : option(edit_action) => {
+    : option(action_group) => {
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
 
   switch (cursor_pos) {
@@ -524,7 +524,7 @@ let delete =
       } else {
         /* delete the whole term */
         Some(
-          get_delete_edit_action(
+          get_delete_action_group(
             prev_group,
             new_cardstacks_before,
             new_cursor_term_info,
@@ -542,7 +542,7 @@ let delete =
     | Before =>
       /* delete and reach a hole */
       Some(
-        get_delete_edit_action(
+        get_delete_action_group(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
@@ -561,7 +561,7 @@ let backspace =
       ~new_cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
     )
-    : option(edit_action) => {
+    : option(action_group) => {
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
   | OnText(_) =>
@@ -594,7 +594,7 @@ let backspace =
       } else {
         /* delete the whole term */
         Some(
-          get_delete_edit_action(
+          get_delete_action_group(
             prev_group,
             new_cardstacks_before,
             new_cursor_term_info,
@@ -610,7 +610,7 @@ let backspace =
     | After =>
       /* delete and reach a hole */
       Some(
-        get_delete_edit_action(
+        get_delete_action_group(
           prev_group,
           new_cardstacks_before,
           new_cursor_term_info,
@@ -620,14 +620,14 @@ let backspace =
   };
 };
 
-let get_new_edit_action =
+let get_new_action_group =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
       ~action: Action.t,
     )
-    : option(edit_action) =>
+    : option(action_group) =>
   if (is_move_action(new_cursor_term_info)) {
     None;
         /* It's a caret movement */
@@ -667,7 +667,7 @@ let get_new_edit_action =
         if (group_entry(
               ~prev_group,
               ~new_cardstacks_before,
-              ~new_edit_action=
+              ~new_action_group=
                 Var(
                   Edit({
                     start_from: new_cursor_term_info.cursor_term_before,
@@ -679,7 +679,7 @@ let get_new_edit_action =
           | None =>
             Some(Var(Insert(new_cursor_term_info.cursor_term_after)))
           | Some(initial_entry) =>
-            if (is_var_insert(initial_entry.edit_action)) {
+            if (is_var_insert(initial_entry.action_group)) {
               Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
             } else {
               Some(
@@ -847,15 +847,15 @@ let push_edit_state =
   let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
     get_cursor_info(~new_cardstacks_before, ~new_cardstacks_after);
-  let new_edit_action =
-    get_new_edit_action(
+  let new_action_group =
+    get_new_action_group(
       ~prev_group,
       ~new_cardstacks_before,
       ~new_cursor_term_info,
       ~action,
     );
   let timestamp = Unix.time();
-  switch (new_edit_action) {
+  switch (new_action_group) {
   | None =>
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     let new_entry = {
@@ -872,16 +872,16 @@ let push_edit_state =
       groups: ZList.replace_z(new_group, undo_history.groups),
       disable_auto_scrolling: false,
     };
-  | Some(new_edit_action) =>
+  | Some(new_action_group) =>
     let new_entry = {
       cardstacks_after_action: new_cardstacks_after,
       cardstacks_after_move: new_cardstacks_after,
       cursor_term_info: new_cursor_term_info,
       previous_action: action,
-      edit_action: new_edit_action,
+      action_group: new_action_group,
       timestamp,
     };
-    if (group_entry(~prev_group, ~new_cardstacks_before, ~new_edit_action)) {
+    if (group_entry(~prev_group, ~new_cardstacks_before, ~new_action_group)) {
       let new_group =
         push_history_entry(
           ~prev_group,

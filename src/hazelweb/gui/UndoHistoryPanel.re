@@ -290,7 +290,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
   let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {
-    switch (undo_history_entry.edit_action) {
+    switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
       | Term(cursor_term, start_from_insertion) =>
@@ -392,7 +392,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
   let display_tag_typ =
       (undo_history_entry: undo_history_entry): option(tag_typ) => {
-    switch (undo_history_entry.edit_action) {
+    switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
       | Term(cursor_term, _) => Some(get_cursor_term_tag_typ(cursor_term))
