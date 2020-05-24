@@ -197,6 +197,9 @@ and find_operand_line =
     }
   | ExpLine(opseq) => opseq |> find_operand_opseq
   | LetLine(_, _, def) => def |> find_operand
+/* and find_operand_opseq =
+   fun
+   | OpSeq(_, seq) => Some(seq); */
 and find_operand_opseq =
   fun
   | OpSeq(_, S(operand, _)) => Some(operand)
@@ -206,6 +209,21 @@ and find_operand_operator =
 and find_operand_operand =
   fun
   | e => Some(e);
+
+let rec find_seq = (e: t): option(seq) => e |> find_seq_block
+and find_seq_block = block =>
+  List.nth(block, List.length(block) - 1) |> find_seq_line
+and find_seq_line =
+  fun
+  | EmptyLine => {
+      let (hole, _) = new_EmptyHole(0);
+      Some(S(hole, E));
+    }
+  | ExpLine(opseq) => opseq |> find_seq_opseq
+  | LetLine(_, _, def) => def |> find_seq
+and find_seq_opseq =
+  fun
+  | OpSeq(_, seq) => Some(seq);
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
