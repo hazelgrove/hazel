@@ -163,22 +163,28 @@ module Typ = {
       )
     };
 
-  let insert_text = (ctx: Contexts.t, (caret_index: int, insert_text: string), text : string) => 
+  let insert_text = (ctx: Contexts.t, (caret_index: int, insert_text: string), text : string): Outcome.t(ZTyp.t) => 
     let caret_index = caret_index + String.length(inser_text);
     let text = StringUtil.insert(caret_index, insert_text, text);
     switch TyTextShape.of_text(text) {
-    | Var(x) =>
+    | None => 
+      if (text |> StringUtil.is_empty) {
+        Succeeded(ZOpSeq.wrap(CursorT(OnDelim(0, Before), Hole)));
+      } else {
+        Failed;
+      }
+    | Some(Var(x)) =>
       switch (TyVarCtx.index_of(ctx.tyvars, x)) {
-        | Some(idx)
+        | Some(idx) => 
       }
     }
   let backspace_text = () => raise(Failure("unimplemented"));
   let delete_text = () => raise(Failure("unimplemented"));
 
-  let rec perform = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
+  let rec perform = (tyvars: TyVarCtx.t, a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
     perform_opseq(a, zty)
   and perform_opseq =
-      (a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): Outcome.t(ZTyp.t) =>
+      (tyvars: TyVarCtx.t, a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): Outcome.t(ZTyp.t) =>
     switch (a, zseq) {
     /* Invalid actions at the type level */
     | (
@@ -277,7 +283,7 @@ module Typ = {
 
     /* Zipper */
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
-      switch (perform_operand(a, zoperand)) {
+      switch (perform_operand(tyvars, a, zoperand)) {
       | Failed => Failed
       | CursorEscaped(side) => perform_opseq(escape(side), zopseq)
       | Succeeded(ZOpSeq(_, zseq)) =>
@@ -297,7 +303,7 @@ module Typ = {
         }
       }
     }
-  and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
+  and perform_operand = (tyvars: TyVarCtx.t, a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
     switch (a, zoperand) {
     /* Invalid actions at the type level */
     | (
