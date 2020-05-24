@@ -5,6 +5,8 @@ type cursor_term = CursorInfo.cursor_term;
 type start_from_insertion = bool;
 type delete_edit =
   | Term(cursor_term, start_from_insertion)
+  /* cursor_term don't include seperate types for space, empty line and type annotation,
+     so the following three extra types are added for delete_edit */
   | Space
   | EmptyLine
   | TypeAnn;
