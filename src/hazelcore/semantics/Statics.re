@@ -1915,7 +1915,7 @@ module Exp = {
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
       print_endline("Statics1857 " ++ string_of_int(u_gen));
       let (body3, u_gen) =
-        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes=true, body3, Int);
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
       print_endline("Statics1860 " ++ string_of_int(u_gen));
       (Subscript(NotInHole, body1, body2, body3), String, u_gen);
     };

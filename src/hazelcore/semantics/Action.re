@@ -3446,9 +3446,10 @@ module Exp = {
             ZExp.ZBlock.wrap'(
               ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
             );
-          Succeeded(
-            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-          );
+          /* Succeeded(
+               SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+             ); */
+          Succeeded(SynDone((new_ze, ty, u_gen)));
         | _ => Failed
         }
       | _ => Failed
