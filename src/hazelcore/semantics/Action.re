@@ -5488,37 +5488,35 @@ module Exp = {
         CursorE(OnDelim(k, After), Subscript(_, body1, body2, body3)),
       ) =>
       print_endline("Action3684");
-      switch (Statics.Exp.syn(ctx, body2), Statics.Exp.syn(ctx, body3)) {
-      | (Some(Hole), _)
-      | (_, Some(Hole)) =>
+      let option_op1 =
+        // UHExp.is_operand(body1)
+        //   ? UHExp.find_operand(body1) : Some(Parenthesized(body1));
+        switch (UHExp.find_operand(body1)) {
+        | Some(op1) =>
+          UHExp.Block.wrap(op1) == body1
+            ? Some(op1) : Some(Parenthesized(body1))
+        | _ => None
+        };
+      let option_op2 =
+        switch (UHExp.find_operand(body2)) {
+        | Some(op2) =>
+          UHExp.Block.wrap(op2) == body2
+            ? Some(op2) : Some(Parenthesized(body2))
+        | _ => None
+        };
+      let option_op3 =
+        switch (UHExp.find_operand(body3)) {
+        | Some(op3) =>
+          UHExp.Block.wrap(op3) == body3
+            ? Some(op3) : Some(Parenthesized(body3))
+        | _ => None
+        };
+      switch (option_op2, option_op3) {
+      | (Some(EmptyHole(_)), _)
+      | (_, Some(EmptyHole(_))) =>
         let new_ze = body1 |> ZExp.place_after;
-        Succeeded(
-          AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, String)),
-        );
+        Succeeded(AnaDone((new_ze, u_gen)));
       | (_, _) =>
-        let option_op1 =
-          // UHExp.is_operand(body1)
-          //   ? UHExp.find_operand(body1) : Some(Parenthesized(body1));
-          switch (UHExp.find_operand(body1)) {
-          | Some(op1) =>
-            UHExp.Block.wrap(op1) == body1
-              ? Some(op1) : Some(Parenthesized(body1))
-          | _ => None
-          };
-        let option_op2 =
-          switch (UHExp.find_operand(body2)) {
-          | Some(op2) =>
-            UHExp.Block.wrap(op2) == body2
-              ? Some(op2) : Some(Parenthesized(body2))
-          | _ => None
-          };
-        let option_op3 =
-          switch (UHExp.find_operand(body3)) {
-          | Some(op3) =>
-            UHExp.Block.wrap(op3) == body3
-              ? Some(op3) : Some(Parenthesized(body3))
-          | _ => None
-          };
         switch (k) {
         | 0 =>
           switch (option_op1, option_op2, option_op3) {
@@ -5567,7 +5565,7 @@ module Exp = {
             );
           | (_, _, _) => Failed
           }
-        };
+        }
       };
 
     /* TODO consider deletion of type ascription on case */
