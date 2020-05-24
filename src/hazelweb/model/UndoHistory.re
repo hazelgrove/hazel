@@ -40,7 +40,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: Cardstacks.t,
   cursor_term_info,
-  previous_action: option(Action.t),
+  previous_action: Action.t,
   edit_action,
   timestamp,
 };
@@ -604,7 +604,7 @@ let get_new_edit_action =
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: Cardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
-      ~action: option(Action.t),
+      ~action: Action.t,
     )
     : option(edit_action) =>
   if (is_move_action(new_cursor_term_info)) {
@@ -612,186 +612,178 @@ let get_new_edit_action =
         /* It's a caret movement */
   } else {
     switch (action) {
-    | None => None
-    | Some(action') =>
-      switch (action') {
-      | Delete =>
-        delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
-      | Backspace =>
-        backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
-      | Construct(shape) =>
-        switch (shape) {
-        | SLine =>
+    | Delete =>
+      delete(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+    | Backspace =>
+      backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
+    | Construct(shape) =>
+      switch (shape) {
+      | SLine =>
+        switch (CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)) {
+        | None => Some(ConstructEdit(shape))
+        | Some(zrules_before) =>
           switch (
-            CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)
+            CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
           ) {
           | None => Some(ConstructEdit(shape))
-          | Some(zrules_before) =>
-            switch (
-              CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
-            ) {
-            | None => Some(ConstructEdit(shape))
-            | Some(zrules_after) =>
-              if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
-                Some(CaseRule);
-              } else {
-                Some(ConstructEdit(shape));
-              }
+          | Some(zrules_after) =>
+            if (ZList.length(zrules_before) < ZList.length(zrules_after)) {
+              Some(CaseRule);
+            } else {
+              Some(ConstructEdit(shape));
             }
           }
-        | SParenthesized
-        | SList
-        | SAsc
-        | SLam
-        | SListNil
-        | SInj(_)
-        | SLet
-        | SCase => Some(ConstructEdit(shape))
-        | SChar(_) =>
-          if (group_entry(
-                ~prev_group,
-                ~new_cardstacks_before,
-                ~new_edit_action=
-                  Var(
-                    Edit({
-                      start_from: new_cursor_term_info.cursor_term_before,
-                      end_with: new_cursor_term_info.cursor_term_after,
-                    }),
-                  ),
-              )) {
-            switch (get_initial_entry_in_group(prev_group)) {
-            | None =>
-              Some(Var(Insert(new_cursor_term_info.cursor_term_after)))
-            | Some(initial_entry) =>
-              if (is_var_insert(initial_entry.edit_action)) {
-                Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
-              } else {
-                Some(
-                  Var(
-                    Edit({
-                      start_from:
-                        initial_entry.cursor_term_info.cursor_term_before,
-                      end_with: new_cursor_term_info.cursor_term_after,
-                    }),
-                  ),
-                );
-              }
-            };
-          } else if (CursorInfo.is_hole(
-                       new_cursor_term_info.cursor_term_before,
-                     )
-                     || CursorInfo.is_empty_line(
+        }
+      | SParenthesized
+      | SList
+      | SAsc
+      | SLam
+      | SListNil
+      | SInj(_)
+      | SLet
+      | SCase => Some(ConstructEdit(shape))
+      | SChar(_) =>
+        if (group_entry(
+              ~prev_group,
+              ~new_cardstacks_before,
+              ~new_edit_action=
+                Var(
+                  Edit({
+                    start_from: new_cursor_term_info.cursor_term_before,
+                    end_with: new_cursor_term_info.cursor_term_after,
+                  }),
+                ),
+            )) {
+          switch (get_initial_entry_in_group(prev_group)) {
+          | None =>
+            Some(Var(Insert(new_cursor_term_info.cursor_term_after)))
+          | Some(initial_entry) =>
+            if (is_var_insert(initial_entry.edit_action)) {
+              Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
+            } else {
+              Some(
+                Var(
+                  Edit({
+                    start_from:
+                      initial_entry.cursor_term_info.cursor_term_before,
+                    end_with: new_cursor_term_info.cursor_term_after,
+                  }),
+                ),
+              );
+            }
+          };
+        } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
+                   || CursorInfo.is_empty_line(
+                        new_cursor_term_info.cursor_term_before,
+                      )
+                   || !
+                        CursorInfo.cursor_term_is_editable(
                           new_cursor_term_info.cursor_term_before,
-                        )
-                     || !
-                          CursorInfo.cursor_term_is_editable(
-                            new_cursor_term_info.cursor_term_before,
-                          )) {
-            Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
-          } else {
-            Some(
-              Var(
-                Edit({
-                  start_from: new_cursor_term_info.cursor_term_before,
-                  end_with: new_cursor_term_info.cursor_term_after,
-                }),
-              ),
-            );
-          }
+                        )) {
+          Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
+        } else {
+          Some(
+            Var(
+              Edit({
+                start_from: new_cursor_term_info.cursor_term_before,
+                end_with: new_cursor_term_info.cursor_term_after,
+              }),
+            ),
+          );
+        }
 
-        | SOp(op) =>
-          switch (op) {
-          | SMinus
-          | SPlus
-          | STimes
-          | SLessThan
-          | SGreaterThan
-          | SEquals
-          | SComma
-          | SArrow
-          | SVBar
-          | SCons
-          | SAnd
-          | SOr => Some(ConstructEdit(shape))
-          | SSpace =>
-            switch (new_cursor_term_info.cursor_term_before) {
-            | Exp(pos, uexp_operand) =>
-              switch (uexp_operand) {
-              | Var(_, InVarHole(Keyword(k), _), _) =>
-                switch (k) {
-                | Let =>
-                  switch (
-                    get_cursor_pos(new_cursor_term_info.cursor_term_before)
-                  ) {
-                  | OnText(pos) =>
-                    if (pos == 3) {
-                      /* the caret is at the end of "let" */
-                      Some(
-                        ConstructEdit(SLet),
-                      );
-                    } else {
-                      Some(ConstructEdit(SOp(SSpace)));
-                    }
-                  | OnDelim(_, _)
-                  | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-                  }
-
-                | Case =>
-                  switch (
-                    get_cursor_pos(new_cursor_term_info.cursor_term_before)
-                  ) {
-                  | OnText(pos) =>
-                    if (pos == 4) {
-                      /* the caret is at the end of "case" */
-                      Some(
-                        ConstructEdit(SCase),
-                      );
-                    } else {
-                      Some(ConstructEdit(SOp(SSpace)));
-                    }
-                  | OnDelim(_, _)
-                  | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
-                  }
-                }
-              | Var(_, _, var) =>
-                switch (pos) {
-                | OnText(index) =>
-                  let (left_var, _) = Var.split(index, var);
-                  if (Var.is_let(left_var)) {
-                    Some(ConstructEdit(SLet));
-                  } else if (Var.is_case(left_var)) {
-                    Some(ConstructEdit(SCase));
+      | SOp(op) =>
+        switch (op) {
+        | SMinus
+        | SPlus
+        | STimes
+        | SLessThan
+        | SGreaterThan
+        | SEquals
+        | SComma
+        | SArrow
+        | SVBar
+        | SCons
+        | SAnd
+        | SOr => Some(ConstructEdit(shape))
+        | SSpace =>
+          switch (new_cursor_term_info.cursor_term_before) {
+          | Exp(pos, uexp_operand) =>
+            switch (uexp_operand) {
+            | Var(_, InVarHole(Keyword(k), _), _) =>
+              switch (k) {
+              | Let =>
+                switch (
+                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                ) {
+                | OnText(pos) =>
+                  if (pos == 3) {
+                    /* the caret is at the end of "let" */
+                    Some(
+                      ConstructEdit(SLet),
+                    );
                   } else {
                     Some(ConstructEdit(SOp(SSpace)));
-                  };
+                  }
                 | OnDelim(_, _)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
 
-              | ApPalette(_, _, _, _) =>
-                failwith("ApPalette is not implemented")
-              | _ => Some(ConstructEdit(SOp(SSpace)))
+              | Case =>
+                switch (
+                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                ) {
+                | OnText(pos) =>
+                  if (pos == 4) {
+                    /* the caret is at the end of "case" */
+                    Some(
+                      ConstructEdit(SCase),
+                    );
+                  } else {
+                    Some(ConstructEdit(SOp(SSpace)));
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
               }
+            | Var(_, _, var) =>
+              switch (pos) {
+              | OnText(index) =>
+                let (left_var, _) = Var.split(index, var);
+                if (Var.is_let(left_var)) {
+                  Some(ConstructEdit(SLet));
+                } else if (Var.is_case(left_var)) {
+                  Some(ConstructEdit(SCase));
+                } else {
+                  Some(ConstructEdit(SOp(SSpace)));
+                };
+              | OnDelim(_, _)
+              | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+              }
+
+            | ApPalette(_, _, _, _) =>
+              failwith("ApPalette is not implemented")
             | _ => Some(ConstructEdit(SOp(SSpace)))
             }
+          | _ => Some(ConstructEdit(SOp(SSpace)))
           }
-
-        | SApPalette(_) => failwith("ApPalette is not implemented")
         }
-      | MoveTo(_)
-      | MoveToBefore(_)
-      | MoveLeft
-      | MoveRight
-      | MoveToNextHole
-      | MoveToPrevHole
-      | SwapUp /* what's that */
-      | SwapDown
-      | SwapLeft
-      | SwapRight
-      | Init => None
-      | UpdateApPalette(_) =>
-        failwith("ApPalette is not implemented in undo_history")
+
+      | SApPalette(_) => failwith("ApPalette is not implemented")
       }
+    | MoveTo(_)
+    | MoveToBefore(_)
+    | MoveLeft
+    | MoveRight
+    | MoveToNextHole
+    | MoveToPrevHole
+    | SwapUp /* what's that */
+    | SwapDown
+    | SwapLeft
+    | SwapRight
+    | Init => None
+    | UpdateApPalette(_) =>
+      failwith("ApPalette is not implemented in undo_history")
     };
   };
 let get_cursor_info =
@@ -828,7 +820,7 @@ let push_edit_state =
       undo_history: t,
       new_cardstacks_before: Cardstacks.t,
       new_cardstacks_after: Cardstacks.t,
-      action: option(Action.t),
+      action: Action.t,
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
