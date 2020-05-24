@@ -32,7 +32,7 @@ type cursor_term_info = {
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
-
+type timestamp = float;
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
   cardstacks_after_action: Cardstacks.t,
@@ -42,7 +42,7 @@ type undo_history_entry = {
   cursor_term_info,
   previous_action: option(Action.t),
   edit_action,
-  timestamp: float,
+  timestamp,
 };
 
 type undo_history_group = {
