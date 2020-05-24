@@ -9,9 +9,13 @@ type delete_edit =
   | EmptyLine
   | TypeAnn;
 
+type edit_term = {
+  start_from: cursor_term,
+  end_with: cursor_term,
+};
 type var_edit =
-  | Insert
-  | Edit;
+  | Insert(cursor_term)
+  | Edit(edit_term);
 
 type edit_action =
   | Var(var_edit)
@@ -140,7 +144,8 @@ let group_edit_action =
     | _ => false
     }
   | (Var(_), _) => false
-  | (DeleteEdit(Term(_, _)), Var(Insert)) => true
+  /* "insert" and "insert and delete" should be grouped together */
+  | (DeleteEdit(Term(_, true)), Var(Insert(_))) => true
   | (DeleteEdit(_), _) => false
   | (ConstructEdit(_), _) => false
   | (Init, _) => false
@@ -246,6 +251,27 @@ let get_initial_entry_in_group =
   };
 };
 
+let is_var_insert = (edit_action): bool => {
+  switch (edit_action) {
+  | Var(var_edit) =>
+    switch (var_edit) {
+    | Insert(_) => true
+    | Edit(_) => false
+    }
+  | _ => false
+  };
+};
+
+let is_var_edit = (edit_action): bool => {
+  switch (edit_action) {
+  | Var(var_edit) =>
+    switch (var_edit) {
+    | Insert(_) => false
+    | Edit(_) => true
+    }
+  | _ => false
+  };
+};
 let get_delete_edit_action =
     (
       prev_group: undo_history_group,
@@ -260,7 +286,8 @@ let get_delete_edit_action =
           DeleteEdit(Term(new_cursor_term_info.cursor_term_before, true)),
       )) {
     let prev_entry = ZList.prj_z(prev_group.group_entries);
-    if (prev_entry.edit_action == Var(Edit)) {
+    if (is_var_edit(prev_entry.edit_action)) {
+      /* if delete group start from var edition, the deleted term is the initial term in this group */
       switch (get_initial_entry_in_group(prev_group)) {
       | None =>
         DeleteEdit(Term(new_cursor_term_info.cursor_term_before, false))
@@ -269,7 +296,8 @@ let get_delete_edit_action =
           Term(initial_entry.cursor_term_info.cursor_term_before, false),
         )
       };
-    } else if (prev_entry.edit_action == Var(Insert)) {
+    } else if (is_var_insert(prev_entry.edit_action)) {
+      /* if delete group start from var insertion, the deleted term is the longest term in this group */
       let rec max_len_term =
               (ls: list(undo_history_entry), cursor_term: cursor_term)
               : cursor_term => {
@@ -382,7 +410,7 @@ let delete_edit =
     Some(DeleteEdit(EmptyLine));
   } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
              || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
-    /* delete the whole term */
+    /* if the term becomes hole or empty line, the edit action is deleting the whole term */
     Some(
       get_delete_edit_action(
         prev_group,
@@ -391,12 +419,40 @@ let delete_edit =
       ),
     );
   } else {
+    /* the edit action is editing the term */
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     if (!caret_jump(prev_group, new_cardstacks_before)
-        && prev_entry.edit_action == Var(Insert)) {
-      Some(Var(Insert));
+        && is_var_insert(prev_entry.edit_action)) {
+      Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
     } else {
-      Some(Var(Edit));
+      let initial_term =
+        if (group_entry(
+              ~prev_group,
+              ~new_cardstacks_before,
+              ~new_edit_action=
+                Var(
+                  Edit({
+                    start_from: new_cursor_term_info.cursor_term_before,
+                    end_with: new_cursor_term_info.cursor_term_after,
+                  }),
+                ),
+            )) {
+          switch (get_initial_entry_in_group(prev_group)) {
+          | None => new_cursor_term_info.cursor_term_before
+          | Some(initial_entry) =>
+            initial_entry.cursor_term_info.cursor_term_before
+          };
+        } else {
+          new_cursor_term_info.cursor_term_before;
+        };
+      Some(
+        Var(
+          Edit({
+            start_from: initial_term,
+            end_with: new_cursor_term_info.cursor_term_after,
+          }),
+        ),
+      );
     };
   };
 let delim_edge_handle =
@@ -595,15 +651,30 @@ let get_new_edit_action =
           if (group_entry(
                 ~prev_group,
                 ~new_cardstacks_before,
-                ~new_edit_action=Var(Edit),
+                ~new_edit_action=
+                  Var(
+                    Edit({
+                      start_from: new_cursor_term_info.cursor_term_before,
+                      end_with: new_cursor_term_info.cursor_term_after,
+                    }),
+                  ),
               )) {
             switch (get_initial_entry_in_group(prev_group)) {
-            | None => Some(Var(Insert))
+            | None =>
+              Some(Var(Insert(new_cursor_term_info.cursor_term_after)))
             | Some(initial_entry) =>
-              if (initial_entry.edit_action == Var(Insert)) {
-                Some(Var(Insert));
+              if (is_var_insert(initial_entry.edit_action)) {
+                Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
               } else {
-                Some(Var(Edit));
+                Some(
+                  Var(
+                    Edit({
+                      start_from:
+                        initial_entry.cursor_term_info.cursor_term_before,
+                      end_with: new_cursor_term_info.cursor_term_after,
+                    }),
+                  ),
+                );
               }
             };
           } else if (CursorInfo.is_hole(
@@ -616,9 +687,16 @@ let get_new_edit_action =
                           CursorInfo.cursor_term_is_editable(
                             new_cursor_term_info.cursor_term_before,
                           )) {
-            Some(Var(Insert));
+            Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
           } else {
-            Some(Var(Edit));
+            Some(
+              Var(
+                Edit({
+                  start_from: new_cursor_term_info.cursor_term_before,
+                  end_with: new_cursor_term_info.cursor_term_after,
+                }),
+              ),
+            );
           }
 
         | SOp(op) =>
@@ -709,7 +787,8 @@ let get_new_edit_action =
       | SwapUp /* what's that */
       | SwapDown
       | SwapLeft
-      | SwapRight => None
+      | SwapRight
+      | Init => None
       | UpdateApPalette(_) =>
         failwith("ApPalette is not implemented in undo_history")
       }

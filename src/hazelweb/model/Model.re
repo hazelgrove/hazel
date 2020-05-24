@@ -54,7 +54,7 @@ let init = (): t => {
       cardstacks_after_action: cardstacks,
       cardstacks_after_move: cardstacks,
       cursor_term_info,
-      previous_action: None,
+      previous_action: Some(Init),
       edit_action: Init,
       timestamp,
     };
