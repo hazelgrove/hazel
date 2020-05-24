@@ -234,21 +234,6 @@ and find_operand_operand =
 //   | OpSeq(_, S(_, E)) => true
 //   | _ => false;
 
-/* let rec find_seq = (e: t): option(seq) => e |> find_seq_block
-   and find_seq_block = block =>
-     List.nth(block, List.length(block) - 1) |> find_seq_line
-   and find_seq_line =
-     fun
-     | EmptyLine => {
-         let (hole, _) = new_EmptyHole(0);
-         Some(S(hole, E));
-       }
-     | ExpLine(opseq) => opseq |> find_seq_opseq
-     | LetLine(_, _, def) => def |> find_seq
-   and find_seq_opseq =
-     fun
-     | OpSeq(_, seq) => Some(seq); */
-
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
   let (_, conclusion) = block |> Block.force_split_conclusion;

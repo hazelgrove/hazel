@@ -3730,7 +3730,7 @@ module Exp = {
         switch (UHExp.find_operand(body3)) {
         | Some(op3) =>
           UHExp.Block.wrap(op3) == body3
-            ? UHExp.find_operand(body3) : Some(Parenthesized(body3))
+            ? Some(op3) : Some(Parenthesized(body3))
         | _ => None
         };
       switch (option_op2, option_op3) {
