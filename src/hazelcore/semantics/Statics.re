@@ -1907,7 +1907,6 @@ module Exp = {
         );
       };
     | Subscript(_, body1, body2, body3) =>
-      print_endline("Statics1807 " ++ string_of_int(u_gen));
       let (body1, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
       print_endline("Statics1854 " ++ string_of_int(u_gen));
