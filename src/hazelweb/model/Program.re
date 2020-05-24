@@ -245,7 +245,8 @@ let move_via_click =
       ~memoize_doc: bool,
       row_col,
       program,
-    ) => {
+    )
+    : (t, Action.t) => {
   let (_, rev_path) =
     program
     |> get_cursor_map(
@@ -255,7 +256,9 @@ let move_via_click =
        )
     |> CursorMap.find_nearest_within_row(row_col);
   let path = CursorPath.rev(rev_path);
-  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  let new_program =
+    program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  (new_program, MoveTo(path));
 };
 
 let move_via_key =
@@ -265,7 +268,8 @@ let move_via_key =
       ~memoize_doc: bool,
       move_key: JSUtil.MoveKey.t,
       program,
-    ) => {
+    )
+    : (t, Action.t) => {
   let (cmap, ((row, col), _) as z) =
     program
     |> get_cursor_map_z(
@@ -297,7 +301,9 @@ let move_via_key =
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);
-    program |> update_start_col |> perform_edit_action(MoveTo(path));
+    let new_program =
+      program |> update_start_col |> perform_edit_action(MoveTo(path));
+    (new_program, MoveTo(path));
   };
 };
 

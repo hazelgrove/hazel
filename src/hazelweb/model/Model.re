@@ -54,7 +54,7 @@ let init = (): t => {
       cardstacks_after_action: cardstacks,
       cardstacks_after_move: cardstacks,
       cursor_term_info,
-      previous_action: Some(Init),
+      previous_action: Init,
       edit_action: Init,
       timestamp,
     };
@@ -177,7 +177,7 @@ let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
   |> focus_cell;
 
-let update_program = (a: option(Action.t), new_program, model) => {
+let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -234,13 +234,13 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     () => {
       let new_program =
         model |> get_program |> Program.perform_edit_action(a);
-      model |> update_program(Some(a), new_program);
+      model |> update_program(a, new_program);
     },
   );
 };
 
 let move_via_key = (move_key, model) => {
-  let new_program =
+  let (new_program, action) =
     model
     |> get_program
     |> Program.move_via_key(
@@ -253,11 +253,11 @@ let move_via_key = (move_key, model) => {
          ~memoize_doc=model.memoize_doc,
          move_key,
        );
-  model |> update_program(None, new_program);
+  model |> update_program(action, new_program);
 };
 
 let move_via_click = (row_col, model) => {
-  let new_program =
+  let (new_program, action) =
     model
     |> get_program
     |> Program.move_via_click(
@@ -270,7 +270,7 @@ let move_via_click = (row_col, model) => {
          ~memoize_doc=model.memoize_doc,
          row_col,
        );
-  model |> update_program(None, new_program);
+  model |> update_program(action, new_program);
 };
 
 let toggle_left_sidebar = (model: t): t => {

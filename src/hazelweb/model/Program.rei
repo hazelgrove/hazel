@@ -45,7 +45,7 @@ let move_via_key:
     JSUtil.MoveKey.t,
     t
   ) =>
-  t;
+  (t, Action.t);
 let move_via_click:
   (
     ~measure_program_get_doc: bool,
@@ -54,7 +54,7 @@ let move_via_click:
     (CursorMap.Row.t, CursorMap.Col.t),
     t
   ) =>
-  t;
+  (t, Action.t);
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
