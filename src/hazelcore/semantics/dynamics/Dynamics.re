@@ -551,9 +551,12 @@ module Exp = {
     | FailedCast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       FailedCast(d', ty1, ty2);
-    | FailedSubscript(d) =>
-      let d' = subst_var(d1, x, d);
-      FailedSubscript(d');
+    | InvalidOperation(op) =>
+      switch (op) {
+      | FailedSubscript(d) =>
+        let d' = subst_var(d1, x, d);
+        InvalidOperation(FailedSubscript(d'));
+      }
     }
   and subst_var_rules =
       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -604,7 +607,7 @@ module Exp = {
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
     | (_, FailedCast(_, _, _)) => Indet
-    | (_, FailedSubscript(_)) => Indet
+    | (_, InvalidOperation(_)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
     | (_, FixF(_, _, _)) => DoesNotMatch
@@ -772,7 +775,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
-    | FailedSubscript(_) => Indet
+    | InvalidOperation(_) => Indet
     }
   and matches_cast_Pair =
       (
@@ -835,7 +838,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
-    | FailedSubscript(_) => Indet
+    | InvalidOperation(_) => Indet
     }
   and matches_cast_Cons =
       (
@@ -898,7 +901,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
-    | FailedSubscript(_) => Indet
+    | InvalidOperation(_) => Indet
     };
 
   type expand_result_lines =
@@ -1956,9 +1959,12 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
-    | FailedSubscript(d) =>
-      let (d, hii) = renumber_result_only(path, hii, d);
-      (FailedSubscript(d), hii);
+    | InvalidOperation(op) =>
+      switch (op) {
+      | FailedSubscript(d) =>
+        let (d, hii) = renumber_result_only(path, hii, d);
+        (InvalidOperation(FailedSubscript(d)), hii);
+      }
     }
   and renumber_result_only_rules =
       (
@@ -2076,9 +2082,12 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
-    | FailedSubscript(d) =>
-      let (d, hii) = renumber_sigmas_only(path, hii, d);
-      (FailedSubscript(d), hii);
+    | InvalidOperation(op) =>
+      switch (op) {
+      | FailedSubscript(d) =>
+        let (d, hii) = renumber_sigmas_only(path, hii, d);
+        (InvalidOperation(FailedSubscript(d)), hii);
+      }
     }
   and renumber_sigmas_only_rules =
       (
@@ -2297,7 +2306,9 @@ module Evaluator = {
               BoxedValue(StringLit(String.sub(s1, n1, max(0, n2 - n1))));
             } else {
               print_endline("Dynamics2268");
-              Indet(FailedSubscript(Subscript(s1', n1', n2')));
+              Indet(
+                InvalidOperation(FailedSubscript(Subscript(s1', n1', n2'))),
+              );
             }
           | BoxedValue(_) => InvalidInput(3)
           | Indet(n2') =>
@@ -2586,11 +2597,14 @@ module Evaluator = {
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
       }
-    | FailedSubscript(d) =>
-      switch (evaluate(d)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d')
-      | Indet(d') => Indet(FailedSubscript(d'))
+    | InvalidOperation(op) =>
+      switch (op) {
+      | FailedSubscript(d) =>
+        switch (evaluate(d)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d')
+        | Indet(d') => Indet(InvalidOperation(FailedSubscript(d')))
+        }
       }
     }
   and evaluate_case =
