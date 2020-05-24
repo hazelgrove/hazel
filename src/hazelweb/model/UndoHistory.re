@@ -21,6 +21,8 @@ type edit_action =
   | Var(var_edit)
   | DeleteEdit(delete_edit)
   | ConstructEdit(Action.shape)
+  /* SLine in Action.shape stands for both empty line and case rule,
+    so an extra type CaseRule is added for construction */
   | CaseRule
   | Init;
 
