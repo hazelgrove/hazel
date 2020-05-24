@@ -4068,14 +4068,15 @@ module Exp = {
       switch (operand) {
       | EmptyHole(_) =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
               ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
-              UHExp.Block.wrap(hole),
-              UHExp.Block.wrap(hole),
+              UHExp.Block.wrap(hole1),
+              UHExp.Block.wrap(hole2),
             ),
           );
         print_endline("Action3543 " ++ string_of_int(u_gen));
@@ -4083,14 +4084,15 @@ module Exp = {
         Succeeded(SynDone((ze, ty, u_gen)));
       | operand =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE2(
               NotInHole,
               UHExp.Block.wrap(operand),
-              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole)),
-              UHExp.Block.wrap(hole),
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole1)),
+              UHExp.Block.wrap(hole2),
             ),
           );
         print_endline("Action3543");
@@ -5289,28 +5291,30 @@ module Exp = {
       | EmptyHole(_) =>
         print_endline("Action5093");
         let delim_cursor = CursorPosition.OnDelim(0, Before);
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
               ZExp.ZBlock.wrap(CursorE(delim_cursor, operand)),
-              UHExp.Block.wrap(hole),
-              UHExp.Block.wrap(hole),
+              UHExp.Block.wrap(hole1),
+              UHExp.Block.wrap(hole2),
             ),
           );
         Succeeded(AnaDone((ze, u_gen)));
       | operand =>
         print_endline("Action5161");
         let delim_cursor = CursorPosition.OnDelim(0, Before);
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
         let ze =
           ZExp.ZBlock.wrap(
             SubscriptZE2(
               NotInHole,
               UHExp.Block.wrap(operand),
-              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole)),
-              UHExp.Block.wrap(hole),
+              ZExp.ZBlock.wrap(CursorE(delim_cursor, hole1)),
+              UHExp.Block.wrap(hole2),
             ),
           );
         /* Succeeded(
