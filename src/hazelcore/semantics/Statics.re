@@ -1294,13 +1294,28 @@ module Exp = {
     | Subscript(NotInHole, _, _, _) =>
       print_endline("Statics1214");
       switch (syn_operand(ctx, operand)) {
-      | None => None
-      | Some(ty') =>
-        if (HTyp.consistent(ty, ty')) {
-          Some();
-        } else {
-          None;
-        }
+      | None =>
+        print_endline("Statics1298");
+        None;
+      | Some(_) =>
+        /* switch (ty) {
+           | String => print_endline("String!")
+           | Int => print_endline("Int")
+           | _ => print_endline("None")
+           }; */
+        /* if (HTyp.consistent(ty, ty')) {
+           print_endline("Statics1302"); */
+        Some()
+      /* } else {
+           if (ty' == String) {
+             print_endline("ty' correct");
+           };
+           if (ty == String) {
+             print_endline("ty correct");
+           };
+           print_endline("Statics1305");
+           None;
+         }; */
       };
     }
   and ana_rules =
@@ -2461,6 +2476,7 @@ module Exp = {
     let (steps, _) as path = CursorPath.Exp.of_z(ze);
     let e = ze |> ZExp.erase;
     let (e, u_gen) = ana_fix_holes(ctx, u_gen, e, ty);
+    print_endline("Statics2464");
     switch (CursorPath.Exp.follow(path, e)) {
     | None =>
       // Only way this can happen now is path was originally
