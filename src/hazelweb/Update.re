@@ -294,17 +294,21 @@ let apply_action =
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>
+        /* if (UndoHistory.is_at_initial_state(model.undo_history)) {
+             model;
+           } else { */
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_prev
           |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history);
+        Model.load_undo_history(model, new_history, ~is_after_move=true);
+      //}
       | Redo =>
         let new_history =
           model.undo_history
           |> UndoHistory.shift_to_next
           |> UndoHistory.update_disable_auto_scrolling(false);
-        Model.load_undo_history(model, new_history);
+        Model.load_undo_history(model, new_history, ~is_after_move=true);
       | ShiftHistory(shift_history_info) =>
         /* cshift to the certain entry */
         let new_history =
@@ -314,7 +318,7 @@ let apply_action =
                shift_history_info.elt_id,
                shift_history_info.call_by_mouseenter,
              );
-        Model.load_undo_history(model, new_history);
+        Model.load_undo_history(model, new_history, ~is_after_move=false);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
         let cur_group_id = List.length(suc_groups);

@@ -30,9 +30,11 @@ type cursor_term_info = {
 };
 
 type undo_history_entry = {
-  cardstacks_before: Cardstacks.t,
-  cardstacks_after: Cardstacks.t,
-  cur_is_after: bool,
+  /* cardstacks after non-movement action applied */
+  cardstacks_after_action: Cardstacks.t,
+  /* cardstacks_after_move is initially the same as cardstacks_after_action.
+     if there is a movement action, update it. */
+  cardstacks_after_move: Cardstacks.t,
   /* may jump to another position after a move action */
   cursor_term_info,
   previous_action: option(Action.t),
@@ -61,15 +63,22 @@ type t = {
 let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) => {
   {...history, disable_auto_scrolling};
 };
-let get_cardstacks = (history: t): Cardstacks.t => {
+
+let get_cardstacks = (history: t, ~is_after_move: bool): Cardstacks.t => {
   let cur_entry = ZList.prj_z(ZList.prj_z(history.groups).group_entries);
-  if (cur_entry.cur_is_after) {
-    cur_entry.cardstacks_after;
+  if (is_after_move) {
+    cur_entry.cardstacks_after_move;
   } else {
-    cur_entry.cardstacks_before;
+    cur_entry.cardstacks_after_action;
   };
 };
 
+//TBD
+let is_at_initial_state = (history: t): bool => {
+  /* there is not previous groups */
+  JSUtil.log("is_at_initial");
+  List.length(ZList.prj_suffix(history.groups)) == 0;
+};
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
   | Exp(cursor_pos, _)
@@ -109,7 +118,9 @@ let caret_jump =
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   let prev_step =
-    prev_entry.cardstacks_after |> Cardstacks.get_program |> Program.get_steps;
+    prev_entry.cardstacks_after_action
+    |> Cardstacks.get_program
+    |> Program.get_steps;
   let new_step =
     new_cardstacks_before |> Cardstacks.get_program |> Program.get_steps;
   prev_step != new_step;
@@ -801,12 +812,26 @@ let push_edit_state =
     );
   let timestamp = Unix.time();
   switch (new_edit_action) {
-  | None => undo_history
+  | None =>
+    let prev_entry = ZList.prj_z(prev_group.group_entries);
+    let new_entry = {
+      ...prev_entry,
+      cardstacks_after_move: new_cardstacks_after,
+    };
+
+    let new_group = {
+      ...prev_group,
+      group_entries: ZList.replace_z(new_entry, prev_group.group_entries),
+    };
+    {
+      ...undo_history,
+      groups: ZList.replace_z(new_group, undo_history.groups),
+      disable_auto_scrolling: false,
+    };
   | Some(new_edit_action) =>
     let new_entry = {
-      cardstacks_before: new_cardstacks_before,
-      cardstacks_after: new_cardstacks_after,
-      cur_is_after: true,
+      cardstacks_after_action: new_cardstacks_after,
+      cardstacks_after_move: new_cardstacks_after,
       cursor_term_info: new_cursor_term_info,
       previous_action: action,
       edit_action: new_edit_action,
@@ -867,94 +892,64 @@ let update_groups =
       List.length(ZList.prj_prefix(ZList.prj_z(new_groups).group_entries)),
   };
 };
-
-let update_cur_is_after = (~cur_is_after: bool, history: t): t => {
-  let cur_group = ZList.prj_z(history.groups);
-  let cur_entry = ZList.prj_z(cur_group.group_entries);
-  let new_entry = {...cur_entry, cur_is_after};
-  let new_group = {
-    group_entries: ZList.replace_z(new_entry, cur_group.group_entries),
-    is_expanded: true,
-  };
-  let new_groups = ZList.replace_z(new_group, history.groups);
-  update_groups(new_groups, history);
-};
 let shift_to_prev = (history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
-  let cur_entry = ZList.prj_z(cur_group.group_entries);
-  if (cur_entry.cur_is_after) {
-    update_cur_is_after(~cur_is_after=false, history);
-  } else {
-    /* shift to the previous state in the same group */
-    switch (ZList.shift_next(cur_group.group_entries)) {
-    | None =>
-      /* if current group doesn't have previous state, shfit to the previous group */
-      switch (ZList.shift_next(history.groups)) {
-      | None => history |> update_cur_is_after(~cur_is_after=false)
-      | Some(new_groups) =>
-        let new_group = ZList.prj_z(new_groups);
-        let new_entries = ZList.shift_begin(new_group.group_entries);
+  /* shift to the previous state in the same group */
+  switch (ZList.shift_next(cur_group.group_entries)) {
+  | None =>
+    /* if current group doesn't have previous state, shfit to the previous group */
+    switch (ZList.shift_next(history.groups)) {
+    | None => history
+    | Some(new_groups) =>
+      let new_group = ZList.prj_z(new_groups);
+      let new_entries = ZList.shift_begin(new_group.group_entries);
 
-        let new_group' = {
-          /* is_expanded=true because the selected group should be expanded */
-          group_entries: new_entries,
-          is_expanded: true,
-        };
-        let new_groups = ZList.replace_z(new_group', new_groups);
-        history
-        |> update_groups(new_groups)
-        |> update_cur_is_after(~cur_is_after=false);
-      }
-    | Some(new_entries) =>
-      let new_group = {
+      let new_group' = {
         /* is_expanded=true because the selected group should be expanded */
         group_entries: new_entries,
         is_expanded: true,
       };
-      let new_groups = ZList.replace_z(new_group, history.groups);
-      history
-      |> update_groups(new_groups)
-      |> update_cur_is_after(~cur_is_after=false);
+      let new_groups = ZList.replace_z(new_group', new_groups);
+      update_groups(new_groups, history);
+    }
+  | Some(new_entries) =>
+    let new_group = {
+      /* is_expanded=true because the selected group should be expanded */
+      group_entries: new_entries,
+      is_expanded: true,
     };
+    let new_groups = ZList.replace_z(new_group, history.groups);
+    update_groups(new_groups, history);
   };
 };
 
 let shift_to_next = (history: t): t => {
   let cur_group = ZList.prj_z(history.groups);
-  let cur_entry = ZList.prj_z(cur_group.group_entries);
-  if (!cur_entry.cur_is_after) {
-    update_cur_is_after(~cur_is_after=true, history);
-  } else {
-    /* shift to the previous state in the same group */
-    switch (ZList.shift_prev(cur_group.group_entries)) {
-    | None =>
-      /* if current group doesn't have previous state, shfit to the previous group */
-      switch (ZList.shift_prev(history.groups)) {
-      | None => history |> update_cur_is_after(~cur_is_after=true)
-      | Some(new_groups) =>
-        let new_group = ZList.prj_z(new_groups);
-        let new_entries = ZList.shift_end(new_group.group_entries);
-        let new_group' = {
-          /* is_expanded=true because the selected group should be expanded */
-          group_entries: new_entries,
-          is_expanded: true,
-        };
-        let new_groups = ZList.replace_z(new_group', new_groups);
-        history
-        |> update_groups(new_groups)
-        |> update_cur_is_after(~cur_is_after=true);
-      }
-    | Some(new_entries) =>
-      let new_group = {
+  /* shift to the previous state in the same group */
+  switch (ZList.shift_prev(cur_group.group_entries)) {
+  | None =>
+    /* if current group doesn't have previous state, shfit to the previous group */
+    switch (ZList.shift_prev(history.groups)) {
+    | None => history
+    | Some(new_groups) =>
+      let new_group = ZList.prj_z(new_groups);
+      let new_entries = ZList.shift_end(new_group.group_entries);
+      let new_group' = {
         /* is_expanded=true because the selected group should be expanded */
         group_entries: new_entries,
         is_expanded: true,
       };
-      let new_groups = ZList.replace_z(new_group, history.groups);
-      history
-      |> update_groups(new_groups)
-      |> update_cur_is_after(~cur_is_after=true);
+      let new_groups = ZList.replace_z(new_group', new_groups);
+      update_groups(new_groups, history);
+    }
+  | Some(new_entries) =>
+    let new_group = {
+      /* is_expanded=true because the selected group should be expanded */
+      group_entries: new_entries,
+      is_expanded: true,
     };
+    let new_groups = ZList.replace_z(new_group, history.groups);
+    update_groups(new_groups, history);
   };
 };
 
@@ -978,7 +973,7 @@ let shift_history =
         } else {
           (group_id, elt_id);
         };
-      let new_history = {
+      {
         ...undo_history,
         groups:
           ZList.replace_z(
@@ -991,7 +986,6 @@ let shift_history =
         cur_group_id,
         cur_elt_id,
       };
-      update_cur_is_after(~cur_is_after=true, new_history);
     };
   };
 };
