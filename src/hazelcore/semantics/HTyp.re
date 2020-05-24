@@ -152,19 +152,22 @@ let rec complete =
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
-/*
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (_, Hole)
+  | (_, TyVarHole(_, _)) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole, _)
+  | (TyVarHole(_, _), _) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty2)
     }
+  | (TyVar(_, _), _)
+  | (_, TyVar(_, _)) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -197,7 +200,6 @@ let rec join = (j, ty1, ty2) =>
   | (List(_), _) => None
   };
 
-
 let join_all = (j: join, types: list(t)): option(t) => {
   switch (types) {
   | [] => None
@@ -218,4 +220,3 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
-*/

@@ -5,15 +5,17 @@ type t = list((TyId.t, Kind.t));
 
 let empty = [];
 
-let rec _index_of = (ctx: t, x: TyId.t, n: int): int =>
+let rec _index_of = (ctx: t, x: TyId.t, n: int): option(int) =>
   switch (ctx) {
-  | [] => failwith("identifier not found")
-  | [(y, _), ...tl] => 
+  | [] => None
+  | [(y, _), ...tl] =>
     if (TyId.eq(x, y)) {
-      n
+      Some(n);
     } else {
-      _index_of(tl, x, n + 1)
+      _index_of(tl, x, n + 1);
     }
   };
 
-let index_of = (ctx: t, x: TyId.t): int => _index_of(ctx, x, 0);
+let index_of = (ctx: t, x: TyId.t): option(int) => _index_of(ctx, x, 0);
+let index_of_exn = (ctx: t, x: TyId.t): int =>
+  OptUtil.get(() => failwith("identifier not found"), index_of(ctx, x));

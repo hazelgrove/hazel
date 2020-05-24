@@ -846,7 +846,7 @@ module Exp = {
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty) =>
-        let ty = UHTyp.expand(uty);
+        let ty = UHTyp.expand(uty, ctx.tyvars);
         let ctx_def = ctx_for_let(ctx, p, ty, def);
         switch (ana(ctx_def, def, ty)) {
         | None => None
@@ -982,7 +982,7 @@ module Exp = {
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
-        | Some(uty) => UHTyp.expand(uty)
+        | Some(uty) => UHTyp.expand(uty, ctx.tyvars)
         | None => HTyp.Hole
         };
       switch (Pat.ana(ctx, p, ty1)) {
@@ -1201,7 +1201,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
+          let ty1_ann = UHTyp.expand(uty1, ctx.tyvars);
           switch (HTyp.consistent(ty1_ann, ty1_given)) {
           | false => None
           | true =>
@@ -1492,7 +1492,7 @@ module Exp = {
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
+        let ty1 = UHTyp.expand(uty1, ctx.tyvars);
         let ctx_def = ctx_for_let(ctx, p, ty1, def);
         let (def, u_gen) =
           ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
@@ -1739,7 +1739,7 @@ module Exp = {
     | Lam(_, p, ann, body) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.expand(uty1, ctx.tyvars)
         | None => HTyp.Hole
         };
       let (p, ctx, u_gen) =
@@ -2188,7 +2188,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
+          let ty1_ann = UHTyp.expand(uty1, ctx.tyvars);
           if (HTyp.consistent(ty1_ann, ty1_given)) {
             let (p, ctx, u_gen) =
               Pat.ana_fix_holes(

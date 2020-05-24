@@ -1,7 +1,7 @@
 [@deriving sexp]
-type t = 
-    | KHole
-    | Type
+type t =
+  | KHole
+  | Type;
 
 let consistent = (k1, k2) =>
   switch (k1, k2) {
@@ -9,4 +9,3 @@ let consistent = (k1, k2) =>
   | (_, KHole)
   | (Type, Type) => true
   };
-
