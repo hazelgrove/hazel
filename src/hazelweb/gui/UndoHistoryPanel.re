@@ -919,34 +919,64 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let undo_button = is_mac => {
+  let undo_button = (disabled, is_mac) => {
     let title = if (is_mac) {"Undo (Cmd+Z)"} else {"Undo (Ctrl+Z)"};
     Vdom.(
       Node.div(
-        [
-          Attr.classes(["history-button"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([inject(Update.Action.Undo), inject(FocusCell)])
-          ),
-          Attr.create("title", title),
-        ],
+        disabled
+          ? [
+            Attr.classes(["history-button"]),
+            Attr.disabled,
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                inject(Update.Action.Undo),
+                inject(FocusCell),
+              ])
+            ),
+            Attr.create("title", title),
+          ]
+          : [
+            Attr.classes(["history-button"]),
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                inject(Update.Action.Undo),
+                inject(FocusCell),
+              ])
+            ),
+            Attr.create("title", title),
+          ],
         [Icons.undo(["redo-undo-icon"])],
       )
     );
   };
 
-  let redo_button = is_mac => {
+  let redo_button = (disabled, is_mac) => {
     let title =
       if (is_mac) {"Redo (Cmd+Shift+Z)"} else {"Redo (Ctrl+Shift+Z)"};
     Vdom.(
       Node.div(
-        [
-          Attr.classes(["history-button"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([inject(Update.Action.Redo), inject(FocusCell)])
-          ),
-          Attr.create("title", title),
-        ],
+        disabled
+          ? [
+            Attr.classes(["history-button"]),
+            Attr.disabled,
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                inject(Update.Action.Redo),
+                inject(FocusCell),
+              ])
+            ),
+            Attr.create("title", title),
+          ]
+          : [
+            Attr.classes(["history-button"]),
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                inject(Update.Action.Redo),
+                inject(FocusCell),
+              ])
+            ),
+            Attr.create("title", title),
+          ],
         [Icons.undo(["redo-undo-icon", "horizontal-flip"])],
       )
     );
@@ -996,16 +1026,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
-  let button_bar_view =
-      (preview_on_hover: bool, all_hidden_history_expand: bool, is_mac: bool) =>
+  let button_bar_view = (undo_history: UndoHistory.t, is_mac: bool) =>
     Vdom.(
       Node.div(
         [Attr.classes(["history-button-bar"])],
         [
-          preview_on_hover_checkbox(preview_on_hover),
-          expand_button(all_hidden_history_expand),
-          redo_button(is_mac),
-          undo_button(is_mac),
+          preview_on_hover_checkbox(undo_history.preview_on_hover),
+          expand_button(undo_history.all_hidden_history_expand),
+          redo_button(UndoHistory.disable_redo(undo_history), is_mac),
+          undo_button(UndoHistory.disable_undo(undo_history), is_mac),
         ],
       )
     );
@@ -1018,11 +1047,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ],
       [
         Panel.view_of_main_title_bar("history"),
-        button_bar_view(
-          model.undo_history.preview_on_hover,
-          model.undo_history.all_hidden_history_expand,
-          model.is_mac,
-        ),
+        button_bar_view(model.undo_history, model.is_mac),
         Node.div(
           [
             Attr.classes(["panel-body", "context-inspector-body"]),

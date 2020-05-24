@@ -1520,7 +1520,9 @@ h1 {
   float: right;
   cursor: pointer;
 }
-
+.history-button[disabled]{
+  cursor: not-allowed;
+}
 
 #history-panel .labeled-checkbox {
   display: grid;
@@ -1546,10 +1548,11 @@ h1 {
   padding-left: 5px;
   padding-right: 5px;
 }
-.redo-undo-icon:hover{
+.history-button:enabled .redo-undo-icon:hover{
   border-radius: 40%;
   background-color: #073f24;
 }
+
 #preview_on_hover{
   display: inline-block;
   float: left;
