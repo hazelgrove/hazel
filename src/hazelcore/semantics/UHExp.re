@@ -195,8 +195,8 @@ and find_operand_line =
       let (hole, _) = new_EmptyHole(0);
       Some(hole);
     }
-  | ExpLine(opseq) => opseq |> find_operand_opseq
   | LetLine(_, _, def) => def |> find_operand
+  | ExpLine(opseq) => opseq |> find_operand_opseq
 and find_operand_opseq =
   fun
   | OpSeq(_, S(operand, _)) => Some(operand)
@@ -206,6 +206,33 @@ and find_operand_operator =
 and find_operand_operand =
   fun
   | e => Some(e);
+
+// let rec is_operand = (e: t): bool => e |> is_operand_block
+// and is_operand_block = block =>
+//   List.nth(block, List.length(block) - 1) |> is_operand_line
+// and is_operand_line =
+//   fun
+//   | EmptyLine => {
+//       print_endline("This is empty line");
+//       true;
+//     }
+//   | LetLine(_, _, _) => {
+//       print_endline("This is let line");
+//       false;
+//     }
+//   | ExpLine(opseq) => {
+//       print_endline("This is exp line");
+//       switch (opseq) {
+//       | OpSeq(_, S(IntLit(NotInHole, "1"), E)) =>
+//         print_endline("RESULT is 1")
+//       | _ => print_endline("RESULT is none")
+//       };
+//       opseq |> is_operand_opseq;
+//     }
+// and is_operand_opseq =
+//   fun
+//   | OpSeq(_, S(_, E)) => true
+//   | _ => false;
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
