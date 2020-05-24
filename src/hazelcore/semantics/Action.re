@@ -2065,17 +2065,9 @@ module Exp = {
       ((new_prefix_lines, zline, new_suffix_lines), u_gen);
     };
 
-  let can_split_cases: ZExp.zoperand => bool =
+  let can_split_cases: ZExp.zrule => bool =
     fun
-    | CaseZE(_, _, rules) =>
-      List.for_all(
-        rule => {
-          let UHExp.Rule(OpSeq(_, seq), _) = rule;
-          seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
-        },
-        rules,
-      )
-    | CaseZR(_, _, (_, RuleZP(zpat, _), _)) => {
+    | RuleZP(zpat, _) => {
         let OpSeq(_, seq) = ZPat.erase(zpat);
         // Only try to derive type and continue if the only rule was just an empty hole
         seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
@@ -2083,34 +2075,29 @@ module Exp = {
     | _ => false;
 
   let split_cases =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, scrut: UHExp.t, exp: UHExp.t)
+      (u_gen: MetaVarGen.t, pat_ty: HTyp.t, exp: UHExp.t)
       : option((MetaVarGen.t, ZExp.zrules)) => {
-    Option.bind(
-      Statics.Exp.syn(ctx, scrut),
-      scrut_type => {
-        let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, scrut_type);
+    let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, pat_ty);
 
-        switch (patterns) {
-        | [] => None
-        | [head, ...tail] =>
-          let (u_gen, tailRules) =
-            tail
-            |> ListUtil.map_with_accumulator(
-                 (u_gen, pat) => {
-                   let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-                   (u_gen, UHExp.Rule(pat, UHExp.Block.wrap(hole)));
-                 },
-                 u_gen,
-               );
-          let zrules = (
-            [],
-            ZExp.RuleZP(head |> ZPat.place_before, exp),
-            tailRules,
-          );
-          Some((u_gen, zrules));
-        };
-      },
-    );
+    switch (patterns) {
+    | [] => None
+    | [head, ...tail] =>
+      let (u_gen, tailRules) =
+        tail
+        |> ListUtil.map_with_accumulator(
+             (u_gen, pat) => {
+               let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+               (u_gen, UHExp.Rule(pat, UHExp.Block.wrap(hole)));
+             },
+             u_gen,
+           );
+      let zrules = (
+        [],
+        ZExp.RuleZP(head |> ZPat.place_before, exp),
+        tailRules,
+      );
+      Some((u_gen, zrules));
+    };
   };
 
   type expanding_result = {
@@ -3580,29 +3567,6 @@ module Exp = {
           u_gen,
         ),
       )
-
-    | (
-        SplitCases,
-        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix)) as zop,
-      )
-        when can_split_cases(zop) =>
-      switch (split_cases(ctx, u_gen, scrut, exp)) {
-      | None => Failed
-      | Some((u_gen, zrules)) =>
-        Succeeded(
-          SynDone((
-            ZExp.ZBlock.wrap(
-              ZExp.CaseZR(
-                err,
-                scrut,
-                ZList.surround((prefix, suffix), zrules),
-              ),
-            ),
-            ty,
-            u_gen,
-          )),
-        )
-      }
     | (SplitCases, CursorE(_)) => Failed
 
     /* Invalid Swap actions */
@@ -3871,6 +3835,13 @@ module Exp = {
       }
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
+    | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrule) =>
+      switch (split_cases(u_gen, pat_ty, exp)) {
+      | None => Failed
+      | Some((u_gen, zrules)) =>
+        Succeeded((ZList.surround((prefix, suffix), zrules), u_gen))
+      }
+
     | (SplitCases, CursorR(OnDelim(_), _)) => Failed
 
     /* Invalid swap actions */
@@ -4033,6 +4004,13 @@ module Exp = {
         CursorR(OnDelim(_), _),
       ) =>
       Failed
+
+    | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrule) =>
+      switch (split_cases(u_gen, pat_ty, exp)) {
+      | None => Failed
+      | Some((u_gen, zrules)) =>
+        Succeeded((ZList.surround((prefix, suffix), zrules), u_gen))
+      }
 
     /* Invalid swap actions */
     | (SwapLeft | SwapRight, CursorR(_)) => Failed
@@ -4933,28 +4911,6 @@ module Exp = {
         ),
         ty,
       )
-
-    | (
-        SplitCases,
-        CaseZR(err, scrut, (prefix, RuleZP(_, exp), suffix)) as zop,
-      )
-        when can_split_cases(zop) =>
-      switch (split_cases(ctx, u_gen, scrut, exp)) {
-      | None => Failed
-      | Some((u_gen, zrules)) =>
-        Succeeded(
-          AnaDone((
-            ZExp.ZBlock.wrap(
-              ZExp.CaseZR(
-                err,
-                scrut,
-                ZList.surround((prefix, suffix), zrules),
-              ),
-            ),
-            u_gen,
-          )),
-        )
-      }
     | (SplitCases, CursorE(_)) => Failed
 
     /* Invalid Swap actions */
