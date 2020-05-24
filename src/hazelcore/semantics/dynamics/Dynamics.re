@@ -1116,6 +1116,7 @@ module Exp = {
       }
     | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
+      print_endline("Dynamics1116");
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1131,7 +1132,7 @@ module Exp = {
             Expands(d, ty, delta);
           };
         }
-      }
+      };
     | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
     | BinOp(
         NotInHole,
@@ -1374,12 +1375,12 @@ module Exp = {
       switch (syn_expand(ctx, delta, body1)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
-        if (body1 == UHExp.Block.wrap(StringLit(NotInHole, "as"))) {
-          print_endline("as true'");
-        };
-        if (d1 == DHExp.StringLit("as")) {
-          print_endline("as true");
-        };
+        /* if (body1 == UHExp.Block.wrap(StringLit(NotInHole, "as"))) {
+             print_endline("as true'");
+           };
+           if (d1 == DHExp.StringLit("as")) {
+             print_endline("as true");
+           }; */
         switch (syn_expand(ctx, delta, body2)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d2, ty2, delta) =>
@@ -1394,7 +1395,7 @@ module Exp = {
             let d = DHExp.Subscript(dc1, dc2, dc3);
             Expands(d, String, delta);
           };
-        };
+        }
       };
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) => ExpandResult.DoesNotExpand
     /* TODO fix me */

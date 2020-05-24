@@ -424,7 +424,7 @@ let mk_Subscript =
     body1 |> pad_open_child,
     open_subscript,
     body2 |> pad_open_child,
-    Delim.colon_Subscript(),
+    Delim.colon_Subscript() |> annot_DelimGroup,
     body3 |> pad_open_child,
     close_subscript,
   ])
