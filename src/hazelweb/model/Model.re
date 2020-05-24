@@ -55,7 +55,7 @@ let init = (): t => {
       cardstacks_after_move: cardstacks,
       cursor_term_info,
       previous_action: Init,
-      edit_action: Init,
+      action_group: Init,
       timestamp,
     };
     let undo_history_group: UndoHistory.undo_history_group = {
