@@ -31,6 +31,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (Minus, _ => Action.Construct(SOp(SMinus))),
     (PlusPlus, _ => Action.Construct(SOp(SPlusPlus))),
     (Asterisk, _ => Action.Construct(SOp(STimes))),
+    (Slash, _ => Action.Construct(SOp(SDivide))),
     (LT, _ => Action.Construct(SOp(SLessThan))),
     (Space, _ => Action.Construct(SOp(SSpace))),
     (Comma, _ => Action.Construct(SOp(SComma))),

@@ -155,7 +155,7 @@ module Pat = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
       | None => DoesNotExpand
       }
@@ -551,6 +551,9 @@ module Exp = {
       | FailedSubscript(d) =>
         let d' = subst_var(d1, x, d);
         InvalidOperation(FailedSubscript(d'));
+      | DivideByZero(d) =>
+        let d' = subst_var(d1, x, d);
+        InvalidOperation(DivideByZero(d'));
       }
     }
   and subst_var_rules =
@@ -1107,7 +1110,7 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
+    | BinOp(NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1125,7 +1128,12 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
+    | BinOp(
+        NotInHole,
+        (FPlus | FMinus | FTimes | FDivide) as op,
+        skel1,
+        skel2,
+      )
     | BinOp(
         NotInHole,
         (FLessThan | FGreaterThan | FEquals) as op,
@@ -1291,7 +1299,7 @@ module Exp = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
       }
@@ -1599,7 +1607,9 @@ module Exp = {
       }
     | BinOp(
         _,
-        Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan | GreaterThan |
+        Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+        LessThan |
+        GreaterThan |
         Equals |
         FLessThan |
         FGreaterThan |
@@ -1903,6 +1913,9 @@ module Exp = {
       | FailedSubscript(d) =>
         let (d, hii) = renumber_result_only(path, hii, d);
         (InvalidOperation(FailedSubscript(d)), hii);
+      | DivideByZero(d) =>
+        let (d, hii) = renumber_result_only(path, hii, d);
+        (InvalidOperation(DivideByZero(d)), hii);
       }
     }
   and renumber_result_only_rules =
@@ -2025,6 +2038,9 @@ module Exp = {
       | FailedSubscript(d) =>
         let (d, hii) = renumber_sigmas_only(path, hii, d);
         (InvalidOperation(FailedSubscript(d)), hii);
+      | DivideByZero(d) =>
+        let (d, hii) = renumber_sigmas_only(path, hii, d);
+        (InvalidOperation(DivideByZero(d)), hii);
       }
     }
   and renumber_sigmas_only_rules =
@@ -2151,6 +2167,7 @@ module Evaluator = {
     | Minus => Some(IntLit(n1 - n2))
     | Plus => Some(IntLit(n1 + n2))
     | Times => Some(IntLit(n1 * n2))
+    | Divide => Some(IntLit(n1 / n2))
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))
@@ -2163,6 +2180,7 @@ module Evaluator = {
     | FPlus => Some(FloatLit(f1 +. f2))
     | FMinus => Some(FloatLit(f1 -. f2))
     | FTimes => Some(FloatLit(f1 *. f2))
+    | FDivide => Some(FloatLit(f1 /. f2))
     | FLessThan => Some(BoolLit(f1 < f2))
     | FGreaterThan => Some(BoolLit(f1 > f2))
     | FEquals => Some(BoolLit(f1 == f2))
@@ -2340,9 +2358,18 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(IntLit(n2)) =>
-          switch (eval_bin_int_op(op, n1, n2)) {
-          | Some(out) => BoxedValue(out)
-          | None => InvalidInput(5)
+          switch (op, n1, n2) {
+          | (Divide, _, 0) =>
+            Indet(
+              InvalidOperation(
+                DivideByZero(BinIntOp(op, IntLit(n1), IntLit(n2))),
+              ),
+            )
+          | _ =>
+            switch (eval_bin_int_op(op, n1, n2)) {
+            | Some(out) => BoxedValue(out)
+            | None => InvalidInput(5)
+            }
           }
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
@@ -2533,6 +2560,12 @@ module Evaluator = {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d')
         | Indet(d') => Indet(InvalidOperation(FailedSubscript(d')))
+        }
+      | DivideByZero(d) =>
+        switch (evaluate(d)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d')
+        | Indet(d') => Indet(InvalidOperation(DivideByZero(d')))
         }
       }
     }

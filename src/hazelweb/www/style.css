@@ -767,7 +767,8 @@ h1 {
   line-height: var(--code-line-height);
 }
 .DHCode .CastDecoration,
-.DHCode .FailedCastDecoration {
+.DHCode .FailedCastDecoration,
+.DHCode .DivideByZero {
   display: inline-block;
   position: relative;
   font-size: 75%;
@@ -789,6 +790,10 @@ h1 {
   background-color: rgba(255, 0, 0, 0.2);
 }
 .DHCode .FailedSubscriptDecoration {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+.DHCode .DivideByZero {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
