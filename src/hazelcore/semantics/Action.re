@@ -1741,7 +1741,8 @@ module Pat = {
         | Succeeded((zp, ty', ctx, u_gen)) =>
           if (HTyp.consistent(ty, ty')) {
             Succeeded((zp, ctx, u_gen));
-          } else if (HTyp.get_prod_arity(ty) != HTyp.get_prod_arity(ty')) {
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
+                     && HTyp.get_prod_arity(ty) > 1) {
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_zp = zp |> ZPat.set_err_status(InHole(WrongLength, u));
             Succeeded((new_zp, ctx, u_gen));
@@ -3312,9 +3313,6 @@ module Exp = {
             ZExp.ZBlock.wrap'(
               ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
             );
-          /* Succeeded(
-               SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-             ); */
           Succeeded(SynDone((new_ze, ty, u_gen)));
         | _ => Failed
         }
@@ -5067,8 +5065,33 @@ module Exp = {
         | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
+            // prune unnecessary type annotation
+            let ze' =
+              switch (ze') {
+              | (
+                  [] as prefix,
+                  ExpLineZ(
+                    ZOpSeq(skel, ZOperand(zoperand, (E, E) as surround)),
+                  ),
+                  [] as suffix,
+                ) => (
+                  prefix,
+                  ZExp.ExpLineZ(
+                    ZOpSeq(
+                      skel,
+                      ZOperand(
+                        ZExp.prune_type_annotation(zoperand),
+                        surround,
+                      ),
+                    ),
+                  ),
+                  suffix,
+                )
+              | _ => ze'
+              };
             Succeeded(AnaDone((ze', u_gen)));
-          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)) {
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
+                     && HTyp.get_prod_arity(ty) > 1) {
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_ze = ze' |> ZExp.set_err_status(InHole(WrongLength, u));
             Succeeded(AnaDone((new_ze, u_gen)));
