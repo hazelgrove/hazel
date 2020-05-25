@@ -459,7 +459,7 @@ module Typ = {
       } else {
         Failed;
       }
-    | Some(Var(x)) =>
+    | Some(TyVar(x)) =>
       let text_cursor = CursorPosition.OnText(caret_index);
       if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
         Succeeded((

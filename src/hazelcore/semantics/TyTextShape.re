@@ -3,14 +3,14 @@ type t =
   /* Might be useful if/when we add type keywords or Undescore */
   /* | Underscore */
   /* | ExpandingKeyword(ExpandingKeyword.t) */
-  | Var(Var.t);
+  | TyVar(TyId.t);
 
 let of_text = (text: string): option(t) =>
   /* if (String.equal("_", text)) { */
   /* Some(Underscore); */
   /* } else */
-  if (Var.is_valid(text)) {
-    Some(Var(text));
+  if (TyId.is_valid(text)) {
+    Some(TyVar(text));
   } else {
     None;
   };
