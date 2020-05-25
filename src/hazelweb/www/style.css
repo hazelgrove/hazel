@@ -1545,6 +1545,7 @@ h1 {
 }
 .history-button[disabled]{
   cursor: not-allowed;
+  color:lightgray;
 }
 
 #history-panel .labeled-checkbox {
@@ -1575,7 +1576,10 @@ h1 {
   border-radius: 40%;
   background-color: #073f24;
 }
-
+.history-button[disabled] .redo-undo-icon:hover{
+  border-radius: 40%;
+  background-color: dimgray;
+}
 #preview_on_hover{
   display: inline-block;
   float: left;
