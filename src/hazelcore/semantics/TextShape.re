@@ -18,6 +18,8 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
     switch (s, String.lowercase_ascii(s)) {
     | ("NaN", _) => Some(nan)
     | ("Inf", _) => Some(infinity)
+    /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
+    | ("NegInf", _) => Some(neg_infinity)
     | (_, "nan")
     | (_, "inf")
     | (_, "infinity") => None

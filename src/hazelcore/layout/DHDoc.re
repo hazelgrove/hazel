@@ -99,9 +99,11 @@ let mk_Keyword = (u, i, k) =>
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_FloatLit = (f: float) =>
-  switch (Float.is_infinite(f), Float.is_nan(f)) {
-  | (true, _) => Doc.text("Inf")
-  | (_, true) => Doc.text("NaN")
+  switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
+  | (false, true, _) => Doc.text("Inf")
+  /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
+  | (true, true, _) => Doc.text("NegInf")
+  | (_, _, true) => Doc.text("NaN")
   | _ => Doc.text(string_of_float(f))
   };
 
