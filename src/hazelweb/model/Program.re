@@ -39,8 +39,7 @@ let get_zexp = program => {
   ze;
 };
 
-let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
-let get_uhexp = program => program |> get_zexp |> erase;
+let get_uhexp = program => program |> get_zexp |> ZExp.erase;
 
 let get_path = program => program |> get_zexp |> CursorPath.Exp.of_z;
 let get_steps = program => {
@@ -54,35 +53,27 @@ let get_u_gen = program => {
 };
 
 exception MissingCursorInfo;
-let cursor_info =
-  Memo.general(
-    ~cache_size_bound=1000,
-    CursorInfo.Exp.syn_cursor_info(Contexts.empty),
-  );
 let get_cursor_info = (program: t) => {
   program
   |> get_zexp
-  |> cursor_info
+  |> CursorInfo.Exp.syn_cursor_info(Contexts.empty)
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
 exception DoesNotExpand;
-let expand =
-  Memo.general(
-    ~cache_size_bound=1000,
-    Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty),
-  );
 let get_expansion = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand) {
+  switch (
+    program
+    |> get_uhexp
+    |> Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty)
+  ) {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) => d
   };
 
 exception InvalidInput;
-let evaluate =
-  Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
-  switch (program |> get_expansion |> evaluate) {
+  switch (program |> get_expansion |> Dynamics.Evaluator.evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
@@ -124,6 +115,7 @@ let move_to_hole = (u, program) => {
   };
 };
 
+// TODO: use Model.t
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
   TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () => {
     Lazy.force(
@@ -301,6 +293,5 @@ let move_via_key =
   };
 };
 
-let cursor_on_exp_hole_ =
-  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
-let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
+let cursor_on_exp_hole = program =>
+  program |> get_zexp |> ZExp.cursor_on_EmptyHole;
