@@ -95,6 +95,7 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
+  | TypKeyword(ExpandingKeyword.t)
   | OnType
   /* (we will have a richer structure here later)*/
   | OnLine
@@ -115,8 +116,12 @@ let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx));
+  let cursor_info = (~steps as _, ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+    switch (zty) {
+    | ZOpSeq(_, ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k)) , _)))) =>
+      Some(mk(TypKeyword(k), ctx))
+    | _ => Some(mk(OnType, ctx))
+    }
 };
 
 /*
