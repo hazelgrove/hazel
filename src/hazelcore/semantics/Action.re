@@ -3734,10 +3734,68 @@ module Exp = {
         | _ => None
         };
       switch (option_op2, option_op3) {
-      | (Some(EmptyHole(_)), _)
-      | (_, Some(EmptyHole(_))) =>
+      | (Some(EmptyHole(_)), Some(EmptyHole(_))) =>
         let new_ze = body1 |> ZExp.place_after;
         Succeeded(SynDone((new_ze, ty, u_gen)));
+      | (Some(EmptyHole(_)), _) =>
+        switch (k) {
+        | 0
+        | 1 =>
+          switch (option_op1, option_op3) {
+          | (Some(op1), Some(op3)) =>
+            let ze = op1 |> ZExp.place_after_operand;
+            let new_zopseq =
+              ZExp.mk_ZOpSeq(ZOperand(ze, (E, A(Space, S(op3, E)))));
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _) => Failed
+          }
+        | _two =>
+          switch (option_op1, option_op3) {
+          | (Some(op1), Some(op3)) =>
+            let ze = op3 |> ZExp.place_after_operand;
+            let new_zopseq =
+              ZExp.mk_ZOpSeq(ZOperand(ze, (A(Space, S(op1, E)), E)));
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _) => Failed
+          }
+        }
+      | (_, Some(EmptyHole(_))) =>
+        switch (k) {
+        | 0 =>
+          switch (option_op1, option_op2) {
+          | (Some(op1), Some(op2)) =>
+            let ze = op1 |> ZExp.place_after_operand;
+            let new_zopseq =
+              ZExp.mk_ZOpSeq(ZOperand(ze, (E, A(Space, S(op2, E)))));
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _) => Failed
+          }
+        | _one =>
+          switch (option_op1, option_op2) {
+          | (Some(op1), Some(op2)) =>
+            let ze = op2 |> ZExp.place_after_operand;
+            let new_zopseq =
+              ZExp.mk_ZOpSeq(ZOperand(ze, (A(Space, S(op1, E)), E)));
+            let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+            /* let new_ze = body1 |> ZExp.place_after; */
+            Succeeded(
+              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+            );
+          | (_, _) => Failed
+          }
+        }
       | (_, _) =>
         switch (k) {
         | 0 =>
