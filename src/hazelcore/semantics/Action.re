@@ -4547,6 +4547,30 @@ module Exp = {
         | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
+            // prune unnecessary type annotation
+            let ze' =
+              switch (ze') {
+              | (
+                  [] as prefix,
+                  ExpLineZ(
+                    ZOpSeq(skel, ZOperand(zoperand, (E, E) as surround)),
+                  ),
+                  [] as suffix,
+                ) => (
+                  prefix,
+                  ZExp.ExpLineZ(
+                    ZOpSeq(
+                      skel,
+                      ZOperand(
+                        ZExp.prune_type_annotation(zoperand),
+                        surround,
+                      ),
+                    ),
+                  ),
+                  suffix,
+                )
+              | _ => ze'
+              };
             Succeeded(AnaDone((ze', u_gen)));
           } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
                      && HTyp.get_prod_arity(ty) > 1) {
