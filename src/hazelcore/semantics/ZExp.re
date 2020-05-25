@@ -80,6 +80,14 @@ and find_zoperand_zoperand =
   fun
   | zoperand => Some(zoperand);
 
+let prune_type_annotation: zoperand => zoperand =
+  fun
+  | CursorE(OnDelim(k, _) as cursor, Lam(err, p, Some(_), body)) when k != 1 =>
+    CursorE(cursor, Lam(err, p, None, body))
+  | LamZP(err, zp, Some(_), body) => LamZP(err, zp, None, body)
+  | LamZE(err, p, Some(_), zbody) => LamZE(err, p, None, zbody)
+  | zoperand => zoperand;
+
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)

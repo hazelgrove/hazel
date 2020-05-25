@@ -189,9 +189,7 @@ module Pat = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (Statics.Pat.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -219,12 +217,9 @@ module Pat = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
-      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHPat.get_tuple_elements
         |> List.fold_left(
              (
                acc: option((list(DHPat.t), Contexts.t, Delta.t)),
@@ -233,8 +228,8 @@ module Pat = {
                switch (acc) {
                | None => None
                | Some((rev_dps, ctx, delta)) =>
-                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
-                 | ExpandResult.DoesNotExpand => None
+                 switch (syn_expand_skel(ctx, delta, skel, seq)) {
+                 | DoesNotExpand => None
                  | Expands(dp, _, ctx, delta) =>
                    Some(([dp, ...rev_dps], ctx, delta))
                  }
@@ -245,11 +240,11 @@ module Pat = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_dps, ctx, delta)) => {
-              let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+              let dp = DHPat.make_tuple(List.rev(rev_dps));
               Expands(dp, ty, ctx, delta);
             }
-        )
-      | _ =>
+        );
+      } else {
         switch (opseq |> UHPat.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
@@ -271,7 +266,7 @@ module Pat = {
               );
             Expands(NonEmptyHole(reason, u, 0, dp), ty, ctx, delta);
           }
-        }
+        };
       }
     };
   }
@@ -1471,9 +1466,7 @@ module Exp = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (Statics.Exp.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1502,13 +1495,9 @@ module Exp = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
-      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
-      | (_, [Hole]) =>
-        /* Handling case where analyzing tuple against Hole */
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHExp.get_tuple_elements
         |> List.fold_left(
              (
                acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
@@ -1517,8 +1506,8 @@ module Exp = {
                switch (acc) {
                | None => None
                | Some((rev_ds, rev_tys, delta)) =>
-                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
-                 | ExpandResult.DoesNotExpand => None
+                 switch (syn_expand_skel(ctx, delta, skel, seq)) {
+                 | DoesNotExpand => None
                  | Expands(d, ty, delta) =>
                    Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
                  }
@@ -1529,12 +1518,12 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
-              let d = rev_ds |> List.rev |> DHExp.make_tuple;
-              let ty = HTyp.Prod(rev_tys |> List.rev);
+              let d = DHExp.make_tuple(List.rev(rev_ds));
+              let ty = HTyp.Prod(List.rev(rev_tys));
               Expands(d, ty, delta);
             }
-        )
-      | _ =>
+        );
+      } else {
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
@@ -1557,7 +1546,7 @@ module Exp = {
               );
             Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
           }
-        }
+        };
       }
     };
   }
