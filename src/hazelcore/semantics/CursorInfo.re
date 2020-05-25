@@ -118,10 +118,13 @@ let get_ctx = ci => ci.ctx;
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, zty: ZTyp.t): option(t) =>
     switch (zty) {
-    | ZOpSeq(_, ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k), _) , _)), (_, _))) =>
+    | ZOpSeq(
+        _,
+        ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k), _), _)), (_, _)),
+      ) =>
       Some(mk(TypKeyword(k), ctx))
     | _ => Some(mk(OnType, ctx))
-    }
+    };
 };
 
 /*

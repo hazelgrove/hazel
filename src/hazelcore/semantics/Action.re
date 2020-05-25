@@ -463,9 +463,16 @@ module Typ = {
       let text_cursor = CursorPosition.OnText(caret_index);
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       Succeeded((
-        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(InVarHole(Keyword(k), u), 
-        k |> ExpandingKeyword.to_string))),
-        u_gen
+        ZOpSeq.wrap(
+          ZTyp.CursorT(
+            text_cursor,
+            TyVar(
+              InVarHole(Keyword(k), u),
+              k |> ExpandingKeyword.to_string,
+            ),
+          ),
+        ),
+        u_gen,
       ));
     | Some(TyVar(x)) =>
       let text_cursor = CursorPosition.OnText(caret_index);

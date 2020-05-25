@@ -11,7 +11,7 @@ let of_text = (text: string): option(t) => {
   /* } else */
   switch (ExpandingKeyword.mk(text)) {
   | Some(k) => Some(ExpandingKeyword(k))
-  | None => 
+  | None =>
     if (text |> TyId.is_valid) {
       Some(TyVar(text));
     } else {
