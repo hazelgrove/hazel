@@ -341,7 +341,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           )
         )
       }
-    | Var(var_edit) =>
+    | VarGroup(var_edit) =>
       switch (var_edit) {
       | Edit(edit_term) =>
         Vdom.(
@@ -418,7 +418,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
       }
-    | Var(_) =>
+    | VarGroup(_) =>
       Some(
         get_cursor_term_tag_typ(
           undo_history_entry.cursor_term_info.cursor_term_after,

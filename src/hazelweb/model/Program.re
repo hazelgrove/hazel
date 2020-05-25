@@ -1,5 +1,8 @@
+open Sexplib.Std;
+
 module Memo = Core_kernel.Memo;
 
+[@deriving sexp]
 type t = {
   edit_state: Statics.edit_state,
   width: int,
