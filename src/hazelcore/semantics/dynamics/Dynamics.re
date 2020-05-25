@@ -153,7 +153,7 @@ module Pat = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
       | None => DoesNotExpand
       }
@@ -1242,7 +1242,7 @@ module Exp = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
       }
