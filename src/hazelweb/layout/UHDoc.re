@@ -545,6 +545,8 @@ module Typ = {
         (
           switch (operand) {
           | Hole => mk_EmptyHole("?")
+          /* TODO: not finished */
+          | TyVar(NotInVarHole, tyid) => mk_EmptyHole("?")
           | Unit => mk_Unit()
           | Int => mk_Int()
           | Float => mk_Float()

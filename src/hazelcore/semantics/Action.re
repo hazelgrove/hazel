@@ -689,6 +689,8 @@ module Typ = {
     /* TyVar-related Backspace & Delete */
     | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
       delete_text(ctx, u_gen, caret_index, text)
+    | (Backspace, CursorT(OnText(caret_index), TyVar(_, text))) =>
+      backspace_text(ctx, u_gen, caret_index, text)
 
     /* ( _ )<|  ==>  _| */
     /* (<| _ )  ==>  |_ */
