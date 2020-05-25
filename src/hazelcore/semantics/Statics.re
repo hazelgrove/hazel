@@ -997,12 +997,9 @@ module Exp = {
     | IntLit(NotInHole, _) => Some(Int)
     | FloatLit(NotInHole, _) => Some(Float)
     | BoolLit(NotInHole, _) => Some(Bool)
-    | StringLit(NotInHole, _) =>
-      print_endline("Statics958");
-      Some(String);
+    | StringLit(NotInHole, _) => Some(String)
     | ListNil(NotInHole) => Some(List(Hole))
     | Lam(NotInHole, p, ann, body) =>
-      print_endline("Statics960");
       let ty1 =
         switch (ann) {
         | Some(uty) => UHTyp.expand(uty)
@@ -1049,29 +1046,14 @@ module Exp = {
       };
     | Parenthesized(body) => syn(ctx, body)
     | Subscript(NotInHole, body1, body2, body3) =>
-      print_endline("Statics1003");
       switch (syn(ctx, body1)) {
       | None => None
       | Some(_) =>
-        // if (HTyp.consistent(ty, String) == false) {
-        //   print_endline("Statics1009");
-        //   None;
-        // } else {
-        print_endline("Statics1012");
         switch (ana(ctx, body2, Int), ana(ctx, body3, Int)) {
         | (Some(_), Some(_)) => Some(String)
         | (_, _) => None
-        };
-      // switch (ana(ctx, body2, Int)) {
-      // | Some(_) =>
-      //   switch (ana(ctx, body3, Int)) {
-      //   | Some(_) => Some(String)
-      //   | _ => None
-      //   }
-      // | _ => None
-      // };
-      // }
-      };
+        }
+      }
     }
   and syn_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -1292,31 +1274,10 @@ module Exp = {
       }
     | Parenthesized(body) => ana(ctx, body, ty)
     | Subscript(NotInHole, _, _, _) =>
-      print_endline("Statics1214");
       switch (syn_operand(ctx, operand)) {
-      | None =>
-        print_endline("Statics1298");
-        None;
-      | Some(_) =>
-        /* switch (ty) {
-           | String => print_endline("String!")
-           | Int => print_endline("Int")
-           | _ => print_endline("None")
-           }; */
-        /* if (HTyp.consistent(ty, ty')) {
-           print_endline("Statics1302"); */
-        Some()
-      /* } else {
-           if (ty' == String) {
-             print_endline("ty' correct");
-           };
-           if (ty == String) {
-             print_endline("ty correct");
-           };
-           print_endline("Statics1305");
-           None;
-         }; */
-      };
+      | None => None
+      | Some(_) => Some()
+      }
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1349,18 +1310,15 @@ module Exp = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
           : option(type_mode) => {
-    print_endline("Statics1285");
     _syn_nth_type_mode(ctx, n, skel, seq);
   }
   and _syn_nth_type_mode =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
       : option(type_mode) => {
-    print_endline("Statics1290");
     let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
     let rec go = (skel: UHExp.skel) =>
       switch (skel) {
       | Placeholder(n') =>
-        print_endline("Statics1293");
         assert(n == n');
         Some(Syn);
       | BinOp(InHole(_), op, skel1, skel2) =>
@@ -1683,7 +1641,6 @@ module Exp = {
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
     | BinOp(_, PlusPlus as op, skel1, skel2) =>
-      print_endline("Statics1591");
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -1836,9 +1793,7 @@ module Exp = {
           (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
         }
       };
-    | IntLit(_, _) =>
-      print_endline("Statics1733");
-      (e_nih, Int, u_gen);
+    | IntLit(_, _) => (e_nih, Int, u_gen)
     | FloatLit(_, _) => (e_nih, Float, u_gen)
     | BoolLit(_, _) => (e_nih, Bool, u_gen)
     | StringLit(_, _) => (e_nih, String, u_gen)
@@ -1909,13 +1864,10 @@ module Exp = {
     | Subscript(_, body1, body2, body3) =>
       let (body1, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
-      print_endline("Statics1854 " ++ string_of_int(u_gen));
       let (body2, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
-      print_endline("Statics1857 " ++ string_of_int(u_gen));
       let (body3, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
-      print_endline("Statics1860 " ++ string_of_int(u_gen));
       (Subscript(NotInHole, body1, body2, body3), String, u_gen);
     };
   }
@@ -2253,7 +2205,6 @@ module Exp = {
         _,
         _,
       ) =>
-      print_endline("Statics2116");
       let (skel, seq, ty', u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
       if (HTyp.consistent(ty, ty')) {
@@ -2276,11 +2227,9 @@ module Exp = {
     switch (e) {
     | EmptyHole(_) =>
       if (renumber_empty_holes) {
-        print_endline("Statics2195");
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (EmptyHole(u), u_gen);
       } else {
-        print_endline("Statics2199");
         (e, u_gen);
       }
     | Var(_, _, _)
@@ -2410,10 +2359,8 @@ module Exp = {
         );
       };
     | Subscript(_, _, _, _) =>
-      print_endline("Statics2297");
       let (e', ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      print_endline("Statics2365");
       if (HTyp.consistent(ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
       } else {
@@ -2475,7 +2422,6 @@ module Exp = {
     let (steps, _) as path = CursorPath.Exp.of_z(ze);
     let e = ze |> ZExp.erase;
     let (e, u_gen) = ana_fix_holes(ctx, u_gen, e, ty);
-    print_endline("Statics2464");
     switch (CursorPath.Exp.follow(path, e)) {
     | None =>
       // Only way this can happen now is path was originally

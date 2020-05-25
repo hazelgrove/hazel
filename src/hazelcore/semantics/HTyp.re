@@ -100,14 +100,8 @@ let has_matched_arrow =
 
 let get_prod_elements: t => list(t) =
   fun
-  | Prod(tys) => {
-      print_endline("HTyp104");
-      tys;
-    }
-  | _ as ty => {
-      print_endline("HTyp105");
-      [ty];
-    };
+  | Prod(tys) => tys
+  | _ as ty => [ty];
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 

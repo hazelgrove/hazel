@@ -155,10 +155,7 @@ let rec get_tuple_elements: skel => list(skel) =
   fun
   | BinOp(_, Comma, skel1, skel2) =>
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
-  | skel => {
-      print_endline("UHExpSkel159");
-      [skel];
-    };
+  | skel => [skel];
 
 let rec make_tuple =
         (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
@@ -206,33 +203,6 @@ and find_operand_operator =
 and find_operand_operand =
   fun
   | e => Some(e);
-
-// let rec is_operand = (e: t): bool => e |> is_operand_block
-// and is_operand_block = block =>
-//   List.nth(block, List.length(block) - 1) |> is_operand_line
-// and is_operand_line =
-//   fun
-//   | EmptyLine => {
-//       print_endline("This is empty line");
-//       true;
-//     }
-//   | LetLine(_, _, _) => {
-//       print_endline("This is let line");
-//       false;
-//     }
-//   | ExpLine(opseq) => {
-//       print_endline("This is exp line");
-//       switch (opseq) {
-//       | OpSeq(_, S(IntLit(NotInHole, "1"), E)) =>
-//         print_endline("RESULT is 1")
-//       | _ => print_endline("RESULT is none")
-//       };
-//       opseq |> is_operand_opseq;
-//     }
-// and is_operand_opseq =
-//   fun
-//   | OpSeq(_, S(_, E)) => true
-//   | _ => false;
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
@@ -358,7 +328,6 @@ let text_operand =
   | IntLit(n) => (intlit(n), u_gen)
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
-  // | StringLit(s) => (stringlit(s), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -438,10 +407,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   | Subscript(InHole(_), _, _, _) => false
   | Subscript(NotInHole, body1, body2, body3) =>
-    print_endline("UHExp437");
     is_complete(body1, check_type_holes)
     && is_complete(body2, check_type_holes)
-    && is_complete(body3, check_type_holes);
+    && is_complete(body3, check_type_holes)
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {

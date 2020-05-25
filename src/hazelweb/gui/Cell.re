@@ -77,7 +77,6 @@ let view = (~inject, model: Model.t) => {
                 prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
               | None =>
                 let s = JSUtil.get_key(evt);
-                print_endline("Cell, s = " ++ s);
                 switch (
                   s,
                   CursorInfo.is_text_cursor(program |> Program.get_zexp),
