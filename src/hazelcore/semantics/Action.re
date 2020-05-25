@@ -720,6 +720,10 @@ module Typ = {
       Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Float)), u_gen))
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Bool)), u_gen))
+    | (Construct(SChar(s))), CursorT(_, Hole) =>
+      insert_text(ctx, u_gen, (0, s), "")
+    | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
+      insert_text(ctx, u_gen, (j, s), x)
     | (Construct(SChar(_)), CursorT(_)) => Failed
 
     | (Construct(SList), CursorT(_)) =>
