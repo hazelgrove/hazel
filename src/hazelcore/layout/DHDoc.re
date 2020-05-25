@@ -221,6 +221,7 @@ module Exp = {
     | EmptyHole(_)
     | Triv
     | FailedCast(_)
+    | InvalidOperation(_)
     | Lam(_) => precedence_const
     | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
@@ -434,6 +435,16 @@ module Exp = {
           hcats([d_doc, cast_decoration]);
         | FailedCast(_d, _ty1, _ty2) =>
           failwith("unexpected FailedCast without inner cast")
+        | InvalidOperation(operation) =>
+          switch (operation) {
+          | DivideByZero(BinIntOp(Divide, _, IntLit(0)) as expr) =>
+            let (d_doc, _) = go'(expr);
+            let decoration =
+              Doc.text("Error: Divide by Zero")
+              |> annot(DHAnnot.DivideByZero);
+            hcats([d_doc, decoration]);
+          | _ => failwith("impossible")
+          }
         /*
          let (d_doc, d_cast) as dcast_doc = go'(d);
          let cast_decoration =

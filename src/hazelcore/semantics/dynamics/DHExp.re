@@ -127,10 +127,13 @@ type t =
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
+  | InvalidOperation(operation)
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, t);
+  | Rule(DHPat.t, t)
+and operation =
+  | DivideByZero(t);
 
 let constructor_string = (d: t): string =>
   switch (d) {
@@ -159,6 +162,7 @@ let constructor_string = (d: t): string =>
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
+  | InvalidOperation(_) => "InvalidOperation"
   };
 
 let rec make_tuple: list(t) => t =
