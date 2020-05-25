@@ -6,6 +6,7 @@ module BinIntOp = {
     | Minus
     | Plus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals;
@@ -15,12 +16,14 @@ module BinIntOp = {
     | Minus => Some((Minus, Int))
     | Plus => Some((Plus, Int))
     | Times => Some((Times, Int))
+    | Divide => Some((Divide, Int))
     | LessThan => Some((LessThan, Bool))
     | GreaterThan => Some((GreaterThan, Bool))
     | Equals => Some((Equals, Bool))
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals
@@ -37,6 +40,7 @@ module BinIntOp = {
     | Minus => Minus
     | Plus => Plus
     | Times => Times
+    | Divide => Divide
     | LessThan => LessThan
     | GreaterThan => GreaterThan
     | Equals => Equals
@@ -49,6 +53,7 @@ module BinFloatOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals;
@@ -58,12 +63,14 @@ module BinFloatOp = {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
     | FTimes => Some((FTimes, Float))
+    | FDivide => Some((FDivide, Float))
     | FLessThan => Some((FLessThan, Bool))
     | FGreaterThan => Some((FGreaterThan, Bool))
     | FEquals => Some((FEquals, Bool))
     | Plus
     | Minus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals
@@ -80,6 +87,7 @@ module BinFloatOp = {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
+    | FDivide => FDivide
     | FLessThan => FLessThan
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals
@@ -97,6 +105,7 @@ module BinStrOp = {
     | Minus
     | Plus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals
@@ -108,6 +117,7 @@ module BinStrOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals => None
@@ -162,7 +172,8 @@ and case =
 and rule =
   | Rule(DHPat.t, t)
 and operation =
-  | FailedSubscript(t);
+  | FailedSubscript(t)
+  | DivideByZero(t);
 
 let constructor_string = (d: t): string =>
   switch (d) {

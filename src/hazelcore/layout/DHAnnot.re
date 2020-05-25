@@ -12,4 +12,5 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | FailedSubscriptDecoration;
+  | FailedSubscriptDecoration
+  | DivideByZero;

@@ -9,6 +9,7 @@ let precedence_const = 0;
 let precedence_Ap = 1;
 let precedence_Subscript = 1;
 let precedence_Times = 2;
+let precedence_Divide = 2;
 let precedence_Plus = 3;
 let precedence_Minus = 3;
 let precedence_Cons = 4;
@@ -102,7 +103,14 @@ let mk_Keyword = (u, i, k) =>
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
-let mk_FloatLit = f => Doc.text(string_of_float(f));
+let mk_FloatLit = (f: float) =>
+  switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
+  | (false, true, _) => Doc.text("Inf")
+  /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
+  | (true, true, _) => Doc.text("NegInf")
+  | (_, _, true) => Doc.text("NaN")
+  | _ => Doc.text(string_of_float(f))
+  };
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
@@ -195,6 +203,7 @@ module Exp = {
   let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
     switch (bio) {
     | Times => precedence_Times
+    | Divide => precedence_Divide
     | Plus => precedence_Plus
     | Minus => precedence_Minus
     | Equals => precedence_Equals
@@ -205,6 +214,7 @@ module Exp = {
   let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
     switch (bfo) {
     | FTimes => precedence_Times
+    | FDivide => precedence_Divide
     | FPlus => precedence_Plus
     | FMinus => precedence_Minus
     | FEquals => precedence_Equals
@@ -258,6 +268,7 @@ module Exp = {
       | Minus => "-"
       | Plus => "+"
       | Times => "*"
+      | Divide => "/"
       | LessThan => "<"
       | GreaterThan => ">"
       | Equals => "=="
@@ -270,6 +281,7 @@ module Exp = {
       | FMinus => "-."
       | FPlus => "+."
       | FTimes => "*."
+      | FDivide => "/."
       | FLessThan => "<."
       | FGreaterThan => ">."
       | FEquals => "==."
@@ -488,6 +500,12 @@ module Exp = {
               hcats([d_doc, subscript_decoration]);
             | (_, _, _) => failwith("impossible")
             }
+          | DivideByZero(BinIntOp(Divide, _, IntLit(0)) as expr) =>
+            let (d_doc, _) = go'(expr);
+            let decoration =
+              Doc.text("Error: Divide by Zero")
+              |> annot(DHAnnot.DivideByZero);
+            hcats([d_doc, decoration]);
           | _ => failwith("impossible")
           }
         | Lam(dp, ty, dbody) =>

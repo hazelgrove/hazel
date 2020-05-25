@@ -20,9 +20,11 @@
 %token PLUS
 %token MINUS
 %token TIMES
+%token DIVIDE
 %token FPLUS
 %token FMINUS
 %token FTIMES
+%token FDIVIDE
 %token PLUSPLUS
 %token SPACEOP
 %token EOF
@@ -40,9 +42,11 @@
 %left PLUS
 %left MINUS
 %left TIMES
+%left DIVIDE
 %left FPLUS
 %left FMINUS
 %left FTIMES
+%left FDIVIDE
 %left PLUSPLUS
 %left SPACEOP
 
@@ -139,10 +143,20 @@ expr:
       NotInHole,
       Operators.Exp.Times,
       e1, e2) }
+  | e1 = expr; DIVIDE; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      Operators.Exp.Divide,
+      e1, e2) }
   | e1 = expr; FTIMES; e2 = expr {
     Skel.BinOp(
       NotInHole,
       Operators.Exp.FTimes,
+      e1, e2) }
+  | e1 = expr; FDIVIDE; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      Operators.Exp.FDivide,
       e1, e2) }
   | e1 = expr; SPACEOP; e2 = expr {
     Skel.BinOp(
