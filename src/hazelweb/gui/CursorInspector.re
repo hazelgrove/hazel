@@ -268,7 +268,7 @@ let view =
       (ind1, ind2, TypeInconsistency);
     | TypKeyword(_keyword) => 
       let ind1 = expected_a_type_indicator;
-      let id2 = got_keyword_indicator;
+      let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
     | OnType =>
       let ind1 = expected_a_type_indicator;
