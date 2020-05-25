@@ -1,33 +1,38 @@
 open Sexplib.Std;
 
+[@deriving sexp]
 type cursor_term = CursorInfo.cursor_term;
 
+[@deriving sexp]
 type start_from_insertion = bool;
-type delete_edit =
+[@deriving sexp]
+type delete_group =
   | Term(cursor_term, start_from_insertion)
-  /* cursor_term don't include seperate types for space, empty line and type annotation,
-     so the following three extra types are added for delete_edit */
+  /* cursor_term is insufficient for space, empty line and type annotation deletion,
+     so we add the following three constructors */
   | Space
   | EmptyLine
   | TypeAnn;
 
-type edit_term = {
-  start_from: cursor_term,
-  end_with: cursor_term,
-};
-type var_edit =
+[@deriving sexp]
+type var_group =
   | Insert(cursor_term)
-  | Edit(edit_term);
+  | Edit({
+      start_from: cursor_term,
+      end_with: cursor_term,
+    });
 
+[@deriving sexp]
 type action_group =
-  | Var(var_edit)
-  | DeleteEdit(delete_edit)
+  | VarGroup(var_group)
+  | DeleteEdit(delete_group)
   | ConstructEdit(Action.shape)
   /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
   | Init;
 
+[@deriving sexp]
 type cursor_term_info = {
   cursor_term_before: cursor_term,
   cursor_term_after: cursor_term,
@@ -36,7 +41,11 @@ type cursor_term_info = {
   prev_is_empty_line: bool,
   next_is_empty_line: bool,
 };
+
+[@deriving sexp]
 type timestamp = float;
+
+[@deriving sexp]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
   cardstacks_after_action: Cardstacks.t,
@@ -49,6 +58,7 @@ type undo_history_entry = {
   timestamp,
 };
 
+[@deriving sexp]
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
@@ -56,7 +66,7 @@ type undo_history_group = {
 
 [@deriving sexp]
 type t = {
-  groups: [@sexp.opaque] ZList.t(undo_history_group, undo_history_group),
+  groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
   /* disable the auto-scrolling when disable_auto_scrolling is true */
   disable_auto_scrolling: bool,
@@ -152,23 +162,23 @@ let group_action_group =
   switch (action_group_prev, action_group_next) {
   | (CaseRule, CaseRule) => true
   | (CaseRule, _) => false
-  | (Var(_), Var(_)) => true
-  | (Var(_), DeleteEdit(delete_edit)) =>
-    switch (delete_edit) {
+  | (VarGroup(_), VarGroup(_)) => true
+  | (VarGroup(_), DeleteEdit(delete_group)) =>
+    switch (delete_group) {
     | Term(_, _) => true
     | Space
     | EmptyLine
     | TypeAnn => false
     }
-  | (Var(_), ConstructEdit(construct_edit)) =>
+  | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
     | SCase => true
     | _ => false
     }
-  | (Var(_), _) => false
+  | (VarGroup(_), _) => false
   /* "insert" and "insert and delete" should be grouped together */
-  | (DeleteEdit(Term(_, true)), Var(Insert(_))) => true
+  | (DeleteEdit(Term(_, true)), VarGroup(Insert(_))) => true
   | (DeleteEdit(_), _) => false
   | (ConstructEdit(_), _) => false
   | (Init, _) => false
@@ -276,8 +286,8 @@ let get_initial_entry_in_group =
 
 let is_var_insert = (action_group): bool => {
   switch (action_group) {
-  | Var(var_edit) =>
-    switch (var_edit) {
+  | VarGroup(var_group) =>
+    switch (var_group) {
     | Insert(_) => true
     | Edit(_) => false
     }
@@ -285,10 +295,10 @@ let is_var_insert = (action_group): bool => {
   };
 };
 
-let is_var_edit = (action_group): bool => {
+let is_var_group = (action_group): bool => {
   switch (action_group) {
-  | Var(var_edit) =>
-    switch (var_edit) {
+  | VarGroup(var_group) =>
+    switch (var_group) {
     | Insert(_) => false
     | Edit(_) => true
     }
@@ -309,7 +319,7 @@ let get_delete_action_group =
           DeleteEdit(Term(new_cursor_term_info.cursor_term_before, true)),
       )) {
     let prev_entry = ZList.prj_z(prev_group.group_entries);
-    if (is_var_edit(prev_entry.action_group)) {
+    if (is_var_group(prev_entry.action_group)) {
       /* if delete group start from var edition, the deleted term is the initial term in this group */
       switch (get_initial_entry_in_group(prev_group)) {
       | None =>
@@ -422,7 +432,7 @@ let is_move_action = (cursor_term_info: cursor_term_info): bool => {
   ZExp.erase(cursor_term_info.zexp_before)
   == ZExp.erase(cursor_term_info.zexp_after);
 };
-let delete_edit =
+let delete_group =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: Cardstacks.t,
@@ -446,14 +456,14 @@ let delete_edit =
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     if (!caret_jump(prev_group, new_cardstacks_before)
         && is_var_insert(prev_entry.action_group)) {
-      Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
+      Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
     } else {
       let initial_term =
         if (group_entry(
               ~prev_group,
               ~new_cardstacks_before,
               ~new_action_group=
-                Var(
+                VarGroup(
                   Edit({
                     start_from: new_cursor_term_info.cursor_term_before,
                     end_with: new_cursor_term_info.cursor_term_after,
@@ -469,7 +479,7 @@ let delete_edit =
           new_cursor_term_info.cursor_term_before;
         };
       Some(
-        Var(
+        VarGroup(
           Edit({
             start_from: initial_term,
             end_with: new_cursor_term_info.cursor_term_after,
@@ -509,7 +519,7 @@ let delete =
       );
     } else {
       //edit var
-      delete_edit(
+      delete_group(
         ~prev_group,
         ~new_cardstacks_before,
         ~new_cursor_term_info,
@@ -574,7 +584,7 @@ let backspace =
       );
     } else {
       //edit var
-      delete_edit(
+      delete_group(
         ~prev_group,
         ~new_cardstacks_before,
         ~new_cursor_term_info,
@@ -670,7 +680,7 @@ let get_new_action_group =
               ~prev_group,
               ~new_cardstacks_before,
               ~new_action_group=
-                Var(
+                VarGroup(
                   Edit({
                     start_from: new_cursor_term_info.cursor_term_before,
                     end_with: new_cursor_term_info.cursor_term_after,
@@ -679,13 +689,15 @@ let get_new_action_group =
             )) {
           switch (get_initial_entry_in_group(prev_group)) {
           | None =>
-            Some(Var(Insert(new_cursor_term_info.cursor_term_after)))
+            Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)))
           | Some(initial_entry) =>
             if (is_var_insert(initial_entry.action_group)) {
-              Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
+              Some(
+                VarGroup(Insert(new_cursor_term_info.cursor_term_after)),
+              );
             } else {
               Some(
-                Var(
+                VarGroup(
                   Edit({
                     start_from:
                       initial_entry.cursor_term_info.cursor_term_before,
@@ -703,10 +715,10 @@ let get_new_action_group =
                         CursorInfo.cursor_term_is_editable(
                           new_cursor_term_info.cursor_term_before,
                         )) {
-          Some(Var(Insert(new_cursor_term_info.cursor_term_after)));
+          Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
         } else {
           Some(
-            Var(
+            VarGroup(
               Edit({
                 start_from: new_cursor_term_info.cursor_term_before,
                 end_with: new_cursor_term_info.cursor_term_after,

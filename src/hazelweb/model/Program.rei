@@ -4,6 +4,7 @@
  * user interface state such as the current width of
  * the editor, whether the editor is focused, etc.
  */
+[@deriving sexp]
 type t;
 
 let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;

@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = {
   info: CardInfo.t,
   program: Program.t,
