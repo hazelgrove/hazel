@@ -6,7 +6,6 @@ type t =
   | IntLit(string)
   | FloatLit(string)
   | BoolLit(bool)
-  // | StringLit(string)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t);
 
@@ -32,13 +31,10 @@ let of_text = (text: string): option(t) => {
   | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
-      print_endline("Textshape36");
       Some(Underscore);
     } else if (text |> Var.is_valid) {
-      print_endline("Textshape39");
       Some(Var(text));
     } else {
-      print_endline("Textshape39");
       None;
     }
   };

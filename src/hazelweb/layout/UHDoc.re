@@ -278,7 +278,6 @@ let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
 let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
-  print_endline("UHDoc277");
   Doc.hcats([Delim.open_StringLit(), mk_text(s), Delim.close_StringLit()])
   |> annot_Operand(~sort, ~err);
 };
@@ -376,39 +375,6 @@ let mk_Case =
   )
   |> annot_Case(~err);
 };
-
-// let mk_Case_ann =
-//     (
-//       ~err: ErrStatus.t,
-//       scrut: formatted_child,
-//       rules: list(t),
-//       ann: formatted_child,
-//     )
-//     : t => {
-//   let open_group = Delim.open_Case() |> annot_DelimGroup;
-//   let close_group = {
-//     let end_delim = Delim.close_Case_ann();
-//     Doc.hcats([
-//       end_delim,
-//       ann |> pad_left_delimited_child(~is_open=false, ~inline_padding=space_),
-//     ])
-//     |> annot_DelimGroup;
-//   };
-//   Doc.(
-//     vseps(
-//       [
-//         hcats([
-//           open_group,
-//           scrut
-//           |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
-//         ]),
-//         ...rules,
-//       ]
-//       @ [close_group],
-//     )
-//   )
-//   |> annot_Case(~err);
-// };
 
 let mk_Subscript =
     (
@@ -898,7 +864,6 @@ module Exp = {
           | StringLit(err, s) => mk_StringLit(~err, s)
           | ListNil(err) => mk_ListNil(~err, ())
           | Lam(err, p, ann, body) =>
-            print_endline("UHDoc894");
             let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let ann =
               ann
@@ -917,7 +882,6 @@ module Exp = {
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_Parenthesized(body);
           | Subscript(err, body1, body2, body3) =>
-            print_endline("UHDoc912");
             let body1 =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body1);
             let body2 =

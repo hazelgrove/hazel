@@ -89,7 +89,6 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   | Subscript(NotInHole, body1, body2, body3) =>
-    print_endline("UsageAnalysis92");
     let body1_uses = find_uses(~steps=steps @ [0], x, body1);
     let body2_uses = find_uses(~steps=steps @ [1], x, body2);
     let body3_uses = find_uses(~steps=steps @ [2], x, body3);

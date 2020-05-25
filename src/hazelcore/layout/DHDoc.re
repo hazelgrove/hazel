@@ -107,7 +107,6 @@ let mk_FloatLit = f => Doc.text(string_of_float(f));
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
 let mk_StringLit = s => {
-  print_endline("DHDoc106");
   Doc.hcats([Delim.open_StringLit, Doc.text(s), Delim.open_StringLit]);
 };
 
@@ -385,7 +384,6 @@ module Exp = {
             mk_left_associative_operands(precedence_Ap, d1, d2);
           mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | Subscript(s, n1, n2) =>
-          print_endline("DHDoc356");
           hcats([
             mk_cast(go(~enforce_inline=false, s)),
             Doc.text("["),
@@ -393,7 +391,7 @@ module Exp = {
             Doc.text(":"),
             mk_cast(go(~enforce_inline=false, n2)),
             Doc.text("]"),
-          ]);
+          ])
         | BinIntOp(op, d1, d2) =>
           // TODO assumes all bin int ops are left associative
           let (doc1, doc2) =

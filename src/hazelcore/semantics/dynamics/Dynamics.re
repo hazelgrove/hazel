@@ -879,9 +879,7 @@ module Exp = {
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
-    | Subscript(_, _, _) =>
-      print_endline("Dynamics821");
-      DoesNotMatch;
+    | Subscript(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
@@ -1116,7 +1114,6 @@ module Exp = {
       }
     | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
-      print_endline("Dynamics1116");
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1132,7 +1129,7 @@ module Exp = {
             Expands(d, ty, delta);
           };
         }
-      };
+      }
     | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
     | BinOp(
         NotInHole,
@@ -1157,13 +1154,9 @@ module Exp = {
         }
       }
     | BinOp(NotInHole, PlusPlus as op, skel1, skel2) =>
-      print_endline("Dynamics1071");
       switch (ana_expand_skel(ctx, delta, skel1, seq, String)) {
-      | DoesNotExpand =>
-        print_endline("Dynamics1081");
-        DoesNotExpand;
+      | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
-        print_endline("Dynamics1084");
         switch (ana_expand_skel(ctx, delta, skel2, seq, String)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d2, ty2, delta) =>
@@ -1173,11 +1166,10 @@ module Exp = {
           | None => DoesNotExpand
           | Some((op, ty)) =>
             let d = DHExp.BinStrOp(op, dc1, dc2);
-            print_endline("Dynamics1094");
             Expands(d, ty, delta);
           };
-        };
-      };
+        }
+      }
     | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Bool)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1212,7 +1204,6 @@ module Exp = {
     | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
     | Subscript(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      print_endline("Dynamics1103");
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1238,7 +1229,6 @@ module Exp = {
     | ApPalette(InHole(WrongLength, _), _, _, _)
     | Subscript(InHole(WrongLength, _), _, _, _) => ExpandResult.DoesNotExpand
     | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
-      print_endline("Dynamics1237");
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, pat_ty, delta) =>
@@ -1272,11 +1262,10 @@ module Exp = {
           let d = DHExp.Case(d1, drs, 0);
           Expands(InconsistentBranches(u, 0, sigma, d), Hole, delta);
         };
-      };
+      }
 
     /* not in hole */
     | EmptyHole(u) =>
-      print_endline("Dynamics1274");
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let d = DHExp.EmptyHole(u, 0, sigma);
@@ -1285,14 +1274,12 @@ module Exp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | Var(NotInHole, NotInVarHole, x) =>
-      print_endline("Dynamics1283");
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
       | Some(ty) => Expands(BoundVar(x), ty, delta)
       | None => ExpandResult.DoesNotExpand
       };
     | Var(NotInHole, InVarHole(reason, u), x) =>
-      print_endline("Dynamics1291");
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
@@ -1304,32 +1291,22 @@ module Exp = {
         };
       Expands(d, Hole, delta);
     | IntLit(NotInHole, n) =>
-      print_endline("Dynamics1301");
       switch (int_of_string_opt(n)) {
       | Some(n) => Expands(IntLit(n), Int, delta)
       | None => DoesNotExpand
-      };
+      }
     | FloatLit(NotInHole, f) =>
-      print_endline("Dynamics1309");
       switch (float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
-      };
-    | BoolLit(NotInHole, b) =>
-      print_endline("Dynamics1315");
-      Expands(BoolLit(b), Bool, delta);
-    | StringLit(NotInHole, s) =>
-      print_endline("Dynamics1186");
-      Expands(StringLit(s), String, delta);
+      }
+    | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
+    | StringLit(NotInHole, s) => Expands(StringLit(s), String, delta)
     | ListNil(NotInHole) =>
-      print_endline("Dynamics1321");
       let elt_ty = HTyp.Hole;
       Expands(ListNil(elt_ty), List(elt_ty), delta);
-    | Parenthesized(body) =>
-      print_endline("Dynamics1325");
-      syn_expand(ctx, delta, body);
+    | Parenthesized(body) => syn_expand(ctx, delta, body)
     | Lam(NotInHole, p, ann, body) =>
-      print_endline("Dynamics1328");
       let ty1 =
         switch (ann) {
         | Some(uty1) => UHTyp.expand(uty1)
@@ -1346,7 +1323,6 @@ module Exp = {
         }
       };
     | Inj(NotInHole, side, body) =>
-      print_endline("Dynamics1345");
       switch (syn_expand(ctx, delta, body)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1357,9 +1333,8 @@ module Exp = {
           | R => HTyp.Sum(Hole, ty1)
           };
         Expands(d, ty, delta);
-      };
+      }
     | Case(StandardErrStatus(NotInHole), scrut, rules) =>
-      print_endline("Dynamics1358");
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty, delta) =>
@@ -1369,34 +1344,25 @@ module Exp = {
           let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
           Expands(d, glb, delta);
         }
-      };
+      }
     | Subscript(NotInHole, body1, body2, body3) =>
-      print_endline("Dynamics1220");
       switch (syn_expand(ctx, delta, body1)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
-        /* if (body1 == UHExp.Block.wrap(StringLit(NotInHole, "as"))) {
-             print_endline("as true'");
-           };
-           if (d1 == DHExp.StringLit("as")) {
-             print_endline("as true");
-           }; */
         switch (syn_expand(ctx, delta, body2)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d2, ty2, delta) =>
-          print_endline("Dynamics1244");
           switch (syn_expand(ctx, delta, body3)) {
           | DoesNotExpand => DoesNotExpand
           | Expands(d3, ty3, delta) =>
-            print_endline("Dynamics1255");
             let dc1 = DHExp.cast(d1, ty1, String);
             let dc2 = DHExp.cast(d2, ty2, Int);
             let dc3 = DHExp.cast(d3, ty3, Int);
             let d = DHExp.Subscript(dc1, dc2, dc3);
             Expands(d, String, delta);
-          };
+          }
         }
-      };
+      }
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) => ExpandResult.DoesNotExpand
     /* TODO fix me */
     /* let (_, palette_ctx) = ctx in
@@ -1487,16 +1453,14 @@ module Exp = {
     switch (block |> UHExp.Block.split_conclusion) {
     | None => ExpandResult.DoesNotExpand
     | Some((leading, conclusion)) =>
-      print_endline("Dynamics1513");
       switch (syn_expand_lines(ctx, delta, leading)) {
       | LinesDoNotExpand => ExpandResult.DoesNotExpand
       | LinesExpand(prelude, ctx, delta) =>
-        print_endline("Dynamics1517");
         switch (ana_expand_opseq(ctx, delta, conclusion, ty)) {
         | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
         | Expands(d, ty, delta) => Expands(prelude(d), ty, delta)
-        };
-      };
+        }
+      }
     }
   and ana_expand_opseq =
       (
@@ -1508,11 +1472,9 @@ module Exp = {
       : ExpandResult.t => {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
-    print_endline("Dynamics1540");
     let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
-      print_endline("Dynamics1543");
       skel_tys
       |> List.fold_left(
            (
@@ -1522,12 +1484,11 @@ module Exp = {
              switch (acc) {
              | None => None
              | Some((rev_ds, rev_tys, delta)) =>
-               print_endline("Dynamics1553");
                switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
                | ExpandResult.DoesNotExpand => None
                | Expands(d, ty, delta) =>
                  Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
-               };
+               }
              },
            Some(([], [], delta)),
          )
@@ -1535,12 +1496,11 @@ module Exp = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_ds, rev_tys, delta)) => {
-            print_endline("Dynamics1566");
             let d = rev_ds |> List.rev |> DHExp.make_tuple;
             let ty = HTyp.Prod(rev_tys |> List.rev);
             Expands(d, ty, delta);
           }
-      );
+      )
     | None =>
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
@@ -1569,7 +1529,6 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
-              print_endline("Dynamics1599");
               let d = rev_ds |> List.rev |> DHExp.make_tuple;
               let ty = HTyp.Prod(rev_tys |> List.rev);
               Expands(d, ty, delta);
@@ -1611,19 +1570,15 @@ module Exp = {
         ty: HTyp.t,
       )
       : ExpandResult.t => {
-    print_endline("Dynamics1412");
     switch (skel) {
     | BinOp(_, Comma, _, _)
     | BinOp(InHole(WrongLength, _), _, _, _) =>
       // tuples handled at opseq level
-      print_endline("Dynamics1417");
-      ExpandResult.DoesNotExpand;
+      ExpandResult.DoesNotExpand
     | Placeholder(n) =>
-      print_endline("Dynamics1420");
       let en = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, en, ty);
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
-      print_endline("Dynamics1421");
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1667,7 +1622,6 @@ module Exp = {
         _,
         _,
       ) =>
-      print_endline("Dynamics1452");
       switch (syn_expand_skel(ctx, delta, skel, seq)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
       | Expands(d, ty', delta) =>
@@ -1676,13 +1630,12 @@ module Exp = {
         } else {
           ExpandResult.DoesNotExpand;
         }
-      };
+      }
     };
   }
   and ana_expand_operand =
       (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
       : ExpandResult.t => {
-    print_endline("Dynamics1654");
     switch (operand) {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -1815,14 +1768,11 @@ module Exp = {
     | BoolLit(NotInHole, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
-    | StringLit(NotInHole, _) =>
-      print_endline("Dynamics1847");
-      syn_expand_operand(ctx, delta, operand);
+    | StringLit(NotInHole, _) => syn_expand_operand(ctx, delta, operand)
     | ApPalette(NotInHole, _, _, _)
     | Subscript(NotInHole, _, _, _) =>
       /* subsumption */
-      print_endline("Dynamics1600");
-      syn_expand_operand(ctx, delta, operand);
+      syn_expand_operand(ctx, delta, operand)
     };
   }
   and ana_expand_rules =
@@ -1896,7 +1846,6 @@ module Exp = {
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (Ap(d1, d2), hii);
     | Subscript(d1, d2, d3) =>
-      print_endline("Dynamics1674");
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       let (d3, hii) = renumber_result_only(path, hii, d3);
@@ -2014,7 +1963,6 @@ module Exp = {
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (Ap(d1, d2), hii);
     | Subscript(d1, d2, d3) =>
-      print_endline("Dynamics1781");
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       let (d3, hii) = renumber_sigmas_only(path, hii, d3);
@@ -2235,9 +2183,7 @@ module Evaluator = {
   let eval_bin_str_op =
       (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
     switch (op) {
-    | PlusPlus =>
-      print_endline("Dynamics1935");
-      StringLit(n1 ++ n2);
+    | PlusPlus => StringLit(n1 ++ n2)
     };
 
   let rec evaluate = (d: DHExp.t): result =>
@@ -2290,7 +2236,6 @@ module Evaluator = {
         }
       }
     | Subscript(d1, d2, d3) =>
-      print_endline("Dynamics2041");
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(StringLit(s1) as s1') =>
@@ -2318,65 +2263,51 @@ module Evaluator = {
                 StringLit(String.sub(s1, n1', max(0, n2' - n1'))),
               );
             } else {
-              print_endline("Dynamics2268");
               Indet(
                 InvalidOperation(FailedSubscript(Subscript(s1', n1', n2'))),
               );
             };
           | BoxedValue(_) => InvalidInput(3)
-          | Indet(n2') =>
-            print_endline("Dynamics2273");
-            Indet(Subscript(s1', n1', n2'));
+          | Indet(n2') => Indet(Subscript(s1', n1', n2'))
           }
-        | BoxedValue(_) =>
-          print_endline("Dynamics2070");
-          InvalidInput(4);
+        | BoxedValue(_) => InvalidInput(4)
         | Indet(n1') =>
-          print_endline("Dynamics2073");
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(n2')
-          | Indet(n2') =>
-            print_endline("Dynamics2285");
-            Indet(Subscript(s1', n1', n2'));
-          };
+          | Indet(n2') => Indet(Subscript(s1', n1', n2'))
+          }
         }
       | BoxedValue(s1') =>
-        print_endline("Dynamics2290");
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(n1')
         | Indet(n1') =>
-          print_endline("Dynamics2089");
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(n2')
           | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-          };
-        };
+          }
+        }
 
       | Indet(s1') =>
-        print_endline("Dynamics2084");
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(n1')
         | Indet(n1') =>
-          print_endline("Dynamics2089");
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(n2')
           | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-          };
-        };
-      };
+          }
+        }
+      }
     | ListNil(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
     | Triv
-    | StringLit(_) =>
-      print_endline("Dynamics1995");
-      BoxedValue(d);
+    | StringLit(_) => BoxedValue(d)
     | And(d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2427,9 +2358,7 @@ module Evaluator = {
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
         }
-      | BoxedValue(_) =>
-        print_endline("Dynamics2156");
-        InvalidInput(4);
+      | BoxedValue(_) => InvalidInput(4)
       | Indet(d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
@@ -2460,7 +2389,6 @@ module Evaluator = {
         }
       }
     | BinStrOp(op, d1, d2) =>
-      print_endline("Dynamics2196");
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(StringLit(n1) as d1') =>
@@ -2478,7 +2406,7 @@ module Evaluator = {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStrOp(op, d1', d2'))
         }
-      };
+      }
     | Inj(ty, side, d1) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2517,7 +2445,6 @@ module Evaluator = {
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
     | Cast(d1, ty, ty') =>
-      print_endline("Dynamics cast");
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1') as result =>
@@ -2603,7 +2530,7 @@ module Evaluator = {
             Indet(Cast(d1', ty, ty'));
           }
         }
-      };
+      }
     | FailedCast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
