@@ -459,6 +459,13 @@ module Typ = {
       } else {
         Failed;
       }
+    | Some(ExpandingKeyword(k)) =>
+      let text_cursor = CursorPosition.OnText(caret_index);
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      Succeeded((
+        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(InVarHole(Keyword(k), u), x))),
+        u_gen
+      ));
     | Some(TyVar(x)) =>
       let text_cursor = CursorPosition.OnText(caret_index);
       if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
