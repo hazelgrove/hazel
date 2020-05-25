@@ -2300,17 +2300,29 @@ module Evaluator = {
           switch (evaluate(d3)) {
           | InvalidInput(msg) => InvalidInput(msg)
           | BoxedValue(IntLit(n2) as n2') =>
-            if (n1 >= 0
-                && n1 <= String.length(s1)
-                && n2 >= 0
-                && n2 <= String.length(s1)) {
-              BoxedValue(StringLit(String.sub(s1, n1, max(0, n2 - n1))));
+            let len = String.length(s1);
+            if (n1 >= (-1) * len && n1 <= len && n2 >= (-1) * len && n2 <= len) {
+              let n1' =
+                if (n1 < 0) {
+                  n1 + len;
+                } else {
+                  n1;
+                };
+              let n2' =
+                if (n2 < 0) {
+                  n2 + len;
+                } else {
+                  n2;
+                };
+              BoxedValue(
+                StringLit(String.sub(s1, n1', max(0, n2' - n1'))),
+              );
             } else {
               print_endline("Dynamics2268");
               Indet(
                 InvalidOperation(FailedSubscript(Subscript(s1', n1', n2'))),
               );
-            }
+            };
           | BoxedValue(_) => InvalidInput(3)
           | Indet(n2') =>
             print_endline("Dynamics2273");
