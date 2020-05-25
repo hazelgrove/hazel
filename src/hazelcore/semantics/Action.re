@@ -779,6 +779,9 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    | Some(AssertLit) =>
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var("assert")));
+      Succeeded((zp, HTyp.Arrow(Bool, Prod([])), ctx, u_gen));
     };
   };
 
@@ -810,6 +813,7 @@ module Pat = {
       Succeeded((zp, ctx, u_gen));
     | Some(IntLit(_))
     | Some(FloatLit(_))
+    | Some(AssertLit)
     | Some(BoolLit(_)) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -1970,10 +1974,10 @@ module Exp = {
       (UHExp.mk_OpSeq(S(hole, suffix)), u_gen);
     };
 
-  let keyword_action = (kw: ExpandingKeyword.t): t =>
+  let keyword_action = (kw: ExpInvalidKeyword.t): t =>
     switch (kw) {
-    | Let => Construct(SLet)
-    | Case => Construct(SCase)
+    | Expanding(Let) => Construct(SLet)
+    | Expanding(Case) => Construct(SCase)
     };
 
   let delete_operator =
@@ -2196,11 +2200,14 @@ module Exp = {
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+    | Some(AssertLit) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit()));
+      Succeeded(SynDone((ze, HTyp.Arrow(Bool, Prod([])), u_gen)));
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
-          ~var_err=InVarHole(Keyword(k), u),
+          ~var_err=InVarHole(Keyword(Expanding(k)), u),
           k |> ExpandingKeyword.to_string,
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -2251,12 +2258,14 @@ module Exp = {
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
-          ~var_err=InVarHole(Keyword(k), u),
+          ~var_err=InVarHole(Keyword(Expanding(k)), u),
           k |> ExpandingKeyword.to_string,
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(
+        IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_) | AssertLit,
+      ) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err

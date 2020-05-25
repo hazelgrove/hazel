@@ -959,7 +959,7 @@ module Exp = {
     | FloatLit(NotInHole, _) => Some(Float)
     | BoolLit(NotInHole, _) => Some(Bool)
     | ListNil(NotInHole) => Some(List(Hole))
-    | AssertLit(NotInHole) => Some(Arrow(Bool, Int))
+    | AssertLit(NotInHole) => Some(Arrow(Bool, Prod([])))
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1676,10 +1676,10 @@ module Exp = {
         | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
         | NotInVarHole =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
-          let reason: VarErrStatus.HoleReason.t =
+          let reason: ExpVarErrStatus.HoleReason.t =
             switch (Var.is_let(x), Var.is_case(x)) {
-            | (true, _) => Keyword(Let)
-            | (_, true) => Keyword(Case)
+            | (true, _) => Keyword(Expanding(Let))
+            | (_, true) => Keyword(Expanding(Case))
             | _ => Free
             };
           (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
@@ -1688,7 +1688,7 @@ module Exp = {
     | IntLit(_, _) => (e_nih, Int, u_gen)
     | FloatLit(_, _) => (e_nih, Float, u_gen)
     | BoolLit(_, _) => (e_nih, Bool, u_gen)
-    | AssertLit(_) => (e_nih, Arrow(Bool, Int), u_gen) /*used same in var hole*/
+    | AssertLit(_) => (e_nih, Arrow(Bool, Prod([])), u_gen) /*used same in var hole*/
     | ListNil(_) => (e_nih, List(Hole), u_gen)
     | Parenthesized(body) =>
       let (block, ty, u_gen) =

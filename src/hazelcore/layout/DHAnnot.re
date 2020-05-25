@@ -7,7 +7,8 @@ type t =
   | Delim
   | EmptyHole(bool, HoleInstance.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
-  | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
+  | ExpVarHole(ExpVarErrStatus.HoleReason.t, HoleInstance.t)
+  | PatVarHole(PatVarErrStatus.HoleReason.t, HoleInstance.t)
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration;

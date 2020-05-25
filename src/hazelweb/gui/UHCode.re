@@ -9,7 +9,12 @@ let clss_of_err: ErrStatus.t => list(cls) =
   | NotInHole => []
   | InHole(_) => ["InHole"];
 
-let clss_of_verr: VarErrStatus.t => list(cls) =
+let clss_of_patverr: PatVarErrStatus.t => list(cls) =
+  fun
+  | NotInVarHole => []
+  | InVarHole(_) => ["InVarHole"];
+
+let clss_of_expverr: ExpVarErrStatus.t => list(cls) =
   fun
   | NotInVarHole => []
   | InVarHole(_) => ["InVarHole"];
@@ -27,9 +32,13 @@ let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
   | Case({err}) => ["Case", ...clss_of_err(err)]
-  | Var({err, verr, show_use}) =>
+  | PatVar({err, verr, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
-    @ clss_of_verr(verr)
+    @ clss_of_patverr(verr)
+    @ (show_use ? ["show-use"] : [])
+  | ExpVar({err, verr, show_use}) =>
+    ["Operand", "Var", ...clss_of_err(err)]
+    @ clss_of_expverr(verr)
     @ (show_use ? ["show-use"] : [])
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]

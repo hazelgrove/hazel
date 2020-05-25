@@ -142,8 +142,10 @@ module Pat = {
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
     //| Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(Assert), u), _) =>
+      Expands(Keyword(u, 0, Assert), Hole, ctx, delta)
     | Var(NotInHole, InVarHole(Keyword(Expanding(k)), u), _) =>
-      Expands(Keyword(u, 0, k), Hole, ctx, delta)
+      Expands(Keyword(u, 0, Expanding(k)), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
@@ -363,8 +365,10 @@ module Pat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     //| Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(Assert), u), _) =>
+      Expands(Keyword(u, 0, Assert), ty, ctx, delta)
     | Var(NotInHole, InVarHole(Keyword(Expanding(k)), u), _) =>
-      Expands(Keyword(u, 0, k), ty, ctx, delta)
+      Expands(Keyword(u, 0, Expanding(k)), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);

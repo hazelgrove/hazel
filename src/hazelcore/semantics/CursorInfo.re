@@ -20,7 +20,7 @@ type typed =
   // cursor is on a free variable
   | AnaFree(HTyp.t)
   // cursor is on a keyword
-  | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  | AnaKeyword(HTyp.t, ExpInvalidKeyword.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -44,11 +44,11 @@ type typed =
   // position of an ap
   | SynFreeArrow(HTyp.t)
   // cursor is on a keyword in the function position of an ap
-  | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
+  | SynKeywordArrow(HTyp.t, ExpInvalidKeyword.t)
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword
-  | SynKeyword(ExpandingKeyword.t)
+  | SynKeyword(ExpInvalidKeyword.t)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -467,7 +467,7 @@ module Pat = {
 
 module Exp = {
   let rec cursor_on_outer_expr:
-    ZExp.zoperand => option((ErrStatus.t, VarErrStatus.t)) =
+    ZExp.zoperand => option((ErrStatus.t, ExpVarErrStatus.t)) =
     fun
     | CursorE(_, operand) => {
         let err = operand |> UHExp.get_err_status_operand;

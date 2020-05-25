@@ -95,7 +95,7 @@ type t =
       t,
     )
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
+  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpInvalidKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)

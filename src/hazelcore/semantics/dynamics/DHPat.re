@@ -6,7 +6,7 @@ type t =
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
   | Wild
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
+  | Keyword(MetaVar.t, MetaVarInst.t, PatInvalidKeyword.t)
   | Var(Var.t)
   | IntLit(int)
   | FloatLit(float)

@@ -21,7 +21,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
-  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | Var(ErrStatus.t, ExpVarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
@@ -51,11 +51,13 @@ let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
 let var =
     (
       ~err: ErrStatus.t=NotInHole,
-      ~var_err: VarErrStatus.t=NotInVarHole,
+      ~var_err: ExpVarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
     : operand =>
   Var(err, var_err, x);
+
+let assertlit = (~err: ErrStatus.t=NotInHole, ()): operand => AssertLit(err);
 
 let intlit = (~err: ErrStatus.t=NotInHole, n: string): operand =>
   IntLit(err, n);
@@ -291,6 +293,7 @@ let text_operand =
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
+  | AssertLit => (assertlit(), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (

@@ -93,9 +93,13 @@ let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
-let mk_Keyword = (u, i, k) =>
-  Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
+let mk_ExpKeyword = (u, i, k) =>
+  Doc.text(ExpInvalidKeyword.to_string(k))
+  |> Doc.annot(DHAnnot.ExpVarHole(Keyword(k), (u, i)));
+
+let mk_PatKeyword = (u, i, k) =>
+  Doc.text(PatInvalidKeyword.to_string(k))
+  |> Doc.annot(DHAnnot.PatVarHole(Keyword(k), (u, i)));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
@@ -156,7 +160,7 @@ module Pat = {
       | EmptyHole(u, i) => mk_EmptyHole((u, i))
       | NonEmptyHole(reason, u, i, dp) =>
         mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-      | Keyword(u, i, k) => mk_Keyword(u, i, k)
+      | Keyword(u, i, k) => mk_PatKeyword(u, i, k)
       | Var(x) => Doc.text(x)
       | Wild => Delim.wild
       | Triv => Delim.triv
@@ -310,9 +314,9 @@ module Exp = {
         | NonEmptyHole(reason, u, i, _sigma, d) =>
           go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
 
-        | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
+        | Keyword(u, i, _sigma, k) => mk_ExpKeyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
-          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+          text(x) |> annot(DHAnnot.ExpVarHole(Free, (u, i)))
         | BoundVar(x) => text(x)
         | Triv => Delim.triv
         | AssertLit => Delim.assert_lit

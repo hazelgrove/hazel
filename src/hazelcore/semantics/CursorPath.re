@@ -172,7 +172,7 @@ let holes_err =
 let holes_verr =
     (
       ~hole_desc: MetaVar.t => hole_desc,
-      verr: VarErrStatus.t,
+      verr: ExpVarErrStatus.t,
       rev_steps: rev_steps,
       hs: hole_list,
     ) =>
