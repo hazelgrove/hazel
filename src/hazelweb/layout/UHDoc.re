@@ -113,11 +113,17 @@ let annot_OpenChild = (~is_inline: bool): (t => t) =>
 let annot_ClosedChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
-let annot_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t)
+let annot_PatVar =
+    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: PatVarErrStatus.t)
     : (t => t) =>
   Doc.annot(
-    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
+    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_PatVar(~err, ~verr, ()), ()),
+  );
+let annot_ExpVar =
+    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: ExpVarErrStatus.t)
+    : (t => t) =>
+  Doc.annot(
+    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_ExpVar(~err, ~verr, ()), ()),
   );
 let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =>
   Doc.annot(
@@ -255,9 +261,18 @@ let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
 let mk_Wild = (~err: ErrStatus.t): t =>
   Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
 
-let mk_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
-  mk_text(x) |> annot_Var(~sort, ~err, ~verr);
+let mk_AssertLit = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
+  mk_text("assert") |> annot_Operand(~sort, ~err);
+
+let mk_PatVar =
+    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: PatVarErrStatus.t, x: Var.t)
+    : t =>
+  mk_text(x) |> annot_PatVar(~sort, ~err, ~verr);
+
+let mk_ExpVar =
+    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: ExpVarErrStatus.t, x: Var.t)
+    : t =>
+  mk_text(x) |> annot_ExpVar(~sort, ~err, ~verr);
 
 let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
   mk_text(n) |> annot_Operand(~sort, ~err);
@@ -585,8 +600,8 @@ module Pat = {
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Pat);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Pat);
   let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Pat);
-  let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
-    mk_Var(~sort=Pat);
+  let mk_Var: (~err: ErrStatus.t, ~verr: PatVarErrStatus.t, string) => t =
+    mk_PatVar(~sort=Pat);
   let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Pat);
   let mk_Inj: (~err: ErrStatus.t, ~inj_side: InjSide.t, formatted_child) => t =
     mk_Inj(~sort=Pat);
@@ -689,8 +704,9 @@ module Exp = {
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Exp);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
   let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Exp);
-  let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
-    mk_Var(~sort=Exp);
+  let mk_Var: (~err: ErrStatus.t, ~verr: ExpVarErrStatus.t, string) => t =
+    mk_ExpVar(~sort=Exp);
+  let mk_AssertLit: (~err: ErrStatus.t, unit) => t = mk_AssertLit(~sort=Exp);
   let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Exp);
   let mk_Inj: (~err: ErrStatus.t, ~inj_side: InjSide.t, formatted_child) => t =
     mk_Inj(~sort=Exp);
@@ -808,6 +824,7 @@ module Exp = {
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
+          | AssertLit(err) => mk_AssertLit(~err, ())
           | BoolLit(err, b) => mk_BoolLit(~err, b)
           | ListNil(err) => mk_ListNil(~err, ())
           | Lam(err, p, ann, body) =>

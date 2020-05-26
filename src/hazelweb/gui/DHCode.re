@@ -24,7 +24,10 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(InconsistentBranches(_), l) => [
         Node.span([Attr.classes(["InconsistentBranches"])], go(l)),
       ]
-    | Annot(VarHole(_), l) => [
+    | Annot(PatVarHole(_), l) => [
+        Node.span([Attr.classes(["InVarHole"])], go(l)),
+      ]
+    | Annot(ExpVarHole(_), l) => [
         Node.span([Attr.classes(["InVarHole"])], go(l)),
       ]
     | Annot(EmptyHole(selected, inst), l) => [

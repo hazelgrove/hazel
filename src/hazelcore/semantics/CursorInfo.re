@@ -27,7 +27,7 @@ type typed =
   // cursor is on a free variable
   | AnaFree(HTyp.t)
   // cursor is on a keyword
-  | AnaKeyword(HTyp.t, ExpandingKeyword.t)
+  | AnaKeyword(HTyp.t, ExpInvalidKeyword.t)
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -51,11 +51,11 @@ type typed =
   // position of an ap
   | SynFreeArrow(HTyp.t)
   // cursor is on a keyword in the function position of an ap
-  | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
+  | SynKeywordArrow(HTyp.t, ExpInvalidKeyword.t)
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword
-  | SynKeyword(ExpandingKeyword.t)
+  | SynKeyword(ExpInvalidKeyword.t)
   // cursor is on the clause of a case
   | SynBranchClause
       // lub of other branches
@@ -85,7 +85,7 @@ type typed =
         HTyp.t,
       )
   // cursor is on a keyword
-  | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
+  | PatAnaKeyword(HTyp.t, PatInvalidKeyword.t)
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
@@ -93,7 +93,7 @@ type typed =
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
-  | PatSynKeyword(ExpandingKeyword.t)
+  | PatSynKeyword(PatInvalidKeyword.t)
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
@@ -514,7 +514,7 @@ module Pat = {
 
 module Exp = {
   let rec cursor_on_outer_expr:
-    ZExp.zoperand => option((ErrStatus.t, VarErrStatus.t)) =
+    ZExp.zoperand => option((ErrStatus.t, ExpVarErrStatus.t)) =
     fun
     | CursorE(_, operand) => {
         let err = operand |> UHExp.get_err_status_operand;
@@ -1061,6 +1061,7 @@ module Exp = {
       | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty), ctx))
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
+      | AssertLit(InHole(TypeInconsistent, _))
       | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
@@ -1079,6 +1080,7 @@ module Exp = {
       | Var(InHole(WrongLength, _), _, _)
       | IntLit(InHole(WrongLength, _), _)
       | FloatLit(InHole(WrongLength, _), _)
+      | AssertLit(InHole(WrongLength, _))
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
       | Lam(InHole(WrongLength, _), _, _, _)
@@ -1093,6 +1095,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
       | IntLit(NotInHole, _)
+      | AssertLit(NotInHole)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
       | ApPalette(NotInHole, _, _, _) =>

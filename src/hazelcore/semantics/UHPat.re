@@ -11,7 +11,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
-  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | Var(ErrStatus.t, PatVarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
@@ -27,7 +27,7 @@ type seq = OpSeq.seq(operand, operator);
 let var =
     (
       ~err: ErrStatus.t=NotInHole,
-      ~var_err: VarErrStatus.t=NotInVarHole,
+      ~var_err: PatVarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
     : operand =>
@@ -148,11 +148,15 @@ let text_operand =
   | IntLit(n) => (intlit(n), u_gen)
   | FloatLit(n) => (floatlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
+  | AssertLit => (var("assert"), u_gen)
   | Var(x) => (var(x), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (
-      var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
+      var(
+        ~var_err=InVarHole(Keyword(Expanding(kw)), u),
+        kw |> ExpandingKeyword.to_string,
+      ),
       u_gen,
     );
   };

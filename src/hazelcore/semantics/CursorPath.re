@@ -172,7 +172,7 @@ let holes_err =
 let holes_verr =
     (
       ~hole_desc: MetaVar.t => hole_desc,
-      verr: VarErrStatus.t,
+      verr: ExpVarErrStatus.t,
       rev_steps: rev_steps,
       hs: hole_list,
     ) =>
@@ -934,6 +934,7 @@ module Exp = {
       | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
+      | AssertLit(_)
       | ListNil(_) => None
       | Parenthesized(body) =>
         switch (x) {
@@ -1116,6 +1117,7 @@ module Exp = {
       | EmptyHole(_)
       | Var(_, _, _)
       | IntLit(_, _)
+      | AssertLit(_)
       | FloatLit(_, _)
       | BoolLit(_, _)
       | ListNil(_) => None
@@ -1267,6 +1269,7 @@ module Exp = {
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
     | IntLit(err, _)
+    | AssertLit(err)
     | FloatLit(err, _)
     | BoolLit(err, _)
     | ListNil(err) => hs |> holes_err(err, rev_steps)
@@ -1450,6 +1453,7 @@ module Exp = {
     | CursorE(_, IntLit(err, _))
     | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
+    | CursorE(_, AssertLit(err))
     | CursorE(_, ListNil(err)) =>
       switch (err) {
       | NotInHole => no_holes

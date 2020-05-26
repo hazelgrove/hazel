@@ -21,11 +21,12 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
-  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | Var(ErrStatus.t, ExpVarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+  | AssertLit(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -50,11 +51,13 @@ let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
 let var =
     (
       ~err: ErrStatus.t=NotInHole,
-      ~var_err: VarErrStatus.t=NotInVarHole,
+      ~var_err: ExpVarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
     : operand =>
   Var(err, var_err, x);
+
+let assertlit = (~err: ErrStatus.t=NotInHole, ()): operand => AssertLit(err);
 
 let intlit = (~err: ErrStatus.t=NotInHole, n: string): operand =>
   IntLit(err, n);
@@ -189,6 +192,7 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | AssertLit(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
@@ -213,6 +217,7 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
+  | AssertLit(_) => AssertLit(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
@@ -246,6 +251,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | AssertLit(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -256,6 +262,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
+  | AssertLit(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
@@ -291,6 +298,7 @@ let text_operand =
   | FloatLit(f) => (floatlit(f), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
+  | AssertLit => (assertlit(), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (
@@ -337,6 +345,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Var(NotInHole, NotInVarHole, _) => true
   | IntLit(InHole(_), _) => false
   | IntLit(NotInHole, _) => true
+  | AssertLit(InHole(_)) => false //not quite sure
+  | AssertLit(NotInHole) => true
   | FloatLit(InHole(_), _) => false
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false

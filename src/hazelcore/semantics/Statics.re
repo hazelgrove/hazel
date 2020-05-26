@@ -102,7 +102,7 @@ module Pat = {
     | Inj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | Wild(NotInHole) => Some((Hole, ctx))
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    //| Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
     | Var(NotInHole, NotInVarHole, x) =>
       Var.check_valid(
@@ -206,7 +206,7 @@ module Pat = {
     | Inj(InHole(WrongLength, _), _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    //| Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
     | Var(NotInHole, NotInVarHole, x) =>
       Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
@@ -451,7 +451,7 @@ module Pat = {
         (operand, HTyp.Hole, ctx, u_gen);
       }
     | Wild(_) => (operand_nih, Hole, ctx, u_gen)
-    | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    //| Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
@@ -699,7 +699,7 @@ module Pat = {
         (operand, ctx, u_gen);
       }
     | Wild(_) => (operand_nih, ctx, u_gen)
-    | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    //| Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
@@ -913,6 +913,7 @@ module Exp = {
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
+    | AssertLit(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -924,6 +925,7 @@ module Exp = {
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
+    | AssertLit(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -958,6 +960,7 @@ module Exp = {
     | FloatLit(NotInHole, _) => Some(Float)
     | BoolLit(NotInHole, _) => Some(Bool)
     | ListNil(NotInHole) => Some(List(Hole))
+    | AssertLit(NotInHole) => Some(Arrow(Bool, Prod([])))
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
@@ -1132,6 +1135,7 @@ module Exp = {
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
+    | AssertLit(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -1146,6 +1150,7 @@ module Exp = {
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
+    | AssertLit(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
@@ -1165,6 +1170,7 @@ module Exp = {
     | Var(NotInHole, _, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
+    | AssertLit(NotInHole)
     | BoolLit(NotInHole, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
@@ -1700,10 +1706,10 @@ module Exp = {
         | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
         | NotInVarHole =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
-          let reason: VarErrStatus.HoleReason.t =
+          let reason: ExpVarErrStatus.HoleReason.t =
             switch (Var.is_let(x), Var.is_case(x)) {
-            | (true, _) => Keyword(Let)
-            | (_, true) => Keyword(Case)
+            | (true, _) => Keyword(Expanding(Let))
+            | (_, true) => Keyword(Expanding(Case))
             | _ => Free
             };
           (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
@@ -1712,6 +1718,7 @@ module Exp = {
     | IntLit(_, _) => (e_nih, Int, u_gen)
     | FloatLit(_, _) => (e_nih, Float, u_gen)
     | BoolLit(_, _) => (e_nih, Bool, u_gen)
+    | AssertLit(_) => (e_nih, Arrow(Bool, Prod([])), u_gen)
     | ListNil(_) => (e_nih, List(Hole), u_gen)
     | Parenthesized(body) =>
       let (block, ty, u_gen) =
@@ -2124,6 +2131,7 @@ module Exp = {
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
+    | AssertLit(_)
     | BoolLit(_, _) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

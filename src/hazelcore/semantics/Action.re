@@ -769,11 +769,14 @@ module Pat = {
     | Some(BoolLit(b)) =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
+    | Some(AssertLit) =>
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var("assert")));
+      Succeeded((zp, HTyp.Arrow(Bool, Prod([])), ctx, u_gen));
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHPat.var(
-          ~var_err=InVarHole(Keyword(k), u),
+          ~var_err=InVarHole(Keyword(Expanding(k)), u),
           k |> ExpandingKeyword.to_string,
         );
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
@@ -813,6 +816,7 @@ module Pat = {
       Succeeded((zp, ctx, u_gen));
     | Some(IntLit(_))
     | Some(FloatLit(_))
+    | Some(AssertLit)
     | Some(BoolLit(_)) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -826,7 +830,8 @@ module Pat = {
       }
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
-      let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+      let var =
+        UHPat.var(~var_err=InVarHole(Keyword(Expanding(k)), u), text);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
       Succeeded((zp, ctx, u_gen));
     | Some(Var(x)) =>
@@ -1976,10 +1981,10 @@ module Exp = {
       (UHExp.mk_OpSeq(S(hole, suffix)), u_gen);
     };
 
-  let keyword_action = (kw: ExpandingKeyword.t): t =>
+  let keyword_action = (kw: ExpInvalidKeyword.t): t =>
     switch (kw) {
-    | Let => Construct(SLet)
-    | Case => Construct(SCase)
+    | Expanding(Let) => Construct(SLet)
+    | Expanding(Case) => Construct(SCase)
     };
 
   let delete_operator =
@@ -2198,11 +2203,14 @@ module Exp = {
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+    | Some(AssertLit) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit()));
+      Succeeded(SynDone((ze, HTyp.Arrow(Bool, Prod([])), u_gen)));
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
-          ~var_err=InVarHole(Keyword(k), u),
+          ~var_err=InVarHole(Keyword(Expanding(k)), u),
           k |> ExpandingKeyword.to_string,
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -2253,12 +2261,14 @@ module Exp = {
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
-          ~var_err=InVarHole(Keyword(k), u),
+          ~var_err=InVarHole(Keyword(Expanding(k)), u),
           k |> ExpandingKeyword.to_string,
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(
+        IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_) | AssertLit,
+      ) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -3196,7 +3206,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+          AssertLit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3263,6 +3274,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+    | (Delete, CursorE(OnText(j), AssertLit(_))) =>
+      syn_delete_text(ctx, u_gen, j, "assert")
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
@@ -3271,6 +3284,8 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+    | (Backspace, CursorE(OnText(j), AssertLit(_))) =>
+      syn_backspace_text(ctx, u_gen, j, "assert")
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -4536,7 +4551,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+          AssertLit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -4646,6 +4662,8 @@ module Exp = {
       ana_delete_text(ctx, u_gen, j, f, ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Delete, CursorE(OnText(j), AssertLit(_))) =>
+      ana_delete_text(ctx, u_gen, j, "assert", ty)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -4655,6 +4673,8 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Backspace, CursorE(OnText(j), AssertLit(_))) =>
+      ana_backspace_text(ctx, u_gen, j, "assert", ty)
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>

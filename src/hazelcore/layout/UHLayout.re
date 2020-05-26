@@ -228,12 +228,12 @@ let find_and_decorate_cursor =
 let find_and_decorate_var_use =
   find_and_decorate_Term(~decorate_Term=(term_data, l) =>
     switch (term_data) {
-    | {shape: Var(var_data), _} =>
+    | {shape: ExpVar(var_data), _} =>
       l
       |> Layout.annot(
            UHAnnot.Term({
              ...term_data,
-             shape: Var({...var_data, show_use: true}),
+             shape: ExpVar({...var_data, show_use: true}),
            }),
          )
     | _ => failwith(__LOC__ ++ ": var not found")

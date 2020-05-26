@@ -103,7 +103,7 @@ type t =
       t,
     )
   // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
+  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpInvalidKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
@@ -112,6 +112,8 @@ type t =
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
+  | AssertLit
+  | FailedAssert
   | FloatLit(float)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
@@ -148,6 +150,8 @@ let constructor_string = (d: t): string =>
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
+  | AssertLit => "AssertLit"
+  | FailedAssert => "FailedAssert"
   | FloatLit(_) => "FloatLit"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"

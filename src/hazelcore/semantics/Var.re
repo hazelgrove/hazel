@@ -22,6 +22,8 @@ let is_true = eq("true");
 
 let is_false = eq("false");
 
+let is_assert = eq("assert");
+
 let is_let = eq("let");
 
 let is_case = eq("case");

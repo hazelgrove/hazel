@@ -67,6 +67,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_)
+  | AssertLit(_)
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _)

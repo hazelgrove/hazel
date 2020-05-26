@@ -141,7 +141,7 @@ module Pat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    //| Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
@@ -357,7 +357,7 @@ module Pat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    //| Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
@@ -479,6 +479,8 @@ module Exp = {
     | IntLit(_)
     | FloatLit(_)
     | ListNil(_)
+    | AssertLit
+    | FailedAssert
     | Triv => d2
     | Cons(d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -727,6 +729,8 @@ module Exp = {
     | BinFloatOp(_, _, _)
     | And(_, _)
     | Or(_, _) => Indet
+    | AssertLit => Indet
+    | FailedAssert => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -787,6 +791,8 @@ module Exp = {
     | BinFloatOp(_, _, _)
     | And(_, _)
     | Or(_, _) => Indet
+    | AssertLit => Indet
+    | FailedAssert => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -845,6 +851,8 @@ module Exp = {
     | BinFloatOp(_, _, _)
     | And(_, _)
     | Or(_, _) => Indet
+    | AssertLit => Indet
+    | FailedAssert => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -1141,6 +1149,7 @@ module Exp = {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
+    | AssertLit(InHole(TypeInconsistent as reason, u))
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
@@ -1166,6 +1175,7 @@ module Exp = {
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
+    | AssertLit(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -1242,6 +1252,8 @@ module Exp = {
       | None => DoesNotExpand
       }
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
+    | AssertLit(NotInHole) =>
+      Expands(AssertLit, Arrow(Bool, Prod([])), delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
       Expands(ListNil(elt_ty), List(elt_ty), delta);
@@ -1559,6 +1571,7 @@ module Exp = {
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
+    | AssertLit(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -1578,6 +1591,7 @@ module Exp = {
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
+    | AssertLit(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
@@ -1679,6 +1693,7 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | IntLit(NotInHole, _)
+    | AssertLit(NotInHole)
     | FloatLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _) =>
       /* subsumption */
@@ -1736,6 +1751,8 @@ module Exp = {
     | BoundVar(_)
     | BoolLit(_)
     | IntLit(_)
+    | AssertLit
+    | FailedAssert
     | FloatLit(_)
     | ListNil(_)
     | Triv => (d, hii)
@@ -1843,6 +1860,8 @@ module Exp = {
     | BoundVar(_)
     | BoolLit(_)
     | IntLit(_)
+    | AssertLit
+    | FailedAssert
     | FloatLit(_)
     | ListNil(_)
     | Triv => (d, hii)
@@ -2088,6 +2107,14 @@ module Evaluator = {
     | Ap(d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(AssertLit) =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(BoolLit(b)) =>
+          b ? BoxedValue(Triv) : BoxedValue(FailedAssert)
+        | BoxedValue(v) => Indet(v)
+        | Indet(d2') => Indet(d2')
+        }
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
@@ -2123,6 +2150,8 @@ module Evaluator = {
     | IntLit(_)
     | FloatLit(_)
     | Triv => BoxedValue(d)
+    | FailedAssert => Indet(FailedAssert)
+    | AssertLit => BoxedValue(d)
     | And(d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
