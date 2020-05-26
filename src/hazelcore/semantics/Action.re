@@ -3691,11 +3691,7 @@ module Exp = {
     | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       failwith("unimplemented")
 
     /* Backspace & Delete */
