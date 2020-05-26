@@ -674,12 +674,11 @@ module Typ = {
         _,
         CursorT(
           OnText(_) | OnOp(_),
-          /* everything other than TyVar's */
-          Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_),
+          Hole | Unit | Parenthesized(_) | List(_),
         ),
       ) =>
       Failed
-    | (_, CursorT(OnDelim(_) | OnOp(_), TyVar(_, _))) => Failed
+    | (_, CursorT(OnDelim(_) | OnOp(_), TyVar(_, _) | Int | Float | Bool)) => Failed
     | (_, CursorT(OnDelim(_) as cursor, operand))
         when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
       Failed

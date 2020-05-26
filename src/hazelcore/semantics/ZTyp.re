@@ -95,9 +95,10 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_)) as operand =>
+  | (Hole | Unit | Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(0, Before), operand)
-  | TyVar(_) as operand => CursorT(OnText(0), operand);
+  | (TyVar(_) | Int | Float | Bool) as operand =>
+    CursorT(OnText(0), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
 
@@ -106,8 +107,10 @@ and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool) as operand =>
-    CursorT(OnDelim(0, After), operand)
+  | (Hole | Unit) as operand => CursorT(OnDelim(0, After), operand)
+  | Int as operand => CursorT(OnText(3), operand)
+  | Float as operand => CursorT(OnText(5), operand)
+  | Bool as operand => CursorT(OnText(4), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand)
   | TyVar(_, x) as operand => CursorT(OnText(TyId.length(x)), operand);
