@@ -6,6 +6,7 @@ module BinIntOp = {
     | Minus
     | Plus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals;
@@ -15,12 +16,14 @@ module BinIntOp = {
     | Minus => Some((Minus, Int))
     | Plus => Some((Plus, Int))
     | Times => Some((Times, Int))
+    | Divide => Some((Divide, Int))
     | LessThan => Some((LessThan, Bool))
     | GreaterThan => Some((GreaterThan, Bool))
     | Equals => Some((Equals, Bool))
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals
@@ -36,6 +39,7 @@ module BinIntOp = {
     | Minus => Minus
     | Plus => Plus
     | Times => Times
+    | Divide => Divide
     | LessThan => LessThan
     | GreaterThan => GreaterThan
     | Equals => Equals
@@ -48,6 +52,7 @@ module BinFloatOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals;
@@ -57,12 +62,14 @@ module BinFloatOp = {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
     | FTimes => Some((FTimes, Float))
+    | FDivide => Some((FDivide, Float))
     | FLessThan => Some((FLessThan, Bool))
     | FGreaterThan => Some((FGreaterThan, Bool))
     | FEquals => Some((FEquals, Bool))
     | Plus
     | Minus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals
@@ -78,6 +85,7 @@ module BinFloatOp = {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
+    | FDivide => FDivide
     | FLessThan => FLessThan
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals
@@ -114,11 +122,18 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
-  | Case(t, list(rule), int)
+  /* TODO: Is this the right way to handle things? */
+  | ConsistentCase(case)
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
+  | InvalidOperation(operation)
+and case =
+  | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, t);
+  | Rule(DHPat.t, t)
+and operation =
+  | DivideByZero(t);
 
 let constructor_string = (d: t): string =>
   switch (d) {
@@ -143,9 +158,11 @@ let constructor_string = (d: t): string =>
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"
   | Triv => "Triv"
-  | Case(_, _, _) => "Case"
+  | ConsistentCase(_) => "ConsistentCase"
+  | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
+  | InvalidOperation(_) => "InvalidOperation"
   };
 
 let rec make_tuple: list(t) => t =

@@ -40,6 +40,7 @@ module Action = {
     //
     | ToggleMemoizeDoc
     | SelectHoleInstance(HoleInstance.t)
+    | SelectCaseBranch(CursorPath.steps, int)
     | InvalidVar(string)
     | FocusCell
     | BlurCell
@@ -98,6 +99,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleShowUnevaluatedExpansion
   | ToggleMemoizeDoc
   | SelectHoleInstance(_)
+  | SelectCaseBranch(_)
   | InvalidVar(_)
   | FocusCell
   | ToggleMeasureTimes
@@ -272,6 +274,8 @@ let apply_action =
       //
       | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
+      | SelectCaseBranch(path_to_case, branch_index) =>
+        Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell

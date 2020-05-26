@@ -175,6 +175,21 @@ let holes_verr =
   | InVarHole(_, u) => [(hole_desc(u), rev_steps |> List.rev), ...hs]
   };
 
+let holes_case_err =
+    (
+      ~hole_desc: MetaVar.t => hole_desc,
+      err: CaseErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (err) {
+  | StandardErrStatus(err) => holes_err(~hole_desc, err, rev_steps, hs)
+  | InconsistentBranches(_, u) => [
+      (hole_desc(u), rev_steps |> List.rev),
+      ...hs,
+    ]
+  };
+
 let holes_skel =
     (
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
@@ -692,13 +707,6 @@ module Pat = {
     | [_, ..._] => None
     };
 
-  exception NotFound(t, UHPat.t);
-  let follow_or_fail = (path: t, p: UHPat.t): ZPat.t =>
-    switch (follow(path, p)) {
-    | None => raise(NotFound(path, p))
-    | Some(zp) => zp
-    };
-
   let hole_desc = (u: MetaVar.t): hole_desc => PatHole(u);
 
   let rec holes = (p: UHPat.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
@@ -849,13 +857,11 @@ module Exp = {
     | LamZA(_, _, zann, _) => cons'(1, Typ.of_z(zann))
     | LamZE(_, _, _, zdef) => cons'(2, of_z(zdef))
     | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
-    | CaseZE(_, zscrut, _, _) => cons'(0, of_z(zscrut))
-    | CaseZR(_, _, zrules, _) =>
+    | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
+    | CaseZR(_, _, zrules) =>
       let prefix_len = List.length(ZList.prj_prefix(zrules));
       let zrule = ZList.prj_z(zrules);
       cons'(prefix_len + 1, of_zrule(zrule));
-    | CaseZA(_, _, rules, zann) =>
-      cons'(List.length(rules) + 1, Typ.of_z(zann))
     | ApPaletteZ(_, _, _, zpsi) =>
       let zhole_map = zpsi.zsplice_map;
       let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
@@ -864,6 +870,11 @@ module Exp = {
   and of_zoperator = (zoperator: ZExp.zoperator): t => {
     let (cursor, _) = zoperator;
     ([], cursor);
+  }
+  and of_zrules = (zrules: ZExp.zrules): t => {
+    let prefix_len = List.length(ZList.prj_prefix(zrules));
+    let zrule = ZList.prj_z(zrules);
+    cons'(prefix_len, of_zrule(zrule));
   }
   and of_zrule = (zrule: ZExp.zrule): t =>
     switch (zrule) {
@@ -971,27 +982,19 @@ module Exp = {
           |> OptUtil.map(zbody => ZExp.InjZ(err, side, zbody))
         | _ => None
         }
-      | Case(err, scrut, rules, ann) =>
+      | Case(err, scrut, rules) =>
         switch (x) {
         | 0 =>
           scrut
           |> follow((xs, cursor))
-          |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules, ann))
-        | _ when x == List.length(rules) + 1 =>
-          switch (ann) {
-          | None => None
-          | Some(ann) =>
-            ann
-            |> Typ.follow((xs, cursor))
-            |> OptUtil.map(zann => ZExp.CaseZA(err, scrut, rules, zann))
-          }
+          |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
         | _ =>
           switch (ZList.split_at(x - 1, rules)) {
           | None => None
           | Some(split_rules) =>
             split_rules
             |> ZList.optmap_z(follow_rule((xs, cursor)))
-            |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules, ann))
+            |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules))
           }
         }
       | ApPalette(err, name, serialized_model, splice_info) =>
@@ -1007,6 +1010,17 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
+      }
+    }
+  and follow_rules =
+      ((steps, cursor): t, rules: UHExp.rules): option(ZExp.zrules) =>
+    switch (steps) {
+    | [] => None
+    | [x, ...xs] =>
+      switch (ZList.split_at(x, rules)) {
+      | None => None
+      | Some(split_rules) =>
+        split_rules |> ZList.optmap_z(follow_rule((xs, cursor)))
       }
     }
   and follow_rule =
@@ -1150,26 +1164,19 @@ module Exp = {
           body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
         | _ => None
         }
-      | Case(_, scrut, rules, ann) =>
+      | Case(err, scrut, rules) =>
         switch (x) {
         | 0 =>
-          scrut |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(0, path))
-        | _ when x == List.length(rules) + 1 =>
-          switch (ann) {
-          | None => None
-          | Some(ann) =>
-            ann
-            |> Typ.of_steps(xs, ~side)
-            |> OptUtil.map(path => cons'(x, path))
-          }
+          scrut
+          |> follow_steps(~side, xs)
+          |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
         | _ =>
           switch (ZList.split_at(x - 1, rules)) {
           | None => None
           | Some(split_rules) =>
-            let (_, z, _) = split_rules;
-            z
-            |> of_steps_rule(xs, ~side)
-            |> OptUtil.map(path => cons'(x, path));
+            split_rules
+            |> ZList.optmap_z(follow_steps_rule(~side, xs))
+            |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules))
           }
         }
       | ApPalette(_, _, _, splice_info) =>
@@ -1180,18 +1187,6 @@ module Exp = {
           let (_, e) = ty_e;
           e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path));
         };
-      // switch (
-      //   ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
-      //     switch (follow_steps(~side, xs, e)) {
-      //     | None => None
-      //     | Some(ze) => Some((ty, ze))
-      //     }
-      //   )
-      // ) {
-      // | None => None
-      // | Some(zsplice_info) =>
-      //   Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
-      // }
       }
     }
   and of_steps_rule =
@@ -1215,22 +1210,9 @@ module Exp = {
       }
     };
 
-  exception NotFound;
-  let follow_or_fail = (path: t, e: UHExp.t): ZExp.t =>
-    switch (follow(path, e)) {
-    | None => raise(NotFound)
-    | Some(ze) => ze
-    };
-
-  let follow_operand_or_fail =
-      (path: t, operand: UHExp.operand): ZExp.zoperand =>
-    switch (follow_operand(path, operand)) {
-    | None => raise(NotFound)
-    | Some(zoperand) => zoperand
-    };
-
   let hole_desc = (u: MetaVar.t): hole_desc => ExpHole(u);
   let holes_err = holes_err(~hole_desc);
+  let holes_case_err = holes_case_err(~hole_desc);
   let holes_verr = holes_verr(~hole_desc);
 
   let rec holes = (e: UHExp.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
@@ -1290,22 +1272,15 @@ module Exp = {
       )
       |> Pat.holes(p, [0, ...rev_steps])
       |> holes_err(err, rev_steps)
-    | Case(err, scrut, rules, ann) =>
+    | Case(err, scrut, rules) =>
       hs
-      |> (
-        switch (ann) {
-        | None => (hs => hs)
-        | Some(ann) =>
-          Typ.holes(ann, [1 + List.length(rules), ...rev_steps])
-        }
-      )
       |> ListUtil.fold_right_i(
            ((i, rule), hs) =>
              hs |> holes_rule(rule, [1 + i, ...rev_steps]),
            rules,
          )
       |> holes(scrut, [0, ...rev_steps])
-      |> holes_err(err, rev_steps)
+      |> holes_case_err(err, rev_steps)
     | ApPalette(err, _, _, psi) =>
       let splice_map = psi.splice_map;
       let splice_order = psi.splice_order;
@@ -1527,11 +1502,13 @@ module Exp = {
         )
       | _ => no_holes
       };
-    | CursorE(OnDelim(k, _), Case(err, scrut, rules, ann)) =>
+    | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
       let hole_selected =
         switch (err) {
-        | NotInHole => None
-        | InHole(_, u) => Some((ExpHole(u), rev_steps |> List.rev))
+        | StandardErrStatus(NotInHole) => None
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) =>
+          Some((ExpHole(u), rev_steps |> List.rev))
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_rules =
@@ -1540,35 +1517,22 @@ module Exp = {
           rules,
           [],
         );
-      let holes_ann =
-        switch (ann) {
-        | None => []
-        | Some(ann) =>
-          Typ.holes(ann, [List.length(rules) + 1, ...rev_steps], [])
-        };
       switch (k) {
       | 0 =>
-        mk_zholes(
-          ~holes_after=holes_scrut @ holes_rules @ holes_ann,
-          ~hole_selected,
-          (),
-        )
+        mk_zholes(~holes_after=holes_scrut @ holes_rules, ~hole_selected, ())
       | 1 =>
         mk_zholes(
           ~holes_before=holes_scrut @ holes_rules,
           ~hole_selected,
-          ~holes_after=holes_ann,
+          ~holes_after=[],
           (),
         )
       | _ => no_holes
       };
-    | CursorE(
-        OnText(_),
-        Inj(_, _, _) | Parenthesized(_) | Lam(_, _, _, _) | Case(_, _, _, _),
-      ) =>
+    | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
       /* invalid cursor position */
       no_holes
-    | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO[livelits] */
+    | CursorE(_, ApPalette(_)) => no_holes /* TODO[livelits] */
     | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
     | LamZP(err, zp, ann, body) =>
       let holes_err =
@@ -1640,11 +1604,14 @@ module Exp = {
         ~holes_after,
         (),
       );
-    | CaseZE(err, zscrut, rules, ann) =>
+    | CaseZE(err, zscrut, rules) =>
       let holes_err =
         switch (err) {
-        | NotInHole => []
-        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        | StandardErrStatus(NotInHole) => []
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) => [
+            (ExpHole(u), rev_steps |> List.rev),
+          ]
         };
       let {holes_before, hole_selected, holes_after} =
         holes_z(zscrut, [0, ...rev_steps]);
@@ -1654,23 +1621,20 @@ module Exp = {
           rules,
           [],
         );
-      let holes_ann =
-        switch (ann) {
-        | None => []
-        | Some(uty) =>
-          Typ.holes(uty, [List.length(rules) + 1, ...rev_steps], [])
-        };
       mk_zholes(
         ~holes_before=holes_err @ holes_before,
         ~hole_selected,
-        ~holes_after=holes_after @ holes_rules @ holes_ann,
+        ~holes_after=holes_after @ holes_rules,
         (),
       );
-    | CaseZR(err, scrut, (prefix, zrule, suffix), ann) =>
+    | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
       let holes_err =
         switch (err) {
-        | NotInHole => []
-        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
+        | StandardErrStatus(NotInHole) => []
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) => [
+            (ExpHole(u), rev_steps |> List.rev),
+          ]
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_prefix =
@@ -1692,43 +1656,10 @@ module Exp = {
           suffix,
           [],
         );
-      let holes_ann =
-        switch (ann) {
-        | None => []
-        | Some(uty) =>
-          Typ.holes(
-            uty,
-            [
-              1 + List.length(prefix) + 1 + List.length(suffix),
-              ...rev_steps,
-            ],
-            [],
-          )
-        };
       {
-        holes_before: holes_err @ holes_scrut @ holes_before @ holes_prefix,
+        holes_before: holes_err @ holes_scrut @ holes_prefix @ holes_before,
         hole_selected,
-        holes_after: holes_suffix @ holes_after @ holes_ann,
-      };
-    | CaseZA(err, scrut, rules, zann) =>
-      let holes_err =
-        switch (err) {
-        | NotInHole => []
-        | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
-        };
-      let holes_scrut = holes(scrut, [0, ...rev_steps], []);
-      let holes_rules =
-        ListUtil.fold_right_i(
-          ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
-          rules,
-          [],
-        );
-      let {holes_before, hole_selected, holes_after} =
-        Typ.holes_z(zann, [1 + List.length(rules), ...rev_steps]);
-      {
-        holes_before: holes_err @ holes_scrut @ holes_rules @ holes_before,
-        hole_selected,
-        holes_after,
+        holes_after: holes_after @ holes_suffix,
       };
     | ApPaletteZ(_, _, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
@@ -1771,8 +1702,8 @@ module Exp = {
       // invalid cursor position
       no_holes
     | CursorR(OnDelim(k, _), Rule(p, clause)) =>
-      let holes_p = Pat.holes(p, [1, ...rev_steps], []);
-      let holes_clause = holes(clause, [0, ...rev_steps], []);
+      let holes_p = Pat.holes(p, [0, ...rev_steps], []);
+      let holes_clause = holes(clause, [1, ...rev_steps], []);
       switch (k) {
       | 0 => mk_zholes(~holes_after=holes_p @ holes_clause, ())
       | 1 => mk_zholes(~holes_before=holes_p, ~holes_after=holes_clause, ())
