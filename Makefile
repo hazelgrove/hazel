@@ -54,4 +54,10 @@ repl:
 clean:
 	dune clean
 
+<<<<<<< HEAD
 .PHONY: all deps dev release echo-html-dir echo-html win-chrome win-firefox repl clean
+=======
+HTML_DIR=_build/default/src/www
+echo-html-dir:
+	@echo "$(HTML_DIR)"
+>>>>>>> origin/master

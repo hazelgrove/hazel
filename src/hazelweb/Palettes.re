@@ -1,3 +1,7 @@
+<<<<<<< HEAD:src/hazelweb/Palettes.re
+=======
+open Js_of_ocaml_tyxml.Tyxml_js;
+>>>>>>> origin/master:src/Palettes.re
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
@@ -142,7 +146,7 @@ module type PALETTE = {
      let _ =
        List.map2(
          (c, elt) => {
-           let elt_dom = Tyxml_js.To_dom.of_div(elt);
+           let elt_dom = Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_div(elt);
            JSUtil.listen_to(
              Dom_html.Event.click,
              elt_dom,
@@ -209,7 +213,7 @@ module type PALETTE = {
      let checked_state = model ? [Html5.a_checked()] : [];
      let input_elt =
        Html5.(input(~a=[a_input_type(`Checkbox), ...checked_state], ()));
-     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
+     let input_dom = Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_input(input_elt);
      let view_span = Html5.(span([input_elt]));
      let _ =
        JSUtil.listen_to(
@@ -274,9 +278,9 @@ module type PALETTE = {
            (),
          )
        );
-     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
+     let input_dom = Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_input(input_elt);
      let label_elt = Html5.(label([txt(curValString(value))]));
-     let label_dom = Tyxml_js.To_dom.of_label(label_elt);
+     let label_dom = Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_label(label_elt);
      let decrease_range_button_elt =
        changeMaxButton("/ 10", m => max(10, m / 10));
      let increase_range_button_elt =

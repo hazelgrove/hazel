@@ -56,7 +56,12 @@ This link lets you type OCaml and see what the corresponding ReasonML syntax is:
 This is useful if you are trying to figure out the ReasonML syntax for something
 that you know the OCaml syntax for.
 
+<<<<<<< HEAD
 ### Suggested Extensions for VS Code
+=======
+### Results
+You can now open `_build/default/src/www/index.html` in a browser to see Hazel in action.
+>>>>>>> origin/master
 
 Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
 are a few extensions that might be helpful.
