@@ -1,4 +1,3 @@
-let _TEST_PERFORM = false;
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -410,7 +409,7 @@ module Typ = {
     };
 };
 
-let _syn_insert_text =
+let syn_insert_text_ =
     (
       ~mk_syn_text:
          (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
@@ -426,7 +425,7 @@ let _syn_insert_text =
     caret_index + String.length(insert_text),
     text |> StringUtil.insert(caret_index, insert_text),
   );
-let _ana_insert_text =
+let ana_insert_text_ =
     (
       ~mk_ana_text:
          (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
@@ -446,7 +445,7 @@ let _ana_insert_text =
     ty,
   );
 
-let _syn_backspace_text =
+let syn_backspace_text_ =
     (
       ~mk_syn_text:
          (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
@@ -462,7 +461,7 @@ let _syn_backspace_text =
     let new_text = text |> StringUtil.backspace(caret_index);
     mk_syn_text(ctx, u_gen, caret_index - 1, new_text);
   };
-let _ana_backspace_text =
+let ana_backspace_text_ =
     (
       ~mk_ana_text:
          (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
@@ -481,7 +480,7 @@ let _ana_backspace_text =
     mk_ana_text(ctx, u_gen, caret_index - 1, new_text, ty);
   };
 
-let _syn_delete_text =
+let syn_delete_text_ =
     (
       ~mk_syn_text:
          (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
@@ -497,7 +496,7 @@ let _syn_delete_text =
     let new_text = text |> StringUtil.delete(caret_index);
     mk_syn_text(ctx, u_gen, caret_index, new_text);
   };
-let _ana_delete_text =
+let ana_delete_text_ =
     (
       ~mk_ana_text:
          (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
@@ -516,7 +515,7 @@ let _ana_delete_text =
     mk_ana_text(ctx, u_gen, caret_index, new_text, ty);
   };
 
-let _construct_operator_after_zoperand =
+let construct_operator_after_zoperand_ =
     (
       ~is_Space: 'operator => bool,
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
@@ -554,7 +553,7 @@ let _construct_operator_after_zoperand =
     (ZOperator(zoperator, (new_prefix, new_suffix)), u_gen);
   };
 };
-let _construct_operator_before_zoperand =
+let construct_operator_before_zoperand_ =
     (
       ~is_Space: 'operator => bool,
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
@@ -570,7 +569,7 @@ let _construct_operator_before_zoperand =
   // symmetric to construct_operator_after_zoperand
   let mirror_surround = (suffix, prefix);
   let (mirror_zseq, u_gen) =
-    _construct_operator_after_zoperand(
+    construct_operator_after_zoperand_(
       ~is_Space,
       ~new_EmptyHole,
       ~erase_zoperand,
@@ -589,7 +588,7 @@ let _construct_operator_before_zoperand =
   (zseq, u_gen);
 };
 
-let _delete_operator =
+let delete_operator_ =
     (
       ~space: 'operator,
       ~is_EmptyHole: 'operand => bool,
@@ -639,7 +638,7 @@ let _delete_operator =
  * Assumes no commas in input opseq and that ty is
  * an n-product where n >= 2.
  */
-let _complete_tuple =
+let complete_tuple_ =
     (
       ~mk_ZOpSeq:
          ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
@@ -848,12 +847,12 @@ module Pat = {
     };
   };
 
-  let syn_insert_text = _syn_insert_text(~mk_syn_text);
-  let ana_insert_text = _ana_insert_text(~mk_ana_text);
-  let syn_backspace_text = _syn_backspace_text(~mk_syn_text);
-  let ana_backspace_text = _ana_backspace_text(~mk_ana_text);
-  let syn_delete_text = _syn_delete_text(~mk_syn_text);
-  let ana_delete_text = _ana_delete_text(~mk_ana_text);
+  let syn_insert_text = syn_insert_text_(~mk_syn_text);
+  let ana_insert_text = ana_insert_text_(~mk_ana_text);
+  let syn_backspace_text = syn_backspace_text_(~mk_syn_text);
+  let ana_backspace_text = ana_backspace_text_(~mk_ana_text);
+  let syn_delete_text = syn_delete_text_(~mk_syn_text);
+  let ana_delete_text = ana_delete_text_(~mk_ana_text);
 
   let syn_split_text =
       (
@@ -914,7 +913,7 @@ module Pat = {
   };
 
   let delete_operator =
-    _delete_operator(
+    delete_operator_(
       ~space=Operators.Pat.Space,
       ~is_EmptyHole=UHPat.is_EmptyHole,
       ~place_before_operand=ZPat.place_before_operand,
@@ -923,7 +922,7 @@ module Pat = {
     );
 
   let construct_operator_before_zoperand =
-    _construct_operator_before_zoperand(
+    construct_operator_before_zoperand_(
       ~is_Space=Operators.Pat.is_Space,
       ~new_EmptyHole=UHPat.new_EmptyHole,
       ~erase_zoperand=ZPat.erase_zoperand,
@@ -931,7 +930,7 @@ module Pat = {
       ~place_after_operator=ZPat.place_after_operator,
     );
   let construct_operator_after_zoperand =
-    _construct_operator_after_zoperand(
+    construct_operator_after_zoperand_(
       ~is_Space=Operators.Pat.is_Space,
       ~new_EmptyHole=UHPat.new_EmptyHole,
       ~erase_zoperand=ZPat.erase_zoperand,
@@ -940,7 +939,7 @@ module Pat = {
     );
 
   let complete_tuple =
-    _complete_tuple(
+    complete_tuple_(
       ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
       ~comma=Operators.Pat.Comma,
       ~zcomma=(OnOp(After), Operators.Pat.Comma),
@@ -2181,7 +2180,7 @@ module Exp = {
     };
 
   let delete_operator =
-    _delete_operator(
+    delete_operator_(
       ~space=Operators.Exp.Space,
       ~is_EmptyHole=UHExp.is_EmptyHole,
       ~place_before_operand=ZExp.place_before_operand,
@@ -2190,7 +2189,7 @@ module Exp = {
     );
 
   let construct_operator_before_zoperand =
-    _construct_operator_before_zoperand(
+    construct_operator_before_zoperand_(
       ~is_Space=Operators.Exp.is_Space,
       ~new_EmptyHole=UHExp.new_EmptyHole,
       ~erase_zoperand=ZExp.erase_zoperand,
@@ -2198,7 +2197,7 @@ module Exp = {
       ~place_after_operator=ZExp.place_after_operator,
     );
   let construct_operator_after_zoperand =
-    _construct_operator_after_zoperand(
+    construct_operator_after_zoperand_(
       ~is_Space=Operators.Exp.is_Space,
       ~new_EmptyHole=UHExp.new_EmptyHole,
       ~erase_zoperand=ZExp.erase_zoperand,
@@ -2207,7 +2206,7 @@ module Exp = {
     );
 
   let complete_tuple =
-    _complete_tuple(
+    complete_tuple_(
       ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
       ~comma=Operators.Exp.Comma,
       ~zcomma=(OnOp(After), Operators.Exp.Comma),
@@ -2472,12 +2471,12 @@ module Exp = {
     };
   };
 
-  let syn_insert_text = _syn_insert_text(~mk_syn_text);
-  let ana_insert_text = _ana_insert_text(~mk_ana_text);
-  let syn_backspace_text = _syn_backspace_text(~mk_syn_text);
-  let ana_backspace_text = _ana_backspace_text(~mk_ana_text);
-  let syn_delete_text = _syn_delete_text(~mk_syn_text);
-  let ana_delete_text = _ana_delete_text(~mk_ana_text);
+  let syn_insert_text = syn_insert_text_(~mk_syn_text);
+  let ana_insert_text = ana_insert_text_(~mk_ana_text);
+  let syn_backspace_text = syn_backspace_text_(~mk_syn_text);
+  let ana_backspace_text = ana_backspace_text_(~mk_ana_text);
+  let syn_delete_text = syn_delete_text_(~mk_syn_text);
+  let ana_delete_text = ana_delete_text_(~mk_ana_text);
 
   let syn_split_text =
       (
