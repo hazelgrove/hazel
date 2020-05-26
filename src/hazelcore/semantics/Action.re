@@ -7,7 +7,7 @@ type operator_shape =
   | SPlus
   | STimes
   | SDivide
-  | SPlusPlus
+  | SCaret
   | SLessThan
   | SGreaterThan
   | SEquals
@@ -79,7 +79,7 @@ module Typ = {
     | SPlus
     | STimes
     | SDivide
-    | SPlusPlus
+    | SCaret
     | SAnd
     | SOr
     | SLessThan
@@ -703,7 +703,7 @@ module Pat = {
     | SPlus
     | STimes
     | SDivide
-    | SPlusPlus
+    | SCaret
     | SLessThan
     | SGreaterThan
     | SEquals
@@ -2088,7 +2088,7 @@ module Exp = {
     | SMinus => Some(Minus)
     | STimes => Some(Times)
     | SDivide => Some(Divide)
-    | SPlusPlus => Some(PlusPlus)
+    | SCaret => Some(Caret)
     | SLessThan => Some(LessThan)
     | SGreaterThan => Some(GreaterThan)
     | SEquals => Some(Equals)
@@ -2122,7 +2122,7 @@ module Exp = {
     | FLessThan
     | FGreaterThan
     | FEquals => None
-    | PlusPlus => Some(SPlusPlus)
+    | Caret => Some(SCaret)
     };
 
   let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>

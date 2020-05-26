@@ -876,7 +876,7 @@ module Exp = {
       | Some(_) =>
         ana_skel(ctx, skel2, seq, HTyp.Bool) |> OptUtil.map(_ => HTyp.Bool)
       }
-    | BinOp(NotInHole, PlusPlus, skel1, skel2) =>
+    | BinOp(NotInHole, Caret, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.String)) {
       | None => None
       | Some(_) =>
@@ -1143,7 +1143,7 @@ module Exp = {
         FGreaterThan |
         FEquals |
         Space |
-        PlusPlus,
+        Caret,
         _,
         _,
       ) =>
@@ -1345,7 +1345,7 @@ module Exp = {
       | BinOp(NotInHole, And | Or, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
-      | BinOp(NotInHole, PlusPlus, skel1, skel2) =>
+      | BinOp(NotInHole, Caret, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? ana_go(skel1, String) : ana_go(skel2, String)
       | BinOp(NotInHole, Equals, skel1, skel2) =>
@@ -1431,7 +1431,7 @@ module Exp = {
           FGreaterThan |
           FEquals |
           Space |
-          PlusPlus,
+          Caret,
           _,
           _,
         ) =>
@@ -1621,7 +1621,7 @@ module Exp = {
           HTyp.Bool,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
-    | BinOp(_, PlusPlus as op, skel1, skel2) =>
+    | BinOp(_, Caret as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -2165,7 +2165,7 @@ module Exp = {
         FGreaterThan |
         FEquals |
         Space |
-        PlusPlus,
+        Caret,
         _,
         _,
       ) =>

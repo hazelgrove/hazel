@@ -1156,7 +1156,7 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, PlusPlus as op, skel1, skel2) =>
+    | BinOp(NotInHole, Caret as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, String)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1616,7 +1616,7 @@ module Exp = {
         FEquals |
         And |
         Or |
-        PlusPlus |
+        Caret |
         Space,
         _,
         _,
@@ -2190,7 +2190,7 @@ module Evaluator = {
   let eval_bin_str_op =
       (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
     switch (op) {
-    | PlusPlus => StringLit(n1 ++ n2)
+    | Caret => StringLit(n1 ++ n2)
     };
 
   let rec evaluate = (d: DHExp.t): result =>

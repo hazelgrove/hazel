@@ -13,14 +13,14 @@ let precedence_Divide = 2;
 let precedence_Plus = 3;
 let precedence_Minus = 3;
 let precedence_Cons = 4;
-let precedence_PlusPlus = 4;
-let precedence_Equals = 5;
-let precedence_LessThan = 5;
-let precedence_GreaterThan = 5;
-let precedence_And = 6;
-let precedence_Or = 7;
-let precedence_Comma = 8;
-let precedence_max = 9;
+let precedence_Caret = 5;
+let precedence_Equals = 6;
+let precedence_LessThan = 6;
+let precedence_GreaterThan = 6;
+let precedence_And = 7;
+let precedence_Or = 8;
+let precedence_Comma = 9;
+let precedence_max = 10;
 
 let pad_child =
     (
@@ -224,7 +224,7 @@ module Exp = {
 
   let precedence_bin_str_op = (bso: DHExp.BinStrOp.t) =>
     switch (bso) {
-    | PlusPlus => precedence_PlusPlus
+    | Caret => precedence_Caret
     };
 
   let rec precedence = (~show_casts: bool, d: DHExp.t) => {
@@ -249,7 +249,7 @@ module Exp = {
     | FixF(_)
     | ConsistentCase(_)
     | InconsistentBranches(_) => precedence_max
-    | Subscript(_) => precedence_Subscript /* TODO: is this right */
+    | Subscript(_) => precedence_Subscript
     | BinIntOp(op, _, _) => precedence_bin_int_op(op)
     | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
     | BinStrOp(op, _, _) => precedence_bin_str_op(op)
@@ -291,7 +291,7 @@ module Exp = {
   let mk_bin_str_op = (op: DHExp.BinStrOp.t): t =>
     Doc.text(
       switch (op) {
-      | PlusPlus => "^"
+      | Caret => "^"
       },
     );
 

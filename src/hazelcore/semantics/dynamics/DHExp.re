@@ -32,7 +32,7 @@ module BinIntOp = {
     | Space
     | Cons
     | Comma
-    | PlusPlus => None
+    | Caret => None
     };
 
   let to_op = (bio: t): UHExp.operator =>
@@ -79,7 +79,7 @@ module BinFloatOp = {
     | Space
     | Cons
     | Comma
-    | PlusPlus => None
+    | Caret => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
@@ -97,11 +97,11 @@ module BinFloatOp = {
 module BinStrOp = {
   [@deriving sexp]
   type t =
-    | PlusPlus;
+    | Caret;
 
   let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | PlusPlus => Some((PlusPlus, String))
+    | Caret => Some((Caret, String))
     | Minus
     | Plus
     | Times
@@ -125,7 +125,7 @@ module BinStrOp = {
 
   let to_op = (bso: t): UHExp.operator =>
     switch (bso) {
-    | PlusPlus => PlusPlus
+    | Caret => Caret
     };
 };
 
