@@ -14,10 +14,10 @@ type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
-  | Unit
-  | Int
-  | Float
-  | Bool => CursorPosition.delim_cursors(1)
+  | Unit => CursorPosition.delim_cursors(1)
+  | Int => CursorPosition.text_cursors(3)
+  | Float => CursorPosition.text_cursors(5)
+  | Bool => CursorPosition.text_cursors(4)
   | TyVar(_, x) => CursorPosition.text_cursors(TyId.length(x))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
@@ -58,11 +58,11 @@ and is_before_zoperand =
   fun
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
+  | CursorT(cursor, Parenthesized(_))
+  | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
-  | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | CursorT(cursor, TyVar(_)) => cursor == OnText(0)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
@@ -76,10 +76,10 @@ and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
   | CursorT(cursor, Hole)
-  | CursorT(cursor, Unit)
-  | CursorT(cursor, Int)
-  | CursorT(cursor, Float)
-  | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
+  | CursorT(cursor, Unit) => cursor == OnDelim(0, After)
+  | CursorT(cursor, Int) => cursor == OnText(3)
+  | CursorT(cursor, Float) => cursor == OnText(5)
+  | CursorT(cursor, Bool) => cursor == OnText(4)
   | CursorT(cursor, TyVar(_, x)) => cursor == OnText(TyId.length(x))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
