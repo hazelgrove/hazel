@@ -161,3 +161,10 @@ and is_complete = (ty: t) => {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 };
+
+let of_string = 
+  fun 
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
+  | _ => failwith("impossible");

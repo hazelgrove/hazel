@@ -715,9 +715,12 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), u_gen))
 
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
+    | (Backspace, CursorT(OnDelim(_, After), Unit)) =>
       Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), u_gen))
-
+    | (Backspace, CursorT(OnText(caret_index), (Int | Bool | Float) as operand)) =>
+      backspace_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string)
+    | (Delete, CursorT(OnText(caret_index), (Int | Bool | Float) as operand)) =>
+      delete_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string)
     /* TyVar-related Backspace & Delete */
     | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
       delete_text(ctx, u_gen, caret_index, text)
