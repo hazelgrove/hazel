@@ -489,14 +489,14 @@ module Exp = {
               let (d_doc, _) = go'(Subscript(d1, d2, d3));
               let subscript_decoration =
                 Doc.text("Error: index out of bound")
-                |> annot(DHAnnot.FailedSubscriptDecoration);
+                |> annot(DHAnnot.InvalidOpDecoration);
               hcats([d_doc, subscript_decoration]);
             | (StringLit(d1'), _, IntLit(d3'))
                 when d3' < 0 || d3' >= String.length(d1') =>
               let (d_doc, _) = go'(Subscript(d1, d2, d3));
               let subscript_decoration =
                 Doc.text("Error: index out of bound")
-                |> annot(DHAnnot.FailedSubscriptDecoration);
+                |> annot(DHAnnot.InvalidOpDecoration);
               hcats([d_doc, subscript_decoration]);
             | (_, _, _) => failwith("impossible")
             }
