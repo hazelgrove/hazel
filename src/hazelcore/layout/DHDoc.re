@@ -480,33 +480,20 @@ module Exp = {
           hcats([d_doc, cast_decoration]);
         | FailedCast(_d, _ty1, _ty2) =>
           failwith("unexpected FailedCast without inner cast")
-        | InvalidOperation(operation) =>
-          switch (operation) {
-          | FailedSubscript(Subscript(d1, d2, d3)) =>
-            switch (d1, d2, d3) {
-            | (StringLit(d1'), IntLit(d2'), _)
-                when d2' < 0 || d2' >= String.length(d1') =>
-              let (d_doc, _) = go'(Subscript(d1, d2, d3));
-              let subscript_decoration =
-                Doc.text("Error: index out of bound")
-                |> annot(DHAnnot.InvalidOpDecoration);
-              hcats([d_doc, subscript_decoration]);
-            | (StringLit(d1'), _, IntLit(d3'))
-                when d3' < 0 || d3' >= String.length(d1') =>
-              let (d_doc, _) = go'(Subscript(d1, d2, d3));
-              let subscript_decoration =
-                Doc.text("Error: index out of bound")
-                |> annot(DHAnnot.InvalidOpDecoration);
-              hcats([d_doc, subscript_decoration]);
-            | (_, _, _) => failwith("impossible")
-            }
-          | DivideByZero(BinIntOp(Divide, _, IntLit(0)) as expr) =>
-            let (d_doc, _) = go'(expr);
+        | InvalidOperation(d, err) =>
+          switch (err) {
+          | DivideByZero =>
+            let (d_doc, _) = go'(d);
             let decoration =
-              Doc.text("Error: Divide by Zero")
-              |> annot(DHAnnot.DivideByZero);
+              Doc.text(ErrStatus.RunTime.err_msg(err))
+              |> annot(DHAnnot.InvalidOpDecoration);
             hcats([d_doc, decoration]);
-          | _ => failwith("impossible")
+          | IndexOutBound =>
+            let (d_doc, _) = go'(d);
+            let decoration =
+              Doc.text(ErrStatus.RunTime.err_msg(err))
+              |> annot(DHAnnot.InvalidOpDecoration);
+            hcats([d_doc, decoration]);
           }
         | Lam(dp, ty, dbody) =>
           if (show_fn_bodies) {

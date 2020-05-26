@@ -166,14 +166,11 @@ type t =
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
-  | InvalidOperation(operation)
+  | InvalidOperation(t, ErrStatus.RunTime.t)
 and case =
   | Case(t, list(rule), int)
 and rule =
-  | Rule(DHPat.t, t)
-and operation =
-  | FailedSubscript(t)
-  | DivideByZero(t);
+  | Rule(DHPat.t, t);
 
 let constructor_string = (d: t): string =>
   switch (d) {

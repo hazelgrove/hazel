@@ -546,15 +546,9 @@ module Exp = {
     | FailedCast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       FailedCast(d', ty1, ty2);
-    | InvalidOperation(op) =>
-      switch (op) {
-      | FailedSubscript(d) =>
-        let d' = subst_var(d1, x, d);
-        InvalidOperation(FailedSubscript(d'));
-      | DivideByZero(d) =>
-        let d' = subst_var(d1, x, d);
-        InvalidOperation(DivideByZero(d'));
-      }
+    | InvalidOperation(d, err) =>
+      let d' = subst_var(d1, x, d);
+      InvalidOperation(d', err);
     }
   and subst_var_rules =
       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -1908,15 +1902,9 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
-    | InvalidOperation(op) =>
-      switch (op) {
-      | FailedSubscript(d) =>
-        let (d, hii) = renumber_result_only(path, hii, d);
-        (InvalidOperation(FailedSubscript(d)), hii);
-      | DivideByZero(d) =>
-        let (d, hii) = renumber_result_only(path, hii, d);
-        (InvalidOperation(DivideByZero(d)), hii);
-      }
+    | InvalidOperation(d, err) =>
+      let (d, hii) = renumber_result_only(path, hii, d);
+      (InvalidOperation(d, err), hii);
     }
   and renumber_result_only_rules =
       (
@@ -2033,15 +2021,9 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
-    | InvalidOperation(op) =>
-      switch (op) {
-      | FailedSubscript(d) =>
-        let (d, hii) = renumber_sigmas_only(path, hii, d);
-        (InvalidOperation(FailedSubscript(d)), hii);
-      | DivideByZero(d) =>
-        let (d, hii) = renumber_sigmas_only(path, hii, d);
-        (InvalidOperation(DivideByZero(d)), hii);
-      }
+    | InvalidOperation(d, err) =>
+      let (d, hii) = renumber_sigmas_only(path, hii, d);
+      (InvalidOperation(d, err), hii);
     }
   and renumber_sigmas_only_rules =
       (
@@ -2271,7 +2253,7 @@ module Evaluator = {
               );
             } else {
               Indet(
-                InvalidOperation(FailedSubscript(Subscript(s1', n1', n2'))),
+                InvalidOperation(Subscript(s1', n1', n2'), IndexOutBound),
               );
             };
           | BoxedValue(_) => InvalidInput(3)
@@ -2362,7 +2344,8 @@ module Evaluator = {
           | (Divide, _, 0) =>
             Indet(
               InvalidOperation(
-                DivideByZero(BinIntOp(op, IntLit(n1), IntLit(n2))),
+                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                DivideByZero,
               ),
             )
           | _ =>
@@ -2553,20 +2536,11 @@ module Evaluator = {
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
       }
-    | InvalidOperation(op) =>
-      switch (op) {
-      | FailedSubscript(d) =>
-        switch (evaluate(d)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(d')
-        | Indet(d') => Indet(InvalidOperation(FailedSubscript(d')))
-        }
-      | DivideByZero(d) =>
-        switch (evaluate(d)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(d')
-        | Indet(d') => Indet(InvalidOperation(DivideByZero(d')))
-        }
+    | InvalidOperation(d, err) =>
+      switch (evaluate(d)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d')
+      | Indet(d') => Indet(InvalidOperation(d', err))
       }
     }
   and evaluate_case =
