@@ -459,6 +459,24 @@ module Typ = {
       } else {
         Failed;
       }
+    | Some(Bool) => 
+      let text_cursor = CursorPosition.OnText(caret_index);
+      Succeeded((
+        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
+        u_gen,
+      ));
+    | Some(Int) =>
+      let text_cursor = CursorPosition.OnText(caret_index);
+      Succeeded((
+        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
+        u_gen,
+      ));
+    | Some(Float) =>
+      let text_cursor = CursorPosition.OnText(caret_index);
+      Succeeded((
+        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
+        u_gen,
+      ));
     | Some(ExpandingKeyword(k)) =>
       let text_cursor = CursorPosition.OnText(caret_index);
       let (u, u_gen) = u_gen |> MetaVarGen.next;
