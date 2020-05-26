@@ -253,6 +253,7 @@ and is_outer_zoperand =
   fun
   | CursorE(_, EmptyHole(_))
   | CursorE(_, ListNil(_))
+  | CursorE(_, InvalidText(_, _))
   | CursorE(_, Var(_))
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
