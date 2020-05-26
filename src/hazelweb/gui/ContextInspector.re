@@ -21,7 +21,6 @@ let view =
       ],
     );
 
-  [@warning "-27"]
   let dynamic_info = (sigma, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
