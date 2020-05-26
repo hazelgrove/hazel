@@ -2284,9 +2284,10 @@ module Exp = {
       switch (steps |> ListUtil.split_last) {
       | None => assert(false)
       | Some((case_steps, _)) =>
-        switch (CursorPath.Exp.follow_steps(~side=After, case_steps, e)) {
+        switch (CursorPath.Exp.of_steps(case_steps, ~side=After, e)) {
         | None => assert(false)
-        | Some(ze) => (ze, u_gen)
+        | Some(_) => (ze, u_gen)
+        /* TODO: fix this */
         }
       }
     | Some(ze) => (ze, u_gen)
