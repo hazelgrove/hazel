@@ -10,6 +10,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_)
+  | InvalidText(_, _)
   | Var(_, InVarHole(_), _)
   | Var(InHole(_), _, _)
   | IntLit(_)

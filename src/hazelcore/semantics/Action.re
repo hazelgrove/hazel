@@ -1215,7 +1215,10 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
+        CursorP(
+          OnDelim(_),
+          InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        ) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1274,6 +1277,8 @@ module Pat = {
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, Hole, ctx, u_gen));
 
+    | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
+      syn_delete_text(ctx, u_gen, j, t)
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
     | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
@@ -1283,6 +1288,8 @@ module Pat = {
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
+    | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
+      syn_backspace_text(ctx, u_gen, j, t)
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
@@ -1627,7 +1634,10 @@ module Pat = {
           OnText(_),
           EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
         ) |
-        CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
+        CursorP(
+          OnDelim(_),
+          InvalidText(_) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        ) |
         CursorP(OnOp(_), _),
       ) =>
       Failed
@@ -1712,6 +1722,8 @@ module Pat = {
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, ctx, u_gen));
 
+    | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
+      ana_delete_text(ctx, u_gen, j, t, ty)
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
     | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
@@ -1721,6 +1733,8 @@ module Pat = {
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
+    | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
+      ana_backspace_text(ctx, u_gen, j, t, ty)
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
     | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>

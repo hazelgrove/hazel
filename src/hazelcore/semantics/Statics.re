@@ -84,6 +84,7 @@ module Pat = {
     /* in hole */
     | EmptyHole(_) => Some((Hole, ctx))
     | Wild(InHole(TypeInconsistent, _))
+    | InvalidText(InHole(TypeInconsistent, _), _)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -94,6 +95,7 @@ module Pat = {
       syn_operand(ctx, operand')
       |> OptUtil.map(((_, gamma)) => (HTyp.Hole, gamma));
     | Wild(InHole(WrongLength, _))
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -102,6 +104,7 @@ module Pat = {
     | Inj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | Wild(NotInHole) => Some((Hole, ctx))
+    | InvalidText(NotInHole, _)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
     | Var(NotInHole, NotInVarHole, x) =>
@@ -189,6 +192,7 @@ module Pat = {
     /* in hole */
     | EmptyHole(_) => Some(ctx)
     | Wild(InHole(TypeInconsistent, _))
+    | InvalidText(InHole(TypeInconsistent, _), _)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -198,6 +202,7 @@ module Pat = {
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
     | Wild(InHole(WrongLength, _))
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -206,6 +211,7 @@ module Pat = {
     | Inj(InHole(WrongLength, _), _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
+    | InvalidText(NotInHole, _)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
     | Var(NotInHole, NotInVarHole, x) =>
@@ -451,6 +457,7 @@ module Pat = {
         (operand, HTyp.Hole, ctx, u_gen);
       }
     | Wild(_) => (operand_nih, Hole, ctx, u_gen)
+    | InvalidText(_, _) => (operand, HTyp.Hole, ctx, u_gen)
     | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
@@ -699,6 +706,7 @@ module Pat = {
         (operand, ctx, u_gen);
       }
     | Wild(_) => (operand_nih, ctx, u_gen)
+    | InvalidText(_, _) => (operand, ctx, u_gen)
     | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
