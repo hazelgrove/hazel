@@ -1164,19 +1164,18 @@ module Exp = {
           body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
         | _ => None
         }
-      | Case(err, scrut, rules) =>
+      | Case(_, scrut, rules) =>
         switch (x) {
         | 0 =>
-          scrut
-          |> follow_steps(~side, xs)
-          |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
+          scrut |> of_steps(~side, xs) |> OptUtil.map(path => cons'(0, path))
         | _ =>
           switch (ZList.split_at(x - 1, rules)) {
           | None => None
           | Some(split_rules) =>
-            split_rules
-            |> ZList.optmap_z(follow_steps_rule(~side, xs))
-            |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules))
+            let (_, z, _) = split_rules;
+            z
+            |> of_steps_rule(xs, ~side)
+            |> OptUtil.map(path => cons'(x, path));
           }
         }
       | ApPalette(_, _, _, splice_info) =>
@@ -1190,8 +1189,7 @@ module Exp = {
       }
     }
   and of_steps_rule =
-      (steps: steps, ~side: Side.t, Rule(p, clause) as rule: UHExp.rule)
-      : option(t) =>
+      (steps: steps, ~side: Side.t, rule: UHExp.rule): option(t) =>
     switch (steps) {
     | [] =>
       let place_cursor =
@@ -1201,13 +1199,14 @@ module Exp = {
         };
       Some(of_zrule(place_cursor(rule)));
     | [x, ...xs] =>
+      let Rule(p, clause) = rule;
       switch (x) {
       | 0 =>
         p |> Pat.of_steps(~side, xs) |> OptUtil.map(path => cons'(0, path))
       | 1 =>
         clause |> of_steps(~side, xs) |> OptUtil.map(path => cons'(1, path))
       | _ => None
-      }
+      };
     };
 
   let hole_desc = (u: MetaVar.t): hole_desc => ExpHole(u);
