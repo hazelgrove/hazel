@@ -76,6 +76,10 @@ let create =
       ~on_display=
         (_, ~schedule_action as _) =>
           if (Model.is_cell_focused(model)) {
+            switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
+            | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
+            | _ => Cell.focus()
+            };
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
