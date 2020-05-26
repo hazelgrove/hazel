@@ -244,11 +244,11 @@ module Pat = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHPat.opseq)
           : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
-  and _syn_nth_type_mode =
+    syn_nth_type_mode'(ctx, n, skel, seq)
+  and syn_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq)
       : option(type_mode) => {
-    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
     let rec go = (skel: UHPat.skel) =>
       switch (skel) {
       | Placeholder(n') =>
@@ -307,10 +307,10 @@ module Pat = {
              Skel.leftmost_tm_index(skel) <= n
              && n <= Skel.rightmost_tm_index(skel)
            );
-      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
     };
   }
-  and _ana_nth_type_mode =
+  and ana_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
       : option(type_mode) => {
     let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
@@ -323,7 +323,7 @@ module Pat = {
         Some(Ana(ty));
       | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-        _syn_nth_type_mode(ctx, n, skel_not_in_hole, seq);
+        syn_nth_type_mode'(ctx, n, skel_not_in_hole, seq);
       | BinOp(NotInHole, Space, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? go(skel1, HTyp.Hole) : go(skel2, HTyp.Hole)
@@ -1263,11 +1263,11 @@ module Exp = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
           : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
-  and _syn_nth_type_mode =
+    syn_nth_type_mode'(ctx, n, skel, seq)
+  and syn_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
       : option(type_mode) => {
-    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
     let rec go = (skel: UHExp.skel) =>
       switch (skel) {
       | Placeholder(n') =>
@@ -1363,13 +1363,13 @@ module Exp = {
              Skel.leftmost_tm_index(skel) <= n
              && n <= Skel.rightmost_tm_index(skel)
            );
-      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
     };
   }
-  and _ana_nth_type_mode =
+  and ana_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
       : option(type_mode) => {
-    let syn_go = skel => _syn_nth_type_mode(ctx, n, skel, seq);
+    let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
     let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
