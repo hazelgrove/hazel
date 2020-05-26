@@ -603,6 +603,7 @@ module Pat = {
       switch (operand) {
       | EmptyHole(_)
       | Wild(_)
+      | InvalidText(_, _)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -658,6 +659,7 @@ module Pat = {
       switch (operand) {
       | EmptyHole(_)
       | Wild(_)
+      | InvalidText(_, _)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -716,6 +718,7 @@ module Pat = {
     switch (operand) {
     | EmptyHole(u)
     | Wild(InHole(_, u))
+    | InvalidText(InHole(_, u), _)
     | Var(InHole(_, u), _, _)
     | Var(_, InVarHole(_, u), _)
     | IntLit(InHole(_, u), _)
@@ -725,6 +728,7 @@ module Pat = {
         (PatHole(u), rev_steps |> List.rev),
         ...hs,
       ]
+    | InvalidText(NotInHole, _)
     | Var(NotInHole, NotInVarHole, _)
     | Wild(NotInHole)
     | IntLit(NotInHole, _)
@@ -758,6 +762,8 @@ module Pat = {
   and holes_zoperand =
       (zoperand: ZPat.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
+    | CursorP(_, InvalidText(_, _)) =>
+      failwith("unimplemented: CursorPath/InvalidText")
     | CursorP(OnOp(_), _) => no_holes
     | CursorP(_, EmptyHole(u)) =>
       mk_zholes(

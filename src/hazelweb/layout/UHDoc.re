@@ -255,6 +255,9 @@ let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
 let mk_Wild = (~err: ErrStatus.t): t =>
   Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
 
+let mk_InvalidText = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t =>
+  mk_text(s) |> annot_Operand(~sort, ~err);
+
 let mk_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
   mk_text(x) |> annot_Var(~sort, ~err, ~verr);
@@ -581,6 +584,8 @@ module Pat = {
     | Cons => (empty_, empty_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Pat);
+  let mk_InvalidText: (~err: ErrStatus.t, string) => t =
+    mk_InvalidText(~sort=Pat);
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Pat);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Pat);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Pat);
@@ -633,6 +638,7 @@ module Pat = {
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
           | Wild(err) => mk_Wild(~err)
+          | InvalidText(err, s) => mk_InvalidText(~err, s)
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)

@@ -453,6 +453,7 @@ module Pat = {
       | EmptyHole(_) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Hole), ctx)))
       | Wild(InHole(TypeInconsistent, _))
+      | InvalidText(InHole(TypeInconsistent, _), _)
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
@@ -470,6 +471,7 @@ module Pat = {
           )
         };
       | Wild(InHole(WrongLength, _))
+      | InvalidText(InHole(WrongLength, _), _)
       | Var(InHole(WrongLength, _), _, _)
       | IntLit(InHole(WrongLength, _), _)
       | FloatLit(InHole(WrongLength, _), _)
@@ -479,6 +481,8 @@ module Pat = {
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnaKeyword(ty, k), ctx)))
       // not in hole
+      | InvalidText(NotInHole, _) =>
+        failwith("unimplemented: ana_cursor_info_zoperand/InvalidText")
       | Var(NotInHole, _, x) =>
         Some(
           CursorOnDeferredVarPat(

@@ -111,6 +111,7 @@ module Pat = {
       : ExpandResult.t =>
     switch (operand) {
     | Wild(InHole(TypeInconsistent as reason, u))
+    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -127,6 +128,7 @@ module Pat = {
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -141,6 +143,7 @@ module Pat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
+    | InvalidText(NotInHole, _)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
@@ -328,6 +331,7 @@ module Pat = {
       : ExpandResult.t =>
     switch (operand) {
     | Wild(InHole(TypeInconsistent as reason, u))
+    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -345,6 +349,7 @@ module Pat = {
         Expands(dp, ty, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -357,6 +362,8 @@ module Pat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
+    | InvalidText(NotInHole, _) =>
+      failwith("unimplemented: ana_expand_operand/InvalidText")
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)

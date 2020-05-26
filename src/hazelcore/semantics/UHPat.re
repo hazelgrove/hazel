@@ -11,6 +11,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | InvalidText(ErrStatus.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -75,6 +76,7 @@ and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
   | Wild(err)
+  | InvalidText(err, _)
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -91,6 +93,7 @@ and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
   | Wild(_) => Wild(err)
+  | InvalidText(_, t) => InvalidText(err, t)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -118,6 +121,7 @@ and make_inconsistent_operand =
   // already in hole
   | EmptyHole(_)
   | Wild(InHole(TypeInconsistent, _))
+  | InvalidText(InHole(TypeInconsistent, _), _)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -126,6 +130,7 @@ and make_inconsistent_operand =
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
+  | InvalidText(NotInHole | InHole(WrongLength, _), _)
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
@@ -155,7 +160,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidTextShape(_) => failwith("unimplemented")
+  | InvalidTextShape(_) => failwith("unimplemented text_operand")
   };
 
 let associate = (seq: seq) => {
@@ -184,6 +189,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | EmptyHole(_) => false
   | Wild(InHole(_)) => false
   | Wild(NotInHole) => true
+  | InvalidText(InHole(_), _) => false
+  | InvalidText(NotInHole, _) => true
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
