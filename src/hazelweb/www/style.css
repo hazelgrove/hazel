@@ -768,13 +768,7 @@ h1 {
 }
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
-.DHCode .DivideByZero {
-  display: inline-block;
-  position: relative;
-  font-size: 75%;
-  top: -10px;
-}
-.DHCode .FailedSubscriptDecoration {
+.DHCode .InvalidOpDecoration {
   display: inline-block;
   position: relative;
   font-size: 75%;
@@ -789,11 +783,7 @@ h1 {
 .DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.2);
 }
-.DHCode .FailedSubscriptDecoration {
-  background-color: rgba(255, 0, 0, 0.2);
-}
-
-.DHCode .DivideByZero {
+.DHCode .InvalidOpDecoration {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
@@ -1337,9 +1327,6 @@ h1 {
 }
 .DHCode .CastDecoration .HoleLabel,
 .DHCode .FailedCastDecoration .HoleLabel {
-  color: #777;
-}
-.DHCode .FailedSubscriptDecoration .HoleLabel {
   color: #777;
 }
 

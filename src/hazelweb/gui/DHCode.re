@@ -49,14 +49,8 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
       ]
     | Annot(InvalidOpDecoration, l) => [
         Node.span([Attr.classes(["InvalidOpDecoration"])], go(l)),
-      ];
-    // | Annot(FailedSubscriptDecoration, l) => [
-    //     Node.span([Attr.classes(["FailedSubscriptDecoration"])], go(l)),
-    //   ]
-    // | Annot(DivideByZero, l) => [
-    //     Node.span([Attr.classes(["DivideByZero"])], go(l)),
-    //   ]
-    // };
+      ]
+    };
   Node.div([Attr.classes(["code", "DHCode"])], go(l));
 };
 
