@@ -744,7 +744,7 @@ module Exp = {
         | Some(_) as result => result
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Bool)
         }
-      | BinOp(_, PlusPlus, skel1, skel2) =>
+      | BinOp(_, Caret, skel1, skel2) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, String)) {
         | Some(_) as result => result
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, String)
@@ -1087,7 +1087,7 @@ module Exp = {
           And |
           Or |
           Space |
-          PlusPlus,
+          Caret,
           _,
           _,
         ) =>

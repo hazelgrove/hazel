@@ -418,7 +418,7 @@ module KeyCombo = {
     let plus = no_ctrl_alt_meta(Key.the_key("+"));
     let minus = no_ctrl_alt_meta(Key.the_key("-"));
     let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
-    let plusplus = no_ctrl_alt_meta(Key.the_key("^"));
+    let caret = no_ctrl_alt_meta(Key.the_key("^"));
     let slash = no_ctrl_alt_meta(Key.the_key("/"));
     let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
     let comma = no_ctrl_alt_meta(Key.the_key(","));
@@ -459,7 +459,7 @@ module KeyCombo = {
     | Plus
     | Minus
     | Asterisk
-    | PlusPlus
+    | Caret
     | Slash
     | LT
     | Space
@@ -497,7 +497,7 @@ module KeyCombo = {
     | Plus => Details.plus
     | Minus => Details.minus
     | Asterisk => Details.asterisk
-    | PlusPlus => Details.plusplus
+    | Caret => Details.caret
     | Slash => Details.slash
     | LT => Details.lt
     | Space => Details.space
@@ -555,8 +555,8 @@ module KeyCombo = {
       Some(Minus);
     } else if (evt_matches(Details.asterisk)) {
       Some(Asterisk);
-    } else if (evt_matches(Details.plusplus)) {
-      Some(PlusPlus);
+    } else if (evt_matches(Details.caret)) {
+      Some(Caret);
     } else if (evt_matches(Details.slash)) {
       Some(Slash);
     } else if (evt_matches(Details.lt)) {

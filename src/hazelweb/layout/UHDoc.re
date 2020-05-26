@@ -733,7 +733,7 @@ module Exp = {
     | FEquals
     | And
     | Or
-    | PlusPlus => (space_, space_)
+    | Caret => (space_, space_)
     | Comma => (empty_, space_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Exp);

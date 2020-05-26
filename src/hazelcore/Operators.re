@@ -66,7 +66,7 @@ module Exp = {
     | Cons
     | And
     | Or
-    | PlusPlus;
+    | Caret;
 
   let to_string =
     fun
@@ -89,7 +89,7 @@ module Exp = {
     | Cons => "::"
     | And => "&&"
     | Or => "||"
-    | PlusPlus => "^";
+    | Caret => "^";
 
   let to_parse_string = op =>
     switch (op) {
