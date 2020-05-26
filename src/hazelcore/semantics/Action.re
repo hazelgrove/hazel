@@ -3215,12 +3215,12 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+          ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
-          EmptyHole(_) | InvalidText(_, _) | ListNil(_) | Lam(_) | Inj(_) |
-          Case(_) |
+          EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
           ApPalette(_),
         ),
@@ -3275,9 +3275,8 @@ module Exp = {
       let new_ze = ZExp.ZBlock.wrap(zhole);
       Succeeded(SynDone((new_ze, Hole, u_gen)));
 
-    | (Backspace, CursorE(OnDelim(_, After), InvalidText(_, _))) =>
-      failwith("unimplemented")
-
+    | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
+      syn_delete_text(ctx, u_gen, j, t)
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
     | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
@@ -3286,6 +3285,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+    | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
+      syn_backspace_text(ctx, u_gen, j, t)
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
@@ -4559,12 +4560,12 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+          ApPalette(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
-          EmptyHole(_) | InvalidText(_, _) | ListNil(_) | Lam(_) | Inj(_) |
-          Case(_) |
+          EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
           ApPalette(_),
         ),
@@ -4662,9 +4663,8 @@ module Exp = {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
 
-    | (Backspace, CursorE(OnDelim(_, After), InvalidText(_, _))) =>
-      failwith("unimplemented")
-
+    | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
+      ana_delete_text(ctx, u_gen, j, t, ty)
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
     | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
@@ -4674,6 +4674,8 @@ module Exp = {
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
+    | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
+      ana_backspace_text(ctx, u_gen, j, t, ty)
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
