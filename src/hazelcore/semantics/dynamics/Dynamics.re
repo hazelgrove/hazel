@@ -153,7 +153,7 @@ module Pat = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
       | None => DoesNotExpand
       }
@@ -186,9 +186,7 @@ module Pat = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (Statics.Pat.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -216,12 +214,9 @@ module Pat = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
-      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHPat.get_tuple_elements
         |> List.fold_left(
              (
                acc: option((list(DHPat.t), Contexts.t, Delta.t)),
@@ -230,8 +225,8 @@ module Pat = {
                switch (acc) {
                | None => None
                | Some((rev_dps, ctx, delta)) =>
-                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
-                 | ExpandResult.DoesNotExpand => None
+                 switch (syn_expand_skel(ctx, delta, skel, seq)) {
+                 | DoesNotExpand => None
                  | Expands(dp, _, ctx, delta) =>
                    Some(([dp, ...rev_dps], ctx, delta))
                  }
@@ -242,11 +237,11 @@ module Pat = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_dps, ctx, delta)) => {
-              let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+              let dp = DHPat.make_tuple(List.rev(rev_dps));
               Expands(dp, ty, ctx, delta);
             }
-        )
-      | _ =>
+        );
+      } else {
         switch (opseq |> UHPat.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
@@ -268,7 +263,7 @@ module Pat = {
               );
             Expands(NonEmptyHole(reason, u, 0, dp), ty, ctx, delta);
           }
-        }
+        };
       }
     };
   }
@@ -536,6 +531,12 @@ module Exp = {
     | FailedCast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       FailedCast(d', ty1, ty2);
+    | InvalidOperation(op) =>
+      switch (op) {
+      | DivideByZero(d) =>
+        let d' = subst_var(d1, x, d);
+        InvalidOperation(DivideByZero(d'));
+      }
     }
   and subst_var_rules =
       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -587,6 +588,7 @@ module Exp = {
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
     | (_, FailedCast(_, _, _)) => Indet
+    | (_, InvalidOperation(_)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
     | (_, InvalidText(_, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
@@ -742,6 +744,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
+    | InvalidOperation(_) => Indet
     }
   and matches_cast_Pair =
       (
@@ -802,6 +805,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
+    | InvalidOperation(_) => Indet
     }
   and matches_cast_Cons =
       (
@@ -860,6 +864,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
+    | InvalidOperation(_) => Indet
     };
 
   type expand_result_lines =
@@ -1072,7 +1077,7 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
+    | BinOp(NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1090,7 +1095,12 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
+    | BinOp(
+        NotInHole,
+        (FPlus | FMinus | FTimes | FDivide) as op,
+        skel1,
+        skel2,
+      )
     | BinOp(
         NotInHole,
         (FLessThan | FGreaterThan | FEquals) as op,
@@ -1235,7 +1245,7 @@ module Exp = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
       }
@@ -1391,9 +1401,7 @@ module Exp = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (Statics.Exp.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1422,13 +1430,9 @@ module Exp = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
-      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
-      | (_, [Hole]) =>
-        /* Handling case where analyzing tuple against Hole */
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHExp.get_tuple_elements
         |> List.fold_left(
              (
                acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
@@ -1437,8 +1441,8 @@ module Exp = {
                switch (acc) {
                | None => None
                | Some((rev_ds, rev_tys, delta)) =>
-                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
-                 | ExpandResult.DoesNotExpand => None
+                 switch (syn_expand_skel(ctx, delta, skel, seq)) {
+                 | DoesNotExpand => None
                  | Expands(d, ty, delta) =>
                    Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
                  }
@@ -1449,12 +1453,12 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
-              let d = rev_ds |> List.rev |> DHExp.make_tuple;
-              let ty = HTyp.Prod(rev_tys |> List.rev);
+              let d = DHExp.make_tuple(List.rev(rev_ds));
+              let ty = HTyp.Prod(List.rev(rev_tys));
               Expands(d, ty, delta);
             }
-        )
-      | _ =>
+        );
+      } else {
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
@@ -1477,7 +1481,7 @@ module Exp = {
               );
             Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
           }
-        }
+        };
       }
     };
   }
@@ -1530,7 +1534,9 @@ module Exp = {
       }
     | BinOp(
         _,
-        Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan | GreaterThan |
+        Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+        LessThan |
+        GreaterThan |
         Equals |
         FLessThan |
         FGreaterThan |
@@ -1812,6 +1818,12 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
+    | InvalidOperation(op) =>
+      switch (op) {
+      | DivideByZero(d) =>
+        let (d, hii) = renumber_result_only(path, hii, d);
+        (InvalidOperation(DivideByZero(d)), hii);
+      }
     }
   and renumber_result_only_rules =
       (
@@ -1919,6 +1931,12 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
+    | InvalidOperation(op) =>
+      switch (op) {
+      | DivideByZero(d) =>
+        let (d, hii) = renumber_sigmas_only(path, hii, d);
+        (InvalidOperation(DivideByZero(d)), hii);
+      }
     }
   and renumber_sigmas_only_rules =
       (
@@ -2042,6 +2060,7 @@ module Evaluator = {
     | Minus => Some(IntLit(n1 - n2))
     | Plus => Some(IntLit(n1 + n2))
     | Times => Some(IntLit(n1 * n2))
+    | Divide => Some(IntLit(n1 / n2))
     | LessThan => Some(BoolLit(n1 < n2))
     | GreaterThan => Some(BoolLit(n1 > n2))
     | Equals => Some(BoolLit(n1 == n2))
@@ -2054,6 +2073,7 @@ module Evaluator = {
     | FPlus => Some(FloatLit(f1 +. f2))
     | FMinus => Some(FloatLit(f1 -. f2))
     | FTimes => Some(FloatLit(f1 *. f2))
+    | FDivide => Some(FloatLit(f1 /. f2))
     | FLessThan => Some(BoolLit(f1 < f2))
     | FGreaterThan => Some(BoolLit(f1 > f2))
     | FEquals => Some(BoolLit(f1 == f2))
@@ -2157,9 +2177,18 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(IntLit(n2)) =>
-          switch (eval_bin_int_op(op, n1, n2)) {
-          | Some(out) => BoxedValue(out)
-          | None => InvalidInput(5)
+          switch (op, n1, n2) {
+          | (Divide, _, 0) =>
+            Indet(
+              InvalidOperation(
+                DivideByZero(BinIntOp(op, IntLit(n1), IntLit(n2))),
+              ),
+            )
+          | _ =>
+            switch (eval_bin_int_op(op, n1, n2)) {
+            | Some(out) => BoxedValue(out)
+            | None => InvalidInput(5)
+            }
           }
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
@@ -2324,6 +2353,15 @@ module Evaluator = {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
+      }
+    | InvalidOperation(op) =>
+      switch (op) {
+      | DivideByZero(d) =>
+        switch (evaluate(d)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d')
+        | Indet(d') => Indet(InvalidOperation(DivideByZero(d')))
+        }
       }
     }
   and evaluate_case =

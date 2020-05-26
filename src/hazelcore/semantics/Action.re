@@ -6,6 +6,7 @@ type operator_shape =
   | SMinus
   | SPlus
   | STimes
+  | SDivide
   | SLessThan
   | SGreaterThan
   | SEquals
@@ -75,6 +76,7 @@ module Typ = {
     | SMinus
     | SPlus
     | STimes
+    | SDivide
     | SAnd
     | SOr
     | SLessThan
@@ -689,6 +691,7 @@ module Pat = {
     | SMinus
     | SPlus
     | STimes
+    | SDivide
     | SLessThan
     | SGreaterThan
     | SEquals
@@ -1656,7 +1659,8 @@ module Pat = {
         | Succeeded((zp, ty', ctx, u_gen)) =>
           if (HTyp.consistent(ty, ty')) {
             Succeeded((zp, ctx, u_gen));
-          } else if (HTyp.get_prod_arity(ty) != HTyp.get_prod_arity(ty')) {
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
+                     && HTyp.get_prod_arity(ty) > 1) {
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_zp = zp |> ZPat.set_err_status(InHole(WrongLength, u));
             Succeeded((new_zp, ctx, u_gen));
@@ -1887,6 +1891,7 @@ module Exp = {
     | SPlus => Some(Plus)
     | SMinus => Some(Minus)
     | STimes => Some(Times)
+    | SDivide => Some(Divide)
     | SLessThan => Some(LessThan)
     | SGreaterThan => Some(GreaterThan)
     | SEquals => Some(Equals)
@@ -1904,6 +1909,7 @@ module Exp = {
     | Minus => Some(SMinus)
     | Plus => Some(SPlus)
     | Times => Some(STimes)
+    | Divide => Some(SDivide)
     | LessThan => Some(SLessThan)
     | GreaterThan => Some(SGreaterThan)
     | Equals => Some(SEquals)
@@ -1915,6 +1921,7 @@ module Exp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals => None
@@ -2940,7 +2947,10 @@ module Exp = {
         ZOperator(
           (
             OnOp(After) as pos,
-            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+            (
+              FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan |
+              FEquals
+            ) as oper,
           ),
           seq,
         ),
@@ -2950,6 +2960,7 @@ module Exp = {
         | Operators.Exp.FPlus => Some(Operators.Exp.Plus)
         | Operators.Exp.FMinus => Some(Operators.Exp.Minus)
         | Operators.Exp.FTimes => Some(Operators.Exp.Times)
+        | Operators.Exp.FDivide => Some(Operators.Exp.Divide)
         | Operators.Exp.FLessThan => Some(Operators.Exp.LessThan)
         | Operators.Exp.FGreaterThan => Some(Operators.Exp.GreaterThan)
         | Operators.Exp.FEquals => Some(Operators.Exp.Equals)
@@ -3013,6 +3024,7 @@ module Exp = {
         | Operators.Exp.Plus => Some(Operators.Exp.FPlus)
         | Operators.Exp.Minus => Some(Operators.Exp.FMinus)
         | Operators.Exp.Times => Some(Operators.Exp.FTimes)
+        | Operators.Exp.Divide => Some(Operators.Exp.FDivide)
         | Operators.Exp.LessThan => Some(Operators.Exp.FLessThan)
         | Operators.Exp.GreaterThan => Some(Operators.Exp.FGreaterThan)
         | Operators.Exp.Equals => Some(Operators.Exp.FEquals)
@@ -4251,7 +4263,10 @@ module Exp = {
         ZOperator(
           (
             OnOp(After) as pos,
-            (FPlus | FMinus | FTimes | FLessThan | FGreaterThan | FEquals) as oper,
+            (
+              FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan |
+              FEquals
+            ) as oper,
           ),
           seq,
         ),
@@ -4261,6 +4276,7 @@ module Exp = {
         | Operators.Exp.FPlus => Some(Operators.Exp.Plus)
         | Operators.Exp.FMinus => Some(Operators.Exp.Minus)
         | Operators.Exp.FTimes => Some(Operators.Exp.Times)
+        | Operators.Exp.FDivide => Some(Operators.Exp.Divide)
         | Operators.Exp.FLessThan => Some(Operators.Exp.LessThan)
         | Operators.Exp.FGreaterThan => Some(Operators.Exp.GreaterThan)
         | Operators.Exp.FEquals => Some(Operators.Exp.Equals)
@@ -4333,6 +4349,7 @@ module Exp = {
         | Operators.Exp.Plus => Some(Operators.Exp.FPlus)
         | Operators.Exp.Minus => Some(Operators.Exp.FMinus)
         | Operators.Exp.Times => Some(Operators.Exp.FTimes)
+        | Operators.Exp.Divide => Some(Operators.Exp.FDivide)
         | Operators.Exp.LessThan => Some(Operators.Exp.FLessThan)
         | Operators.Exp.GreaterThan => Some(Operators.Exp.FGreaterThan)
         | Operators.Exp.Equals => Some(Operators.Exp.FEquals)
@@ -4556,8 +4573,33 @@ module Exp = {
         | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
         | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
+            // prune unnecessary type annotation
+            let ze' =
+              switch (ze') {
+              | (
+                  [] as prefix,
+                  ExpLineZ(
+                    ZOpSeq(skel, ZOperand(zoperand, (E, E) as surround)),
+                  ),
+                  [] as suffix,
+                ) => (
+                  prefix,
+                  ZExp.ExpLineZ(
+                    ZOpSeq(
+                      skel,
+                      ZOperand(
+                        ZExp.prune_type_annotation(zoperand),
+                        surround,
+                      ),
+                    ),
+                  ),
+                  suffix,
+                )
+              | _ => ze'
+              };
             Succeeded(AnaDone((ze', u_gen)));
-          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)) {
+          } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
+                     && HTyp.get_prod_arity(ty) > 1) {
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let new_ze = ze' |> ZExp.set_err_status(InHole(WrongLength, u));
             Succeeded(AnaDone((new_ze, u_gen)));

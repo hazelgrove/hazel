@@ -5,7 +5,7 @@ type type_mode =
   | Syn
   | Ana(HTyp.t);
 
-let _tuple_zip =
+let tuple_zip =
     (
       ~get_tuple_elements: Skel.t('op) => list(Skel.t('op)),
       skel: Skel.t('op),
@@ -27,7 +27,7 @@ let _tuple_zip =
 };
 
 module Pat = {
-  let tuple_zip = _tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
+  let tuple_zip = tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
   let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
     syn_opseq(ctx, p)
@@ -133,12 +133,12 @@ module Pat = {
       : option(Contexts.t) =>
     switch (tuple_zip(skel, ty)) {
     | None =>
-      switch (opseq |> UHPat.get_err_status_opseq) {
-      | NotInHole
-      | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength, _) =>
+      switch (UHPat.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+      | (InHole(TypeInconsistent, _), [_])
+      | (InHole(WrongLength, _), _) =>
         let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
+      | _ => None
       }
     | Some(skel_tys) =>
       skel_tys
@@ -293,9 +293,7 @@ module Pat = {
       )
       : option(type_mode) => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | None =>
       syn_nth_type_mode(
         ctx,
@@ -498,9 +496,7 @@ module Pat = {
       )
       : (UHPat.opseq, Contexts.t, MetaVarGen.t) => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -534,31 +530,9 @@ module Pat = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        let operand = seq |> Seq.nth_operand(n);
-        let (operand, ctx, u_gen) =
-          ana_fix_holes_operand(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            operand,
-            ty,
-          );
-        (OpSeq.wrap(operand), ctx, u_gen);
-      | ([BinOp(_)], _) =>
-        let (skel, seq, ctx, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel,
-            seq,
-            ty,
-          );
-        (OpSeq.OpSeq(skel, seq), ctx, u_gen);
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHPat.get_tuple_elements
         |> List.fold_left(
              (
                (
@@ -569,14 +543,13 @@ module Pat = {
                ),
                skel: UHPat.skel,
              ) => {
-               let (skel, seq, ctx, u_gen) =
-                 ana_fix_holes_skel(
+               let (skel, seq, _, ctx, u_gen) =
+                 syn_fix_holes_skel(
                    ctx,
                    u_gen,
                    ~renumber_empty_holes,
                    skel,
                    seq,
-                   Hole,
                  );
                ([skel, ...rev_skels], seq, ctx, u_gen);
              },
@@ -585,11 +558,17 @@ module Pat = {
         |> (
           fun
           | (rev_skels, seq, ctx, u_gen) => {
-              let skel = rev_skels |> List.rev |> UHPat.make_tuple;
-              (OpSeq.OpSeq(skel, seq), ctx, u_gen);
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              let skel = UHPat.make_tuple(List.rev(rev_skels));
+              let opseq =
+                UHPat.set_err_status_opseq(
+                  InHole(TypeInconsistent, u),
+                  OpSeq.OpSeq(skel, seq),
+                );
+              (opseq, ctx, u_gen);
             }
-        )
-      | _ =>
+        );
+      } else {
         let (u, u_gen) = u_gen |> MetaVarGen.next;
         let (opseq, _, _, u_gen) =
           syn_fix_holes_opseq(
@@ -789,7 +768,7 @@ module Pat = {
 };
 
 module Exp = {
-  let tuple_zip = _tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
+  let tuple_zip = tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
   /* returns recursive ctx + name of recursively defined var */
   let ctx_for_let' =
@@ -871,13 +850,13 @@ module Exp = {
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
-    | BinOp(NotInHole, Minus | Plus | Times, skel1, skel2) =>
+    | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
       | None => None
       | Some(_) =>
         ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
       }
-    | BinOp(NotInHole, FMinus | FPlus | FTimes, skel1, skel2) =>
+    | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
       | None => None
       | Some(_) =>
@@ -1093,12 +1072,12 @@ module Exp = {
       : option(unit) =>
     switch (tuple_zip(skel, ty)) {
     | None =>
-      switch (opseq |> UHExp.get_err_status_opseq) {
-      | NotInHole
-      | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength, _) =>
+      switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+      | (InHole(TypeInconsistent, _), [_])
+      | (InHole(WrongLength, _), _) =>
         let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
+      | _ => None
       }
     | Some(skel_tys) =>
       skel_tys
@@ -1127,7 +1106,9 @@ module Exp = {
     | BinOp(InHole(TypeInconsistent, _), _, _, _)
     | BinOp(
         NotInHole,
-        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        FDivide |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
@@ -1308,7 +1289,7 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          Plus | Minus | Times | LessThan | GreaterThan,
+          Plus | Minus | Times | Divide | LessThan | GreaterThan,
           skel1,
           skel2,
         ) =>
@@ -1316,7 +1297,7 @@ module Exp = {
           ? ana_go(skel1, Int) : ana_go(skel2, Int)
       | BinOp(
           NotInHole,
-          FPlus | FMinus | FTimes | FLessThan | FGreaterThan,
+          FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan,
           skel1,
           skel2,
         ) =>
@@ -1358,9 +1339,7 @@ module Exp = {
       )
       : option(type_mode) => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | None =>
       syn_nth_type_mode(
         ctx,
@@ -1401,7 +1380,9 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+          And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+          FDivide |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |
@@ -1537,7 +1518,7 @@ module Exp = {
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en);
       let seq = seq |> Seq.update_nth_operand(n, en);
       (skel, seq, ty, u_gen);
-    | BinOp(_, (Minus | Plus | Times) as op, skel1, skel2) =>
+    | BinOp(_, (Minus | Plus | Times | Divide) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -1557,7 +1538,7 @@ module Exp = {
           HTyp.Int,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Int, u_gen);
-    | BinOp(_, (FMinus | FPlus | FTimes) as op, skel1, skel2) =>
+    | BinOp(_, (FMinus | FPlus | FTimes | FDivide) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -1950,9 +1931,7 @@ module Exp = {
       )
       : (UHExp.opseq, MetaVarGen.t) => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1985,31 +1964,9 @@ module Exp = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        let operand = seq |> Seq.nth_operand(n);
-        let (operand, u_gen) =
-          ana_fix_holes_operand(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            operand,
-            ty,
-          );
-        (OpSeq.wrap(operand), u_gen);
-      | ([BinOp(_)], _) =>
-        let (skel, seq, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel,
-            seq,
-            ty,
-          );
-        (OpSeq.OpSeq(skel, seq), u_gen);
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHExp.get_tuple_elements
         |> List.fold_left(
              (
                (
@@ -2019,14 +1976,13 @@ module Exp = {
                ),
                skel: UHExp.skel,
              ) => {
-               let (skel, seq, u_gen) =
-                 ana_fix_holes_skel(
+               let (skel, seq, _, u_gen) =
+                 syn_fix_holes_skel(
                    ctx,
                    u_gen,
                    ~renumber_empty_holes,
                    skel,
                    seq,
-                   Hole,
                  );
                ([skel, ...rev_skels], seq, u_gen);
              },
@@ -2035,11 +1991,17 @@ module Exp = {
         |> (
           fun
           | (rev_skels, seq, u_gen) => {
-              let skel = rev_skels |> List.rev |> UHExp.make_tuple;
-              (OpSeq.OpSeq(skel, seq), u_gen);
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              let skel = UHExp.make_tuple(List.rev(rev_skels));
+              let opseq =
+                UHExp.set_err_status_opseq(
+                  InHole(TypeInconsistent, u),
+                  OpSeq.OpSeq(skel, seq),
+                );
+              (opseq, u_gen);
             }
-        )
-      | _ =>
+        );
+      } else {
         let (u, u_gen) = u_gen |> MetaVarGen.next;
         let (opseq, _, u_gen) =
           syn_fix_holes_opseq(
@@ -2123,7 +2085,9 @@ module Exp = {
       }
     | BinOp(
         _,
-        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        FDivide |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
