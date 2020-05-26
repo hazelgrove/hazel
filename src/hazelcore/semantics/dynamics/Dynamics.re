@@ -2113,7 +2113,7 @@ module Evaluator = {
         | BoxedValue(BoolLit(b)) =>
           b ? BoxedValue(Triv) : BoxedValue(FailedAssert)
         | BoxedValue(v) => Indet(v)
-        | Indet(d2') => Indet(d2')
+        | Indet(v) => Indet(Ap(AssertLit, v))
         }
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
