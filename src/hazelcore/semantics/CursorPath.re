@@ -697,13 +697,6 @@ module Pat = {
     | [_, ..._] => None
     };
 
-  exception NotFound(t, UHPat.t);
-  let follow_or_fail = (path: t, p: UHPat.t): ZPat.t =>
-    switch (follow(path, p)) {
-    | None => raise(NotFound(path, p))
-    | Some(zp) => zp
-    };
-
   let hole_desc = (u: MetaVar.t): hole_desc => PatHole(u);
 
   let rec holes = (p: UHPat.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
@@ -1210,20 +1203,6 @@ module Exp = {
         |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
       | _ => None
       }
-    };
-
-  exception NotFound;
-  let follow_or_fail = (path: t, e: UHExp.t): ZExp.t =>
-    switch (follow(path, e)) {
-    | None => raise(NotFound)
-    | Some(ze) => ze
-    };
-
-  let follow_operand_or_fail =
-      (path: t, operand: UHExp.operand): ZExp.zoperand =>
-    switch (follow_operand(path, operand)) {
-    | None => raise(NotFound)
-    | Some(zoperand) => zoperand
     };
 
   let hole_desc = (u: MetaVar.t): hole_desc => ExpHole(u);

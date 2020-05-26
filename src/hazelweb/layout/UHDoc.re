@@ -667,13 +667,15 @@ module Exp = {
   let inline_padding_of_operator: UHExp.operator => (t, t) =
     fun
     | Space
-    | Times
-    | FTimes
     | Cons => (empty_, empty_)
     | Plus
     | Minus
     | FPlus
     | FMinus
+    | Times
+    | Divide
+    | FTimes
+    | FDivide
     | LessThan
     | GreaterThan
     | Equals
