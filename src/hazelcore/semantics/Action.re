@@ -122,13 +122,21 @@ module Typ = {
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => move(MoveTo((steps, OnDelim(0, Before))), zty)
+      | Some(steps) =>
+        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), zty)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
       // | Some(steps) => move(MoveToBefore(steps), zty)
-      | Some(steps) => move(MoveTo((steps, OnDelim(0, Before))), zty)
+      | Some(steps) =>
+        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), zty)
+        }
       }
     | MoveLeft =>
       zty
@@ -946,13 +954,19 @@ module Pat = {
       switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
       | Some(steps) =>
-        syn_move(ctx, u_gen, MoveTo((steps, OnDelim(0, Before))), zp)
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, u_gen, MoveTo(path), zp)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
       | Some(steps) =>
-        syn_move(ctx, u_gen, MoveTo((steps, OnDelim(0, Before))), zp)
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, u_gen, MoveTo(path), zp)
+        }
       }
     | MoveLeft =>
       switch (zp |> ZPat.move_cursor_left) {
@@ -993,13 +1007,19 @@ module Pat = {
       switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
       | Some(steps) =>
-        ana_move(ctx, u_gen, MoveTo((steps, OnDelim(0, Before))), zp, ty)
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, u_gen, MoveTo(path), zp, ty)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
       | Some(steps) =>
-        ana_move(ctx, u_gen, MoveTo((steps, OnDelim(0, Before))), zp, ty)
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, u_gen, MoveTo(path), zp, ty)
+        }
       }
     | MoveLeft =>
       switch (zp |> ZPat.move_cursor_left) {
@@ -2343,13 +2363,19 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        syn_move(ctx, MoveTo((steps, OnDelim(0, Before))), (ze, ty, u_gen))
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        syn_move(ctx, MoveTo((steps, OnDelim(0, Before))), (ze, ty, u_gen))
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+        }
       }
     | MoveLeft =>
       ze
@@ -2397,13 +2423,19 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        ana_move(ctx, MoveTo((steps, OnDelim(0, Before))), (ze, u_gen), ty)
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        ana_move(ctx, MoveTo((steps, OnDelim(0, Before))), (ze, u_gen), ty)
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
+        }
       }
     | MoveLeft =>
       ze
@@ -2664,21 +2696,31 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_zline(zline)) {
       | None => Failed
       | Some(steps) =>
-        syn_perform_line(
-          ctx,
-          MoveTo((steps, OnDelim(0, Before))),
-          (zline, u_gen),
-        )
+        switch (
+          CursorPath.Exp.of_steps_line(
+            steps,
+            ~side=Before,
+            zline |> ZExp.erase_zline,
+          )
+        ) {
+        | None => Failed
+        | Some(path) => syn_perform_line(ctx, MoveTo(path), (zline, u_gen))
+        }
       }
     | (MoveToNextHole, _) =>
       switch (CursorPath.Exp.next_hole_steps_zline(zline)) {
       | None => Failed
       | Some(steps) =>
-        syn_perform_line(
-          ctx,
-          MoveTo((steps, OnDelim(0, Before))),
-          (zline, u_gen),
-        )
+        switch (
+          CursorPath.Exp.of_steps_line(
+            steps,
+            ~side=Before,
+            zline |> ZExp.erase_zline,
+          )
+        ) {
+        | None => Failed
+        | Some(path) => syn_perform_line(ctx, MoveTo(path), (zline, u_gen))
+        }
       }
     | (MoveLeft, _) =>
       zline
