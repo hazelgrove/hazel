@@ -468,13 +468,13 @@ module Typ = {
     | Some(Int) =>
       let text_cursor = CursorPosition.OnText(caret_index);
       Succeeded((
-        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
+        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int)),
         u_gen,
       ));
     | Some(Float) =>
       let text_cursor = CursorPosition.OnText(caret_index);
       Succeeded((
-        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool)),
+        ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float)),
         u_gen,
       ));
     | Some(ExpandingKeyword(k)) =>
@@ -748,13 +748,6 @@ module Typ = {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zty, u_gen)) => perform(ctx, u_gen, a, zty)
       }
-
-    | (Construct(SChar("I")), CursorT(_, Hole)) =>
-      Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Int)), u_gen))
-    | (Construct(SChar("F")), CursorT(_, Hole)) =>
-      Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Float)), u_gen))
-    | (Construct(SChar("B")), CursorT(_, Hole)) =>
-      Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Bool)), u_gen))
     | (Construct(SChar(s)), CursorT(_, Hole)) =>
       insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
