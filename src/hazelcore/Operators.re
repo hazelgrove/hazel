@@ -51,9 +51,11 @@ module Exp = {
     | Plus
     | Minus
     | Times
+    | Divide
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | LessThan
     | GreaterThan
     | Equals
@@ -71,9 +73,11 @@ module Exp = {
     | Plus => "+"
     | Minus => "-"
     | Times => "*"
+    | Divide => "/"
     | FPlus => "+."
     | FMinus => "-."
     | FTimes => "*."
+    | FDivide => "/."
     | LessThan => "<"
     | GreaterThan => ">"
     | Equals => "=="
