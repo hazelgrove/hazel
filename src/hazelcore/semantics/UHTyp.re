@@ -164,7 +164,7 @@ and is_complete = (ty: t) => {
 
 let of_string = 
   fun 
-  | Int => let _ = print_endline("Int") in "Int"
-  | Float => let _ = print_endline("Float") in "Float"
-  | Bool => let _ = print_endline("bool") in "Bool"
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
   | _ => failwith("impossible");
