@@ -102,6 +102,23 @@ let action_button =
   );
 };
 
+let brown_label = body => {
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes(["keyboard-shortcut", "action-enabled"]),
+        Attr.style(
+          Css_gen.(
+            create(~field="display", ~value="inline-block")
+            @> create(~field="border-bottom", ~value="none")
+          ),
+        ),
+      ],
+      body,
+    )
+  );
+};
+
 let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
   Vdom.(
     Node.div(
@@ -226,7 +243,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       style(Css_gen.(create(~field="display", ~value="inline-block")))
     );
 
-  let dual_line = (description1, combo1, description2, combo2) => {
+  let spaced_line = children => {
     action_label(
       ~attrs=[
         Vdom.Attr.(
@@ -238,17 +255,32 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           )
         ),
       ],
-      [
-        Vdom.Node.div(
-          [display_inline_block],
-          [text(description1), keyboard_button(combo1)],
-        ),
-        Vdom.Node.div(
-          [display_inline_block],
-          [text(description2), keyboard_button(combo2)],
-        ),
-      ],
+      children,
     );
+  };
+
+  let dual_line = (description1, combo1, description2, combo2) => {
+    spaced_line([
+      Vdom.Node.div(
+        [display_inline_block],
+        [text(description1), keyboard_button(combo1)],
+      ),
+      Vdom.Node.div(
+        [display_inline_block],
+        [text(description2), keyboard_button(combo2)],
+      ),
+    ]);
+  };
+
+  let bottom_border_none =
+    Css_gen.create(~field="border-bottom", ~value="none");
+
+  let add_style = (style, elem) => {
+    switch (elem) {
+    | Vdom.Node.(Element(e)) =>
+      Vdom.Node.(Element(Element.add_style(e, style)))
+    | n => n
+    };
   };
 
   KeyCombo.[
@@ -257,17 +289,27 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         info([text("Move using arrow keys")]),
         dual_line("Move to next hole ", Tab, "Previous hole ", ShiftTab),
-        dual_line(
-          "Delete character ",
-          Backspace,
-          "Delete expression ",
-          Delete,
-        ),
-        combo(Ctrl_Alt_Up, simple("Swap expression up")),
-        combo(Ctrl_Alt_Down, simple("Swap expression down")),
-        combo(Ctrl_Alt_Left, simple("Swap expression left")),
-        combo(Ctrl_Alt_Right, simple("Swap expression right")),
+      ],
+    ),
+    section(
+      "General Editing",
+      [
+        spaced_line([
+          text("Backspace / Delete"),
+          Vdom.Node.div(
+            [display_inline_block],
+            [
+              keyboard_button(Backspace) |> add_style(bottom_border_none),
+              keyboard_button(Delete) |> add_style(bottom_border_none),
+            ],
+          ),
+        ]),
+        combo(Ctrl_Alt_I, simple("Swap expression up")),
+        combo(Ctrl_Alt_K, simple("Swap expression down")),
+        combo(Ctrl_Alt_J, simple("Swap expression left")),
+        combo(Ctrl_Alt_L, simple("Swap expression right")),
         combo(Enter, simple("Create new line ")),
+        combo(LeftParen, simple("Parenthesize")),
       ],
     ),
     section(
@@ -277,9 +319,34 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           text("Enter number literals directly e.g. "),
           mono_text("1.0, 2"),
         ]),
-        info([
-          text("Floating point operators, type: "),
-          mono_text("+. -. *."),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"I\""),
+            text(" to insert an Integer type"),
+          ],
+          Action.Construct(SChar("I")),
+        ),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"F\""),
+            text(" to insert a Float type"),
+          ],
+          Action.Construct(SChar("F")),
+        ),
+        spaced_line([
+          text("Floating point operators, type"),
+          Vdom.Node.div(
+            [],
+            [
+              brown_label([mono_text("+.")]) |> add_style(bottom_border_none),
+              brown_label([mono_text("-.")])
+              |> add_style(bottom_border_none),
+              brown_label([mono_text("*.")])
+              |> add_style(bottom_border_none),
+            ],
+          ),
         ]),
         operator_list(
           ~on_type=false,
@@ -291,7 +358,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     section(
       "Variables",
       [
-        info([text("Enter variables directly")]),
+        info([text("Variable regex: ^[_a-z][_a-zA-Z0-9']*$")]),
         info_action(
           [
             text("Type "),
@@ -310,6 +377,14 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           mono_text("\"true\", \"false\""),
           text(" directly"),
         ]),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"B\""),
+            text(" to insert a Bool type"),
+          ],
+          Action.Construct(SChar("B")),
+        ),
         operator_list(
           ~on_type=false,
           "Operators",
@@ -329,23 +404,15 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       ],
     ),
     section(
-      "Injections",
+      "Sum Types",
       [
-        combo(Alt_L, simple("Left injunction")),
-        combo(Alt_R, simple("Right injunction")),
+        combo(Alt_L, simple("Left injection")),
+        combo(Alt_R, simple("Right injection")),
       ],
     ),
     section(
       "Types",
       [
-        info_action(
-          [text("Use Shift+N to insert the Num type")],
-          Action.Construct(SChar("N")),
-        ),
-        info_action(
-          [text("Use Shift+B to insert the Bool type")],
-          Action.Construct(SChar("B")),
-        ),
         combo(Colon, simple("Type ascription")),
         combo(VBar, simple("Insert | operator")),
         combo_and_cursor(
@@ -353,7 +420,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           LeftBracket,
           simple("Insert type List"),
         ),
-        combo_and_cursor(~on_type=true, GT, [text("Create a type arrow")]),
+        combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
     ),
     section(
@@ -376,7 +443,6 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combo(Enter, simple("Add new rule")),
       ],
     ),
-    section("Miscellaneous", [combo(LeftParen, simple("Parenthesize"))]),
   ];
 };
 
