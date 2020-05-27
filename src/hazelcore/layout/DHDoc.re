@@ -437,15 +437,14 @@ module Exp = {
           hcats([d_doc, cast_decoration]);
         | FailedCast(_d, _ty1, _ty2) =>
           failwith("unexpected FailedCast without inner cast")
-        | InvalidOperation(operation) =>
-          switch (operation) {
-          | DivideByZero(BinIntOp(Divide, _, IntLit(0)) as expr) =>
-            let (d_doc, _) = go'(expr);
+        | InvalidOperation(d, err) =>
+          switch (err) {
+          | DivideByZero =>
+            let (d_doc, _) = go'(d);
             let decoration =
-              Doc.text("Error: Divide by Zero")
+              Doc.text(InvalidOperationError.err_msg(err))
               |> annot(DHAnnot.DivideByZero);
             hcats([d_doc, decoration]);
-          | _ => failwith("impossible")
           }
         /*
          let (d_doc, d_cast) as dcast_doc = go'(d);
