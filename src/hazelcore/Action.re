@@ -819,7 +819,7 @@ module Pat = {
         if (HTyp.consistent(ty, ty')) {
           Succeeded((zp, ctx, u_gen));
         } else {
-          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
+          let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
           Succeeded((zp, ctx, u_gen));
         }
       }
@@ -1893,7 +1893,7 @@ module Pat = {
         if (HTyp.consistent(ty, ty')) {
           Succeeded((zp, ctx, u_gen));
         } else {
-          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
+          let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
           Succeeded((zp, ctx, u_gen));
         }
       }
@@ -2282,7 +2282,7 @@ module Exp = {
         if (HTyp.consistent(ty, ty')) {
           Succeeded(AnaDone((ze, u_gen)));
         } else {
-          let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
+          let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
           Succeeded(AnaDone((ze, u_gen)));
         }
       }
@@ -5128,7 +5128,7 @@ module Exp = {
         if (HTyp.consistent(ty, ty1)) {
           Succeeded(AnaDone((ze, u_gen)));
         } else {
-          let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
+          let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
           Succeeded(AnaDone((ze, u_gen)));
         }
       }
