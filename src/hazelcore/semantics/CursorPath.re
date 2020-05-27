@@ -1077,7 +1077,7 @@ module Exp = {
       | Some(split_lines) =>
         let (_, z, _) = split_lines;
         z |> of_steps_line(xs, ~side);
-      // |> OptUtil.map(path => cons'(x, path));
+      /* |> OptUtil.map(path => cons'(x, path)); */
       }
     }
   and of_steps_line =
@@ -1096,6 +1096,7 @@ module Exp = {
       Some(of_zline(place_cursor(line)));
     | ([_, ..._], EmptyLine) => None
     | ([x, ...xs], LetLine(p, ann, def)) =>
+      print_endline("CursorPath1099");
       switch (x) {
       | 0 =>
         p |> Pat.of_steps(xs, ~side) |> OptUtil.map(path => cons'(0, path))
@@ -1110,7 +1111,7 @@ module Exp = {
       | 2 =>
         def |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
       | _ => None
-      }
+      };
     }
   and of_steps_opseq =
       (steps: steps, ~side: Side.t, opseq: UHExp.opseq): option(t) =>
