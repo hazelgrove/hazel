@@ -289,7 +289,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [keyboard_button(Ctrl_Alt_I), keyboard_button(Ctrl_Alt_K)],
         ),
         single_line_multiple_actions(
-          "Swap line left / right",
+          "Swap operand left / right",
           [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
         ),
         combo(Enter, simple("Create new line ")),
