@@ -1298,7 +1298,7 @@ module Exp = {
           * in lambda, then apply lambda to args in hole data
           *)
          let bound_expansion :=
-             NatMap.fold hole_map
+             IntMap.fold hole_map
                (fun bound entry ->
                  let (n, typ_exp) = entry in
                  let (htyp, hexp) = typ_exp in
