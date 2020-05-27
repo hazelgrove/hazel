@@ -2305,8 +2305,10 @@ module Evaluator = {
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
-    | Triv
-    | StringLit(_) => BoxedValue(d)
+    | Triv => BoxedValue(d)
+    | StringLit(s) =>
+      print_endline(s);
+      BoxedValue(StringLit(StringUtil.find_and_replace("", s)));
     | And(d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

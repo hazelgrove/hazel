@@ -33,4 +33,29 @@ let delete = (caret_index: int, s: string): string => {
   l ++ r;
 };
 
+let rec find_and_replace = (acc: string, s: string): string =>
+  if (String.length(s) <= 1) {
+    print_endline("single char");
+    acc ++ s;
+  } else {
+    let slash_b = "\\" ++ "b";
+    let slash_t = "\\" ++ "t";
+    print_endline("spec char");
+    if (String.sub(s, 0, 2) == slash_b) {
+      print_endline("\b!");
+      find_and_replace(
+        String.sub(acc, 0, String.length(acc) - 1),
+        String.sub(s, 2, String.length(s) - 2),
+      );
+    } else if (String.sub(s, 0, 2) == slash_t) {
+      find_and_replace(acc ++ "\t", String.sub(s, 2, String.length(s) - 2));
+    } else {
+      print_endline(String.sub(s, 0, 2));
+      find_and_replace(
+        acc ++ String.sub(s, 0, 1),
+        String.sub(s, 1, String.length(s) - 1),
+      );
+    };
+  };
+
 let utf8_length = CamomileLibrary.UTF8.length;
