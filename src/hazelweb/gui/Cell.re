@@ -112,6 +112,11 @@ let view = (~inject, model: Model.t) => {
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(SChar(s))),
                   )
+                | ("Enter", true) =>
+                  print_endline("Cell116");
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Construct(SChar("\n"))),
+                  );
                 | (_, _) =>
                   switch (KeyCombo.of_evt(evt)) {
                   | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)

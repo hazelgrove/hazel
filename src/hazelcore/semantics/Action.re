@@ -3751,6 +3751,10 @@ module Exp = {
     /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
        TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
+    /* TODO */
+    // | (Construct(SChar("\n")), CursorE(OnText(j), StringLit(_, s))) =>
+    //   let (prefix, suffix) = StringUtil.split_string(j, s);
+    //   let line =
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
