@@ -133,17 +133,20 @@ let of_steps_opseq_ =
     )
     : option(t) =>
   switch (steps) {
-  | [] => None
+  | [] =>
+    print_endline("CursorPath137");
+    None;
   | [x, ...xs] =>
+    // print_endline("OpSeq x=" ++ string_of_int(x));
     switch (
       seq |> Seq.opt_split_nth_operand(x),
       seq |> Seq.opt_split_nth_operator(x - Seq.length(seq)),
     ) {
     | (None, None) => None
     | (Some((operand, _)), _) =>
-      operand
-      |> of_steps_operand(xs, ~side)
-      |> OptUtil.map(path => cons'(x, path))
+      print_endline("CursorPath146");
+      let path = operand |> of_steps_operand(xs, ~side);
+      path |> OptUtil.map(path => cons'(x, path));
     | (_, Some((operator, _))) =>
       operator
       |> of_steps_operator(xs, ~side)
@@ -851,7 +854,9 @@ module Exp = {
     of_zopseq_(~of_zoperand, zopseq)
   and of_zoperand = (zoperand: ZExp.zoperand): t =>
     switch (zoperand) {
-    | CursorE(cursor, _) => ([], cursor)
+    | CursorE(cursor, _) =>
+      print_endline("CursorPath858");
+      ([], cursor);
     | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
     | LamZP(_, zp, _, _) => cons'(0, Pat.of_z(zp))
     | LamZA(_, _, zann, _) => cons'(1, Typ.of_z(zann))
@@ -888,13 +893,19 @@ module Exp = {
   and follow_block =
       ((steps, cursor): t, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
-    | [] => None // no block level cursor
+    | [] =>
+      print_endline("CursorPath895");
+      None; // no block level cursor
     | [x, ...xs] =>
+      print_endline(string_of_int(x));
       switch (ZList.split_at(x, block)) {
-      | None => None
+      | None =>
+        print_endline("CursorPath900");
+        None;
       | Some(split_lines) =>
-        split_lines |> ZList.optmap_z(follow_line((xs, cursor)))
-      }
+        print_endline("CursorPath903");
+        split_lines |> ZList.optmap_z(follow_line((xs, cursor)));
+      };
     }
   and follow_line =
       ((steps, cursor) as path: t, line: UHExp.line): option(ZExp.zline) =>
@@ -1056,19 +1067,26 @@ module Exp = {
         };
       Some(of_zblock(place_cursor(block)));
     | [x, ...xs] =>
+      // switch (steps) {
+      // | [k1, k2] =>
+      //   print_endline(string_of_int(k1) ++ " " ++ string_of_int(k2))
+      // | _ => print_endline("None")
+      // };
       switch (ZList.split_at(x, block)) {
       | None => None
       | Some(split_lines) =>
         let (_, z, _) = split_lines;
-        z |> of_steps_line(xs, ~side) |> OptUtil.map(path => cons'(x, path));
+        z |> of_steps_line(xs, ~side);
+      // |> OptUtil.map(path => cons'(x, path));
       }
     }
   and of_steps_line =
       (steps: steps, ~side: Side.t, line: UHExp.line): option(t) =>
     switch (steps, line) {
     | (_, ExpLine(opseq)) =>
+      print_endline("CursorPath1070");
       of_steps_opseq(steps, ~side, opseq)
-      |> OptUtil.map(path => cons'(0, path))
+      |> OptUtil.map(path => cons'(0, path));
     | ([], EmptyLine | LetLine(_, _, _)) =>
       let place_cursor =
         switch (side) {
@@ -1122,6 +1140,7 @@ module Exp = {
       (steps: steps, ~side: Side.t, operand: UHExp.operand): option(t) =>
     switch (steps) {
     | [] =>
+      print_endline("CursorPath1129");
       let place_cursor =
         switch (side) {
         | Before => ZExp.place_before_operand
