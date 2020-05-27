@@ -62,6 +62,45 @@ let has_para_OpenChild =
     | _ => Stop,
   );
 
+type pos = {
+  indent: int,
+  row: int,
+  col: int,
+};
+
+let pos_fold =
+    (
+      ~linebreak: pos => 'a,
+      ~text: (pos, string) => 'a,
+      ~align: (pos, 'a) => 'a,
+      ~cat: (pos, 'a, 'a) => 'a,
+      ~annot: (pos, UHAnnot.t, 'a) => 'a,
+      l: t,
+    ) => {
+  let row = ref(0);
+  let col = ref(0);
+  let rec go = (~indent, l: t) => {
+    let go' = go(~indent);
+    let pos = {indent, row: row^, col: col^};
+    switch (l) {
+    | Linebreak =>
+      row := row^ + 1;
+      col := indent;
+      linebreak(pos);
+    | Text(s) =>
+      col := col^ + StringUtil.utf8_length(s);
+      text(pos, s);
+    | Align(l) => align(pos, go(~indent=col^, l))
+    | Cat(l1, l2) =>
+      let a1 = go'(l1);
+      let a2 = go'(l2);
+      cat(pos, a1, a2);
+    | Annot(ann, l) => annot(pos, ann, go'(l))
+    };
+  };
+  go(~indent=0, l);
+};
+
 // TODO should be possible to make polymorphic over annot
 // but was getting confusing type inference error
 let rec find_and_decorate_Annot =
