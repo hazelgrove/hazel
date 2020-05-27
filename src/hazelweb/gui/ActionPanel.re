@@ -146,6 +146,8 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
   );
 };
 
+let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
+
 let action_list =
     (
       is_action_allowed: Action.t => bool,
@@ -156,9 +158,9 @@ let action_list =
   let item = ((combo, action)) => {
     keyboard_button(is_action_allowed, ~inject, ~action, ~combo);
   };
-  let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
   let display_flex =
     Vdom.Attr.style(Css_gen.create(~field="display", ~value="flex"));
+
   let label =
     Vdom.(
       Node.div(
@@ -244,43 +246,24 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     );
 
   let spaced_line = children => {
-    action_label(
-      ~attrs=[
-        Vdom.Attr.(
-          style(
-            Css_gen.(
-              create(~field="display", ~value="flex")
-              @> create(~field="justify-content", ~value="space-between")
-            ),
-          )
+    Vdom.Node.div(
+      Vdom.Attr.[
+        classes(["action-panel-entry"]),
+        style(
+          Css_gen.(
+            create(~field="display", ~value="flex")
+            @> create(~field="justify-content", ~value="space-between")
+          ),
         ),
       ],
       children,
     );
   };
 
-  let dual_line = (description1, combo1, description2, combo2) => {
-    spaced_line([
-      Vdom.Node.div(
-        [display_inline_block],
-        [text(description1), keyboard_button(combo1)],
-      ),
-      Vdom.Node.div(
-        [display_inline_block],
-        [text(description2), keyboard_button(combo2)],
-      ),
-    ]);
-  };
-
-  let bottom_border_none =
-    Css_gen.create(~field="border-bottom", ~value="none");
-
-  let add_style = (style, elem) => {
-    switch (elem) {
-    | Vdom.Node.(Element(e)) =>
-      Vdom.Node.(Element(Element.add_style(e, style)))
-    | n => n
-    };
+  let single_line_multiple_actions = (description, elems) => {
+    let label = action_label(~attrs=[flex_grow], [text(description)]);
+    let elems = Vdom.Node.div([display_inline_block], elems);
+    spaced_line([label, elems]);
   };
 
   KeyCombo.[
@@ -288,28 +271,63 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       "Movement",
       [
         info([text("Move using arrow keys")]),
-        dual_line("Move to next hole ", Tab, "Previous hole ", ShiftTab),
+        single_line_multiple_actions(
+          "Move to next / previous hole",
+          [keyboard_button(Tab), keyboard_button(ShiftTab)],
+        ),
       ],
     ),
     section(
       "General Editing",
       [
-        spaced_line([
-          text("Backspace / Delete"),
-          Vdom.Node.div(
-            [display_inline_block],
-            [
-              keyboard_button(Backspace) |> add_style(bottom_border_none),
-              keyboard_button(Delete) |> add_style(bottom_border_none),
-            ],
-          ),
-        ]),
-        combo(Ctrl_Alt_I, simple("Swap expression up")),
-        combo(Ctrl_Alt_K, simple("Swap expression down")),
-        combo(Ctrl_Alt_J, simple("Swap expression left")),
-        combo(Ctrl_Alt_L, simple("Swap expression right")),
+        single_line_multiple_actions(
+          "Backspace / Delete",
+          [keyboard_button(Backspace), keyboard_button(Delete)],
+        ),
+        single_line_multiple_actions(
+          "Swap line up / down",
+          [keyboard_button(Ctrl_Alt_I), keyboard_button(Ctrl_Alt_K)],
+        ),
+        single_line_multiple_actions(
+          "Swap line left / right",
+          [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
+        ),
         combo(Enter, simple("Create new line ")),
         combo(LeftParen, simple("Parenthesize")),
+      ],
+    ),
+    section(
+      "Variables",
+      [
+        info([text("Variable regex: ^[_a-z][_a-zA-Z0-9']*$")]),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"let \""),
+            text(" to enter a let expression"),
+          ],
+          Action.Construct(SLet),
+        ),
+        combo(Colon, simple("Type ascription")),
+      ],
+    ),
+    section(
+      "Booleans",
+      [
+        info([
+          text("Enter boolean literals "),
+          mono_text("\"true\", \"false\""),
+          text(" directly"),
+        ]),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"B\""),
+            text(" to insert a Bool type"),
+          ],
+          Action.Construct(SChar("B")),
+        ),
+        operator_list(~on_type=false, "Logical AND", [Ampersand]),
       ],
     ),
     section(
@@ -335,60 +353,21 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action.Construct(SChar("F")),
         ),
-        spaced_line([
-          text("Floating point operators, type"),
-          Vdom.Node.div(
-            [],
-            [
-              brown_label([mono_text("+.")]) |> add_style(bottom_border_none),
-              brown_label([mono_text("-.")])
-              |> add_style(bottom_border_none),
-              brown_label([mono_text("*.")])
-              |> add_style(bottom_border_none),
-            ],
-          ),
-        ]),
         operator_list(
           ~on_type=false,
           "Integer operators",
-          [Plus, Minus, Asterisk],
+          [Plus, Minus, Asterisk, LT, GT, Equals],
         ),
-      ],
-    ),
-    section(
-      "Variables",
-      [
-        info([text("Variable regex: ^[_a-z][_a-zA-Z0-9']*$")]),
-        info_action(
+        single_line_multiple_actions(
+          "Floating point operators",
           [
-            text("Type "),
-            mono_text("\"let \""),
-            text(" to enter a let expression"),
+            brown_label([mono_text("+.")]),
+            brown_label([mono_text("-.")]),
+            brown_label([mono_text("*.")]),
+            brown_label([mono_text("<.")]),
+            brown_label([mono_text(">.")]),
+            brown_label([mono_text("=.")]),
           ],
-          Action.Construct(SLet),
-        ),
-      ],
-    ),
-    section(
-      "Booleans",
-      [
-        info([
-          text("Enter boolean literals "),
-          mono_text("\"true\", \"false\""),
-          text(" directly"),
-        ]),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"B\""),
-            text(" to insert a Bool type"),
-          ],
-          Action.Construct(SChar("B")),
-        ),
-        operator_list(
-          ~on_type=false,
-          "Operators",
-          [LT, GT, Ampersand, Equals],
         ),
       ],
     ),
@@ -401,6 +380,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           simple("Insert Empty List (nil)"),
         ),
         combo(Semicolon, simple("Cons operator")),
+        combo_and_cursor(
+          ~on_type=true,
+          LeftBracket,
+          simple("Insert type List"),
+        ),
       ],
     ),
     section(
@@ -408,19 +392,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         combo(Alt_L, simple("Left injection")),
         combo(Alt_R, simple("Right injection")),
-      ],
-    ),
-    section(
-      "Types",
-      [
-        combo(Colon, simple("Type ascription")),
         combo(VBar, simple("Insert | operator")),
-        combo_and_cursor(
-          ~on_type=true,
-          LeftBracket,
-          simple("Insert type List"),
-        ),
-        combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
     ),
     section(
@@ -428,6 +400,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         combo(Backslash, simple("Insert Lambda expression")),
         combo(Space, simple("Apply function")),
+        combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
     ),
     section("Tuples", [combo(Comma, simple("Create a tuple"))]),
