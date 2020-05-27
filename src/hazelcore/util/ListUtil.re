@@ -136,6 +136,23 @@ let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
   };
 
+let rec split_by_i = (i, xs) =>
+  i == 0
+    ? ([], xs)
+    : (
+      switch (xs) {
+      | [] => failwith("split_by_i")
+      | [x, ...xs] =>
+        let (first, second) = split_by_i(i - 1, xs);
+        ([x, ...first], second);
+      }
+    );
+
+let rm_first_k = (k, xs) => {
+  let (_, second) = split_by_i(k, xs);
+  second;
+};
+
 let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])
