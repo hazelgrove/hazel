@@ -1,5 +1,41 @@
 open Sexplib.Std;
 
+module BinBoolOp = {
+  [@deriving sexp]
+  type t =
+    | And
+    | Or;
+
+  let of_op = (op: UHExp.operator): option(t) =>
+    switch (op) {
+    | And => Some(And)
+    | Or => Some(Or)
+    | Minus
+    | Plus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals
+    | FPlus
+    | FMinus
+    | FTimes
+    | FDivide
+    | FLessThan
+    | FGreaterThan
+    | FEquals
+    | Space
+    | Cons
+    | Comma => None
+    };
+
+  let to_op = (op: t): UHExp.operator =>
+    switch (op) {
+    | And => And
+    | Or => Or
+    };
+};
+
 module BinIntOp = {
   [@deriving sexp]
   type t =
@@ -113,10 +149,9 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | And(t, t)
-  | Or(t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -147,10 +182,9 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
+  | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
-  | And(_, _) => "And"
-  | Or(_, _) => "Or"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
