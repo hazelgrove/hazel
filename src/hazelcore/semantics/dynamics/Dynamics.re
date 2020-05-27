@@ -1414,7 +1414,12 @@ module Exp = {
         | None => ExpandResult.DoesNotExpand
         | Some((rev_ds, rev_tys, delta)) => {
             let d = rev_ds |> List.rev |> DHExp.make_tuple;
-            let ty = HTyp.Prod(rev_tys |> List.rev);
+            let ty =
+              switch (rev_tys) {
+              | [] => failwith("expected at least 1 element")
+              | [ty] => ty
+              | _ => HTyp.Prod(rev_tys |> List.rev)
+              };
             Expands(d, ty, delta);
           }
       )
@@ -1443,7 +1448,12 @@ module Exp = {
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
               let d = DHExp.make_tuple(List.rev(rev_ds));
-              let ty = HTyp.Prod(List.rev(rev_tys));
+              let ty =
+                switch (rev_tys) {
+                | [] => failwith("expected at least 1 element")
+                | [ty] => ty
+                | _ => HTyp.Prod(rev_tys |> List.rev)
+                };
               Expands(d, ty, delta);
             }
         );
