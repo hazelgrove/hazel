@@ -1886,8 +1886,7 @@ module Exp = {
       ((splice_map, u_gen), (splice_name, (ty, e))) => {
         let (e, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, e, ty);
-        let splice_map =
-          IntMap.extend_unique(splice_map, (splice_name, (ty, e)));
+        let splice_map = splice_map |> IntMap.add(splice_name, (ty, e));
         (splice_map, u_gen);
       },
       (splice_map, u_gen),

@@ -1,11 +1,4 @@
-open Sexplib.Std;
-
-[@deriving sexp]
-type t('a) = list((int, 'a));
-
-let empty = [];
-
-let extend_unique = (delta, x) => [x, ...delta];
+include Map.Make(Int);
 
 let rec drop = (delta, n) =>
   switch (delta) {
