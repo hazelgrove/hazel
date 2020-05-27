@@ -265,3 +265,10 @@ let rec map_with_accumulator_opt =
     let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
   };
+
+let rec pairs = (xs: list('x)): list(('x, 'x)) =>
+  switch (xs) {
+  | []
+  | [_] => []
+  | [x1, x2, ...xs] => [(x1, x2), ...pairs([x2, ...xs])]
+  };

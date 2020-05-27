@@ -1,6 +1,7 @@
 let is_empty = String.equal("");
 
 let cat = String.concat("");
+let sep = String.concat(" ");
 
 let replicat = (n: int, s: string) => cat(ListUtil.replicate(n, s));
 
