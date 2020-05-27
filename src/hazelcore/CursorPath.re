@@ -34,7 +34,7 @@ let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
 };
 
-let _of_zopseq =
+let of_zopseq_ =
     (
       ~of_zoperand: 'zoperand => t,
       ZOpSeq(_, zseq): ZOpSeq.t(_, _, 'zoperand, _),
@@ -92,7 +92,7 @@ let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   };
 };
 
-let _follow_opseq =
+let follow_opseq_ =
     (
       ~follow_operand: (t, 'operand) => option('zoperand),
       ~follow_operator: (t, 'operator) => option('zoperator),
@@ -123,7 +123,7 @@ let _follow_opseq =
     }
   };
 
-let _follow_steps_opseq =
+let follow_steps_opseq_ =
     (
       ~follow_steps_operand:
          (~side: Side.t, steps, 'operand) => option('zoperand),
@@ -196,7 +196,7 @@ let holes_case_err =
     ]
   };
 
-let holes_skel =
+let holes_skel_ =
     (
       ~holes_operand: ('operand, steps, hole_list) => hole_list,
       ~hole_desc: MetaVar.t => hole_desc,
@@ -250,7 +250,7 @@ let holes_opseq =
       hs: hole_list,
     )
     : hole_list =>
-  holes_skel(
+  holes_skel_(
     ~holes_operand,
     ~hole_desc,
     ~is_space,
@@ -260,7 +260,7 @@ let holes_opseq =
     hs,
   );
 
-let _holes_zopseq =
+let holes_zopseq_ =
     (
       ~holes_operand: ('operand, rev_steps, hole_list) => hole_list,
       ~holes_zoperand: ('zoperand, rev_steps) => zhole_list,
@@ -276,7 +276,7 @@ let _holes_zopseq =
     : zhole_list => {
   let OpSeq(_, seq) = zopseq |> erase_zopseq;
   let holes_skel = skel =>
-    holes_skel(
+    holes_skel_(
       ~holes_operand,
       ~hole_desc,
       ~is_space,
@@ -425,7 +425,7 @@ let _holes_zopseq =
 
 module Typ = {
   let rec of_z = (zty: ZTyp.t): t => of_zopseq(zty)
-  and of_zopseq = zopseq => _of_zopseq(~of_zoperand, zopseq)
+  and of_zopseq = zopseq => of_zopseq_(~of_zoperand, zopseq)
   and of_zoperand =
     fun
     | CursorT(cursor, _) => ([], cursor)
@@ -435,7 +435,7 @@ module Typ = {
   let rec follow = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     follow_opseq(path, uty)
   and follow_opseq = (path: t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
-    _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
+    follow_opseq_(~follow_operand, ~follow_operator, path, opseq)
   and follow_operand =
       ((steps, cursor): t, operand: UHTyp.operand): option(ZTyp.zoperand) =>
     switch (steps) {
@@ -477,7 +477,7 @@ module Typ = {
     follow_steps_opseq(~side, steps, uty)
   and follow_steps_opseq =
       (~side: Side.t, steps: steps, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
-    _follow_steps_opseq(
+    follow_steps_opseq_(
       ~follow_steps_operand,
       ~follow_steps_operator,
       ~side,
@@ -551,7 +551,7 @@ module Typ = {
   let rec holes_z = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list =>
     holes_zopseq(zty, rev_steps)
   and holes_zopseq = (zopseq: ZTyp.zopseq, rev_steps: rev_steps): zhole_list =>
-    _holes_zopseq(
+    holes_zopseq_(
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
@@ -584,7 +584,7 @@ module Typ = {
 module Pat = {
   let rec of_z = (zp: ZPat.t): t => of_zopseq(zp)
   and of_zopseq = (zopseq: ZPat.zopseq): t =>
-    _of_zopseq(~of_zoperand, zopseq)
+    of_zopseq_(~of_zoperand, zopseq)
   and of_zoperand =
     fun
     | CursorP(cursor, _) => ([], cursor)
@@ -594,7 +594,7 @@ module Pat = {
   let rec follow = (path: t, p: UHPat.t): option(ZPat.t) =>
     follow_opseq(path, p)
   and follow_opseq = (path: t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
-    _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
+    follow_opseq_(~follow_operand, ~follow_operator, path, opseq)
   and follow_operand =
       ((steps, cursor): t, operand: UHPat.operand): option(ZPat.zoperand) =>
     switch (steps) {
@@ -638,7 +638,7 @@ module Pat = {
     follow_steps_opseq(~side, steps, p)
   and follow_steps_opseq =
       (~side: Side.t, steps: steps, opseq: UHPat.opseq): option(ZPat.zopseq) =>
-    _follow_steps_opseq(
+    follow_steps_opseq_(
       ~follow_steps_operand,
       ~follow_steps_operator,
       ~side,
@@ -693,13 +693,6 @@ module Pat = {
     | [_, ..._] => None
     };
 
-  exception NotFound(t, UHPat.t);
-  let follow_or_fail = (path: t, p: UHPat.t): ZPat.t =>
-    switch (follow(path, p)) {
-    | None => raise(NotFound(path, p))
-    | Some(zp) => zp
-    };
-
   let hole_desc = (u: MetaVar.t): hole_desc => PatHole(u);
 
   let rec holes = (p: UHPat.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
@@ -746,7 +739,7 @@ module Pat = {
   let rec holes_z = (zp: ZPat.t, rev_steps: rev_steps): zhole_list =>
     holes_zopseq(zp, rev_steps)
   and holes_zopseq = (zopseq: ZPat.zopseq, rev_steps: rev_steps): zhole_list =>
-    _holes_zopseq(
+    holes_zopseq_(
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
@@ -841,7 +834,7 @@ module Exp = {
     | ExpLineZ(zopseq) => of_zopseq(zopseq)
     }
   and of_zopseq = (zopseq: ZExp.zopseq): t =>
-    _of_zopseq(~of_zoperand, zopseq)
+    of_zopseq_(~of_zoperand, zopseq)
   and of_zoperand = (zoperand: ZExp.zoperand): t =>
     switch (zoperand) {
     | CursorE(cursor, _) => ([], cursor)
@@ -916,7 +909,7 @@ module Exp = {
       }
     }
   and follow_opseq = (path: t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
-    _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
+    follow_opseq_(~follow_operand, ~follow_operator, path, opseq)
   and follow_operator =
       ((steps, cursor): t, operator: UHExp.operator): option(ZExp.zoperator) =>
     switch (steps) {
@@ -1084,7 +1077,7 @@ module Exp = {
     }
   and follow_steps_opseq =
       (~side: Side.t, steps: steps, opseq: UHExp.opseq): option(ZExp.zopseq) =>
-    _follow_steps_opseq(
+    follow_steps_opseq_(
       ~follow_steps_operand,
       ~follow_steps_operator,
       ~side,
@@ -1206,20 +1199,6 @@ module Exp = {
         |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
       | _ => None
       }
-    };
-
-  exception NotFound;
-  let follow_or_fail = (path: t, e: UHExp.t): ZExp.t =>
-    switch (follow(path, e)) {
-    | None => raise(NotFound)
-    | Some(ze) => ze
-    };
-
-  let follow_operand_or_fail =
-      (path: t, operand: UHExp.operand): ZExp.zoperand =>
-    switch (follow_operand(path, operand)) {
-    | None => raise(NotFound)
-    | Some(zoperand) => zoperand
     };
 
   let hole_desc = (u: MetaVar.t): hole_desc => ExpHole(u);
@@ -1419,7 +1398,7 @@ module Exp = {
       );
     }
   and holes_zopseq = (zopseq: ZExp.zopseq, rev_steps: rev_steps): zhole_list =>
-    _holes_zopseq(
+    holes_zopseq_(
       ~holes_operand,
       ~holes_zoperand,
       ~hole_desc,
