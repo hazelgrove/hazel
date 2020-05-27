@@ -127,7 +127,7 @@ type t =
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
-  | InvalidOperation(t, ErrStatus.RunTime.t)
+  | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
 and rule =

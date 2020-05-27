@@ -442,7 +442,7 @@ module Exp = {
           | DivideByZero =>
             let (d_doc, _) = go'(d);
             let decoration =
-              Doc.text(ErrStatus.RunTime.err_msg(err))
+              Doc.text(InvalidOperationError.err_msg(err))
               |> annot(DHAnnot.DivideByZero);
             hcats([d_doc, decoration]);
           }
