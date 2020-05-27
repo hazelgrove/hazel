@@ -271,7 +271,7 @@ let view =
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
     | TypFree =>
-      let ind2 = expected_a_type_indicator;
+      let ind1 = expected_a_type_indicator;
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
     | OnType =>
