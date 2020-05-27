@@ -33,29 +33,42 @@ let delete = (caret_index: int, s: string): string => {
   l ++ r;
 };
 
-let rec find_and_replace = (acc: string, s: string): string =>
-  if (String.length(s) <= 1) {
-    print_endline("single char");
+let rec find_and_replace = (acc: string, s: string): string => {
+  let len_s = String.length(s) - 2;
+  if (len_s <= (-1)) {
     acc ++ s;
   } else {
+    let substr = String.sub(s, 0, 2);
     let slash_b = "\\" ++ "b";
     let slash_t = "\\" ++ "t";
-    print_endline("spec char");
-    if (String.sub(s, 0, 2) == slash_b) {
-      print_endline("\b!");
+    let slash_r = "\\" ++ "r";
+    let slash_slash = "\\" ++ "\\";
+    let slash_n = "\\" ++ "n";
+    if (substr == slash_b) {
       find_and_replace(
         String.sub(acc, 0, String.length(acc) - 1),
-        String.sub(s, 2, String.length(s) - 2),
+        String.sub(s, 2, len_s),
       );
-    } else if (String.sub(s, 0, 2) == slash_t) {
-      find_and_replace(acc ++ "\t", String.sub(s, 2, String.length(s) - 2));
+    } else if (substr == slash_t) {
+      find_and_replace(acc ++ "\t", String.sub(s, 2, len_s));
+    } else if (substr == slash_slash) {
+      find_and_replace(acc ++ "\\", String.sub(s, 2, len_s));
+    } else if (substr == slash_r) {
+      if (String.length(acc) <= len_s) {
+        find_and_replace("", String.sub(s, 2, len_s));
+      } else {
+        String.sub(s, 2, len_s)
+        ++ String.sub(acc, len_s, String.length(acc) - len_s);
+      };
+    } else if (substr == slash_n) {
+      find_and_replace(acc ++ "\n", String.sub(s, 2, len_s));
     } else {
-      print_endline(String.sub(s, 0, 2));
       find_and_replace(
         acc ++ String.sub(s, 0, 1),
-        String.sub(s, 1, String.length(s) - 1),
+        String.sub(s, 1, len_s + 1),
       );
     };
   };
+};
 
 let utf8_length = CamomileLibrary.UTF8.length;
