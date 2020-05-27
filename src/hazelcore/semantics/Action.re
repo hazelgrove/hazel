@@ -2562,14 +2562,11 @@ module Exp = {
     | Some(ci) =>
       switch (a) {
       | GoToDefinition =>
-        switch (ZExp.cursor_on_Var(ze)) {
-        | None => Failed
-        | Some(x) =>
-          switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
-          | None => Failed
-          | Some(steps) =>
-            syn_move(ctx, MoveToBefore(steps), (ze, ty, u_gen))
-          }
+        switch (ci.typed) {
+        | AnaVar(_, _, binding_steps, _, _)
+        | SynVar(_, _, binding_steps, _, _) =>
+          syn_move(ctx, MoveToBefore(binding_steps), (ze, ty, u_gen))
+        | _ => Failed
         }
       | GoToFirstUsage =>
         // from binding site to first usage
@@ -2581,47 +2578,23 @@ module Exp = {
         }
       | GoToNextUsage
       | GoToPrevUsage =>
-        let (cur_steps, _) = CursorPath.Exp.of_z(ze);
-        switch (ZExp.cursor_on_Var(ze)) {
-        | None => Failed
-        | Some(x) =>
-          switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
-          | None => Failed
-          | Some(bind_steps) =>
-            switch (
-              syn_move(ctx, MoveToBefore(bind_steps), (ze, ty, u_gen))
-            ) {
-            | (Failed | CursorEscaped(_) | Succeeded(SynExpands(_))) as err => err
-            | Succeeded(SynDone((ze, ty, u_gen))) =>
-              switch (CursorInfo.Exp.syn_cursor_info(Contexts.empty, ze)) {
-              | None => Failed
-              | Some(ci) =>
-                switch (ci.typed) {
-                | PatAnaVar(_, _, _, _, [_, ..._] as uses, _)
-                | PatSynVar(_, _, _, _, [_, ..._] as uses, _) =>
-                  let result_steps =
-                    switch (a) {
-                    | GoToNextUsage =>
-                      UsageAnalysis.go_to_next_usage(cur_steps, uses)
-                    | GoToPrevUsage =>
-                      UsageAnalysis.go_to_prev_usage(cur_steps, uses)
-                    | _ => assert(false)
-                    };
-                  switch (result_steps) {
-                  | None => Failed
-                  | Some(result_steps) =>
-                    syn_move(
-                      ctx,
-                      MoveToBefore(result_steps),
-                      (ze, ty, u_gen),
-                    )
-                  };
-                | _ => Failed
-                }
-              }
-            }
-          }
-        };
+        switch (ci.typed) {
+        | AnaVar(_, _, _, _, [])
+        | SynVar(_, _, _, _, []) => Failed
+        | AnaVar(_, _, _, i_cur, other_uses)
+        | SynVar(_, _, _, i_cur, other_uses) =>
+          let len = List.length(other_uses);
+          let result_steps =
+            switch (a) {
+            | GoToNextUsage =>
+              List.nth(other_uses, Int.rem(i_cur + len, len))
+            | GoToPrevUsage =>
+              List.nth(other_uses, Int.rem(i_cur - 1 + len, len))
+            | _ => assert(false)
+            };
+          syn_move(ctx, MoveToBefore(result_steps), (ze, ty, u_gen));
+        | _ => Failed
+        }
       | _ =>
         failwith(
           __LOC__

@@ -27,6 +27,8 @@ type typed =
       Var.t,
       // steps of binding site
       CursorPath.steps,
+      // index of current use
+      int,
       // other uses
       UsageAnalysis.uses_list,
     )
@@ -64,6 +66,8 @@ type typed =
       Var.t,
       // steps of binding site
       CursorPath.steps,
+      // index of current use
+      int,
       // other uses
       UsageAnalysis.uses_list,
     )
@@ -623,7 +627,7 @@ module Exp = {
                   ~offset=line_index + 1,
                   ~steps,
                   var,
-                  zblock |> ZExp.erase |> ListUtil.rm_first_k(line_index),
+                  zblock |> ZExp.erase |> ListUtil.rm_first_k(line_index + 1),
                 )
                 |> deferred,
               ),
@@ -869,15 +873,9 @@ module Exp = {
       |> OptUtil.map(((ty, binding_steps)) =>
            CursorOnDeferredVarExp(
              uses => {
-               mk(
-                 SynVar(
-                   ty,
-                   x,
-                   binding_steps,
-                   List.filter(other_use => other_use != steps, uses),
-                 ),
-                 ctx,
-               )
+               let (other_uses, i_cur) =
+                 ListUtil.rm_one_or_zero_i(use => use == steps, uses);
+               mk(SynVar(ty, x, binding_steps, i_cur, other_uses), ctx);
              },
              binding_steps,
              x,
@@ -1032,7 +1030,9 @@ module Exp = {
                       ~offset=line_index + 1,
                       ~steps,
                       var,
-                      zblock |> ZExp.erase |> ListUtil.rm_first_k(line_index),
+                      zblock
+                      |> ZExp.erase
+                      |> ListUtil.rm_first_k(line_index + 1),
                     )
                     |> deferred,
                   ),
@@ -1242,16 +1242,11 @@ module Exp = {
         (ctx |> Contexts.gamma |> VarCtx.lookup)(x)
         |> OptUtil.map(((ty, binding_steps)) =>
              CursorOnDeferredVarExp(
-               uses =>
-                 mk(
-                   AnaVar(
-                     ty,
-                     x,
-                     binding_steps,
-                     List.filter(other_use => other_use != steps, uses),
-                   ),
-                   ctx,
-                 ),
+               uses => {
+                 let (other_uses, i_cur) =
+                   ListUtil.rm_one_or_zero_i(use => use == steps, uses);
+                 mk(SynVar(ty, x, binding_steps, i_cur, other_uses), ctx);
+               },
                binding_steps,
                x,
              )

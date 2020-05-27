@@ -153,6 +153,19 @@ let rm_first_k = (k, xs) => {
   second;
 };
 
+let rec rm_one_or_zero_i =
+        (~i=0, f: 'a => bool, xs: list('a)): (list('a), int) =>
+  switch (xs) {
+  | [] => ([], i)
+  | [x, ...xs] =>
+    f(x)
+      ? (xs, i)
+      : {
+        let (acc, i) = rm_one_or_zero_i(~i=i + 1, f, xs);
+        ([x, ...acc], i);
+      }
+  };
+
 let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])

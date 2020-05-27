@@ -161,8 +161,8 @@ let decorate_cursor = (steps, l) =>
   |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
 let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
   switch (ci.typed) {
-  | AnaVar(_, _, var_def, other_uses)
-  | SynVar(_, _, var_def, other_uses) =>
+  | AnaVar(_, _, var_def, _, other_uses)
+  | SynVar(_, _, var_def, _, other_uses) =>
     let l =
       l
       |> UHLayout.find_and_decorate_var_def(~steps=var_def)

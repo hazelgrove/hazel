@@ -123,11 +123,14 @@ let view = (model: Model.t): Vdom.Node.t => {
       ),
     );
   };
-  let got_var_indicator = num_of_other_uses =>
+  let got_var_indicator = (index_of_cur_use, num_of_other_uses) =>
     got_indicator(
       "Got a variable",
       special_msg_bar(
-        Int.to_string(num_of_other_uses) ++ uses(num_of_other_uses),
+        Int.to_string(index_of_cur_use)
+        ++ " / "
+        ++ Int.to_string(num_of_other_uses + 1)
+        ++ uses(num_of_other_uses + 1),
       ),
     );
 
@@ -145,9 +148,9 @@ let view = (model: Model.t): Vdom.Node.t => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK, NoWarn);
-    | AnaVar(ty, _, _, other_uses) =>
+    | AnaVar(ty, _, _, use_index, other_uses) =>
       let ind1 = expected_ty_indicator_pat(ty);
-      let ind2 = got_var_indicator(List.length(other_uses));
+      let ind2 = got_var_indicator(use_index, List.length(other_uses));
       (ind1, ind2, OK, NoWarn);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -186,9 +189,9 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK, NoWarn);
-    | SynVar(_, _, _, other_uses) =>
+    | SynVar(_, _, _, use_index, other_uses) =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_var_indicator(List.length(other_uses));
+      let ind2 = got_var_indicator(use_index, List.length(other_uses));
       (ind1, ind2, OK, NoWarn);
     | SynFree =>
       let ind1 = expected_any_indicator;
