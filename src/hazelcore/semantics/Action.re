@@ -2363,19 +2363,6 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
-        | None =>
-          print_endline("Action2368");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2371");
-          syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
-        }
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.Exp.next_hole_steps_z(ze)) {
-      | None => Failed
-      | Some(steps) =>
         switch (steps) {
         | [k1, k2] =>
           print_endline(string_of_int(k1) ++ " " ++ string_of_int(k2))
@@ -2383,12 +2370,30 @@ module Exp = {
         };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
         | None =>
+          print_endline("Action2368");
+          Failed;
+        | Some(path) =>
+          print_endline("Action2371");
+          syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
+        };
+      }
+    | MoveToNextHole =>
+      switch (CursorPath.Exp.next_hole_steps_z(ze)) {
+      | None => Failed
+      | Some(steps) =>
+        print_endline("Action2390");
+        // switch (steps) {
+        // | [k1, k2] =>
+        //   print_endline(string_of_int(k1) ++ " " ++ string_of_int(k2))
+        // | _ => print_endline("None")
+        // };
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None =>
           print_endline("Action2381");
           Failed;
         | Some(path) =>
-          let (_, cursor) = path;
           print_endline("Action2384");
-          syn_move(ctx, MoveTo((steps, cursor)), (ze, ty, u_gen));
+          syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
         };
       }
     | MoveLeft =>
