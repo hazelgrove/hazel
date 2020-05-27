@@ -209,7 +209,7 @@ module Pat = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_dps, ctx, delta)) => {
-            let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+            let dp = rev_dps |> List.rev |> DHPat.mk_tuple;
             Expands(dp, ty, ctx, delta);
           }
       )
@@ -237,7 +237,7 @@ module Pat = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_dps, ctx, delta)) => {
-              let dp = DHPat.make_tuple(List.rev(rev_dps));
+              let dp = DHPat.mk_tuple(List.rev(rev_dps));
               Expands(dp, ty, ctx, delta);
             }
         );
@@ -1407,7 +1407,7 @@ module Exp = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_ds, rev_tys, delta)) => {
-            let d = rev_ds |> List.rev |> DHExp.make_tuple;
+            let d = rev_ds |> List.rev |> DHExp.mk_tuple;
             let ty =
               switch (rev_tys) {
               | [] => failwith("expected at least 1 element")
@@ -1441,7 +1441,7 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
-              let d = DHExp.make_tuple(List.rev(rev_ds));
+              let d = DHExp.mk_tuple(List.rev(rev_ds));
               let ty =
                 switch (rev_tys) {
                 | [] => failwith("expected at least 1 element")

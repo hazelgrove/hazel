@@ -197,11 +197,11 @@ let constructor_string = (d: t): string =>
   | InvalidOperation(_) => "InvalidOperation"
   };
 
-let rec make_tuple: list(t) => t =
+let rec mk_tuple: list(t) => t =
   fun
-  | [] => failwith("make_tuple: expected at least 1 element")
+  | [] => failwith("mk_tuple: expected at least 1 element")
   | [d] => d
-  | [d, ...ds] => Pair(d, make_tuple(ds));
+  | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
   if (HTyp.eq(t1, t2)) {
