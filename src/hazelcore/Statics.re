@@ -250,11 +250,11 @@ module Pat = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHPat.opseq)
           : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
-  and _syn_nth_type_mode =
+    syn_nth_type_mode'(ctx, n, skel, seq)
+  and syn_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq)
       : option(type_mode) => {
-    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
     let rec go = (skel: UHPat.skel) =>
       switch (skel) {
       | Placeholder(n') =>
@@ -313,10 +313,10 @@ module Pat = {
              Skel.leftmost_tm_index(skel) <= n
              && n <= Skel.rightmost_tm_index(skel)
            );
-      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
     };
   }
-  and _ana_nth_type_mode =
+  and ana_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
       : option(type_mode) => {
     let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
@@ -329,7 +329,7 @@ module Pat = {
         Some(Ana(ty));
       | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-        _syn_nth_type_mode(ctx, n, skel_not_in_hole, seq);
+        syn_nth_type_mode'(ctx, n, skel_not_in_hole, seq);
       | BinOp(NotInHole, Space, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? go(skel1, HTyp.Hole) : go(skel2, HTyp.Hole)
@@ -758,9 +758,15 @@ module Pat = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
       : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
     let path = CursorPath.Pat.of_z(zp);
-    let p = ZPat.erase(zp);
-    let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, p);
-    let zp = CursorPath.Pat.follow_or_fail(path, p);
+    let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, ZPat.erase(zp));
+    let zp =
+      CursorPath.Pat.follow(path, p)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zp, ty, ctx, u_gen);
   };
 
@@ -768,9 +774,15 @@ module Pat = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
       : (ZPat.t, Contexts.t, MetaVarGen.t) => {
     let path = CursorPath.Pat.of_z(zp);
-    let p = ZPat.erase(zp);
-    let (p, ctx, u_gen) = ana_fix_holes(ctx, u_gen, p, ty);
-    let zp = CursorPath.Pat.follow_or_fail(path, p);
+    let (p, ctx, u_gen) = ana_fix_holes(ctx, u_gen, ZPat.erase(zp), ty);
+    let zp =
+      CursorPath.Pat.follow(path, p)
+      |> OptUtil.get(() =>
+           failwith(
+             "ana_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zp, ctx, u_gen);
   };
 };
@@ -1261,11 +1273,11 @@ module Exp = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
           : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
-  and _syn_nth_type_mode =
+    syn_nth_type_mode'(ctx, n, skel, seq)
+  and syn_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
       : option(type_mode) => {
-    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
     let rec go = (skel: UHExp.skel) =>
       switch (skel) {
       | Placeholder(n') =>
@@ -1361,13 +1373,13 @@ module Exp = {
              Skel.leftmost_tm_index(skel) <= n
              && n <= Skel.rightmost_tm_index(skel)
            );
-      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
     };
   }
-  and _ana_nth_type_mode =
+  and ana_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
       : option(type_mode) => {
-    let syn_go = skel => _syn_nth_type_mode(ctx, n, skel, seq);
+    let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
     let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
@@ -2264,9 +2276,15 @@ module Exp = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
       : (ZExp.t, HTyp.t, MetaVarGen.t) => {
     let path = CursorPath.Exp.of_z(ze);
-    let e = ze |> ZExp.erase;
-    let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, e);
-    let ze = CursorPath.Exp.follow_or_fail(path, e);
+    let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
+    let ze =
+      CursorPath.Exp.follow(path, e)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (ze, ty, u_gen);
   };
 
@@ -2274,13 +2292,16 @@ module Exp = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
       : (ZExp.zblock, Contexts.t, MetaVarGen.t) => {
     let path = CursorPath.Exp.of_zblock(zlines);
-    let lines = zlines |> ZExp.erase_zblock;
-    let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
+    let (lines, ctx, u_gen) =
+      syn_fix_holes_lines(ctx, u_gen, ZExp.erase_zblock(zlines));
     let zlines =
-      OptUtil.get(
-        _ => failwith("hole fix pass did not preserve paths"),
-        CursorPath.Exp.follow_block(path, lines),
-      );
+      CursorPath.Exp.follow_block(path, lines)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes_lines did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zlines, ctx, u_gen);
   };
 
@@ -2297,36 +2318,30 @@ module Exp = {
     let (rules, u_gen, rule_types, common_type) =
       syn_fix_holes_rules(ctx, u_gen, rules, pat_ty);
     let zrules =
-      OptUtil.get(
-        _ => failwith("hole fix pass did not preserve paths"),
-        CursorPath.Exp.follow_rules(path, rules),
-      );
+      CursorPath.Exp.follow_rules(path, rules)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes_rules did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zrules, rule_types, common_type, u_gen);
   };
 
   let ana_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
       : (ZExp.t, MetaVarGen.t) => {
-    let (steps, _) as path = CursorPath.Exp.of_z(ze);
-    let e = ze |> ZExp.erase;
-    let (e, u_gen) = ana_fix_holes(ctx, u_gen, e, ty);
-    switch (CursorPath.Exp.follow(path, e)) {
-    | None =>
-      // Only way this can happen now is path was originally
-      // on case type annotation and ana_fix_holes stripped
-      // the annotation, in which case we can just place cursor
-      // at end of case node. We might just wanna write a proper
-      // recursive traversal for hole-fixing zexps/blocks.
-      switch (steps |> ListUtil.split_last) {
-      | None => assert(false)
-      | Some((case_steps, _)) =>
-        switch (CursorPath.Exp.follow_steps(~side=After, case_steps, e)) {
-        | None => assert(false)
-        | Some(ze) => (ze, u_gen)
-        }
-      }
-    | Some(ze) => (ze, u_gen)
-    };
+    let path = CursorPath.Exp.of_z(ze);
+    let (e, u_gen) = ana_fix_holes(ctx, u_gen, ZExp.erase(ze), ty);
+    let ze =
+      CursorPath.Exp.follow(path, e)
+      |> OptUtil.get(() =>
+           failwith(
+             "ana_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
+    (ze, u_gen);
   };
 
   /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
@@ -2335,8 +2350,16 @@ module Exp = {
     syn_fix_holes(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
 
   let fix_and_renumber_holes_z = (ctx: Contexts.t, ze: ZExp.t): edit_state => {
-    let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ze |> ZExp.erase);
-    let ze = CursorPath.Exp.follow_or_fail(CursorPath.Exp.of_z(ze), e);
+    let path = CursorPath.Exp.of_z(ze);
+    let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
+    let ze =
+      CursorPath.Exp.follow(path, e)
+      |> OptUtil.get(() =>
+           failwith(
+             "fix_and_renumber_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (ze, ty, u_gen);
   };
 };
