@@ -1277,7 +1277,7 @@ module Exp = {
       let splice_order = psi.splice_order;
       List.fold_right(
         (i, hs) =>
-          switch (NatMap.lookup(splice_map, i)) {
+          switch (IntMap.lookup(splice_map, i)) {
           | None => hs
           | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
           },
@@ -1664,7 +1664,7 @@ module Exp = {
       let holes_splices_before =
         List.fold_left(
           (hs, n) =>
-            switch (NatMap.lookup(splice_map, n)) {
+            switch (IntMap.lookup(splice_map, n)) {
             | None => hs
             | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
             },
@@ -1674,7 +1674,7 @@ module Exp = {
       let holes_splices_after =
         List.fold_left(
           (hs, n) =>
-            switch (NatMap.lookup(splice_map, n)) {
+            switch (IntMap.lookup(splice_map, n)) {
             | None => hs
             | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
             },

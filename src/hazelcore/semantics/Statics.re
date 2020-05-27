@@ -1048,7 +1048,7 @@ module Exp = {
   }
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
-    NatMap.fold(
+    IntMap.fold(
       splice_map,
       (c, (splice_name, (ty, e))) =>
         switch (c) {
@@ -1881,13 +1881,13 @@ module Exp = {
         splice_map: UHExp.splice_map,
       )
       : (UHExp.splice_map, MetaVarGen.t) =>
-    NatMap.fold(
+    IntMap.fold(
       splice_map,
       ((splice_map, u_gen), (splice_name, (ty, e))) => {
         let (e, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, e, ty);
         let splice_map =
-          NatMap.extend_unique(splice_map, (splice_name, (ty, e)));
+          IntMap.extend_unique(splice_map, (splice_name, (ty, e)));
         (splice_map, u_gen);
       },
       (splice_map, u_gen),

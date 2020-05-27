@@ -22,7 +22,7 @@ let select_opt =
     )
     : option(t('exp, 'zexp)) => {
   let {SpliceInfo.next, SpliceInfo.splice_map, SpliceInfo.splice_order} = splice_info;
-  switch (NatMap.drop(splice_map, n)) {
+  switch (IntMap.drop(splice_map, n)) {
   | None => None
   | Some((splice_map, ty_e)) =>
     switch (f(ty_e)) {
