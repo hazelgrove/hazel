@@ -96,6 +96,7 @@ type typed =
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
+  | TypFree
   | OnType
   /* (we will have a richer structure here later)*/
   | OnLine
@@ -123,6 +124,11 @@ module Typ = {
         ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k), _), _)), (_, _)),
       ) =>
       Some(mk(TypKeyword(k), ctx))
+    | ZOpSeq(
+        _,
+        ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
+      ) =>
+      Some(mk(TypFree, ctx))
     | _ => Some(mk(OnType, ctx))
     };
 };
