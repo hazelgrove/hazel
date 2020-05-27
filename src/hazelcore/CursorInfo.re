@@ -1,6 +1,13 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type join_of_branches =
+  | NoBranches
+  // steps to the case
+  | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
+  | JoinTy(HTyp.t);
+
+[@deriving sexp]
 type typed =
   /* cursor in analytic position */
   // cursor is on a lambda with an argument type annotation
@@ -49,6 +56,19 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
+  // cursor is on the clause of a case
+  | SynBranchClause
+      // lub of other branches
+      (
+        join_of_branches,
+        // info for the clause
+        typed,
+        // index of the branch
+        int,
+      )
+  // cursor is on a case with branches of inconsistent types
+  // keep track of steps to form that contains the branches
+  | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -188,6 +208,7 @@ module Pat = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -272,25 +293,34 @@ module Pat = {
     // but we want all comma operators in an opseq to
     // show the complete product type
     let seq = zseq |> ZPat.erase_zseq;
-    let skel_tys = Statics.Pat.tuple_zip(skel, ty);
     switch (zseq) {
     | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
-      switch (skel_tys) {
-      | Some(_) =>
+      let opseq = ZPat.erase_zopseq(zopseq);
+      let err = UHPat.get_err_status_opseq(opseq);
+      switch (err) {
+      | NotInHole =>
         Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
-      | None =>
-        let expected_length = ty |> HTyp.get_prod_elements |> List.length;
-        let got_length = skel |> UHPat.get_tuple_elements |> List.length;
+      | InHole(WrongLength, _) =>
+        let expected_length = List.length(HTyp.get_prod_elements(ty));
+        let got_length = List.length(UHPat.get_tuple_elements(skel));
         Some(
           CursorNotOnDeferredVarPat(
             mk(PatAnaWrongLength(expected_length, got_length, ty), ctx),
           ),
         );
-      }
+      | InHole(TypeInconsistent, _) =>
+        let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
+        Statics.Pat.syn_opseq(ctx, opseq')
+        |> Option.map(((ty', _)) =>
+             CursorNotOnDeferredVarPat(
+               mk(PatAnaTypeInconsistent(ty, ty'), ctx),
+             )
+           );
+      };
     | _ =>
       // cursor in tuple element
-      switch (skel_tys) {
+      switch (Statics.Pat.tuple_zip(skel, ty)) {
       | None =>
         // wrong length, switch to syn
         let zopseq_not_in_hole =
@@ -337,6 +367,7 @@ module Pat = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         ana_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -344,10 +375,26 @@ module Pat = {
           ty,
         )
       | ZOperator(_) =>
-        Statics.Pat.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ =>
-             CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
-           )
+        // skel must be BinOp
+        let opseq = OpSeq.OpSeq(skel, ZPat.erase_zseq(zseq));
+        let err = UHPat.get_err_status_opseq(opseq);
+        switch (err) {
+        | NotInHole =>
+          Statics.Pat.ana_skel(ctx, skel, seq, ty)
+          |> OptUtil.map(_ =>
+               CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
+             )
+        | InHole(WrongLength, _) =>
+          failwith(__LOC__ ++ ": n-tuples handled at opseq level")
+        | InHole(TypeInconsistent, _) =>
+          let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
+          Statics.Pat.syn_opseq(ctx, opseq')
+          |> Option.map(((ty', _)) =>
+               CursorNotOnDeferredVarPat(
+                 mk(PatAnaTypeInconsistent(ty, ty'), ctx),
+               )
+             );
+        };
       };
     } else {
       // recurse toward cursor
@@ -614,6 +661,7 @@ module Exp = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -633,7 +681,7 @@ module Exp = {
         )
       | BinOp(
           _,
-          Minus | Plus | Times | LessThan | GreaterThan | Equals,
+          Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
           skel1,
           skel2,
         ) =>
@@ -643,7 +691,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          FMinus | FPlus | FTimes | FLessThan | FGreaterThan | FEquals,
+          FMinus | FPlus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
           skel1,
           skel2,
         ) =>
@@ -737,6 +786,8 @@ module Exp = {
     | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
       Some(mk(SynKeyword(k), ctx))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
+    | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
+      Some(mk(SynInconsistentBranches(rule_types, steps), ctx))
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
@@ -769,25 +820,53 @@ module Exp = {
       | Some(ctx1) => syn_cursor_info(~steps=steps @ [2], ctx1, zbody)
       };
     | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-    | CaseZE(_, _, _, None)
-    | CaseZR(_, _, _, None) => None
-    | CaseZE(_, zscrut, _, Some(_)) =>
+    | CaseZE(_, zscrut, _) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-    | CaseZR(_, scrut, (prefix, zrule, _), Some(ann)) =>
-      let clause_ty = UHTyp.expand(ann);
+    | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => None
       | Some(pat_ty) =>
-        ana_cursor_info_rule(
-          ~steps=steps @ [1 + List.length(prefix)],
-          ctx,
-          zrule,
-          pat_ty,
-          clause_ty,
-        )
-      };
-    | CaseZA(_, _, rules, zann) =>
-      Typ.cursor_info(~steps=steps @ [1 + List.length(rules)], ctx, zann)
+        /* lub of all of the branches except the one with the cursor */
+        let lub_opt =
+          switch (prefix @ suffix) {
+          | [] => Some(NoBranches)
+          | other_branches =>
+            let clause_types =
+              List.fold_left(
+                (types_opt, r) =>
+                  switch (types_opt) {
+                  | None => None
+                  | Some(types) =>
+                    switch (Statics.Exp.syn_rule(ctx, r, pat_ty)) {
+                    | None => None
+                    | Some(r_ty) => Some([r_ty, ...types])
+                    }
+                  },
+                Some([]),
+                other_branches,
+              );
+            switch (clause_types) {
+            | None => None
+            | Some(types) =>
+              switch (HTyp.join_all(LUB, types)) {
+              | None => Some(InconsistentBranchTys(List.rev(types), steps))
+              | Some(lub) => Some(JoinTy(lub))
+              }
+            };
+          };
+        switch (lub_opt) {
+        | None => None
+        | Some(lub) =>
+          syn_cursor_info_rule(
+            ~steps=steps @ [1 + List.length(prefix)],
+            ctx,
+            zrule,
+            pat_ty,
+            lub,
+            List.length(prefix),
+          )
+        };
+      }
     | ApPaletteZ(_, _, _, zpsi) =>
       let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
       ana_cursor_info(~steps, ctx, ze, ty);
@@ -851,21 +930,26 @@ module Exp = {
         ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
         ty: HTyp.t,
       )
-      : option(t) => {
-    let skel_tys = Statics.Exp.tuple_zip(skel, ty);
+      : option(t) =>
     switch (zseq) {
-    | ZOperator((_, Comma), _) when HTyp.is_Prod(ty) =>
+    | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
-      switch (skel_tys) {
-      | Some(_) => Some(mk(Analyzed(ty), ctx))
-      | None =>
+      let opseq = ZExp.erase_zopseq(zopseq);
+      let err = UHExp.get_err_status_opseq(opseq);
+      switch (err) {
+      | NotInHole => Some(mk(Analyzed(ty), ctx))
+      | InHole(WrongLength, _) =>
         let expected_length = ty |> HTyp.get_prod_elements |> List.length;
         let got_length = skel |> UHExp.get_tuple_elements |> List.length;
         Some(mk(AnaWrongLength(expected_length, got_length, ty), ctx));
-      }
+      | InHole(TypeInconsistent, _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        Statics.Exp.syn_opseq(ctx, opseq')
+        |> Option.map(ty' => mk(AnaTypeInconsistent(ty, ty'), ctx));
+      };
     | _ =>
       // cursor in tuple element
-      switch (skel_tys) {
+      switch (Statics.Exp.tuple_zip(skel, ty)) {
       | None =>
         // wrong length, switch to syn
         let zopseq_not_in_hole =
@@ -879,8 +963,7 @@ module Exp = {
              );
         ana_cursor_info_skel(~steps, ctx, cursor_skel, zseq, cursor_skel_ty);
       }
-    };
-  }
+    }
   and ana_cursor_info_skel =
       // steps of whole opseq
       (
@@ -899,6 +982,7 @@ module Exp = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         ana_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -906,8 +990,20 @@ module Exp = {
           ty,
         )
       | ZOperator(_) =>
-        Statics.Exp.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
+        // skel must be BinOp
+        let opseq = ZExp.erase_zopseq(ZOpSeq.ZOpSeq(skel, zseq));
+        let err = UHExp.get_err_status_opseq(opseq);
+        switch (err) {
+        | NotInHole =>
+          Statics.Exp.ana_skel(ctx, skel, seq, ty)
+          |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
+        | InHole(WrongLength, _) =>
+          failwith(__LOC__ ++ ": n-tuples handled at opseq level")
+        | InHole(TypeInconsistent, _) =>
+          let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+          Statics.Exp.syn_opseq(ctx, opseq')
+          |> Option.map(ty' => mk(AnaTypeInconsistent(ty, ty'), ctx));
+        };
       };
     } else {
       // recurse toward cursor
@@ -931,7 +1027,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan |
+          Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |
@@ -969,7 +1066,7 @@ module Exp = {
       | ListNil(InHole(TypeInconsistent, _))
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
-      | Case(InHole(TypeInconsistent, _), _, _, _)
+      | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
       | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
         let operand' =
           zoperand
@@ -986,7 +1083,11 @@ module Exp = {
       | ListNil(InHole(WrongLength, _))
       | Lam(InHole(WrongLength, _), _, _, _)
       | Inj(InHole(WrongLength, _), _, _)
-      | Case(InHole(WrongLength, _), _, _, _)
+      | Case(
+          StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+          _,
+          _,
+        )
       | ApPalette(InHole(WrongLength, _), _, _, _) => None
       /* not in hole */
       | EmptyHole(_)
@@ -1001,7 +1102,8 @@ module Exp = {
         }
       | ListNil(NotInHole)
       | Inj(NotInHole, _, _)
-      | Case(NotInHole, _, _, _) => Some(mk(Analyzed(ty), ctx))
+      | Case(StandardErrStatus(NotInHole), _, _) =>
+        Some(mk(Analyzed(ty), ctx))
       | Parenthesized(body) =>
         Statics.Exp.ana(ctx, body, ty)
         |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
@@ -1027,17 +1129,25 @@ module Exp = {
     | LamZA(InHole(WrongLength, _), _, _, _)
     | LamZE(InHole(WrongLength, _), _, _, _)
     | InjZ(InHole(WrongLength, _), _, _)
-    | CaseZE(InHole(WrongLength, _), _, _, _)
-    | CaseZR(InHole(WrongLength, _), _, _, _)
-    | CaseZA(InHole(WrongLength, _), _, _, _)
+    | CaseZE(
+        StandardErrStatus(InHole(WrongLength, _)) |
+        InconsistentBranches(_, _),
+        _,
+        _,
+      )
+    | CaseZR(
+        StandardErrStatus(InHole(WrongLength, _)) |
+        InconsistentBranches(_, _),
+        _,
+        _,
+      )
     | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
     | LamZP(InHole(TypeInconsistent, _), _, _, _)
     | LamZA(InHole(TypeInconsistent, _), _, _, _)
     | LamZE(InHole(TypeInconsistent, _), _, _, _)
     | InjZ(InHole(TypeInconsistent, _), _, _)
-    | CaseZE(InHole(TypeInconsistent, _), _, _, _)
-    | CaseZR(InHole(TypeInconsistent, _), _, _, _)
-    | CaseZA(InHole(TypeInconsistent, _), _, _, _)
+    | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     /* zipper not in hole */
@@ -1085,9 +1195,9 @@ module Exp = {
           InjSide.pick(position, ty1, ty2),
         )
       }
-    | CaseZE(NotInHole, zscrut, _, _) =>
+    | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-    | CaseZR(NotInHole, scrut, (prefix, zrule, _), _) =>
+    | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>
       switch (Statics.Exp.syn(ctx, scrut)) {
       | None => None
       | Some(ty1) =>
@@ -1099,10 +1209,44 @@ module Exp = {
           ty,
         )
       }
-    | CaseZA(NotInHole, _, rules, zann) =>
-      Typ.cursor_info(~steps=steps @ [1 + List.length(rules)], ctx, zann)
     | ApPaletteZ(NotInHole, _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    }
+  and syn_cursor_info_rule =
+      (
+        ~steps: CursorPath.steps,
+        ctx: Contexts.t,
+        zrule: ZExp.zrule,
+        pat_ty: HTyp.t,
+        lub: join_of_branches,
+        rule_index: int,
+      )
+      : option(t) =>
+    switch (zrule) {
+    | CursorR(_) => Some(mk(OnRule, ctx))
+    | RuleZP(zp, clause) =>
+      switch (Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)) {
+      | None => None
+      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
+        let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
+        Some(deferred_ci(uses));
+      }
+    | RuleZE(p, zclause) =>
+      switch (Statics.Pat.ana(ctx, p, pat_ty)) {
+      | None => None
+      | Some(ctx) =>
+        let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause);
+        /* Check if the cursor is on the outermost form of the clause */
+        let is_outer = ZExp.is_outer(zclause);
+        switch (is_outer, cursor_info) {
+        | (_, None) => None
+        | (false, _) => cursor_info
+        | (true, Some({typed, ctx, uses})) =>
+          let typed = SynBranchClause(lub, typed, rule_index);
+          Some({typed, ctx, uses});
+        };
+      }
     }
   and ana_cursor_info_rule =
       (
@@ -1121,7 +1265,7 @@ module Exp = {
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
-        Some(uses |> deferred_ci);
+        Some(deferred_ci(uses));
       }
     | RuleZE(p, zclause) =>
       switch (Statics.Pat.ana(ctx, p, pat_ty)) {
