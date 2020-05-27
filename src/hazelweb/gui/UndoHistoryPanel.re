@@ -1,3 +1,4 @@
+module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
@@ -591,6 +592,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             if (is_current_entry) {
               [
                 Attr.id("cur-selected-entry"),
+                Attr.create("group_id", Js.Unsafe.inject(group_id)),
+                Attr.create("elt_id", Js.Unsafe.inject(elt_id)),
                 Attr.classes(["history-entry"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
@@ -639,6 +642,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               ];
             } else {
               [
+                Attr.create("group_id", Js.Unsafe.inject(group_id)),
+                Attr.create("elt_id", Js.Unsafe.inject(elt_id)),
                 Attr.classes(["history-entry"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
@@ -738,6 +743,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             if (is_current_entry) {
               [
+                Attr.create("group_id", Js.Unsafe.inject(group_id)),
+                Attr.create("elt_id", Js.Unsafe.inject(elt_id)),
                 Attr.classes(["history-entry"]),
                 Attr.id("cur-selected-entry"),
                 Attr.on_click(_ =>
@@ -787,6 +794,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               ];
             } else {
               [
+                Attr.create("group_id", Js.Unsafe.inject(group_id)),
+                Attr.create("elt_id", Js.Unsafe.inject(elt_id)),
                 Attr.classes(["history-entry"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
@@ -1052,6 +1061,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [
             Attr.classes(["panel-body", "context-inspector-body"]),
             Attr.id("history-body"),
+            Attr.on_mousemove(evt => {
+              JSUtil.update_mouse_position(evt);
+              Vdom.Event.Many([inject(FocusCell)]);
+            }),
           ],
           [history_view(model)],
         ),
