@@ -212,7 +212,7 @@ module Pat = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_dps, ctx, delta)) => {
-            let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+            let dp = rev_dps |> List.rev |> DHPat.mk_tuple;
             Expands(dp, ty, ctx, delta);
           }
       )
@@ -240,7 +240,7 @@ module Pat = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_dps, ctx, delta)) => {
-              let dp = DHPat.make_tuple(List.rev(rev_dps));
+              let dp = DHPat.mk_tuple(List.rev(rev_dps));
               Expands(dp, ty, ctx, delta);
             }
         );
@@ -497,6 +497,10 @@ module Exp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       Cons(d3, d4);
+    | BinBoolOp(op, d3, d4) =>
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      BinBoolOp(op, d3, d4);
     | BinIntOp(op, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
@@ -509,14 +513,6 @@ module Exp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       BinStrOp(op, d3, d4);
-    | And(d3, d4) =>
-      let d3 = subst_var(d1, x, d3);
-      let d4 = subst_var(d1, x, d4);
-      And(d3, d4);
-    | Or(d3, d4) =>
-      let d3 = subst_var(d1, x, d3);
-      let d4 = subst_var(d1, x, d4);
-      Or(d3, d4);
     | Inj(ty, side, d3) =>
       let d3 = subst_var(d1, x, d3);
       Inj(ty, side, d3);
@@ -606,8 +602,9 @@ module Exp = {
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
     | (_, Subscript(_, _, _)) => Indet
-    | (_, BinIntOp(_, _, _) | BinStrOp(_, _, _) | And(_, _) | Or(_, _)) =>
-      Indet
+    | (_, BinBoolOp(_, _, _)) => Indet
+    | (_, BinStrOp(_, _, _)) => Indet
+    | (_, BinIntOp(_, _, _)) => Indet
     | (_, BinFloatOp(_, _, _)) => Indet
     | (_, ConsistentCase(Case(_, _, _))) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
@@ -749,11 +746,10 @@ module Exp = {
     | Lam(_, _, _) => DoesNotMatch
     | Subscript(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
+    | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -812,11 +808,10 @@ module Exp = {
     | Lam(_, _, _) => DoesNotMatch
     | Subscript(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
+    | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -873,11 +868,10 @@ module Exp = {
     | Lam(_, _, _) => DoesNotMatch
     | Subscript(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
+    | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
     | BinStrOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -1176,11 +1170,11 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Bool);
           let dc2 = DHExp.cast(d2, ty2, Bool);
-          switch (DHExp.BinIntOp.of_op(op)) {
+          switch (DHExp.BinBoolOp.of_op(op)) {
           | None => ExpandResult.DoesNotExpand
-          | Some((op, ty)) =>
-            let d = DHExp.BinIntOp(op, dc1, dc2);
-            Expands(d, ty, delta);
+          | Some(op) =>
+            let d = DHExp.BinBoolOp(op, dc1, dc2);
+            Expands(d, Bool, delta);
           };
         }
       }
@@ -1491,7 +1485,7 @@ module Exp = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_ds, rev_tys, delta)) => {
-            let d = rev_ds |> List.rev |> DHExp.make_tuple;
+            let d = rev_ds |> List.rev |> DHExp.mk_tuple;
             let ty =
               switch (rev_tys) {
               | [] => failwith("expected at least 1 element")
@@ -1525,7 +1519,7 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
-              let d = DHExp.make_tuple(List.rev(rev_ds));
+              let d = DHExp.mk_tuple(List.rev(rev_ds));
               let ty =
                 switch (rev_tys) {
                 | [] => failwith("expected at least 1 element")
@@ -1853,6 +1847,10 @@ module Exp = {
       let (d2, hii) = renumber_result_only(path, hii, d2);
       let (d3, hii) = renumber_result_only(path, hii, d3);
       (Subscript(d1, d2, d3), hii);
+    | BinBoolOp(op, d1, d2) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (d2, hii) = renumber_result_only(path, hii, d2);
+      (BinBoolOp(op, d1, d2), hii);
     | BinIntOp(op, d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1865,14 +1863,6 @@ module Exp = {
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (BinStrOp(op, d1, d2), hii);
-    | And(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (And(d1, d2), hii);
-    | Or(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Or(d1, d2), hii);
     | Inj(ty, side, d1) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Inj(ty, side, d1), hii);
@@ -1967,6 +1957,10 @@ module Exp = {
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       let (d3, hii) = renumber_sigmas_only(path, hii, d3);
       (Subscript(d1, d2, d3), hii);
+    | BinBoolOp(op, d1, d2) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+      (BinBoolOp(op, d1, d2), hii);
     | BinIntOp(op, d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1979,14 +1973,6 @@ module Exp = {
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (BinStrOp(op, d1, d2), hii);
-    | And(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (And(d1, d2), hii);
-    | Or(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Or(d1, d2), hii);
     | Inj(ty, side, d1) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Inj(ty, side, d1), hii);
@@ -2153,29 +2139,34 @@ module Evaluator = {
     | List(_) => grounded_List
     };
 
-  let eval_bin_int_op =
-      (op: DHExp.BinIntOp.t, n1: int, n2: int): option(DHExp.t) => {
+  let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
     switch (op) {
-    | Minus => Some(IntLit(n1 - n2))
-    | Plus => Some(IntLit(n1 + n2))
-    | Times => Some(IntLit(n1 * n2))
-    | Divide => Some(IntLit(n1 / n2))
-    | LessThan => Some(BoolLit(n1 < n2))
-    | GreaterThan => Some(BoolLit(n1 > n2))
-    | Equals => Some(BoolLit(n1 == n2))
+    | And => BoolLit(b1 && b2)
+    | Or => BoolLit(b1 || b2)
+    };
+
+  let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
+    switch (op) {
+    | Minus => IntLit(n1 - n2)
+    | Plus => IntLit(n1 + n2)
+    | Times => IntLit(n1 * n2)
+    | Divide => IntLit(n1 / n2)
+    | LessThan => BoolLit(n1 < n2)
+    | GreaterThan => BoolLit(n1 > n2)
+    | Equals => BoolLit(n1 == n2)
     };
   };
 
   let eval_bin_float_op =
-      (op: DHExp.BinFloatOp.t, f1: float, f2: float): option(DHExp.t) => {
+      (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
     switch (op) {
-    | FPlus => Some(FloatLit(f1 +. f2))
-    | FMinus => Some(FloatLit(f1 -. f2))
-    | FTimes => Some(FloatLit(f1 *. f2))
-    | FDivide => Some(FloatLit(f1 /. f2))
-    | FLessThan => Some(BoolLit(f1 < f2))
-    | FGreaterThan => Some(BoolLit(f1 > f2))
-    | FEquals => Some(BoolLit(f1 == f2))
+    | FPlus => FloatLit(f1 +. f2)
+    | FMinus => FloatLit(f1 -. f2)
+    | FTimes => FloatLit(f1 *. f2)
+    | FDivide => FloatLit(f1 /. f2)
+    | FLessThan => BoolLit(f1 < f2)
+    | FGreaterThan => BoolLit(f1 > f2)
+    | FEquals => BoolLit(f1 == f2)
     };
   };
 
@@ -2308,40 +2299,23 @@ module Evaluator = {
     | Triv => BoxedValue(d)
     | StringLit(s) =>
       BoxedValue(StringLit(StringUtil.find_and_replace("", s)))
-    | And(d1, d2) =>
+    | BinBoolOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(BoolLit(b1) as d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 && b2))
+        | BoxedValue(BoolLit(b2)) =>
+          BoxedValue(eval_bin_bool_op(op, b1, b2))
         | BoxedValue(_) => InvalidInput(3)
-        | Indet(d2') => Indet(And(d1', d2'))
+        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
         }
       | BoxedValue(_) => InvalidInput(4)
       | Indet(d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
-        | Indet(d2') => Indet(And(d1', d2'))
-        }
-      }
-    | Or(d1, d2) =>
-      switch (evaluate(d1)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(BoolLit(b1) as d1') =>
-        switch (evaluate(d2)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 || b2))
-        | BoxedValue(_) => InvalidInput(3)
-        | Indet(d2') => Indet(Or(d1', d2'))
-        }
-      | BoxedValue(_) => InvalidInput(4)
-      | Indet(d1') =>
-        switch (evaluate(d2)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(Or(d1', d2'))
+        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
         }
       }
     | BinIntOp(op, d1, d2) =>
@@ -2359,11 +2333,7 @@ module Evaluator = {
                 DivideByZero,
               ),
             )
-          | _ =>
-            switch (eval_bin_int_op(op, n1, n2)) {
-            | Some(out) => BoxedValue(out)
-            | None => InvalidInput(5)
-            }
+          | _ => BoxedValue(eval_bin_int_op(op, n1, n2))
           }
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
@@ -2383,10 +2353,7 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(FloatLit(f2)) =>
-          switch (eval_bin_float_op(op, f1, f2)) {
-          | Some(out) => BoxedValue(out)
-          | None => InvalidInput(5)
-          }
+          BoxedValue(eval_bin_float_op(op, f1, f2))
         | BoxedValue(_) => InvalidInput(8)
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
         }

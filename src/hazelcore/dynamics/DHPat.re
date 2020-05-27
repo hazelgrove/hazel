@@ -19,11 +19,11 @@ type t =
   | Triv /* unit intro */
   | Ap(t, t);
 
-let rec make_tuple: list(t) => t =
+let rec mk_tuple: list(t) => t =
   fun
-  | [] => failwith("make_tuple: expected at least 1 element")
+  | [] => failwith("mk_tuple: expected at least 1 element")
   | [dp] => dp
-  | [dp, ...dps] => Pair(dp, make_tuple(dps));
+  | [dp, ...dps] => Pair(dp, mk_tuple(dps));
 
 /**
  * Whether dp contains the variable x outside of a hole.

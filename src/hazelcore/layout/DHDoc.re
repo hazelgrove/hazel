@@ -200,6 +200,12 @@ module Pat = {
 };
 
 module Exp = {
+  let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
+    switch (op) {
+    | And => precedence_And
+    | Or => precedence_Or
+    };
+
   let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
     switch (bio) {
     | Times => precedence_Times
@@ -250,17 +256,24 @@ module Exp = {
     | ConsistentCase(_)
     | InconsistentBranches(_) => precedence_max
     | Subscript(_) => precedence_Subscript
+    | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
     | BinIntOp(op, _, _) => precedence_bin_int_op(op)
     | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
     | BinStrOp(op, _, _) => precedence_bin_str_op(op)
     | Ap(_) => precedence_Ap
     | Cons(_) => precedence_Cons
-    | And(_) => precedence_And
-    | Or(_) => precedence_Or
     | Pair(_) => precedence_Comma
     | NonEmptyHole(_, _, _, _, d) => precedence'(d)
     };
   };
+
+  let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): t =>
+    Doc.text(
+      switch (op) {
+      | And => "&&"
+      | Or => "||"
+      },
+    );
 
   let mk_bin_int_op = (op: DHExp.BinIntOp.t): t =>
     Doc.text(
@@ -427,14 +440,14 @@ module Exp = {
           let (doc1, doc2) =
             mk_right_associative_operands(precedence_Cons, d1, d2);
           mk_Cons(mk_cast(doc1), mk_cast(doc2));
-        | And(d1, d2) =>
+        | BinBoolOp(op, d1, d2) =>
           let (doc1, doc2) =
-            mk_right_associative_operands(precedence_And, d1, d2);
-          hseps([mk_cast(doc1), text("&&"), mk_cast(doc2)]);
-        | Or(d1, d2) =>
-          let (doc1, doc2) =
-            mk_right_associative_operands(precedence_Or, d1, d2);
-          hseps([mk_cast(doc1), text("||"), mk_cast(doc2)]);
+            mk_right_associative_operands(
+              precedence_bin_bool_op(op),
+              d1,
+              d2,
+            );
+          hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
         | Pair(d1, d2) => mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
         | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
           go_case(dscrut, drs)
@@ -485,13 +498,13 @@ module Exp = {
           | DivideByZero =>
             let (d_doc, _) = go'(d);
             let decoration =
-              Doc.text(ErrStatus.RunTime.err_msg(err))
+              Doc.text(InvalidOperationError.err_msg(err))
               |> annot(DHAnnot.InvalidOpDecoration);
             hcats([d_doc, decoration]);
           | IndexOutBound =>
             let (d_doc, _) = go'(d);
             let decoration =
-              Doc.text(ErrStatus.RunTime.err_msg(err))
+              Doc.text(InvalidOperationError.err_msg(err))
               |> annot(DHAnnot.InvalidOpDecoration);
             hcats([d_doc, decoration]);
           }
