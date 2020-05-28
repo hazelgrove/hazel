@@ -31,7 +31,7 @@ module Typ = {
   let rec syn = (ctx: Contexts.t, ty: HTyp.t): option((Kind.t, Contexts.t)) =>
     switch (ty) {
     | TyVar(idx, _) => {
-      let (_, k) = List.nth(ctx, idx);
+      let (_, k) = List.nth(ctx.tyvars, idx);
       Some((k, ctx));
       }
     | TyVarHole(_, _)
