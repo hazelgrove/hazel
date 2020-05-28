@@ -131,7 +131,6 @@ module Typ = {
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      // | Some(steps) => move(MoveToBefore(steps), zty)
       | Some(steps) =>
         switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
         | None => Failed

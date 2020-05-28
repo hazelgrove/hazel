@@ -120,10 +120,6 @@ let move_to_hole = (u, program) => {
   switch (CursorPath.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>
-    // program |> perform_edit_action(MoveToBefore(hole_steps))
-    // simple refactor:
-    // program |> perform_edit_action(MoveTo((hole_steps, OnDelim(0, Before))))
-    // more general refactor:
     let e = ZExp.erase(ze);
     switch (CursorPath.Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)

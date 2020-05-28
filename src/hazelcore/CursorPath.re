@@ -468,7 +468,6 @@ module Typ = {
     | [_, ..._] => None
     };
 
-  // of_steps: ((steps, Side.t), UHTyp.t) => option(CursorPath.t)
   let rec of_steps =
           (steps: steps, ~side: Side.t=Before, uty: UHTyp.t): option(t) =>
     of_steps_opseq(steps, ~side, uty)
@@ -491,12 +490,6 @@ module Typ = {
         | After => ZTyp.place_after_operand
         };
       Some(of_zoperand(place_cursor(operand)));
-    /*
-     switch (side) {
-     | Before => Some(operand |> ZTyp.place_before_operand)
-     | After => Some(operand |> ZTyp.place_after_operand)
-     }
-     */
     | [x, ...xs] =>
       switch (operand) {
       | Hole
@@ -507,11 +500,6 @@ module Typ = {
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
-          /*
-           body
-           |> follow_steps(~side, xs)
-           |> OptUtil.map(zbody => ZTyp.ParenthesizedZ(zbody))
-           */
           of_steps(xs, ~side, body) |> Option.map(path => cons'(0, path))
         | _ => None
         }
