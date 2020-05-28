@@ -491,11 +491,11 @@ let check_actions = (a: Action.t) =>
   | SwapUp
   | SwapDown
   | SwapLeft
-  | SwapRight => ()
+  | SwapRight
+  | MoveLeft
+  | MoveRight => ()
   /* Not added */
   | Construct(SApPalette(_))
   | UpdateApPalette(_)
-  | MoveTo(_)
-  | MoveLeft
-  | MoveRight => ()
+  | MoveTo(_) => ()
   };
