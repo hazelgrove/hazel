@@ -3793,7 +3793,12 @@ module Exp = {
     /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
        TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
-
+    | (Construct(SChar("\n")), CursorE(OnText(j), StringLit(_, s))) =>
+      let text_cursor = CursorPosition.OnText(j + 2);
+      let new_text = StringUtil.insert(j, "\n", s);
+      let ze =
+        ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+      Succeeded(SynDone((ze, HTyp.String, u_gen)));
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>

@@ -42,8 +42,6 @@ let rec find_and_replace = (acc: string, s: string): string => {
     let slash_b = "\\" ++ "b";
     let slash_t = "\\" ++ "t";
     let slash_r = "\\" ++ "r";
-    let slash_slash = "\\" ++ "\\";
-    let slash_n = "\\" ++ "n";
     if (substr == slash_b) {
       find_and_replace(
         String.sub(acc, 0, String.length(acc) - 1),
@@ -51,8 +49,6 @@ let rec find_and_replace = (acc: string, s: string): string => {
       );
     } else if (substr == slash_t) {
       find_and_replace(acc ++ "\t", String.sub(s, 2, len_s));
-    } else if (substr == slash_slash) {
-      find_and_replace(acc ++ "\\", String.sub(s, 2, len_s));
     } else if (substr == slash_r) {
       if (String.length(acc) <= len_s) {
         find_and_replace("", String.sub(s, 2, len_s));
@@ -60,8 +56,6 @@ let rec find_and_replace = (acc: string, s: string): string => {
         String.sub(s, 2, len_s)
         ++ String.sub(acc, len_s, String.length(acc) - len_s);
       };
-    } else if (substr == slash_n) {
-      find_and_replace(acc ++ "\n", String.sub(s, 2, len_s));
     } else {
       find_and_replace(
         acc ++ String.sub(s, 0, 1),
