@@ -1070,33 +1070,40 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Panel.view_of_main_title_bar("history"),
         button_bar_view(model.undo_history, model.is_mac),
         Node.div(
-          [
-            Attr.classes(["panel-body", "context-inspector-body"]),
-            Attr.id("history-body"),
-            Attr.on_mousemove(evt => {
-              JSUtil.update_mouse_position(evt);
-              Vdom.Event.Many([inject(FocusCell)]);
-            }),
-            Attr.on("scroll", _ => {
-              /* on_mouseenter/on_mouseleave will not be fired when scrolling,
-                 so we get the history entry under the mouse
-                 and shift to this entry manually  */
-              switch (JSUtil.get_underneath_elt_id()) {
-              | Some((group_id, elt_id)) =>
-                Vdom.Event.Many([
-                  inject(
-                    Update.Action.ShiftHistory({
-                      group_id,
-                      elt_id,
-                      call_by_mouseenter: true,
-                    }),
-                  ),
-                  inject(FocusCell),
-                ])
-              | None => Vdom.Event.Ignore
-              }
-            }),
-          ],
+          if (model.undo_history.preview_on_hover) {
+            [
+              Attr.classes(["panel-body", "context-inspector-body"]),
+              Attr.id("history-body"),
+              Attr.on_mousemove(evt => {
+                JSUtil.update_mouse_position(evt);
+                Vdom.Event.Many([inject(FocusCell)]);
+              }),
+              Attr.on("scroll", _ => {
+                /* on_mouseenter/on_mouseleave will not be fired when scrolling,
+                   so we get the history entry under the mouse
+                   and shift to this entry manually  */
+                switch (JSUtil.get_underneath_elt_id()) {
+                | Some((group_id, elt_id)) =>
+                  Vdom.Event.Many([
+                    inject(
+                      Update.Action.ShiftHistory({
+                        group_id,
+                        elt_id,
+                        call_by_mouseenter: true,
+                      }),
+                    ),
+                    inject(FocusCell),
+                  ])
+                | None => Vdom.Event.Ignore
+                }
+              }),
+            ];
+          } else {
+            [
+              Attr.classes(["panel-body", "context-inspector-body"]),
+              Attr.id("history-body"),
+            ];
+          },
           [history_view(model)],
         ),
       ],
