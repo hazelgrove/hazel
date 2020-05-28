@@ -583,7 +583,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ~group_id,
         ~elt_id,
       );
-
+    /* making the entry show preview effect when scrolling
+       is realized by getting topmost element under the mouse.
+       Due to css padding setting, this element can be at any level,
+       so we have to add attribute "group_id" and "elt_id" for all div levels */
     Vdom.(
       Node.div(
         [Attr.classes(status_class)],
@@ -743,6 +746,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ~group_id,
         ~elt_id,
       );
+    /* making the entry show preview effect when scrolling
+       is realized by getting topmost element under the mouse.
+       Due to css padding setting, this element can be at any level,
+       so we have to add attribute "group_id" and "elt_id" for all div levels */
     Vdom.(
       Node.div(
         [Attr.classes(status_class)],
@@ -858,23 +865,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   Attr.create("elt_id", string_of_int(elt_id)),
                 ],
                 [
+                  history_typ_tag_view(undo_history_entry),
                   Node.div(
                     [
                       Attr.classes(["history-entry-txt"]),
                       Attr.create("group_id", string_of_int(group_id)),
                       Attr.create("elt_id", string_of_int(elt_id)),
                     ],
-                    [
-                      history_typ_tag_view(undo_history_entry),
-                      Node.div(
-                        [
-                          Attr.classes(["history-entry-txt"]),
-                          Attr.create("group_id", string_of_int(group_id)),
-                          Attr.create("elt_id", string_of_int(elt_id)),
-                        ],
-                        [history_entry_txt_view(undo_history_entry)],
-                      ),
-                    ],
+                    [history_entry_txt_view(undo_history_entry)],
                   ),
                   timestamp_view(undo_history_entry),
                 ],
@@ -1080,6 +1078,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Vdom.Event.Many([inject(FocusCell)]);
             }),
             Attr.on("scroll", _ => {
+              /* on_mouseenter/on_mouseleave will not be fired when scrolling,
+                 so we get the history entry under the mouse
+                 and shift to this entry manually  */
               switch (JSUtil.get_underneath_elt_id()) {
               | Some((group_id, elt_id)) =>
                 Vdom.Event.Many([
