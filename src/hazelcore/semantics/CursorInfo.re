@@ -117,7 +117,7 @@ let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let cursor_info = (~steps as _, ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+  let rec cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
     switch (zty) {
     | ZOpSeq(
         _,
@@ -129,6 +129,10 @@ module Typ = {
         ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
       ) =>
       Some(mk(TypFree, ctx))
+    | ZOpSeq(
+      _,
+      ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))
+      ) => cursor_info(~steps=steps @ [0], ctx, t)
     | _ => Some(mk(OnType, ctx))
     };
 };
