@@ -446,7 +446,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   action_panel(body);
 };
 
-/* This function is unused at runtime, but its purpose is to catch
+/* This function is unused at runtime, its purpose is to catch
   * new cases added to the Acion.t type, but forgotten about in this
   * side pane. If you add a new action, please update the code above
   * inside generate_panel_body with a description of the new action.
@@ -496,7 +496,6 @@ let check_actions = (a: Action.t) =>
   | Construct(SApPalette(_))
   | UpdateApPalette(_)
   | MoveTo(_)
-  | MoveToBefore(_)
   | MoveLeft
   | MoveRight => ()
   };
