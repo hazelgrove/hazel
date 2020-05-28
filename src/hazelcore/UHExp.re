@@ -44,6 +44,13 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
+let rec find_line = (e: t): line => e |> find_line_block
+and find_line_block = block =>
+  List.nth(block, List.length(block) - 1) |> find_line_line
+and find_line_line =
+  fun
+  | line => line;
+
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
 
@@ -148,12 +155,11 @@ let rec get_tuple_elements: skel => list(skel) =
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
 
-let rec make_tuple =
-        (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
+let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
-  | [] => failwith("make_tuple: expected at least 1 element")
+  | [] => failwith("mk_tuple: expected at least 1 element")
   | [skel] => skel
-  | [skel, ...skels] => BinOp(err, Comma, skel, make_tuple(skels))
+  | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
 /* helper function for constructing a new empty hole */
@@ -227,17 +233,17 @@ let is_inconsistent = operand =>
   };
 
 /* put e in a new hole, if it is not already in a hole */
-let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
-  make_inconsistent_block(u_gen, e)
-and make_inconsistent_block =
+let rec mk_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
+  mk_inconsistent_block(u_gen, e)
+and mk_inconsistent_block =
     (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
   let (leading, conclusion) = block |> Block.force_split_conclusion;
-  let (conclusion, u_gen) = conclusion |> make_inconsistent_opseq(u_gen);
+  let (conclusion, u_gen) = conclusion |> mk_inconsistent_opseq(u_gen);
   (Block.join_conclusion(leading, conclusion), u_gen);
 }
-and make_inconsistent_opseq = (u_gen, opseq) =>
-  OpSeq.make_inconsistent(~make_inconsistent_operand, u_gen, opseq)
-and make_inconsistent_operand = (u_gen, operand) =>
+and mk_inconsistent_opseq = (u_gen, opseq) =>
+  OpSeq.mk_inconsistent(~mk_inconsistent_operand, u_gen, opseq)
+and mk_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
@@ -271,7 +277,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
     (operand, u_gen);
   /* err in constructor args */
   | Parenthesized(body) =>
-    let (body, u_gen) = body |> make_inconsistent(u_gen);
+    let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
   };
 
@@ -323,7 +329,7 @@ let is_empty_line = (line: line): bool => {
   };
 };
 let associate = (seq: seq) => {
-  let skel_str = Skel.make_skel_str(seq, Operators.Exp.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators.Exp.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };

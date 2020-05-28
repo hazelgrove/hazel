@@ -732,6 +732,7 @@ let get_new_action_group =
         | SMinus
         | SPlus
         | STimes
+        | SDivide
         | SLessThan
         | SGreaterThan
         | SEquals
@@ -807,7 +808,6 @@ let get_new_action_group =
       | SApPalette(_) => failwith("ApPalette is not implemented")
       }
     | MoveTo(_)
-    | MoveToBefore(_)
     | MoveLeft
     | MoveRight
     | MoveToNextHole

@@ -1,11 +1,48 @@
 open Sexplib.Std;
 
+module BinBoolOp = {
+  [@deriving sexp]
+  type t =
+    | And
+    | Or;
+
+  let of_op = (op: UHExp.operator): option(t) =>
+    switch (op) {
+    | And => Some(And)
+    | Or => Some(Or)
+    | Minus
+    | Plus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals
+    | FPlus
+    | FMinus
+    | FTimes
+    | FDivide
+    | FLessThan
+    | FGreaterThan
+    | FEquals
+    | Space
+    | Cons
+    | Comma => None
+    };
+
+  let to_op = (op: t): UHExp.operator =>
+    switch (op) {
+    | And => And
+    | Or => Or
+    };
+};
+
 module BinIntOp = {
   [@deriving sexp]
   type t =
     | Minus
     | Plus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals;
@@ -15,12 +52,14 @@ module BinIntOp = {
     | Minus => Some((Minus, Int))
     | Plus => Some((Plus, Int))
     | Times => Some((Times, Int))
+    | Divide => Some((Divide, Int))
     | LessThan => Some((LessThan, Bool))
     | GreaterThan => Some((GreaterThan, Bool))
     | Equals => Some((Equals, Bool))
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals
@@ -36,6 +75,7 @@ module BinIntOp = {
     | Minus => Minus
     | Plus => Plus
     | Times => Times
+    | Divide => Divide
     | LessThan => LessThan
     | GreaterThan => GreaterThan
     | Equals => Equals
@@ -48,6 +88,7 @@ module BinFloatOp = {
     | FPlus
     | FMinus
     | FTimes
+    | FDivide
     | FLessThan
     | FGreaterThan
     | FEquals;
@@ -57,12 +98,14 @@ module BinFloatOp = {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
     | FTimes => Some((FTimes, Float))
+    | FDivide => Some((FDivide, Float))
     | FLessThan => Some((FLessThan, Bool))
     | FGreaterThan => Some((FGreaterThan, Bool))
     | FEquals => Some((FEquals, Bool))
     | Plus
     | Minus
     | Times
+    | Divide
     | LessThan
     | GreaterThan
     | Equals
@@ -78,6 +121,7 @@ module BinFloatOp = {
     | FPlus => FPlus
     | FMinus => FMinus
     | FTimes => FTimes
+    | FDivide => FDivide
     | FLessThan => FLessThan
     | FGreaterThan => FGreaterThan
     | FEquals => FEquals
@@ -105,10 +149,9 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | And(t, t)
-  | Or(t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -119,6 +162,7 @@ type t =
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
+  | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
 and rule =
@@ -138,10 +182,9 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
+  | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
-  | And(_, _) => "And"
-  | Or(_, _) => "Or"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
@@ -151,13 +194,14 @@ let constructor_string = (d: t): string =>
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
+  | InvalidOperation(_) => "InvalidOperation"
   };
 
-let rec make_tuple: list(t) => t =
+let rec mk_tuple: list(t) => t =
   fun
-  | [] => failwith("make_tuple: expected at least 1 element")
+  | [] => failwith("mk_tuple: expected at least 1 element")
   | [d] => d
-  | [d, ...ds] => Pair(d, make_tuple(ds));
+  | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
   if (HTyp.eq(t1, t2)) {

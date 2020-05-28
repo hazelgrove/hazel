@@ -591,6 +591,7 @@ module Pat = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -693,20 +694,21 @@ module Pat = {
     // but we want all comma operators in an opseq to
     // show the complete product type
     let seq = zseq |> ZPat.erase_zseq;
-    let skel_tys = Statics.Pat.tuple_zip(skel, ty);
     switch (zseq) {
     | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
-      switch (skel_tys) {
-      | Some(_) =>
+      let opseq = ZPat.erase_zopseq(zopseq);
+      let err = UHPat.get_err_status_opseq(opseq);
+      switch (err) {
+      | NotInHole =>
         Some(
           CursorNotOnDeferredVarPat(
             mk(PatAnalyzed(ty), ctx, extract_cursor_pat_zseq(zseq)),
           ),
         )
-      | None =>
-        let expected_length = ty |> HTyp.get_prod_elements |> List.length;
-        let got_length = skel |> UHPat.get_tuple_elements |> List.length;
+      | InHole(WrongLength, _) =>
+        let expected_length = List.length(HTyp.get_prod_elements(ty));
+        let got_length = List.length(UHPat.get_tuple_elements(skel));
         Some(
           CursorNotOnDeferredVarPat(
             mk(
@@ -716,10 +718,22 @@ module Pat = {
             ),
           ),
         );
-      }
+      | InHole(TypeInconsistent, _) =>
+        let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
+        Statics.Pat.syn_opseq(ctx, opseq')
+        |> Option.map(((ty', _)) =>
+             CursorNotOnDeferredVarPat(
+               mk(
+                 PatAnaTypeInconsistent(ty, ty'),
+                 ctx,
+                 extract_cursor_pat_zseq(zseq),
+               ),
+             )
+           );
+      };
     | _ =>
       // cursor in tuple element
-      switch (skel_tys) {
+      switch (Statics.Pat.tuple_zip(skel, ty)) {
       | None =>
         // wrong length, switch to syn
         let zopseq_not_in_hole =
@@ -766,6 +780,7 @@ module Pat = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         ana_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -773,12 +788,32 @@ module Pat = {
           ty,
         )
       | ZOperator(_) =>
-        Statics.Pat.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ =>
-             CursorNotOnDeferredVarPat(
-               mk(PatAnalyzed(ty), ctx, extract_cursor_pat_zseq(zseq)),
+        // skel must be BinOp
+        let opseq = OpSeq.OpSeq(skel, ZPat.erase_zseq(zseq));
+        let err = UHPat.get_err_status_opseq(opseq);
+        switch (err) {
+        | NotInHole =>
+          Statics.Pat.ana_skel(ctx, skel, seq, ty)
+          |> OptUtil.map(_ =>
+               CursorNotOnDeferredVarPat(
+                 mk(PatAnalyzed(ty), ctx, extract_cursor_pat_zseq(zseq)),
+               )
              )
-           )
+        | InHole(WrongLength, _) =>
+          failwith(__LOC__ ++ ": n-tuples handled at opseq level")
+        | InHole(TypeInconsistent, _) =>
+          let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
+          Statics.Pat.syn_opseq(ctx, opseq')
+          |> Option.map(((ty', _)) =>
+               CursorNotOnDeferredVarPat(
+                 mk(
+                   PatAnaTypeInconsistent(ty, ty'),
+                   ctx,
+                   extract_cursor_pat_zseq(zseq),
+                 ),
+               )
+             );
+        };
       };
     } else {
       // recurse toward cursor
@@ -1080,6 +1115,7 @@ module Exp = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -1101,7 +1137,7 @@ module Exp = {
         )
       | BinOp(
           _,
-          Minus | Plus | Times | LessThan | GreaterThan | Equals,
+          Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
           skel1,
           skel2,
         ) =>
@@ -1111,7 +1147,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          FMinus | FPlus | FTimes | FLessThan | FGreaterThan | FEquals,
+          FMinus | FPlus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
           skel1,
           skel2,
         ) =>
@@ -1352,14 +1389,15 @@ module Exp = {
         ty: HTyp.t,
       )
       : option(t) => {
-    let skel_tys = Statics.Exp.tuple_zip(skel, ty);
     let cursor_term = extract_from_zexp_zseq(zseq);
     switch (zseq) {
-    | ZOperator((_, Comma), _) when HTyp.is_Prod(ty) =>
+    | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
-      switch (skel_tys) {
-      | Some(_) => Some(mk(Analyzed(ty), ctx, cursor_term))
-      | None =>
+      let opseq = ZExp.erase_zopseq(zopseq);
+      let err = UHExp.get_err_status_opseq(opseq);
+      switch (err) {
+      | NotInHole => Some(mk(Analyzed(ty), ctx, cursor_term))
+      | InHole(WrongLength, _) =>
         let expected_length = ty |> HTyp.get_prod_elements |> List.length;
         let got_length = skel |> UHExp.get_tuple_elements |> List.length;
         Some(
@@ -1369,10 +1407,16 @@ module Exp = {
             cursor_term,
           ),
         );
-      }
+      | InHole(TypeInconsistent, _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        Statics.Exp.syn_opseq(ctx, opseq')
+        |> Option.map(ty' =>
+             mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term)
+           );
+      };
     | _ =>
       // cursor in tuple element
-      switch (skel_tys) {
+      switch (Statics.Exp.tuple_zip(skel, ty)) {
       | None =>
         // wrong length, switch to syn
         let zopseq_not_in_hole =
@@ -1407,6 +1451,7 @@ module Exp = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         ana_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -1414,8 +1459,22 @@ module Exp = {
           ty,
         )
       | ZOperator(_) =>
-        Statics.Exp.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ => mk(Analyzed(ty), ctx, cursor_term))
+        // skel must be BinOp
+        let opseq = ZExp.erase_zopseq(ZOpSeq.ZOpSeq(skel, zseq));
+        let err = UHExp.get_err_status_opseq(opseq);
+        switch (err) {
+        | NotInHole =>
+          Statics.Exp.ana_skel(ctx, skel, seq, ty)
+          |> OptUtil.map(_ => mk(Analyzed(ty), ctx, cursor_term))
+        | InHole(WrongLength, _) =>
+          failwith(__LOC__ ++ ": n-tuples handled at opseq level")
+        | InHole(TypeInconsistent, _) =>
+          let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+          Statics.Exp.syn_opseq(ctx, opseq')
+          |> Option.map(ty' =>
+               mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term)
+             );
+        };
       };
     } else {
       // recurse toward cursor
@@ -1439,7 +1498,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan |
+          Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |

@@ -408,7 +408,7 @@ module KeyCombo = {
       key: Key.t,
     };
 
-    let make = (mod_keys, key) => {mod_keys, key};
+    let mk = (mod_keys, key) => {mod_keys, key};
     let plain = key => {mod_keys: ModKeys.not_held, key};
     let no_ctrl_alt_meta = key => {mod_keys: ModKeys.no_ctrl_alt_meta, key};
     let shift = key => {mod_keys: ModKeys.shift, key};
@@ -448,6 +448,7 @@ module KeyCombo = {
     let plus = no_ctrl_alt_meta(Key.the_key("+"));
     let minus = no_ctrl_alt_meta(Key.the_key("-"));
     let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
+    let slash = no_ctrl_alt_meta(Key.the_key("/"));
     let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
     let comma = no_ctrl_alt_meta(Key.the_key(","));
     let vbar = no_ctrl_alt_meta(Key.the_key("|"));
@@ -489,6 +490,7 @@ module KeyCombo = {
     | Plus
     | Minus
     | Asterisk
+    | Slash
     | LT
     | Space
     | Comma
@@ -526,6 +528,7 @@ module KeyCombo = {
     | Plus => Details.plus
     | Minus => Details.minus
     | Asterisk => Details.asterisk
+    | Slash => Details.slash
     | LT => Details.lt
     | Space => Details.space
     | Comma => Details.comma
@@ -587,6 +590,8 @@ module KeyCombo = {
       Some(Minus);
     } else if (evt_matches(Details.asterisk)) {
       Some(Asterisk);
+    } else if (evt_matches(Details.slash)) {
+      Some(Slash);
     } else if (evt_matches(Details.lt)) {
       Some(LT);
     } else if (evt_matches(Details.space)) {
@@ -778,7 +783,7 @@ module Vdom = Virtual_dom.Vdom;
 //       imp_newline: _ => [Vdom.Node.br([])],
 //       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
 //     };
-//     Layout.make_of_layout(record, layout);
+//     Layout.mk_of_layout(record, layout);
 //   };
 
 open Pretty;
