@@ -299,7 +299,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     section(
       "Variables",
       [
-        info([text("Variable regex: ^[_a-z][_a-zA-Z0-9']*$")]),
+        info([
+          text("Variable regex: "),
+          mono_text("[_a-zA-Z][_a-zA-Z0-9']*"),
+        ]),
         info_action(
           [
             text("Type "),
@@ -316,7 +319,9 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         info([
           text("Enter boolean literals "),
-          mono_text("\"true\", \"false\""),
+          mono_text("true"),
+          text(" and "),
+          mono_text("false"),
           text(" directly"),
         ]),
         info_action(
@@ -327,7 +332,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action.Construct(SChar("B")),
         ),
-        operator_list(~on_type=false, "Logical AND", [Ampersand]),
+        operator_list(~on_type=false, "Operators", [Ampersand, VBar]),
       ],
     ),
     section(
@@ -341,7 +346,9 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [
             text("Type "),
             mono_text("\"I\""),
-            text(" to insert an Integer type"),
+            text(" to insert an "),
+            mono_text("Int"),
+            text(" type"),
           ],
           Action.Construct(SChar("I")),
         ),
@@ -349,14 +356,16 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [
             text("Type "),
             mono_text("\"F\""),
-            text(" to insert a Float type"),
+            text(" to insert a "),
+            mono_text("Float"),
+            text(" type"),
           ],
           Action.Construct(SChar("F")),
         ),
         operator_list(
           ~on_type=false,
           "Integer operators",
-          [Plus, Minus, Asterisk, LT, GT, Equals],
+          [Plus, Minus, Asterisk, Slash, LT, GT, Equals],
         ),
         single_line_multiple_actions(
           "Floating point operators",
@@ -364,6 +373,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             brown_label([mono_text("+.")]),
             brown_label([mono_text("-.")]),
             brown_label([mono_text("*.")]),
+            brown_label([mono_text("/.")]),
             brown_label([mono_text("<.")]),
             brown_label([mono_text(">.")]),
             brown_label([mono_text("=.")]),
@@ -377,7 +387,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combo_and_cursor(
           ~on_type=false,
           LeftBracket,
-          simple("Insert Empty List (nil)"),
+          [text("Insert "), mono_text("[] (nil)")],
         ),
         combo(Semicolon, simple("Cons operator")),
         combo_and_cursor(
@@ -392,13 +402,13 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       [
         combo(Alt_L, simple("Left injection")),
         combo(Alt_R, simple("Right injection")),
-        combo(VBar, simple("Insert | operator")),
+        combo(VBar, simple("Insert | type operator")),
       ],
     ),
     section(
       "Functions",
       [
-        combo(Backslash, simple("Insert Lambda expression")),
+        combo(Backslash, simple("Insert lambda function")),
         combo(Space, simple("Apply function")),
         combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
@@ -435,3 +445,58 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   action_panel(body);
 };
+
+/* This function is unused at runtime, but its purpose is to catch
+  * new cases added to the Acion.t type, but forgotten about in this
+  * side pane. If you add a new action, please update the code above
+  * inside generate_panel_body with a description of the new action.
+  * Afterwards the below function can be updated to not error anymore.
+  *
+  * Also consider looking at Cell.re to see if a keyboard shortcut
+  * should be added for that particular action as well.
+ */
+[@warning "-32"]
+let check_actions = (a: Action.t) =>
+  switch (a) {
+  /* Used */
+  | Backspace
+  | Delete
+  | MoveToPrevHole
+  | MoveToNextHole
+  | Construct(SOp(SArrow))
+  | Construct(SOp(SGreaterThan))
+  | Construct(SOp(SAnd))
+  | Construct(SOp(SOr))
+  | Construct(SParenthesized)
+  | Construct(SAsc)
+  | Construct(SOp(SEquals))
+  | Construct(SLine)
+  | Construct(SLam)
+  | Construct(SOp(SPlus))
+  | Construct(SOp(SMinus))
+  | Construct(SOp(STimes))
+  | Construct(SOp(SDivide))
+  | Construct(SOp(SLessThan))
+  | Construct(SOp(SSpace))
+  | Construct(SOp(SComma))
+  | Construct(SList)
+  | Construct(SListNil)
+  | Construct(SOp(SCons))
+  | Construct(SInj(L))
+  | Construct(SInj(R))
+  | Construct(SCase)
+  | Construct(SLet)
+  | Construct(SOp(SVBar))
+  | Construct(SChar(_))
+  | SwapUp
+  | SwapDown
+  | SwapLeft
+  | SwapRight => ()
+  /* Not added */
+  | Construct(SApPalette(_))
+  | UpdateApPalette(_)
+  | MoveTo(_)
+  | MoveToBefore(_)
+  | MoveLeft
+  | MoveRight => ()
+  };
