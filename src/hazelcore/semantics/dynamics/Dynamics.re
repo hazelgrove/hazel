@@ -2108,13 +2108,14 @@ module Evaluator = {
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(AssertLit) =>
+        print_endline(Sexplib.Sexp.to_string(DHExp.sexp_of_t(d2)));
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(BoolLit(b)) =>
-          b ? BoxedValue(Triv) : BoxedValue(FailedAssert)
+          b ? BoxedValue(Triv) : Indet(FailedAssert)
         | BoxedValue(v) => Indet(v)
         | Indet(v) => Indet(Ap(AssertLit, v))
-        }
+        };
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
