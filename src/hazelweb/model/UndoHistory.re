@@ -38,7 +38,6 @@ let undoable_action = (action: Action.t): bool => {
   | SwapLeft
   | SwapRight => true
   | MoveTo(_)
-  | MoveToBefore(_)
   | MoveLeft
   | MoveRight
   | MoveToNextHole
