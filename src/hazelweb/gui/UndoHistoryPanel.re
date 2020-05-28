@@ -866,8 +866,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                     [
                       history_typ_tag_view(undo_history_entry),
-                      Node.span(
-                        [],
+                      Node.div(
+                        [
+                          Attr.classes(["history-entry-txt"]),
+                          Attr.create("group_id", string_of_int(group_id)),
+                          Attr.create("elt_id", string_of_int(elt_id)),
+                        ],
                         [history_entry_txt_view(undo_history_entry)],
                       ),
                     ],
