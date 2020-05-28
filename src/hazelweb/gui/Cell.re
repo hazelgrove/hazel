@@ -17,7 +17,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (
       KeyCombo.GT,
       fun
-      | {CursorInfo.typed: OnType | TypKeyword(_), _} =>
+      | {CursorInfo.typed: OnType | TypKeyword(_) | TypFree, _} =>
         Action.Construct(SOp(SArrow))
       | _ => Action.Construct(SOp(SGreaterThan)),
     ),
@@ -38,7 +38,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType | TypKeyword(_), _} =>
+      | {CursorInfo.typed: OnType | TypKeyword(_) | TypFree, _} =>
         Action.Construct(SList)
       | _ => Action.Construct(SListNil),
     ),

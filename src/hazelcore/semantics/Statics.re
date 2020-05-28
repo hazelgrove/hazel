@@ -66,7 +66,6 @@ module Typ = {
       }
     | None => None
     };
-
 };
 
 module Pat = {
