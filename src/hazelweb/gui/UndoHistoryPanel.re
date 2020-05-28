@@ -693,11 +693,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             },
             [
               Node.div(
-                [],
+                [
+                  Attr.create("group_id", string_of_int(group_id)),
+                  Attr.create("elt_id", string_of_int(elt_id)),
+                ],
                 [
                   history_typ_tag_view(undo_history_entry),
                   Node.div(
-                    [Attr.classes(["history-entry-txt"])],
+                    [
+                      Attr.classes(["history-entry-txt"]),
+                      Attr.create("group_id", string_of_int(group_id)),
+                      Attr.create("elt_id", string_of_int(elt_id)),
+                    ],
                     [history_entry_txt_view(undo_history_entry)],
                   ),
                   timestamp_view(undo_history_entry),
@@ -845,10 +852,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             },
             [
               Node.div(
-                [Attr.classes(["hidden-history-entry"])],
+                [
+                  Attr.classes(["hidden-history-entry"]),
+                  Attr.create("group_id", string_of_int(group_id)),
+                  Attr.create("elt_id", string_of_int(elt_id)),
+                ],
                 [
                   Node.div(
-                    [Attr.classes(["history-entry-txt"])],
+                    [
+                      Attr.classes(["history-entry-txt"]),
+                      Attr.create("group_id", string_of_int(group_id)),
+                      Attr.create("elt_id", string_of_int(elt_id)),
+                    ],
                     [
                       history_typ_tag_view(undo_history_entry),
                       Node.span(
@@ -1057,14 +1072,24 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["panel-body", "context-inspector-body"]),
             Attr.id("history-body"),
             Attr.on_mousemove(evt => {
-              JSUtil.log("update");
               JSUtil.update_mouse_position(evt);
               Vdom.Event.Many([inject(FocusCell)]);
             }),
             Attr.on("scroll", _ => {
-              JSUtil.log("scroll");
-              JSUtil.get_underneath_elt();
-              Vdom.Event.Many([inject(FocusCell)]);
+              switch (JSUtil.get_underneath_elt_id()) {
+              | Some((group_id, elt_id)) =>
+                Vdom.Event.Many([
+                  inject(
+                    Update.Action.ShiftHistory({
+                      group_id,
+                      elt_id,
+                      call_by_mouseenter: true,
+                    }),
+                  ),
+                  inject(FocusCell),
+                ])
+              | None => Vdom.Event.Ignore
+              }
             }),
           ],
           [history_view(model)],

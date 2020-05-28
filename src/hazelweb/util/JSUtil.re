@@ -242,30 +242,21 @@ let update_mouse_position = evt => {
       y: Js.Optdef.get(evt##.pageY, () => assert(false)),
     };
 };
-let get_underneath_elt = _ => {
-  let panel = force_get_elem_by_id("history-panel")##getBoundingClientRect;
-  let panel_left = panel##.left;
-  let panel_top = panel##.top;
+let get_underneath_elt_id = _: option((int, int)) => {
   let elt: Js.t(Dom_html.divElement) =
     Js.Unsafe.meth_call(
       Dom_html.document,
       "elementFromPoint",
       [|
-        Js.Unsafe.inject(
-          float_of_int(State.mouse_position^.x) -. panel_left,
-        ),
-        Js.Unsafe.inject(float_of_int(State.mouse_position^.y) -. panel_top),
+        Js.Unsafe.inject(State.mouse_position^.x),
+        Js.Unsafe.inject(State.mouse_position^.y),
       |],
     );
-  let name = elt##.className;
-  switch (get_attr("group_id", elt)) {
-  | Some(id) => log("groupId:" ++ id)
-  | None => log("id is none")
+  switch (get_attr("group_id", elt), get_attr("elt_id", elt)) {
+  | (Some(group_id), Some(elt_id)) =>
+    Some((int_of_string(group_id), int_of_string(elt_id)))
+  | _ => None
   };
-  log("classes:");
-  log(float_of_int(State.mouse_position^.x) -. panel_left);
-  log(float_of_int(State.mouse_position^.y) -. panel_top);
-  log(name);
 };
 let force_get_parent_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
