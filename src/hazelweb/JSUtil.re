@@ -236,25 +236,31 @@ let force_get_elem_by_cls = cls =>
   };
 
 let update_mouse_position = evt => {
+  State.mouse_position :=
+    {
+      x: Js.Optdef.get(evt##.pageX, () => assert(false)),
+      y: Js.Optdef.get(evt##.pageY, () => assert(false)),
+    };
+};
+let get_underneath_elt = _ => {
   let panel = force_get_elem_by_id("history-panel")##getBoundingClientRect;
   let panel_left = panel##.left;
   let panel_top = panel##.top;
-  State.mouse_position :=
-    {
-      x: Js.Optdef.get(evt##.pageX, () => assert(false)) -. panel_left,
-      y: Js.Optdef.get(evt##.pageY, () => assert(false)) -. panel_top,
-    };
-};
-let get_underneath_elt = evt => {
-  log(evt##.pageX);
   let elt: Js.t(Dom_html.divElement) =
     Js.Unsafe.meth_call(
       Dom_html.document,
       "elementFromPoint",
-      [|Js.Unsafe.inject(0), Js.Unsafe.inject(0)|],
+      [|
+        Js.Unsafe.inject(
+          float_of_int(State.mouse_position^.x) -. panel_left,
+        ),
+        Js.Unsafe.inject(float_of_int(State.mouse_position^.y) -. panel_top),
+      |],
     );
   let name = elt##.className;
   log("classes:");
+  log(float_of_int(State.mouse_position^.x) -. panel_left);
+  log(float_of_int(State.mouse_position^.y) -. panel_top);
   log(name);
 };
 let force_get_parent_elem = elem =>
