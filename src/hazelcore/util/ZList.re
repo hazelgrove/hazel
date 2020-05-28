@@ -62,12 +62,8 @@ let mapi =
 let optmap_z = (f: 'z1 => option('z2), zs: t('z1, 'a)): option(t('z2, 'a)) => {
   let (prefix, z, suffix) = zs;
   switch (f(z)) {
-  | None =>
-    print_endline("ZList66");
-    None;
-  | Some(z') =>
-    print_endline("Zlist69");
-    Some((prefix, z', suffix));
+  | None => None
+  | Some(z') => Some((prefix, z', suffix))
   };
 };
 
