@@ -37,7 +37,7 @@ type text('annot, 'imp, 't) = {
   t_of_imp: 'imp => 't,
 };
 
-let make_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
+let mk_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
   (text, layout) => {
     let column: ref(int) = ref(0);
     let rec go: (int, t('annot)) => 'imp =
@@ -70,7 +70,7 @@ let string_of_layout: 'annot. t('annot) => string =
       imp_of_annot: (_, imp) => imp,
       t_of_imp: imp => imp,
     };
-    make_of_layout(record, layout);
+    mk_of_layout(record, layout);
   };
 
 /* TODO got weird type inference error, see specialized instance in UHLayout
@@ -120,5 +120,5 @@ let strings_of_layout: 'annot. t('annot) => list((int, string)) =
       imp_of_annot: (_, imp) => imp,
       t_of_imp: s => s,
     };
-    make_of_layout(record, layout);
+    mk_of_layout(record, layout);
   };
