@@ -36,6 +36,14 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
+let prune_type_annotation: zoperand => zoperand =
+  fun
+  | CursorE(OnDelim(k, _) as cursor, Lam(err, p, Some(_), body)) when k != 1 =>
+    CursorE(cursor, Lam(err, p, None, body))
+  | LamZP(err, zp, Some(_), body) => LamZP(err, zp, None, body)
+  | LamZE(err, p, Some(_), zbody) => LamZE(err, p, None, zbody)
+  | zoperand => zoperand;
+
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)
@@ -463,32 +471,32 @@ and set_err_status_zoperand = (err, zoperand) =>
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
-let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
-  ze |> make_inconsistent_zblock(u_gen)
-and make_inconsistent_zblock =
+let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
+  ze |> mk_inconsistent_zblock(u_gen)
+and mk_inconsistent_zblock =
     (u_gen: MetaVarGen.t, (prefix, zline, suffix): zblock)
     : (zblock, MetaVarGen.t) =>
   switch (suffix |> ListUtil.split_last) {
   | None =>
     let (zconclusion, u_gen) =
-      zline |> ZLine.force_get_zopseq |> make_inconsistent_zopseq(u_gen);
+      zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(u_gen);
     ((prefix, ExpLineZ(zconclusion), []), u_gen);
   | Some((suffix_leading, suffix_last)) =>
     let (conclusion, u_gen) =
       suffix_last
       |> UHExp.Line.force_get_opseq
-      |> UHExp.make_inconsistent_opseq(u_gen);
+      |> UHExp.mk_inconsistent_opseq(u_gen);
     ((prefix, zline, suffix_leading @ [ExpLine(conclusion)]), u_gen);
   }
-and make_inconsistent_zopseq = (u_gen, zopseq) =>
-  ZOpSeq.make_inconsistent(~make_inconsistent_zoperand, u_gen, zopseq)
-and make_inconsistent_zoperand = (u_gen, zoperand) =>
+and mk_inconsistent_zopseq = (u_gen, zopseq) =>
+  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, u_gen, zopseq)
+and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   switch (zoperand) {
   | CursorE(cursor, operand) =>
-    let (operand, u_gen) = operand |> UHExp.make_inconsistent_operand(u_gen);
+    let (operand, u_gen) = operand |> UHExp.mk_inconsistent_operand(u_gen);
     (CursorE(cursor, operand), u_gen);
   | ParenthesizedZ(zbody) =>
-    let (zbody, u_gen) = make_inconsistent(u_gen, zbody);
+    let (zbody, u_gen) = mk_inconsistent(u_gen, zbody);
     (ParenthesizedZ(zbody), u_gen);
   /* already in hole */
   | LamZP(InHole(TypeInconsistent, _), _, _, _)

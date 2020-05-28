@@ -11,4 +11,5 @@ type t =
   | InconsistentBranches(HoleInstance.t)
   | FailedCastDelim
   | FailedCastDecoration
-  | CastDecoration;
+  | CastDecoration
+  | DivideByZero;

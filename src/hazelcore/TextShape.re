@@ -15,7 +15,16 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
   if (String.length(s) > 0 && s.[0] == '_') {
     None;
   } else {
-    float_of_string_opt(s);
+    switch (s, String.lowercase_ascii(s)) {
+    | ("NaN", _) => Some(nan)
+    | ("Inf", _) => Some(infinity)
+    /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
+    | ("NegInf", _) => Some(neg_infinity)
+    | (_, "nan")
+    | (_, "inf")
+    | (_, "infinity") => None
+    | _ => float_of_string_opt(s)
+    };
   };
 
 let of_text = (text: string): option(t) => {
