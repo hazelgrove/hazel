@@ -1082,7 +1082,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* on_mouseenter/on_mouseleave will not be fired when scrolling,
                    so we get the history entry under the mouse
                    and shift to this entry manually  */
-                switch (JSUtil.get_underneath_elt_id()) {
+                switch (JSUtil.get_elt_id_under_mouse()) {
                 | Some((group_id, elt_id)) =>
                   Vdom.Event.Many([
                     inject(
