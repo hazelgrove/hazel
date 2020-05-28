@@ -915,16 +915,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [Attr.classes(["the-history"])],
-        [
-          Node.div(
-            [Attr.classes(["the-suc-history"])],
-            list_map_helper_func(
-              group_view(~undo_history=model.undo_history),
-              0,
-              ZList.join(model.undo_history.groups),
-            ),
-          ),
-        ],
+        list_map_helper_func(
+          group_view(~undo_history=model.undo_history),
+          0,
+          ZList.join(model.undo_history.groups),
+        ),
       )
     );
 
@@ -1062,10 +1057,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["panel-body", "context-inspector-body"]),
             Attr.id("history-body"),
             Attr.on_mousemove(evt => {
+              JSUtil.log("update");
               JSUtil.update_mouse_position(evt);
               Vdom.Event.Many([inject(FocusCell)]);
             }),
             Attr.on("scroll", _ => {
+              JSUtil.log("scroll");
               JSUtil.get_underneath_elt();
               Vdom.Event.Many([inject(FocusCell)]);
             }),
