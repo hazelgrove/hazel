@@ -79,7 +79,10 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
     zhole_list.holes_after |> List.rev,
   ) {
   | ([], []) => None
-  | ([(_, steps), ..._], _) => Some(steps)
+  | ([(_, steps), ..._] as holes, _) =>
+    print_endline("CursorPath83");
+    print_endline(string_of_int(List.length(holes)));
+    Some(steps);
   | ([], [(_, steps), ..._]) => Some(steps)
   };
 };
@@ -344,6 +347,7 @@ let holes_zopseq_ =
           // We defer to holes_skel once we have determined that a skel
           // does not contain the cursor, should never hit Placeholder
           // corresponding to operand other than zoperand.
+          print_endline("CursorPath350");
           assert(n == zoperand_index);
           holes_zoperand(zoperand, [zoperand_index, ...rev_steps]);
         }
@@ -1800,7 +1804,7 @@ module Exp = {
         | InHole(_, u) => [(ExpHole(u), rev_steps |> List.rev)]
         };
       let holes_body1 = holes(body1, [0, ...rev_steps], []);
-      let holes_body2 = holes(body2, [0, ...rev_steps], []);
+      let holes_body2 = holes(body2, [1, ...rev_steps], []);
       let {holes_before, hole_selected, holes_after} =
         holes_z(zbody3, [2, ...rev_steps]);
       mk_zholes(

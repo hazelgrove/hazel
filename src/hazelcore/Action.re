@@ -2576,19 +2576,49 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
+        switch (steps) {
+        | [k1, k2, k3, k4, k5] =>
+          print_endline(
+            string_of_int(k1)
+            ++ " "
+            ++ string_of_int(k2)
+            ++ " "
+            ++ string_of_int(k3)
+            ++ " "
+            ++ string_of_int(k4)
+            ++ " "
+            ++ string_of_int(k5),
+          )
+        | _ => print_endline("None")
+        };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
         | None => Failed
         | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
-        }
+        };
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
+        switch (steps) {
+        | [k1, k2, k3, k4, k5] =>
+          print_endline(
+            string_of_int(k1)
+            ++ " "
+            ++ string_of_int(k2)
+            ++ " "
+            ++ string_of_int(k3)
+            ++ " "
+            ++ string_of_int(k4)
+            ++ " "
+            ++ string_of_int(k5),
+          )
+        | _ => print_endline("None")
+        };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
         | None => Failed
         | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
-        }
+        };
       }
     | MoveLeft =>
       ze
