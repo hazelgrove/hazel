@@ -258,6 +258,10 @@ let get_underneath_elt = _ => {
       |],
     );
   let name = elt##.className;
+  switch (get_attr("group_id", elt)) {
+  | Some(id) => log("groupId:" ++ id)
+  | None => log("id is none")
+  };
   log("classes:");
   log(float_of_int(State.mouse_position^.x) -. panel_left);
   log(float_of_int(State.mouse_position^.y) -. panel_top);
