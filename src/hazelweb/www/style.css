@@ -1429,12 +1429,7 @@ h1 {
   cursor: pointer;
 }
 
-.history-entry {
-  border: 1px outset #ffffff;
-  width: 100%;
-  display: grid; 
-  padding: 5px;
-}
+
 .history-entry {
   border: 1px outset #ffffff;
   width: 100%;

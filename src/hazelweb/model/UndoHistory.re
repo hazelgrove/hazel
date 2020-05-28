@@ -916,6 +916,7 @@ let push_edit_state =
         group_entries: ([], new_entry, []),
         is_expanded: undo_history.all_hidden_history_expand,
       };
+      /* the successor entries should be cleared in previous group */
       let prev_group' = {
         ...prev_group,
         group_entries: (

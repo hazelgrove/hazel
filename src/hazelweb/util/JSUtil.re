@@ -242,7 +242,7 @@ let update_mouse_position = evt => {
       y: Js.Optdef.get(evt##.pageY, () => assert(false)),
     };
 };
-let get_underneath_elt_id = _: option((int, int)) => {
+let get_elt_id_under_mouse = _: option((int, int)) => {
   let elt: Js.t(Dom_html.divElement) =
     Js.Unsafe.meth_call(
       Dom_html.document,
