@@ -26,6 +26,49 @@ let tuple_zip =
   };
 };
 
+// bidirectional kind system
+module Typ = {
+  let rec syn = (ctx: Contexts.t, ty: HTyp.t): option((Kind.t, Contexts.t)) =>
+    switch (ty) {
+    | TyVar(idx, _) => {
+      let (_, k) = List.nth(ctx, idx);
+      Some((k, ctx));
+      }
+    | TyVarHole(_, _)
+    | Hole => Some((KHole, ctx))
+    | Int
+    | Float
+    | Bool 
+    | Prod([]) => Some((Type, ctx))
+    | Arrow(ty1, ty2)
+    | Sum(ty1, ty2) =>
+      switch (ana(ctx, ty1, Type), ana(ctx, ty2, Type)) {
+      | (Some(_), Some(_)) => Some((Type, ctx))
+      | _ => None
+      }
+    | Prod([x, ...xs]) => 
+      switch (ana(ctx, x, Type)) {
+      | Some(_) => syn(ctx, Prod(xs))
+      | None => None
+      }
+    | List(t) => 
+      switch (ana(ctx, t, Type)) {
+      | Some(_) => Some((Type, ctx))
+      | None => None
+      }
+    }
+  and ana = (ctx: Context.t, ty: HTyp.t, k: Kind.t): option(Context.t) =>
+    switch (syn(ctx, ty)) {
+    | Some((k1, _)) => 
+      switch (consistent(k, k1)) {
+      | true => Some(ctx)
+      | false => None
+      }
+    | None => None
+    };
+
+};
+
 module Pat = {
   let tuple_zip = tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
