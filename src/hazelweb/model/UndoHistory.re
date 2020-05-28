@@ -916,12 +916,20 @@ let push_edit_state =
         group_entries: ([], new_entry, []),
         is_expanded: undo_history.all_hidden_history_expand,
       };
+      let prev_group' = {
+        ...prev_group,
+        group_entries: (
+          [],
+          ZList.prj_z(prev_group.group_entries),
+          ZList.prj_suffix(prev_group.group_entries),
+        ),
+      };
       {
         ...undo_history,
         groups: (
           [],
           new_group,
-          [prev_group, ...ZList.prj_suffix(undo_history.groups)],
+          [prev_group', ...ZList.prj_suffix(undo_history.groups)],
         ),
         disable_auto_scrolling: false,
         hover_recover_group_id: 0,
