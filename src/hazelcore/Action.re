@@ -2379,38 +2379,19 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        switch (steps) {
-        | [k1, k2] =>
-          print_endline(string_of_int(k1) ++ " " ++ string_of_int(k2))
-        | _ => print_endline("None")
-        };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
-        | None =>
-          print_endline("Action2368");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2371");
-          syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
-        };
+        | None => Failed
+        | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        print_endline("Action2390");
-        // switch (steps) {
-        // | [k1, k2] =>
-        //   print_endline(string_of_int(k1) ++ " " ++ string_of_int(k2))
-        // | _ => print_endline("None")
-        // };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
-        | None =>
-          print_endline("Action2381");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2384");
-          syn_move(ctx, MoveTo(path), (ze, ty, u_gen));
-        };
+        | None => Failed
+        | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+        }
       }
     | MoveLeft =>
       ze
@@ -2459,12 +2440,8 @@ module Exp = {
       | None => Failed
       | Some(steps) =>
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
-        | None =>
-          print_endline("Action2436");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2439");
-          ana_move(ctx, MoveTo(path), (ze, u_gen), ty);
+        | None => Failed
+        | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
         }
       }
     | MoveToNextHole =>
@@ -2472,12 +2449,8 @@ module Exp = {
       | None => Failed
       | Some(steps) =>
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
-        | None =>
-          print_endline("Action2449");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2452");
-          ana_move(ctx, MoveTo(path), (ze, u_gen), ty);
+        | None => Failed
+        | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
         }
       }
     | MoveLeft =>
@@ -2746,12 +2719,8 @@ module Exp = {
             zline |> ZExp.erase_zline,
           )
         ) {
-        | None =>
-          print_endline("Action2723");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2726");
-          syn_perform_line(ctx, MoveTo(path), (zline, u_gen));
+        | None => Failed
+        | Some(path) => syn_perform_line(ctx, MoveTo(path), (zline, u_gen))
         }
       }
     | (MoveToNextHole, _) =>
@@ -2765,12 +2734,8 @@ module Exp = {
             zline |> ZExp.erase_zline,
           )
         ) {
-        | None =>
-          print_endline("Action2741");
-          Failed;
-        | Some(path) =>
-          print_endline("Action2741");
-          syn_perform_line(ctx, MoveTo(path), (zline, u_gen));
+        | None => Failed
+        | Some(path) => syn_perform_line(ctx, MoveTo(path), (zline, u_gen))
         }
       }
     | (MoveLeft, _) =>
