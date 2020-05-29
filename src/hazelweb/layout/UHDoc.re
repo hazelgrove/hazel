@@ -135,9 +135,13 @@ let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
-let mk_text = (s: string): t =>
+let mk_text = (~start_index=0, s: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(~shape=Text, ~len=StringUtil.utf8_length(s), ()),
+    UHAnnot.mk_Token(
+      ~shape=Text({start_index: start_index}),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
     Doc.text(s),
   );
 
@@ -278,7 +282,25 @@ let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
 let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
-  Doc.hcats([Delim.open_StringLit(), mk_text(s), Delim.close_StringLit()])
+  let line_docs =
+    s
+    |> String.split_on_char('\n')
+    |> ListUtil.map_with_accumulator(
+         (start_index, line) => {
+           print_endline(string_of_int(start_index));
+           (
+             start_index + String.length(line) + 1,
+             mk_text(~start_index, line),
+           );
+         },
+         0,
+       )
+    |> snd
+    |> ListUtil.join(Doc.linebreak());
+
+  Doc.hcats(
+    [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
+  )
   |> annot_Operand(~sort, ~err);
 };
 
@@ -820,7 +842,9 @@ module Exp = {
           switch (line) {
           | EmptyLine =>
             empty_
-            |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+            |> Doc.annot(
+                 UHAnnot.mk_Token(~shape=Text({start_index: 0}), ~len=0, ()),
+               )
             |> Doc.annot(UHAnnot.EmptyLine)
           | ExpLine(opseq) =>
             Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)

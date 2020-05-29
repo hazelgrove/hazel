@@ -105,7 +105,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
       | Some(j) =>
         let pos: CursorPosition.t =
           switch (shape) {
-          | Text => OnText(j)
+          | Text({start_index}) => OnText(start_index + j)
           | Op => OnOp(j == 0 ? Before : After)
           | Delim(k) => OnDelim(k, j == 0 ? Before : After)
           };
@@ -113,7 +113,10 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
       };
       let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
         switch (shape) {
-        | Text => (OnText(0), OnText(len))
+        | Text({start_index}) => (
+            OnText(start_index),
+            OnText(start_index + len),
+          )
         | Op => (OnOp(Before), OnOp(After))
         | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))
         };
@@ -176,14 +179,17 @@ let find_nearest_within_row = ((row, col), cmap) => {
   | (None, Some((nearest_col, rev_path))) => ((row, nearest_col), rev_path)
   | (Some((col', rev_path)), _) when col' == col => ((row, col), rev_path)
   | (
-      Some((col_before, (CursorPosition.OnText(_), rev_steps_before))),
+      Some((
+        col_before,
+        (CursorPosition.OnText(start_index), rev_steps_before),
+      )),
       Some((_, (CursorPosition.OnText(_), rev_steps_after))),
     )
       when
         rev_steps_before === rev_steps_after
         || rev_steps_before == rev_steps_after => (
       (row, col),
-      (OnText(col - col_before), rev_steps_before),
+      (OnText(start_index + col - col_before), rev_steps_before),
     )
   | (Some((col_before, rev_path_before)), Some((col_after, rev_path_after))) =>
     col - col_before <= col_after - col
@@ -202,7 +208,7 @@ let move_down = ((row, col), cmap): option(binding) =>
 let move_left =
     (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_before_within_row((row, col))) {
-  | (OnText(j), _) when j > 0 =>
+  | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j > j' =>
     Some(((row, col - 1), (OnText(j - 1), rev_steps)))
   | (_, Some(z)) => Some(z)
   | (_, None) => row == 0 ? None : Some(cmap |> end_of_row(row - 1))
@@ -211,8 +217,7 @@ let move_left =
 let move_right =
     (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_after_within_row((row, col))) {
-  | (OnText(j), Some((_, (CursorPosition.OnText(_), rev_steps_after))))
-      when rev_steps === rev_steps_after || rev_steps == rev_steps_after =>
+  | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j < j' =>
     Some(((row, col + 1), (OnText(j + 1), rev_steps)))
   | (_, Some(z)) => Some(z)
   | (_, None) =>
