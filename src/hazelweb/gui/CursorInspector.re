@@ -133,7 +133,7 @@ let view =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
 
   let got_invalid_indicator =
-    got_indicator("Got an invalid variable", typebar(HTyp.Hole));
+    got_indicator("Got invalid text", typebar(HTyp.Hole));
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
@@ -240,7 +240,7 @@ let view =
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_indicator(
-          "Got an invalid variable ▶ matched to",
+          "Got invalid text ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
