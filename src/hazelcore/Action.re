@@ -1387,6 +1387,12 @@ module Pat = {
     /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
        TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
+    | (Construct(SChar("\n")), CursorP(OnText(j), StringLit(_, s))) =>
+      let text_cursor = CursorPosition.OnText(j + 1);
+      let new_text = StringUtil.insert(j, "\n", s);
+      let zp =
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+      Succeeded((zp, HTyp.String, ctx, u_gen));
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1903,6 +1909,17 @@ module Pat = {
     /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
        TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
+    | (Construct(SChar("\n")), CursorP(OnText(j), StringLit(_, s))) =>
+      let text_cursor = CursorPosition.OnText(j + 1);
+      let new_text = StringUtil.insert(j, "\n", s);
+      let zp =
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
+      if (HTyp.consistent(ty, HTyp.String)) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((zp, ctx, u_gen));
+      };
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -5453,6 +5470,17 @@ module Exp = {
     /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
        TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
+    | (Construct(SChar("\n")), CursorE(OnText(j), StringLit(_, s))) =>
+      let text_cursor = CursorPosition.OnText(j + 1);
+      let new_text = StringUtil.insert(j, "\n", s);
+      let ze =
+        ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));
+      if (HTyp.consistent(ty, HTyp.String)) {
+        Succeeded(AnaDone((ze, u_gen)));
+      } else {
+        let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
+        Succeeded(AnaDone((ze, u_gen)));
+      };
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
