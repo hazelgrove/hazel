@@ -46,9 +46,9 @@ let set_err_status =
     OpSeq(skel, set_seq);
   };
 
-let make_inconsistent =
+let mk_inconsistent =
     (
-      ~make_inconsistent_operand:
+      ~mk_inconsistent_operand:
          (MetaVarGen.t, 'operand) => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
       opseq: t('operand, 'operator),
@@ -57,7 +57,7 @@ let make_inconsistent =
   switch (opseq) {
   | OpSeq(Placeholder(n) as skel, seq) =>
     let (set_operand, u_gen) =
-      seq |> Seq.nth_operand(n) |> make_inconsistent_operand(u_gen);
+      seq |> Seq.nth_operand(n) |> mk_inconsistent_operand(u_gen);
     let set_seq = seq |> Seq.update_nth_operand(n, set_operand);
     (OpSeq(skel, set_seq), u_gen);
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) => (opseq, u_gen)

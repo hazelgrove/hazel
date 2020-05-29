@@ -400,7 +400,7 @@ module Pat = {
              (ctx, u_gen, seq),
            );
       let (skels, tys) = List.split(pairs);
-      (UHPat.make_tuple(skels), seq, Prod(tys), ctx, u_gen);
+      (UHPat.mk_tuple(skels), seq, Prod(tys), ctx, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
       let (skel1, seq, ctx, u_gen) =
         ana_fix_holes_skel(
@@ -532,7 +532,7 @@ module Pat = {
       |> (
         fun
         | (rev_skels, seq, ctx, u_gen) => {
-            let skel = rev_skels |> List.rev |> UHPat.make_tuple;
+            let skel = rev_skels |> List.rev |> UHPat.mk_tuple;
             (OpSeq.OpSeq(skel, seq), ctx, u_gen);
           }
       )
@@ -566,7 +566,7 @@ module Pat = {
           fun
           | (rev_skels, seq, ctx, u_gen) => {
               let (u, u_gen) = MetaVarGen.next(u_gen);
-              let skel = UHPat.make_tuple(List.rev(rev_skels));
+              let skel = UHPat.mk_tuple(List.rev(rev_skels));
               let opseq =
                 UHPat.set_err_status_opseq(
                   InHole(TypeInconsistent, u),
@@ -1664,7 +1664,7 @@ module Exp = {
             HTyp.Hole,
           );
         let (OpSeq(skel1, seq), u_gen) =
-          UHExp.make_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
+          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
         (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
       };
     | BinOp(_, Comma, _, _) =>
@@ -1686,7 +1686,7 @@ module Exp = {
              (u_gen, seq),
            );
       let (skels, tys) = List.split(pairs);
-      (UHExp.make_tuple(skels), seq, Prod(tys), u_gen);
+      (UHExp.mk_tuple(skels), seq, Prod(tys), u_gen);
     | BinOp(_, Cons, skel1, skel2) =>
       let (skel1, seq, ty_elt, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
@@ -1979,7 +1979,7 @@ module Exp = {
       |> (
         fun
         | (rev_skels, seq, u_gen) => {
-            let skel = rev_skels |> List.rev |> UHExp.make_tuple;
+            let skel = rev_skels |> List.rev |> UHExp.mk_tuple;
             (OpSeq.OpSeq(skel, seq), u_gen);
           }
       )
@@ -2012,7 +2012,7 @@ module Exp = {
           fun
           | (rev_skels, seq, u_gen) => {
               let (u, u_gen) = MetaVarGen.next(u_gen);
-              let skel = UHExp.make_tuple(List.rev(rev_skels));
+              let skel = UHExp.mk_tuple(List.rev(rev_skels));
               let opseq =
                 UHExp.set_err_status_opseq(
                   InHole(TypeInconsistent, u),
@@ -2123,7 +2123,7 @@ module Exp = {
         (skel, seq, u_gen);
       } else {
         let (OpSeq(skel, seq), u_gen) =
-          UHExp.make_inconsistent_opseq(u_gen, OpSeq(skel, seq));
+          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel, seq));
         (skel, seq, u_gen);
       };
     }
