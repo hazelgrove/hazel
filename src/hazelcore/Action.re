@@ -2593,49 +2593,19 @@ module Exp = {
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        switch (steps) {
-        | [k1, k2, k3, k4, k5] =>
-          print_endline(
-            string_of_int(k1)
-            ++ " "
-            ++ string_of_int(k2)
-            ++ " "
-            ++ string_of_int(k3)
-            ++ " "
-            ++ string_of_int(k4)
-            ++ " "
-            ++ string_of_int(k5),
-          )
-        | _ => print_endline("None")
-        };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
         | None => Failed
         | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
-        };
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
       | Some(steps) =>
-        switch (steps) {
-        | [k1, k2, k3, k4, k5] =>
-          print_endline(
-            string_of_int(k1)
-            ++ " "
-            ++ string_of_int(k2)
-            ++ " "
-            ++ string_of_int(k3)
-            ++ " "
-            ++ string_of_int(k4)
-            ++ " "
-            ++ string_of_int(k5),
-          )
-        | _ => print_endline("None")
-        };
         switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
         | None => Failed
         | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
-        };
+        }
       }
     | MoveLeft =>
       ze
@@ -4026,7 +3996,6 @@ module Exp = {
             ),
           );
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
-      /* Succeeded(SynDone((ze, ty, u_gen))); */
       | operand =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -4041,7 +4010,6 @@ module Exp = {
             ),
           );
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
-      /* Succeeded(SynDone((ze, ty, u_gen))); */
       }
 
     | (Construct(SLeftBracket), CursorE(OnDelim(0, Before), EmptyHole(_))) =>
@@ -5242,7 +5210,6 @@ module Exp = {
             ),
           );
         Succeeded(AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
-      /* Succeeded(AnaDone((ze, u_gen))); */
       | operand =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
         let (hole1, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -5257,7 +5224,6 @@ module Exp = {
             ),
           );
         Succeeded(AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, ze, ty)));
-      /* Succeeded(AnaDone((ze, u_gen))); */
       }
 
     | (Construct(SLeftBracket), CursorE(OnDelim(0, Before), EmptyHole(_))) =>
