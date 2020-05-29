@@ -1,10 +1,15 @@
+/**
+ * The Hazel Incr_dom component.
+ * See <https://github.com/janestreet/incr_dom/blob/master/src/app_intf.ml>
+ * for the expected interface.
+ * See <https://github.com/janestreet/incr_dom/tree/master/example/text_input>
+ * for an example-driven overview.
+ */
+
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 open Incr_dom;
-
-// https://github.com/janestreet/incr_dom/blob/6aa4aca2cfc82a17bbcc0424ff6b0ae3d6d8d540/example/text_input/README.md
-// https://github.com/janestreet/incr_dom/blob/master/src/app_intf.ml
 
 module Model = Model;
 module Action = Update.Action;
