@@ -13,7 +13,12 @@ Code in `hazelcore`should be pure OCaml.
 
 ## Module Organization
 
-  - external syntax:
+Users edit external expressions, of type `UHExp.t`, via edit actions. External
+expressions are expanded to internal expressions, of type `DHExp.t`, for
+evaluation. The external and internal languages share a type system. Types are
+of type `HTyp.t`.
+
+  - external language syntax:
     - (mention convention in terms of `UH` vs `Z` prefixes)
     - central modules `UHExp`, `UHPat` `UHTyp`
       - shared forms `Seq`, `Skel`, `OpSeq`
@@ -63,11 +68,20 @@ Code in `hazelcore`should be pure OCaml.
     - `Monads`
 - `pretty` -- pretty printing library
   -
-- `hazelweb` contains the code pertaining to web interface for Hazel. The web
-  interface follows a model-view-update architecture using Jane Street's
-  [`Incr_dom`](https://github.com/janestreet/incr_dom) library. We use
+- `hazelweb` contains the code pertaining to web interface for Hazel.
+
+We use
   [`js_of_ocaml`](https://ocsigen.org/js_of_ocaml)
-  to compile from OCaml to JavaScript.
+  to compile from OCaml to JavaScript. The main HTML file is contained in the
+  `www` subdirectory; upon load, the compiled `hazel.js` program starts at
+  the `Main` module, which inserts content in the specified element.
+
+  The `Main` module implements the Hazel UI by following a model-view-update
+  architecture using Jane Street's [`Incr_dom`](https://github.com/janestreet/incr_dom) library.
+
+  - `www`:
+    the assets (e.g. `fonts`, `imgs`, `style.css`, `index.html`) loaded
+    along with the compiled `hazel.js` program
   - `Main`: kicks off `Incr_dom`
   - `Hazel`: defines `Incr_dom` component
   - `Logger`: janky logging system for logging user edit actions
