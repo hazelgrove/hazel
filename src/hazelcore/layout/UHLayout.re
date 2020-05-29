@@ -126,7 +126,10 @@ let find_and_decorate_caret =
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.Token({...token_data, has_cursor: Some(j)}),
+                      UHAnnot.Token({
+                        ...token_data,
+                        has_cursor: Some(j - start_index),
+                      }),
                     ),
                )
              | EmptyLine
