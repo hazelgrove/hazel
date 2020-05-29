@@ -373,6 +373,28 @@ module Typ = {
     | Sum => SVBar
     };
 
+  type syn_success = (ZTyp.t, Kind.t, MetaVarGen.t);
+  type ana_success = (ZTyp.t, MetaVarGen.t);
+  
+  let mk_syn_result = 
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
+      : Outcome.t(syn_success) => {
+    let hty = UHTyp.expand(zty |> ZTyp.erase, ctx.tyvars);
+    switch (Statics.Typ.syn(ctx, hty)) {
+    | None => Failed
+    | Some((k, ctx)) => Succeeded((zty, k, ctx, u_gen))
+    }
+  };
+  let mk_ana_result = 
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
+      : Outcome.t(ana_success) => {
+    let hty = UHTyp.expand(zty |> ZTyp.erase, ctx.tyvars);
+    switch (Statics.Typ.ana(ctx, hty, k)) {
+    | None => Failed
+    | Some(ctx) => Succeeded((zty, ctx, u_gen))
+    }
+  };
+  
   let construct_operator =
       (
         operator: UHTyp.operator,
@@ -394,39 +416,39 @@ module Typ = {
     ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
   };
 
-  let rec syn_move = (a: t, (zty: ZTyp.t, k: Kind.t)): Outcome.t((ZTyp.t, Kind.t)) =>
+  let rec syn_move = (a: t, (zty: ZTyp.t, k: Kind.t, u_gen: MetaVarGen.t)): Outcome.t(syn_success) =>
     switch (a) {
     | MoveTo(path) =>
       switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
       | None => Failed
-      | Some(zty) => Succeeded((zty, k))
+      | Some(zty) => Succeeded((zty, k, u_gen))
       }
     | MoveToBefore(steps) =>
       switch (CursorPath.Typ.follow_steps(~side=Before, steps, zty |> ZTyp.erase)) {
       | None => Failed
-      | Some(zty) => Succeeded((zty, k))
+      | Some(zty) => Succeeded((zty, k, u_gen))
       }
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => syn_move(MoveToBefore(steps), (zty, k))
+      | Some(steps) => syn_move(MoveToBefore(steps), (zty, k, u_gen))
       }
     | MoveToNextHole => 
       switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => syn_move(MoveToBefore(steps), (zty, k))
+      | Some(steps) => syn_move(MoveToBefore(steps), (zty, k, u_gen))
       }
     | MoveLeft => 
       zty 
       |> ZTyp.move_cursor_left 
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
-          Succeeded((z, k))
+          Succeeded((z, k, u_gen))
         )
     | MoveRight =>
       zty
       |> ZTyp.move_cursor_right
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
-          Succeeded((z, k))
+          Succeeded((z, k, u_gen))
       )
     | Construct(_)
     | Delete
@@ -443,39 +465,39 @@ module Typ = {
       )
     };
 
-  let rec ana_move = (a: t, zty: ZTyp.t, k: Kind.t): Outcome.t(ZTyp.t) => 
+  let rec ana_move = (a: t, (zty: ZTyp.t, u_gen: MetaVarGen.t), k: Kind.t): Outcome.t(ana_success) => 
     switch (a) {
     | MoveTo(path) =>
       switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
       | None => Failed
-      | Some(zty) => Succeeded(zty)
+      | Some(zty) => Succeeded((zty, u_gen))
       }
     | MoveToBefore(steps) =>
       switch (CursorPath.Typ.follow_steps(~side=Before, steps, zty |> ZTyp.erase)) {
       | None => Failed
-      | Some(zty) => Succeeded(zty)
+      | Some(zty) => Succeeded((zty, u_gen))
       }
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => ana_move(MoveToBefore(steps), zty, k)
+      | Some(steps) => ana_move(MoveToBefore(steps), (zty, u_gen), k)
       }
     | MoveToNextHole => 
       switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => ana_move(MoveToBefore(steps), zty, k)
+      | Some(steps) => ana_move(MoveToBefore(steps), (zty, u_gen), k)
       }
     | MoveLeft => 
       zty 
       |> ZTyp.move_cursor_left 
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
-          Succeeded(z)
+          Succeeded((z, u_gen))
         )
     | MoveRight =>
       zty
       |> ZTyp.move_cursor_right
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
-          Succeeded(z)
+          Succeeded((z, u_gen))
       )
     | Construct(_)
     | Delete
@@ -491,6 +513,7 @@ module Typ = {
         ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
       )
     };
+
 
   let rec move = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
     switch (a) {
@@ -603,6 +626,84 @@ module Typ = {
   let delete_text = _syn_delete_text(~mk_syn_text=mk_text);
   let insert_text = _syn_insert_text(~mk_syn_text=mk_text);
 
+  let rec syn_perform = 
+          (
+            ctx: Contexts.t, 
+            a:t, 
+            (zty: ZTyp.t, k: Kind.t, u_gen: MetaVarGen.t)
+          )
+          : Outcome.t(syn_success) => 
+    syn_perform_opseq(ctx, )
+  and syn_perform_opseq = 
+      (
+        ctx: Contexts.t,
+        a: t,
+        (
+          ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
+          k: Kind.t,
+          u_gen: MetaVarGen.t
+        )
+      )
+      : Outcome.t(syn_success) =>
+    switch (a, zseq) {
+    /* Invalid actions at type level */
+    | ( 
+        UpdateApPalette(_) |
+        Construct(
+          SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+          SApPalette(_),
+        ) | 
+        SwapUp | 
+        SwapDown,
+        _
+      ) => Failed
+    /* Invalid cursor positions */
+    | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
+    | (
+        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
+        MoveRight,
+        _
+      ) => syn_move(a, (zopseq, k, u_gen))
+    | (Delete, ZOperator((OnOp(After as side), _), _))
+    | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
+      syn_perform_opseq(ctx, escape(side), (zopseq, k, u_gen))
+      /* Delete before operator == Backspace after operator */
+    | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+      syn_perform_opseq(
+        ctx, 
+        Backspace,
+        (
+          ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
+          k,
+          u_gen
+        )
+      )
+    /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ...
+     * (for now until we have proper type constructors) */
+    | (Backspace, ZOperator((OnOp(After), _), (prefix, suffix))) =>
+      let S(prefix_hd, new_prefix) = prefix;
+      let zoperand = prefix_hd |> ZTyp.place_after_operand;
+      let S(_, new_suffix) = suffix;
+      mk_syn_result(
+        ctx,
+        u_gen,
+        ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix)))
+      )
+    
+    /* Construction */
+    /* constructio on operators becomes movement... */
+    | (Construct(SOp(SSpace)), ZOperator((OnOp(After), _), _)) =>
+      syn_perform_opseq(ctx, MoveRight, (zopseq, k, u_gen))
+    /* ... or construction after movement */
+    | (Construct(_) as a, ZOperator((OnOp(side), _), _)) =>
+      switch (syn_perform_opseq(ctx, escape(side), (zopseq, k, u_gen))) {
+      | Failed
+      | CursorEscaped(_) => Failed
+      | Succeeded((zty, k, u_gen)) => 
+        syn_perform_opseq(ctx, escape(side), (zty, k, u_gen))
+      }
+    }
   let rec perform =
           (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zty: ZTyp.t)
           : Outcome.t((ZTyp.t, MetaVarGen.t)) =>
