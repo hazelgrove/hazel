@@ -286,19 +286,26 @@ let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
     s
     |> String.split_on_char('\n')
     |> ListUtil.map_with_accumulator(
-         (start_index, line) => {
+         ((start_index, line_no), line) =>
+           // TODO undo manual align once we have inlined Align rendering properly
            (
-             start_index + StringUtil.utf8_length(line) + 1,
-             mk_text(~start_index, line),
-           )
-         },
-         0,
+             (start_index + StringUtil.utf8_length(line) + 1, line_no + 1),
+             line_no == 0
+               ? mk_text(~start_index, line)
+               : Doc.hcat(
+                   annot_Padding(space_),
+                   mk_text(~start_index, line),
+                 ),
+           ),
+         (0, 0),
        )
     |> snd
     |> ListUtil.join(Doc.linebreak());
 
-  Doc.hcats(
-    [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
+  Doc.(
+    hcats(
+      [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
+    )
   )
   |> annot_Operand(~sort, ~err);
 };
