@@ -3810,7 +3810,7 @@ module Exp = {
        TODO: remove once we have InvalidVar holes */
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar("\n")), CursorE(OnText(j), StringLit(_, s))) =>
-      let text_cursor = CursorPosition.OnText(j + 2);
+      let text_cursor = CursorPosition.OnText(j + 1);
       let new_text = StringUtil.insert(j, "\n", s);
       let ze =
         ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.stringlit(new_text)));

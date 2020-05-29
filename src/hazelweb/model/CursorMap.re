@@ -215,7 +215,7 @@ let move_left =
   };
 
 let move_right =
-    (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
+    (((row, col), (pos, rev_steps)): binding, cmap): option(binding) => {
   switch (pos, cmap |> find_after_within_row((row, col))) {
   | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j < j' =>
     Some(((row, col + 1), (OnText(j + 1), rev_steps)))
@@ -223,6 +223,7 @@ let move_right =
   | (_, None) =>
     row == num_rows(cmap) - 1 ? None : Some(cmap |> start_of_row(row + 1))
   };
+};
 
 let move_sol = (row, cmap): binding => cmap |> start_of_row(row);
 

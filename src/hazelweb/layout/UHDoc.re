@@ -287,11 +287,10 @@ let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
     |> String.split_on_char('\n')
     |> ListUtil.map_with_accumulator(
          (start_index, line) => {
-           print_endline(string_of_int(start_index));
            (
-             start_index + String.length(line) + 1,
+             start_index + StringUtil.utf8_length(line) + 1,
              mk_text(~start_index, line),
-           );
+           )
          },
          0,
        )

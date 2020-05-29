@@ -94,22 +94,27 @@ let view =
               | Delim(_) => ["code-delim"]
               };
             let children =
-              switch (has_cursor, shape) {
-              | (None, _) => go(l)
-              | (Some(j), Op | Delim(_)) => [
-                  caret_from_left(float_of_int(j) *. 100.0),
-                  ...go(l),
-                ]
-              | (Some(j), Text({start_index})) => [
+              switch (has_cursor) {
+              | None => go(l)
+              | Some(j) => [
                   caret_from_left(
                     len == 0
-                      ? 0.0
-                      : float_of_int(j - start_index)
-                        /. float_of_int(len)
-                        *. 100.0,
+                      ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
                   ),
                   ...go(l),
                 ]
+              /*
+               | (Some(j), Text({start_index})) => [
+                   caret_from_left(
+                     len == 0
+                       ? 0.0
+                       : float_of_int(j)
+                         /. float_of_int(len)
+                         *. 100.0,
+                   ),
+                   ...go(l),
+                 ]
+               */
               };
             [Node.span([Attr.classes(clss)], children)];
           }
