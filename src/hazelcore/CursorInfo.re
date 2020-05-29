@@ -26,7 +26,7 @@ type typed =
       )
   // cursor is on a free variable
   | AnaFree(HTyp.t)
-  // cursor is on an invalid variable
+  // cursor is on invalid text
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
@@ -54,9 +54,10 @@ type typed =
   | SynFreeArrow(HTyp.t)
   // cursor is on a keyword in the function position of an ap
   | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
-  // cursor is on an invalid variable in the fuction position of an ap
+  // cursor is on invalid text in the fuction position of an ap
+  // FIXME: Is this needed?
   | SynInvalidArrow(HTyp.t)
-  // cursor is on an invalid variable
+  // cursor is on invalid text
   | SynInvalid
   // none of the above, cursor is on a free variable
   | SynFree
