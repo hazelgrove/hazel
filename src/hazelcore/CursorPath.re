@@ -1581,10 +1581,15 @@ module Exp = {
       let holes_body3 = holes(body3, [2, ...rev_steps], []);
       switch (k) {
       | 0 =>
+        /* mk_zholes(
+             ~holes_before=holes_body1,
+             ~hole_selected,
+             ~holes_after=holes_body2 @ holes_body3,
+             (),
+           ) */
         mk_zholes(
-          ~holes_before=holes_body1,
           ~hole_selected,
-          ~holes_after=holes_body2 @ holes_body3,
+          ~holes_after=holes_body1 @ holes_body2 @ holes_body3,
           (),
         )
       | 1 =>
