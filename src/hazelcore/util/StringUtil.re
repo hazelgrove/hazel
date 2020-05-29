@@ -50,11 +50,12 @@ let rec find_and_replace = (acc: string, s: string): string => {
     } else if (substr == slash_t) {
       find_and_replace(acc ++ "\t", String.sub(s, 2, len_s));
     } else if (substr == slash_r) {
-      if (String.length(acc) <= len_s) {
-        find_and_replace("", String.sub(s, 2, len_s));
+      let result = find_and_replace("", String.sub(s, 2, len_s));
+      let len = String.length(result);
+      if (String.length(acc) <= len) {
+        result;
       } else {
-        String.sub(s, 2, len_s)
-        ++ String.sub(acc, len_s, String.length(acc) - len_s);
+        result ++ String.sub(acc, len, String.length(acc) - len);
       };
     } else {
       find_and_replace(
