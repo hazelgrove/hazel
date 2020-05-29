@@ -115,7 +115,23 @@ let mk_FloatLit = (f: float) =>
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
 let mk_StringLit = s => {
-  Doc.hcats([Delim.open_StringLit, Doc.text(s), Delim.open_StringLit]);
+  let line_docs =
+    s
+    |> String.split_on_char('\n')
+    |> ListUtil.map_with_accumulator(
+         (line_no, line) =>
+           // TODO undo manual align once we have inlined Align rendering properly
+           (
+             line_no + 1,
+             line_no == 0
+               ? Doc.text(line) : Doc.hcat(Doc.space(), Doc.text(line)),
+           ),
+         0,
+       )
+    |> snd
+    |> ListUtil.join(Doc.linebreak());
+
+  Doc.hcats([Delim.open_StringLit, ...line_docs] @ [Delim.close_StringLit]);
 };
 
 let mk_Inj = (inj_side, padded_child) =>
