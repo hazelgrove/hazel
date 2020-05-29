@@ -89,7 +89,7 @@ let view =
         | Annot(Token({shape, len, has_cursor}), l) => {
             let clss =
               switch (shape) {
-              | Text => ["code-text"]
+              | Text(_) => ["code-text"]
               | Op => ["code-op"]
               | Delim(_) => ["code-delim"]
               };
@@ -103,6 +103,18 @@ let view =
                   ),
                   ...go(l),
                 ]
+              /*
+               | (Some(j), Text({start_index})) => [
+                   caret_from_left(
+                     len == 0
+                       ? 0.0
+                       : float_of_int(j)
+                         /. float_of_int(len)
+                         *. 100.0,
+                   ),
+                   ...go(l),
+                 ]
+               */
               };
             [Node.span([Attr.classes(clss)], children)];
           }
