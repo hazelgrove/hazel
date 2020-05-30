@@ -380,18 +380,16 @@ module Typ = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
       : Outcome.t(syn_success) => {
     let hty = UHTyp.expand(zty |> ZTyp.erase, ctx.tyvars);
-    switch (Statics.Typ.syn(ctx, hty)) {
-    | None => Failed
-    | Some((k, _)) => Succeeded((zty, k, u_gen))
-    };
+    Succeeded((zty, Statics.Typ.syn(ctx, hty), u_gen));
   };
   let mk_ana_result =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
       : Outcome.t(ana_success) => {
     let hty = UHTyp.expand(zty |> ZTyp.erase, ctx.tyvars);
-    switch (Statics.Typ.ana(ctx, hty, k)) {
-    | None => Failed
-    | Some(_) => Succeeded((zty, u_gen))
+    if (Statics.Typ.ana(ctx, hty, k)) {
+      Succeeded((zty, u_gen));
+    } else {
+      Failed;
     };
   };
 
@@ -825,34 +823,29 @@ module Typ = {
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
       let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
       let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
-      switch (Statics.Typ.syn(ctx, hty)) {
-      | None => Failed
-      | Some((k_operand, _)) =>
-        switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
-        | Failed => Failed
-        | CursorEscaped(side) =>
-          syn_perform_opseq(ctx, escape(side), (zopseq, k, u_gen))
-        | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
-          switch (zseq) {
-          | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
-            let new_prefix = Seq.affix_affix(inner_prefix, prefix);
-            let new_suffix = Seq.affix_affix(inner_suffix, suffix);
-            mk_syn_result(
-              ctx,
-              u_gen,
-              ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
-            );
-          | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
-            let new_prefix = Seq.seq_affix(inner_prefix, prefix);
-            let new_suffix = Seq.seq_affix(inner_suffix, suffix);
-            mk_syn_result(
-              ctx,
-              u_gen,
-              ZTyp.mk_ZOpSeq(
-                ZOperator(zoperator, (new_prefix, new_suffix)),
-              ),
-            );
-          }
+      let k_operand = Statics.Typ.syn(ctx, hty);
+      switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_opseq(ctx, escape(side), (zopseq, k, u_gen))
+      | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
+        switch (zseq) {
+        | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
+          let new_prefix = Seq.affix_affix(inner_prefix, prefix);
+          let new_suffix = Seq.affix_affix(inner_suffix, suffix);
+          mk_syn_result(
+            ctx,
+            u_gen,
+            ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+          );
+        | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
+          let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+          let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+          mk_syn_result(
+            ctx,
+            u_gen,
+            ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+          );
         }
       };
     }
@@ -3379,10 +3372,13 @@ module Exp = {
       };
 
     | (_, LetLineZA(p, zann, def)) =>
-      switch (Typ.perform(ctx, u_gen, a, zann)) {
+      let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
+      let k = Statics.Typ.syn(ctx, hty);
+      let _ = print_endline(k |> Kind.to_string);
+      switch (Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
-      | Succeeded((new_zann, u_gen)) =>
+      | Succeeded((new_zann, _, u_gen)) =>
         let ty = UHTyp.expand(ZTyp.erase(new_zann), ctx.tyvars);
         let (p, new_ctx, u_gen) =
           Statics.Pat.ana_fix_holes(ctx, u_gen, p, ty);
@@ -3391,7 +3387,7 @@ module Exp = {
           Statics.Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
         let new_zline = ZExp.LetLineZA(p, new_zann, def);
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
-      }
+      };
 
     | (_, LetLineZE(p, None, zdef)) =>
       switch (Statics.Exp.syn(ctx, zdef |> ZExp.erase)) {
@@ -4072,17 +4068,20 @@ module Exp = {
         Succeeded(SynDone((new_ze, new_ty, u_gen)));
       };
     | (_, LamZA(_, p, zann, body)) =>
-      switch (Typ.perform(ctx, u_gen, a, zann)) {
+      let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
+      let k = Statics.Typ.syn(ctx, hty);
+      let _ = print_endline(k |> Kind.to_string);
+      switch (Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
-      | Succeeded((zann, u_gen)) =>
+      | Succeeded((zann, _, u_gen)) =>
         let ty1 = UHTyp.expand(ZTyp.erase(zann), ctx.tyvars);
         let (p, ctx, u_gen) = Statics.Pat.ana_fix_holes(ctx, u_gen, p, ty1);
         let (body, ty2, u_gen) = Statics.Exp.syn_fix_holes(ctx, u_gen, body);
         let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
         Succeeded(SynDone((new_ze, Arrow(ty1, ty2), u_gen)));
-      }
+      };
     | (_, LamZE(_, p, ann, zbody)) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => Failed
@@ -5360,11 +5359,14 @@ module Exp = {
       switch (HTyp.matched_arrow(ty)) {
       | None => Failed
       | Some((ty1_given, ty2)) =>
-        switch (Typ.perform(ctx, u_gen, a, zann)) {
+        let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
+        let k = Statics.Typ.syn(ctx, hty);
+        let _ = print_endline(k |> Kind.to_string);
+        switch (Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
         | Failed => Failed
         | CursorEscaped(side) =>
           ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
-        | Succeeded((zann, u_gen)) =>
+        | Succeeded((zann, _, u_gen)) =>
           let ty1 = UHTyp.expand(ZTyp.erase(zann), ctx.tyvars);
           HTyp.consistent(ty1, ty1_given)
             ? {
@@ -5387,7 +5389,7 @@ module Exp = {
                 );
               Succeeded(AnaDone((new_ze, u_gen)));
             };
-        }
+        };
       }
     | (_, LamZE(_, p, ann, zbody)) =>
       switch (HTyp.matched_arrow(ty)) {

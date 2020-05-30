@@ -9,3 +9,8 @@ let consistent = (k1, k2) =>
   | (_, KHole)
   | (Type, Type) => true
   };
+
+let to_string: t => string =
+  fun
+  | KHole => "KHole"
+  | Type => "Type";
