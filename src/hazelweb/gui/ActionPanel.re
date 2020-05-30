@@ -413,7 +413,17 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combo_and_cursor(~on_type=true, GT, [text("Create an arrow type")]),
       ],
     ),
-    section("Tuples", [combo(Comma, simple("Create a tuple"))]),
+    section(
+      "Tuples",
+      [
+        combo(Comma, simple("Create a tuple")),
+        combo_and_cursor(
+          ~on_type=true,
+          Comma,
+          [text("Create a tuple type")],
+        ),
+      ],
+    ),
     section(
       "Pattern Matching",
       [
@@ -455,47 +465,50 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   * Also consider looking at Cell.re to see if a keyboard shortcut
   * should be added for that particular action as well.
  */
+type ack_checkin =
+  | Added;
+
 [@warning "-32"]
 let check_actions = (a: Action.t) =>
   switch (a) {
   /* Used */
-  | Backspace
-  | Delete
-  | MoveToPrevHole
-  | MoveToNextHole
-  | Construct(SOp(SArrow))
-  | Construct(SOp(SGreaterThan))
-  | Construct(SOp(SAnd))
-  | Construct(SOp(SOr))
-  | Construct(SParenthesized)
-  | Construct(SAsc)
-  | Construct(SOp(SEquals))
-  | Construct(SLine)
-  | Construct(SLam)
-  | Construct(SOp(SPlus))
-  | Construct(SOp(SMinus))
-  | Construct(SOp(STimes))
-  | Construct(SOp(SDivide))
-  | Construct(SOp(SLessThan))
-  | Construct(SOp(SSpace))
-  | Construct(SOp(SComma))
-  | Construct(SList)
-  | Construct(SListNil)
-  | Construct(SOp(SCons))
-  | Construct(SInj(L))
-  | Construct(SInj(R))
-  | Construct(SCase)
-  | Construct(SLet)
-  | Construct(SOp(SVBar))
-  | Construct(SChar(_))
-  | SwapUp
-  | SwapDown
-  | SwapLeft
-  | SwapRight
-  | MoveLeft
-  | MoveRight => ()
+  | Backspace => Added
+  | Delete => Added
+  | MoveToPrevHole => Added
+  | MoveToNextHole => Added
+  | Construct(SOp(SArrow)) => Added
+  | Construct(SOp(SGreaterThan)) => Added
+  | Construct(SOp(SAnd)) => Added
+  | Construct(SOp(SOr)) => Added
+  | Construct(SParenthesized) => Added
+  | Construct(SAsc) => Added
+  | Construct(SOp(SEquals)) => Added
+  | Construct(SLine) => Added
+  | Construct(SLam) => Added
+  | Construct(SOp(SPlus)) => Added
+  | Construct(SOp(SMinus)) => Added
+  | Construct(SOp(STimes)) => Added
+  | Construct(SOp(SDivide)) => Added
+  | Construct(SOp(SLessThan)) => Added
+  | Construct(SOp(SSpace)) => Added
+  | Construct(SOp(SComma)) => Added
+  | Construct(SList) => Added
+  | Construct(SListNil) => Added
+  | Construct(SOp(SCons)) => Added
+  | Construct(SInj(L)) => Added
+  | Construct(SInj(R)) => Added
+  | Construct(SCase) => Added
+  | Construct(SLet) => Added
+  | Construct(SOp(SVBar)) => Added
+  | Construct(SChar(_)) => Added
+  | SwapUp => Added
+  | SwapDown => Added
+  | SwapLeft => Added
+  | SwapRight => Added
+  | MoveLeft => Added
+  | MoveRight => Added
   /* Not added */
-  | Construct(SApPalette(_))
-  | UpdateApPalette(_)
-  | MoveTo(_) => ()
+  | Construct(SApPalette(_)) => Added
+  | UpdateApPalette(_) => Added
+  | MoveTo(_) => Added
   };
