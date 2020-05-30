@@ -1,8 +1,13 @@
 open Sexplib.Std;
 
+[@deriving sexp]
+type idx = int; /* we use de Bruijn indices */
+
 /* types with holes */
 [@deriving sexp]
 type t =
+  | TyVar(idx, Var.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, Var.t) /* free type variables */
   | Hole
   | Int
   | Float
@@ -33,6 +38,8 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
+  | TyVar(_)
+  | TyVarHole(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -49,6 +56,11 @@ let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
+  | (TyVarHole(_), _)
+  | (_, TyVarHole(_)) => true
+  | (TyVar(i, _), TyVar(j, _)) => i == j
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => false
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -134,6 +146,8 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
+  | TyVar(_) => true
+  | TyVarHole(_) => false
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
@@ -141,16 +155,20 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (_, Hole)
+  | (_, TyVarHole(_, _)) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole, _)
+  | (TyVarHole(_, _), _) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty2)
     }
+  | (TyVar(_, _), _)
+  | (_, TyVar(_, _)) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
