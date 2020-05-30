@@ -566,7 +566,7 @@ module Typ = {
     switch (zoperand) {
     | CursorT(_, Hole | TyVar(InVarHole(_), _)) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
-    | CursorT(_, Unit | Int | Float | Bool | TyVar(NotIVarHole, _)) => no_holes
+    | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInVarHole, _)) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
       let holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
