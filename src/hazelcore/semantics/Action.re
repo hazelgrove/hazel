@@ -789,7 +789,11 @@ module Typ = {
       syn_perform_opseq(ctx, MoveRight, (zopseq, k, u_gen))
     /* TODO: need to be done */
     | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
-      Failed
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(op) =>
+        mk_syn_result(ctx, u_gen, construct_operator(op, zoperand, surround))
+      }
     /* SwapLeft and SwapRight actions */
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
@@ -816,7 +820,41 @@ module Typ = {
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
       mk_syn_result(ctx, u_gen, ZTyp.mk_ZOpSeq(new_zseq));
     /* Zipper */
-    | (_, ZOperand(zoperand, (prefix, suffix))) => Failed // TODO
+    | (_, ZOperand(zoperand, (E, E))) =>
+      syn_perform_operand(ctx, a, (zoperand, k, u_gen))
+    | (_, ZOperand(zoperand, (prefix, suffix))) =>
+      let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
+      let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
+      switch (Statics.Typ.syn(ctx, hty)) {
+      | None => Failed
+      | Some((k_operand, _)) =>
+        switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform_opseq(ctx, escape(side), (zopseq, k, u_gen))
+        | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
+          switch (zseq) {
+          | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
+            let new_prefix = Seq.affix_affix(inner_prefix, prefix);
+            let new_suffix = Seq.affix_affix(inner_suffix, suffix);
+            mk_syn_result(
+              ctx,
+              u_gen,
+              ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+            );
+          | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
+            let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+            let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+            mk_syn_result(
+              ctx,
+              u_gen,
+              ZTyp.mk_ZOpSeq(
+                ZOperator(zoperator, (new_prefix, new_suffix)),
+              ),
+            );
+          }
+        }
+      };
     }
   and syn_perform_operand =
       (
@@ -917,7 +955,8 @@ module Typ = {
       syn_perform_operand(ctx, MoveRight, (zoperand, k, u_gen))
     | (Construct(_) as a, CursorT(OnDelim(_, side), _))
         when
-          !ZTyp.is_before_zoperand(zoperand) && !ZTyp.is_after_zoperand(zoperand) =>
+          !ZTyp.is_before_zoperand(zoperand)
+          && !ZTyp.is_after_zoperand(zoperand) =>
       switch (syn_perform_operand(ctx, escape(side), (zoperand, k, u_gen))) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zty, k, u_gen)) => syn_perform(ctx, a, (zty, k, u_gen))
@@ -950,7 +989,8 @@ module Typ = {
       switch (operator_of_shape(os)) {
       | None => Failed
       // TODO: fix this
-      | Some(op) => Failed
+      | Some(op) =>
+        mk_syn_result(ctx, u_gen, construct_operator(op, zoperand, (E, E)))
       }
 
     /* Invalid SwapLeft and SwapRight acitons */
