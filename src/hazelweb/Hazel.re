@@ -1,6 +1,7 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+module ResizeObserver = Js_of_ocaml.ResizeObserver;
 open Incr_dom;
 
 // https://github.com/janestreet/incr_dom/blob/6aa4aca2cfc82a17bbcc0424ff6b0ae3d6d8d540/example/text_input/README.md
@@ -21,11 +22,13 @@ let on_startup = (~schedule_action, _) => {
       }),
     );
   };
-  Dom_html.window##.onresize :=
-    Dom_html.handler(_ => {
-      update_font_metrics();
-      Js._true;
-    });
+  // Necessary to correctly recalculate font metrics if delay in loading font or resize of window
+  let _ =
+    ResizeObserver.observe(
+      ~node=JSUtil.force_get_elem_by_id("font-specimen"),
+      ~f=(_, _) => update_font_metrics(),
+      (),
+    );
   update_font_metrics();
 
   Dom_html.window##.onfocus :=
