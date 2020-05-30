@@ -26,6 +26,30 @@ let tuple_zip =
   };
 };
 
+// bidirectional kind system
+module Typ = {
+  let rec syn = (ctx: Contexts.t, ty: HTyp.t): Kind.t =>
+    switch (ty) {
+    | TyVar(idx, _) =>
+      let (_, k) = List.nth(ctx.tyvars, idx);
+      k;
+    | TyVarHole(_, _)
+    | Hole => KHole
+    | Int
+    | Float
+    | Bool
+    | Prod([]) => Type
+    | Arrow(ty1, ty2)
+    | Sum(ty1, ty2) =>
+      ana(ctx, ty1, Kind.Type) && ana(ctx, ty2, Kind.Type) ? Type : KHole
+    | Prod([x, ...xs]) =>
+      ana(ctx, x, Kind.Type) ? syn(ctx, Prod(xs)) : KHole
+    | List(t) => ana(ctx, t, Kind.Type) ? Type : KHole
+    }
+  and ana = (ctx: Contexts.t, ty: HTyp.t, k: Kind.t): bool =>
+    Kind.consistent(k, syn(ctx, ty));
+};
+
 module Pat = {
   let tuple_zip = tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
@@ -837,7 +861,7 @@ module Exp = {
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty) =>
-        let ty = UHTyp.expand(uty);
+        let ty = UHTyp.expand(uty, Contexts.tyvars(ctx));
         let ctx_def = ctx_for_let(ctx, p, ty, def);
         switch (ana(ctx_def, def, ty)) {
         | None => None
@@ -973,7 +997,7 @@ module Exp = {
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
-        | Some(uty) => UHTyp.expand(uty)
+        | Some(uty) => UHTyp.expand(uty, Contexts.tyvars(ctx))
         | None => HTyp.Hole
         };
       switch (Pat.ana(ctx, p, ty1)) {
@@ -1194,7 +1218,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
+          let ty1_ann = UHTyp.expand(uty1, Contexts.tyvars(ctx));
           switch (HTyp.consistent(ty1_ann, ty1_given)) {
           | false => None
           | true =>
@@ -1485,7 +1509,7 @@ module Exp = {
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
+        let ty1 = UHTyp.expand(uty1, Contexts.tyvars(ctx));
         let ctx_def = ctx_for_let(ctx, p, ty1, def);
         let (def, u_gen) =
           ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
@@ -1732,7 +1756,7 @@ module Exp = {
     | Lam(_, p, ann, body) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
         | None => HTyp.Hole
         };
       let (p, ctx, u_gen) =
@@ -2164,7 +2188,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
+          let ty1_ann = UHTyp.expand(uty1, Contexts.tyvars(ctx));
           if (HTyp.consistent(ty1_ann, ty1_given)) {
             let (p, ctx, u_gen) =
               Pat.ana_fix_holes(
