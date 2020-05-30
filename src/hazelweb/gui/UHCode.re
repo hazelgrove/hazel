@@ -50,19 +50,6 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
 let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
-let caret_from_left = (from_left: float): Vdom.Node.t => {
-  assert(0.0 <= from_left && from_left <= 100.0);
-  let left_attr =
-    Vdom.Attr.create(
-      "style",
-      "left: " ++ string_of_float(from_left) ++ "0%;",
-    );
-  Vdom.Node.span(
-    [Vdom.Attr.id("caret"), left_attr, Vdom.Attr.classes(["blink"])],
-    [],
-  );
-};
-
 let view =
     (
       ~model: Model.t,
@@ -86,25 +73,14 @@ let view =
 
         | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
 
-        | Annot(Token({shape, len, has_cursor}), l) => {
+        | Annot(Token({shape, _}), l) => {
             let clss =
               switch (shape) {
               | Text => ["code-text"]
               | Op => ["code-op"]
               | Delim(_) => ["code-delim"]
               };
-            let children =
-              switch (has_cursor) {
-              | None => go(l)
-              | Some(j) => [
-                  caret_from_left(
-                    len == 0
-                      ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
-                  ),
-                  ...go(l),
-                ]
-              };
-            [Node.span([Attr.classes(clss)], children)];
+            [Node.span([Attr.classes(clss)], go(l))];
           }
         | Annot(DelimGroup, l) => [
             Node.span([Attr.classes(["DelimGroup"])], go(l)),
@@ -120,9 +96,24 @@ let view =
             Node.span([Attr.classes(["Indent"])], go(l)),
           ]
 
-        | Annot(HoleLabel(_), l) => [
-            Node.span([Attr.classes(["HoleLabel"])], go(l)),
-          ]
+        | Annot(HoleLabel({len}), l) => {
+            let font_width = font_metrics.col_width;
+            let font_shrink = 0.65;
+            let full_space = font_width *. float_of_int(len);
+            let shrunk_space = full_space *. font_shrink;
+            let padding = (full_space -. shrunk_space) /. 2.0;
+            let padding =
+              Vdom.Attr.create(
+                "style",
+                "padding-right: "
+                ++ string_of_float(padding)
+                ++ "0px; "
+                ++ "padding-left: "
+                ++ string_of_float(padding)
+                ++ "0px;",
+              );
+            [Node.span([padding, Attr.classes(["HoleLabel"])], go(l))];
+          }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
           ]
