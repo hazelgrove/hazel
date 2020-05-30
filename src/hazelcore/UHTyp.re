@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -31,6 +32,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
+  | TyVar(_)
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
@@ -63,6 +65,8 @@ let contract = (ty: HTyp.t): t => {
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInVarHole, t))
+      | TyVarHole(u, t) => Seq.wrap(TyVar(InVarHole(Free, u), t))
       | Arrow(ty1, ty2) =>
         mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
@@ -95,35 +99,41 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
-and expand_opseq =
-  fun
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
-and expand_skel = (skel, seq) =>
+let rec expand = (ty: t, ctx: TyVarCtx.t): HTyp.t => expand_opseq(ty, ctx)
+and expand_opseq = (ty, ctx) =>
+  switch (ty) {
+  | OpSeq(skel, seq) => expand_skel(skel, seq, ctx)
+  }
+and expand_skel = (skel, seq, ctx) =>
   switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
+  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
   | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
+    let ty1 = expand_skel(skel1, seq, ctx);
+    let ty2 = expand_skel(skel2, seq, ctx);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
     Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
+      skel
+      |> get_prod_elements
+      |> List.map(skel => expand_skel(skel, seq, ctx)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
+    let ty1 = expand_skel(skel1, seq, ctx);
+    let ty2 = expand_skel(skel2, seq, ctx);
     Sum(ty1, ty2);
   }
-and expand_operand =
-  fun
+and expand_operand = (ctx, operand) =>
+  switch (operand) {
   | Hole => Hole
   | Unit => Prod([])
   | Int => Int
   | Float => Float
   | Bool => Bool
-  | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
+  | TyVar(NotInVarHole, t) => TyVar(TyVarCtx.index_of_exn(ctx, t), t)
+  | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
+  | Parenthesized(opseq) => expand(opseq, ctx)
+  | List(opseq) => List(expand(opseq, ctx))
+  };
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
@@ -132,6 +142,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
+  | TyVar(NotInVarHole, _) => true
+  | TyVar(InVarHole(_), _) => false
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };
@@ -149,3 +161,10 @@ and is_complete = (ty: t) => {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
 };
+
+let of_string = 
+  fun 
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
+  | _ => failwith("impossible");
