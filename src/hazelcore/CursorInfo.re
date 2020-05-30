@@ -95,6 +95,8 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
+  | TypKeyword(ExpandingKeyword.t)
+  | TypFree
   | OnType
   /* (we will have a richer structure here later)*/
   | OnLine
@@ -115,8 +117,24 @@ let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx));
+  let rec cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+    switch (zty) {
+    | ZOpSeq(
+        _,
+        ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k), _), _)), (_, _)),
+      ) =>
+      Some(mk(TypKeyword(k), ctx))
+    | ZOpSeq(
+        _,
+        ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
+      ) =>
+      Some(mk(TypFree, ctx))
+    | ZOpSeq(
+      _,
+      ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))
+      ) => cursor_info(~steps=steps @ [0], ctx, t)
+    | _ => Some(mk(OnType, ctx))
+    };
 };
 
 /*
@@ -590,7 +608,7 @@ module Exp = {
         | Some(ty1) => pat_ci(ty1)
         }
       | Some(ann) =>
-        let ty1 = ann |> UHTyp.expand;
+        let ty1 = UHTyp.expand(ann, Contexts.tyvars(ctx));
         switch (pat_ci(ty1)) {
         | None => None
         | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
@@ -615,7 +633,7 @@ module Exp = {
         syn_cursor_info(~steps=steps @ [2], ctx, zdef)
         |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci))
       | Some(ann) =>
-        let ty = UHTyp.expand(ann);
+        let ty = UHTyp.expand(ann, Contexts.tyvars(ctx));
         let ctx_def = Statics.Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
         ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
         |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci));
@@ -799,7 +817,7 @@ module Exp = {
       let ty1 =
         switch (ann) {
         | None => HTyp.Hole
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
         };
       switch (Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty1)) {
       | None => None
@@ -812,7 +830,7 @@ module Exp = {
     | LamZE(_, p, ann, zbody) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
         | None => Hole
         };
       switch (Statics.Pat.ana(ctx, p, ty1)) {
@@ -1114,7 +1132,7 @@ module Exp = {
           switch (ann) {
           | None => Some(mk(Analyzed(ty), ctx))
           | Some(ann) =>
-            let ann_ty = ann |> UHTyp.expand;
+            let ann_ty = UHTyp.expand(ann, Contexts.tyvars(ctx));
             HTyp.consistent(ann_ty, ty1)
               ? Some(mk(AnaAnnotatedLambda(ty, Arrow(ann_ty, ty2)), ctx))
               : None;
@@ -1157,7 +1175,7 @@ module Exp = {
       | Some((ty1_given, _)) =>
         let ty1 =
           switch (ann) {
-          | Some(uty1) => UHTyp.expand(uty1)
+          | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
           | None => ty1_given
           };
         switch (Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty1)) {
@@ -1176,7 +1194,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         let ty1 =
           switch (ann) {
-          | Some(uty1) => UHTyp.expand(uty1)
+          | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
           | None => ty1_given
           };
         switch (Statics.Pat.ana(ctx, p, ty1)) {
