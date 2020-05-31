@@ -156,20 +156,6 @@ let text_operand =
     );
   };
 
-let operand_is_hole = (op: operand): bool => {
-  switch (op) {
-  | EmptyHole(_) => true
-  | Wild(_)
-  | Var(_, _, _)
-  | IntLit(_, _)
-  | FloatLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Parenthesized(_)
-  | Inj(_, _, _) => false
-  };
-};
-
 let associate = (seq: seq) => {
   let skel_str = Skel.mk_skel_str(seq, Operators.Pat.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);

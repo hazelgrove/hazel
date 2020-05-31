@@ -125,18 +125,6 @@ and expand_operand =
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
 
-let operand_is_hole = (op: operand): bool => {
-  switch (op) {
-  | Hole => true
-  | Unit
-  | Int
-  | Float
-  | Bool
-  | Parenthesized(_)
-  | List(_) => false
-  };
-};
-
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false

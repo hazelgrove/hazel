@@ -85,6 +85,7 @@ let shape_to_string = (shape: shape): string => {
   | SApPalette(_) => failwith("ApPalette not implemented")
   };
 };
+
 module Outcome = {
   type t('success) =
     | Succeeded('success)
@@ -319,7 +320,7 @@ module Typ = {
           );
         }
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
     switch (a, zoperand) {
@@ -426,7 +427,7 @@ module Typ = {
       | CursorEscaped(side) => perform_operand(escape(side), zoperand)
       | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
@@ -1250,7 +1251,7 @@ module Pat = {
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
         }
       };
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
@@ -1470,7 +1471,7 @@ module Pat = {
           };
         Succeeded((zp, ty, ctx, u_gen));
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform =
@@ -1650,7 +1651,7 @@ module Pat = {
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
         }
       };
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_operand =
       (
@@ -1920,7 +1921,7 @@ module Pat = {
           Succeeded((zp, ctx, u_gen));
         }
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
@@ -2958,7 +2959,7 @@ module Exp = {
           Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
         }
       };
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and syn_perform_opseq =
@@ -3273,7 +3274,7 @@ module Exp = {
           );
         }
       };
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and syn_perform_operand =
       (
@@ -3792,7 +3793,7 @@ module Exp = {
           };
         }
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and syn_perform_rules =
@@ -3939,7 +3940,7 @@ module Exp = {
           Succeeded((new_zrules, u_gen));
         }
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform_rules =
@@ -4093,7 +4094,7 @@ module Exp = {
           Succeeded((new_zrules, u_gen));
         }
       }
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform =
@@ -4622,7 +4623,7 @@ module Exp = {
           );
         }
       };
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_operand =
       (
@@ -5127,7 +5128,7 @@ module Exp = {
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     /* Invalid actions at the expression level */
-    | (Init, _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_subsume =
       (
