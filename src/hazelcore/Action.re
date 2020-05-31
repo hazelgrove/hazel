@@ -506,6 +506,61 @@ module Typ = {
       )
     };
 
+  let rec ana_move =
+          (a: t, (zty: ZTyp.t, u_gen: MetaVarGen.t), k: Kind.t)
+          : Outcome.t(ana_success) =>
+    switch (a) {
+    | MoveTo(path) =>
+      switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
+      | None => Failed
+      | Some(zty) => Succeeded((zty, u_gen))
+      }
+    | MoveToPrevHole =>
+      switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(MoveTo(path), (zty, u_gen), k)
+        }
+      }
+    | MoveToNextHole =>
+      switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(MoveTo(path), (zty, u_gen), k)
+        }
+      }
+    | MoveLeft =>
+      zty
+      |> ZTyp.move_cursor_left
+      |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
+           Succeeded((z, u_gen))
+         )
+    | MoveRight =>
+      zty
+      |> ZTyp.move_cursor_right
+      |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
+           Succeeded((z, u_gen))
+         )
+    | Construct(_)
+    | Delete
+    | Backspace
+    | UpdateApPalette(_)
+    | SwapLeft
+    | SwapRight
+    | SwapUp
+    | SwapDown
+    | Init =>
+      failwith(
+        __LOC__
+        ++ ": expected movement action, got "
+        ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
+      )
+    };
+
   let mk_syn_text =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
       : Outcome.t(syn_success) => {
