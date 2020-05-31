@@ -475,7 +475,7 @@ let rec syn_move =
     | Some(steps) => 
       switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
       | None => Failed
-      | Some(path) => syn_move(MoveTo(steps), (zty, k, u_gen))
+      | Some(path) => syn_move(MoveTo(path), (zty, k, u_gen))
       }
     }
   | MoveLeft =>
@@ -680,6 +680,7 @@ let rec syn_move =
   and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
     switch (a, zoperand) {
     /* Invalid actions at the type level */
+    | (_, CursorT(_, TyVar(_))) => Failed
     | (
         UpdateApPalette(_) |
         Construct(
@@ -2979,7 +2980,7 @@ module Exp = {
         }
       }
     | (_, LetLineZP(zp, Some(ann), def)) =>
-      let ty = ann |> UHTyp.expand;
+      let ty = UHTyp.expand(ann, Contexts.tyvars(ctx));
       switch (Pat.ana_perform(ctx, u_gen, a, zp, ty)) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
@@ -2997,7 +2998,7 @@ module Exp = {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded(new_zann) =>
-        let ty = new_zann |> ZTyp.erase |> UHTyp.expand;
+        let ty = UHTyp.expand(ZTyp.erase(new_zann), Contexts.tyvars(ctx));
         let (p, new_ctx, u_gen) =
           Statics.Pat.ana_fix_holes(ctx, u_gen, p, ty);
         let ctx_def = Statics.Exp.ctx_for_let(ctx, p, ty, def);
@@ -3022,7 +3023,7 @@ module Exp = {
         }
       }
     | (_, LetLineZE(p, Some(ann), zdef)) =>
-      let ty = ann |> UHTyp.expand;
+      let ty = UHTyp.expand(ann, Contexts.tyvars(ctx));
       let ctx_def = Statics.Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
       switch (ana_perform(ctx_def, a, (zdef, u_gen), ty)) {
       | Failed => Failed
@@ -3725,7 +3726,7 @@ module Exp = {
     | (_, LamZP(_, zp, ann, body)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
         | None => HTyp.Hole
         };
       switch (Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
@@ -3744,7 +3745,7 @@ module Exp = {
       | CursorEscaped(side) =>
         syn_perform_operand(ctx, escape(side), (zoperand, ty, u_gen))
       | Succeeded(zann) =>
-        let ty1 = UHTyp.expand(ZTyp.erase(zann));
+        let ty1 = UHTyp.expand(ZTyp.erase(zann), Contexts.tyvars(ctx));
         let (p, ctx, u_gen) = Statics.Pat.ana_fix_holes(ctx, u_gen, p, ty1);
         let (body, ty2, u_gen) = Statics.Exp.syn_fix_holes(ctx, u_gen, body);
         let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
@@ -3756,7 +3757,7 @@ module Exp = {
       | Some((_, ty2)) =>
         let ty1 =
           switch (ann) {
-          | Some(uty1) => UHTyp.expand(uty1)
+          | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
           | None => HTyp.Hole
           };
         switch (Statics.Pat.ana(ctx, p, ty1)) {
@@ -5081,7 +5082,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         let ty1 =
           switch (ann) {
-          | Some(uty1) => UHTyp.expand(uty1)
+          | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
           | None => ty1_given
           };
         switch (Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
@@ -5104,7 +5105,7 @@ module Exp = {
         | CursorEscaped(side) =>
           ana_perform_operand(ctx, escape(side), (zoperand, u_gen), ty)
         | Succeeded(zann) =>
-          let ty1 = UHTyp.expand(ZTyp.erase(zann));
+          let ty1 = UHTyp.expand(ZTyp.erase(zann), Contexts.tyvars(ctx));
           HTyp.consistent(ty1, ty1_given)
             ? {
               let (p, ctx, u_gen) =
@@ -5134,7 +5135,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         let ty1 =
           switch (ann) {
-          | Some(uty1) => UHTyp.expand(uty1)
+          | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
           | None => ty1_given
           };
         switch (Statics.Pat.ana(ctx, p, ty1)) {

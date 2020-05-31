@@ -266,6 +266,14 @@ let view =
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
       (ind1, ind2, TypeInconsistency);
+    | TypKeyword(_keyword) =>
+      let ind1 = expected_a_type_indicator;
+      let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | TypFree =>
+      let ind1 = expected_a_type_indicator;
+      let ind2 = got_free_indicator;
+      (ind1, ind2, BindingError);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
