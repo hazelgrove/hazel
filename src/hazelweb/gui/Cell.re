@@ -118,9 +118,30 @@ let view = (~inject, model: Model.t) => {
                   )
                 | (_, _) =>
                   switch (KeyCombo.of_evt(evt)) {
-                  | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
+                  | Some(Ctrl_Z) =>
+                    if (model.is_mac) {
+                      Event.Ignore;
+                    } else {
+                      prevent_stop_inject(Update.Action.Undo);
+                    }
+                  | Some(Meta_Z) =>
+                    if (model.is_mac) {
+                      prevent_stop_inject(Update.Action.Undo);
+                    } else {
+                      Event.Ignore;
+                    }
                   | Some(Ctrl_Shift_Z) =>
-                    prevent_stop_inject(Update.Action.Redo)
+                    if (model.is_mac) {
+                      Event.Ignore;
+                    } else {
+                      prevent_stop_inject(Update.Action.Redo);
+                    }
+                  | Some(Meta_Shift_Z) =>
+                    if (model.is_mac) {
+                      prevent_stop_inject(Update.Action.Redo);
+                    } else {
+                      Event.Ignore;
+                    }
                   | Some(kc) =>
                     prevent_stop_inject(
                       Update.Action.EditAction(
