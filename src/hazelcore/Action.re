@@ -20,6 +20,7 @@ type operator_shape =
 
 [@deriving sexp]
 type shape =
+  | SList
   | SLeftBracket
   | SQuote
   | SParenthesized
@@ -48,7 +49,48 @@ type t =
   | SwapLeft
   | SwapRight
   | SwapUp
-  | SwapDown;
+  | SwapDown
+  | Init;
+
+let shape_to_string = (shape: shape): string => {
+  switch (shape) {
+  | SList => "list type"
+  | SQuote => "new string"
+  | SLeftBracket => "new list/substring"
+  | SParenthesized => "parentheses"
+  | SChar(str) => str
+  | SAsc => "type annotation"
+  | SLam => "function"
+  | SListNil => "empty list"
+  | SInj(side) =>
+    switch (side) {
+    | L => "left injection"
+    | R => "right injection"
+    }
+  | SLet => "let binding"
+  | SLine => "new line"
+  | SCase => "case expression"
+  | SOp(operator_shape) =>
+    switch (operator_shape) {
+    | SMinus => "-"
+    | SPlus => "+"
+    | STimes => "*"
+    | SDivide => "/"
+    | SLessThan => "<"
+    | SGreaterThan => ">"
+    | SEquals => "=="
+    | SSpace => "space"
+    | SComma => ","
+    | SArrow => UnicodeConstants.typeArrowSym
+    | SVBar => "|"
+    | SCons => "::"
+    | SAnd => "&&"
+    | SOr => "||"
+    | SCaret => "^"
+    }
+  | SApPalette(_) => failwith("ApPalette not implemented")
+  };
+};
 
 module Outcome = {
   type t('success) =
@@ -159,7 +201,8 @@ module Typ = {
     | SwapLeft
     | SwapRight
     | SwapUp
-    | SwapDown =>
+    | SwapDown
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -284,6 +327,7 @@ module Typ = {
           );
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
     switch (a, zoperand) {
@@ -367,6 +411,9 @@ module Typ = {
 
     | (Construct(SChar(_)), CursorT(_)) => Failed
 
+    | (Construct(SList), CursorT(_)) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
+
     | (Construct(SLeftBracket), CursorT(_)) => Failed
 
     | (Construct(SQuote), CursorT(_)) =>
@@ -398,6 +445,7 @@ module Typ = {
       | CursorEscaped(side) => perform_operand(escape(side), zoperand)
       | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
@@ -996,7 +1044,8 @@ module Pat = {
     | SwapUp
     | SwapDown
     | SwapLeft
-    | SwapRight =>
+    | SwapRight
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1049,7 +1098,8 @@ module Pat = {
     | SwapUp
     | SwapDown
     | SwapLeft
-    | SwapRight =>
+    | SwapRight
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1220,6 +1270,7 @@ module Pat = {
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
@@ -1241,7 +1292,7 @@ module Pat = {
       Failed
     /* Invalid actions */
     | (
-        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
+        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase | SList) |
         UpdateApPalette(_) |
         SwapUp |
         SwapDown,
@@ -1518,6 +1569,7 @@ module Pat = {
           };
         Succeeded((zp, ty, ctx, u_gen));
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform =
@@ -1697,6 +1749,7 @@ module Pat = {
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_operand =
       (
@@ -1725,7 +1778,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
+        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase | SList) |
         UpdateApPalette(_) |
         SwapUp |
         SwapDown,
@@ -2088,6 +2141,7 @@ module Pat = {
           Succeeded((zp, ctx, u_gen));
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
@@ -2626,7 +2680,8 @@ module Exp = {
     | SwapLeft
     | SwapRight
     | SwapUp
-    | SwapDown =>
+    | SwapDown
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2686,7 +2741,8 @@ module Exp = {
     | SwapLeft
     | SwapRight
     | SwapUp
-    | SwapDown =>
+    | SwapDown
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -3125,6 +3181,7 @@ module Exp = {
           Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and syn_perform_opseq =
@@ -3453,6 +3510,7 @@ module Exp = {
           );
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and syn_perform_operand =
       (
@@ -3484,7 +3542,8 @@ module Exp = {
       Failed
 
     /* Invalid actions at expression level */
-    | (Construct(SLine), CursorE(OnText(_), _)) => Failed
+    | (Construct(SLine), CursorE(OnText(_), _))
+    | (Construct(SList), _) => Failed
     /* Movement handled at top level */
     | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       syn_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), ty, u_gen))
@@ -4216,6 +4275,7 @@ module Exp = {
           };
         }
       }
+
     | (_, SubscriptZE1(_, zbody1, body2, body3)) =>
       switch (ana_perform(ctx, a, (zbody1, u_gen), String)) {
       | Failed => Failed
@@ -4267,6 +4327,8 @@ module Exp = {
         Succeeded(SynDone((new_ze, ty, u_gen)));
       }
     | (Construct(SLeftBracket), _) => Failed
+
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and syn_perform_rules =
@@ -4413,6 +4475,7 @@ module Exp = {
           Succeeded((new_zrules, u_gen));
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform_rules =
@@ -4566,6 +4629,7 @@ module Exp = {
           Succeeded((new_zrules, u_gen));
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform =
@@ -5108,6 +5172,7 @@ module Exp = {
           );
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_operand =
       (
@@ -5139,6 +5204,7 @@ module Exp = {
     | (_, CursorE(cursor, operand))
         when !ZExp.is_valid_cursor_operand(cursor, operand) =>
       Failed
+    | (Construct(SList), _) => Failed
 
     | _ when ZExp.is_inconsistent(zoperand) =>
       let err = zoperand |> ZExp.get_err_status_zoperand;
@@ -5836,8 +5902,10 @@ module Exp = {
     | (_, SubscriptZE3(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     | (Construct(SLeftBracket), _) => Failed
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
+
   and ana_perform_subsume =
       (
         ctx: Contexts.t,
