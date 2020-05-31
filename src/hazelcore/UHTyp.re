@@ -162,8 +162,8 @@ and is_complete = (ty: t) => {
   };
 };
 
-let of_string = 
-  fun 
+let of_string =
+  fun
   | Int => "Int"
   | Float => "Float"
   | Bool => "Bool"

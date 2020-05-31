@@ -512,11 +512,9 @@ module Typ = {
         ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
       ) =>
       Some(mk(TypFree, ctx, extract_cursor_type_term(zty)))
-    | ZOpSeq(
-      _,
-      ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))
-      ) => cursor_info(~steps=steps @ [0], ctx, t)
-    | _ => Some(mk(OnType, ctx, extract_cursor_type_term(zty)));
+    | ZOpSeq(_, ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))) =>
+      cursor_info(~steps=steps @ [0], ctx, t)
+    | _ => Some(mk(OnType, ctx, extract_cursor_type_term(zty)))
     };
 };
 /*
