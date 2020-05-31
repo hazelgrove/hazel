@@ -500,8 +500,24 @@ let mk = (~uses=?, typed, ctx, cursor_term) => {
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let cursor_info = (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx, extract_cursor_type_term(typ)));
+  let rec cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+    switch (zty) {
+    | ZOpSeq(
+        _,
+        ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k), _), _)), (_, _)),
+      ) =>
+      Some(mk(TypKeyword(k), ctx, extract_cursor_type_term(zty)))
+    | ZOpSeq(
+        _,
+        ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
+      ) =>
+      Some(mk(TypFree, ctx, extract_cursor_type_term(zty)))
+    | ZOpSeq(
+      _,
+      ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))
+      ) => cursor_info(~steps=steps @ [0], ctx, t)
+    | _ => Some(mk(OnType, ctx, extract_cursor_type_term(zty)));
+    };
 };
 /*
  * there are cases we can't determine where to find the uses of a variable
