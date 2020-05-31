@@ -410,6 +410,26 @@ module Typ = {
     | Sum => SVBar
     };
 
+  type syn_success = (ZTyp.t, Kind.t, MetaVarGen.t);
+  type ana_success = (ZTyp.t, MetaVarGen.t);
+
+  let mk_syn_result =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
+      : Outcome.t(syn_success) => {
+    let hty = UHTyp.expand(zty |> ZTyp.erase, Contexts.tyvars(ctx));
+    Succeeded((zty, Statics.Typ.syn(ctx, hty), u_gen));
+  };
+  let mk_ana_result =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
+      : Outcome.t(ana_success) => {
+    let hty = UHTyp.expand(zty |> ZTyp.erase, Contexts.tyvars(ctx));
+    if (Statics.Typ.ana(ctx, hty, k)) {
+      Succeeded((zty, u_gen));
+    } else {
+      Failed;
+    };
+  };
+
   let construct_operator =
       (
         operator: UHTyp.operator,
@@ -431,6 +451,60 @@ module Typ = {
     ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
   };
 
+let rec syn_move =
+        (a: t, (zty: ZTyp.t, k: Kind.t, u_gen: MetaVarGen.t))
+        : Outcome.t(syn_success) =>
+  switch (a) {
+  | MoveTo(path) =>
+    switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
+    | None => Failed
+    | Some(zty) => Succeeded((zty, k, u_gen))
+    }
+  | MoveToPrevHole =>
+    switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
+    | None => Failed
+    | Some(steps) => 
+      switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+      | None => Failed
+      | Some(path) => syn_move(MoveTo(path), (zty, k, u_gen))
+      }
+    }
+  | MoveToNextHole =>
+    switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
+    | None => Failed
+    | Some(steps) => 
+      switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+      | None => Failed
+      | Some(path) => syn_move(MoveTo(steps), (zty, k, u_gen))
+      }
+    }
+  | MoveLeft =>
+    zty
+    |> ZTyp.move_cursor_left
+    |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
+        Succeeded((z, k, u_gen))
+       )
+  | MoveRight =>
+    zty
+    |> ZTyp.move_cursor_right
+    |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
+        Succeeded((z, k, u_gen))
+      )
+  | Construct(_)
+  | Delete
+  | Backspace
+  | UpdateApPalette(_)
+  | SwapLeft
+  | SwapRight
+  | SwapUp
+  | SwapDown
+  | Init =>
+    failwith(
+      __LOC__
+      ++ ": expected movement action, got "
+      ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
+    )
+  };
   let rec move = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
     switch (a) {
     | MoveTo(path) =>
