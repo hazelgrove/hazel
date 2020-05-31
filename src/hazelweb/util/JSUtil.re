@@ -242,22 +242,18 @@ let update_mouse_position = evt => {
       y: Js.Optdef.get(evt##.pageY, () => assert(false)),
     };
 };
-let get_elt_id_under_mouse = _: option((int, int)) => {
-  let elt: Js.t(Dom_html.divElement) =
-    Js.Unsafe.meth_call(
-      Dom_html.document,
-      "elementFromPoint",
-      [|
-        Js.Unsafe.inject(State.mouse_position^.x),
-        Js.Unsafe.inject(State.mouse_position^.y),
-      |],
-    );
-  switch (get_attr("group_id", elt), get_attr("elt_id", elt)) {
-  | (Some(group_id), Some(elt_id)) =>
-    Some((int_of_string(group_id), int_of_string(elt_id)))
-  | _ => None
-  };
+
+let unsafe_get_elt_under_mouse = () => {
+  Js.Unsafe.meth_call(
+    Dom_html.document,
+    "elementFromPoint",
+    [|
+      Js.Unsafe.inject(State.mouse_position^.x),
+      Js.Unsafe.inject(State.mouse_position^.y),
+    |],
+  );
 };
+
 let force_get_parent_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.parentNode)
