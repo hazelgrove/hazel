@@ -631,11 +631,59 @@ module Typ = {
     };
   };
 
+  let mk_ana_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        text: string,
+        k: Kind.t,
+      )
+      : Outcome.t(ana_success) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TyTextShape.of_text(text)) {
+    | None =>
+      if (text |> StringUtil.is_empty) {
+        Succeeded((
+          ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
+          u_gen,
+        ));
+      } else {
+        Failed;
+      }
+    | Some(ExpandingKeyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      Succeeded((
+        ZOpSeq.wrap(
+          ZTyp.CursorT(
+            text_cursor,
+            TyVar(
+              InVarHole(Keyword(k), u),
+              k |> ExpandingKeyword.to_string,
+            ),
+          ),
+        ),
+        u_gen,
+      ));
+    | Some(Int | Float | Bool | TyVar(_)) =>
+      switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((zty, k', u_gen)) =>
+        if (Kind.consistent(k, k')) {
+          Succeeded((zty, u_gen));
+        } else {
+          Failed;
+        }
+      }
+    };
+  };
+  
   let syn_insert_text = syn_insert_text_(~mk_syn_text);
-
+  let ana_insert_text = ana_insert_text_(~mk_ana_text);
   let syn_backspace_text = syn_backspace_text_(~mk_syn_text);
-
+  let ana_backspace_text = ana_backspace_text_(~mk_ana_text);
   let syn_delete_text = syn_delete_text_(~mk_syn_text);
+  let ana_delete_text = ana_delete_text_(~mk_ana_text)
 
   let rec syn_perform =
           (
