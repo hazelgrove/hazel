@@ -208,9 +208,6 @@ and move_cursor_left_zopseq = zopseq =>
   )
 and move_cursor_left_zoperand =
   fun
-  // FIXME: Figure out the proper case
-  | CursorP(OnDelim(_, Before), InvalidText(_, _)) =>
-    failwith("unimplemented ?a")
   | z when is_before_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
@@ -225,7 +222,8 @@ and move_cursor_left_zoperand =
     Some(InjZ(err, side, place_after(p)))
   | CursorP(
       OnDelim(_, _),
-      Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) | FloatLit(_, _),
+      InvalidText(_) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
+      FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
@@ -260,9 +258,6 @@ and move_cursor_right_zopseq = zopseq =>
   )
 and move_cursor_right_zoperand =
   fun
-  // FIXME: Figure out the proper case
-  | CursorP(OnDelim(_, After), InvalidText(_, _)) =>
-    failwith("unimplemented ?b")
   | z when is_after_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
@@ -276,7 +271,8 @@ and move_cursor_right_zoperand =
     Some(InjZ(err, side, place_before(p)))
   | CursorP(
       OnDelim(_, _),
-      Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) | FloatLit(_, _),
+      InvalidText(_) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
+      FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
