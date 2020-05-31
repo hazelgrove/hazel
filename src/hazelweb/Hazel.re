@@ -5,7 +5,6 @@
  * See <https://github.com/janestreet/incr_dom/tree/master/example/text_input>
  * for an example-driven overview.
  */
-
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
