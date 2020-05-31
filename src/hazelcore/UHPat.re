@@ -36,6 +36,9 @@ let var =
 
 let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
+let invalidtext = (~err: ErrStatus.t=NotInHole, t: string) =>
+  InvalidText(err, t);
+
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
 let intlit = (~err: ErrStatus.t=NotInHole, n: string) => IntLit(err, n);
@@ -159,7 +162,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidTextShape(_) => failwith("unimplemented text_operand")
+  | InvalidTextShape(t) => (invalidtext(t), u_gen)
   };
 
 let associate = (seq: seq) => {
