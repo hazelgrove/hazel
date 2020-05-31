@@ -430,39 +430,42 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
     let prefix = ZList.prj_prefix(exp);
     switch (ListUtil.split_last(prefix)) {
     | None => false
-    | Some((_, elt)) =>
+    | Some((_, EmptyLine)) =>
       switch (ZList.prj_z(exp)) {
-      | ExpLineZ(zopseq) =>
-        ZExp.is_before_zopseq(zopseq) && UHExp.is_empty_line(elt)
+      | ExpLineZ(zopseq) => ZExp.is_before_zopseq(zopseq)
       | CursorL(_, _)
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => UHExp.is_empty_line(elt)
+      | LetLineZE(_, _, _) => true
       }
+    | Some((_, _)) => false
     };
   };
   let next_is_empty_line = {
     let suffix = ZList.prj_suffix(exp);
     switch (suffix) {
     | [] => false
-    | ls =>
+    | [EmptyLine, ..._] =>
       switch (ZList.prj_z(exp)) {
-      | ExpLineZ(zopseq) =>
-        ZExp.is_after_zopseq(zopseq) && UHExp.is_empty_line(List.hd(ls))
+      | ExpLineZ(zopseq) => ZExp.is_after_zopseq(zopseq)
       | CursorL(_, _)
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => UHExp.is_empty_line(List.hd(ls))
+      | LetLineZE(_, _, _) => false
       }
+    | _ => false
     };
   };
   (prev_is_empty_line, next_is_empty_line);
 };
-let is_hole = (cursor_term: cursor_term): bool => {
+let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, exp) => UHExp.operand_is_hole(exp)
-  | Pat(_, pat) => UHPat.operand_is_hole(pat)
-  | Typ(_, typ) => UHTyp.operand_is_hole(typ)
+  | Exp(_, EmptyHole(_)) => true
+  | Exp(_, _) => false
+  | Pat(_, EmptyHole(_)) => true
+  | Pat(_, _) => false
+  | Typ(_, Hole) => true
+  | Typ(_, _) => false
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
@@ -473,7 +476,8 @@ let is_hole = (cursor_term: cursor_term): bool => {
 
 let is_empty_line = (cursor_term): bool => {
   switch (cursor_term) {
-  | Line(_, line) => UHExp.is_empty_line(line)
+  | Line(_, EmptyLine) => true
+  | Line(_, _) => false
   | Exp(_, _)
   | Pat(_, _)
   | Typ(_, _)

@@ -156,7 +156,7 @@ let caret_jump =
   prev_step != new_step;
 };
 
-/* return true if new action_group can be grouped with the preivous action_group */
+/* return true if new action_group can be grouped with the previous action_group */
 let group_action_group =
     (action_group_prev: action_group, action_group_next: action_group): bool =>
   switch (action_group_prev, action_group_next) {
@@ -442,7 +442,9 @@ let delete_group =
   if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
     Some(DeleteEdit(EmptyLine));
   } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-             || CursorInfo.is_hole(new_cursor_term_info.cursor_term_after)) {
+             || CursorInfo.is_empty_hole(
+                  new_cursor_term_info.cursor_term_after,
+                )) {
     /* if the term becomes hole or empty line, the action group is deleting the whole term */
     Some(
       get_delete_action_group(
@@ -494,7 +496,7 @@ let delim_edge_handle =
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
-  } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)) {
+  } else if (CursorInfo.is_empty_hole(new_cursor_term_info.cursor_term_before)) {
     /* delete space */
     Some(DeleteEdit(Space));
   } else {
@@ -707,7 +709,9 @@ let get_new_action_group =
               );
             }
           };
-        } else if (CursorInfo.is_hole(new_cursor_term_info.cursor_term_before)
+        } else if (CursorInfo.is_empty_hole(
+                     new_cursor_term_info.cursor_term_before,
+                   )
                    || CursorInfo.is_empty_line(
                         new_cursor_term_info.cursor_term_before,
                       )
