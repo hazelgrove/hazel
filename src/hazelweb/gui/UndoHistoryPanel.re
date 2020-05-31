@@ -1,4 +1,5 @@
 module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
@@ -1060,6 +1061,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
+  let get_elt_id_under_mouse = _: option((int, int)) => {
+    let elt: Js.t(Dom_html.divElement) = JSUtil.unsafe_get_elt_under_mouse();
+    switch (
+      JSUtil.get_attr("group_id", elt),
+      JSUtil.get_attr("elt_id", elt),
+    ) {
+    | (Some(group_id), Some(elt_id)) =>
+      Some((int_of_string(group_id), int_of_string(elt_id)))
+    | _ => None
+    };
+  };
+
   Vdom.(
     Node.div(
       [
@@ -1082,7 +1095,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* on_mouseenter/on_mouseleave will not be fired when scrolling,
                    so we get the history entry under the mouse
                    and shift to this entry manually  */
-                switch (JSUtil.get_elt_id_under_mouse()) {
+                switch (get_elt_id_under_mouse()) {
                 | Some((group_id, elt_id)) =>
                   Vdom.Event.Many([
                     inject(
