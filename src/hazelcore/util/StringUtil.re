@@ -38,18 +38,14 @@ let rec find_and_replace = (acc: string, s: string): string => {
   if (len_s <= (-1)) {
     acc ++ s;
   } else {
-    let substr = String.sub(s, 0, 2);
-    let slash_b = "\\" ++ "b";
-    let slash_t = "\\" ++ "t";
-    let slash_r = "\\" ++ "r";
-    if (substr == slash_b) {
+    switch (String.sub(s, 0, 2)) {
+    | "\\b" =>
       find_and_replace(
         String.sub(acc, 0, String.length(acc) - 1),
         String.sub(s, 2, len_s),
-      );
-    } else if (substr == slash_t) {
-      find_and_replace(acc ++ "\t", String.sub(s, 2, len_s));
-    } else if (substr == slash_r) {
+      )
+    | "\\t" => find_and_replace(acc ++ "\t", String.sub(s, 2, len_s))
+    | "\\r" =>
       let result = find_and_replace("", String.sub(s, 2, len_s));
       let len = String.length(result);
       if (String.length(acc) <= len) {
@@ -57,11 +53,70 @@ let rec find_and_replace = (acc: string, s: string): string => {
       } else {
         result ++ String.sub(acc, len, String.length(acc) - len);
       };
-    } else {
-      find_and_replace(
-        acc ++ String.sub(s, 0, 1),
-        String.sub(s, 1, len_s + 1),
-      );
+    | "\\n" => find_and_replace(acc ++ "\n", String.sub(s, 2, len_s))
+    | "\\\\" => find_and_replace(acc ++ "\\", String.sub(s, 2, len_s))
+    | "\\\"" => find_and_replace(acc ++ "\"", String.sub(s, 2, len_s))
+    | "\\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s))
+    | "\\ " => find_and_replace(acc ++ " ", String.sub(s, 2, len_s))
+    | "\\o" when len_s >= 3 =>
+      let ch1 = s.[2];
+      let ch2 = s.[3];
+      let ch3 = s.[4];
+      if ((ch1 >= '0' && ch1 <= '3')
+          && (ch2 >= '0' && ch2 <= '7')
+          && ch3 >= '0'
+          && ch3 <= '7') {
+        let str =
+          Char.escaped(
+            Char.chr(int_of_string("0o" ++ String.sub(s, 2, 3))),
+          );
+        find_and_replace(acc ++ str, String.sub(s, 5, len_s - 3));
+      } else {
+        find_and_replace(
+          acc ++ String.sub(s, 0, 1),
+          String.sub(s, 1, len_s + 1),
+        );
+      };
+    | "\\x" when len_s >= 2 =>
+      let ch1 = Char.lowercase_ascii(s.[2]);
+      let ch2 = Char.lowercase_ascii(s.[3]);
+      if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+          && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
+        let str =
+          Char.escaped(
+            Char.chr(int_of_string("0x" ++ String.sub(s, 2, 2))),
+          );
+        find_and_replace(acc ++ str, String.sub(s, 4, len_s - 2));
+      } else {
+        find_and_replace(
+          acc ++ String.sub(s, 0, 1),
+          String.sub(s, 1, len_s + 1),
+        );
+      };
+    | _ =>
+      if (String.sub(s, 0, 1) == "\\" && len_s >= 2) {
+        let ch1 = s.[1];
+        let ch2 = s.[2];
+        let ch3 = s.[3];
+        if ((ch1 >= '0' && ch1 <= '9')
+            && (ch2 >= '0' && ch2 <= '9')
+            && ch3 >= '0'
+            && ch3 <= '9') {
+          let str =
+            Char.escaped(Char.chr(int_of_string(String.sub(s, 1, 3))));
+          find_and_replace(acc ++ str, String.sub(s, 4, len_s - 2));
+        } else {
+          find_and_replace(
+            acc ++ String.sub(s, 0, 1),
+            String.sub(s, 1, len_s + 1),
+          );
+        };
+      } else {
+        find_and_replace(
+          acc ++ String.sub(s, 0, 1),
+          String.sub(s, 1, len_s + 1),
+        );
+      }
     };
   };
 };

@@ -182,11 +182,10 @@ html, body {
 }
 
 #collapsible-right-bar {
-
 }
 
 .sidebar {
-  width: auto;
+  width: 320px;
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
