@@ -216,7 +216,7 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
-  | InvalidText(err, s) => InvalidText(err, s)
+  | InvalidText(_, s) => InvalidText(err, s)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -307,7 +307,9 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidTextShape(_) => failwith("unimplemented")
+  | InvalidTextShape(t) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (InvalidText(InHole(TypeInconsistent, u), t), u_gen);
   };
 
 let associate = (seq: seq) => {
