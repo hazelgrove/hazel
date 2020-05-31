@@ -30,6 +30,7 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
+  is_mac: bool,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -42,10 +43,35 @@ let cardstack_info = [
 let init = (): t => {
   let cell_width = 80;
   let cardstacks = Cardstacks.mk(~width=cell_width, cardstack_info);
-  let undo_history = {
-    let edit_state =
-      cardstacks |> Cardstacks.get_program |> Program.get_edit_state;
-    ([], edit_state, []);
+  let undo_history: UndoHistory.t = {
+    let cursor_term_info =
+      UndoHistory.get_cursor_info(
+        ~new_cardstacks_after=cardstacks,
+        ~new_cardstacks_before=cardstacks,
+      );
+    let timestamp = Unix.time();
+    let undo_history_entry: UndoHistory.undo_history_entry = {
+      cardstacks_after_action: cardstacks,
+      cardstacks_after_move: cardstacks,
+      cursor_term_info,
+      previous_action: Init,
+      action_group: Init,
+      timestamp,
+    };
+    let undo_history_group: UndoHistory.undo_history_group = {
+      group_entries: ([], undo_history_entry, []),
+      is_expanded: false,
+    };
+    {
+      groups: ([], undo_history_group, []),
+      all_hidden_history_expand: false,
+      disable_auto_scrolling: false,
+      preview_on_hover: true,
+      hover_recover_group_id: 0,
+      hover_recover_elt_id: 0,
+      cur_group_id: 0,
+      cur_elt_id: 0,
+    };
   };
   let compute_results = true;
   let selected_instances = {
@@ -92,11 +118,19 @@ let init = (): t => {
         row_height: 1.0,
         col_width: 1.0,
       },
+    is_mac: true,
   };
 };
 
 let get_program = (model: t): Program.t =>
   model.cardstacks |> Cardstacks.get_program;
+
+let get_edit_state = (model: t): Statics.edit_state =>
+  model |> get_program |> Program.get_edit_state;
+
+let get_cursor_info = (model: t): CursorInfo.t =>
+  model |> get_program |> Program.get_cursor_info;
+
 let put_program = (program: Program.t, model: t): t => {
   ...model,
   cardstacks: model.cardstacks |> Cardstacks.put_program(program),
@@ -150,7 +184,7 @@ let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
   |> focus_cell;
 
-let update_program = (~undoable, new_program, model) => {
+let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -175,14 +209,15 @@ let update_program = (~undoable, new_program, model) => {
   |> put_undo_history(
        {
          let history = model |> get_undo_history;
-         if (undoable) {
-           UndoHistory.push_edit_state(
-             history,
-             Program.get_edit_state(new_program),
-           );
-         } else {
-           history;
-         };
+         let prev_cardstacks = model |> get_cardstacks;
+         let new_cardstacks =
+           model |> put_program(new_program) |> get_cardstacks;
+         UndoHistory.push_edit_state(
+           history,
+           prev_cardstacks,
+           new_cardstacks,
+           a,
+         );
        },
      );
 };
@@ -206,17 +241,13 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     () => {
       let new_program =
         model |> get_program |> Program.perform_edit_action(a);
-      model
-      |> update_program(
-           ~undoable=UndoHistory.undoable_action(a),
-           new_program,
-         );
+      model |> update_program(a, new_program);
     },
   );
 };
 
 let move_via_key = (move_key, model) => {
-  let new_program =
+  let (new_program, action) =
     model
     |> get_program
     |> Program.move_via_key(
@@ -229,11 +260,11 @@ let move_via_key = (move_key, model) => {
          ~memoize_doc=model.memoize_doc,
          move_key,
        );
-  model |> update_program(~undoable=false, new_program);
+  model |> update_program(action, new_program);
 };
 
 let move_via_click = (row_col, model) => {
-  let new_program =
+  let (new_program, action) =
     model
     |> get_program
     |> Program.move_via_click(
@@ -246,18 +277,17 @@ let move_via_click = (row_col, model) => {
          ~memoize_doc=model.memoize_doc,
          row_col,
        );
-  model |> update_program(~undoable=false, new_program);
+  model |> update_program(action, new_program);
 };
 
 let select_case_branch =
     (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
-  let new_program =
-    map_program(
-      Program.move_to_case_branch(path_to_case, branch_index),
-      model,
-    );
+  let program = model |> get_program;
+  let (new_program, action) =
+    Program.move_to_case_branch(path_to_case, branch_index, program);
   model
-  |> update_program(~undoable=false, get_program(new_program))
+  |> put_program(new_program)
+  |> update_program(action, new_program)
   |> focus_cell;
 };
 
@@ -284,4 +314,22 @@ let load_example = (model: t, e: UHExp.t): t =>
 
 let load_cardstack = (model, idx) => {
   model |> map_cardstacks(Cardstacks.load_cardstack(idx)) |> focus_cell;
+};
+
+let load_undo_history =
+    (model: t, undo_history: UndoHistory.t, ~is_after_move: bool): t => {
+  let new_cardstacks =
+    UndoHistory.get_cardstacks(undo_history, ~is_after_move);
+  let new_program = Cardstacks.get_program(new_cardstacks);
+  let update_selected_instances = _ => {
+    let si = UserSelectedInstances.init;
+    switch (Program.cursor_on_exp_hole(new_program)) {
+    | None => si
+    | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    };
+  };
+  model
+  |> put_undo_history(undo_history)
+  |> put_cardstacks(new_cardstacks)
+  |> map_selected_instances(update_selected_instances);
 };

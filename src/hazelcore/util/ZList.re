@@ -116,3 +116,28 @@ let shift_prev = (zxs: t('a, 'a)): option(t('a, 'a)) => {
     Some((List.rev(rev_prefix), prev, suffix));
   };
 };
+let shift_end = (zxs: t('a, 'a)): t('a, 'a) => {
+  let (prefix, z, suffix) = zxs;
+  switch (List.rev(suffix)) {
+  | [] => zxs
+  | [last_elt, ...tail] =>
+    let prefix = prefix @ [z] @ List.rev(tail);
+    (prefix, last_elt, []);
+  };
+};
+
+let shift_begin = (zxs: t('a, 'a)): t('a, 'a) => {
+  let (prefix, z, suffix) = zxs;
+  switch (prefix) {
+  | [] => zxs
+  | [head, ...tail] =>
+    let suffix = tail @ [z] @ suffix;
+    ([], head, suffix);
+  };
+};
+
+let shift_to = (n: int, xs: t('a, 'a)): option(t('a, 'a)) => {
+  let (prefix, z, suffix) = xs;
+  let lst = prefix @ [z, ...suffix];
+  split_at(n, lst);
+};
