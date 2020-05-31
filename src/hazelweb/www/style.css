@@ -166,7 +166,11 @@ html, body {
 }
 
 .collapsed-sidebar {
-  width: 24px;
+  width: 28px;
+}
+
+.collapsed-sidebar #slidable-left-bar-body {
+  width: 0px;
 }
 
 /* Set width to zero to have the sidebar "slide away" */
@@ -222,7 +226,6 @@ html, body {
 }
 
 #slidable-left-bar-body {
-  padding-left: 7px;
   direction: rtl;
 }
 
@@ -450,6 +453,7 @@ html, body {
 }
 
 .action-disabled .action-label,
+.action-disabled.keyboard-shortcut,
 .action-disabled .keyboard-shortcut {
   /* background-color: #888; */
   /* border: 1px outset #999; */
