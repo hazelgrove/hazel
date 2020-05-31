@@ -122,13 +122,12 @@ let syn_insert_text_ =
 let ana_insert_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
-         Outcome.t('success),
+         (Contexts.t, MetaVarGen.t, int, string, 'a) => Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
-      ty: HTyp.t,
+      ty: 'a,
     )
     : Outcome.t('success) =>
   mk_ana_text(
@@ -158,13 +157,12 @@ let syn_backspace_text_ =
 let ana_backspace_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
-         Outcome.t('success),
+         (Contexts.t, MetaVarGen.t, int, string, 'a) => Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
-      ty: HTyp.t,
+      ty: 'a,
     )
     : Outcome.t('success) =>
   if (caret_index == 0) {
@@ -193,13 +191,12 @@ let syn_delete_text_ =
 let ana_delete_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
-         Outcome.t('success),
+         (Contexts.t, MetaVarGen.t, int, string, 'a) => Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
-      ty: HTyp.t,
+      ty: 'a,
     )
     : Outcome.t('success) =>
   if (caret_index == String.length(text)) {
@@ -677,13 +674,13 @@ module Typ = {
       }
     };
   };
-  
+
   let syn_insert_text = syn_insert_text_(~mk_syn_text);
   let ana_insert_text = ana_insert_text_(~mk_ana_text);
   let syn_backspace_text = syn_backspace_text_(~mk_syn_text);
   let ana_backspace_text = ana_backspace_text_(~mk_ana_text);
   let syn_delete_text = syn_delete_text_(~mk_syn_text);
-  let ana_delete_text = ana_delete_text_(~mk_ana_text)
+  let ana_delete_text = ana_delete_text_(~mk_ana_text);
 
   let rec syn_perform =
           (
