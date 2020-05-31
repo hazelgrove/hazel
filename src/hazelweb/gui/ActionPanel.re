@@ -510,5 +510,5 @@ let check_actions = (a: Action.t) =>
   /* Not added */
   | Construct(SApPalette(_)) => failwith("Unimplemented")
   | UpdateApPalette(_) => failwith("Unimplemented")
-  | MoveTo(_) => failwith("Unimplemented")
+  | MoveTo(_) => Added
   };
