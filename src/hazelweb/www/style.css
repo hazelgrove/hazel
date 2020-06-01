@@ -1310,7 +1310,10 @@ h1 {
 
 .HoleLabel {
   vertical-align: text-bottom;
+  font-size: 65%;
   color: #BBB;
+  padding-left: 2px;
+  padding-right: 2px;
   /* border-bottom: 1px solid var(--empty-hole-color); */
   margin-bottom: -3px;
   /* line-height: initial; */
