@@ -110,7 +110,10 @@ let view =
                 ++ "0px; "
                 ++ "padding-left: "
                 ++ string_of_float(padding)
-                ++ "0px;",
+                ++ "0px; "
+                ++ "font-size: "
+                ++ string_of_int(int_of_float(font_shrink *. 100.0))
+                ++ "%;",
               );
             [Node.span([padding, Attr.classes(["HoleLabel"])], go(l))];
           }
