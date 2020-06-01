@@ -16,24 +16,27 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  let update_font_metrics = () => {
-    let rect =
-      JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
-    schedule_action(
-      Update.Action.UpdateFontMetrics({
-        row_height: rect##.bottom -. rect##.top,
-        col_width: rect##.right -. rect##.left,
-      }),
-    );
-  };
   // Necessary to correctly recalculate font metrics if delay in loading font or resize of window
   let _ =
     ResizeObserver.observe(
       ~node=JSUtil.force_get_elem_by_id("font-specimen"),
-      ~f=(_, _) => update_font_metrics(),
+      ~f=
+        (entries, _) => {
+          let list = Array.to_list(Js_of_ocaml.Js.to_array(entries));
+          switch (list) {
+          | [entry] =>
+            let rect = entry##.contentRect;
+            schedule_action(
+              Update.Action.UpdateFontMetrics({
+                row_height: rect##.bottom -. rect##.top,
+                col_width: rect##.right -. rect##.left,
+              }),
+            );
+          | _ => failwith("Expected 1 entry")
+          };
+        },
       (),
     );
-  update_font_metrics();
 
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
