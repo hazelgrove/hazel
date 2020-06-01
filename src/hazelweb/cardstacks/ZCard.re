@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = {
   info: CardInfo.t,
   program: Program.t,
@@ -5,7 +6,7 @@ type t = {
 
 let mk = (~width, card: Card.t) => {
   info: card.info,
-  program: Program.mk(~width, card.edit_state),
+  program: Program.mk(~width, ~is_focused=true, card.edit_state),
 };
 
 let erase = (zcard: t): Card.t => {

@@ -216,13 +216,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["main-area"])],
             [
-              /*
-               Sidebar.left(
-                 ~inject,
-                 model,
-                 [ActionPanel.view(~inject, model)] //the_history_panel,
-               ),
-               */
+              Sidebar.left(
+                ~inject,
+                model,
+                [ActionPanel.view(~inject, model)] //the_history_panel,
+              ),
               Node.div(
                 [Attr.classes(["flex-wrapper"])],
                 [
@@ -293,6 +291,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 [
                   CursorInspector.view(~inject, model),
                   ContextInspector.view(~inject, model),
+                  UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
                 ],
               ),

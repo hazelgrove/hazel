@@ -4,6 +4,7 @@
  * user interface state such as the current width of
  * the editor, whether the editor is focused, etc.
  */
+[@deriving sexp]
 type t;
 
 let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
@@ -45,7 +46,7 @@ let move_via_key:
     JSUtil.MoveKey.t,
     t
   ) =>
-  t;
+  (t, Action.t);
 let move_via_click:
   (
     ~measure_program_get_doc: bool,
@@ -54,11 +55,11 @@ let move_via_click:
     (CursorMap.Row.t, CursorMap.Col.t),
     t
   ) =>
-  t;
+  (t, Action.t);
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
-let move_to_case_branch: (CursorPath.steps, int, t) => t;
+let move_to_case_branch: (CursorPath.steps, int, t) => (t, Action.t);
 
 let get_doc:
   (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc.t;
