@@ -102,7 +102,7 @@ let view =
             let full_space = font_width *. float_of_int(len);
             let shrunk_space = full_space *. font_shrink;
             let padding = (full_space -. shrunk_space) /. 2.0;
-            let padding =
+            let styling =
               Vdom.Attr.create(
                 "style",
                 "padding-right: "
@@ -115,7 +115,7 @@ let view =
                 ++ string_of_int(int_of_float(font_shrink *. 100.0))
                 ++ "%;",
               );
-            [Node.span([padding, Attr.classes(["HoleLabel"])], go(l))];
+            [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
           }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),

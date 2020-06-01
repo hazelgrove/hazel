@@ -1,8 +1,8 @@
 @font-face {
-  font-family: 'Fira Mono';
+  font-family: 'Fira Code';
   font-style: normal;
   font-weight: 400;
-  src: local('Fira Mono Regular'), local('FiraMono-Regular'), url('fonts/FiraMono-Regular.woff2') format('woff2');
+  src: local('Fira Code Regular'), local('FiraCode-Regular'), url('fonts/FiraCode-Regular.woff2') format('woff2');
 }
 
 :root {
@@ -11,7 +11,7 @@
   --title-bar-color: #073f24;
   --page-padding: 15px;
 
-  --code-font-family: "Fira Mono", monospace;
+  --code-font-family: "Fira Code", monospace;
   --code-font-size: 14pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
