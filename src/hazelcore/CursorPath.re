@@ -756,8 +756,6 @@ module Pat = {
   and holes_zoperand =
       (zoperand: ZPat.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    | CursorP(_, InvalidText(_, _)) =>
-      failwith("unimplemented: CursorPath/InvalidText")
     | CursorP(OnOp(_), _) => no_holes
     | CursorP(_, EmptyHole(u)) =>
       mk_zholes(
@@ -774,6 +772,7 @@ module Pat = {
           (),
         )
       }
+    | CursorP(_, InvalidText(err, _))
     | CursorP(_, Wild(err))
     | CursorP(_, IntLit(err, _))
     | CursorP(_, FloatLit(err, _))
@@ -1244,9 +1243,9 @@ module Exp = {
       (operand: UHExp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
     | EmptyHole(u) => [(ExpHole(u), rev_steps |> List.rev), ...hs]
-    | InvalidText(_, _) => failwith("unimplemented")
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
+    | InvalidText(err, _)
     | IntLit(err, _)
     | FloatLit(err, _)
     | BoolLit(err, _)
@@ -1412,8 +1411,6 @@ module Exp = {
   and holes_zoperand =
       (zoperand: ZExp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    // FIXME: Figure out correct case
-    | CursorE(_, InvalidText(_, _)) => failwith("unimplemented")
     | CursorE(OnOp(_), _) => no_holes
     | CursorE(_, EmptyHole(u)) =>
       mk_zholes(
@@ -1430,6 +1427,7 @@ module Exp = {
           (),
         )
       }
+    | CursorE(_, InvalidText(err, _))
     | CursorE(_, IntLit(err, _))
     | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
