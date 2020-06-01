@@ -1,4 +1,7 @@
 Logger.init_log();
+
+// Start the main app.
+// See <https://github.com/janestreet/incr_dom/blob/master/src/start_app.mli>.
 Incr_dom.Start_app.start(
   (module Hazel),
   ~debug=false,
