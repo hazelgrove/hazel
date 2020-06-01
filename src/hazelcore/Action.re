@@ -787,7 +787,10 @@ module Pat = {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
       } else {
-        Failed;
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let it = UHPat.InvalidText(InHole(TypeInconsistent, u), text);
+        let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+        Succeeded((zp, HTyp.Hole, ctx, u_gen));
       }
     | Underscore =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
@@ -838,7 +841,10 @@ module Pat = {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
       } else {
-        Failed;
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let it = UHPat.InvalidText(InHole(TypeInconsistent, u), text);
+        let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+        Succeeded((zp, ctx, u_gen));
       }
     | Underscore =>
       let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
@@ -2241,7 +2247,10 @@ module Exp = {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else {
-        Failed;
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let it = UHExp.InvalidText(InHole(TypeInconsistent, u), text);
+        let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+        Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
       }
     | IntLit(n) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
@@ -2302,7 +2311,10 @@ module Exp = {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
       } else {
-        Failed;
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let it = UHExp.InvalidText(InHole(TypeInconsistent, u), text);
+        let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+        Succeeded(AnaDone((ze, u_gen)));
       }
     | ExpandingKeyword(k) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
