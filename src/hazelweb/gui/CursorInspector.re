@@ -134,7 +134,11 @@ let view =
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
-  let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
+  let got_a_type_indicator = (k: Kind.t) => 
+    switch (k) {
+    | Kind.Type => got_indicator("Got", special_msg_bar("a type of kind Type"));
+    | Kind.KHole => got_indicator("Got", special_msg_bar("a type of kind KHole"));
+    }
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
@@ -274,9 +278,9 @@ let view =
       let ind1 = expected_a_type_indicator;
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | OnType =>
+    | OnType(k) =>
       let ind1 = expected_a_type_indicator;
-      let ind2 = got_a_type_indicator;
+      let ind2 = got_a_type_indicator(k);
       (ind1, ind2, OK);
     | PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);

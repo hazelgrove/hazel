@@ -97,7 +97,7 @@ type typed =
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
-  | OnType
+  | OnType(Kind.t)
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;
@@ -500,6 +500,66 @@ let mk = (~uses=?, typed, ctx, cursor_term) => {
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
+  let rec syn_cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+    syn_cursor_info_zopseq(~steps, ctx, zty)
+  and syn_cursor_info_zopseq = 
+      (
+        ~steps: CursorPath.steps,
+        ctx: Contexts.t,
+        ZOpSeq(skel, zseq): ZTyp.zopseq
+      ): option(t) => {
+    switch (zseq) {
+    | ZOperator((_, Comma), _) => None // TODO
+    | _ =>
+      // cursor within tuple element
+      let skels = skel |> UHTyp.get_tuple_elements;
+      let cursor_skel = skels |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
+      syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq)
+    }
+  } 
+  and syn_cursor_info_skel = 
+      (
+        ~steps: CursorPath.steps,
+        ctx: Contexts.t,
+        skel: UHTyp.skel,
+        zseq: ZTyp.zseq
+      )
+      : option(t) => {
+    let seq = zseq |> ZTyp.erase_zseq; 
+    if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+      // found cursor
+      switch (zseq) {
+      | ZOperand(zoperand, (prefix, _)) =>
+        syn_cursor_info_zoperand(
+          ~steps=steps @ [Seq.length_of_affix(prefix)],
+          ctx, 
+          zoperand
+        )
+      | ZOperator(_) => 
+
+      }
+    }
+  }
+  and syn_cursor_info_zoperand = 
+      (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZTyp.zoperand)
+      : option(t) => {
+    let cursor_term = extract_from_ztyp_operand(zoperand);
+    switch (zopernad) {
+    | CursorT(_, Hole) => Some(mk(OnType(Kind.KHole), ctx, cursor_term))
+    | CursorT(_, Unit | Int | Float | Bool) =>
+      Some(mk(OnType(Kind.Type), ctx, cursor_term))
+    | CursorT(_, TyVar(InVarHole(Free, _), _)) =>
+      Some(mk(TypFree, ctx, cursor_term))
+    | CursorT(_, TyVar(InVarHole(Keyword(k), _), _)) =>
+      Some(mk(TypKeyword(k), ctx, cursor_term))
+    | CursorT(_, Parenthesized)
+    | ParenthesizedZ(zbody)
+    | ListZ(zbody) =>
+      syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+    }
+  }
+  and ana_cur
+  
   let rec cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
     switch (zty) {
     | ZOpSeq(
@@ -512,9 +572,16 @@ module Typ = {
         ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
       ) =>
       Some(mk(TypFree, ctx, extract_cursor_type_term(zty)))
+    | ZOpSeq(_, ZOperand(CursorT(_, uhty)), (_, _)) =>
+      let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
+      let k = Statics.Typ.syn(ctx, hty);
+      Some(mk(OnType(k), ctx, extract_cursor_type_term(zty)))
     | ZOpSeq(_, ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))) =>
       cursor_info(~steps=steps @ [0], ctx, t)
-    | _ => Some(mk(OnType, ctx, extract_cursor_type_term(zty)))
+    | _ => 
+      let hty = UHTyp.expand(zty |> ZTyp.erase, Contexts.tyvars(ctx));
+      let k = Statics.Typ.syn(ctx, hty);
+      Some(mk(OnType(k), ctx, extract_cursor_type_term(zty)))
     };
 };
 /*
