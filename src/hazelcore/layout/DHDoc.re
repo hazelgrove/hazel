@@ -164,7 +164,7 @@ module Pat = {
       | NonEmptyHole(reason, u, i, dp) =>
         mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, k) => mk_Keyword(u, i, k)
-      | InvalidText(_, _, t) => Doc.text(t)
+      | InvalidText(t) => Doc.text(t)
       | Var(x) => Doc.text(x)
       | Wild => Delim.wild
       | Triv => Delim.triv
@@ -222,7 +222,7 @@ module Exp = {
     switch (d) {
     | BoundVar(_)
     | FreeVar(_)
-    | InvalidText(_, _, _)
+    | InvalidText(_)
     | Keyword(_)
     | BoolLit(_)
     | IntLit(_)
@@ -369,7 +369,7 @@ module Exp = {
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-        | InvalidText(_, _, t) => text(t)
+        | InvalidText(t) => text(t)
         | BoundVar(x) => text(x)
         | Triv => Delim.triv
         | BoolLit(b) => mk_BoolLit(b)
