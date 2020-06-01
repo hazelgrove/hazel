@@ -928,7 +928,7 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some(Hole)
-    | InvalidText(_, _) => failwith("unimplemented")
+    | InvalidText(_, _) => Some(Hole)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1148,7 +1148,7 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some()
-    | InvalidText(_, _) => failwith("unimplemented")
+    | InvalidText(InHole(TypeInconsistent, _), _)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1163,6 +1163,7 @@ module Exp = {
       | None => None
       | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
       };
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1184,6 +1185,7 @@ module Exp = {
       | None => None
       | Some(_) => Some()
       }
+    | InvalidText(NotInHole, _)
     | Var(NotInHole, _, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
@@ -1713,7 +1715,7 @@ module Exp = {
       } else {
         (e, Hole, u_gen);
       }
-    | InvalidText(_, _) => failwith("unimplemented")
+    | InvalidText(_, _) => (e, Hole, u_gen)
     | Var(_, var_err_status, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -2144,7 +2146,7 @@ module Exp = {
       } else {
         (e, u_gen);
       }
-    | InvalidText(_, _) => failwith("unimplemented")
+    | InvalidText(_, _) => (e, u_gen)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)

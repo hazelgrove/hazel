@@ -362,8 +362,6 @@ module Pat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
-    | InvalidText(NotInHole, _) =>
-      failwith("unimplemented: ana_expand_operand/InvalidText")
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
@@ -371,6 +369,7 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
+    | InvalidText(NotInHole, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _) => syn_expand_operand(ctx, delta, operand)
@@ -1144,6 +1143,7 @@ module Exp = {
       : ExpandResult.t =>
     switch (operand) {
     /* in hole */
+    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -1166,7 +1166,7 @@ module Exp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | InvalidText(_, _) => failwith("unimplemented")
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1220,6 +1220,8 @@ module Exp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
+
+    | InvalidText(NotInHole, t) => Expands(InvalidText(t), Hole, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -1570,6 +1572,7 @@ module Exp = {
       : ExpandResult.t =>
     switch (operand) {
     /* in hole */
+    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -1589,7 +1592,7 @@ module Exp = {
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | InvalidText(_, _) => failwith("unimplemented")
+    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1693,6 +1696,7 @@ module Exp = {
       | None => ExpandResult.DoesNotExpand
       | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
       }
+    | InvalidText(NotInHole, _)
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | IntLit(NotInHole, _)
