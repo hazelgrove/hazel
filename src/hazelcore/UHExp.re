@@ -21,7 +21,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
-  | InvalidText(ErrStatus.t, string)
+  | InvalidText(string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -64,8 +64,7 @@ let var =
     : operand =>
   Var(err, var_err, x);
 
-let invalidtext = (~err: ErrStatus.t=NotInHole, t: string): operand =>
-  InvalidText(err, t);
+let invalidtext = (t: string): operand => InvalidText(t);
 
 let intlit = (~err: ErrStatus.t=NotInHole, n: string): operand =>
   IntLit(err, n);
@@ -194,7 +193,7 @@ and get_err_status_opseq = opseq =>
 and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
-  | InvalidText(err, _)
+  | InvalidText(_) => NotInHole
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -219,7 +218,7 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
-  | InvalidText(_, s) => InvalidText(err, s)
+  | InvalidText(_) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -253,7 +252,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
-  | InvalidText(_, _)
+  | InvalidText(_)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -310,9 +309,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | InvalidTextShape(t) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (InvalidText(InHole(TypeInconsistent, u), t), u_gen);
+  | InvalidTextShape(t) => (InvalidText(t), u_gen)
   };
 
 let associate = (seq: seq) => {
@@ -348,7 +345,7 @@ and is_complete_block = (b: block, check_type_holes: bool): bool => {
 and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   switch (operand) {
   | EmptyHole(_) => false
-  | InvalidText(_, _) => false
+  | InvalidText(_) => false
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true

@@ -83,8 +83,8 @@ module Pat = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some((Hole, ctx))
+    | InvalidText(_) => Some((Hole, ctx))
     | Wild(InHole(TypeInconsistent, _))
-    | InvalidText(InHole(TypeInconsistent, _), _)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -95,7 +95,6 @@ module Pat = {
       syn_operand(ctx, operand')
       |> OptUtil.map(((_, gamma)) => (HTyp.Hole, gamma));
     | Wild(InHole(WrongLength, _))
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -104,7 +103,6 @@ module Pat = {
     | Inj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | Wild(NotInHole) => Some((Hole, ctx))
-    | InvalidText(NotInHole, _)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
     | Var(NotInHole, NotInVarHole, x) =>
@@ -191,8 +189,8 @@ module Pat = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some(ctx)
+    | InvalidText(_) => Some(ctx)
     | Wild(InHole(TypeInconsistent, _))
-    | InvalidText(InHole(TypeInconsistent, _), _)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -202,7 +200,6 @@ module Pat = {
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
     | Wild(InHole(WrongLength, _))
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -211,7 +208,6 @@ module Pat = {
     | Inj(InHole(WrongLength, _), _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
-    | InvalidText(NotInHole, _)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
     | Var(NotInHole, NotInVarHole, x) =>
@@ -457,7 +453,7 @@ module Pat = {
         (operand, HTyp.Hole, ctx, u_gen);
       }
     | Wild(_) => (operand_nih, Hole, ctx, u_gen)
-    | InvalidText(_, _) => (operand, HTyp.Hole, ctx, u_gen)
+    | InvalidText(_) => (operand, HTyp.Hole, ctx, u_gen)
     | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
@@ -706,7 +702,7 @@ module Pat = {
         (operand, ctx, u_gen);
       }
     | Wild(_) => (operand_nih, ctx, u_gen)
-    | InvalidText(_, _) => (operand, ctx, u_gen)
+    | InvalidText(_) => (operand, ctx, u_gen)
     | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
     | Var(_, NotInVarHole, x) =>
@@ -928,7 +924,7 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some(Hole)
-    | InvalidText(_, _) => Some(Hole)
+    | InvalidText(_) => Some(Hole)
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1148,7 +1144,7 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some()
-    | InvalidText(InHole(TypeInconsistent, _), _)
+    | InvalidText(_) => Some()
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1163,7 +1159,6 @@ module Exp = {
       | None => None
       | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
       };
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1185,7 +1180,6 @@ module Exp = {
       | None => None
       | Some(_) => Some()
       }
-    | InvalidText(NotInHole, _)
     | Var(NotInHole, _, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
@@ -1715,7 +1709,7 @@ module Exp = {
       } else {
         (e, Hole, u_gen);
       }
-    | InvalidText(_, _) => (e, Hole, u_gen)
+    | InvalidText(_) => (e, Hole, u_gen)
     | Var(_, var_err_status, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -2146,7 +2140,7 @@ module Exp = {
       } else {
         (e, u_gen);
       }
-    | InvalidText(_, _) => (e, u_gen)
+    | InvalidText(_) => (e, u_gen)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)

@@ -603,7 +603,7 @@ module Pat = {
       switch (operand) {
       | EmptyHole(_)
       | Wild(_)
-      | InvalidText(_, _)
+      | InvalidText(_)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -660,7 +660,7 @@ module Pat = {
       switch (operand) {
       | EmptyHole(_)
       | Wild(_)
-      | InvalidText(_, _)
+      | InvalidText(_)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -712,7 +712,6 @@ module Pat = {
     switch (operand) {
     | EmptyHole(u)
     | Wild(InHole(_, u))
-    | InvalidText(InHole(_, u), _)
     | Var(InHole(_, u), _, _)
     | Var(_, InVarHole(_, u), _)
     | IntLit(InHole(_, u), _)
@@ -722,7 +721,7 @@ module Pat = {
         (PatHole(u), rev_steps |> List.rev),
         ...hs,
       ]
-    | InvalidText(NotInHole, _)
+    | InvalidText(_)
     | Var(NotInHole, NotInVarHole, _)
     | Wild(NotInHole)
     | IntLit(NotInHole, _)
@@ -762,6 +761,7 @@ module Pat = {
         ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
         (),
       )
+    | CursorP(_, InvalidText(_)) => no_holes
     | CursorP(_, Var(err, verr, _)) =>
       switch (err, verr) {
       | (NotInHole, NotInVarHole) => no_holes
@@ -772,7 +772,6 @@ module Pat = {
           (),
         )
       }
-    | CursorP(_, InvalidText(err, _))
     | CursorP(_, Wild(err))
     | CursorP(_, IntLit(err, _))
     | CursorP(_, FloatLit(err, _))
@@ -933,7 +932,7 @@ module Exp = {
     | [x, ...xs] =>
       switch (operand) {
       | EmptyHole(_)
-      | InvalidText(_, _)
+      | InvalidText(_)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -1122,7 +1121,7 @@ module Exp = {
     | [x, ...xs] =>
       switch (operand) {
       | EmptyHole(_)
-      | InvalidText(_, _)
+      | InvalidText(_)
       | Var(_, _, _)
       | IntLit(_, _)
       | FloatLit(_, _)
@@ -1243,9 +1242,9 @@ module Exp = {
       (operand: UHExp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
     | EmptyHole(u) => [(ExpHole(u), rev_steps |> List.rev), ...hs]
+    | InvalidText(_) => hs
     | Var(err, verr, _) =>
       hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
-    | InvalidText(err, _)
     | IntLit(err, _)
     | FloatLit(err, _)
     | BoolLit(err, _)
@@ -1412,6 +1411,7 @@ module Exp = {
       (zoperand: ZExp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
     | CursorE(OnOp(_), _) => no_holes
+    | CursorE(_, InvalidText(_)) => no_holes
     | CursorE(_, EmptyHole(u)) =>
       mk_zholes(
         ~hole_selected=Some((ExpHole(u), rev_steps |> List.rev)),
@@ -1427,7 +1427,6 @@ module Exp = {
           (),
         )
       }
-    | CursorE(_, InvalidText(err, _))
     | CursorE(_, IntLit(err, _))
     | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))

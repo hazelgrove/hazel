@@ -257,7 +257,7 @@ let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
 let mk_Wild = (~err: ErrStatus.t): t =>
   Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
 
-let mk_InvalidText = (~sort: TermSort.t, ~err: ErrStatus.t, t: string): t =>
+let mk_InvalidText = (~sort: TermSort.t, t: string): t =>
   mk_text(t) |> annot_Invalid(~sort);
 
 let mk_Var =
@@ -586,8 +586,7 @@ module Pat = {
     | Cons => (empty_, empty_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Pat);
-  let mk_InvalidText: (~err: ErrStatus.t, string) => t =
-    mk_InvalidText(~sort=Pat);
+  let mk_InvalidText: string => t = mk_InvalidText(~sort=Pat);
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Pat);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Pat);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Pat);
@@ -640,7 +639,7 @@ module Pat = {
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
           | Wild(err) => mk_Wild(~err)
-          | InvalidText(err, s) => mk_InvalidText(~err, s)
+          | InvalidText(_, s) => mk_InvalidText(s)
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
@@ -693,8 +692,7 @@ module Exp = {
     | Comma => (empty_, space_);
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Exp);
-  let mk_InvalidText: (~err: ErrStatus.t, string) => t =
-    mk_InvalidText(~sort=Exp);
+  let mk_InvalidText: string => t = mk_InvalidText(~sort=Exp);
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Exp);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Exp);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
@@ -815,7 +813,7 @@ module Exp = {
         (
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
-          | InvalidText(err, t) => mk_InvalidText(~err, t)
+          | InvalidText(t) => mk_InvalidText(t)
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
