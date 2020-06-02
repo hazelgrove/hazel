@@ -2110,7 +2110,7 @@ module Evaluator = {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(BoolLit(b)) =>
           b ? BoxedValue(Triv) : Indet(FailedAssert)
-        | BoxedValue(v) => Indet(v)
+        | BoxedValue(d2') => Indet(d2')
         | Indet(v) => Indet(Ap(AssertLit, v))
         };
       | BoxedValue(Lam(dp, _, d3)) =>
@@ -2341,19 +2341,19 @@ module Evaluator = {
           }
         }
       }
+    | InvalidOperation(d1, err) =>
+      switch (evaluate(d1)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d')
+      | Indet(d') => Indet(InvalidOperation(d', err))
+      }
     | FailedCast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
       }
-    | InvalidOperation(d, err) =>
-      switch (evaluate(d)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d')
-      | Indet(d') => Indet(InvalidOperation(d', err))
-      }
-    }
+  }
   and evaluate_case =
       (
         inconsistent_info,
