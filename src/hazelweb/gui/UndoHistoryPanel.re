@@ -193,7 +193,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(
         Node.span(
           [],
-          [indicate_words_view("type: "), code_keywords_view(x)],
+          [indicate_words_view("type variable: "), code_keywords_view(x)],
         )
       )
     | Unit =>
