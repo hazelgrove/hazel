@@ -11,7 +11,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
-  | InvalidText(ErrStatus.t, string)
+  | InvalidText(string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -36,8 +36,7 @@ let var =
 
 let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
-let invalidtext = (~err: ErrStatus.t=NotInHole, t: string) =>
-  InvalidText(err, t);
+let invalidtext = (t: string) => InvalidText(t);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
@@ -77,8 +76,8 @@ and get_err_status_opseq = opseq =>
 and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
+  | InvalidText(_) => NotInHole
   | Wild(err)
-  | InvalidText(err, _)
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -94,8 +93,8 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
+  | InvalidText(_) => operand
   | Wild(_) => Wild(err)
-  | InvalidText(_, t) => InvalidText(err, t)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -122,8 +121,8 @@ and mk_inconsistent_operand =
   switch (operand) {
   // already in hole
   | EmptyHole(_)
+  | InvalidText(_)
   | Wild(InHole(TypeInconsistent, _))
-  | InvalidText(InHole(TypeInconsistent, _), _)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -132,7 +131,6 @@ and mk_inconsistent_operand =
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
-  | InvalidText(NotInHole | InHole(WrongLength, _), _)
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
@@ -189,10 +187,9 @@ and is_complete = (p: t): bool => {
 and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
+  | InvalidText(_) => false
   | Wild(InHole(_)) => false
   | Wild(NotInHole) => true
-  | InvalidText(InHole(_), _) => false
-  | InvalidText(NotInHole, _) => true
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true

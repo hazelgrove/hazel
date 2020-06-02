@@ -639,7 +639,7 @@ module Pat = {
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
           | Wild(err) => mk_Wild(~err)
-          | InvalidText(_, s) => mk_InvalidText(s)
+          | InvalidText(s) => mk_InvalidText(s)
           | Var(err, verr, x) => mk_Var(~err, ~verr, x)
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
