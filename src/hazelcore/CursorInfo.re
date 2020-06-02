@@ -31,7 +31,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t) 
+  | AnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -70,7 +70,7 @@ type typed =
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
-  | Synthesized(HTyp.t) 
+  | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
@@ -89,16 +89,15 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t) 
+  | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
-  | PatSynKeyword(ExpandingKeyword.t) 
+  | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
-  | TypSynthesized(Kind.t)
-  | OnType(Kind.t) 
+  | OnType(Kind.t)
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;
@@ -412,13 +411,15 @@ and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
 }
 and extract_cursor_type_term = (ztyp: ZTyp.t): cursor_term => {
   switch (ztyp) {
-  | ZOpSeq(_, zseq) =>
-    switch (zseq) {
-    | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
-    | ZOperator(ztyp_operator, _) =>
-      let (cursor_pos, uop) = ztyp_operator;
-      TypOp(cursor_pos, uop);
-    }
+  | ZOpSeq(_, zseq) => extract_from_ztyp_zseq(zseq)
+  };
+}
+and extract_from_ztyp_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+  switch (zseq) {
+  | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
+  | ZOperator(ztyp_operator, _) =>
+    let (cursor_pos, uop) = ztyp_operator;
+    TypOp(cursor_pos, uop);
   };
 }
 and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
@@ -501,10 +502,9 @@ let mk = (~uses=?, typed, ctx, cursor_term) => {
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let rec syn_cursor_info =
-          (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
-    syn_cursor_info_zopseq(~steps, ctx, zty)
-  and syn_cursor_info_zopseq =
+  let rec cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+    cursor_info_zopseq(~steps, ctx, zty)
+  and cursor_info_zopseq =
       (
         ~steps: CursorPath.steps,
         ctx: Contexts.t,
@@ -517,18 +517,16 @@ module Typ = {
       let hty =
         UHTyp.expand_opseq(zopseq |> ZTyp.erase, Contexts.tyvars(ctx));
       let syn_k = Statics.Typ.syn(ctx, hty);
-      Some(
-        mk(TypSynthesized(syn_k), ctx, extract_cursor_type_term(zopseq)),
-      );
+      Some(mk(OnType(syn_k), ctx, extract_cursor_type_term(zopseq)));
     | _ =>
       // cursor within tuple element
       let skels = skel |> UHTyp.get_prod_elements;
       let cursor_skel =
         skels |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
-      syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq);
+      cursor_info_skel(~steps, ctx, cursor_skel, zseq);
     };
   }
-  and syn_cursor_info_skel =
+  and cursor_info_skel =
       (
         ~steps: CursorPath.steps,
         ctx: Contexts.t,
@@ -541,7 +539,7 @@ module Typ = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
-        syn_cursor_info_zoperand(
+        cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
           zoperand,
@@ -549,7 +547,7 @@ module Typ = {
       | ZOperator(_) =>
         let hty = UHTyp.expand_skel(skel, seq, Contexts.tyvars(ctx));
         let syn_k = Statics.Typ.syn(ctx, hty);
-        None; // TODO
+        Some(mk(OnType(syn_k), ctx, extract_from_ztyp_zseq(zseq)));
       };
     } else {
       // recurse toward cursor
@@ -559,11 +557,15 @@ module Typ = {
         failwith(
           "Typ.syn_cursor_info_skel: expected commas to be handled at opseq level",
         )
-      | BinOp(_, Arrow | Sum, skel1, skel2) => None // TODO
+      | BinOp(_, Arrow | Sum, skel1, skel2) =>
+        switch (cursor_info_skel(~steps, ctx, skel1, zseq)) {
+        | Some(_) as result => result
+        | None => cursor_info_skel(~steps, ctx, skel2, zseq)
+        }
       };
     };
   }
-  and syn_cursor_info_zoperand =
+  and cursor_info_zoperand =
       (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZTyp.zoperand)
       : option(t) => {
     let cursor_term = extract_from_ztyp_operand(zoperand);
@@ -578,53 +580,17 @@ module Typ = {
     | CursorT(_, e) =>
       let hty = UHTyp.expand_operand(Contexts.tyvars(ctx), e);
       let syn_k = Statics.Typ.syn(ctx, hty);
-      Some(mk(TypSynthesized(syn_k), ctx, cursor_term));
+      Some(mk(OnType(syn_k), ctx, cursor_term));
     | ParenthesizedZ(zbody)
-    | ListZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+    | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
     };
-  }
-  and ana_cursor_info =
-      (~steps=[], ctx: Contexts.t, zty: ZTyp.t, k: Kind.t): option(t) =>
-    ana_cursor_info_zopseq(~steps, ctx, zty, k)
-  and ana_cursor_info_zopseq =
-      (
-        ~steps: CursorPath.steps,
-        ctx: Contexts.t,
-        ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
-        k: Kind.t,
-      )
-      : option(t) =>
-    None;
-
-  let rec cursor_info = (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(t) =>
-    switch (zty) {
-    | ZOpSeq(
-        _,
-        ZOperand(CursorT(_, TyVar(InVarHole(Keyword(k), _), _)), (_, _)),
-      ) =>
-      Some(mk(TypKeyword(k), ctx, extract_cursor_type_term(zty)))
-    | ZOpSeq(
-        _,
-        ZOperand(CursorT(_, TyVar(InVarHole(Free, _), _)), (_, _)),
-      ) =>
-      Some(mk(TypFree, ctx, extract_cursor_type_term(zty)))
-    | ZOpSeq(_, ZOperand(CursorT(_, uhty)), (_, _)) =>
-      let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
-      let k = Statics.Typ.syn(ctx, hty);
-      Some(mk(OnType(k), ctx, extract_cursor_type_term(zty)));
-    | ZOpSeq(_, ZOperand(ParenthesizedZ(t) | ListZ(t), (_, _))) =>
-      cursor_info(~steps=steps @ [0], ctx, t)
-    | _ =>
-      let hty = UHTyp.expand(zty |> ZTyp.erase, Contexts.tyvars(ctx));
-      let k = Statics.Typ.syn(ctx, hty);
-      Some(mk(OnType(k), ctx, extract_cursor_type_term(zty)));
-    };
-} /*
+  };
+}; /*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
  * until we could find uses and feed it to (uses_list => 't).
- */;
+ */
 
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
