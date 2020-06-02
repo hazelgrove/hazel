@@ -185,7 +185,7 @@ html, body {
 }
 
 .sidebar {
-  width: 320px;
+  width: auto;
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
@@ -798,6 +798,12 @@ h1 {
 }
 .code.presentation * {
   position: relative;
+}
+.code.presentation .ValidSeq {
+  color: blue;
+}
+.code.presentation .InvalidSeq {
+  color:  #b30000;
 }
 .code.presentation .Term.Rule,
 .code.presentation .Term.Case,
