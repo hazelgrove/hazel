@@ -799,6 +799,7 @@ h1 {
   position: relative;
 }
 .code.presentation .Term.Rule,
+.code.presentation .Term.Invalid,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
@@ -922,6 +923,10 @@ h1 {
 }
 */
 
+.Invalid {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
 .InHole {
   border: 1px dashed var(--err-hole-color);
   margin: -1px;
@@ -1061,9 +1066,17 @@ h1 {
   border-radius: var(--code-radius);
 }
 
+.Cursor.Term.Exp.Invalid.no-children {
+  background-color: var(--exp-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
 .Cursor.Term.Exp.Operand.no-children {
   background-color: var(--exp-bg-color);
   box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
+.Cursor.Term.Pat.Invalid.no-children {
+  background-color: var(--pat-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
 }
 .Cursor.Term.Pat.Operand.no-children {
   background-color: var(--pat-bg-color);
