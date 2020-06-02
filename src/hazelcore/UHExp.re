@@ -64,6 +64,9 @@ let var =
     : operand =>
   Var(err, var_err, x);
 
+let invalidtext = (~err: ErrStatus.t=NotInHole, t: string): operand =>
+  InvalidText(err, t);
+
 let intlit = (~err: ErrStatus.t=NotInHole, n: string): operand =>
   IntLit(err, n);
 
