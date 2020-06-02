@@ -117,7 +117,7 @@ let apply_action =
           JSUtil.log("[Program.MissingCursorInfo]");
           model;
         | exception Program.InvalidInput =>
-          JSUtil.log("[Program.InvalidInput");
+          JSUtil.log("[Program.InvalidInput]");
           model;
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
