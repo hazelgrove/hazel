@@ -45,6 +45,13 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
+let rec find_line = (e: t): line => e |> find_line_block
+and find_line_block = block =>
+  List.nth(block, List.length(block) - 1) |> find_line_line
+and find_line_line =
+  fun
+  | line => line;
+
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
 
