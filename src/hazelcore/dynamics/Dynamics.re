@@ -2298,7 +2298,12 @@ module Evaluator = {
     | FloatLit(_)
     | Triv => BoxedValue(d)
     | StringLit(s) =>
-      BoxedValue(StringLit(StringUtil.find_and_replace("", s)))
+      let (s', err) = StringUtil.find_and_replace("", s, "OK");
+      switch (err) {
+      | "OK" => BoxedValue(StringLit(s'))
+      | "Illegal" => Indet(InvalidOperation(StringLit(s'), IllegalEscape))
+      | _ => Indet(InvalidOperation(StringLit(s'), StrNotTerminate))
+      };
     | BinBoolOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

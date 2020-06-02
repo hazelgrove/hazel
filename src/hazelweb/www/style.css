@@ -821,6 +821,12 @@ h1 {
   font-weight: bold;
 }
 
+.DHCode .ValidSeq {
+  color:  blue;
+}
+.DHCode .InvalidSeq {
+  color:  #b30000;
+}
 .DHCode .Align {
   display: inline-block;
 }
