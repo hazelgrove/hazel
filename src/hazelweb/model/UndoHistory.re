@@ -227,6 +227,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Lam(_, _, _, _)
     | Inj(_, _, _)
     | Case(_, _, _)
+    | AssertLit(_)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
@@ -752,7 +753,7 @@ let get_new_action_group =
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
-              | Let =>
+              | Expanding(Let) =>
                 switch (
                   get_cursor_pos(new_cursor_term_info.cursor_term_before)
                 ) {
@@ -769,7 +770,7 @@ let get_new_action_group =
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
 
-              | Case =>
+              | Expanding(Case) =>
                 switch (
                   get_cursor_pos(new_cursor_term_info.cursor_term_before)
                 ) {

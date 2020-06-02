@@ -102,6 +102,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | AssertLit(_) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("Assert"),
+            indicate_words_view(" literal "),
+            code_view("assert"),
+          ],
+        )
+      )
     | ListNil(_) => indicate_words_view("empty list")
     | Lam(_, _, _, _) => indicate_words_view("function")
 

@@ -722,8 +722,6 @@ module Exp = {
     | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | AssertLit => Indet
     | FailedAssert => Indet
     | BoolLit(_) => DoesNotMatch
@@ -785,8 +783,6 @@ module Exp = {
     | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | AssertLit => Indet
     | FailedAssert => Indet
     | BoolLit(_) => DoesNotMatch
@@ -846,8 +842,6 @@ module Exp = {
     | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | AssertLit => Indet
     | FailedAssert => Indet
     | BoolLit(_) => DoesNotMatch
@@ -2112,7 +2106,7 @@ module Evaluator = {
           b ? BoxedValue(Triv) : Indet(FailedAssert)
         | BoxedValue(d2') => Indet(d2')
         | Indet(v) => Indet(Ap(AssertLit, v))
-        };
+        }
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
@@ -2150,7 +2144,6 @@ module Evaluator = {
     | Triv => BoxedValue(d)
     | FailedAssert => Indet(FailedAssert)
     | AssertLit => BoxedValue(d)
-    | And(d1, d2) =>
     | BinBoolOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2353,7 +2346,7 @@ module Evaluator = {
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
       }
-  }
+    }
   and evaluate_case =
       (
         inconsistent_info,
