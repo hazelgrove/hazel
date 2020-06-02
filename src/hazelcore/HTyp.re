@@ -49,7 +49,13 @@ let precedence = (ty: t): int =>
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let eq = (==);
+let eq = (x, y) =>
+  switch (x, y) {
+  | (TyVarHole(_), TyVarHole(_))
+  | (Hole, TyVarHole(_))
+  | (TyVarHole(_), Hole) => true
+  | _ => x == y
+  };
 
 /* type consistency */
 let rec consistent = (x, y) =>
@@ -96,13 +102,15 @@ let rec consistent_all = (types: list(t)): bool =>
 /* matched arrow types */
 let matched_arrow =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
 let has_matched_arrow =
   fun
-  | Hole => true
+  | Hole
+  | TyVarHole(_) => true
   | Arrow(_) => true
   | _ => false;
 
@@ -116,26 +124,30 @@ let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 /* matched sum types */
 let matched_sum =
   fun
-  | Hole => Some((Hole, Hole))
+  | Hole
+  | TyVarHole(_) => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
 let has_matched_sum =
   fun
-  | Hole => true
+  | Hole
+  | TyVarHole(_) => true
   | Sum(_) => true
   | _ => false;
 
 /* matched list types */
 let matched_list =
   fun
-  | Hole => Some(Hole)
+  | Hole
+  | TyVarHole(_) => Some(Hole)
   | List(ty) => Some(ty)
   | _ => None;
 
 let has_matched_list =
   fun
-  | Hole => true
+  | Hole
+  | TyVarHole(_) => true
   | List(_) => true
   | _ => false;
 
@@ -155,6 +167,7 @@ let rec complete =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
+  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
   | (_, Hole)
   | (_, TyVarHole(_, _)) =>
     switch (j) {
