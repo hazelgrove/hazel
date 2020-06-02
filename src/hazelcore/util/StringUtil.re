@@ -33,48 +33,75 @@ let delete = (caret_index: int, s: string): string => {
   l ++ r;
 };
 
-let rec find_and_replace = (acc: string, s: string): string => {
+let rec find_and_replace =
+        (acc: string, s: string, err: string): (string, string) => {
   let len_s = String.length(s) - 2;
   if (len_s <= (-1)) {
-    acc ++ s;
+    if (len_s == (-1) && s.[0] == '\\') {
+      (
+        acc ++ s,
+        if (err == "OK") {
+          "Not terminated";
+        } else {
+          err;
+        },
+      );
+    } else {
+      (acc ++ s, err);
+    };
   } else {
     switch (String.sub(s, 0, 2)) {
     | "\\b" =>
       find_and_replace(
         String.sub(acc, 0, String.length(acc) - 1),
         String.sub(s, 2, len_s),
+        err,
       )
-    | "\\t" => find_and_replace(acc ++ "\t", String.sub(s, 2, len_s))
+    | "\\t" => find_and_replace(acc ++ "\t", String.sub(s, 2, len_s), err)
     | "\\r" =>
-      let result = find_and_replace("", String.sub(s, 2, len_s));
+      let (result, err) =
+        find_and_replace("", String.sub(s, 2, len_s), err);
       let len = String.length(result);
       if (String.length(acc) <= len) {
-        result;
+        (result, err);
       } else {
-        result ++ String.sub(acc, len, String.length(acc) - len);
+        (result ++ String.sub(acc, len, String.length(acc) - len), err);
       };
-    | "\\n" => find_and_replace(acc ++ "\n", String.sub(s, 2, len_s))
-    | "\\\\" => find_and_replace(acc ++ "\\", String.sub(s, 2, len_s))
-    | "\\\"" => find_and_replace(acc ++ "\"", String.sub(s, 2, len_s))
-    | "\\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s))
-    | "\\ " => find_and_replace(acc ++ " ", String.sub(s, 2, len_s))
+    | "\\n" => find_and_replace(acc ++ "\n", String.sub(s, 2, len_s), err)
+    | "\\\\" => find_and_replace(acc ++ "\\\\", String.sub(s, 2, len_s), err)
+    | "\\\"" => find_and_replace(acc ++ "\"", String.sub(s, 2, len_s), err)
+    | "\\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s), err)
+    | "\\ " => find_and_replace(acc ++ " ", String.sub(s, 2, len_s), err)
     | "\\o" when len_s >= 3 =>
       let ch1 = s.[2];
       let ch2 = s.[3];
       let ch3 = s.[4];
-      if ((ch1 >= '0' && ch1 <= '3')
+      if ((ch1 >= '0' && ch1 <= '7')
           && (ch2 >= '0' && ch2 <= '7')
           && ch3 >= '0'
           && ch3 <= '7') {
-        let str =
-          Char.escaped(
-            Char.chr(int_of_string("0o" ++ String.sub(s, 2, 3))),
+        if (ch1 <= '3') {
+          let str =
+            Char.escaped(
+              Char.chr(int_of_string("0o" ++ String.sub(s, 2, 3))),
+            );
+          find_and_replace(acc ++ str, String.sub(s, 5, len_s - 3), err);
+        } else {
+          find_and_replace(
+            acc ++ String.sub(s, 0, 1),
+            String.sub(s, 1, len_s + 1),
+            if (err == "OK") {
+              "Illegal";
+            } else {
+              err;
+            },
           );
-        find_and_replace(acc ++ str, String.sub(s, 5, len_s - 3));
+        };
       } else {
         find_and_replace(
           acc ++ String.sub(s, 0, 1),
           String.sub(s, 1, len_s + 1),
+          err,
         );
       };
     | "\\x" when len_s >= 2 =>
@@ -86,15 +113,21 @@ let rec find_and_replace = (acc: string, s: string): string => {
           Char.escaped(
             Char.chr(int_of_string("0x" ++ String.sub(s, 2, 2))),
           );
-        find_and_replace(acc ++ str, String.sub(s, 4, len_s - 2));
+        find_and_replace(acc ++ str, String.sub(s, 4, len_s - 2), err);
       } else {
         find_and_replace(
           acc ++ String.sub(s, 0, 1),
           String.sub(s, 1, len_s + 1),
+          if (err == "OK") {
+            "Illegal";
+          } else {
+            err;
+          },
         );
       };
     | _ =>
       if (String.sub(s, 0, 1) == "\\" && len_s >= 2) {
+        print_endline("StringLit107");
         let ch1 = s.[1];
         let ch2 = s.[2];
         let ch3 = s.[3];
@@ -102,19 +135,39 @@ let rec find_and_replace = (acc: string, s: string): string => {
             && (ch2 >= '0' && ch2 <= '9')
             && ch3 >= '0'
             && ch3 <= '9') {
-          let str =
-            Char.escaped(Char.chr(int_of_string(String.sub(s, 1, 3))));
-          find_and_replace(acc ++ str, String.sub(s, 4, len_s - 2));
+          if (int_of_string(String.sub(s, 1, 3)) < 256) {
+            let str =
+              Char.escaped(Char.chr(int_of_string(String.sub(s, 1, 3))));
+            find_and_replace(acc ++ str, String.sub(s, 4, len_s - 2), err);
+          } else {
+            find_and_replace(
+              acc ++ String.sub(s, 0, 1),
+              String.sub(s, 1, len_s + 1),
+              if (err == "OK") {
+                "Illegal";
+              } else {
+                err;
+              },
+            );
+          };
         } else {
           find_and_replace(
             acc ++ String.sub(s, 0, 1),
             String.sub(s, 1, len_s + 1),
+            err,
           );
         };
+      } else if (String.sub(s, 0, 1) == "\\") {
+        find_and_replace(
+          acc ++ String.sub(s, 0, 1),
+          String.sub(s, 1, len_s + 1),
+          err,
+        );
       } else {
         find_and_replace(
           acc ++ String.sub(s, 0, 1),
           String.sub(s, 1, len_s + 1),
+          err,
         );
       }
     };
