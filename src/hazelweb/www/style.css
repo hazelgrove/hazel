@@ -98,6 +98,24 @@ html, body {
   justify-content: flex-start;
 }
 
+.error {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  height: 100px;
+  background-color: red;
+}
+
+.closebtn {
+  padding: 5px;
+  color: white;
+  font-weight: bold;
+  float: right;
+  font-size: 22px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
 #cardstack-controls {
   margin-top: 10px;
   display: flex;

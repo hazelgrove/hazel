@@ -281,6 +281,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                          },
                          */
                       ),
+                      Node.div(
+                        [Attr.classes(["error"])],
+                        [
+                          Node.span(
+                            [Attr.classes(["closebtn"])],
+                            [Node.text("X")],
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ],
