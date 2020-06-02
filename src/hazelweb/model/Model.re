@@ -124,6 +124,13 @@ let init = (): t => {
 
 let get_program = (model: t): Program.t =>
   model.cardstacks |> Cardstacks.get_program;
+
+let get_edit_state = (model: t): Statics.edit_state =>
+  model |> get_program |> Program.get_edit_state;
+
+let get_cursor_info = (model: t): CursorInfo.t =>
+  model |> get_program |> Program.get_cursor_info;
+
 let put_program = (program: Program.t, model: t): t => {
   ...model,
   cardstacks: model.cardstacks |> Cardstacks.put_program(program),
