@@ -3501,7 +3501,6 @@ module Exp = {
     | (_, LetLineZA(p, zann, def)) =>
       let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
       let k = Statics.Typ.syn(ctx, hty);
-      let _ = print_endline(k |> Kind.to_string);
       switch (Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
@@ -4250,7 +4249,6 @@ module Exp = {
     | (_, LamZA(_, p, zann, body)) =>
       let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
       let k = Statics.Typ.syn(ctx, hty);
-      let _ = print_endline(k |> Kind.to_string);
       switch (Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) =>
@@ -5613,7 +5611,6 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
         let k = Statics.Typ.syn(ctx, hty);
-        let _ = print_endline(k |> Kind.to_string);
         switch (Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
         | Failed => Failed
         | CursorEscaped(side) =>
