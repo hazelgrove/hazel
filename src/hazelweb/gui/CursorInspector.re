@@ -134,11 +134,13 @@ let view =
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
-  let got_a_type_indicator = (k: Kind.t) => 
+  let got_a_type_indicator = (k: Kind.t) =>
     switch (k) {
-    | Kind.Type => got_indicator("Got", special_msg_bar("a type of kind Type"));
-    | Kind.KHole => got_indicator("Got", special_msg_bar("a type of kind KHole"));
-    }
+    | Kind.Type =>
+      got_indicator("Got", special_msg_bar("a type of kind Type"))
+    | Kind.KHole =>
+      got_indicator("Got", special_msg_bar("a type of kind KHole"))
+    };
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
