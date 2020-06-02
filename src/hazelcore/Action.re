@@ -757,7 +757,6 @@ module Typ = {
     | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
         when ZTyp.is_after_zoperand(zoperand) =>
       syn_perform_opseq(ctx, MoveRight, (zopseq, k, u_gen))
-    /* TODO: need to be done */
     | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
       switch (operator_of_shape(os)) {
       | None => Failed
@@ -976,67 +975,26 @@ module Typ = {
         Succeeded((ZOpSeq.wrap(ZTyp.ListZ(zbody)), k, u_gen))
       }
     };
-  };
-
-  let rec move = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
-    switch (a) {
-    | MoveTo(path) =>
-      switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
-      | None => Failed
-      | Some(zty) => Succeeded(zty)
-      }
-    | MoveToPrevHole =>
-      switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
-      | None => Failed
-      | Some(steps) =>
-        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
-        | None => Failed
-        | Some(path) => move(MoveTo(path), zty)
-        }
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
-      | None => Failed
-      | Some(steps) =>
-        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
-        | None => Failed
-        | Some(path) => move(MoveTo(path), zty)
-        }
-      }
-    | MoveLeft =>
-      zty
-      |> ZTyp.move_cursor_left
-      |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
-           Succeeded(z)
-         )
-    | MoveRight =>
-      zty
-      |> ZTyp.move_cursor_right
-      |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
-           Succeeded(z)
-         )
-    | Construct(_)
-    | Delete
-    | Backspace
-    | UpdateApPalette(_)
-    | SwapLeft
-    | SwapRight
-    | SwapUp
-    | SwapDown
-    | Init =>
-      failwith(
-        __LOC__
-        ++ ": expected movement action, got "
-        ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
+  }
+  and ana_perform =
+      (
+        ctx: Contexts.t,
+        a: t,
+        (zty, u_gen): (ZTyp.t, MetaVarGen.t),
+        k: Kind.t,
       )
-    };
-
-  let rec perform = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
-    perform_opseq(a, zty)
-  and perform_opseq =
-      (a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): Outcome.t(ZTyp.t) =>
+      : Outcome.t(ana_success) =>
+    ana_perform_opseq(ctx, a, (zty, u_gen), k)
+  and ana_perform_opseq =
+      (
+        ctx: Contexts.t,
+        a: t,
+        (ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq, u_gen: MetaVarGen.t),
+        k: Kind.t,
+      )
+      : Outcome.t(ana_success) =>
     switch (a, zseq) {
-    /* Invalid actions at the type level */
+    /* Invalid actions at type level */
     | (
         UpdateApPalette(_) |
         Construct(
@@ -1046,25 +1004,24 @@ module Typ = {
         SwapUp |
         SwapDown,
         _,
-      )
-    /* Invalid cursor positions */
+      ) =>
+      Failed
+    /*Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
-    /* Movement handled at top level */
     | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-      move(a, zopseq)
-
-    /* Deletion */
-
+      ana_move(a, (zopseq, u_gen), k)
     | (Delete, ZOperator((OnOp(After as side), _), _))
     | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-      perform_opseq(escape(side), zopseq)
+      ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), k)
 
     /* Delete before operator == Backspace after operator */
     | (Delete, ZOperator((OnOp(Before), op), surround)) =>
-      perform_opseq(
+      ana_perform_opseq(
+        ctx,
         Backspace,
-        ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
+        (ZOpSeq(skel, ZOperator((OnOp(After), op), surround)), u_gen),
+        k,
       )
     /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ...
      * (for now until we have proper type constructors) */
@@ -1072,38 +1029,43 @@ module Typ = {
       let S(prefix_hd, new_prefix) = prefix;
       let zoperand = prefix_hd |> ZTyp.place_after_operand;
       let S(_, new_suffix) = suffix;
-      Succeeded(
+      mk_ana_result(
+        ctx,
+        u_gen,
         ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+        k,
       );
 
     /* Construction */
-    /* construction on operators becomes movement... */
+    /* constructio on operators becomes movement... */
     | (Construct(SOp(SSpace)), ZOperator((OnOp(After), _), _)) =>
-      perform_opseq(MoveRight, zopseq)
-    /* ...or construction after movement */
+      ana_perform_opseq(ctx, MoveRight, (zopseq, u_gen), k)
+    /* ... or construction after movement */
     | (Construct(_) as a, ZOperator((OnOp(side), _), _)) =>
-      switch (perform_opseq(escape(side), zopseq)) {
+      switch (ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), k)) {
       | Failed
       | CursorEscaped(_) => Failed
-      | Succeeded(zty) => perform(a, zty)
+      | Succeeded((zty, u_gen)) =>
+        ana_perform_opseq(ctx, a, (zty, u_gen), k)
       }
-
     /* Space becomes movement until we have proper type constructors */
     | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
         when ZTyp.is_after_zoperand(zoperand) =>
-      perform_opseq(MoveRight, zopseq)
-
+      ana_perform_opseq(ctx, MoveRight, (zopseq, u_gen), k)
     | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
       switch (operator_of_shape(os)) {
       | None => Failed
-      | Some(op) => Succeeded(construct_operator(op, zoperand, surround))
+      | Some(op) =>
+        mk_ana_result(
+          ctx,
+          u_gen,
+          construct_operator(op, zoperand, surround),
+          k,
+        )
       }
-
-    /* SwapLeft and SwapRight is handled at block level */
-
+    /* SwapLeft and SwapRight actions */
     | (SwapLeft, ZOperator(_))
     | (SwapRight, ZOperator(_)) => Failed
-
     | (SwapLeft, ZOperand(CursorT(_), (E, _))) => Failed
     | (
         SwapLeft,
@@ -1114,7 +1076,7 @@ module Typ = {
       ) =>
       let new_suffix = Seq.A(operator, S(operand, suffix));
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-      Succeeded(ZTyp.mk_ZOpSeq(new_zseq));
+      mk_ana_result(ctx, u_gen, ZTyp.mk_ZOpSeq(new_zseq), k);
     | (SwapRight, ZOperand(CursorT(_), (_, E))) => Failed
     | (
         SwapRight,
@@ -1125,35 +1087,52 @@ module Typ = {
       ) =>
       let new_prefix = Seq.A(operator, S(operand, prefix));
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-      Succeeded(ZTyp.mk_ZOpSeq(new_zseq));
-
+      mk_ana_result(ctx, u_gen, ZTyp.mk_ZOpSeq(new_zseq), k);
+    | (Init, _) => failwith("Init action should not be performed.")
     /* Zipper */
+    | (_, ZOperand(zoperand, (E, E))) =>
+      ana_perform_operand(ctx, a, (zoperand, u_gen), k)
     | (_, ZOperand(zoperand, (prefix, suffix))) =>
-      switch (perform_operand(a, zoperand)) {
+      let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
+      let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
+      let k_operand = Statics.Typ.syn(ctx, hty);
+      switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
       | Failed => Failed
-      | CursorEscaped(side) => perform_opseq(escape(side), zopseq)
-      | Succeeded(ZOpSeq(_, zseq)) =>
+      | CursorEscaped(side) =>
+        ana_perform_opseq(ctx, escape(side), (zopseq, u_gen), k)
+      | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
         switch (zseq) {
         | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
           let new_prefix = Seq.affix_affix(inner_prefix, prefix);
           let new_suffix = Seq.affix_affix(inner_suffix, suffix);
-          Succeeded(
+          mk_ana_result(
+            ctx,
+            u_gen,
             ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+            k,
           );
         | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
           let new_prefix = Seq.seq_affix(inner_prefix, prefix);
           let new_suffix = Seq.seq_affix(inner_suffix, suffix);
-          Succeeded(
+          mk_ana_result(
+            ctx,
+            u_gen,
             ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+            k,
           );
         }
-      }
-    | (Init, _) => failwith("Init action should not be performed.")
+      };
     }
-  and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
+  and ana_perform_operand =
+      (
+        ctx: Contexts.t,
+        a: t,
+        (zoperand, u_gen): (ZTyp.zoperand, MetaVarGen.t),
+        k: Kind.t,
+      )
+      : Outcome.t(ana_success) =>
     switch (a, zoperand) {
-    /* Invalid actions at the type level */
-    | (_, CursorT(_, TyVar(_))) => Failed
+    /* Invalid actions at type level */
     | (
         UpdateApPalette(_) |
         Construct(
@@ -1165,98 +1144,153 @@ module Typ = {
         _,
       ) =>
       Failed
-
     /* Invalid cursor positions */
-    | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
-    | (_, CursorT(cursor, operand))
+    | (
+        _,
+        CursorT(
+          OnText(_) | OnOp(_),
+          Hole | Unit | Parenthesized(_) | List(_),
+        ),
+      ) =>
+      Failed
+    | (_, CursorT(OnDelim(_) | OnOp(_), TyVar(_) | Int | Float | Bool)) =>
+      Failed
+    | (_, CursorT(OnDelim(_) as cursor, operand))
         when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
       Failed
-
     /* Movement handled at top level */
     | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-      move(a, ZOpSeq.wrap(zoperand))
+      ana_move(a, (ZOpSeq.wrap(zoperand), u_gen), k)
 
     /* Backspace and Delete */
-
     /* ( _ <|)   ==>   ( _| ) */
     | (Backspace, CursorT(OnDelim(_, Before), _)) =>
       zoperand |> ZTyp.is_before_zoperand
-        ? CursorEscaped(Before) : perform_operand(MoveLeft, zoperand)
+        ? CursorEscaped(Before)
+        : ana_perform_operand(ctx, MoveLeft, (zoperand, u_gen), k)
+
     /* (|> _ )   ==>   ( |_ ) */
     | (Delete, CursorT(OnDelim(_, After), _)) =>
       zoperand |> ZTyp.is_after_zoperand
-        ? CursorEscaped(After) : perform_operand(MoveRight, zoperand)
+        ? CursorEscaped(After)
+        : ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), k)
 
     /* Delete before delimiter == Backspace after delimiter */
-    | (Delete, CursorT(OnDelim(k, Before), operand)) =>
-      perform_operand(Backspace, CursorT(OnDelim(k, After), operand))
+    | (Delete, CursorT(OnDelim(x, Before), operand)) =>
+      ana_perform_operand(
+        ctx,
+        Backspace,
+        (CursorT(OnDelim(x, After), operand), u_gen),
+        k,
+      )
 
-    | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
-
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
-
-    /* ( _ )<|  ==>  _| */
-    /* (<| _ )  ==>  |_ */
+    | (Backspace, CursorT(OnDelim(_, After), Hole | Unit)) =>
+      mk_ana_result(
+        ctx,
+        u_gen,
+        ZOpSeq.wrap(ZTyp.place_before_operand(Hole)),
+        k,
+      )
     | (
         Backspace,
-        CursorT(OnDelim(k, After), Parenthesized(body) | List(body)),
+        CursorT(OnText(caret_index), (Int | Bool | Float) as operand),
       ) =>
-      let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
-      Succeeded(body |> place_cursor);
+      ana_backspace_text(
+        ctx,
+        u_gen,
+        caret_index,
+        operand |> UHTyp.of_string,
+        k,
+      )
+    | (
+        Delete,
+        CursorT(OnText(caret_index), (Int | Bool | Float) as operand),
+      ) =>
+      ana_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string, k)
+    /* TyVar-related Backspace & Delete */
+    | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
+      ana_delete_text(ctx, u_gen, caret_index, text, k)
+    | (Backspace, CursorT(OnText(caret_index), TyVar(_, text))) =>
+      ana_backspace_text(ctx, u_gen, caret_index, text, k)
+
+    /* (<| _ )  ==>  |_ */
+    /* ( _ )<|  ==>  _| */
+    | (
+        Backspace,
+        CursorT(OnDelim(x, After), Parenthesized(body) | List(body)),
+      ) =>
+      let place_cursor = x == 0 ? ZTyp.place_before : ZTyp.place_after;
+      mk_ana_result(ctx, u_gen, place_cursor(body), k);
 
     /* Construction */
-
     | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
-      perform_operand(MoveRight, zoperand)
+      ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), k)
     | (Construct(_) as a, CursorT(OnDelim(_, side), _))
         when
           !ZTyp.is_before_zoperand(zoperand)
           && !ZTyp.is_after_zoperand(zoperand) =>
-      switch (perform_operand(escape(side), zoperand)) {
+      switch (ana_perform_operand(ctx, escape(side), (zoperand, u_gen), k)) {
       | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded(zty) => perform(a, zty)
+      | Succeeded((zty, u_gen)) => ana_perform(ctx, a, (zty, u_gen), k)
       }
-
-    | (Construct(SChar("I")), CursorT(_, Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Int)))
-    | (Construct(SChar("F")), CursorT(_, Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
-    | (Construct(SChar("B")), CursorT(_, Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
+    | (Construct(SChar(s)), CursorT(_, Hole)) =>
+      ana_insert_text(ctx, u_gen, (0, s), "", k)
+    | (
+        Construct(SChar(s)),
+        CursorT(OnText(j), (Int | Bool | Float) as operand),
+      ) =>
+      ana_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.of_string, k)
+    | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
+      ana_insert_text(ctx, u_gen, (j, s), x, k)
     | (Construct(SChar(_)), CursorT(_)) => Failed
 
     | (Construct(SList), CursorT(_)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
-
+      mk_ana_result(
+        ctx,
+        u_gen,
+        ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))),
+        k,
+      )
     | (Construct(SParenthesized), CursorT(_)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
+      mk_ana_result(
+        ctx,
+        u_gen,
+        ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
+        k,
+      )
 
     | (Construct(SOp(os)), CursorT(_)) =>
       switch (operator_of_shape(os)) {
       | None => Failed
-      | Some(op) => Succeeded(construct_operator(op, zoperand, (E, E)))
+      | Some(op) =>
+        mk_ana_result(
+          ctx,
+          u_gen,
+          construct_operator(op, zoperand, (E, E)),
+          k,
+        )
       }
 
-    /* Invalid SwapLeft and SwapRight actions */
+    /* Invalid SwapLeft and SwapRight acitons */
     | (SwapLeft | SwapRight, CursorT(_)) => Failed
-
+    | (Init, _) => failwith("Init action should not be performed.")
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
-      switch (perform(a, zbody)) {
+      switch (ana_perform(ctx, a, (zbody, u_gen), k)) {
       | Failed => Failed
-      | CursorEscaped(side) => perform_operand(escape(side), zoperand)
-      | Succeeded(zbody) =>
-        Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(zbody)))
+      | CursorEscaped(side) =>
+        ana_perform_operand(ctx, escape(side), (zoperand, u_gen), k)
+      | Succeeded((zbody, u_gen)) =>
+        Succeeded((ZOpSeq.wrap(ZTyp.ParenthesizedZ(zbody)), u_gen))
       }
     | (_, ListZ(zbody)) =>
-      switch (perform(a, zbody)) {
+      switch (ana_perform(ctx, a, (zbody, u_gen), k)) {
       | Failed => Failed
-      | CursorEscaped(side) => perform_operand(escape(side), zoperand)
-      | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
+      | CursorEscaped(side) =>
+        ana_perform_operand(ctx, escape(side), (zoperand, u_gen), k)
+      | Succeeded((zbody, u_gen)) =>
+        Succeeded((ZOpSeq.wrap(ZTyp.ListZ(zbody)), u_gen))
       }
-    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
