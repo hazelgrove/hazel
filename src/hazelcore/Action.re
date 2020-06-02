@@ -1410,6 +1410,8 @@ module Pat = {
         | After => 1
         };
       syn_insert_text(ctx, u_gen, (index, s), "_");
+    | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
+      syn_insert_text(ctx, u_gen, (j, s), t)
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
     | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
@@ -1847,6 +1849,8 @@ module Pat = {
         | After => 1
         };
       ana_insert_text(ctx, u_gen, (index, s), "_", ty);
+    | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
+      ana_insert_text(ctx, u_gen, (j, s), t, ty)
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
     | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
@@ -3496,6 +3500,8 @@ module Exp = {
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
+    | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
+      syn_insert_text(ctx, u_gen, (j, s), t)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
     | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
@@ -4848,6 +4854,8 @@ module Exp = {
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
+      ana_insert_text(ctx, u_gen, (j, s), t, ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
     | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
