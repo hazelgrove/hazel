@@ -500,7 +500,8 @@ module Typ = {
     fun
     | Prod => (empty_, space_)
     | Arrow
-    | Sum => (space_, space_);
+    | Sum => (space_, space_)
+    | Space => failwith("unimplemented");
 
   let mk_EmptyHole: string => t = mk_EmptyHole(~sort=Typ);
   let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Typ);
@@ -557,6 +558,7 @@ module Typ = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_List(body);
+          | Label(_) => failwith("unimplemented")
           }: t
         )
       )
@@ -646,6 +648,7 @@ module Pat = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_Inj(~err, ~inj_side, body);
+          | Label(_, _) => failwith("unimplemented")
           }: t
         )
       )
@@ -848,6 +851,8 @@ module Exp = {
               mk_Case(~err, scrut, rules);
             }
           | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
+          | Label(_, _) => failwith("unimplemented")
+          | Prj(_, _) => failwith("unimplemented")
           }: t
         )
       )

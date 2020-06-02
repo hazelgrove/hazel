@@ -127,6 +127,7 @@ module Typ = {
     | Arrow => SArrow
     | Prod => SComma
     | Sum => SVBar
+    | Space => failwith("unimplemented")
     };
 
   let construct_operator =

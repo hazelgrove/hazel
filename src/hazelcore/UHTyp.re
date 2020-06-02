@@ -11,7 +11,8 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+  | Label(Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -33,6 +34,7 @@ let unwrap_parentheses = (operand: operand): t =>
   | Bool
   | List(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
+  | Label(_) => failwith("unimplemented")
   };
 
 let associate = (seq: seq) => {
@@ -123,7 +125,8 @@ and expand_operand =
   | Float => Float
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
+  | List(opseq) => List(expand(opseq))
+  | Label(_) => failwith("unimplemented");
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
@@ -134,6 +137,7 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Bool => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
+  | Label(_) => failwith("unimplemented")
   };
 }
 and is_complete_skel = (sk: skel, sq: seq) => {

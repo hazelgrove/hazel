@@ -20,6 +20,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
+  | Label(_) => failwith("unimplemented")
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun

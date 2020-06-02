@@ -12,6 +12,7 @@ rule read =
   | "|" { VBAR }
   | "->" { ARROW }
   | "," { COMMA }
+  | " " { SPACE }
   | placeholder { PLACEHOLDER (int_of_string (Lexing.lexeme lexbuf)) }
   | eof { EOF }
 

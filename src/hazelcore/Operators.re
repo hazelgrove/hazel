@@ -4,13 +4,15 @@ module Typ = {
   type t =
     | Arrow
     | Prod
-    | Sum;
+    | Sum
+    | Space;
 
   let to_string =
     fun
     | Arrow => UnicodeConstants.typeArrowSym
     | Prod => ","
-    | Sum => "|";
+    | Sum => "|"
+    | Space => " ";
 
   let to_parse_string = op =>
     switch (op) {

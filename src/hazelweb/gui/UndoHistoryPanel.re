@@ -113,6 +113,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    | Label(_, _) => failwith("unimplemented")
+    | Prj(_, _) => failwith("unimplemented")
     };
   };
 
@@ -177,6 +179,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | Label(_, _) => failwith("unimplemented")
     };
   };
 
@@ -220,6 +223,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     | Parenthesized(_) => indicate_words_view("parentheses")
     | List(_) => code_keywords_view("[ ]")
+    | Label(_) => failwith("unimplemented")
     };
   };
 

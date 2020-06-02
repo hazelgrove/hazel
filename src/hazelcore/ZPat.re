@@ -23,6 +23,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
+    | Label(_, _) => failwith("unimplemented")
   );
 let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun

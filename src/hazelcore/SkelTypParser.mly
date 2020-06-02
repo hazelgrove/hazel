@@ -8,12 +8,14 @@
 %token VBAR
 %token AMP
 %token ARROW
+%token SPACE
 %token EOF
 
 %right COMMA
 %right ARROW
 %right VBAR
 %right AMP
+%left SPACE
 
 %start <Operators.Typ.t Skel.t> skel_typ
 %type <Operators.Typ.t Skel.t> ty
@@ -47,6 +49,11 @@ ty:
     Skel.BinOp(
       NotInHole,
       Operators.Typ.Prod,
+      ty1, ty2) }
+  | ty1 = ty; SPACE; ty2 = ty {
+    Skel.BinOp(
+      NotInHole,
+      Operators.Typ.Space,
       ty1, ty2) }
   ;
 
