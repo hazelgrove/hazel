@@ -96,6 +96,8 @@ let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
 
+let mk_InvalidText = t => Doc.text(t) |> Doc.annot(DHAnnot.Invalid);
+
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_FloatLit = (f: float) =>
@@ -164,7 +166,7 @@ module Pat = {
       | NonEmptyHole(reason, u, i, dp) =>
         mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | Keyword(u, i, k) => mk_Keyword(u, i, k)
-      | InvalidText(t) => Doc.text(t)
+      | InvalidText(t) => mk_InvalidText(t)
       | Var(x) => Doc.text(x)
       | Wild => Delim.wild
       | Triv => Delim.triv
@@ -369,7 +371,7 @@ module Exp = {
         | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-        | InvalidText(t) => text(t)
+        | InvalidText(t) => mk_InvalidText(t)
         | BoundVar(x) => text(x)
         | Triv => Delim.triv
         | BoolLit(b) => mk_BoolLit(b)
