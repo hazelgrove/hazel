@@ -111,7 +111,6 @@ module Pat = {
       : ExpandResult.t =>
     switch (operand) {
     | Wild(InHole(TypeInconsistent as reason, u))
-    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -128,7 +127,6 @@ module Pat = {
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -143,7 +141,7 @@ module Pat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
-    | InvalidText(NotInHole, _)
+    | InvalidText(_)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
@@ -331,7 +329,6 @@ module Pat = {
       : ExpandResult.t =>
     switch (operand) {
     | Wild(InHole(TypeInconsistent as reason, u))
-    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -349,7 +346,6 @@ module Pat = {
         Expands(dp, ty, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -369,7 +365,7 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
-    | InvalidText(NotInHole, _)
+    | InvalidText(_)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _) => syn_expand_operand(ctx, delta, operand)
@@ -1143,7 +1139,6 @@ module Exp = {
       : ExpandResult.t =>
     switch (operand) {
     /* in hole */
-    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -1166,7 +1161,6 @@ module Exp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1221,7 +1215,7 @@ module Exp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
 
-    | InvalidText(NotInHole, t) => Expands(InvalidText(t), Hole, delta)
+    | InvalidText(t) => Expands(InvalidText(t), Hole, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -1572,7 +1566,6 @@ module Exp = {
       : ExpandResult.t =>
     switch (operand) {
     /* in hole */
-    | InvalidText(InHole(TypeInconsistent as reason, u), _)
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | IntLit(InHole(TypeInconsistent as reason, u), _)
     | FloatLit(InHole(TypeInconsistent as reason, u), _)
@@ -1592,7 +1585,6 @@ module Exp = {
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | InvalidText(InHole(WrongLength, _), _)
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
@@ -1696,7 +1688,7 @@ module Exp = {
       | None => ExpandResult.DoesNotExpand
       | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
       }
-    | InvalidText(NotInHole, _)
+    | InvalidText(_)
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | IntLit(NotInHole, _)

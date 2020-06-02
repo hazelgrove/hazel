@@ -1270,7 +1270,7 @@ module Pat = {
         ) |
         CursorP(
           OnDelim(_),
-          InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+          InvalidText(_) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
         ) |
         CursorP(OnOp(_), _),
       ) =>
@@ -3320,7 +3320,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+          Var(_) | InvalidText(_) | IntLit(_) | FloatLit(_) | BoolLit(_) |
           ApPalette(_),
         ) |
         CursorE(
@@ -3376,7 +3376,7 @@ module Exp = {
       let new_ze = ZExp.ZBlock.wrap(zhole);
       Succeeded(SynDone((new_ze, Hole, u_gen)));
 
-    | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
+    | (Delete, CursorE(OnText(j), InvalidText(t))) =>
       syn_delete_text(ctx, u_gen, j, t)
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
@@ -3386,7 +3386,7 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
-    | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
+    | (Backspace, CursorE(OnText(j), InvalidText(t))) =>
       syn_backspace_text(ctx, u_gen, j, t)
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
@@ -3496,7 +3496,7 @@ module Exp = {
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
-    | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
+    | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(t))) =>
       syn_insert_text(ctx, u_gen, (j, s), t)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
@@ -4677,7 +4677,7 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+          Var(_) | InvalidText(_) | IntLit(_) | FloatLit(_) | BoolLit(_) |
           ApPalette(_),
         ) |
         CursorE(
@@ -4776,7 +4776,7 @@ module Exp = {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
 
-    | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
+    | (Delete, CursorE(OnText(j), InvalidText(t))) =>
       ana_delete_text(ctx, u_gen, j, t, ty)
     | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
@@ -4787,7 +4787,7 @@ module Exp = {
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
-    | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
+    | (Backspace, CursorE(OnText(j), InvalidText(t))) =>
       ana_backspace_text(ctx, u_gen, j, t, ty)
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -4850,7 +4850,7 @@ module Exp = {
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
-    | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
+    | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(t))) =>
       ana_insert_text(ctx, u_gen, (j, s), t, ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)

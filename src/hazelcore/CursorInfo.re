@@ -882,7 +882,6 @@ module Pat = {
           ),
         )
       | Wild(InHole(TypeInconsistent, _))
-      | InvalidText(InHole(TypeInconsistent, _), _)
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
@@ -900,7 +899,6 @@ module Pat = {
           )
         };
       | Wild(InHole(WrongLength, _))
-      | InvalidText(InHole(WrongLength, _), _)
       | Var(InHole(WrongLength, _), _, _)
       | IntLit(InHole(WrongLength, _), _)
       | FloatLit(InHole(WrongLength, _), _)
@@ -914,7 +912,7 @@ module Pat = {
           ),
         )
       // not in hole
-      | InvalidText(NotInHole, _) =>
+      | InvalidText(_) =>
         Some(
           CursorNotOnDeferredVarPat(
             mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
@@ -1259,8 +1257,7 @@ module Exp = {
       : option(t) => {
     let cursor_term = extract_from_zexp_operand(zoperand);
     switch (zoperand) {
-    | CursorE(_, InvalidText(_, _)) =>
-      Some(mk(SynInvalid, ctx, cursor_term))
+    | CursorE(_, InvalidText(_)) => Some(mk(SynInvalid, ctx, cursor_term))
     | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
       Some(mk(SynKeyword(k), ctx, cursor_term))
     | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
@@ -1553,7 +1550,7 @@ module Exp = {
         Some(mk(AnaKeyword(ty, k), ctx, cursor_term))
       | Var(_, InVarHole(Free, _), _) =>
         Some(mk(AnaFree(ty), ctx, cursor_term))
-      | InvalidText(_, _) => Some(mk(AnaInvalid(ty), ctx, cursor_term))
+      | InvalidText(_) => Some(mk(AnaInvalid(ty), ctx, cursor_term))
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
