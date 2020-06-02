@@ -235,7 +235,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     switch (operand) {
     | EmptyHole(_) => MinLen
     | Wild(_) => Len(1)
-    | InvalidText(_, t) => Len(String.length(t))
+    | InvalidText(t) => Len(String.length(t))
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))

@@ -1326,7 +1326,7 @@ module Pat = {
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, Hole, ctx, u_gen));
 
-    | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
+    | (Delete, CursorP(OnText(j), InvalidText(t))) =>
       syn_delete_text(ctx, u_gen, j, t)
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       syn_delete_text(ctx, u_gen, j, x)
@@ -1337,7 +1337,7 @@ module Pat = {
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
-    | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
+    | (Backspace, CursorP(OnText(j), InvalidText(t))) =>
       syn_backspace_text(ctx, u_gen, j, t)
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
@@ -1408,7 +1408,7 @@ module Pat = {
         | After => 1
         };
       syn_insert_text(ctx, u_gen, (index, s), "_");
-    | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
+    | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(t))) =>
       syn_insert_text(ctx, u_gen, (j, s), t)
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       syn_insert_text(ctx, u_gen, (j, s), x)
@@ -1767,7 +1767,7 @@ module Pat = {
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, ctx, u_gen));
 
-    | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
+    | (Delete, CursorP(OnText(j), InvalidText(t))) =>
       ana_delete_text(ctx, u_gen, j, t, ty)
     | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
       ana_delete_text(ctx, u_gen, j, x, ty)
@@ -1778,7 +1778,7 @@ module Pat = {
     | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
-    | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
+    | (Backspace, CursorP(OnText(j), InvalidText(t))) =>
       ana_backspace_text(ctx, u_gen, j, t, ty)
     | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -1847,7 +1847,7 @@ module Pat = {
         | After => 1
         };
       ana_insert_text(ctx, u_gen, (index, s), "_", ty);
-    | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
+    | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(t))) =>
       ana_insert_text(ctx, u_gen, (j, s), t, ty)
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
       ana_insert_text(ctx, u_gen, (j, s), x, ty)
