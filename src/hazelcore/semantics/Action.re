@@ -2563,8 +2563,11 @@ module Exp = {
       switch (a) {
       | GoToDefinition =>
         switch (ci.typed) {
-        | AnaVar(_, _, binding_steps, _, _)
-        | SynVar(_, _, binding_steps, _, _) =>
+        | AnaTypeInconsistent(_, _, Some((_, binding_steps, _, _)))
+        | Analyzed(_, Some((_, binding_steps, _, _)))
+        | SynErrorArrow(_, _, Some((_, binding_steps, _, _)))
+        | SynMatchingArrow(_, _, Some((_, binding_steps, _, _)))
+        | Synthesized(_, Some((_, binding_steps, _, _))) =>
           syn_move(ctx, MoveToBefore(binding_steps), (ze, ty, u_gen))
         | _ => Failed
         }
@@ -2579,10 +2582,16 @@ module Exp = {
       | GoToNextUsage
       | GoToPrevUsage =>
         switch (ci.typed) {
-        | AnaVar(_, _, _, _, [])
-        | SynVar(_, _, _, _, []) => Failed
-        | AnaVar(_, _, _, i_cur, other_uses)
-        | SynVar(_, _, _, i_cur, other_uses) =>
+        | AnaTypeInconsistent(_, _, Some((_, _, _, [])))
+        | Analyzed(_, Some((_, _, _, [])))
+        | SynErrorArrow(_, _, Some((_, _, _, [])))
+        | SynMatchingArrow(_, _, Some((_, _, _, [])))
+        | Synthesized(_, Some((_, _, _, []))) => Failed
+        | AnaTypeInconsistent(_, _, Some((_, _, i_cur, other_uses)))
+        | Analyzed(_, Some((_, _, i_cur, other_uses)))
+        | SynErrorArrow(_, _, Some((_, _, i_cur, other_uses)))
+        | SynMatchingArrow(_, _, Some((_, _, i_cur, other_uses)))
+        | Synthesized(_, Some((_, _, i_cur, other_uses))) =>
           let len = List.length(other_uses);
           let result_steps =
             switch (a) {

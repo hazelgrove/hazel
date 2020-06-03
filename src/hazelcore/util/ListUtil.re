@@ -137,11 +137,11 @@ let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   };
 
 let rec split_by_i = (i, xs) =>
-  i == 0
+  i <= 0
     ? ([], xs)
     : (
       switch (xs) {
-      | [] => failwith("split_by_i")
+      | [] => failwith("split_by_i" ++ Int.to_string(List.length(xs)))
       | [x, ...xs] =>
         let (first, second) = split_by_i(i - 1, xs);
         ([x, ...first], second);

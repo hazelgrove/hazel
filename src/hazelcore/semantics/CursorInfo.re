@@ -1,12 +1,26 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type varexp =
+  option(
+    (
+      Var.t,
+      // steps of binding site
+      CursorPath.steps,
+      // index of current use
+      int,
+      // other uses
+      UsageAnalysis.uses_list,
+    ),
+  );
+
+[@deriving sexp]
 type typed =
   /* cursor in analytic position */
   // cursor is on a lambda with an argument type annotation
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
-  | AnaTypeInconsistent(HTyp.t, HTyp.t)
+  | AnaTypeInconsistent(HTyp.t, HTyp.t, varexp)
   // cursor is on a tuple of the wrong length
   | AnaWrongLength
       // expected length
@@ -21,19 +35,8 @@ type typed =
   | AnaFree(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
-  // Cursor is on a variable expression
-  | AnaVar(
-      HTyp.t,
-      Var.t,
-      // steps of binding site
-      CursorPath.steps,
-      // index of current use
-      int,
-      // other uses
-      UsageAnalysis.uses_list,
-    )
   // none of the above and didn't go through subsumption
-  | Analyzed(HTyp.t)
+  | Analyzed(HTyp.t, varexp)
   // none of the above and went through subsumption
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic position */
@@ -46,11 +49,12 @@ type typed =
         HTyp.t,
         // got
         HTyp.t,
+        varexp,
       )
   // cursor is on the function position of an ap,
   // and that expression does synthesize a type
   // with a matched arrow type
-  | SynMatchingArrow(HTyp.t, HTyp.t)
+  | SynMatchingArrow(HTyp.t, HTyp.t, varexp)
   // cursor is on a free variable in the function
   // position of an ap
   | SynFreeArrow(HTyp.t)
@@ -60,19 +64,8 @@ type typed =
   | SynFree
   // cursor is on a keyword
   | SynKeyword(ExpandingKeyword.t)
-  // cursor is on a variable expression
-  | SynVar(
-      HTyp.t,
-      Var.t,
-      // steps of binding site
-      CursorPath.steps,
-      // index of current use
-      int,
-      // other uses
-      UsageAnalysis.uses_list,
-    )
   // none of the above
-  | Synthesized(HTyp.t)
+  | Synthesized(HTyp.t, varexp)
   /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
@@ -618,7 +611,10 @@ module Exp = {
         let line_index =
           switch (index_zero_num) {
           | [index, _zero, _seq_num] => index
-          | _ => failwith("split_by_i not implemented or used correctly")
+          | _ =>
+            failwith(
+              __LOC__ ++ "split_by_i not implemented or used correctly",
+            )
           };
         steps' == steps
           ? Some(
@@ -688,8 +684,36 @@ module Exp = {
             ty,
             zdef |> ZExp.erase,
           );
-        ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
-        |> OptUtil.map(ci => CursorNotOnDeferred(ci));
+        switch (
+          ana_cursor_info_zblock(~steps=steps @ [2], ctx_def, zdef, ty)
+        ) {
+        | None => None
+        | Some(CursorNotOnDeferred(_)) as deferrable => deferrable
+        | Some(CursorOnDeferredVarPat(_)) =>
+          failwith("cursor on exp instead of pat")
+        | Some(CursorOnDeferredVarExp(deferred, binding_steps, var)) as deferrable =>
+          let (steps', _zero_num) =
+            ListUtil.split_by_i(
+              List.length(binding_steps) - 2,
+              binding_steps,
+            );
+          steps' == steps
+            ? Some(
+                CursorOnDeferredVarExp(
+                  uses =>
+                    UsageAnalysis.find_uses(
+                      ~steps=steps @ [2],
+                      var,
+                      zdef |> ZExp.erase,
+                    )
+                    @ uses
+                    |> deferred,
+                  binding_steps,
+                  var,
+                ),
+              )
+            : deferrable;
+        };
       }
     }
   and syn_cursor_info_zopseq =
@@ -709,7 +733,9 @@ module Exp = {
     | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
       Statics.Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
-      |> OptUtil.map(ty => CursorNotOnDeferred(mk(Synthesized(ty), ctx)))
+      |> OptUtil.map(ty =>
+           CursorNotOnDeferred(mk(Synthesized(ty, None), ctx))
+         )
     | _ =>
       // cursor within tuple element
       let cursor_skel =
@@ -739,7 +765,9 @@ module Exp = {
         )
       | ZOperator(_) =>
         Statics.Exp.syn_skel(ctx, skel, seq)
-        |> OptUtil.map(ty => CursorNotOnDeferred(mk(Synthesized(ty), ctx)))
+        |> OptUtil.map(ty =>
+             CursorNotOnDeferred(mk(Synthesized(ty, None), ctx))
+           )
       };
     } else {
       // recurse toward cursor
@@ -793,9 +821,35 @@ module Exp = {
               |> UHExp.set_err_status_operand(NotInHole);
             Statics.Exp.syn_operand(ctx, operand_nih)
             |> OptUtil.map(ty =>
-                 CursorNotOnDeferred(
-                   mk(SynErrorArrow(Arrow(Hole, Hole), ty)),
-                 )
+                 switch (operand_nih) {
+                 | Var(_, _, x) =>
+                   switch ((ctx |> Contexts.gamma |> VarCtx.lookup)(x)) {
+                   | Some((ty, binding_steps)) =>
+                     CursorOnDeferredVarExp(
+                       uses => {
+                         let (other_uses, i_cur) =
+                           ListUtil.rm_one_or_zero_i(
+                             use => use == steps,
+                             uses,
+                           );
+                         mk(
+                           SynErrorArrow(
+                             Arrow(Hole, Hole),
+                             ty,
+                             Some((x, binding_steps, i_cur + 1, other_uses)),
+                           ),
+                         );
+                       },
+                       binding_steps,
+                       x,
+                     )
+                   | _ => failwith(__LOC__ ++ "context doesn't include x")
+                   }
+                 | _no_var =>
+                   CursorNotOnDeferred(
+                     mk(SynErrorArrow(Arrow(Hole, Hole), ty, None)),
+                   )
+                 }
                );
           | Some((_, InVarHole(Free, _))) =>
             Some(CursorNotOnDeferred(mk(SynFreeArrow(Arrow(Hole, Hole)))))
@@ -808,18 +862,52 @@ module Exp = {
           | Some((_, InVarHole(Duplicate, _))) =>
             failwith("duplicate var exp in opseq")
           | Some((NotInHole, NotInVarHole)) =>
-            switch (
-              Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
-            ) {
+            let operand = zoperand |> ZExp.erase_zoperand;
+            Printf.printf(
+              "%s\n",
+              __LOC__ ++ Sexplib.Sexp.to_string(Contexts.sexp_of_t(ctx)),
+            );
+            switch (Statics.Exp.syn_operand(ctx, operand)) {
             | None => None
             | Some(ty) =>
               HTyp.matched_arrow(ty)
               |> OptUtil.map(((ty1, ty2)) =>
-                   CursorNotOnDeferred(
-                     mk(SynMatchingArrow(ty, Arrow(ty1, ty2))),
-                   )
+                   switch (operand) {
+                   | Var(_, _, x) =>
+                     switch ((ctx |> Contexts.gamma |> VarCtx.lookup)(x)) {
+                     | Some((ty, binding_steps)) =>
+                       CursorOnDeferredVarExp(
+                         uses => {
+                           let (other_uses, i_cur) =
+                             ListUtil.rm_one_or_zero_i(
+                               use => use == steps,
+                               uses,
+                             );
+                           mk(
+                             SynMatchingArrow(
+                               ty,
+                               Arrow(ty1, ty2),
+                               Some((
+                                 x,
+                                 binding_steps,
+                                 i_cur + 1,
+                                 other_uses,
+                               )),
+                             ),
+                           );
+                         },
+                         binding_steps,
+                         x,
+                       )
+                     | _ => failwith(__LOC__ ++ "context doesn't include x")
+                     }
+                   | _no_var =>
+                     CursorNotOnDeferred(
+                       mk(SynMatchingArrow(ty, Arrow(ty1, ty2), None)),
+                     )
+                   }
                  )
-            }
+            };
           };
         } else {
           switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
@@ -870,21 +958,28 @@ module Exp = {
       Some(CursorNotOnDeferred(mk(SynFree, ctx)))
     | CursorE(_, Var(NotInHole, NotInVarHole, x)) =>
       (ctx |> Contexts.gamma |> VarCtx.lookup)(x)
-      |> OptUtil.map(((ty, binding_steps)) =>
+      |> OptUtil.map(((ty, binding_steps)) => {
            CursorOnDeferredVarExp(
              uses => {
                let (other_uses, i_cur) =
                  ListUtil.rm_one_or_zero_i(use => use == steps, uses);
-               mk(SynVar(ty, x, binding_steps, i_cur, other_uses), ctx);
+               mk(
+                 Synthesized(
+                   ty,
+                   Some((x, binding_steps, i_cur + 1, other_uses)),
+                 ),
+                 ctx,
+               );
              },
              binding_steps,
              x,
            )
-         )
+         })
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
-      | Some(ty) => Some(CursorNotOnDeferred(mk(Synthesized(ty), ctx)))
+      | Some(ty) =>
+        Some(CursorNotOnDeferred(mk(Synthesized(ty, None), ctx)))
       }
     | ParenthesizedZ(zbody) =>
       syn_cursor_info_zblock(~steps=steps @ [0], ctx, zbody)
@@ -912,7 +1007,7 @@ module Exp = {
         | Some(uty1) => UHTyp.expand(uty1)
         | None => Hole
         };
-      switch (Statics.Pat.ana(ctx, p, ty1)) {
+      switch (Statics.Pat.ana(~steps=steps @ [0], ctx, p, ty1)) {
       | None => None
       | Some(ctx1) =>
         switch (syn_cursor_info_zblock(~steps=steps @ [2], ctx1, zbody)) {
@@ -1018,10 +1113,19 @@ module Exp = {
                 List.length(binding_steps) - 3,
                 binding_steps,
               );
+            Printf.printf(
+              "%s\n",
+              Sexplib.Sexp.to_string(
+                CursorPath.sexp_of_steps(binding_steps),
+              ),
+            );
             let line_index =
               switch (index_zero_num) {
               | [index, _zero, _seq_num] => index
-              | _ => failwith("split_by_i not implemented or used correctly")
+              | _ =>
+                failwith(
+                  __LOC__ ++ "split_by_i not implemented or used correctly",
+                )
               };
             steps' == steps
               ? Some(
@@ -1068,7 +1172,10 @@ module Exp = {
           let line_index =
             switch (index_zero_num) {
             | [index, _zero, _seq_num] => index
-            | _ => failwith("split_by_i not implemented or used correctly")
+            | _ =>
+              failwith(
+                __LOC__ ++ "split_by_i not implemented or used correctly",
+              )
             };
           steps' == steps
             ? Some(
@@ -1099,7 +1206,7 @@ module Exp = {
     | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
       switch (skel_tys) {
-      | Some(_) => Some(CursorNotOnDeferred(mk(Analyzed(ty), ctx)))
+      | Some(_) => Some(CursorNotOnDeferred(mk(Analyzed(ty, None), ctx)))
       | None =>
         let expected_length = ty |> HTyp.get_prod_elements |> List.length;
         let got_length = skel |> UHExp.get_tuple_elements |> List.length;
@@ -1153,7 +1260,9 @@ module Exp = {
         )
       | ZOperator(_) =>
         Statics.Exp.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ => CursorNotOnDeferred(mk(Analyzed(ty), ctx)))
+        |> OptUtil.map(_ =>
+             CursorNotOnDeferred(mk(Analyzed(ty, None), ctx))
+           )
       };
     } else {
       // recurse toward cursor
@@ -1210,7 +1319,26 @@ module Exp = {
       | Var(_, InVarHole(Duplicate, _), _) => assert(false)
       | Var(_, InVarHole(Free, _), _) =>
         Some(CursorNotOnDeferred(mk(AnaFree(ty), ctx)))
-      | Var(InHole(TypeInconsistent, _), _, _)
+      | Var(InHole(TypeInconsistent, _), _, x) =>
+        (ctx |> Contexts.gamma |> VarCtx.lookup)(x)
+        |> OptUtil.map(((ty', binding_steps)) => {
+             CursorOnDeferredVarExp(
+               uses => {
+                 let (other_uses, i_cur) =
+                   ListUtil.rm_one_or_zero_i(use => use == steps, uses);
+                 mk(
+                   AnaTypeInconsistent(
+                     ty,
+                     ty',
+                     Some((x, binding_steps, i_cur + 1, other_uses)),
+                   ),
+                   ctx,
+                 );
+               },
+               binding_steps,
+               x,
+             )
+           })
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
@@ -1226,7 +1354,11 @@ module Exp = {
         switch (Statics.Exp.syn_operand(ctx, operand')) {
         | None => None
         | Some(ty') =>
-          Some(CursorNotOnDeferred(mk(AnaTypeInconsistent(ty, ty'), ctx)))
+          Some(
+            CursorNotOnDeferred(
+              mk(AnaTypeInconsistent(ty, ty', None), ctx),
+            ),
+          )
         };
       | Var(InHole(WrongLength, _), _, _)
       | IntLit(InHole(WrongLength, _), _)
@@ -1240,17 +1372,23 @@ module Exp = {
       /* not in hole */
       | Var(NotInHole, NotInVarHole, x) =>
         (ctx |> Contexts.gamma |> VarCtx.lookup)(x)
-        |> OptUtil.map(((ty, binding_steps)) =>
+        |> OptUtil.map(((ty, binding_steps)) => {
              CursorOnDeferredVarExp(
                uses => {
                  let (other_uses, i_cur) =
                    ListUtil.rm_one_or_zero_i(use => use == steps, uses);
-                 mk(SynVar(ty, x, binding_steps, i_cur, other_uses), ctx);
+                 mk(
+                   Analyzed(
+                     ty,
+                     Some((x, binding_steps, i_cur + 1, other_uses)),
+                   ),
+                   ctx,
+                 );
                },
                binding_steps,
                x,
              )
-           )
+           })
       | EmptyHole(_)
       | IntLit(NotInHole, _)
       | FloatLit(NotInHole, _)
@@ -1264,16 +1402,18 @@ module Exp = {
       | ListNil(NotInHole)
       | Inj(NotInHole, _, _)
       | Case(NotInHole, _, _, _) =>
-        Some(CursorNotOnDeferred(mk(Analyzed(ty), ctx)))
+        Some(CursorNotOnDeferred(mk(Analyzed(ty, None), ctx)))
       | Parenthesized(body) =>
         Statics.Exp.ana(ctx, body, ty)
-        |> OptUtil.map(_ => CursorNotOnDeferred(mk(Analyzed(ty), ctx)))
+        |> OptUtil.map(_ =>
+             CursorNotOnDeferred(mk(Analyzed(ty, None), ctx))
+           )
       | Lam(NotInHole, _, ann, _) =>
         switch (HTyp.matched_arrow(ty)) {
         | None => None
         | Some((ty1, ty2)) =>
           switch (ann) {
-          | None => Some(CursorNotOnDeferred(mk(Analyzed(ty), ctx)))
+          | None => Some(CursorNotOnDeferred(mk(Analyzed(ty, None), ctx)))
           | Some(ann) =>
             let ann_ty = ann |> UHTyp.expand;
             HTyp.consistent(ann_ty, ty1)

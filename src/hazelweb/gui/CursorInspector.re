@@ -137,7 +137,7 @@ let view = (model: Model.t): Vdom.Node.t => {
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let (ind1, ind2, err_state_b, warn_state_b) =
     switch (ci.typed) {
-    | Analyzed(ty) =>
+    | Analyzed(ty, _) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK, NoWarn);
@@ -148,11 +148,7 @@ let view = (model: Model.t): Vdom.Node.t => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK, NoWarn);
-    | AnaVar(ty, _, _, use_index, other_uses) =>
-      let ind1 = expected_ty_indicator_pat(ty);
-      let ind2 = got_var_indicator(use_index, List.length(other_uses));
-      (ind1, ind2, OK, NoWarn);
-    | AnaTypeInconsistent(expected_ty, got_ty) =>
+    | AnaTypeInconsistent(expected_ty, got_ty, _) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency, NoWarn);
@@ -185,11 +181,11 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError, NoWarn);
-    | Synthesized(ty) =>
+    | Synthesized(ty, None) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK, NoWarn);
-    | SynVar(_, _, _, use_index, other_uses) =>
+    | Synthesized(_ty, Some((_, _, use_index, other_uses))) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_var_indicator(use_index, List.length(other_uses));
       (ind1, ind2, OK, NoWarn);
@@ -201,11 +197,11 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError, NoWarn);
-    | SynErrorArrow(expected_ty, got_ty) =>
+    | SynErrorArrow(expected_ty, got_ty, _varexp) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
       (ind1, ind2, TypeInconsistency, NoWarn);
-    | SynMatchingArrow(syn_ty, matched_ty) =>
+    | SynMatchingArrow(syn_ty, matched_ty, _varexp) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         switch (syn_ty) {
