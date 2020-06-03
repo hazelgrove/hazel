@@ -56,22 +56,6 @@ let focus = () => {
   JSUtil.force_get_elem_by_id("cell")##focus;
 };
 
-let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
-  let pos_attr =
-    Vdom.Attr.create(
-      "style",
-      "left: "
-      ++ string_of_float(x)
-      ++ "0px; top: "
-      ++ string_of_float(y)
-      ++ "0px",
-    );
-  Vdom.Node.span(
-    [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-    [],
-  );
-};
-
 let view = (~inject, model: Model.t) => {
   TimeUtil.measure_time(
     "Cell.view",
@@ -79,20 +63,41 @@ let view = (~inject, model: Model.t) => {
     () => {
       open Vdom;
       let program = model |> Model.get_program;
-      let code_view =
-        UHCode.view(~model, ~inject, ~font_metrics=model.font_metrics);
-      let prevent_stop_inject = a =>
-        Event.Many([
-          Event.Prevent_default,
-          Event.Stop_propagation,
-          inject(a),
-        ]);
       let measure_program_get_doc =
         model.measurements.measurements && model.measurements.program_get_doc;
       let measure_layoutOfDoc_layout_of_doc =
         model.measurements.measurements
         && model.measurements.layoutOfDoc_layout_of_doc;
       let memoize_doc = model.memoize_doc;
+      let code_view =
+        if (Model.is_cell_focused(model)) {
+          let (_, ((row, col), _)) =
+            Program.get_cursor_map_z(
+              ~measure_program_get_doc,
+              ~measure_layoutOfDoc_layout_of_doc,
+              ~memoize_doc,
+              program,
+            );
+          UHCode.view(
+            ~model,
+            ~inject,
+            ~font_metrics=model.font_metrics,
+            ~caret_pos=Some((row, col)),
+          );
+        } else {
+          UHCode.view(
+            ~model,
+            ~inject,
+            ~font_metrics=model.font_metrics,
+            ~caret_pos=None,
+          );
+        };
+      let prevent_stop_inject = a =>
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(a),
+        ]);
       let (key_handlers, code_view) =
         if (Model.is_cell_focused(model)) {
           let key_handlers = [
@@ -177,29 +182,17 @@ let view = (~inject, model: Model.t) => {
                  ~memoize_doc,
                )
             |> code_view;
-          let (_, ((row, col), _)) =
-            Program.get_cursor_map_z(
-              ~measure_program_get_doc,
-              ~measure_layoutOfDoc_layout_of_doc,
-              ~memoize_doc,
-              program,
-            );
-          let x = float_of_int(col) *. model.font_metrics.col_width;
-          let y = float_of_int(row) *. model.font_metrics.row_height;
-          let caret = caret_from_pos(x, y);
-          (key_handlers, [view, caret]);
+          (key_handlers, view);
         } else {
           (
             [],
-            [
-              program
-              |> Program.get_layout(
-                   ~measure_program_get_doc,
-                   ~measure_layoutOfDoc_layout_of_doc,
-                   ~memoize_doc,
-                 )
-              |> code_view,
-            ],
+            program
+            |> Program.get_layout(
+                 ~measure_program_get_doc,
+                 ~measure_layoutOfDoc_layout_of_doc,
+                 ~memoize_doc,
+               )
+            |> code_view,
           );
         };
       Node.div(
@@ -213,7 +206,7 @@ let view = (~inject, model: Model.t) => {
         ],
         [
           Node.div([Attr.id("font-specimen")], [Node.text("X")]),
-          Node.div([Attr.id("code-container")], code_view),
+          Node.div([Attr.id("code-container")], [code_view]),
         ],
       );
     },

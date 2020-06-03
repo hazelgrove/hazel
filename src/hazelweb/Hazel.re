@@ -16,15 +16,14 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  // Necessary to correctly recalculate font metrics if delay in loading font or resize of window
   let _ =
     ResizeObserver.observe(
       ~node=JSUtil.force_get_elem_by_id("font-specimen"),
       ~f=
         (entries, _) => {
-          let list = Array.to_list(Js_of_ocaml.Js.to_array(entries));
-          switch (list) {
-          | [entry] =>
+          let array = Js_of_ocaml.Js.to_array(entries);
+          switch (array) {
+          | [|entry|] =>
             let rect = entry##.contentRect;
             schedule_action(
               Update.Action.UpdateFontMetrics({
