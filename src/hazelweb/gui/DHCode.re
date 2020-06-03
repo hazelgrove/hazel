@@ -6,6 +6,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
   let rec go = (l: DHLayout.t) =>
     switch (l) {
     | Text(s) =>
+      let (s, _) = StringUtil.find_and_replace("", s, "OK");
       if (List.length(String.split_on_char('\\', s)) <= 1) {
         [Node.text(s)];
       } else if (String.length(s) == 1) {
@@ -144,7 +145,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
             ...go(Text(String.sub(s, 1, String.length(s) - 1))),
           ]
         };
-      }
+      };
     | Cat(l1, l2) => go(l1) @ go(l2)
     | Linebreak => [Node.br([])]
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
