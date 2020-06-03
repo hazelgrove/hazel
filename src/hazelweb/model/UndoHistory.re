@@ -48,10 +48,10 @@ type timestamp = float;
 [@deriving sexp]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
-  cardstacks_after_action: Cardstacks.t,
+  cardstacks_after_action: ZCardstacks.t,
   /* cardstacks_after_move is initially the same as cardstacks_after_action.
      if there is a movement action, update it. */
-  cardstacks_after_move: Cardstacks.t,
+  cardstacks_after_move: ZCardstacks.t,
   cursor_term_info,
   previous_action: Action.t,
   action_group,
@@ -100,7 +100,7 @@ let disable_undo = (undo_history: t): bool => {
   == 0;
 };
 
-let get_cardstacks = (history: t, ~is_after_move: bool): Cardstacks.t => {
+let get_cardstacks = (history: t, ~is_after_move: bool): ZCardstacks.t => {
   let cur_entry = ZList.prj_z(ZList.prj_z(history.groups).group_entries);
   if (is_after_move) {
     cur_entry.cardstacks_after_move;
@@ -144,15 +144,15 @@ let push_history_entry =
 
 /* return true if caret jump to another term when new action applied */
 let caret_jump =
-    (prev_group: undo_history_group, new_cardstacks_before: Cardstacks.t)
+    (prev_group: undo_history_group, new_cardstacks_before: ZCardstacks.t)
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   let prev_step =
     prev_entry.cardstacks_after_action
-    |> Cardstacks.get_program
+    |> ZCardstacks.get_program
     |> Program.get_steps;
   let new_step =
-    new_cardstacks_before |> Cardstacks.get_program |> Program.get_steps;
+    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_steps;
   prev_step != new_step;
 };
 
@@ -188,7 +188,7 @@ let group_action_group =
 let group_entry =
     (
       ~prev_group: undo_history_group,
-      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: ZCardstacks.t,
       ~new_action_group: action_group,
     )
     : bool => {
@@ -308,7 +308,7 @@ let is_var_group = (action_group): bool => {
 let get_delete_action_group =
     (
       prev_group: undo_history_group,
-      new_cardstacks_before: Cardstacks.t,
+      new_cardstacks_before: ZCardstacks.t,
       new_cursor_term_info: cursor_term_info,
     )
     : action_group =>
@@ -435,7 +435,7 @@ let is_move_action = (cursor_term_info: cursor_term_info): bool => {
 let delete_group =
     (
       ~prev_group: undo_history_group,
-      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
     )
     : option(action_group) =>
@@ -506,7 +506,7 @@ let delim_edge_handle =
 let delete =
     (
       ~prev_group: undo_history_group,
-      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
     )
     : option(action_group) => {
@@ -572,7 +572,7 @@ let delete =
 let backspace =
     (
       ~prev_group: undo_history_group,
-      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
     )
     : option(action_group) => {
@@ -637,7 +637,7 @@ let backspace =
 let get_new_action_group =
     (
       ~prev_group: undo_history_group,
-      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
       ~action: Action.t,
     )
@@ -827,21 +827,21 @@ let get_new_action_group =
   };
 let get_cursor_info =
     (
-      ~new_cardstacks_after: Cardstacks.t,
-      ~new_cardstacks_before: Cardstacks.t,
+      ~new_cardstacks_after: ZCardstacks.t,
+      ~new_cardstacks_before: ZCardstacks.t,
     )
     : cursor_term_info => {
   let zexp_before =
-    new_cardstacks_before |> Cardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_zexp;
   let (prev_is_empty_line, next_is_empty_line) =
     CursorInfo.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
-    new_cardstacks_before |> Cardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_cursor_info;
   let cursor_term_before = cursor_info_before.cursor_term;
   let zexp_after =
-    new_cardstacks_after |> Cardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_after |> ZCardstacks.get_program |> Program.get_zexp;
   let cursor_info_after =
-    new_cardstacks_after |> Cardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_after |> ZCardstacks.get_program |> Program.get_cursor_info;
   let cursor_term_after = cursor_info_after.cursor_term;
 
   {
@@ -857,8 +857,8 @@ let get_cursor_info =
 let push_edit_state =
     (
       undo_history: t,
-      new_cardstacks_before: Cardstacks.t,
-      new_cardstacks_after: Cardstacks.t,
+      new_cardstacks_before: ZCardstacks.t,
+      new_cardstacks_after: ZCardstacks.t,
       action: Action.t,
     )
     : t => {
