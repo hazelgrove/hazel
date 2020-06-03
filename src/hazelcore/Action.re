@@ -35,7 +35,6 @@ type shape =
 [@deriving sexp]
 type t =
   | MoveTo(CursorPath.t)
-  | MoveToBefore(CursorPath.steps)
   | MoveLeft
   | MoveRight
   | MoveToNextHole
@@ -48,7 +47,45 @@ type t =
   | SwapLeft
   | SwapRight
   | SwapUp
-  | SwapDown;
+  | SwapDown
+  | Init;
+
+let shape_to_string = (shape: shape): string => {
+  switch (shape) {
+  | SList => "list type"
+  | SParenthesized => "parentheses"
+  | SChar(str) => str
+  | SAsc => "type annotation"
+  | SLam => "function"
+  | SListNil => "empty list"
+  | SInj(side) =>
+    switch (side) {
+    | L => "left injection"
+    | R => "right injection"
+    }
+  | SLet => "let binding"
+  | SLine => "new line"
+  | SCase => "case expression"
+  | SOp(operator_shape) =>
+    switch (operator_shape) {
+    | SMinus => "-"
+    | SPlus => "+"
+    | STimes => "*"
+    | SDivide => "/"
+    | SLessThan => "<"
+    | SGreaterThan => ">"
+    | SEquals => "=="
+    | SSpace => "space"
+    | SComma => ","
+    | SArrow => UnicodeConstants.typeArrowSym
+    | SVBar => "|"
+    | SCons => "::"
+    | SAnd => "&&"
+    | SOr => "||"
+    }
+  | SApPalette(_) => failwith("ApPalette not implemented")
+  };
+};
 
 module Outcome = {
   type t('success) =
@@ -121,22 +158,23 @@ module Typ = {
       | None => Failed
       | Some(zty) => Succeeded(zty)
       }
-    | MoveToBefore(steps) =>
-      switch (
-        CursorPath.Typ.follow_steps(~side=Before, steps, zty |> ZTyp.erase)
-      ) {
-      | None => Failed
-      | Some(zty) => Succeeded(zty)
-      }
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => move(MoveToBefore(steps), zty)
+      | Some(steps) =>
+        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), zty)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => move(MoveToBefore(steps), zty)
+      | Some(steps) =>
+        switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(path) => move(MoveTo(path), zty)
+        }
       }
     | MoveLeft =>
       zty
@@ -158,7 +196,8 @@ module Typ = {
     | SwapLeft
     | SwapRight
     | SwapUp
-    | SwapDown =>
+    | SwapDown
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -186,11 +225,7 @@ module Typ = {
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       move(a, zopseq)
 
     /* Deletion */
@@ -287,6 +322,7 @@ module Typ = {
           );
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
     switch (a, zoperand) {
@@ -310,11 +346,7 @@ module Typ = {
       Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       move(a, ZOpSeq.wrap(zoperand))
 
     /* Backspace and Delete */
@@ -397,6 +429,7 @@ module Typ = {
       | CursorEscaped(side) => perform_operand(escape(side), zoperand)
       | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
@@ -927,22 +960,23 @@ module Pat = {
       | None => Failed
       | Some(zp) => mk_syn_result(ctx, u_gen, zp)
       }
-    | MoveToBefore(steps) =>
-      switch (
-        CursorPath.Pat.follow_steps(~side=Before, steps, zp |> ZPat.erase)
-      ) {
-      | None => Failed
-      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-      }
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
-      | Some(steps) => syn_move(ctx, u_gen, MoveToBefore(steps), zp)
+      | Some(steps) =>
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, u_gen, MoveTo(path), zp)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
-      | Some(steps) => syn_move(ctx, u_gen, MoveToBefore(steps), zp)
+      | Some(steps) =>
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, u_gen, MoveTo(path), zp)
+        }
       }
     | MoveLeft =>
       switch (zp |> ZPat.move_cursor_left) {
@@ -962,7 +996,8 @@ module Pat = {
     | SwapUp
     | SwapDown
     | SwapLeft
-    | SwapRight =>
+    | SwapRight
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -980,22 +1015,23 @@ module Pat = {
       | None => Failed
       | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
       }
-    | MoveToBefore(steps) =>
-      switch (
-        CursorPath.Pat.follow_steps(~side=Before, steps, zp |> ZPat.erase)
-      ) {
-      | None => Failed
-      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
-      }
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
-      | Some(steps) => ana_move(ctx, u_gen, MoveToBefore(steps), zp, ty)
+      | Some(steps) =>
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, u_gen, MoveTo(path), zp, ty)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
       | None => Failed
-      | Some(steps) => ana_move(ctx, u_gen, MoveToBefore(steps), zp, ty)
+      | Some(steps) =>
+        switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, u_gen, MoveTo(path), zp, ty)
+        }
       }
     | MoveLeft =>
       switch (zp |> ZPat.move_cursor_left) {
@@ -1015,7 +1051,8 @@ module Pat = {
     | SwapUp
     | SwapDown
     | SwapLeft
-    | SwapRight =>
+    | SwapRight
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -1046,11 +1083,7 @@ module Pat = {
     | (SwapUp | SwapDown, _) => Failed
 
     /* Movement */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       syn_move(ctx, u_gen, a, zopseq)
 
     /* Deletion */
@@ -1190,6 +1223,7 @@ module Pat = {
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
@@ -1222,11 +1256,7 @@ module Pat = {
       Failed
 
     /* Movement */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       syn_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand))
 
     /* Backspace and Delete */
@@ -1414,6 +1444,7 @@ module Pat = {
           };
         Succeeded((zp, ty, ctx, u_gen));
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform =
@@ -1438,11 +1469,7 @@ module Pat = {
     | (SwapUp | SwapDown, _) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       ana_move(ctx, u_gen, a, zopseq, ty)
 
     /* Deletion */
@@ -1592,6 +1619,7 @@ module Pat = {
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_operand =
       (
@@ -1656,11 +1684,7 @@ module Pat = {
       };
 
     /* Movement */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       ana_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand), ty)
 
     /* Backspace and Delete */
@@ -1866,6 +1890,7 @@ module Pat = {
           Succeeded((zp, ctx, u_gen));
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
 };
 
@@ -2398,20 +2423,23 @@ module Exp = {
       | None => Failed
       | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
       }
-    | MoveToBefore(steps) =>
-      switch (CursorPath.Exp.follow_steps(steps, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
-      }
     | MoveToPrevHole =>
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
-      | Some(steps) => syn_move(ctx, MoveToBefore(steps), (ze, ty, u_gen))
+      | Some(steps) =>
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
-      | Some(steps) => syn_move(ctx, MoveToBefore(steps), (ze, ty, u_gen))
+      | Some(steps) =>
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
+        }
       }
     | MoveLeft =>
       ze
@@ -2433,7 +2461,8 @@ module Exp = {
     | SwapLeft
     | SwapRight
     | SwapUp
-    | SwapDown =>
+    | SwapDown
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2456,20 +2485,23 @@ module Exp = {
       | None => Failed
       | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
       }
-    | MoveToBefore(steps) =>
-      switch (CursorPath.Exp.follow_steps(steps, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
-      }
     | MoveToPrevHole =>
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
-      | Some(steps) => ana_move(ctx, MoveToBefore(steps), (ze, u_gen), ty)
+      | Some(steps) =>
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
+        }
       }
     | MoveToNextHole =>
       switch (CursorPath.Exp.next_hole_steps_z(ze)) {
       | None => Failed
-      | Some(steps) => ana_move(ctx, MoveToBefore(steps), (ze, u_gen), ty)
+      | Some(steps) =>
+        switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
+        }
       }
     | MoveLeft =>
       ze
@@ -2491,7 +2523,8 @@ module Exp = {
     | SwapLeft
     | SwapRight
     | SwapUp
-    | SwapDown =>
+    | SwapDown
+    | Init =>
       failwith(
         __LOC__
         ++ ": expected movement action, got "
@@ -2536,7 +2569,6 @@ module Exp = {
     switch (a) {
     /* Movement */
     | MoveTo(_)
-    | MoveToBefore(_)
     | MoveToPrevHole
     | MoveToNextHole
     | MoveLeft
@@ -2728,24 +2760,35 @@ module Exp = {
       |> Option.fold(~none=Outcome.Failed, ~some=zline =>
            mk_result(u_gen, ([], zline, []))
          )
-    | (MoveToBefore(steps), _) =>
-      zline
-      |> ZExp.erase_zline
-      |> CursorPath.Exp.follow_steps_line(~side=Before, steps)
-      |> Option.fold(~none=Outcome.Failed, ~some=zline =>
-           mk_result(u_gen, ([], zline, []))
-         )
     | (MoveToPrevHole, _) =>
       switch (CursorPath.Exp.prev_hole_steps_zline(zline)) {
       | None => Failed
       | Some(steps) =>
-        syn_perform_line(ctx, MoveToBefore(steps), (zline, u_gen))
+        switch (
+          CursorPath.Exp.of_steps_line(
+            steps,
+            ~side=Before,
+            zline |> ZExp.erase_zline,
+          )
+        ) {
+        | None => Failed
+        | Some(path) => syn_perform_line(ctx, MoveTo(path), (zline, u_gen))
+        }
       }
     | (MoveToNextHole, _) =>
       switch (CursorPath.Exp.next_hole_steps_zline(zline)) {
       | None => Failed
       | Some(steps) =>
-        syn_perform_line(ctx, MoveToBefore(steps), (zline, u_gen))
+        switch (
+          CursorPath.Exp.of_steps_line(
+            steps,
+            ~side=Before,
+            zline |> ZExp.erase_zline,
+          )
+        ) {
+        | None => Failed
+        | Some(path) => syn_perform_line(ctx, MoveTo(path), (zline, u_gen))
+        }
       }
     | (MoveLeft, _) =>
       zline
@@ -2923,6 +2966,7 @@ module Exp = {
           Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and syn_perform_opseq =
@@ -2944,11 +2988,7 @@ module Exp = {
     | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       syn_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), ty, u_gen))
 
     /* Deletion */
@@ -3241,6 +3281,7 @@ module Exp = {
           );
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and syn_perform_operand =
       (
@@ -3274,11 +3315,7 @@ module Exp = {
     | (Construct(SList), _) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       syn_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), ty, u_gen))
 
     /* Backspace & Deletion */
@@ -3783,6 +3820,7 @@ module Exp = {
           };
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and syn_perform_rules =
@@ -3814,11 +3852,7 @@ module Exp = {
     | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       failwith("unimplemented")
 
     /* Backspace & Delete */
@@ -3942,6 +3976,7 @@ module Exp = {
           Succeeded((new_zrules, u_gen));
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform_rules =
@@ -3974,11 +4009,7 @@ module Exp = {
     | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       failwith("unimplemented")
 
     /* Backspace & Delete */
@@ -4110,6 +4141,7 @@ module Exp = {
           Succeeded((new_zrules, u_gen));
         }
       }
+    | (Init, _) => failwith("Init action should not be performed.")
     };
   }
   and ana_perform =
@@ -4148,11 +4180,7 @@ module Exp = {
       : Outcome.t(ana_success) =>
     switch (a, zline) {
     /* Movement */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       ana_move(ctx, a, (zblock, u_gen), ty)
 
     /* Backspace & Delete */
@@ -4327,11 +4355,7 @@ module Exp = {
     | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
     /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       ana_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), u_gen), ty)
 
     /* Deletion */
@@ -4641,6 +4665,7 @@ module Exp = {
           );
         }
       };
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_operand =
       (
@@ -4721,11 +4746,7 @@ module Exp = {
       };
 
     /* Movement */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
       ana_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), u_gen), ty)
 
     /* Invalid actions at the expression level */
@@ -5168,6 +5189,8 @@ module Exp = {
     | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+    /* Invalid actions at the expression level */
+    | (Init, _) => failwith("Init action should not be performed.")
     }
   and ana_perform_subsume =
       (

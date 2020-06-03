@@ -235,6 +235,25 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
+let update_mouse_position = evt => {
+  State.mouse_position :=
+    {
+      x: Js.Optdef.get(evt##.pageX, () => assert(false)),
+      y: Js.Optdef.get(evt##.pageY, () => assert(false)),
+    };
+};
+
+let unsafe_get_elt_under_mouse = () => {
+  Js.Unsafe.meth_call(
+    Dom_html.document,
+    "elementFromPoint",
+    [|
+      Js.Unsafe.inject(State.mouse_position^.x),
+      Js.Unsafe.inject(State.mouse_position^.y),
+    |],
+  );
+};
+
 let force_get_parent_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.parentNode)
@@ -297,9 +316,11 @@ module ModKeys = {
   let ctrl = {c: Held, s: NotHeld, a: NotHeld, m: NotHeld};
   let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
+  let meta = {c: NotHeld, s: NotHeld, a: NotHeld, m: Held};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
   let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
   let ctrl_alt = {c: Held, s: NotHeld, a: Held, m: NotHeld};
+  let meta_shift = {c: NotHeld, s: Held, a: NotHeld, m: Held};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -384,8 +405,10 @@ module KeyCombo = {
     let shift = key => {mod_keys: ModKeys.shift, key};
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
+    let meta = key => {mod_keys: ModKeys.meta, key};
     let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
     let ctrl_alt = key => {mod_keys: ModKeys.ctrl_alt, key};
+    let meta_shift = key => {mod_keys: ModKeys.meta_shift, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -437,6 +460,8 @@ module KeyCombo = {
     let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
     let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
     let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
+    let meta_z = ctrl(Key.the_key("z"));
+    let meta_shift_z = ctrl_shift(Key.the_key("Z"));
   };
 
   [@deriving sexp]
@@ -473,7 +498,9 @@ module KeyCombo = {
     | Ctrl_Alt_I
     | Ctrl_Alt_K
     | Ctrl_Alt_J
-    | Ctrl_Alt_L;
+    | Ctrl_Alt_L
+    | Meta_Z
+    | Meta_Shift_Z;
 
   let get_details =
     fun
@@ -509,7 +536,9 @@ module KeyCombo = {
     | Ctrl_Alt_I => Details.ctrl_alt_i
     | Ctrl_Alt_K => Details.ctrl_alt_k
     | Ctrl_Alt_J => Details.ctrl_alt_j
-    | Ctrl_Alt_L => Details.ctrl_alt_l;
+    | Ctrl_Alt_L => Details.ctrl_alt_l
+    | Meta_Z => Details.meta_z
+    | Meta_Shift_Z => Details.meta_shift_z;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -519,6 +548,10 @@ module KeyCombo = {
       Some(Ctrl_Z);
     } else if (evt_matches(Details.ctrl_shift_z)) {
       Some(Ctrl_Shift_Z);
+    } else if (evt_matches(Details.meta_z)) {
+      Some(Meta_Z);
+    } else if (evt_matches(Details.meta_shift_z)) {
+      Some(Meta_Shift_Z);
     } else if (evt_matches(Details.escape)) {
       Some(Escape);
     } else if (evt_matches(Details.backspace)) {
