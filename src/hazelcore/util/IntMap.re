@@ -1,41 +1,14 @@
 include Map.Make(Int);
+open Sexplib.Std;
+module Sexp = Sexplib.Sexp;
 
-let rec drop = (delta, n) =>
-  switch (delta) {
-  | [] => None
-  | [(y, a), ...delta'] =>
-    if (n === y) {
-      Some((delta', a));
-    } else {
-      drop(delta', n);
-    }
-  };
+[@deriving sexp]
+type binding('v) = (int, 'v);
 
-let union = List.append;
-
-let rec lookup = (delta, x) =>
-  switch (delta) {
-  | [] => None
-  | [(y, a), ...delta'] =>
-    if (x == y) {
-      Some(a);
-    } else {
-      lookup(delta', x);
-    }
-  };
-
-let rec insert_or_update = (delta, x) => {
-  let (u, a) = x;
-  switch (delta) {
-  | [] => [x, ...delta]
-  | [(u', a'), ...delta'] =>
-    if (u == u') {
-      [(u', a), ...delta'];
-    } else {
-      [(u', a'), ...insert_or_update(delta', x)];
-    }
-  };
-};
+let sexp_of_t = (sexp_of_v: 'v => Sexp.t, map: t('v)): Sexp.t =>
+  map |> bindings |> sexp_of_list(sexp_of_binding(sexp_of_v));
+let t_of_sexp = (v_of_sexp: Sexp.t => 'v, sexp: Sexp.t): t('v) =>
+  sexp |> list_of_sexp(binding_of_sexp(v_of_sexp)) |> List.to_seq |> of_seq;
 
 let rec insert_or_map = (delta, u, a0, f) =>
   switch (delta) {
@@ -74,4 +47,3 @@ let length = List.length;
 
 let to_list = delta => delta;
 
-let fold = (delta, f, b) => List.fold_left(f, b, delta);
