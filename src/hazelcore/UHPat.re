@@ -49,12 +49,11 @@ let rec get_tuple_elements: skel => list(skel) =
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
 
-let rec make_tuple =
-        (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
+let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
-  | [] => failwith("make_tuple: expected at least 1 element")
+  | [] => failwith("mk_tuple: expected at least 1 element")
   | [skel] => skel
-  | [skel, ...skels] => BinOp(err, Comma, skel, make_tuple(skels))
+  | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
 let injection = (~err: ErrStatus.t=NotInHole, side: InjSide.t, x: t) =>
@@ -112,12 +111,12 @@ let is_inconsistent = (p: t): bool =>
   };
 
 /* put p in a new hole, if it is not already in a hole */
-let rec make_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
-  make_inconsistent_opseq(u_gen, p)
-and make_inconsistent_opseq =
+let rec mk_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
+  mk_inconsistent_opseq(u_gen, p)
+and mk_inconsistent_opseq =
     (u_gen: MetaVarGen.t, opseq: opseq): (opseq, MetaVarGen.t) =>
-  opseq |> OpSeq.make_inconsistent(~make_inconsistent_operand, u_gen)
-and make_inconsistent_operand =
+  opseq |> OpSeq.mk_inconsistent(~mk_inconsistent_operand, u_gen)
+and mk_inconsistent_operand =
     (u_gen: MetaVarGen.t, operand: operand): (operand, MetaVarGen.t) =>
   switch (operand) {
   // already in hole
@@ -142,12 +141,12 @@ and make_inconsistent_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
     (set_operand, u_gen);
   | Parenthesized(p) =>
-    let (set_p, u_gen) = p |> make_inconsistent(u_gen);
+    let (set_p, u_gen) = p |> mk_inconsistent(u_gen);
     (Parenthesized(set_p), u_gen);
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.make_skel_str(seq, Operators.Pat.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators.Pat.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
 };
