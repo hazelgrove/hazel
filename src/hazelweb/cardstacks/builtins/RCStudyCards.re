@@ -8,6 +8,7 @@
  let p = Vdom.Node.p;
 
  let code = s => span([Vdom.Attr.classes(["code"])], [txt(s)]);
+ let images_dir = "img/RCStudy/"
 
  let append_case =
    UHExp.(
@@ -655,9 +656,9 @@
              ),
              set_img_container(
                ~width=100,
-               set_img("redovalshaded.png"),
-               set_img("greensquigglefilled.png"),
-               set_img("purplediamondempty.png"),
+               set_img(images_dir ++ "redovalshaded.png"),
+               set_img(images_dir ++ "greensquigglefilled.png"),
+               set_img(images_dir ++ "purplediamondempty.png"),
              ),
              txt(
                "Three cards form a SET when, for each face property, the "
@@ -679,15 +680,15 @@
                [
                  set_img_container(
                    ~width=50,
-                   set_img("purplesquigglefilled.png"),
-                   set_img("redsquiggleempty.png"),
-                   set_img("greensquiggleshaded.png"),
+                   set_img(images_dir ++ "purplesquigglefilled.png"),
+                   set_img(images_dir ++ "redsquiggleempty.png"),
+                   set_img(images_dir ++ "greensquiggleshaded.png"),
                  ),
                  set_img_container(
                    ~width=50,
-                   set_img("greendiamondfilled.png"),
-                   set_img("greenovalfilled.png"),
-                   set_img("greensquiggleempty.png"),
+                   set_img(images_dir ++ "greendiamondfilled.png"),
+                   set_img(images_dir ++ "greenovalfilled.png"),
+                   set_img(images_dir ++ "greensquiggleempty.png"),
                  ),
                ],
              ),
@@ -757,9 +758,9 @@
              ),
              set_img_container(
                ~width=100,
-               set_img("redovalshaded.png"),
-               set_img("greensquigglefilled.png"),
-               set_img("purplediamondempty.png"),
+               set_img(images_dir ++ "redovalshaded.png"),
+               set_img(images_dir ++ "greensquigglefilled.png"),
+               set_img(images_dir ++ "purplediamondempty.png"),
              ),
              txt(
                "Three cards form a SET when, for each face property, the "
@@ -781,15 +782,15 @@
                [
                  set_img_container(
                    ~width=50,
-                   set_img("purplesquigglefilled.png"),
-                   set_img("redsquiggleempty.png"),
-                   set_img("greensquiggleshaded.png"),
+                   set_img(images_dir ++ "purplesquigglefilled.png"),
+                   set_img(images_dir ++ "redsquiggleempty.png"),
+                   set_img(images_dir ++ "greensquiggleshaded.png"),
                  ),
                  set_img_container(
                    ~width=50,
-                   set_img("greendiamondfilled.png"),
-                   set_img("greenovalfilled.png"),
-                   set_img("greensquiggleempty.png"),
+                   set_img"lled.png"),
+                   set_img"d.png"),
+                   set_img"mpty.png"),
                  ),
                ],
              ),
