@@ -617,17 +617,38 @@ module Exp = {
             )
           };
         steps' == steps
-          ? Some(
+          ? {
+            Some(
               CursorNotOnDeferred(
-                UsageAnalysis.find_uses_block(
-                  ~offset=line_index + 1,
-                  ~steps,
-                  var,
-                  zblock |> ZExp.erase |> ListUtil.rm_first_k(line_index + 1),
-                )
-                |> deferred,
+                {
+                  let uses =
+                    (
+                      switch (List.nth(zblock |> ZExp.erase, line_index)) {
+                      | LetLine(_, _, def) as binding_line =>
+                        UHExp.is_rec_letline(binding_line)
+                          ? UsageAnalysis.find_uses_block(
+                              ~steps=steps @ [line_index, 2],
+                              var,
+                              def,
+                            )
+                          : []
+                      | _ =>
+                        failwith("variable binding in EmptyLine or ExpLine")
+                      }
+                    )
+                    @ UsageAnalysis.find_uses_block(
+                        ~offset=line_index + 1,
+                        ~steps,
+                        var,
+                        zblock
+                        |> ZExp.erase
+                        |> ListUtil.rm_first_k(line_index + 1),
+                      );
+                  uses |> deferred;
+                },
               ),
-            )
+            );
+          }
           : deferrable;
       }
     }
@@ -688,31 +709,10 @@ module Exp = {
           ana_cursor_info_zblock(~steps=steps @ [2], ctx_def, zdef, ty)
         ) {
         | None => None
-        | Some(CursorNotOnDeferred(_)) as deferrable => deferrable
+        | Some(CursorNotOnDeferred(_)) as deferrable
+        | Some(CursorOnDeferredVarExp(_)) as deferrable => deferrable
         | Some(CursorOnDeferredVarPat(_)) =>
           failwith("cursor on exp instead of pat")
-        | Some(CursorOnDeferredVarExp(deferred, binding_steps, var)) as deferrable =>
-          let (steps', _zero_num) =
-            ListUtil.split_by_i(
-              List.length(binding_steps) - 2,
-              binding_steps,
-            );
-          steps' == steps
-            ? Some(
-                CursorOnDeferredVarExp(
-                  uses =>
-                    UsageAnalysis.find_uses(
-                      ~steps=steps @ [2],
-                      var,
-                      zdef |> ZExp.erase,
-                    )
-                    @ uses
-                    |> deferred,
-                  binding_steps,
-                  var,
-                ),
-              )
-            : deferrable;
         };
       }
     }
@@ -829,14 +829,14 @@ module Exp = {
                        uses => {
                          let (other_uses, i_cur) =
                            ListUtil.rm_one_or_zero_i(
-                             use => use == steps,
+                             use => use == steps @ [n],
                              uses,
                            );
                          mk(
                            SynErrorArrow(
                              Arrow(Hole, Hole),
                              ty,
-                             Some((x, binding_steps, i_cur + 1, other_uses)),
+                             Some((x, binding_steps, i_cur, other_uses)),
                            ),
                          );
                        },
@@ -863,10 +863,6 @@ module Exp = {
             failwith("duplicate var exp in opseq")
           | Some((NotInHole, NotInVarHole)) =>
             let operand = zoperand |> ZExp.erase_zoperand;
-            Printf.printf(
-              "%s\n",
-              __LOC__ ++ Sexplib.Sexp.to_string(Contexts.sexp_of_t(ctx)),
-            );
             switch (Statics.Exp.syn_operand(ctx, operand)) {
             | None => None
             | Some(ty) =>
@@ -880,19 +876,14 @@ module Exp = {
                          uses => {
                            let (other_uses, i_cur) =
                              ListUtil.rm_one_or_zero_i(
-                               use => use == steps,
+                               use => use == steps @ [n],
                                uses,
                              );
                            mk(
                              SynMatchingArrow(
                                ty,
                                Arrow(ty1, ty2),
-                               Some((
-                                 x,
-                                 binding_steps,
-                                 i_cur + 1,
-                                 other_uses,
-                               )),
+                               Some((x, binding_steps, i_cur, other_uses)),
                              ),
                            );
                          },
@@ -966,7 +957,7 @@ module Exp = {
                mk(
                  Synthesized(
                    ty,
-                   Some((x, binding_steps, i_cur + 1, other_uses)),
+                   Some((x, binding_steps, i_cur, other_uses)),
                  ),
                  ctx,
                );
@@ -1113,12 +1104,6 @@ module Exp = {
                 List.length(binding_steps) - 3,
                 binding_steps,
               );
-            Printf.printf(
-              "%s\n",
-              Sexplib.Sexp.to_string(
-                CursorPath.sexp_of_steps(binding_steps),
-              ),
-            );
             let line_index =
               switch (index_zero_num) {
               | [index, _zero, _seq_num] => index
@@ -1128,19 +1113,35 @@ module Exp = {
                 )
               };
             steps' == steps
-              ? Some(
+              ? {
+                Some(
                   CursorNotOnDeferred(
-                    UsageAnalysis.find_uses_block(
-                      ~offset=line_index + 1,
-                      ~steps,
-                      var,
-                      zblock
-                      |> ZExp.erase
-                      |> ListUtil.rm_first_k(line_index + 1),
+                    (
+                      switch (List.nth(zblock |> ZExp.erase, line_index)) {
+                      | LetLine(_, _, def) as binding_line =>
+                        UHExp.is_rec_letline(binding_line)
+                          ? UsageAnalysis.find_uses_block(
+                              ~steps=steps @ [line_index, 2],
+                              var,
+                              def,
+                            )
+                          : []
+                      | _ =>
+                        failwith("variable binding in EmptyLine or ExpLine")
+                      }
                     )
+                    @ UsageAnalysis.find_uses_block(
+                        ~offset=line_index + 1,
+                        ~steps,
+                        var,
+                        zblock
+                        |> ZExp.erase
+                        |> ListUtil.rm_first_k(line_index + 1),
+                      )
                     |> deferred,
                   ),
-                )
+                );
+              }
               : deferrable;
           }
         }
@@ -1178,17 +1179,35 @@ module Exp = {
               )
             };
           steps' == steps
-            ? Some(
+            ? {
+              Some(
                 CursorNotOnDeferred(
-                  UsageAnalysis.find_uses_block(
-                    ~offset=line_index + 1,
-                    ~steps,
-                    var,
-                    zblock |> ZExp.erase |> ListUtil.rm_first_k(line_index),
+                  (
+                    switch (List.nth(zblock |> ZExp.erase, line_index)) {
+                    | LetLine(_, _, def) as binding_line =>
+                      UHExp.is_rec_letline(binding_line)
+                        ? UsageAnalysis.find_uses_block(
+                            ~steps=steps @ [line_index, 2],
+                            var,
+                            def,
+                          )
+                        : []
+                    | _ =>
+                      failwith("variable binding in EmptyLine or ExpLine")
+                    }
                   )
+                  @ UsageAnalysis.find_uses_block(
+                      ~offset=line_index + 1,
+                      ~steps,
+                      var,
+                      zblock
+                      |> ZExp.erase
+                      |> ListUtil.rm_first_k(line_index + 1),
+                    )
                   |> deferred,
                 ),
-              )
+              );
+            }
             : deferrable;
         }
       }
@@ -1330,7 +1349,7 @@ module Exp = {
                    AnaTypeInconsistent(
                      ty,
                      ty',
-                     Some((x, binding_steps, i_cur + 1, other_uses)),
+                     Some((x, binding_steps, i_cur, other_uses)),
                    ),
                    ctx,
                  );
@@ -1378,10 +1397,7 @@ module Exp = {
                  let (other_uses, i_cur) =
                    ListUtil.rm_one_or_zero_i(use => use == steps, uses);
                  mk(
-                   Analyzed(
-                     ty,
-                     Some((x, binding_steps, i_cur + 1, other_uses)),
-                   ),
+                   Analyzed(ty, Some((x, binding_steps, i_cur, other_uses))),
                    ctx,
                  );
                },

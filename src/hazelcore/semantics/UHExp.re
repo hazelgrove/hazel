@@ -96,6 +96,20 @@ type affix = Seq.affix(operand, operator);
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
 
+let is_rec_letline =
+  fun
+  | LetLine(
+      OpSeq(_, S(Var(_, NotInVarHole, _, _), E)),
+      Some(ann),
+      [ExpLine(OpSeq(_, S(Lam(_), E)))],
+    ) =>
+    switch (UHTyp.expand(ann)) {
+    | Hole
+    | Arrow(_, _) => true
+    | _ => false
+    }
+  | _ => false;
+
 let var =
     (
       ~err: ErrStatus.t=NotInHole,
