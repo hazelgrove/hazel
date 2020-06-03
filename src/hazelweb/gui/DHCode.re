@@ -15,6 +15,15 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
         switch (String.sub(s, 0, 1)) {
         | "\\" =>
           switch (String.sub(s, 1, 1)) {
+          | "b"
+          | "t"
+          | "r"
+          | "n"
+          | "\""
+          | "\'" => [
+              Node.text(String.sub(s, 0, 2)),
+              ...go(Text(String.sub(s, 2, String.length(s) - 2))),
+            ]
           | "\\" => [
               Node.text("\\"),
               ...go(Text(String.sub(s, 2, String.length(s) - 2))),
@@ -24,17 +33,24 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
               let ch1 = s.[2];
               let ch2 = s.[3];
               let ch3 = s.[4];
-              if ((ch1 >= '3' && ch1 <= '7')
+              if ((ch1 >= '0' && ch1 <= '7')
                   && (ch2 >= '0' && ch2 <= '7')
                   && ch3 >= '0'
                   && ch3 <= '7') {
-                [
-                  Node.span(
-                    [Attr.classes(["InvalidSeq"])],
-                    [Node.text(String.sub(s, 0, 5))],
-                  ),
-                  ...go(Text(String.sub(s, 5, String.length(s) - 5))),
-                ];
+                if (ch1 <= '3') {
+                  [
+                    Node.text(String.sub(s, 0, 5)),
+                    ...go(Text(String.sub(s, 5, String.length(s) - 5))),
+                  ];
+                } else {
+                  [
+                    Node.span(
+                      [Attr.classes(["InvalidSeq"])],
+                      [Node.text(String.sub(s, 0, 5))],
+                    ),
+                    ...go(Text(String.sub(s, 5, String.length(s) - 5))),
+                  ];
+                };
               } else {
                 [
                   Node.span(
@@ -53,27 +69,14 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
                 ...go(Text(String.sub(s, 2, String.length(s) - 2))),
               ];
             }
-          | "x" => [
-              Node.span(
-                [Attr.classes(["InvalidSeq"])],
-                [Node.text(String.sub(s, 0, 2))],
-              ),
-              ...go(Text(String.sub(s, 2, String.length(s) - 2))),
-            ]
-          | _ =>
-            let ch1 = s.[1];
+          | "x" =>
             if (String.length(s) >= 4) {
-              let ch2 = s.[2];
-              let ch3 = s.[3];
-              if ((ch1 >= '0' && ch1 <= '9')
-                  && (ch2 >= '0' && ch2 <= '9')
-                  && ch3 >= '0'
-                  && ch3 <= '9') {
+              let ch1 = Char.lowercase_ascii(s.[2]);
+              let ch2 = Char.lowercase_ascii(s.[3]);
+              if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+                  && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
                 [
-                  Node.span(
-                    [Attr.classes(["InvalidSeq"])],
-                    [Node.text(String.sub(s, 0, 4))],
-                  ),
+                  Node.text(String.sub(s, 0, 4)),
                   ...go(Text(String.sub(s, 4, String.length(s) - 4))),
                 ];
               } else {
@@ -93,14 +96,53 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
                 ),
                 ...go(Text(String.sub(s, 2, String.length(s) - 2))),
               ];
+            }
+          | _ =>
+            let ch1 = s.[1];
+            if (String.length(s) >= 4) {
+              let ch2 = s.[2];
+              let ch3 = s.[3];
+              if ((ch1 >= '0' && ch1 <= '9')
+                  && (ch2 >= '0' && ch2 <= '9')
+                  && ch3 >= '0'
+                  && ch3 <= '9') {
+                if (int_of_string(String.sub(s, 1, 3)) < 256) {
+                  [
+                    Node.text(String.sub(s, 0, 4)),
+                    ...go(Text(String.sub(s, 4, String.length(s) - 4))),
+                  ];
+                } else {
+                  [
+                    Node.span(
+                      [Attr.classes(["InvalidSeq"])],
+                      [Node.text(String.sub(s, 0, 4))],
+                    ),
+                    ...go(Text(String.sub(s, 4, String.length(s) - 4))),
+                  ];
+                };
+              } else {
+                [
+                  Node.span(
+                    [Attr.classes(["InvalidSeq"])],
+                    [Node.text(String.sub(s, 0, 2))],
+                  ),
+                  ...go(Text(String.sub(s, 2, String.length(s) - 2))),
+                ];
+              };
+            } else {
+              [
+                Node.span(
+                  [Attr.classes(["InvalidSeq"])],
+                  [Node.text(String.sub(s, 0, 2))],
+                ),
+                ...go(Text(String.sub(s, 2, String.length(s) - 2))),
+              ];
             };
           }
-        | _ =>
-          print_endline("UHCode221");
-          [
+        | _ => [
             Node.text(String.sub(s, 0, 1)),
             ...go(Text(String.sub(s, 1, String.length(s) - 1))),
-          ];
+          ]
         };
       }
     | Cat(l1, l2) => go(l1) @ go(l2)
