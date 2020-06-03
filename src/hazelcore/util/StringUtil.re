@@ -52,11 +52,19 @@ let rec find_and_replace =
   } else {
     switch (String.sub(s, 0, 2)) {
     | "\\b" =>
-      find_and_replace(
-        String.sub(acc, 0, String.length(acc) - 1),
-        String.sub(s, 2, len_s),
-        err,
-      )
+      print_endline("HERE!!!!!!!! ");
+      print_endline("a\bd");
+      print_endline("a\b");
+      print_endline("\b");
+      if (String.length(acc) >= 1) {
+        find_and_replace(
+          String.sub(acc, 0, String.length(acc) - 1),
+          String.sub(s, 2, len_s),
+          err,
+        );
+      } else {
+        find_and_replace("\\b", String.sub(s, 2, len_s), err);
+      };
     | "\\t" => find_and_replace(acc ++ "\t", String.sub(s, 2, len_s), err)
     | "\\r" =>
       let (result, err) =
