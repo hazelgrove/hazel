@@ -175,18 +175,9 @@ let find_nearest_within_row = ((row, col), cmap) => {
     failwith(
       "CursorMap has row with no caret positions: " ++ string_of_int(row),
     )
-  | (Some((nearest_col, rev_path)), None) =>
-    print_endline("CursorMap181");
-    print_endline(string_of_int(nearest_col));
-    ((row, nearest_col), rev_path);
-  | (None, Some((nearest_col, rev_path))) =>
-    print_endline("CursorMap183");
-    print_endline(string_of_int(nearest_col));
-    ((row, nearest_col), rev_path);
-  | (Some((col', rev_path)), _) when col' == col =>
-    print_endline("CursorMap187");
-    print_endline(string_of_int(col));
-    ((row, col), rev_path);
+  | (Some((nearest_col, rev_path)), None) => ((row, nearest_col), rev_path)
+  | (None, Some((nearest_col, rev_path))) => ((row, nearest_col), rev_path)
+  | (Some((col', rev_path)), _) when col' == col => ((row, col), rev_path)
   | (
       Some((
         col_before,
@@ -196,35 +187,24 @@ let find_nearest_within_row = ((row, col), cmap) => {
     )
       when
         rev_steps_before === rev_steps_after
-        || rev_steps_before == rev_steps_after =>
-    print_endline("CursorMap200");
-    print_endline(string_of_int(col));
-    (
+        || rev_steps_before == rev_steps_after => (
       (row, col),
       (OnText(start_index + col - col_before), rev_steps_before),
-    );
+    )
   | (Some((col_before, rev_path_before)), Some((col_after, rev_path_after))) =>
     if (col - col_before <= col_after - col) {
-      print_endline("CursorMap208");
-      print_endline(string_of_int(col_before));
       ((row, col_before), rev_path_before);
     } else {
-      print_endline("CursorMap212");
-      print_endline(string_of_int(col_after));
       ((row, col_after), rev_path_after);
     }
   };
 };
 
 let move_up = ((row, col), cmap): option(binding) => {
-  print_endline("prev_row=" ++ string_of_int(row));
-  print_endline("prev_col=" ++ string_of_int(col));
   row <= 0 ? None : Some(cmap |> find_nearest_within_row((row - 1, col)));
 };
 
 let move_down = ((row, col), cmap): option(binding) => {
-  print_endline("prev_row=" ++ string_of_int(row));
-  print_endline("prev_col=" ++ string_of_int(col));
   row >= num_rows(cmap) - 1
     ? None : Some(cmap |> find_nearest_within_row((row + 1, col)));
 };
