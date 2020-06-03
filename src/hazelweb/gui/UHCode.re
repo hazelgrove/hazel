@@ -171,45 +171,44 @@ let view =
             ),
           ];
 
+      let children =
+        switch (caret_pos) {
+        | None => go(l)
+        | Some((row, col)) =>
+          let x = float_of_int(col) *. model.font_metrics.col_width;
+          let y = float_of_int(row) *. model.font_metrics.row_height;
+          let caret = caret_from_pos(x, y);
+          [caret, ...go(l)];
+        };
       let id = "code-root";
-      let code_view =
-        Node.div(
-          [
-            Attr.id(id),
-            Attr.classes(["code", "presentation"]),
-            // need to use mousedown instead of click to fire
-            // (and move caret) before cell focus event handler
-            Attr.on_mousedown(evt => {
-              let container_rect =
-                JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
-              let (target_x, target_y) = (
-                float_of_int(evt##.clientX),
-                float_of_int(evt##.clientY),
-              );
-              let row_col = (
-                Float.to_int(
-                  (target_y -. container_rect##.top) /. font_metrics.row_height,
+      Node.div(
+        [
+          Attr.id(id),
+          Attr.classes(["code", "presentation"]),
+          // need to use mousedown instead of click to fire
+          // (and move caret) before cell focus event handler
+          Attr.on_mousedown(evt => {
+            let container_rect =
+              JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
+            let (target_x, target_y) = (
+              float_of_int(evt##.clientX),
+              float_of_int(evt##.clientY),
+            );
+            let row_col = (
+              Float.to_int(
+                (target_y -. container_rect##.top) /. font_metrics.row_height,
+              ),
+              Float.to_int(
+                Float.round(
+                  (target_x -. container_rect##.left) /. font_metrics.col_width,
                 ),
-                Float.to_int(
-                  Float.round(
-                    (target_x -. container_rect##.left)
-                    /. font_metrics.col_width,
-                  ),
-                ),
-              );
-              inject(Update.Action.MoveAction(Click(row_col)));
-            }),
-          ],
-          go(l),
-        );
-      switch (caret_pos) {
-      | None => code_view
-      | Some((row, col)) =>
-        let x = float_of_int(col) *. model.font_metrics.col_width;
-        let y = float_of_int(row) *. model.font_metrics.row_height;
-        let caret = caret_from_pos(x, y);
-        Node.div([], [code_view, caret]);
-      };
+              ),
+            );
+            inject(Update.Action.MoveAction(Click(row_col)));
+          }),
+        ],
+        children,
+      );
     },
   );
 };
