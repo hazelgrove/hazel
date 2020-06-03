@@ -47,22 +47,22 @@ and set_err_status_zoperand = (err, zoperand) =>
   | InjZ(_, inj_side, zp) => InjZ(err, inj_side, zp)
   };
 
-let rec make_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
-  zp |> make_inconsistent_zopseq(u_gen)
-and make_inconsistent_zopseq =
+let rec mk_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
+  zp |> mk_inconsistent_zopseq(u_gen)
+and mk_inconsistent_zopseq =
     (u_gen: MetaVarGen.t, zopseq: zopseq): (zopseq, MetaVarGen.t) =>
-  ZOpSeq.make_inconsistent(~make_inconsistent_zoperand, u_gen, zopseq)
-and make_inconsistent_zoperand = (u_gen, zoperand) =>
+  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, u_gen, zopseq)
+and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   switch (zoperand) {
   | CursorP(cursor, operand) =>
-    let (operand, u_gen) = operand |> UHPat.make_inconsistent_operand(u_gen);
+    let (operand, u_gen) = operand |> UHPat.mk_inconsistent_operand(u_gen);
     (CursorP(cursor, operand), u_gen);
   | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
   | ParenthesizedZ(zp) =>
-    let (zp, u_gen) = zp |> make_inconsistent(u_gen);
+    let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
   };
 
