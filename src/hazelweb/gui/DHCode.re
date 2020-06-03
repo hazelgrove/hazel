@@ -16,15 +16,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
         switch (String.sub(s, 0, 1)) {
         | "\\" =>
           switch (String.sub(s, 1, 1)) {
-          | "b"
-          | "t"
-          | "r"
-          | "n"
-          | "\""
-          | "\'" => [
-              Node.text(String.sub(s, 0, 2)),
-              ...go(Text(String.sub(s, 2, String.length(s) - 2))),
-            ]
+          | "b" => go(Text(String.sub(s, 2, String.length(s) - 2)))
           | "\\" => [
               Node.text("\\"),
               ...go(Text(String.sub(s, 2, String.length(s) - 2))),
@@ -140,14 +132,18 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
               ];
             };
           }
-        | _ => [
+        | _ =>
+          print_endline("DHCode136");
+          [
             Node.text(String.sub(s, 0, 1)),
             ...go(Text(String.sub(s, 1, String.length(s) - 1))),
-          ]
+          ];
         };
       };
     | Cat(l1, l2) => go(l1) @ go(l2)
-    | Linebreak => [Node.br([])]
+    | Linebreak =>
+      print_endline("DHCode145");
+      [Node.br([])];
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
     | Annot(Collapsed, l) => [
         Node.span([Attr.classes(["Collapsed"])], go(l)),
