@@ -52,10 +52,6 @@ let rec find_and_replace =
   } else {
     switch (String.sub(s, 0, 2)) {
     | "\\b" =>
-      print_endline("HERE!!!!!!!! ");
-      print_endline("a\bd");
-      print_endline("a\b");
-      print_endline("\b");
       if (String.length(acc) >= 1) {
         find_and_replace(
           String.sub(acc, 0, String.length(acc) - 1),
@@ -64,7 +60,7 @@ let rec find_and_replace =
         );
       } else {
         find_and_replace("\\b", String.sub(s, 2, len_s), err);
-      };
+      }
     | "\\t" => find_and_replace(acc ++ "\t", String.sub(s, 2, len_s), err)
     | "\\r" =>
       let (result, err) =
@@ -135,7 +131,6 @@ let rec find_and_replace =
       };
     | _ =>
       if (String.sub(s, 0, 1) == "\\" && len_s >= 2) {
-        print_endline("StringLit107");
         let ch1 = s.[1];
         let ch2 = s.[2];
         let ch3 = s.[3];

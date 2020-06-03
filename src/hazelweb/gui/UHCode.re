@@ -85,7 +85,6 @@ let view =
           } else if (StringUtil.is_empty(s)) {
             [];
           } else if (String.length(s) == 1) {
-            print_endline("UHCode87");
             [Node.text(s)];
           } else {
             switch (String.sub(s, 0, 1)) {
@@ -236,12 +235,10 @@ let view =
                   ];
                 };
               }
-            | _ =>
-              print_endline("UHCode221");
-              [
+            | _ => [
                 Node.text(String.sub(s, 0, 1)),
                 ...go(Text(String.sub(s, 1, String.length(s) - 1))),
-              ];
+              ]
             };
           }
         | Linebreak => [Node.br([])]
