@@ -416,6 +416,7 @@ module KeyCombo = {
     let plus = no_ctrl_alt_meta(Key.the_key("+"));
     let minus = no_ctrl_alt_meta(Key.the_key("-"));
     let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
+    let slash = no_ctrl_alt_meta(Key.the_key("/"));
     let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
     let comma = no_ctrl_alt_meta(Key.the_key(","));
     let vbar = no_ctrl_alt_meta(Key.the_key("|"));
@@ -456,6 +457,7 @@ module KeyCombo = {
     | Plus
     | Minus
     | Asterisk
+    | Slash
     | LT
     | Space
     | Comma
@@ -492,6 +494,7 @@ module KeyCombo = {
     | Plus => Details.plus
     | Minus => Details.minus
     | Asterisk => Details.asterisk
+    | Slash => Details.slash
     | LT => Details.lt
     | Space => Details.space
     | Comma => Details.comma
@@ -548,6 +551,8 @@ module KeyCombo = {
       Some(Minus);
     } else if (evt_matches(Details.asterisk)) {
       Some(Asterisk);
+    } else if (evt_matches(Details.slash)) {
+      Some(Slash);
     } else if (evt_matches(Details.lt)) {
       Some(LT);
     } else if (evt_matches(Details.space)) {

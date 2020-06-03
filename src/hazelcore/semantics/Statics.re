@@ -5,7 +5,7 @@ type type_mode =
   | Syn
   | Ana(HTyp.t);
 
-let _tuple_zip =
+let tuple_zip =
     (
       ~get_tuple_elements: Skel.t('op) => list(Skel.t('op)),
       skel: Skel.t('op),
@@ -27,7 +27,7 @@ let _tuple_zip =
 };
 
 module Pat = {
-  let tuple_zip = _tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
+  let tuple_zip = tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
   let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
     syn_opseq(ctx, p)
@@ -133,12 +133,12 @@ module Pat = {
       : option(Contexts.t) =>
     switch (tuple_zip(skel, ty)) {
     | None =>
-      switch (opseq |> UHPat.get_err_status_opseq) {
-      | NotInHole
-      | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength, _) =>
+      switch (UHPat.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+      | (InHole(TypeInconsistent, _), [_])
+      | (InHole(WrongLength, _), _) =>
         let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
+      | _ => None
       }
     | Some(skel_tys) =>
       skel_tys
@@ -244,11 +244,11 @@ module Pat = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHPat.opseq)
           : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
-  and _syn_nth_type_mode =
+    syn_nth_type_mode'(ctx, n, skel, seq)
+  and syn_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq)
       : option(type_mode) => {
-    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
     let rec go = (skel: UHPat.skel) =>
       switch (skel) {
       | Placeholder(n') =>
@@ -293,9 +293,7 @@ module Pat = {
       )
       : option(type_mode) => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | None =>
       syn_nth_type_mode(
         ctx,
@@ -309,10 +307,10 @@ module Pat = {
              Skel.leftmost_tm_index(skel) <= n
              && n <= Skel.rightmost_tm_index(skel)
            );
-      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
     };
   }
-  and _ana_nth_type_mode =
+  and ana_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
       : option(type_mode) => {
     let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
@@ -325,7 +323,7 @@ module Pat = {
         Some(Ana(ty));
       | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-        _syn_nth_type_mode(ctx, n, skel_not_in_hole, seq);
+        syn_nth_type_mode'(ctx, n, skel_not_in_hole, seq);
       | BinOp(NotInHole, Space, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1)
           ? go(skel1, HTyp.Hole) : go(skel2, HTyp.Hole)
@@ -498,9 +496,7 @@ module Pat = {
       )
       : (UHPat.opseq, Contexts.t, MetaVarGen.t) => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -534,31 +530,9 @@ module Pat = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        let operand = seq |> Seq.nth_operand(n);
-        let (operand, ctx, u_gen) =
-          ana_fix_holes_operand(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            operand,
-            ty,
-          );
-        (OpSeq.wrap(operand), ctx, u_gen);
-      | ([BinOp(_)], _) =>
-        let (skel, seq, ctx, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel,
-            seq,
-            ty,
-          );
-        (OpSeq.OpSeq(skel, seq), ctx, u_gen);
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHPat.get_tuple_elements
         |> List.fold_left(
              (
                (
@@ -569,14 +543,13 @@ module Pat = {
                ),
                skel: UHPat.skel,
              ) => {
-               let (skel, seq, ctx, u_gen) =
-                 ana_fix_holes_skel(
+               let (skel, seq, _, ctx, u_gen) =
+                 syn_fix_holes_skel(
                    ctx,
                    u_gen,
                    ~renumber_empty_holes,
                    skel,
                    seq,
-                   Hole,
                  );
                ([skel, ...rev_skels], seq, ctx, u_gen);
              },
@@ -585,11 +558,17 @@ module Pat = {
         |> (
           fun
           | (rev_skels, seq, ctx, u_gen) => {
-              let skel = rev_skels |> List.rev |> UHPat.make_tuple;
-              (OpSeq.OpSeq(skel, seq), ctx, u_gen);
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              let skel = UHPat.make_tuple(List.rev(rev_skels));
+              let opseq =
+                UHPat.set_err_status_opseq(
+                  InHole(TypeInconsistent, u),
+                  OpSeq.OpSeq(skel, seq),
+                );
+              (opseq, ctx, u_gen);
             }
-        )
-      | _ =>
+        );
+      } else {
         let (u, u_gen) = u_gen |> MetaVarGen.next;
         let (opseq, _, _, u_gen) =
           syn_fix_holes_opseq(
@@ -771,9 +750,15 @@ module Pat = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
       : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
     let path = CursorPath.Pat.of_z(zp);
-    let p = ZPat.erase(zp);
-    let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, p);
-    let zp = CursorPath.Pat.follow_or_fail(path, p);
+    let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, ZPat.erase(zp));
+    let zp =
+      CursorPath.Pat.follow(path, p)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zp, ty, ctx, u_gen);
   };
 
@@ -781,15 +766,21 @@ module Pat = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
       : (ZPat.t, Contexts.t, MetaVarGen.t) => {
     let path = CursorPath.Pat.of_z(zp);
-    let p = ZPat.erase(zp);
-    let (p, ctx, u_gen) = ana_fix_holes(ctx, u_gen, p, ty);
-    let zp = CursorPath.Pat.follow_or_fail(path, p);
+    let (p, ctx, u_gen) = ana_fix_holes(ctx, u_gen, ZPat.erase(zp), ty);
+    let zp =
+      CursorPath.Pat.follow(path, p)
+      |> OptUtil.get(() =>
+           failwith(
+             "ana_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zp, ctx, u_gen);
   };
 };
 
 module Exp = {
-  let tuple_zip = _tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
+  let tuple_zip = tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
   /* returns recursive ctx + name of recursively defined var */
   let ctx_for_let' =
@@ -871,13 +862,13 @@ module Exp = {
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
-    | BinOp(NotInHole, Minus | Plus | Times, skel1, skel2) =>
+    | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
       | None => None
       | Some(_) =>
         ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
       }
-    | BinOp(NotInHole, FMinus | FPlus | FTimes, skel1, skel2) =>
+    | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
       | None => None
       | Some(_) =>
@@ -1092,12 +1083,12 @@ module Exp = {
       : option(unit) =>
     switch (tuple_zip(skel, ty)) {
     | None =>
-      switch (opseq |> UHExp.get_err_status_opseq) {
-      | NotInHole
-      | InHole(TypeInconsistent, _) => None
-      | InHole(WrongLength, _) =>
+      switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
+      | (InHole(TypeInconsistent, _), [_])
+      | (InHole(WrongLength, _), _) =>
         let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
+      | _ => None
       }
     | Some(skel_tys) =>
       skel_tys
@@ -1126,7 +1117,9 @@ module Exp = {
     | BinOp(InHole(TypeInconsistent, _), _, _, _)
     | BinOp(
         NotInHole,
-        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        FDivide |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
@@ -1270,11 +1263,11 @@ module Exp = {
   let rec syn_nth_type_mode =
           (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
           : option(type_mode) =>
-    _syn_nth_type_mode(ctx, n, skel, seq)
-  and _syn_nth_type_mode =
+    syn_nth_type_mode'(ctx, n, skel, seq)
+  and syn_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
       : option(type_mode) => {
-    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
     let rec go = (skel: UHExp.skel) =>
       switch (skel) {
       | Placeholder(n') =>
@@ -1306,7 +1299,7 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          Plus | Minus | Times | LessThan | GreaterThan,
+          Plus | Minus | Times | Divide | LessThan | GreaterThan,
           skel1,
           skel2,
         ) =>
@@ -1314,7 +1307,7 @@ module Exp = {
           ? ana_go(skel1, Int) : ana_go(skel2, Int)
       | BinOp(
           NotInHole,
-          FPlus | FMinus | FTimes | FLessThan | FGreaterThan,
+          FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan,
           skel1,
           skel2,
         ) =>
@@ -1356,9 +1349,7 @@ module Exp = {
       )
       : option(type_mode) => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | None =>
       syn_nth_type_mode(
         ctx,
@@ -1372,13 +1363,13 @@ module Exp = {
              Skel.leftmost_tm_index(skel) <= n
              && n <= Skel.rightmost_tm_index(skel)
            );
-      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
+      ana_nth_type_mode'(ctx, n, nskel, seq, nty);
     };
   }
-  and _ana_nth_type_mode =
+  and ana_nth_type_mode' =
       (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
       : option(type_mode) => {
-    let syn_go = skel => _syn_nth_type_mode(ctx, n, skel, seq);
+    let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
     let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
       switch (skel) {
       | BinOp(_, Comma, _, _)
@@ -1399,7 +1390,9 @@ module Exp = {
         }
       | BinOp(
           NotInHole,
-          And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+          And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+          FDivide |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |
@@ -1535,7 +1528,7 @@ module Exp = {
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, en);
       let seq = seq |> Seq.update_nth_operand(n, en);
       (skel, seq, ty, u_gen);
-    | BinOp(_, (Minus | Plus | Times) as op, skel1, skel2) =>
+    | BinOp(_, (Minus | Plus | Times | Divide) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -1555,7 +1548,7 @@ module Exp = {
           HTyp.Int,
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Int, u_gen);
-    | BinOp(_, (FMinus | FPlus | FTimes) as op, skel1, skel2) =>
+    | BinOp(_, (FMinus | FPlus | FTimes | FDivide) as op, skel1, skel2) =>
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -1947,9 +1940,7 @@ module Exp = {
       )
       : (UHExp.opseq, MetaVarGen.t) => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1982,31 +1973,9 @@ module Exp = {
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        let operand = seq |> Seq.nth_operand(n);
-        let (operand, u_gen) =
-          ana_fix_holes_operand(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            operand,
-            ty,
-          );
-        (OpSeq.wrap(operand), u_gen);
-      | ([BinOp(_)], _) =>
-        let (skel, seq, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel,
-            seq,
-            ty,
-          );
-        (OpSeq.OpSeq(skel, seq), u_gen);
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHExp.get_tuple_elements
         |> List.fold_left(
              (
                (
@@ -2016,14 +1985,13 @@ module Exp = {
                ),
                skel: UHExp.skel,
              ) => {
-               let (skel, seq, u_gen) =
-                 ana_fix_holes_skel(
+               let (skel, seq, _, u_gen) =
+                 syn_fix_holes_skel(
                    ctx,
                    u_gen,
                    ~renumber_empty_holes,
                    skel,
                    seq,
-                   Hole,
                  );
                ([skel, ...rev_skels], seq, u_gen);
              },
@@ -2032,11 +2000,17 @@ module Exp = {
         |> (
           fun
           | (rev_skels, seq, u_gen) => {
-              let skel = rev_skels |> List.rev |> UHExp.make_tuple;
-              (OpSeq.OpSeq(skel, seq), u_gen);
+              let (u, u_gen) = MetaVarGen.next(u_gen);
+              let skel = UHExp.make_tuple(List.rev(rev_skels));
+              let opseq =
+                UHExp.set_err_status_opseq(
+                  InHole(TypeInconsistent, u),
+                  OpSeq.OpSeq(skel, seq),
+                );
+              (opseq, u_gen);
             }
-        )
-      | _ =>
+        );
+      } else {
         let (u, u_gen) = u_gen |> MetaVarGen.next;
         let (opseq, _, u_gen) =
           syn_fix_holes_opseq(
@@ -2120,7 +2094,9 @@ module Exp = {
       }
     | BinOp(
         _,
-        And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
+        And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
+        FDivide |
+        LessThan |
         GreaterThan |
         Equals |
         FLessThan |
@@ -2288,9 +2264,15 @@ module Exp = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
       : (ZExp.t, HTyp.t, MetaVarGen.t) => {
     let path = CursorPath.Exp.of_z(ze);
-    let e = ze |> ZExp.erase;
-    let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, e);
-    let ze = CursorPath.Exp.follow_or_fail(path, e);
+    let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
+    let ze =
+      CursorPath.Exp.follow(path, e)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (ze, ty, u_gen);
   };
 
@@ -2298,13 +2280,16 @@ module Exp = {
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
       : (ZExp.zblock, Contexts.t, MetaVarGen.t) => {
     let path = CursorPath.Exp.of_zblock(zlines);
-    let lines = zlines |> ZExp.erase_zblock;
-    let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
+    let (lines, ctx, u_gen) =
+      syn_fix_holes_lines(ctx, u_gen, ZExp.erase_zblock(zlines));
     let zlines =
-      OptUtil.get(
-        _ => failwith("hole fix pass did not preserve paths"),
-        CursorPath.Exp.follow_block(path, lines),
-      );
+      CursorPath.Exp.follow_block(path, lines)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes_lines did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zlines, ctx, u_gen);
   };
 
@@ -2321,36 +2306,30 @@ module Exp = {
     let (rules, u_gen, rule_types, common_type) =
       syn_fix_holes_rules(ctx, u_gen, rules, pat_ty);
     let zrules =
-      OptUtil.get(
-        _ => failwith("hole fix pass did not preserve paths"),
-        CursorPath.Exp.follow_rules(path, rules),
-      );
+      CursorPath.Exp.follow_rules(path, rules)
+      |> OptUtil.get(() =>
+           failwith(
+             "syn_fix_holes_rules did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (zrules, rule_types, common_type, u_gen);
   };
 
   let ana_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
       : (ZExp.t, MetaVarGen.t) => {
-    let (steps, _) as path = CursorPath.Exp.of_z(ze);
-    let e = ze |> ZExp.erase;
-    let (e, u_gen) = ana_fix_holes(ctx, u_gen, e, ty);
-    switch (CursorPath.Exp.follow(path, e)) {
-    | None =>
-      // Only way this can happen now is path was originally
-      // on case type annotation and ana_fix_holes stripped
-      // the annotation, in which case we can just place cursor
-      // at end of case node. We might just wanna write a proper
-      // recursive traversal for hole-fixing zexps/blocks.
-      switch (steps |> ListUtil.split_last) {
-      | None => assert(false)
-      | Some((case_steps, _)) =>
-        switch (CursorPath.Exp.follow_steps(~side=After, case_steps, e)) {
-        | None => assert(false)
-        | Some(ze) => (ze, u_gen)
-        }
-      }
-    | Some(ze) => (ze, u_gen)
-    };
+    let path = CursorPath.Exp.of_z(ze);
+    let (e, u_gen) = ana_fix_holes(ctx, u_gen, ZExp.erase(ze), ty);
+    let ze =
+      CursorPath.Exp.follow(path, e)
+      |> OptUtil.get(() =>
+           failwith(
+             "ana_fix_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
+    (ze, u_gen);
   };
 
   /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
@@ -2359,8 +2338,16 @@ module Exp = {
     syn_fix_holes(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
 
   let fix_and_renumber_holes_z = (ctx: Contexts.t, ze: ZExp.t): edit_state => {
-    let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ze |> ZExp.erase);
-    let ze = CursorPath.Exp.follow_or_fail(CursorPath.Exp.of_z(ze), e);
+    let path = CursorPath.Exp.of_z(ze);
+    let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
+    let ze =
+      CursorPath.Exp.follow(path, e)
+      |> OptUtil.get(() =>
+           failwith(
+             "fix_and_renumber_holes did not preserve path "
+             ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           )
+         );
     (ze, ty, u_gen);
   };
 };
