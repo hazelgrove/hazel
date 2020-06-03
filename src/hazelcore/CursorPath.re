@@ -1165,11 +1165,10 @@ module Exp = {
         }
       | ApPalette(_, _, _, splice_info) =>
         let splice_map = splice_info.splice_map;
-        switch (NatMap.drop(splice_map, x)) {
+        switch (IntMap.find_opt(x, splice_map)) {
         | None => None
-        | Some((_, ty_e)) =>
-          let (_, e) = ty_e;
-          e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path));
+        | Some((_, e)) =>
+          e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path))
         };
       }
     }
@@ -1270,7 +1269,7 @@ module Exp = {
       let splice_order = psi.splice_order;
       List.fold_right(
         (i, hs) =>
-          switch (IntMap.lookup(splice_map, i)) {
+          switch (IntMap.find_opt(i, splice_map)) {
           | None => hs
           | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
           },
@@ -1657,7 +1656,7 @@ module Exp = {
       let holes_splices_before =
         List.fold_left(
           (hs, n) =>
-            switch (IntMap.lookup(splice_map, n)) {
+            switch (IntMap.find_opt(n, splice_map)) {
             | None => hs
             | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
             },
@@ -1667,7 +1666,7 @@ module Exp = {
       let holes_splices_after =
         List.fold_left(
           (hs, n) =>
-            switch (IntMap.lookup(splice_map, n)) {
+            switch (IntMap.find_opt(n, splice_map)) {
             | None => hs
             | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
             },

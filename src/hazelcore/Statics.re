@@ -1049,8 +1049,7 @@ module Exp = {
   and ana_splice_map =
       (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
     IntMap.fold(
-      splice_map,
-      (c, (splice_name, (ty, e))) =>
+      (splice_name, (ty, e), c) =>
         switch (c) {
         | None => None
         | Some(splice_ctx) =>
@@ -1061,6 +1060,7 @@ module Exp = {
             Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
           }
         },
+      splice_map,
       Some(Contexts.empty),
     )
   /**

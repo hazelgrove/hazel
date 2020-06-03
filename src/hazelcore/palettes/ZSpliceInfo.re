@@ -22,13 +22,13 @@ let select_opt =
     )
     : option(t('exp, 'zexp)) => {
   let {SpliceInfo.next, SpliceInfo.splice_map, SpliceInfo.splice_order} = splice_info;
-  switch (IntMap.drop(splice_map, n)) {
+  switch (IntMap.find_opt(n, splice_map)) {
   | None => None
-  | Some((splice_map, ty_e)) =>
+  | Some(ty_e) =>
     switch (f(ty_e)) {
     | None => None
     | Some(ty_ze) =>
-      let zsplice_map = (splice_map, (n, ty_ze));
+      let zsplice_map = (IntMap.remove(n, splice_map), (n, ty_ze));
       Some({next, zsplice_map, splice_order});
     }
   };
