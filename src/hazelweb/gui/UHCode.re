@@ -50,11 +50,26 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
 let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
+let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
+  let pos_attr =
+    Vdom.Attr.style(
+      Css_gen.combine(
+        Css_gen.left(`Px(int_of_float(x))),
+        Css_gen.top(`Px(int_of_float(y))),
+      ),
+    );
+  Vdom.Node.span(
+    [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
+    [],
+  );
+};
+
 let view =
     (
       ~model: Model.t,
       ~inject: Update.Action.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
+      ~caret_pos: option((int, int)),
       l: UHLayout.t,
     )
     : Vdom.Node.t => {
@@ -101,20 +116,21 @@ let view =
             let font_shrink = 0.65;
             let full_space = font_width *. float_of_int(len);
             let shrunk_space = full_space *. font_shrink;
-            let padding = (full_space -. shrunk_space) /. 2.0;
-            let styling =
-              Vdom.Attr.create(
-                "style",
-                "padding-right: "
-                ++ string_of_float(padding)
-                ++ "0px; "
-                ++ "padding-left: "
-                ++ string_of_float(padding)
-                ++ "0px; "
-                ++ "font-size: "
-                ++ string_of_int(int_of_float(font_shrink *. 100.0))
-                ++ "%;",
+            let per_side_padding = (full_space -. shrunk_space) /. 2.0;
+            let padding =
+              Css_gen.padding(
+                ~left=`Px(int_of_float(per_side_padding)),
+                ~right=`Px(int_of_float(per_side_padding)),
+                (),
               );
+            let font_size =
+              Css_gen.font_size(
+                `Percent(
+                  Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
+                ),
+              );
+            let styling =
+              Vdom.Attr.style(Css_gen.combine(padding, font_size));
             [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
           }
         | Annot(UserNewline, l) => [
@@ -156,34 +172,44 @@ let view =
           ];
 
       let id = "code-root";
-      Node.div(
-        [
-          Attr.id(id),
-          Attr.classes(["code", "presentation"]),
-          // need to use mousedown instead of click to fire
-          // (and move caret) before cell focus event handler
-          Attr.on_mousedown(evt => {
-            let container_rect =
-              JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
-            let (target_x, target_y) = (
-              float_of_int(evt##.clientX),
-              float_of_int(evt##.clientY),
-            );
-            let row_col = (
-              Float.to_int(
-                (target_y -. container_rect##.top) /. font_metrics.row_height,
-              ),
-              Float.to_int(
-                Float.round(
-                  (target_x -. container_rect##.left) /. font_metrics.col_width,
+      let code_view =
+        Node.div(
+          [
+            Attr.id(id),
+            Attr.classes(["code", "presentation"]),
+            // need to use mousedown instead of click to fire
+            // (and move caret) before cell focus event handler
+            Attr.on_mousedown(evt => {
+              let container_rect =
+                JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
+              let (target_x, target_y) = (
+                float_of_int(evt##.clientX),
+                float_of_int(evt##.clientY),
+              );
+              let row_col = (
+                Float.to_int(
+                  (target_y -. container_rect##.top) /. font_metrics.row_height,
                 ),
-              ),
-            );
-            inject(Update.Action.MoveAction(Click(row_col)));
-          }),
-        ],
-        go(l),
-      );
+                Float.to_int(
+                  Float.round(
+                    (target_x -. container_rect##.left)
+                    /. font_metrics.col_width,
+                  ),
+                ),
+              );
+              inject(Update.Action.MoveAction(Click(row_col)));
+            }),
+          ],
+          go(l),
+        );
+      switch (caret_pos) {
+      | None => code_view
+      | Some((row, col)) =>
+        let x = float_of_int(col) *. model.font_metrics.col_width;
+        let y = float_of_int(row) *. model.font_metrics.row_height;
+        let caret = caret_from_pos(x, y);
+        Node.div([], [code_view, caret]);
+      };
     },
   );
 };
