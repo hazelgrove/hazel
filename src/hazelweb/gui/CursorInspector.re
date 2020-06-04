@@ -311,6 +311,10 @@ let view =
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
+    | PatAnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
