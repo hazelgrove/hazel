@@ -116,6 +116,7 @@ and expand_skel = (skel, seq) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
     Sum(ty1, ty2);
+  | BinOp(_, Space, _, _) => failwith("unimplemented")
   }
 and expand_operand =
   fun

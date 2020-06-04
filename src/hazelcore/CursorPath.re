@@ -578,6 +578,7 @@ module Typ = {
       no_holes
     | ParenthesizedZ(zbody)
     | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+    | CursorT(_, Label(_)) => failwith("unimplemented")
     };
 };
 
@@ -822,6 +823,7 @@ module Pat = {
           ],
         }
       };
+    | CursorP(_, Label(_)) => failwith("unimplemented")
     };
 };
 
@@ -1691,6 +1693,8 @@ module Exp = {
         hole_selected,
         holes_after: holes_after @ holes_splices_after,
       };
+    | CursorE(_, Label(_))
+    | CursorE(_, Prj(_)) => failwith("unimplemented")
     }
   and holes_zrule = (zrule: ZExp.zrule, rev_steps: rev_steps) =>
     switch (zrule) {

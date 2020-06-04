@@ -19,8 +19,8 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Float
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | List(_) => CursorPosition.delim_cursors(2);
-  | Label(_) => failwith("unimplemented")
+  | List(_) => CursorPosition.delim_cursors(2)
+  | Label(_) => failwith("unimplemented");
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun
@@ -64,7 +64,8 @@ and is_before_zoperand =
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false;
+  | ListZ(_) => false
+  | CursorT(_, Label(_)) => failwith("unimplemented");
 let is_before_zoperator: zoperator => bool =
   fun
   | (OnOp(Before), _) => true
@@ -82,7 +83,8 @@ and is_after_zoperand =
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false;
+  | ListZ(_) => false
+  | CursorT(_, Label(_)) => failwith("unimplemented");
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
@@ -94,7 +96,8 @@ and place_before_opseq = opseq =>
 and place_before_operand =
   fun
   | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(0, Before), operand);
+    CursorT(OnDelim(0, Before), operand)
+  | Label(_) => failwith("unimplemented");
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
 
@@ -106,7 +109,8 @@ and place_after_operand =
   | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(1, After), operand);
+    CursorT(OnDelim(1, After), operand)
+  | Label(_) => failwith("unimplemented");
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
 
@@ -159,7 +163,8 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(0, After), List(erase(zty1))))
-    };
+    }
+  | CursorT(_, Label(_)) => failwith("unimplemented");
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
@@ -202,4 +207,5 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(1, Before), List(erase(zty1))))
-    };
+    }
+  | CursorT(_, Label(_)) => failwith("unimplemented");
