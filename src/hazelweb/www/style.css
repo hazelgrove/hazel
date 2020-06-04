@@ -292,11 +292,12 @@ html, body {
 }
 
 /* cursor inspector */
-.code.presentation .cursor-inspector-outer {
+.cursor-inspector-outer {
   z-index: var(--caret-z);
   position: absolute;
   margin-top: calc(var(--code-line-height) * 1em);
   width: max-content;
+  cursor: default;
 }
 
 .cursor-OK.cursor-inspector {

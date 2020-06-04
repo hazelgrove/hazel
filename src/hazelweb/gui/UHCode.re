@@ -69,7 +69,7 @@ let view =
       ~model: Model.t,
       ~inject: Update.Action.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~caret_cursor_pos: option(((int, int), (int, int))),
+      ~caret_pos: option((int, int)),
       l: UHLayout.t,
     )
     : Vdom.Node.t => {
@@ -171,24 +171,16 @@ let view =
       };
 
       let children =
-        switch (caret_cursor_pos) {
+        switch (caret_pos) {
         | None => go(l)
-        | Some(((caret_row, caret_col), (cursor_row, cursor_col))) =>
+        | Some((caret_row, caret_col)) =>
           let caret_x =
             float_of_int(caret_col) *. model.font_metrics.col_width;
           let caret_y =
             float_of_int(caret_row) *. model.font_metrics.row_height;
           let caret = caret_from_pos(caret_x, caret_y);
 
-          let cursor_x =
-            float_of_int(cursor_col) *. model.font_metrics.col_width;
-          let cursor_y =
-            float_of_int(cursor_row) *. model.font_metrics.row_height;
-          [
-            caret,
-            CursorInspector.view(~inject, model, cursor_x, cursor_y),
-            ...go(l),
-          ];
+          [caret, ...go(l)];
         };
       let id = "code-root";
       Node.div(

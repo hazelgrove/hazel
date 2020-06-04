@@ -69,7 +69,7 @@ let view = (~inject, model: Model.t) => {
         model.measurements.measurements
         && model.measurements.layoutOfDoc_layout_of_doc;
       let memoize_doc = model.memoize_doc;
-      let code_view =
+      let (code_view, ci_opt) =
         if (Model.is_cell_focused(model)) {
           let (cmap, ((caret_row, caret_col), _)) =
             Program.get_cursor_map_z(
@@ -80,19 +80,29 @@ let view = (~inject, model: Model.t) => {
             );
           let (cursor_row, cursor_col) =
             CursorMap.find_beginning_of_token((caret_row, caret_col), cmap);
-          UHCode.view(
-            ~model,
-            ~inject,
-            ~font_metrics=model.font_metrics,
-            ~caret_cursor_pos=
-              Some(((caret_row, caret_col), (cursor_row, cursor_col))),
-          );
+          let cursor_x =
+            float_of_int(cursor_col) *. model.font_metrics.col_width;
+          let cursor_y =
+            float_of_int(cursor_row) *. model.font_metrics.row_height;
+
+          let code_view =
+            UHCode.view(
+              ~model,
+              ~inject,
+              ~font_metrics=model.font_metrics,
+              ~caret_pos=Some((caret_row, caret_col)),
+            );
+          let ci = CursorInspector.view(~inject, model, cursor_x, cursor_y);
+          (code_view, Some(ci));
         } else {
-          UHCode.view(
-            ~model,
-            ~inject,
-            ~font_metrics=model.font_metrics,
-            ~caret_cursor_pos=None,
+          (
+            UHCode.view(
+              ~model,
+              ~inject,
+              ~font_metrics=model.font_metrics,
+              ~caret_pos=None,
+            ),
+            None,
           );
         };
       let prevent_stop_inject = a =>
@@ -198,6 +208,11 @@ let view = (~inject, model: Model.t) => {
             |> code_view,
           );
         };
+      let child_view =
+        switch (ci_opt) {
+        | None => [code_view]
+        | Some(ci) => [code_view, ci]
+        };
       Node.div(
         [
           Attr.id(cell_id),
@@ -209,7 +224,7 @@ let view = (~inject, model: Model.t) => {
         ],
         [
           Node.div([Attr.id("font-specimen")], [Node.text("X")]),
-          Node.div([Attr.id("code-container")], [code_view]),
+          Node.div([Attr.id("code-container")], child_view),
         ],
       );
     },
