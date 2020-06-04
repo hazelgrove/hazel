@@ -295,6 +295,7 @@ html, body {
 .code.presentation .cursor-inspector-outer {
   z-index: var(--caret-z);
   position: absolute;
+  top: calc(var(--code-line-height) * 1em);
   width: max-content;
 }
 

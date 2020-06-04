@@ -50,7 +50,7 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
 let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
-let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
+let caret_from_pos = (x: float, y: float, inject, model): Vdom.Node.t => {
   let pos_attr =
     Vdom.Attr.style(
       Css_gen.combine(
@@ -60,7 +60,7 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
     );
   Vdom.Node.span(
     [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-    [],
+    [CursorInspector.view(~inject, model)],
   );
 };
 
@@ -176,7 +176,7 @@ let view =
         | Some((row, col)) =>
           let x = float_of_int(col) *. model.font_metrics.col_width;
           let y = float_of_int(row) *. model.font_metrics.row_height;
-          let caret = caret_from_pos(x, y);
+          let caret = caret_from_pos(x, y, inject, model);
           [caret, ...go(l)];
         };
       let id = "code-root";
