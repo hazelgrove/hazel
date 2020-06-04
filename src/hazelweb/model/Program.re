@@ -1,5 +1,8 @@
+open Sexplib.Std;
+
 module Memo = Core_kernel.Memo;
 
+[@deriving sexp]
 type t = {
   edit_state: Statics.edit_state,
   width: int,
@@ -120,8 +123,23 @@ let move_to_hole = (u, program) => {
   switch (CursorPath.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>
-    program |> perform_edit_action(MoveToBefore(hole_steps))
+    let e = ZExp.erase(ze);
+    switch (CursorPath.Exp.of_steps(hole_steps, e)) {
+    | None => raise(HoleNotFound)
+    | Some(hole_path) => program |> perform_edit_action(MoveTo(hole_path))
+    };
   };
+};
+
+let move_to_case_branch =
+    (steps_to_case, branch_index, program): (t, Action.t) => {
+  let steps_to_branch = steps_to_case @ [1 + branch_index];
+  let new_program =
+    perform_edit_action(
+      MoveTo((steps_to_branch, OnDelim(1, After))),
+      program,
+    );
+  (new_program, MoveTo((steps_to_branch, OnDelim(1, After))));
 };
 
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
@@ -245,7 +263,8 @@ let move_via_click =
       ~memoize_doc: bool,
       row_col,
       program,
-    ) => {
+    )
+    : (t, Action.t) => {
   let (_, rev_path) =
     program
     |> get_cursor_map(
@@ -255,7 +274,9 @@ let move_via_click =
        )
     |> CursorMap.find_nearest_within_row(row_col);
   let path = CursorPath.rev(rev_path);
-  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  let new_program =
+    program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  (new_program, MoveTo(path));
 };
 
 let move_via_key =
@@ -265,7 +286,8 @@ let move_via_key =
       ~memoize_doc: bool,
       move_key: JSUtil.MoveKey.t,
       program,
-    ) => {
+    )
+    : (t, Action.t) => {
   let (cmap, ((row, col), _) as z) =
     program
     |> get_cursor_map_z(
@@ -293,11 +315,14 @@ let move_via_key =
     | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
     | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
     };
+
   switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);
-    program |> update_start_col |> perform_edit_action(MoveTo(path));
+    let new_program =
+      program |> update_start_col |> perform_edit_action(MoveTo(path));
+    (new_program, MoveTo(path));
   };
 };
 

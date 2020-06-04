@@ -12,6 +12,14 @@ type move_input =
 
 module Action = {
   [@deriving sexp]
+  type shift_history_info = {
+    group_id: int,
+    elt_id: int,
+    call_by_mouseenter: bool,
+  };
+  [@deriving sexp]
+  type group_id = int;
+  [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
     | MoveAction(move_input)
@@ -40,12 +48,19 @@ module Action = {
     //
     | ToggleMemoizeDoc
     | SelectHoleInstance(HoleInstance.t)
+    | SelectCaseBranch(CursorPath.steps, int)
     | InvalidVar(string)
     | FocusCell
     | BlurCell
     | Redo
     | Undo
-    | UpdateFontMetrics(FontMetrics.t);
+    | ShiftHistory(shift_history_info)
+    | ShiftWhenScroll
+    | ToggleHistoryGroup(group_id)
+    | ToggleHiddenHistoryAll
+    | TogglePreviewOnHover
+    | UpdateFontMetrics(FontMetrics.t)
+    | UpdateIsMac(bool);
 };
 
 [@deriving sexp]
@@ -98,6 +113,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleShowUnevaluatedExpansion
   | ToggleMemoizeDoc
   | SelectHoleInstance(_)
+  | SelectCaseBranch(_)
   | InvalidVar(_)
   | FocusCell
   | ToggleMeasureTimes
@@ -112,7 +128,13 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | BlurCell
   | Undo
   | Redo
-  | UpdateFontMetrics(_) =>
+  | ShiftHistory(_)
+  | ShiftWhenScroll
+  | ToggleHistoryGroup(_)
+  | ToggleHiddenHistoryAll
+  | TogglePreviewOnHover
+  | UpdateFontMetrics(_)
+  | UpdateIsMac(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -272,28 +294,80 @@ let apply_action =
       //
       | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
+      | SelectCaseBranch(path_to_case, branch_index) =>
+        Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>
-        let new_history = UndoHistory.undo(model.undo_history);
-        let new_edit_state = ZList.prj_z(new_history);
-        let new_model =
-          model
-          |> Model.put_program(
-               Program.mk(~width=model.cell_width, new_edit_state),
-             );
-        {...new_model, undo_history: new_history};
+        let new_history =
+          model.undo_history
+          |> UndoHistory.shift_to_prev
+          |> UndoHistory.update_disable_auto_scrolling(false);
+        Model.load_undo_history(model, new_history, ~is_after_move=true);
       | Redo =>
-        let new_history = UndoHistory.redo(model.undo_history);
-        let new_edit_state = ZList.prj_z(new_history);
-        let new_model =
-          model
-          |> Model.put_program(
-               Program.mk(~width=model.cell_width, new_edit_state),
+        let new_history =
+          model.undo_history
+          |> UndoHistory.shift_to_next
+          |> UndoHistory.update_disable_auto_scrolling(false);
+        Model.load_undo_history(model, new_history, ~is_after_move=true);
+      | ShiftHistory(shift_history_info) =>
+        /* cshift to the certain entry */
+        let new_history =
+          model.undo_history
+          |> UndoHistory.shift_history(
+               shift_history_info.group_id,
+               shift_history_info.elt_id,
+               shift_history_info.call_by_mouseenter,
              );
-        {...new_model, undo_history: new_history};
+        Model.load_undo_history(model, new_history, ~is_after_move=false);
+      | ShiftWhenScroll => model
+      | ToggleHistoryGroup(toggle_group_id) =>
+        let (suc_groups, _, _) = model.undo_history.groups;
+        let cur_group_id = List.length(suc_groups);
+        /* shift to the toggle-target group and change its expanded state */
+        switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
+        | None =>
+          failwith("Impossible match, because undo_history is non-empty")
+        | Some(groups) =>
+          let toggle_target_group = ZList.prj_z(groups);
+          /* change expanded state of the toggle target group after toggling */
+          let after_toggle =
+            ZList.replace_z(
+              {
+                ...toggle_target_group,
+                is_expanded: !toggle_target_group.is_expanded,
+              },
+              groups,
+            );
+
+          /*shift back to the current group*/
+          switch (ZList.shift_to(cur_group_id, after_toggle)) {
+          | None =>
+            failwith("Impossible match, because undo_history is non-empty")
+          | Some(new_groups) => {
+              ...model,
+              undo_history: {
+                ...model.undo_history,
+                groups: new_groups,
+              },
+            }
+          };
+        };
+      | ToggleHiddenHistoryAll =>
+        model
+        |> Model.put_undo_history(
+             UndoHistory.toggle_all_hidden_history(model.undo_history),
+           )
+      | TogglePreviewOnHover => {
+          ...model,
+          undo_history: {
+            ...model.undo_history,
+            preview_on_hover: !model.undo_history.preview_on_hover,
+          },
+        }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
+      | UpdateIsMac(is_mac) => {...model, is_mac}
       };
     },
   );
