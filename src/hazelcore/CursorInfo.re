@@ -55,7 +55,6 @@ type typed =
   // cursor is on a keyword in the function position of an ap
   | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
   // cursor is on invalid text in the fuction position of an ap
-  // FIXME: Is this needed?
   | SynInvalidArrow(HTyp.t)
   // cursor is on invalid text
   | SynInvalid
@@ -1205,10 +1204,13 @@ module Exp = {
             Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
           | Some((NotInHole, NotInVarHole)) =>
             switch (
-              Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
+              Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand),
+              zoperand,
             ) {
-            | None => None
-            | Some(ty) =>
+            | (_, CursorE(_, InvalidText(_))) =>
+              Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
+            | (None, _) => None
+            | (Some(ty), _) =>
               HTyp.matched_arrow(ty)
               |> OptUtil.map(((ty1, ty2)) =>
                    mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
