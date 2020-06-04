@@ -71,25 +71,28 @@ let view = (~inject, model: Model.t) => {
       let memoize_doc = model.memoize_doc;
       let code_view =
         if (Model.is_cell_focused(model)) {
-          let (_, ((row, col), _)) =
+          let (cmap, ((caret_row, caret_col), _)) =
             Program.get_cursor_map_z(
               ~measure_program_get_doc,
               ~measure_layoutOfDoc_layout_of_doc,
               ~memoize_doc,
               program,
             );
+          let (cursor_row, cursor_col) =
+            CursorMap.find_beginning_of_token((caret_row, caret_col), cmap);
           UHCode.view(
             ~model,
             ~inject,
             ~font_metrics=model.font_metrics,
-            ~caret_pos=Some((row, col)),
+            ~caret_cursor_pos=
+              Some(((caret_row, caret_col), (cursor_row, cursor_col))),
           );
         } else {
           UHCode.view(
             ~model,
             ~inject,
             ~font_metrics=model.font_metrics,
-            ~caret_pos=None,
+            ~caret_cursor_pos=None,
           );
         };
       let prevent_stop_inject = a =>

@@ -6,7 +6,13 @@ type err_state_b =
   | OK;
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      model: Model.t,
+      x: float,
+      y: float,
+    )
+    : Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(
@@ -331,10 +337,16 @@ let view =
     | BindingError => "cursor-BindingError"
     | OK => "cursor-OK"
     };
-
+  let pos_attr =
+    Vdom.Attr.style(
+      Css_gen.combine(
+        Css_gen.left(`Px(int_of_float(x))),
+        Css_gen.top(`Px(int_of_float(y))),
+      ),
+    );
   Vdom.(
     Node.div(
-      [Attr.classes(["cursor-inspector-outer"])],
+      [Attr.classes(["cursor-inspector-outer"]), pos_attr],
       [
         Node.div(
           [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],

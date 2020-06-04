@@ -192,6 +192,43 @@ let find_nearest_within_row = ((row, col), cmap) => {
   };
 };
 
+let find_beginning_of_token = ((row, col), cmap) => {
+  let col_map = cmap |> RowMap.find(row);
+  switch (
+    col_map |> ColMap.find_before_eq(col),
+    col_map |> ColMap.find_after_eq(col),
+    col_map |> ColMap.find_before(col),
+  ) {
+  | (None, None, _) =>
+    failwith(
+      "CursorMap has row with no caret positions: " ++ string_of_int(row),
+    )
+  | (Some((nearest_col, _)), None, _)
+  | (None, Some((nearest_col, _)), _) => (row, nearest_col) // TODO: Can this even happen?
+  | (
+      Some((col_before, (CursorPosition.OnText(0), rev_steps_before))),
+      Some((_, (CursorPosition.OnText(_), rev_steps_after))),
+      _,
+    )
+      when
+        rev_steps_before === rev_steps_after
+        || rev_steps_before == rev_steps_after => (
+      row,
+      col_before,
+    )
+  | (Some((_, (CursorPosition.OnText(_), _))), _, Some((col_before, _)))
+  | (
+      Some((_, (CursorPosition.OnDelim(_, After), _))),
+      _,
+      Some((col_before, _)),
+    )
+  | (Some((_, (CursorPosition.OnOp(After), _))), _, Some((col_before, _))) =>
+    /* Use beginning of token instead of end of token */
+    (row, col_before)
+  | (Some((col_before, _)), Some(_), _) => (row, col_before)
+  };
+};
+
 let move_up = ((row, col), cmap): option(binding) =>
   row <= 0 ? None : Some(cmap |> find_nearest_within_row((row - 1, col)));
 

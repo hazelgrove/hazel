@@ -45,3 +45,4 @@ let move_sol: (Row.t, t) => binding;
 let move_eol: (Row.t, t) => binding;
 
 let find_nearest_within_row: ((Row.t, Col.t), t) => binding;
+let find_beginning_of_token: ((Row.t, Col.t), t) => (Row.t, Col.t);

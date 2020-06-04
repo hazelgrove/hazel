@@ -50,7 +50,7 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
 let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
-let caret_from_pos = (x: float, y: float, inject, model): Vdom.Node.t => {
+let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
   let pos_attr =
     Vdom.Attr.style(
       Css_gen.combine(
@@ -60,7 +60,7 @@ let caret_from_pos = (x: float, y: float, inject, model): Vdom.Node.t => {
     );
   Vdom.Node.span(
     [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-    [CursorInspector.view(~inject, model)],
+    [],
   );
 };
 
@@ -69,7 +69,7 @@ let view =
       ~model: Model.t,
       ~inject: Update.Action.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~caret_pos: option((int, int)),
+      ~caret_cursor_pos: option(((int, int), (int, int))),
       l: UHLayout.t,
     )
     : Vdom.Node.t => {
@@ -171,13 +171,24 @@ let view =
       };
 
       let children =
-        switch (caret_pos) {
+        switch (caret_cursor_pos) {
         | None => go(l)
-        | Some((row, col)) =>
-          let x = float_of_int(col) *. model.font_metrics.col_width;
-          let y = float_of_int(row) *. model.font_metrics.row_height;
-          let caret = caret_from_pos(x, y, inject, model);
-          [caret, ...go(l)];
+        | Some(((caret_row, caret_col), (cursor_row, cursor_col))) =>
+          let caret_x =
+            float_of_int(caret_col) *. model.font_metrics.col_width;
+          let caret_y =
+            float_of_int(caret_row) *. model.font_metrics.row_height;
+          let caret = caret_from_pos(caret_x, caret_y);
+
+          let cursor_x =
+            float_of_int(cursor_col) *. model.font_metrics.col_width;
+          let cursor_y =
+            float_of_int(cursor_row) *. model.font_metrics.row_height;
+          [
+            caret,
+            CursorInspector.view(~inject, model, cursor_x, cursor_y),
+            ...go(l),
+          ];
         };
       let id = "code-root";
       Node.div(
