@@ -140,8 +140,8 @@ module Pat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
+    | InvalidText(t) => Expands(InvalidText(t), Hole, ctx, delta)
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
-    | InvalidText(_)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
@@ -1688,7 +1688,7 @@ module Exp = {
       | None => ExpandResult.DoesNotExpand
       | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
       }
-    | InvalidText(_)
+    | InvalidText(t) => Expands(InvalidText(t), ty, delta)
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | IntLit(NotInHole, _)
