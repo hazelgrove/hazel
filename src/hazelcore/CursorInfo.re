@@ -91,6 +91,8 @@ type typed =
         // expected type
         HTyp.t,
       )
+  // cursor is on invalid text
+  | PatAnaInvalid(HTyp.t)
   // cursor is on a keyword
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
   // none of the above and didn't go through subsumption
@@ -914,7 +916,9 @@ module Pat = {
       // not in hole
       | InvalidText(_) =>
         Some(
-          CursorNotOnDeferredVarPat(mk(AnaInvalid(Hole), ctx, cursor_term)),
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaInvalid(Hole), ctx, cursor_term),
+          ),
         )
       | Var(NotInHole, _, x) =>
         Some(
