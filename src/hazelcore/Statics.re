@@ -983,7 +983,8 @@ module Exp = {
       }
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
-      VarMap.lookup(Contexts.gamma(ctx), x)
+      print_endline("Statics986");
+      VarMap.lookup(Contexts.gamma(ctx), x);
     | Var(NotInHole, InVarHole(_), _) => Some(Hole)
     | IntLit(NotInHole, _) => Some(Int)
     | FloatLit(NotInHole, _) => Some(Float)
