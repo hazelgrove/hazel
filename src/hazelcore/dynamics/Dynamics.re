@@ -153,7 +153,7 @@ module Pat = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, ctx, delta)
       | None => DoesNotExpand
       }
@@ -186,9 +186,7 @@ module Pat = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (Statics.Pat.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -211,17 +209,14 @@ module Pat = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_dps, ctx, delta)) => {
-            let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+            let dp = rev_dps |> List.rev |> DHPat.mk_tuple;
             Expands(dp, ty, ctx, delta);
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
-      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
-      | (_, [Hole]) =>
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHPat.get_tuple_elements
         |> List.fold_left(
              (
                acc: option((list(DHPat.t), Contexts.t, Delta.t)),
@@ -230,8 +225,8 @@ module Pat = {
                switch (acc) {
                | None => None
                | Some((rev_dps, ctx, delta)) =>
-                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
-                 | ExpandResult.DoesNotExpand => None
+                 switch (syn_expand_skel(ctx, delta, skel, seq)) {
+                 | DoesNotExpand => None
                  | Expands(dp, _, ctx, delta) =>
                    Some(([dp, ...rev_dps], ctx, delta))
                  }
@@ -242,11 +237,11 @@ module Pat = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_dps, ctx, delta)) => {
-              let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+              let dp = DHPat.mk_tuple(List.rev(rev_dps));
               Expands(dp, ty, ctx, delta);
             }
-        )
-      | _ =>
+        );
+      } else {
         switch (opseq |> UHPat.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
@@ -268,7 +263,7 @@ module Pat = {
               );
             Expands(NonEmptyHole(reason, u, 0, dp), ty, ctx, delta);
           }
-        }
+        };
       }
     };
   }
@@ -489,6 +484,10 @@ module Exp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       Cons(d3, d4);
+    | BinBoolOp(op, d3, d4) =>
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      BinBoolOp(op, d3, d4);
     | BinIntOp(op, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
@@ -497,14 +496,6 @@ module Exp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       BinFloatOp(op, d3, d4);
-    | And(d3, d4) =>
-      let d3 = subst_var(d1, x, d3);
-      let d4 = subst_var(d1, x, d4);
-      And(d3, d4);
-    | Or(d3, d4) =>
-      let d3 = subst_var(d1, x, d3);
-      let d4 = subst_var(d1, x, d4);
-      Or(d3, d4);
     | Inj(ty, side, d3) =>
       let d3 = subst_var(d1, x, d3);
       Inj(ty, side, d3);
@@ -534,6 +525,9 @@ module Exp = {
     | FailedCast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       FailedCast(d', ty1, ty2);
+    | InvalidOperation(d, err) =>
+      let d' = subst_var(d1, x, d);
+      InvalidOperation(d', err);
     }
   and subst_var_rules =
       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -584,12 +578,14 @@ module Exp = {
     | (_, EmptyHole(_, _, _)) => Indet
     | (_, NonEmptyHole(_, _, _, _, _)) => Indet
     | (_, FailedCast(_, _, _)) => Indet
+    | (_, InvalidOperation(_)) => Indet
     | (_, FreeVar(_, _, _, _)) => Indet
     | (_, Let(_, _, _)) => Indet
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
-    | (_, BinIntOp(_, _, _) | And(_, _) | Or(_, _)) => Indet
+    | (_, BinBoolOp(_, _, _)) => Indet
+    | (_, BinIntOp(_, _, _)) => Indet
     | (_, BinFloatOp(_, _, _)) => Indet
     | (_, ConsistentCase(Case(_, _, _))) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
@@ -721,10 +717,9 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
+    | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -737,6 +732,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
+    | InvalidOperation(_) => Indet
     }
   and matches_cast_Pair =
       (
@@ -780,10 +776,9 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
+    | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -796,6 +791,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
+    | InvalidOperation(_) => Indet
     }
   and matches_cast_Cons =
       (
@@ -837,10 +833,9 @@ module Exp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
+    | BinBoolOp(_, _, _)
     | BinIntOp(_, _, _)
     | BinFloatOp(_, _, _)
-    | And(_, _)
-    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | IntLit(_) => DoesNotMatch
     | FloatLit(_) => DoesNotMatch
@@ -853,6 +848,7 @@ module Exp = {
     | EmptyHole(_, _, _) => Indet
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
+    | InvalidOperation(_) => Indet
     };
 
   type expand_result_lines =
@@ -1065,7 +1061,7 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | BinOp(NotInHole, (Plus | Minus | Times) as op, skel1, skel2)
+    | BinOp(NotInHole, (Plus | Minus | Times | Divide) as op, skel1, skel2)
     | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Int)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1083,7 +1079,12 @@ module Exp = {
           };
         }
       }
-    | BinOp(NotInHole, (FPlus | FMinus | FTimes) as op, skel1, skel2)
+    | BinOp(
+        NotInHole,
+        (FPlus | FMinus | FTimes | FDivide) as op,
+        skel1,
+        skel2,
+      )
     | BinOp(
         NotInHole,
         (FLessThan | FGreaterThan | FEquals) as op,
@@ -1115,11 +1116,11 @@ module Exp = {
         | Expands(d2, ty2, delta) =>
           let dc1 = DHExp.cast(d1, ty1, Bool);
           let dc2 = DHExp.cast(d2, ty2, Bool);
-          switch (DHExp.BinIntOp.of_op(op)) {
+          switch (DHExp.BinBoolOp.of_op(op)) {
           | None => ExpandResult.DoesNotExpand
-          | Some((op, ty)) =>
-            let d = DHExp.BinIntOp(op, dc1, dc2);
-            Expands(d, ty, delta);
+          | Some(op) =>
+            let d = DHExp.BinBoolOp(op, dc1, dc2);
+            Expands(d, Bool, delta);
           };
         }
       }
@@ -1227,7 +1228,7 @@ module Exp = {
       | None => DoesNotExpand
       }
     | FloatLit(NotInHole, f) =>
-      switch (float_of_string_opt(f)) {
+      switch (TextShape.hazel_float_of_string_opt(f)) {
       | Some(f) => Expands(FloatLit(f), Float, delta)
       | None => DoesNotExpand
       }
@@ -1383,9 +1384,7 @@ module Exp = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_prod_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+    switch (Statics.Exp.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1408,19 +1407,20 @@ module Exp = {
         fun
         | None => ExpandResult.DoesNotExpand
         | Some((rev_ds, rev_tys, delta)) => {
-            let d = rev_ds |> List.rev |> DHExp.make_tuple;
-            let ty = HTyp.Prod(rev_tys |> List.rev);
+            let d = rev_ds |> List.rev |> DHExp.mk_tuple;
+            let ty =
+              switch (rev_tys) {
+              | [] => failwith("expected at least 1 element")
+              | [ty] => ty
+              | _ => HTyp.Prod(rev_tys |> List.rev)
+              };
             Expands(d, ty, delta);
           }
       )
     | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
-      | ([BinOp(_)], _) => ana_expand_skel(ctx, delta, skel, seq, ty)
-      | (_, [Hole]) =>
-        /* Handling case where analyzing tuple against Hole */
-        skels
+      if (List.length(HTyp.get_prod_elements(ty)) == 1) {
+        skel
+        |> UHExp.get_tuple_elements
         |> List.fold_left(
              (
                acc: option((list(DHExp.t), list(HTyp.t), Delta.t)),
@@ -1429,8 +1429,8 @@ module Exp = {
                switch (acc) {
                | None => None
                | Some((rev_ds, rev_tys, delta)) =>
-                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
-                 | ExpandResult.DoesNotExpand => None
+                 switch (syn_expand_skel(ctx, delta, skel, seq)) {
+                 | DoesNotExpand => None
                  | Expands(d, ty, delta) =>
                    Some(([d, ...rev_ds], [ty, ...rev_tys], delta))
                  }
@@ -1441,12 +1441,17 @@ module Exp = {
           fun
           | None => ExpandResult.DoesNotExpand
           | Some((rev_ds, rev_tys, delta)) => {
-              let d = rev_ds |> List.rev |> DHExp.make_tuple;
-              let ty = HTyp.Prod(rev_tys |> List.rev);
+              let d = DHExp.mk_tuple(List.rev(rev_ds));
+              let ty =
+                switch (rev_tys) {
+                | [] => failwith("expected at least 1 element")
+                | [ty] => ty
+                | _ => HTyp.Prod(rev_tys |> List.rev)
+                };
               Expands(d, ty, delta);
             }
-        )
-      | _ =>
+        );
+      } else {
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
@@ -1469,7 +1474,7 @@ module Exp = {
               );
             Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
           }
-        }
+        };
       }
     };
   }
@@ -1522,7 +1527,9 @@ module Exp = {
       }
     | BinOp(
         _,
-        Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan | GreaterThan |
+        Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+        LessThan |
+        GreaterThan |
         Equals |
         FLessThan |
         FGreaterThan |
@@ -1747,6 +1754,10 @@ module Exp = {
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (Ap(d1, d2), hii);
+    | BinBoolOp(op, d1, d2) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (d2, hii) = renumber_result_only(path, hii, d2);
+      (BinBoolOp(op, d1, d2), hii);
     | BinIntOp(op, d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1755,14 +1766,6 @@ module Exp = {
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (BinFloatOp(op, d1, d2), hii);
-    | And(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (And(d1, d2), hii);
-    | Or(d1, d2) =>
-      let (d1, hii) = renumber_result_only(path, hii, d1);
-      let (d2, hii) = renumber_result_only(path, hii, d2);
-      (Or(d1, d2), hii);
     | Inj(ty, side, d1) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Inj(ty, side, d1), hii);
@@ -1802,6 +1805,9 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
+    | InvalidOperation(d, err) =>
+      let (d, hii) = renumber_result_only(path, hii, d);
+      (InvalidOperation(d, err), hii);
     }
   and renumber_result_only_rules =
       (
@@ -1848,6 +1854,10 @@ module Exp = {
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (Ap(d1, d2), hii);
+    | BinBoolOp(op, d1, d2) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+      (BinBoolOp(op, d1, d2), hii);
     | BinIntOp(op, d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1856,14 +1866,6 @@ module Exp = {
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (BinFloatOp(op, d1, d2), hii);
-    | And(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (And(d1, d2), hii);
-    | Or(d1, d2) =>
-      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-      (Or(d1, d2), hii);
     | Inj(ty, side, d1) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Inj(ty, side, d1), hii);
@@ -1908,6 +1910,9 @@ module Exp = {
     | FailedCast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (FailedCast(d1, ty1, ty2), hii);
+    | InvalidOperation(d, err) =>
+      let (d, hii) = renumber_sigmas_only(path, hii, d);
+      (InvalidOperation(d, err), hii);
     }
   and renumber_sigmas_only_rules =
       (
@@ -2025,27 +2030,34 @@ module Evaluator = {
     | List(_) => grounded_List
     };
 
-  let eval_bin_int_op =
-      (op: DHExp.BinIntOp.t, n1: int, n2: int): option(DHExp.t) => {
+  let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
     switch (op) {
-    | Minus => Some(IntLit(n1 - n2))
-    | Plus => Some(IntLit(n1 + n2))
-    | Times => Some(IntLit(n1 * n2))
-    | LessThan => Some(BoolLit(n1 < n2))
-    | GreaterThan => Some(BoolLit(n1 > n2))
-    | Equals => Some(BoolLit(n1 == n2))
+    | And => BoolLit(b1 && b2)
+    | Or => BoolLit(b1 || b2)
+    };
+
+  let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
+    switch (op) {
+    | Minus => IntLit(n1 - n2)
+    | Plus => IntLit(n1 + n2)
+    | Times => IntLit(n1 * n2)
+    | Divide => IntLit(n1 / n2)
+    | LessThan => BoolLit(n1 < n2)
+    | GreaterThan => BoolLit(n1 > n2)
+    | Equals => BoolLit(n1 == n2)
     };
   };
 
   let eval_bin_float_op =
-      (op: DHExp.BinFloatOp.t, f1: float, f2: float): option(DHExp.t) => {
+      (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
     switch (op) {
-    | FPlus => Some(FloatLit(f1 +. f2))
-    | FMinus => Some(FloatLit(f1 -. f2))
-    | FTimes => Some(FloatLit(f1 *. f2))
-    | FLessThan => Some(BoolLit(f1 < f2))
-    | FGreaterThan => Some(BoolLit(f1 > f2))
-    | FEquals => Some(BoolLit(f1 == f2))
+    | FPlus => FloatLit(f1 +. f2)
+    | FMinus => FloatLit(f1 -. f2)
+    | FTimes => FloatLit(f1 *. f2)
+    | FDivide => FloatLit(f1 /. f2)
+    | FLessThan => BoolLit(f1 < f2)
+    | FGreaterThan => BoolLit(f1 > f2)
+    | FEquals => BoolLit(f1 == f2)
     };
   };
 
@@ -2103,40 +2115,23 @@ module Evaluator = {
     | IntLit(_)
     | FloatLit(_)
     | Triv => BoxedValue(d)
-    | And(d1, d2) =>
+    | BinBoolOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(BoolLit(b1) as d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 && b2))
+        | BoxedValue(BoolLit(b2)) =>
+          BoxedValue(eval_bin_bool_op(op, b1, b2))
         | BoxedValue(_) => InvalidInput(3)
-        | Indet(d2') => Indet(And(d1', d2'))
+        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
         }
       | BoxedValue(_) => InvalidInput(4)
       | Indet(d1') =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2')
-        | Indet(d2') => Indet(And(d1', d2'))
-        }
-      }
-    | Or(d1, d2) =>
-      switch (evaluate(d1)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(BoolLit(b1) as d1') =>
-        switch (evaluate(d2)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 || b2))
-        | BoxedValue(_) => InvalidInput(3)
-        | Indet(d2') => Indet(Or(d1', d2'))
-        }
-      | BoxedValue(_) => InvalidInput(4)
-      | Indet(d1') =>
-        switch (evaluate(d2)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(d2')
-        | Indet(d2') => Indet(Or(d1', d2'))
+        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
         }
       }
     | BinIntOp(op, d1, d2) =>
@@ -2146,9 +2141,15 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(IntLit(n2)) =>
-          switch (eval_bin_int_op(op, n1, n2)) {
-          | Some(out) => BoxedValue(out)
-          | None => InvalidInput(5)
+          switch (op, n1, n2) {
+          | (Divide, _, 0) =>
+            Indet(
+              InvalidOperation(
+                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                DivideByZero,
+              ),
+            )
+          | _ => BoxedValue(eval_bin_int_op(op, n1, n2))
           }
         | BoxedValue(_) => InvalidInput(3)
         | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
@@ -2168,10 +2169,7 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(FloatLit(f2)) =>
-          switch (eval_bin_float_op(op, f1, f2)) {
-          | Some(out) => BoxedValue(out)
-          | None => InvalidInput(5)
-          }
+          BoxedValue(eval_bin_float_op(op, f1, f2))
         | BoxedValue(_) => InvalidInput(8)
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
         }
@@ -2312,6 +2310,12 @@ module Evaluator = {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
+      }
+    | InvalidOperation(d, err) =>
+      switch (evaluate(d)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d')
+      | Indet(d') => Indet(InvalidOperation(d', err))
       }
     }
   and evaluate_case =

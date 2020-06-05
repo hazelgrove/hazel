@@ -9,8 +9,8 @@ type join_of_branches =
 
 [@deriving sexp]
 type typed =
-  /* cursor in analytic position */
   // cursor is on a lambda with an argument type annotation
+  /* cursor in analytic position */
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
@@ -100,31 +100,414 @@ type typed =
   | OnLine
   | OnRule;
 
+[@deriving sexp]
+type cursor_term =
+  | Exp(CursorPosition.t, UHExp.operand)
+  | Pat(CursorPosition.t, UHPat.operand)
+  | Typ(CursorPosition.t, UHTyp.operand)
+  | ExpOp(CursorPosition.t, UHExp.operator)
+  | PatOp(CursorPosition.t, UHPat.operator)
+  | TypOp(CursorPosition.t, UHTyp.operator)
+  | Line(CursorPosition.t, UHExp.line)
+  | Rule(CursorPosition.t, UHExp.rule);
+
 // TODO refactor into variants
 // based on term sort and shape
-[@deriving sexp]
+//[@deriving sexp]
 type t = {
+  cursor_term,
   typed,
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
 
-let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
+type zoperand =
+  | ZExp(ZExp.zoperand)
+  | ZTyp(ZTyp.zoperand)
+  | ZPat(ZPat.zoperand);
+
+let rec get_zoperand = (zexp: ZExp.t): option(zoperand) => {
+  get_zoperand_from_zexp(zexp);
+}
+and get_zoperand_from_zexp = (zexp: ZExp.t): option(zoperand) => {
+  get_zoperand_from_zline(ZList.prj_z(zexp));
+}
+and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
+  switch (zline) {
+  | CursorL(_, _) => None
+  | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
+  | LetLineZP(zpat, _, _) => get_zoperand_from_zpat(zpat)
+  | LetLineZA(_, ztyp, _) => get_zoperand_from_ztyp(ztyp)
+  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
+  };
+}
+and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zoperand, _) => get_zoperand_from_zexp_operand(zoperand)
+    | ZOperator(_, _) => None
+    }
+  };
+}
+and get_zoperand_from_zexp_operand =
+    (zoperand: ZExp.zoperand): option(zoperand) => {
+  switch (zoperand) {
+  | CursorE(_, _) => Some(ZExp(zoperand))
+  | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
+  | LamZP(_, zpat, _, _) => get_zoperand_from_zpat(zpat)
+  | LamZA(_, _, ztyp, _) => get_zoperand_from_ztyp(ztyp)
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
+  | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  };
+}
+and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
+  get_zoperand_from_zrule(ZList.prj_z(zrules));
+}
+and get_zoperand_from_zrule = (zrule: ZExp.zrule): option(zoperand) => {
+  switch (zrule) {
+  | CursorR(_, _) => None
+  | RuleZP(zpat, _) => get_zoperand_from_zpat(zpat)
+  | RuleZE(_, zexp) => get_zoperand_from_zexp(zexp)
+  };
+}
+and get_zoperand_from_zpat = (zpat: ZPat.t): option(zoperand) => {
+  get_zoperand_from_zpat_opseq(zpat);
+}
+and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zpat_operand, _) =>
+      get_zoperand_from_zpat_operand(zpat_operand)
+    | ZOperator(_, _) => None
+    }
+  };
+}
+and get_zoperand_from_zpat_operand =
+    (zoperand: ZPat.zoperand): option(zoperand) => {
+  switch (zoperand) {
+  | CursorP(_, _) => Some(ZPat(zoperand))
+  | ParenthesizedZ(zpat)
+  | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  };
+}
+and get_zoperand_from_ztyp = (ztyp: ZTyp.t): option(zoperand) => {
+  get_zoperand_from_ztyp_opseq(ztyp);
+}
+and get_zoperand_from_ztyp_opseq = (zopseq: ZTyp.zopseq): option(zoperand) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(ztyp_operand, _) =>
+      get_zoperand_from_ztyp_operand(ztyp_operand)
+    | ZOperator(_, _) => None
+    }
+  };
+}
+and get_zoperand_from_ztyp_operand =
+    (zoperand: ZTyp.zoperand): option(zoperand) => {
+  switch (zoperand) {
+  | CursorT(_, _) => Some(ZTyp(zoperand))
+  | ParenthesizedZ(ztyp)
+  | ListZ(ztyp) => get_zoperand_from_ztyp(ztyp)
+  };
+};
+
+let caret_is_after_zoperand = (zexp: ZExp.t): bool => {
+  switch (get_zoperand(zexp)) {
+  | None => false
+  | Some(zop) =>
+    switch (zop) {
+    | ZExp(zoperand) => ZExp.is_after_zoperand(zoperand)
+    | ZPat(zoperand) => ZPat.is_after_zoperand(zoperand)
+    | ZTyp(zoperand) => ZTyp.is_after_zoperand(zoperand)
+    }
+  };
+};
+let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
+  switch (get_zoperand(zexp)) {
+  | None => false
+  | Some(zop) =>
+    switch (zop) {
+    | ZExp(zoperand) => ZExp.is_before_zoperand(zoperand)
+    | ZPat(zoperand) => ZPat.is_before_zoperand(zoperand)
+    | ZTyp(zoperand) => ZTyp.is_before_zoperand(zoperand)
+    }
+  };
+};
+
+let rec get_outer_zrules = (exp: ZExp.t): option(ZExp.zrules) => {
+  get_outer_zrules_from_zexp(exp, None);
+}
+and get_outer_zrules_from_zexp =
+    (exp: ZExp.t, outer_zrules: option(ZExp.zrules)): option(ZExp.zrules) => {
+  get_outer_zrules_from_zline(ZList.prj_z(exp), outer_zrules);
+}
+and get_outer_zrules_from_zline =
+    (zline: ZExp.zline, outer_zrules: option(ZExp.zrules)) => {
+  switch (zline) {
+  | CursorL(_, _) => outer_zrules
+  | ExpLineZ(zopseq) =>
+    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _) => outer_zrules
+  | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  };
+}
+and get_outer_zrules_from_zexp_opseq =
+    (zopseq: ZExp.zopseq, outer_zrules: option(ZExp.zrules))
+    : option(ZExp.zrules) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zoperand, _) =>
+      get_outer_zrules_from_zexp_operand(zoperand, outer_zrules)
+    | ZOperator(_, _) => outer_zrules
+    }
+  };
+}
+and get_outer_zrules_from_zexp_operand =
+    (zoperand: ZExp.zoperand, outer_zrules: option(ZExp.zrules))
+    : option(ZExp.zrules) => {
+  switch (zoperand) {
+  | CursorE(_, _) => outer_zrules
+  | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | LamZP(_, _, _, _)
+  | LamZA(_, _, _, _) => outer_zrules
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  };
+}
+and get_outer_zrules_from_zrules = (zrules: ZExp.zrules): option(ZExp.zrules) => {
+  get_outer_zrules_from_zrule(ZList.prj_z(zrules), Some(zrules));
+}
+and get_outer_zrules_from_zrule =
+    (zrule: ZExp.zrule, outer_zrules: option(ZExp.zrules))
+    : option(ZExp.zrules) => {
+  switch (zrule) {
+  | CursorR(_, _)
+  | RuleZP(_, _) => outer_zrules
+  | RuleZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  };
+};
+
+let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Exp(_, exp) =>
+    switch (exp) {
+    | EmptyHole(_)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) => true
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    | _ => false
+    }
+  | Pat(_, pat) =>
+    switch (pat) {
+    | EmptyHole(_)
+    | Wild(_)
+    | Var(_, _, _)
+    | IntLit(_, _)
+    | FloatLit(_, _)
+    | BoolLit(_, _) => true
+    | _ => false
+    }
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _) => false
+  | Line(_, line) =>
+    switch (line) {
+    | EmptyLine => true
+    | LetLine(_, _, _)
+    | ExpLine(_) => false
+    }
+  | Rule(_, _) => false
+  };
+};
+
+let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
+  extract_cursor_exp_term(exp);
+}
+and extract_cursor_exp_term = (exp: ZExp.t): cursor_term => {
+  extract_from_zline(ZList.prj_z(exp));
+}
+and extract_from_zline = (zline: ZExp.zline): cursor_term => {
+  switch (zline) {
+  | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
+  | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
+  | LetLineZP(zpat, _, _) => extract_cursor_pat_term(zpat)
+  | LetLineZA(_, ztyp, _) => extract_cursor_type_term(ztyp)
+  | LetLineZE(_, _, zexp) => extract_cursor_exp_term(zexp)
+  };
+}
+and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
+  switch (zexp_operand) {
+  | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
+  | ParenthesizedZ(zexp) => extract_cursor_exp_term(zexp)
+  | LamZP(_, zpat, _, _) => extract_cursor_pat_term(zpat)
+  | LamZA(_, _, ztyp, _) => extract_cursor_type_term(ztyp)
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _) => extract_cursor_exp_term(zexp)
+  | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
+  };
+}
+and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
+  let zrule = ZList.prj_z(zrules);
+  extract_from_zrule(zrule);
+}
+and extract_from_zrule = (zrule: ZExp.zrule): cursor_term => {
+  switch (zrule) {
+  | CursorR(cursor_pos, uex_rule) => Rule(cursor_pos, uex_rule)
+  | RuleZP(zpat, _) => extract_cursor_pat_term(zpat)
+  | RuleZE(_, zexp) => extract_cursor_exp_term(zexp)
+  };
+}
+and extract_from_zexp_opseq = (zopseq: ZExp.zopseq): cursor_term => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) => extract_from_zexp_zseq(zseq)
+  };
+}
+and extract_from_zexp_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+  switch (zseq) {
+  | ZOperand(zoperand, _) => extract_from_zexp_operand(zoperand)
+  | ZOperator(zoperator, _) =>
+    let (cursor_pos, uop) = zoperator;
+    ExpOp(cursor_pos, uop);
+  };
+}
+and extract_cursor_pat_term = (zpat: ZPat.t): cursor_term => {
+  switch (zpat) {
+  | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq)
+  };
+}
+and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+  switch (zseq) {
+  | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
+  | ZOperator(zpat_operator, _) =>
+    let (cursor_pos, uop) = zpat_operator;
+    PatOp(cursor_pos, uop);
+  };
+}
+and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
+  switch (zpat_operand) {
+  | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
+  | ParenthesizedZ(zpat)
+  | InjZ(_, _, zpat) => extract_cursor_pat_term(zpat)
+  };
+}
+and extract_cursor_type_term = (ztyp: ZTyp.t): cursor_term => {
+  switch (ztyp) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
+    | ZOperator(ztyp_operator, _) =>
+      let (cursor_pos, uop) = ztyp_operator;
+      TypOp(cursor_pos, uop);
+    }
+  };
+}
+and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
+  switch (ztyp_operand) {
+  | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
+  | ParenthesizedZ(ztyp)
+  | ListZ(ztyp) => extract_cursor_type_term(ztyp)
+  };
+};
+let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
+  let prev_is_empty_line = {
+    let prefix = ZList.prj_prefix(exp);
+    switch (ListUtil.split_last(prefix)) {
+    | None => false
+    | Some((_, EmptyLine)) =>
+      switch (ZList.prj_z(exp)) {
+      | ExpLineZ(zopseq) => ZExp.is_before_zopseq(zopseq)
+      | CursorL(_, _)
+      | LetLineZP(_, _, _)
+      | LetLineZA(_, _, _)
+      | LetLineZE(_, _, _) => true
+      }
+    | Some((_, _)) => false
+    };
+  };
+  let next_is_empty_line = {
+    let suffix = ZList.prj_suffix(exp);
+    switch (suffix) {
+    | [] => false
+    | [EmptyLine, ..._] =>
+      switch (ZList.prj_z(exp)) {
+      | ExpLineZ(zopseq) => ZExp.is_after_zopseq(zopseq)
+      | CursorL(_, _)
+      | LetLineZP(_, _, _)
+      | LetLineZA(_, _, _)
+      | LetLineZE(_, _, _) => false
+      }
+    | _ => false
+    };
+  };
+  (prev_is_empty_line, next_is_empty_line);
+};
+let is_empty_hole = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Exp(_, EmptyHole(_)) => true
+  | Exp(_, _) => false
+  | Pat(_, EmptyHole(_)) => true
+  | Pat(_, _) => false
+  | Typ(_, Hole) => true
+  | Typ(_, _) => false
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Line(_, _)
+  | Rule(_, _) => false
+  };
+};
+
+let is_empty_line = (cursor_term): bool => {
+  switch (cursor_term) {
+  | Line(_, EmptyLine) => true
+  | Line(_, _) => false
+  | Exp(_, _)
+  | Pat(_, _)
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Rule(_, _) => false
+  };
+};
+
+let mk = (~uses=?, typed, ctx, cursor_term) => {
+  typed,
+  ctx,
+  uses,
+  cursor_term,
+};
 
 let get_ctx = ci => ci.ctx;
 
 module Typ = {
-  let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx));
+  let cursor_info = (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(t) =>
+    Some(mk(OnType, ctx, extract_cursor_type_term(typ)));
 };
-
 /*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
  * until we could find uses and feed it to (uses_list => 't).
  */
+
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
   | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
@@ -166,7 +549,11 @@ module Pat = {
          )
       |> OptUtil.map(((rev_tys, _)) =>
            CursorNotOnDeferredVarPat(
-             mk(PatSynthesized(Prod(rev_tys |> List.rev)), ctx),
+             mk(
+               PatSynthesized(Prod(rev_tys |> List.rev)),
+               ctx,
+               extract_cursor_pat_zseq(zseq),
+             ),
            )
          )
     | _ =>
@@ -208,6 +595,7 @@ module Pat = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -216,7 +604,9 @@ module Pat = {
       | ZOperator(_) =>
         Statics.Pat.syn_skel(ctx, skel, seq)
         |> OptUtil.map(((ty, _)) =>
-             CursorNotOnDeferredVarPat(mk(PatSynthesized(ty), ctx))
+             CursorNotOnDeferredVarPat(
+               mk(PatSynthesized(ty), ctx, extract_cursor_pat_zseq(zseq)),
+             )
            )
       };
     } else {
@@ -254,19 +644,35 @@ module Pat = {
       : option(deferrable(t)) =>
     switch (zoperand) {
     | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
-      Some(CursorNotOnDeferredVarPat(mk(PatSynKeyword(k), ctx)))
+      Some(
+        CursorNotOnDeferredVarPat(
+          mk(PatSynKeyword(k), ctx, extract_from_zpat_operand(zoperand)),
+        ),
+      )
     | CursorP(_, Var(NotInHole, NotInVarHole, x) as p) =>
       Statics.Pat.syn_operand(ctx, p)
       |> OptUtil.map(((ty, _)) =>
            CursorOnDeferredVarPat(
-             uses => mk(~uses, PatSynthesized(ty), ctx),
+             uses =>
+               mk(
+                 ~uses,
+                 PatSynthesized(ty),
+                 ctx,
+                 extract_from_zpat_operand(zoperand),
+               ),
              x,
            )
          )
     | CursorP(_, p) =>
       Statics.Pat.syn_operand(ctx, p)
       |> OptUtil.map(((ty, _)) =>
-           CursorNotOnDeferredVarPat(mk(PatSynthesized(ty), ctx))
+           CursorNotOnDeferredVarPat(
+             mk(
+               PatSynthesized(ty),
+               ctx,
+               extract_from_zpat_operand(zoperand),
+             ),
+           )
          )
     | InjZ(_, _, zbody)
     | ParenthesizedZ(zbody) =>
@@ -292,25 +698,46 @@ module Pat = {
     // but we want all comma operators in an opseq to
     // show the complete product type
     let seq = zseq |> ZPat.erase_zseq;
-    let skel_tys = Statics.Pat.tuple_zip(skel, ty);
     switch (zseq) {
     | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
-      switch (skel_tys) {
-      | Some(_) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
-      | None =>
-        let expected_length = ty |> HTyp.get_prod_elements |> List.length;
-        let got_length = skel |> UHPat.get_tuple_elements |> List.length;
+      let opseq = ZPat.erase_zopseq(zopseq);
+      let err = UHPat.get_err_status_opseq(opseq);
+      switch (err) {
+      | NotInHole =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(PatAnaWrongLength(expected_length, got_length, ty), ctx),
+            mk(PatAnalyzed(ty), ctx, extract_cursor_pat_zseq(zseq)),
+          ),
+        )
+      | InHole(WrongLength, _) =>
+        let expected_length = List.length(HTyp.get_prod_elements(ty));
+        let got_length = List.length(UHPat.get_tuple_elements(skel));
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(
+              PatAnaWrongLength(expected_length, got_length, ty),
+              ctx,
+              extract_cursor_pat_zseq(zseq),
+            ),
           ),
         );
-      }
+      | InHole(TypeInconsistent, _) =>
+        let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
+        Statics.Pat.syn_opseq(ctx, opseq')
+        |> Option.map(((ty', _)) =>
+             CursorNotOnDeferredVarPat(
+               mk(
+                 PatAnaTypeInconsistent(ty, ty'),
+                 ctx,
+                 extract_cursor_pat_zseq(zseq),
+               ),
+             )
+           );
+      };
     | _ =>
       // cursor in tuple element
-      switch (skel_tys) {
+      switch (Statics.Pat.tuple_zip(skel, ty)) {
       | None =>
         // wrong length, switch to syn
         let zopseq_not_in_hole =
@@ -357,6 +784,7 @@ module Pat = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         ana_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -364,10 +792,32 @@ module Pat = {
           ty,
         )
       | ZOperator(_) =>
-        Statics.Pat.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ =>
-             CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
-           )
+        // skel must be BinOp
+        let opseq = OpSeq.OpSeq(skel, ZPat.erase_zseq(zseq));
+        let err = UHPat.get_err_status_opseq(opseq);
+        switch (err) {
+        | NotInHole =>
+          Statics.Pat.ana_skel(ctx, skel, seq, ty)
+          |> OptUtil.map(_ =>
+               CursorNotOnDeferredVarPat(
+                 mk(PatAnalyzed(ty), ctx, extract_cursor_pat_zseq(zseq)),
+               )
+             )
+        | InHole(WrongLength, _) =>
+          failwith(__LOC__ ++ ": n-tuples handled at opseq level")
+        | InHole(TypeInconsistent, _) =>
+          let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
+          Statics.Pat.syn_opseq(ctx, opseq')
+          |> Option.map(((ty', _)) =>
+               CursorNotOnDeferredVarPat(
+                 mk(
+                   PatAnaTypeInconsistent(ty, ty'),
+                   ctx,
+                   extract_cursor_pat_zseq(zseq),
+                 ),
+               )
+             );
+        };
       };
     } else {
       // recurse toward cursor
@@ -412,13 +862,18 @@ module Pat = {
         zoperand: ZPat.zoperand,
         ty: HTyp.t,
       )
-      : option(deferrable(t)) =>
+      : option(deferrable(t)) => {
+    let cursor_term = extract_from_zpat_operand(zoperand);
     switch (zoperand) {
     | CursorP(_, operand) =>
       switch (operand) {
       // in hole
       | EmptyHole(_) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Hole), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
+          ),
+        )
       | Wild(InHole(TypeInconsistent, _))
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
@@ -432,7 +887,7 @@ module Pat = {
         | Some((ty', _)) =>
           Some(
             CursorNotOnDeferredVarPat(
-              mk(PatAnaTypeInconsistent(ty, ty'), ctx),
+              mk(PatAnaTypeInconsistent(ty, ty'), ctx, cursor_term),
             ),
           )
         };
@@ -444,30 +899,52 @@ module Pat = {
       | ListNil(InHole(WrongLength, _))
       | Inj(InHole(WrongLength, _), _, _) => None
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaKeyword(ty, k), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaKeyword(ty, k), ctx, cursor_term),
+          ),
+        )
       // not in hole
       | Var(NotInHole, _, x) =>
         Some(
           CursorOnDeferredVarPat(
-            uses => mk(~uses, PatAnalyzed(ty), ctx),
+            uses => mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
             x,
           ),
         )
       | Wild(NotInHole)
       | ListNil(NotInHole) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx, cursor_term)),
+        )
       | IntLit(NotInHole, _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Int), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
+          ),
+        )
       | FloatLit(NotInHole, _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Float), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
+          ),
+        )
       | BoolLit(NotInHole, _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnaSubsumed(ty, Bool), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
+          ),
+        )
       | Inj(NotInHole, _, _) =>
-        Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
+        Some(
+          CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx, cursor_term)),
+        )
       | Parenthesized(body) =>
         Statics.Pat.ana(ctx, body, ty)
         |> OptUtil.map(_ =>
-             CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
+             CursorNotOnDeferredVarPat(
+               mk(PatAnalyzed(ty), ctx, cursor_term),
+             )
            )
       }
     | InjZ(InHole(WrongLength, _), _, _) => None
@@ -483,6 +960,7 @@ module Pat = {
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
     };
+  };
 };
 
 module Exp = {
@@ -548,7 +1026,12 @@ module Exp = {
       (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline)
       : option(deferrable(t)) =>
     switch (zline) {
-    | CursorL(_) => Some(CursorNotOnDeferredVarPat(mk(OnLine, ctx)))
+    | CursorL(_) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          mk(OnLine, ctx, extract_from_zline(zline)),
+        ),
+      )
     | ExpLineZ(ze) =>
       switch (syn_cursor_info_zopseq(~steps, ctx, ze)) {
       | None => None
@@ -611,7 +1094,9 @@ module Exp = {
     | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
       Statics.Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
-      |> OptUtil.map(ty => mk(Synthesized(ty), ctx))
+      |> OptUtil.map(ty =>
+           mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
+         )
     | _ =>
       // cursor within tuple element
       let cursor_skel =
@@ -634,6 +1119,7 @@ module Exp = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         syn_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -641,7 +1127,9 @@ module Exp = {
         )
       | ZOperator(_) =>
         Statics.Exp.syn_skel(ctx, skel, seq)
-        |> OptUtil.map(ty => mk(Synthesized(ty), ctx))
+        |> OptUtil.map(ty =>
+             mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
+           )
       };
     } else {
       // recurse toward cursor
@@ -653,7 +1141,7 @@ module Exp = {
         )
       | BinOp(
           _,
-          Minus | Plus | Times | LessThan | GreaterThan | Equals,
+          Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
           skel1,
           skel2,
         ) =>
@@ -663,7 +1151,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          FMinus | FPlus | FTimes | FLessThan | FGreaterThan | FEquals,
+          FMinus | FPlus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
           skel1,
           skel2,
         ) =>
@@ -683,7 +1172,7 @@ module Exp = {
             | ZOperator(_) => assert(false)
             | ZOperand(zoperand, _) => zoperand
             };
-          let mk = typed => mk(typed, ctx);
+          let mk = typed => mk(typed, ctx, extract_from_zexp_zseq(zseq));
           switch (cursor_on_outer_expr(zoperand)) {
           | None =>
             syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
@@ -753,16 +1242,18 @@ module Exp = {
   and syn_cursor_info_zoperand =
       (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZExp.zoperand)
       : option(t) => {
+    let cursor_term = extract_from_zexp_operand(zoperand);
     switch (zoperand) {
     | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
-      Some(mk(SynKeyword(k), ctx))
-    | CursorE(_, Var(_, InVarHole(Free, _), _)) => Some(mk(SynFree, ctx))
+      Some(mk(SynKeyword(k), ctx, cursor_term))
+    | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
+      Some(mk(SynFree, ctx, cursor_term))
     | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
-      Some(mk(SynInconsistentBranches(rule_types, steps), ctx))
+      Some(mk(SynInconsistentBranches(rule_types, steps), ctx, cursor_term))
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
-      | Some(ty) => Some(mk(Synthesized(ty), ctx))
+      | Some(ty) => Some(mk(Synthesized(ty), ctx, cursor_term))
       }
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
@@ -902,20 +1393,34 @@ module Exp = {
         ty: HTyp.t,
       )
       : option(t) => {
-    let skel_tys = Statics.Exp.tuple_zip(skel, ty);
+    let cursor_term = extract_from_zexp_zseq(zseq);
     switch (zseq) {
-    | ZOperator((_, Comma), _) when HTyp.is_Prod(ty) =>
+    | ZOperator((_, Comma), _) =>
       // cursor on tuple comma
-      switch (skel_tys) {
-      | Some(_) => Some(mk(Analyzed(ty), ctx))
-      | None =>
+      let opseq = ZExp.erase_zopseq(zopseq);
+      let err = UHExp.get_err_status_opseq(opseq);
+      switch (err) {
+      | NotInHole => Some(mk(Analyzed(ty), ctx, cursor_term))
+      | InHole(WrongLength, _) =>
         let expected_length = ty |> HTyp.get_prod_elements |> List.length;
         let got_length = skel |> UHExp.get_tuple_elements |> List.length;
-        Some(mk(AnaWrongLength(expected_length, got_length, ty), ctx));
-      }
+        Some(
+          mk(
+            AnaWrongLength(expected_length, got_length, ty),
+            ctx,
+            cursor_term,
+          ),
+        );
+      | InHole(TypeInconsistent, _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        Statics.Exp.syn_opseq(ctx, opseq')
+        |> Option.map(ty' =>
+             mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term)
+           );
+      };
     | _ =>
       // cursor in tuple element
-      switch (skel_tys) {
+      switch (Statics.Exp.tuple_zip(skel, ty)) {
       | None =>
         // wrong length, switch to syn
         let zopseq_not_in_hole =
@@ -941,6 +1446,7 @@ module Exp = {
         ty: HTyp.t,
       )
       : option(t) => {
+    let cursor_term = extract_from_zexp_zseq(zseq);
     let syn_go = skel => syn_cursor_info_skel(~steps, ctx, skel, zseq);
     let ana_go = (skel, ty) =>
       ana_cursor_info_skel(~steps, ctx, skel, zseq, ty);
@@ -949,6 +1455,7 @@ module Exp = {
       // found cursor
       switch (zseq) {
       | ZOperand(zoperand, (prefix, _)) =>
+        // skel must be Placeholder
         ana_cursor_info_zoperand(
           ~steps=steps @ [Seq.length_of_affix(prefix)],
           ctx,
@@ -956,8 +1463,22 @@ module Exp = {
           ty,
         )
       | ZOperator(_) =>
-        Statics.Exp.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
+        // skel must be BinOp
+        let opseq = ZExp.erase_zopseq(ZOpSeq.ZOpSeq(skel, zseq));
+        let err = UHExp.get_err_status_opseq(opseq);
+        switch (err) {
+        | NotInHole =>
+          Statics.Exp.ana_skel(ctx, skel, seq, ty)
+          |> OptUtil.map(_ => mk(Analyzed(ty), ctx, cursor_term))
+        | InHole(WrongLength, _) =>
+          failwith(__LOC__ ++ ": n-tuples handled at opseq level")
+        | InHole(TypeInconsistent, _) =>
+          let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+          Statics.Exp.syn_opseq(ctx, opseq')
+          |> Option.map(ty' =>
+               mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term)
+             );
+        };
       };
     } else {
       // recurse toward cursor
@@ -981,7 +1502,8 @@ module Exp = {
         }
       | BinOp(
           _,
-          Plus | Minus | Times | FPlus | FMinus | FTimes | LessThan |
+          Plus | Minus | Times | Divide | FPlus | FMinus | FTimes | FDivide |
+          LessThan |
           GreaterThan |
           Equals |
           FLessThan |
@@ -1004,14 +1526,16 @@ module Exp = {
         zoperand: ZExp.zoperand,
         ty: HTyp.t,
       )
-      : option(t) =>
+      : option(t) => {
+    let cursor_term = extract_from_zexp_operand(zoperand);
     switch (zoperand) {
     | CursorE(_, e) =>
       switch (e) {
       /* in hole */
       | Var(_, InVarHole(Keyword(k), _), _) =>
-        Some(mk(AnaKeyword(ty, k), ctx))
-      | Var(_, InVarHole(Free, _), _) => Some(mk(AnaFree(ty), ctx))
+        Some(mk(AnaKeyword(ty, k), ctx, cursor_term))
+      | Var(_, InVarHole(Free, _), _) =>
+        Some(mk(AnaFree(ty), ctx, cursor_term))
       | Var(InHole(TypeInconsistent, _), _, _)
       | IntLit(InHole(TypeInconsistent, _), _)
       | FloatLit(InHole(TypeInconsistent, _), _)
@@ -1027,7 +1551,8 @@ module Exp = {
           |> UHExp.set_err_status_operand(NotInHole);
         switch (Statics.Exp.syn_operand(ctx, operand')) {
         | None => None
-        | Some(ty') => Some(mk(AnaTypeInconsistent(ty, ty'), ctx))
+        | Some(ty') =>
+          Some(mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term))
         };
       | Var(InHole(WrongLength, _), _, _)
       | IntLit(InHole(WrongLength, _), _)
@@ -1051,33 +1576,37 @@ module Exp = {
       | ApPalette(NotInHole, _, _, _) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
         | None => None
-        | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx))
+        | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
         }
       | ListNil(NotInHole)
       | Inj(NotInHole, _, _)
       | Case(StandardErrStatus(NotInHole), _, _) =>
-        Some(mk(Analyzed(ty), ctx))
+        Some(mk(Analyzed(ty), ctx, cursor_term))
       | Parenthesized(body) =>
         Statics.Exp.ana(ctx, body, ty)
-        |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
+        |> OptUtil.map(_ => mk(Analyzed(ty), ctx, cursor_term))
       | Lam(NotInHole, _, ann, _) =>
         switch (HTyp.matched_arrow(ty)) {
         | None => None
         | Some((ty1, ty2)) =>
           switch (ann) {
-          | None => Some(mk(Analyzed(ty), ctx))
+          | None => Some(mk(Analyzed(ty), ctx, cursor_term))
           | Some(ann) =>
             let ann_ty = ann |> UHTyp.expand;
             HTyp.consistent(ann_ty, ty1)
-              ? Some(mk(AnaAnnotatedLambda(ty, Arrow(ann_ty, ty2)), ctx))
+              ? Some(
+                  mk(
+                    AnaAnnotatedLambda(ty, Arrow(ann_ty, ty2)),
+                    ctx,
+                    cursor_term,
+                  ),
+                )
               : None;
           }
         }
-      }
-    /* zipper cases */
+      } /* zipper cases */
     | ParenthesizedZ(zbody) =>
-      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
-    /* zipper in hole */
+      ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
     | LamZP(InHole(WrongLength, _), _, _, _)
     | LamZA(InHole(WrongLength, _), _, _, _)
     | LamZE(InHole(WrongLength, _), _, _, _)
@@ -1102,8 +1631,7 @@ module Exp = {
     | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
-    /* zipper not in hole */
+      syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
     | LamZP(NotInHole, zp, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => None
@@ -1164,7 +1692,8 @@ module Exp = {
       }
     | ApPaletteZ(NotInHole, _, _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
-    }
+    };
+  }
   and syn_cursor_info_rule =
       (
         ~steps: CursorPath.steps,
@@ -1176,7 +1705,7 @@ module Exp = {
       )
       : option(t) =>
     switch (zrule) {
-    | CursorR(_) => Some(mk(OnRule, ctx))
+    | CursorR(_) => Some(mk(OnRule, ctx, extract_from_zrule(zrule)))
     | RuleZP(zp, clause) =>
       switch (Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)) {
       | None => None
@@ -1195,9 +1724,10 @@ module Exp = {
         switch (is_outer, cursor_info) {
         | (_, None) => None
         | (false, _) => cursor_info
-        | (true, Some({typed, ctx, uses})) =>
+        | (true, Some({typed, ctx, uses, _})) =>
           let typed = SynBranchClause(lub, typed, rule_index);
-          Some({typed, ctx, uses});
+          let cursor_term = extract_from_zrule(zrule);
+          Some({cursor_term, typed, ctx, uses});
         };
       }
     }
@@ -1211,7 +1741,7 @@ module Exp = {
       )
       : option(t) =>
     switch (zrule) {
-    | CursorR(_) => Some(mk(OnRule, ctx))
+    | CursorR(_) => Some(mk(OnRule, ctx, extract_from_zrule(zrule)))
     | RuleZP(zp, clause) =>
       switch (Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)) {
       | None => None
