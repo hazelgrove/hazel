@@ -448,6 +448,9 @@ module Exp = {
     switch (d2) {
     | BoundVar(y) =>
       if (Var.eq(x, y)) {
+        if (d1 == IntLit(1)) {
+          print_endline("true");
+        };
         d1;
       } else {
         d2;
@@ -2178,7 +2181,16 @@ module Evaluator = {
 
   let rec evaluate = (d: DHExp.t): result =>
     switch (d) {
-    | BoundVar(_) => InvalidInput(1)
+    | BoundVar(var) =>
+      print_endline("Dynamics2182");
+      switch (var) {
+      | "length" =>
+        BoxedValue(Lam(Var("x"), Arrow(String, Int), BoundVar("x")))
+      | "string_of_int" =>
+        print_endline("EVALUATE string_of_int Dynamics2185");
+        BoxedValue(Lam(Var("x"), Arrow(Int, String), BoundVar("x")));
+      | _ => InvalidInput(1)
+      };
     | Let(dp, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2193,6 +2205,7 @@ module Evaluator = {
     | FixF(x, _, d1) => evaluate(Exp.subst_var(d, x, d1))
     | Lam(_, _, _) => BoxedValue(d)
     | Ap(d1, d2) =>
+      print_endline("EVALUATE AP Dynamics2202");
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(Lam(dp, _, d3)) =>
@@ -2205,7 +2218,17 @@ module Evaluator = {
           | Indet => Indet(d)
           | Matches(env) =>
             /* beta rule */
-            evaluate(Exp.subst(env, d3))
+            let res = evaluate(Exp.subst(env, d3));
+            switch (d1) {
+            | BoundVar("string_of_int") =>
+              switch (res) {
+              | BoxedValue(IntLit(n)) =>
+                BoxedValue(StringLit(string_of_int(n)))
+              | _ => res
+              }
+            | _ => res
+            };
+          // evaluate(Exp.subst(env, d3))
           }
         }
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -2224,7 +2247,7 @@ module Evaluator = {
         | BoxedValue(d2')
         | Indet(d2') => Indet(Ap(d1', d2'))
         }
-      }
+      };
     | Subscript(d1, d2, d3) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

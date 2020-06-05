@@ -42,8 +42,11 @@ let of_text = (text: string): option(t) => {
     if (text |> String.equal("_")) {
       Some(Underscore);
     } else if (text |> Var.is_valid) {
+      print_endline("TS46");
+      print_endline(text);
       Some(Var(text));
     } else {
+      print_endline("TS49");
       None;
     }
   };

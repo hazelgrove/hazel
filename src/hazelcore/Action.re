@@ -1454,7 +1454,8 @@ module Pat = {
         };
       syn_insert_text(ctx, u_gen, (index, s), "_");
     | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
-      syn_insert_text(ctx, u_gen, (j, s), x)
+      print_endline("Action1457");
+      syn_insert_text(ctx, u_gen, (j, s), x);
     | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), n)
     | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
@@ -2437,6 +2438,7 @@ module Exp = {
   let mk_syn_text =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
       : Outcome.t(syn_success) => {
+    print_endline("Action2441");
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -2477,6 +2479,7 @@ module Exp = {
         };
       switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
       | Some(ty) =>
+        print_endline("x=" ++ x);
         let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
         Succeeded(SynDone((ze, ty, u_gen)));
       | None =>
@@ -3864,7 +3867,8 @@ module Exp = {
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
-      syn_insert_text(ctx, u_gen, (j, s), x)
+      print_endline("Action3869");
+      syn_insert_text(ctx, u_gen, (j, s), x);
     | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
       syn_insert_text(ctx, u_gen, (j, s), n)
     | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>

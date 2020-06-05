@@ -78,7 +78,9 @@ let expand =
 let get_expansion = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
   | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) => d
+  | Expands(d, _, _) =>
+    print_endline("Program82");
+    d;
   };
 
 exception InvalidInput;
