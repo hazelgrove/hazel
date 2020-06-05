@@ -278,3 +278,77 @@ let find_and_decorate_var_use =
     | _ => failwith(__LOC__ ++ ": var not found")
     }
   );
+
+let flatten = (l: t): list(list(t)) => {
+  let rec go = (~trailing_rows: list(list(t)), l: t) =>
+    switch (l) {
+    | Text(_)
+    | Align(_)
+    | Annot(_) =>
+      switch (trailing_rows) {
+      | [] => [[l]]
+      | [row, ...rows] => [[l, ...row], ...rows]
+      }
+    | Linebreak => [[], ...trailing_rows]
+    | Cat(l1, l2) =>
+      go(~trailing_rows=go(~trailing_rows, l2), l1)
+    };
+  go(~trailing_rows=[], l);
+};
+
+type box = {
+  height: int,
+  width: int,
+};
+type shape = {
+  // relative to indent
+  start_col: int,
+  boxes: list(box),
+};
+
+let bounding_box = (l: t): box => {
+  let row = ref(0);
+  let col = ref(0);
+  // returns (height, max col)
+  let rec go = (~indent: int, l: t) =>
+    switch (l) {
+    | Text(s) =>
+      col := col^ + StringUtil.utf8_length(s);
+      (1, col^);
+    | Linebreak =>
+      let eol = col^;
+      col := indent;
+      (2, eol);
+    | Align(l) => go(~indent=col^, l)
+    | Annot(_, l) => go(~indent, l)
+    | Cat(l1, l2) =>
+      let (height1, max1) = go(~indent, l1);
+      let (height2, max2) = go(~indent, l2);
+      (height1 + height2 - 1, max(max1, max2));
+    };
+  let (height, width) = go(~indent=0, l);
+  {height, width};
+};
+
+let term_shape = (~hd_start: int, l: t): shape => {
+  l
+  |> flatten
+  |> List.mapi((i, lines) =>
+    lines
+    |> List.fold_left(
+      (, word) =>
+        switch (word) {
+        | Annot(Term(_), _)
+        | Annot(DelimGroup)
+        }
+
+      [],
+    )
+  );
+
+  l
+  |> flatten
+  |> List.fold_left(
+    ()
+  )
+}
