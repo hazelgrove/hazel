@@ -29,9 +29,9 @@ type t =
   | LivelitName
   | LivelitView({
       llu: MetaVar.t,
-      llview:
-        [@sexp.opaque] (Livelits.trigger_serialized => Livelits.LivelitView.t),
-      splice_map_opt: option(SpliceInfo.splice_map(option(DHExp.t))),
+      llname: LivelitName.t,
+      shape: Livelits.LivelitView.shape,
+      model: SerializedModel.t,
     })
 [@deriving sexp]
 and term_data = {
@@ -42,7 +42,7 @@ and term_data = {
 [@deriving sexp]
 and term_shape =
   | Rule
-  | Case({err: ErrStatus.t})
+  | Case({err: CaseErrStatus.t})
   | Var({
       err: ErrStatus.t,
       verr: VarErrStatus.t,

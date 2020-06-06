@@ -27,16 +27,6 @@ module ColMap = {
     map |> find_first_opt(c => Int.compare(c, col) > 0);
   let find_after_eq = (col, map) =>
     map |> find_first_opt(c => Int.compare(c, col) >= 0);
-
-  let log_sexp = col_map =>
-    col_map
-    |> iter((col, rev_path) => {
-         JSUtil.log("col = " ++ Sexplib.Sexp.to_string(Col.sexp_of_t(col)));
-         JSUtil.log(
-           "rev_path = "
-           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_rev_t(rev_path)),
-         );
-       });
 };
 
 type t = RowMap.t(ColMap.t(CursorPath.rev_t));
@@ -73,8 +63,7 @@ let compare_overlapping_paths =
 
 type z = (option((MetaVar.t, SpliceName.t)), binding);
 
-let of_layout =
-    ((l, splice_ls): UHLayout.with_splices): (with_splices, option(z)) => {
+let mk = ((l, splice_ls): UHLayout.with_splices): (with_splices, option(z)) => {
   let z = ref(None);
   let splice_cmaps = ref(SpliceMap.empty);
   let rec of_splice =

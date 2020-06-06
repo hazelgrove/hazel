@@ -7,7 +7,7 @@ module WidthPosKey = {
 };
 
 // NOTE: pos is relative to most recent `Align`
-type m'('a) = PosMap.t((int /*cost*/, 'a));
+type m'('a) = PosMap.t((Cost.t, 'a));
 type m('a) = (~width: int, ~pos: int) => m'('a);
 
 module M = Hashtbl.Make(WidthPosKey);

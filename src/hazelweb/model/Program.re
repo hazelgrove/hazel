@@ -1,5 +1,8 @@
+open Sexplib.Std;
+
 module Memo = Core_kernel.Memo;
 
+[@deriving sexp]
 type t = {
   edit_state: Statics.edit_state,
   width: int,
@@ -39,8 +42,8 @@ let get_zexp = program => {
   ze;
 };
 
-let _erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
-let get_uhexp = program => program |> get_zexp |> _erase;
+let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
+let get_uhexp = program => program |> get_zexp |> erase;
 
 let get_path = program => program |> get_zexp |> CursorPath.Exp.of_z;
 let get_steps = program => {
@@ -54,7 +57,7 @@ let get_u_gen = program => {
 };
 
 exception MissingCursorInfo;
-let _cursor_info =
+let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
     CursorInfo.Exp.syn_cursor_info((
@@ -65,12 +68,12 @@ let _cursor_info =
 let get_cursor_info = (program: t) => {
   program
   |> get_zexp
-  |> _cursor_info
+  |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
 exception DoesNotExpand;
-let _expand = (~livelit_holes=false) =>
+let expand = (~livelit_holes=false) =>
   Memo.general(
     ~cache_size_bound=1000,
     Dynamics.Exp.syn_expand(
@@ -79,23 +82,21 @@ let _expand = (~livelit_holes=false) =>
       Delta.empty,
     ),
   );
-let _get_expansion = (~livelit_holes=false, program: t): DHExp.t =>
-  switch (program |> get_uhexp |> _expand(~livelit_holes)) {
+let get_expansion = (~livelit_holes=false, program: t): DHExp.t =>
+  switch (program |> get_uhexp |> expand(~livelit_holes)) {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) => d
   };
-let get_expansion = (program: t): DHExp.t =>
-  _get_expansion(~livelit_holes=false, program);
 
 exception InvalidInput;
-let _evaluate = (~eval_livelit_holes=false) => {
+let evaluate = (~eval_livelit_holes=false) => {
   Memo.general(
     ~cache_size_bound=1000,
     Dynamics.Evaluator.evaluate(~eval_livelit_holes),
   );
 };
 
-let _fill_and_resume_llii =
+let fill_and_resume_llii =
     (llii: LivelitInstanceInfo.t): LivelitInstanceInfo.t =>
   llii
   |> MetaVarMap.map(
@@ -108,7 +109,7 @@ let _fill_and_resume_llii =
                   switch (d) {
                   | DHExp.BoundVar(_) => d
                   | _ =>
-                    switch (_evaluate(~eval_livelit_holes=true, d)) {
+                    switch (evaluate(~eval_livelit_holes=true, d)) {
                     | InvalidInput(msg) =>
                       failwith(
                         Printf.sprintf(
@@ -129,7 +130,7 @@ let _fill_and_resume_llii =
                   typ,
                   d_opt
                   |> OptUtil.and_then(d =>
-                       switch (_evaluate(~eval_livelit_holes=true, d)) {
+                       switch (evaluate(~eval_livelit_holes=true, d)) {
                        | InvalidInput(_) => None
                        | BoxedValue(d)
                        | Indet(d) => Some(d)
@@ -150,16 +151,16 @@ let get_result = (program: t): Result.t => {
       LivelitInstanceInfo.empty,
     );
   let ret = (d, wrapper) =>
-    switch (program |> _get_expansion(~livelit_holes=true) |> _evaluate) {
+    switch (program |> get_expansion(~livelit_holes=true) |> evaluate) {
     | InvalidInput(_) => failwith("Failed evaluation only with livelit_holes")
     | BoxedValue(d')
     | Indet(d') =>
       let (d_renumbered, hii, _) = renumber(d);
       let (_, _, llii) = renumber(d');
-      let llii = _fill_and_resume_llii(llii);
+      let llii = fill_and_resume_llii(llii);
       (d_renumbered, hii, llii, wrapper(d_renumbered));
     };
-  switch (program |> _get_expansion(~livelit_holes=false) |> _evaluate) {
+  switch (program |> get_expansion(~livelit_holes=false) |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) => ret(d, d' => Dynamics.Evaluator.BoxedValue(d'))
   | Indet(d) => ret(d, d' => Dynamics.Evaluator.Indet(d'))
@@ -198,44 +199,60 @@ let move_to_node = (kind, u, program) => {
   switch (CursorPath.steps_to_hole(holes, kind, u)) {
   | None => raise(NodeNotFound)
   | Some(hole_steps) =>
-    program |> perform_edit_action(MoveToBefore(hole_steps))
+    let e = ZExp.erase(ze);
+    switch (CursorPath.Exp.of_steps(hole_steps, e)) {
+    | None => raise(NodeNotFound)
+    | Some(hole_path) => program |> perform_edit_action(MoveTo(hole_path))
+    };
   };
 };
 
-let _doc =
-  Memo.general(~cache_size_bound=1000, ((llii, selected_instances, e)) =>
-    UHDoc.Exp.mk(
-      ~enforce_inline=false,
-      ~ctx=Livelits.initial_livelit_view_ctx,
-      ~llii,
-      ~selected_instances,
-      e,
-    )
-  );
-let get_doc = (~selected_instances=UserSelectedInstances.init, program) => {
-  let e = program |> get_uhexp;
-  let (_, _, llii, _) = program |> get_result;
-  _doc((llii, selected_instances, e));
+let move_to_case_branch =
+    (steps_to_case, branch_index, program): (t, Action.t) => {
+  let steps_to_branch = steps_to_case @ [1 + branch_index];
+  let new_program =
+    perform_edit_action(
+      MoveTo((steps_to_branch, OnDelim(1, After))),
+      program,
+    );
+  (new_program, MoveTo((steps_to_branch, OnDelim(1, After))));
 };
 
-let _cursor_on_inst =
-  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_inst);
-let cursor_on_inst = program => program |> get_zexp |> _cursor_on_inst;
+let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
+  let e = get_uhexp(program);
+  let doc =
+    TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () =>
+      Lazy.force(UHDoc.Exp.mk, ~memoize=memoize_doc, ~enforce_inline=false, e)
+    );
+  let splice_docs = UHDoc.Exp.mk_splices(e);
+  (doc, splice_docs);
+};
 
-let _cursor_through_insts =
+let cursor_on_inst_ =
+  Memo.general(~cache_size_bound=1000, ZExp.cursor_on_inst);
+let cursor_on_inst = program => program |> get_zexp |> cursor_on_inst_;
+
+let cursor_through_insts_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_through_insts);
 let cursor_through_insts = program =>
-  program |> get_zexp |> _cursor_through_insts;
+  program |> get_zexp |> cursor_through_insts_;
 
-let get_layout = (~selected_instances=UserSelectedInstances.init, program) => {
+let get_layout =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    ) => {
   let width = program |> get_width;
-  let (doc, splice_docs) = program |> get_doc(~selected_instances);
+  let (doc, splice_docs) =
+    program |> get_doc(~measure_program_get_doc, ~memoize_doc);
   let layout =
-    doc
-    |> Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0)
-    |> OptUtil.get(() =>
-         failwith(__LOC__ ++ ": unimplemented on layout failure")
-       );
+    TimeUtil.measure_time(
+      "LayoutOfDoc.layout_of_doc", measure_layoutOfDoc_layout_of_doc, () =>
+      Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc)
+    )
+    |> OptUtil.get(() => failwith("unimplemented: layout failure"));
   let rec splice_layouts = l =>
     l
     |> UHLayout.fold(
@@ -310,23 +327,42 @@ let decorate_var_uses = (ci: CursorInfo.t, l) =>
   };
 
 let get_decorated_layout =
-    (~selected_instances=UserSelectedInstances.init, program) => {
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    ) => {
   let (steps, _) as path = program |> get_path;
   let ci = program |> get_cursor_info;
   program
-  |> get_layout(~selected_instances)
+  |> get_layout(
+       ~measure_program_get_doc,
+       ~measure_layoutOfDoc_layout_of_doc,
+       ~memoize_doc,
+     )
   |> decorate_caret(path)
   |> decorate_cursor(steps)
   |> decorate_var_uses(ci);
 };
 
-let get_cursor_map_z = program => {
+let get_cursor_map_z =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    ) => {
   let path = program |> get_path;
   // TODO figure out how to consolidate decoration
   program
-  |> get_layout
+  |> get_layout(
+       ~measure_program_get_doc,
+       ~measure_layoutOfDoc_layout_of_doc,
+       ~memoize_doc,
+     )
   |> decorate_caret(path)
-  |> CursorMap.of_layout
+  |> CursorMap.mk
   |> (
     fun
     | (_, None) => failwith(__LOC__ ++ ": no cursor found")
@@ -334,11 +370,39 @@ let get_cursor_map_z = program => {
   );
 };
 
-let get_cursor_map = program => program |> get_cursor_map_z |> fst;
+let get_cursor_map =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    ) =>
+  program
+  |> get_cursor_map_z(
+       ~measure_program_get_doc,
+       ~measure_layoutOfDoc_layout_of_doc,
+       ~memoize_doc,
+     )
+  |> fst;
 
-let move_via_click = (opt_splice, row_col, program) => {
+let move_via_click =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      opt_splice,
+      row_col,
+      program,
+    )
+    : (t, Action.t) => {
   let cmap = {
-    let (cmap, splice_cmaps) = program |> get_cursor_map;
+    let (cmap, splice_cmaps) =
+      program
+      |> get_cursor_map(
+           ~measure_program_get_doc,
+           ~measure_layoutOfDoc_layout_of_doc,
+           ~memoize_doc,
+         );
     switch (opt_splice) {
     | None => cmap
     | Some((u, splice_name)) =>
@@ -347,13 +411,28 @@ let move_via_click = (opt_splice, row_col, program) => {
   };
   let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
   let path = CursorPath.rev(rev_path);
-  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  let new_program =
+    program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  (new_program, MoveTo(path));
 };
 
-let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
+let move_via_key =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      move_key: JSUtil.MoveKey.t,
+      program,
+    )
+    : (t, Action.t) => {
   let (cmap, z) = {
     let ((cmap, splice_cmaps), (opt_splice, z)) =
-      program |> get_cursor_map_z;
+      program
+      |> get_cursor_map_z(
+           ~measure_program_get_doc,
+           ~measure_layoutOfDoc_layout_of_doc,
+           ~memoize_doc,
+         );
     switch (opt_splice) {
     | None => (cmap, z)
     | Some((u, splice_name)) => (
@@ -383,10 +462,13 @@ let move_via_key = (move_key: JSUtil.MoveKey.t, program) => {
     | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
     | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
     };
+
   switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);
-    program |> update_start_col |> perform_edit_action(MoveTo(path));
+    let new_program =
+      program |> update_start_col |> perform_edit_action(MoveTo(path));
+    (new_program, MoveTo(path));
   };
 };

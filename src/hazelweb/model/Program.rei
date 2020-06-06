@@ -4,6 +4,7 @@
  * user interface state such as the current width of
  * the editor, whether the editor is focused, etc.
  */
+[@deriving sexp]
 type t;
 
 let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
@@ -29,7 +30,7 @@ exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo.t;
 
 exception DoesNotExpand;
-let get_expansion: t => DHExp.t;
+let get_expansion: (~livelit_holes: bool=?, t) => DHExp.t;
 
 exception InvalidInput;
 let get_result: t => Result.t;
@@ -37,25 +38,64 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
-let move_via_key: (JSUtil.MoveKey.t, t) => t;
+let move_via_key:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    JSUtil.MoveKey.t,
+    t
+  ) =>
+  (t, Action.t);
 let move_via_click:
   (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
     option((MetaVar.t, SpliceName.t)),
     (CursorMap.Row.t, CursorMap.Col.t),
     t
   ) =>
-  t;
+  (t, Action.t);
 
 exception NodeNotFound;
 let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => t;
+let move_to_case_branch: (CursorPath.steps, int, t) => (t, Action.t);
 
 let get_doc:
-  (~selected_instances: UserSelectedInstances.t=?, t) => UHDoc.with_splices;
+  (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc.with_splices;
 let get_layout:
-  (~selected_instances: UserSelectedInstances.t=?, t) => UHLayout.with_splices;
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  UHLayout.with_splices;
 let get_decorated_layout:
-  (~selected_instances: UserSelectedInstances.t=?, t) => UHLayout.with_splices;
-let get_cursor_map: t => CursorMap.with_splices;
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  UHLayout.with_splices;
+let get_cursor_map:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  CursorMap.with_splices;
+let get_cursor_map_z:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  (CursorMap.with_splices, CursorMap.z);
 
 let cursor_on_inst: t => option((TaggedNodeInstance.kind, MetaVar.t));
 let cursor_through_insts: t => list((TaggedNodeInstance.kind, MetaVar.t));

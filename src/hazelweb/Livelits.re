@@ -5,24 +5,20 @@ module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 
-type div_type = Vdom.Node.t;
-
-type splice_getters = {
-  uhcode: SpliceName.t => div_type,
-  dhcode: SpliceName.t => option((DHExp.t, div_type)),
-};
-
-type splice_getters_to_vdom = splice_getters => div_type;
-
 module LivelitView = {
-  type t =
-    | Inline(splice_getters_to_vdom, int)
-    | MultiLine(splice_getters_to_vdom, int);
+  type div_type = Vdom.Node.t;
 
-  let get_splice_getters_to_vdom =
-    fun
-    | Inline(x, _)
-    | MultiLine(x, _) => x;
+  type splice_getters = {
+    uhcode: SpliceName.t => div_type,
+    dhcode: SpliceName.t => option((DHExp.t, div_type)),
+  };
+
+  type t = splice_getters => div_type;
+
+  [@deriving sexp]
+  type shape =
+    | Inline(int)
+    | MultiLine(int);
 };
 
 module type LIVELIT = {
@@ -38,6 +34,7 @@ module type LIVELIT = {
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
   let view: (model, trigger) => LivelitView.t;
+  let view_shape: model => LivelitView.shape;
   let expand: model => UHExp.t;
 };
 
@@ -66,15 +63,24 @@ module LivelitAdapter = (L: LIVELIT) => {
       update_fn(L.sexp_of_action(action))
     );
 
-  let contexts_entry = (L.name, livelit_defn, serialized_view_fn);
+  let serialized_view_shape_fn = serialized_model =>
+    L.view_shape(L.model_of_sexp(serialized_model));
+
+  let contexts_entry = (
+    L.name,
+    livelit_defn,
+    serialized_view_fn,
+    serialized_view_shape_fn,
+  );
 };
 
 type trigger_serialized = SerializedAction.t => Vdom.Event.t;
 type serialized_view_fn_t =
   (SerializedModel.t, trigger_serialized) => LivelitView.t;
+type serialized_view_shape_fn_t = SerializedModel.t => LivelitView.shape;
 
 module LivelitViewCtx = {
-  type t = VarMap.t_(serialized_view_fn_t);
+  type t = VarMap.t_((serialized_view_fn_t, serialized_view_shape_fn_t));
   include VarMap;
 };
 
@@ -82,13 +88,19 @@ module LivelitContexts = {
   type t = (LivelitCtx.t, LivelitViewCtx.t);
   let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
   let extend =
-      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => {
+      (
+        (livelit_ctx, livelit_view_ctx),
+        (name, def, serialized_view_fn, serialized_view_shape_fn),
+      ) => {
     if (!LivelitName.is_valid(name)) {
       failwith("Invalid livelit name " ++ name);
     };
     (
       VarMap.extend(livelit_ctx, (name, def)),
-      VarMap.extend(livelit_view_ctx, (name, serialized_view_fn)),
+      VarMap.extend(
+        livelit_view_ctx,
+        (name, (serialized_view_fn, serialized_view_shape_fn)),
+      ),
     );
   };
 };
@@ -119,15 +131,15 @@ module PairLivelit: LIVELIT = {
     );
   let update = (m, _) => SpliceGenCmd.return(m);
 
-  let view = ((leftID, rightID), _) =>
+  let view = ((leftID, rightID), _, {uhcode, _}: LivelitView.splice_getters) =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["pair-livelit"])],
+        [uhcode(leftID), uhcode(rightID)],
+      )
+    );
+  let view_shape = _ =>
     LivelitView.Inline(
-      ({uhcode, _}) =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["pair-livelit"])],
-            [uhcode(leftID), uhcode(rightID)],
-          )
-        ),
       // TODO fix brittle magic constant
       20,
     );
@@ -265,171 +277,170 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       ),
     );
 
-  let view = ((selected, m), trig) => {
-    let splice_getters_to_vdom = ({uhcode, dhcode}) => {
-      open Vdom;
-      let width = get_width(m);
-      let height = get_height(m);
-      let row_header =
-        ListUtil.range(height)
-        |> List.map(i =>
-             Node.div(
-               [
-                 attr_style(grid_area(i + 3, 1, i + 4, 2)),
-                 Attr.classes(["row-header", "pure-button"]),
-                 Attr.on_click(_ => trig(Del(Row, i))),
-               ],
-               [
-                 Node.span(
-                   [Attr.classes(["index"])],
-                   [Node.text(string_of_int(i + 1))],
-                 ),
-                 Node.span([Attr.classes(["delete"])], [Node.text("x")]),
-               ],
-             )
-           );
-      let col_header =
-        ListUtil.range(width)
-        |> List.map(j =>
-             Node.div(
-               [
-                 attr_style(grid_area(1, j + 3, 2, j + 4)),
-                 Attr.classes(["col-header", "pure-button"]),
-                 Attr.on_click(_ => trig(Del(Col, j))),
-               ],
-               [
-                 Node.span(
-                   [Attr.classes(["index"])],
-                   [Node.text(string_of_int(j + 1))],
-                 ),
-                 Node.span([Attr.classes(["delete"])], [Node.text("x")]),
-               ],
-             )
-           );
-      let add_row_button =
-        Node.button(
-          [
-            attr_style(grid_area(-1, 3, -2, -3)),
-            Attr.classes(["add-row", "pure-button"]),
-            Attr.on_click(_ => trig(Add(Row))),
-          ],
-          [Node.text("+")],
-        );
-      let add_col_button =
-        Node.button(
-          [
-            attr_style(grid_area(3, -2, -3, -1)),
-            Attr.classes(["add-col", "pure-button"]),
-            Attr.on_click(_ => trig(Add(Col))),
-          ],
-          [Node.text("+")],
-        );
-      let maybe_add_formula_bar = rest =>
-        if (!I.is_live) {
-          rest;
-        } else {
-          Node.div(
-            [Attr.classes(["matrix-livelit"])],
-            [
-              Node.div(
-                [Attr.classes(["matrix-formula-bar"])],
-                [
-                  Node.span(
-                    [Attr.classes(["matrix-formula-bar-text"])],
-                    [Node.text("selected cell's formula: ")],
-                  ),
-                  Node.div(
-                    [Attr.classes(["matrix-formula-bar-splice"])],
-                    [uhcode(selected)],
-                  ),
-                ],
-              ),
-              rest,
-            ],
-          );
-        };
-      let cells =
-        m
-        |> List.mapi((i, row) =>
-             row
-             |> List.mapi((j, splice) => {
-                  let contents =
-                    if (!I.is_live) {
-                      Node.div(
-                        [Attr.classes(["matrix-splice"])],
-                        [uhcode(splice)],
-                      );
-                    } else {
-                      let cls =
-                        splice == selected
-                          ? "matrix-selected" : "matrix-unselected";
-                      let child =
-                        switch (dhcode(splice)) {
-                        | None => Node.text("Uneval'd")
-                        | Some((_, view)) => view
-                        };
-                      Node.div(
-                        [
-                          Attr.classes([cls]),
-                          Attr.on_mousedown(_ => trig(Select(splice))),
-                        ],
-                        [child],
-                      );
-                    };
-                  Node.div(
-                    [
-                      attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
-                      Attr.classes(["matrix-cell"]),
-                    ],
-                    [contents],
-                  );
-                })
+  let view =
+      ((selected, m), trig, {uhcode, dhcode}: LivelitView.splice_getters) => {
+    open Vdom;
+    let width = get_width(m);
+    let height = get_height(m);
+    let row_header =
+      ListUtil.range(height)
+      |> List.map(i =>
+           Node.div(
+             [
+               attr_style(grid_area(i + 3, 1, i + 4, 2)),
+               Attr.classes(["row-header", "pure-button"]),
+               Attr.on_click(_ => trig(Del(Row, i))),
+             ],
+             [
+               Node.span(
+                 [Attr.classes(["index"])],
+                 [Node.text(string_of_int(i + 1))],
+               ),
+               Node.span([Attr.classes(["delete"])], [Node.text("x")]),
+             ],
            )
-        |> List.flatten;
-
-      let cells_border =
-        Node.div(
-          [
-            attr_style(grid_area(3, 3, -3, -3)),
-            Attr.classes(["cells-border"]),
-          ],
-          [],
-        );
-
-      let gutter_width = "10px";
-      let dim_template = dim =>
-        StringUtil.sep(
-          List.concat([
-            ["auto", gutter_width],
-            ListUtil.replicate(dim, "auto"),
-            [gutter_width, "auto"],
-          ]),
-        );
-      maybe_add_formula_bar(
-        Node.div(
-          [
-            Attr.classes(["matrix-livelit"]),
-            attr_style(
-              StringUtil.cat([
-                prop_val("grid-template-columns", dim_template(width)),
-                prop_val("grid-template-rows", dim_template(height)),
-              ]),
-            ),
-          ],
-          List.concat([
-            row_header,
-            col_header,
-            [cells_border, ...cells],
-            [add_row_button, add_col_button],
-          ]),
-        ),
+         );
+    let col_header =
+      ListUtil.range(width)
+      |> List.map(j =>
+           Node.div(
+             [
+               attr_style(grid_area(1, j + 3, 2, j + 4)),
+               Attr.classes(["col-header", "pure-button"]),
+               Attr.on_click(_ => trig(Del(Col, j))),
+             ],
+             [
+               Node.span(
+                 [Attr.classes(["index"])],
+                 [Node.text(string_of_int(j + 1))],
+               ),
+               Node.span([Attr.classes(["delete"])], [Node.text("x")]),
+             ],
+           )
+         );
+    let add_row_button =
+      Node.button(
+        [
+          attr_style(grid_area(-1, 3, -2, -3)),
+          Attr.classes(["add-row", "pure-button"]),
+          Attr.on_click(_ => trig(Add(Row))),
+        ],
+        [Node.text("+")],
       );
-    };
-    let num_rows = List.length(m);
-    LivelitView.MultiLine(
-      splice_getters_to_vdom,
-      num_rows + 2 + (I.is_live ? 1 : 0),
+    let add_col_button =
+      Node.button(
+        [
+          attr_style(grid_area(3, -2, -3, -1)),
+          Attr.classes(["add-col", "pure-button"]),
+          Attr.on_click(_ => trig(Add(Col))),
+        ],
+        [Node.text("+")],
+      );
+    let maybe_add_formula_bar = rest =>
+      if (!I.is_live) {
+        rest;
+      } else {
+        Node.div(
+          [Attr.classes(["matrix-livelit"])],
+          [
+            Node.div(
+              [Attr.classes(["matrix-formula-bar"])],
+              [
+                Node.span(
+                  [Attr.classes(["matrix-formula-bar-text"])],
+                  [Node.text("selected cell's formula: ")],
+                ),
+                Node.div(
+                  [Attr.classes(["matrix-formula-bar-splice"])],
+                  [uhcode(selected)],
+                ),
+              ],
+            ),
+            rest,
+          ],
+        );
+      };
+    let cells =
+      m
+      |> List.mapi((i, row) =>
+           row
+           |> List.mapi((j, splice) => {
+                let contents =
+                  if (!I.is_live) {
+                    Node.div(
+                      [Attr.classes(["matrix-splice"])],
+                      [uhcode(splice)],
+                    );
+                  } else {
+                    let cls =
+                      splice == selected
+                        ? "matrix-selected" : "matrix-unselected";
+                    let child =
+                      switch (dhcode(splice)) {
+                      | None => Node.text("Uneval'd")
+                      | Some((_, view)) => view
+                      };
+                    Node.div(
+                      [
+                        Attr.classes([cls]),
+                        Attr.on_mousedown(_ => trig(Select(splice))),
+                      ],
+                      [child],
+                    );
+                  };
+                Node.div(
+                  [
+                    attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
+                    Attr.classes(["matrix-cell"]),
+                  ],
+                  [contents],
+                );
+              })
+         )
+      |> List.flatten;
+
+    let cells_border =
+      Node.div(
+        [
+          attr_style(grid_area(3, 3, -3, -3)),
+          Attr.classes(["cells-border"]),
+        ],
+        [],
+      );
+
+    let gutter_width = "10px";
+    let dim_template = dim =>
+      StringUtil.sep(
+        List.concat([
+          ["auto", gutter_width],
+          ListUtil.replicate(dim, "auto"),
+          [gutter_width, "auto"],
+        ]),
+      );
+    maybe_add_formula_bar(
+      Node.div(
+        [
+          Attr.classes(["matrix-livelit"]),
+          attr_style(
+            StringUtil.cat([
+              prop_val("grid-template-columns", dim_template(width)),
+              prop_val("grid-template-rows", dim_template(height)),
+            ]),
+          ),
+        ],
+        List.concat([
+          row_header,
+          col_header,
+          [cells_border, ...cells],
+          [add_row_button, add_col_button],
+        ]),
+      ),
     );
+  };
+
+  let view_shape = ((_, matrix)) => {
+    let num_rows = List.length(matrix);
+    LivelitView.MultiLine(num_rows + 2 + (I.is_live ? 1 : 0));
   };
 
   let expand = ((_, m)) => {
@@ -724,101 +735,103 @@ module GradeCutoffLivelit: LIVELIT = {
     // currently, we are very strict, and the presence of any indet is immediate failure
     | _ => None;
 
-  let view = ({a, b, c, d, selected_grade, dataID}, trig) => {
-    let splice_getters_to_vdom = ({uhcode, dhcode}) => {
-      let data_opt = dhcode(dataID);
-      let grades_opt =
-        data_opt |> OptUtil.and_then(((d, _)) => dhexp_to_grades([], d));
-      let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
-      let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
-      let data_err_msg =
-        switch (data_opt, grades_opt, grades_svgs_opt) {
-        | (None, _, _) => [
-            Vdom.Node.text("Grades data was never evaluated"),
-          ]
-        | (_, None, _) => [
-            Vdom.Node.text(
-              "Grades data was indeterminate (maybe it contains a hole?)",
-            ),
-          ]
-        | (_, _, None) => [
-            Vdom.Node.text(
-              "Grades data was invalid (i.e. it contains a number < 0 or > 100)",
-            ),
-          ]
-        | _ => []
-        };
-      Vdom.(
-        Node.div(
-          [Attr.classes(["grade-cutoffs-livelit"])],
-          [
-            Node.div(
-              [Attr.classes(["data-splice"])],
-              [Node.text("data = "), uhcode(dataID)],
-            ),
-            Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
-            Node.div(
-              [Attr.classes(["grade-display"])],
-              [
-                _svg(
-                  "svg",
-                  [
-                    ("width", svg_width |> soi),
-                    ("height", svg_height |> soi),
-                  ],
-                  ~attrs=[
-                    Attr.on_mouseup(evt => {
-                      let new_cutoff = get_cutoff_from_evt(evt);
-                      let new_cutoff =
-                        new_cutoff < 0
-                          ? 0 : new_cutoff > 100 ? 100 : new_cutoff;
-                      switch (selected_grade) {
-                      | None => Event.Ignore
-                      | Some(lg) =>
-                        let old_cutoff =
-                          switch (lg) {
-                          | A => a
-                          | B => b
-                          | C => c
-                          | D => d
-                          };
-                        if (new_cutoff == old_cutoff) {
-                          Event.Ignore;
-                        } else {
-                          trig(DragGrade(lg, new_cutoff));
+  let view =
+      (
+        {a, b, c, d, selected_grade, dataID},
+        trig,
+        {uhcode, dhcode}: LivelitView.splice_getters,
+      ) => {
+    let data_opt = dhcode(dataID);
+    let grades_opt =
+      data_opt |> OptUtil.and_then(((d, _)) => dhexp_to_grades([], d));
+    let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
+    let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
+    let data_err_msg =
+      switch (data_opt, grades_opt, grades_svgs_opt) {
+      | (None, _, _) => [Vdom.Node.text("Grades data was never evaluated")]
+      | (_, None, _) => [
+          Vdom.Node.text(
+            "Grades data was indeterminate (maybe it contains a hole?)",
+          ),
+        ]
+      | (_, _, None) => [
+          Vdom.Node.text(
+            "Grades data was invalid (i.e. it contains a number < 0 or > 100)",
+          ),
+        ]
+      | _ => []
+      };
+    Vdom.(
+      Node.div(
+        [Attr.classes(["grade-cutoffs-livelit"])],
+        [
+          Node.div(
+            [Attr.classes(["data-splice"])],
+            [Node.text("data = "), uhcode(dataID)],
+          ),
+          Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+          Node.div(
+            [Attr.classes(["grade-display"])],
+            [
+              _svg(
+                "svg",
+                [
+                  ("width", svg_width |> soi),
+                  ("height", svg_height |> soi),
+                ],
+                ~attrs=[
+                  Attr.on_mouseup(evt => {
+                    let new_cutoff = get_cutoff_from_evt(evt);
+                    let new_cutoff =
+                      new_cutoff < 0 ? 0 : new_cutoff > 100 ? 100 : new_cutoff;
+                    switch (selected_grade) {
+                    | None => Event.Ignore
+                    | Some(lg) =>
+                      let old_cutoff =
+                        switch (lg) {
+                        | A => a
+                        | B => b
+                        | C => c
+                        | D => d
                         };
+                      if (new_cutoff == old_cutoff) {
+                        Event.Ignore;
+                      } else {
+                        trig(DragGrade(lg, new_cutoff));
                       };
-                    }),
-                  ],
-                  ~children=
-                    [
-                      _svg(
-                        "line",
-                        [
-                          ("x1", margin_x_left |> soi),
-                          ("y1", line_y |> soi),
-                          ("x2", margin_x_left + line_width |> soi),
-                          ("y2", line_y |> soi),
-                          ("stroke", "black"),
-                          ("stroke-width", "4"),
-                        ],
-                        ~attrs=[Attr.classes(["grade-line"])],
-                        (),
-                      ),
-                    ]
-                    @ grade_labels
-                    @ cutoff_svgs(a, b, c, d, selected_grade, trig)
-                    @ grades_svgs,
-                  (),
-                ),
-              ],
-            ),
-          ],
-        )
-      );
-    };
+                    };
+                  }),
+                ],
+                ~children=
+                  [
+                    _svg(
+                      "line",
+                      [
+                        ("x1", margin_x_left |> soi),
+                        ("y1", line_y |> soi),
+                        ("x2", margin_x_left + line_width |> soi),
+                        ("y2", line_y |> soi),
+                        ("stroke", "black"),
+                        ("stroke-width", "4"),
+                      ],
+                      ~attrs=[Attr.classes(["grade-line"])],
+                      (),
+                    ),
+                  ]
+                  @ grade_labels
+                  @ cutoff_svgs(a, b, c, d, selected_grade, trig)
+                  @ grades_svgs,
+                (),
+              ),
+            ],
+          ),
+        ],
+      )
+    );
+  };
+
+  let view_shape = _ => {
     LivelitView.MultiLine(
-      splice_getters_to_vdom,
       // TODO
       5,
     );
@@ -1005,238 +1018,226 @@ module ColorLivelit: LIVELIT = {
       update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
     };
 
-  let view = ({rgb: (r, g, b), a, hsv, is_open, selecting_sat_val}, trigger) => {
-    LivelitView.Inline(
-      ({uhcode, dhcode}) => {
-        open Vdom;
+  let view =
+      (
+        {rgb: (r, g, b), a, hsv, is_open, selecting_sat_val},
+        trigger,
+        {uhcode, dhcode}: LivelitView.splice_getters,
+      ) => {
+    open Vdom;
 
-        let is_valid = color_value =>
-          0.0 <= color_value && color_value < 256.0;
-        let rgba_values =
-          switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
-          | (
-              Some((FloatLit(r), _)),
-              Some((FloatLit(g), _)),
-              Some((FloatLit(b), _)),
-              Some((FloatLit(a), _)),
-            )
-              when
-                is_valid(r)
-                && is_valid(g)
-                && is_valid(b)
-                && 0.0 <= a
-                && a <= 1.0 =>
-            Some((r, g, b, a))
-          | _ => None
-          };
+    let is_valid = color_value => 0.0 <= color_value && color_value < 256.0;
+    let rgba_values =
+      switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
+      | (
+          Some((FloatLit(r), _)),
+          Some((FloatLit(g), _)),
+          Some((FloatLit(b), _)),
+          Some((FloatLit(a), _)),
+        )
+          when
+            is_valid(r)
+            && is_valid(g)
+            && is_valid(b)
+            && 0.0 <= a
+            && a <= 1.0 =>
+        Some((r, g, b, a))
+      | _ => None
+      };
 
-        let color_box = {
-          let on_click = Attr.on_click(_ => trigger(Open));
-          switch (rgba_values) {
-          | None =>
-            Node.div(
-              [Attr.classes(["color-box"]), on_click],
+    let color_box = {
+      let on_click = Attr.on_click(_ => trigger(Open));
+      switch (rgba_values) {
+      | None =>
+        Node.div(
+          [Attr.classes(["color-box"]), on_click],
+          [
+            Node.create_svg(
+              "svg",
+              [Attr.create("viewBox", "0 0 100 100")],
               [
                 Node.create_svg(
-                  "svg",
-                  [Attr.create("viewBox", "0 0 100 100")],
+                  "line",
                   [
-                    Node.create_svg(
-                      "line",
-                      [
-                        Attr.create("x1", "20"),
-                        Attr.create("y1", "20"),
-                        Attr.create("x2", "80"),
-                        Attr.create("y2", "80"),
-                        Attr.create("vector-effect", "non-scaling-stroke"),
-                      ],
-                      [],
-                    ),
-                    Node.create_svg(
-                      "line",
-                      [
-                        Attr.create("x1", "20"),
-                        Attr.create("y1", "80"),
-                        Attr.create("x2", "80"),
-                        Attr.create("y2", "20"),
-                        Attr.create("vector-effect", "non-scaling-stroke"),
-                      ],
-                      [],
-                    ),
+                    Attr.create("x1", "20"),
+                    Attr.create("y1", "20"),
+                    Attr.create("x2", "80"),
+                    Attr.create("y2", "80"),
+                    Attr.create("vector-effect", "non-scaling-stroke"),
                   ],
+                  [],
+                ),
+                Node.create_svg(
+                  "line",
+                  [
+                    Attr.create("x1", "20"),
+                    Attr.create("y1", "80"),
+                    Attr.create("x2", "80"),
+                    Attr.create("y2", "20"),
+                    Attr.create("vector-effect", "non-scaling-stroke"),
+                  ],
+                  [],
                 ),
               ],
-            )
-          | Some((r, g, b, a)) =>
+            ),
+          ],
+        )
+      | Some((r, g, b, a)) =>
+        Node.div(
+          [
+            attr_style(
+              prop_val(
+                "background-color",
+                Printf.sprintf("rgba(%f, %f, %f, %f)", r, g, b, a),
+              ),
+            ),
+            Attr.classes(["color-box"]),
+            on_click,
+          ],
+          [],
+        )
+      };
+    };
+
+    let color_picker = {
+      let sat_val_box =
+        switch (rgba_values) {
+        | None => []
+        | Some(_) =>
+          let (h, s, v) = hsv;
+          let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+          // let (_h, s, v) = hsv_of_rgb(rgb);
+          let height = 150.0;
+          let width = 150.0;
+          let px = Printf.sprintf("%f0px");
+          [
             Node.div(
               [
+                Attr.classes(["sat-val-box"]),
                 attr_style(
-                  prop_val(
-                    "background-color",
-                    Printf.sprintf("rgba(%f, %f, %f, %f)", r, g, b, a),
-                  ),
+                  StringUtil.cat([
+                    prop_val("height", height |> px),
+                    prop_val("width", width |> px),
+                    prop_val(
+                      "background-color",
+                      Printf.sprintf("rgb(%f, %f, %f)", sat_r, sat_g, sat_b),
+                    ),
+                  ]),
                 ),
-                Attr.classes(["color-box"]),
-                on_click,
+                Attr.on_mousemove(evt =>
+                  if (selecting_sat_val) {
+                    let (offset_x, offset_y) = {
+                      let target =
+                        Js.Opt.get(evt##.target, () => failwith("no target"));
+                      if (target |> JSUtil.elem_has_cls("sat-val-box")) {
+                        (
+                          Float.of_int(Js.Unsafe.get(evt, "offsetX")),
+                          Float.of_int(Js.Unsafe.get(evt, "offsetY")),
+                        );
+                      } else {
+                        let box = JSUtil.force_get_parent_elem(target);
+                        let rect = box##getBoundingClientRect;
+                        let client_x = Float.of_int(evt##.clientX);
+                        let client_y = Float.of_int(evt##.clientY);
+                        (client_x -. rect##.left, client_y -. rect##.top);
+                      };
+                    };
+                    trigger(
+                      SelectSatVal(
+                        max(0.0, min(offset_x /. width, 1.0)),
+                        max(0.0, min((height -. offset_y) /. height, 1.0)),
+                      ),
+                    );
+                  } else {
+                    Event.Many([]);
+                  }
+                ),
               ],
-              [],
-            )
-          };
-        };
-
-        let color_picker = {
-          let sat_val_box =
-            switch (rgba_values) {
-            | None => []
-            | Some(_) =>
-              let (h, s, v) = hsv;
-              let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
-              // let (_h, s, v) = hsv_of_rgb(rgb);
-              let height = 150.0;
-              let width = 150.0;
-              let px = Printf.sprintf("%f0px");
               [
                 Node.div(
                   [
-                    Attr.classes(["sat-val-box"]),
+                    Attr.classes(["sat-val-selector"]),
                     attr_style(
                       StringUtil.cat([
-                        prop_val("height", height |> px),
-                        prop_val("width", width |> px),
-                        prop_val(
-                          "background-color",
-                          Printf.sprintf(
-                            "rgb(%f, %f, %f)",
-                            sat_r,
-                            sat_g,
-                            sat_b,
-                          ),
-                        ),
+                        prop_val("left", s *. width |> px),
+                        prop_val("top", height -. v *. height |> px),
                       ]),
                     ),
-                    Attr.on_mousemove(evt =>
-                      if (selecting_sat_val) {
-                        let (offset_x, offset_y) = {
-                          let target =
-                            Js.Opt.get(evt##.target, () =>
-                              failwith("no target")
-                            );
-                          if (target |> JSUtil.elem_has_cls("sat-val-box")) {
-                            (
-                              Float.of_int(Js.Unsafe.get(evt, "offsetX")),
-                              Float.of_int(Js.Unsafe.get(evt, "offsetY")),
-                            );
-                          } else {
-                            let box = JSUtil.force_get_parent_elem(target);
-                            let rect = box##getBoundingClientRect;
-                            let client_x = Float.of_int(evt##.clientX);
-                            let client_y = Float.of_int(evt##.clientY);
-                            (client_x -. rect##.left, client_y -. rect##.top);
-                          };
-                        };
-                        trigger(
-                          SelectSatVal(
-                            max(0.0, min(offset_x /. width, 1.0)),
-                            max(
-                              0.0,
-                              min((height -. offset_y) /. height, 1.0),
-                            ),
-                          ),
-                        );
-                      } else {
-                        Event.Many([]);
-                      }
-                    ),
+                    Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
+                    Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
                   ],
-                  [
-                    Node.div(
-                      [
-                        Attr.classes(["sat-val-selector"]),
-                        attr_style(
-                          StringUtil.cat([
-                            prop_val("left", s *. width |> px),
-                            prop_val("top", height -. v *. height |> px),
-                          ]),
-                        ),
-                        Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
-                        Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
-                      ],
-                      [],
-                    ),
-                  ],
+                  [],
                 ),
-              ];
-            };
-          let splice_label = lbl =>
-            Node.label(
-              [Attr.classes(["splice-label"])],
-              [Node.text(lbl)],
-            );
-          let splice = splice_name =>
-            Node.div(
-              [Attr.classes(["splice-content"])],
-              [uhcode(splice_name)],
-            );
-          let (h, _, _) = hsv;
+              ],
+            ),
+          ];
+        };
+      let splice_label = lbl =>
+        Node.label([Attr.classes(["splice-label"])], [Node.text(lbl)]);
+      let splice = splice_name =>
+        Node.div(
+          [Attr.classes(["splice-content"])],
+          [uhcode(splice_name)],
+        );
+      let (h, _, _) = hsv;
+      Node.div(
+        [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
+        [
           Node.div(
-            [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
-            [
+            [Attr.classes(["hsv-picker"])],
+            sat_val_box
+            @ [
               Node.div(
-                [Attr.classes(["hsv-picker"])],
-                sat_val_box
-                @ [
-                  Node.div(
-                    [Attr.classes(["hue-slider-wrapper"])],
+                [Attr.classes(["hue-slider-wrapper"])],
+                [
+                  Node.input(
                     [
-                      Node.input(
-                        [
-                          Attr.classes(["hue-slider"]),
-                          Attr.type_("range"),
-                          Attr.create("min", "0"),
-                          Attr.create("max", "360"),
-                          Attr.value(string_of_int(Float.to_int(h))),
-                          Attr.on_input((_, value_str) =>
-                            trigger(SelectHue(int_of_string(value_str)))
-                          ),
-                        ],
-                        [],
+                      Attr.classes(["hue-slider"]),
+                      Attr.type_("range"),
+                      Attr.create("min", "0"),
+                      Attr.create("max", "360"),
+                      Attr.value(string_of_int(Float.to_int(h))),
+                      Attr.on_input((_, value_str) =>
+                        trigger(SelectHue(int_of_string(value_str)))
                       ),
                     ],
+                    [],
                   ),
                 ],
               ),
-              Node.div(
-                [Attr.classes(["rgb-picker"])],
-                [
-                  splice_label("R"),
-                  splice(r),
-                  splice_label("G"),
-                  splice(g),
-                  splice_label("B"),
-                  splice(b),
-                  splice_label("A"),
-                  splice(a),
-                ],
-              ),
             ],
-          );
-        };
-        let modal_overlay =
+          ),
           Node.div(
+            [Attr.classes(["rgb-picker"])],
             [
-              Attr.classes(["modal-overlay", is_open ? "open" : "closed"]),
-              Attr.on_click(_ => trigger(Close)),
+              splice_label("R"),
+              splice(r),
+              splice_label("G"),
+              splice(g),
+              splice_label("B"),
+              splice(b),
+              splice_label("A"),
+              splice(a),
             ],
-            [],
-          );
-        Node.div(
-          [Attr.classes(["color-livelit"])],
-          [color_box, color_picker, modal_overlay],
-        );
-      },
-      2,
+          ),
+        ],
+      );
+    };
+    let modal_overlay =
+      Node.div(
+        [
+          Attr.classes(["modal-overlay", is_open ? "open" : "closed"]),
+          Attr.on_click(_ => trigger(Close)),
+        ],
+        [],
+      );
+    Node.div(
+      [Attr.classes(["color-livelit"])],
+      [color_box, color_picker, modal_overlay],
     );
   };
+
+  let view_shape = _ => LivelitView.Inline(2);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =
@@ -1304,35 +1305,33 @@ module GradientLivelit: LIVELIT = {
     | Slide(n) => SpliceGenCmd.return({...model, slider_value: n})
     };
 
-  let view = (model, trigger) =>
-    LivelitView.Inline(
-      ({uhcode, _}) => {
-        Vdom.(
-          Node.span(
-            [Attr.classes(["gradient-livelit"])],
+  let view = (model, trigger, {uhcode, _}: LivelitView.splice_getters) => {
+    Vdom.(
+      Node.span(
+        [Attr.classes(["gradient-livelit"])],
+        [
+          uhcode(model.lcolor),
+          Node.input(
             [
-              uhcode(model.lcolor),
-              Node.input(
-                [
-                  Attr.classes(["slider"]),
-                  Attr.type_("range"),
-                  Attr.create("min", string_of_int(slider_min)),
-                  Attr.create("max", string_of_int(slider_max)),
-                  Attr.value(string_of_int(model.slider_value)),
-                  Attr.on_change((_, value_str) => {
-                    let new_value = int_of_string(value_str);
-                    trigger(Slide(new_value));
-                  }),
-                ],
-                [],
-              ),
-              uhcode(model.rcolor),
+              Attr.classes(["slider"]),
+              Attr.type_("range"),
+              Attr.create("min", string_of_int(slider_min)),
+              Attr.create("max", string_of_int(slider_max)),
+              Attr.value(string_of_int(model.slider_value)),
+              Attr.on_change((_, value_str) => {
+                let new_value = int_of_string(value_str);
+                trigger(Slide(new_value));
+              }),
             ],
-          )
-        )
-      },
-      10,
+            [],
+          ),
+          uhcode(model.rcolor),
+        ],
+      )
     );
+  };
+
+  let view_shape = _ => LivelitView.Inline(10);
 
   let expand = ({lcolor, rcolor, slider_value}) => {
     let typ_opseq = (hd, tl) => UHTyp.mk_OpSeq(Seq.mk(hd, tl));
@@ -1447,9 +1446,10 @@ module CheckboxLivelit: LIVELIT = {
           [],
         )
       );
-    let view_span = Vdom.Node.span([], [input_elt]);
-    LivelitView.Inline(_ => view_span, /* TODO! */ 1);
+    _ => Vdom.Node.span([], [input_elt]);
   };
+
+  let view_shape = _ => LivelitView.Inline(/* TODO! */ 1);
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
@@ -1654,8 +1654,10 @@ module SliderLivelit: LIVELIT = {
           ),
         ],
       );
-    LivelitView.Inline(_ => view_span, 20);
+    _ => view_span;
   };
+
+  let view_shape = _ => LivelitView.Inline(20);
 
   let expand = model => UHExp.Block.wrap(UHExp.intlit'(model.value));
 };
