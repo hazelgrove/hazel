@@ -448,9 +448,6 @@ module Exp = {
     switch (d2) {
     | BoundVar(y) =>
       if (Var.eq(x, y)) {
-        if (d1 == IntLit(1)) {
-          print_endline("true");
-        };
         d1;
       } else {
         d2;
@@ -1272,33 +1269,33 @@ module Exp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | Var(NotInHole, NotInVarHole, x) =>
-      switch (BuiltinFunctions.builtinlookup(x)) {
-      | Some(ty) => Expands(BuiltInLit(x), ty, delta)
-      | None =>
-        let gamma = Contexts.gamma(ctx);
-        switch (VarMap.lookup(gamma, x)) {
-        | Some(ty) => Expands(BoundVar(x), ty, delta)
-        | None => ExpandResult.DoesNotExpand
-        };
-      }
+      let gamma = Contexts.gamma(ctx);
+      switch (VarMap.lookup(gamma, x), BuiltinFunctions.builtinlookup(x)) {
+      | (_, Some(ty)) =>
+        if (VarMap.find_index(List.rev(gamma), x)
+            == VarMap.find_index(List.rev(BuiltinFunctions.ctx), x)) {
+          Expands(BuiltInLit(x), ty, delta);
+        } else {
+          Expands(BoundVar(x), ty, delta);
+        }
+      | (Some(ty), _) => Expands(BoundVar(x), ty, delta)
+      | (None, _) => ExpandResult.DoesNotExpand
+      };
     | Var(NotInHole, InVarHole(reason, u), x) =>
-      switch (BuiltinFunctions.builtinlookup(x)) {
-      | Some(ty) => Expands(BuiltInLit(x), ty, delta)
-      | None =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let delta =
-          MetaVarMap.extend_unique(
-            delta,
-            (u, (ExpressionHole, Hole, gamma)),
-          );
-        let d =
-          switch (reason) {
-          | Free => DHExp.FreeVar(u, 0, sigma, x)
-          | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
-          };
-        Expands(d, Hole, delta);
-      }
+      // switch (BuiltinFunctions.builtinlookup(x)) {
+      // | Some(ty) => Expands(BuiltInLit(x), ty, delta)
+      // | None =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, Hole, gamma)));
+      let d =
+        switch (reason) {
+        | Free => DHExp.FreeVar(u, 0, sigma, x)
+        | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        };
+      Expands(d, Hole, delta);
+    // }
     | IntLit(NotInHole, n) =>
       switch (int_of_string_opt(n)) {
       | Some(n) => Expands(IntLit(n), Int, delta)
@@ -1699,20 +1696,20 @@ module Exp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | Var(NotInHole, InVarHole(reason, u), x) =>
-      switch (BuiltinFunctions.builtinlookup(x)) {
-      | Some(ty) => Expands(BuiltInLit(x), ty, delta)
-      | None =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let delta =
-          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-        let d: DHExp.t =
-          switch (reason) {
-          | Free => FreeVar(u, 0, sigma, x)
-          | Keyword(k) => Keyword(u, 0, sigma, k)
-          };
-        Expands(d, ty, delta);
-      }
+      // switch (BuiltinFunctions.builtinlookup(x)) {
+      // | Some(ty) => Expands(BuiltInLit(x), ty, delta)
+      // | None =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+      let d: DHExp.t =
+        switch (reason) {
+        | Free => FreeVar(u, 0, sigma, x)
+        | Keyword(k) => Keyword(u, 0, sigma, k)
+        };
+      Expands(d, ty, delta);
+    // }
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
     | Lam(NotInHole, p, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
@@ -2224,7 +2221,9 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2) => BoxedValue(BuiltinFunctions.evaluate(v, d2))
-        | Indet(d2) => Indet(Ap(d1, d2))
+        | Indet(d2) =>
+          print_endline("Dynamics2228");
+          Indet(Ap(d1, d2));
         }
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
@@ -2236,17 +2235,7 @@ module Evaluator = {
           | Indet => Indet(d)
           | Matches(env) =>
             /* beta rule */
-            let res = evaluate(Exp.subst(env, d3));
-            switch (d1) {
-            | BoundVar("string_of_int") =>
-              switch (res) {
-              | BoxedValue(IntLit(n)) =>
-                BoxedValue(StringLit(string_of_int(n)))
-              | _ => res
-              }
-            | _ => res
-            };
-          // evaluate(Exp.subst(env, d3))
+            evaluate(Exp.subst(env, d3))
           }
         }
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
