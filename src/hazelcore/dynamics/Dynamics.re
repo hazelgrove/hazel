@@ -1272,12 +1272,7 @@ module Exp = {
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x), BuiltinFunctions.builtinlookup(x)) {
       | (_, Some(ty)) =>
-        if (VarMap.find_index(List.rev(gamma), x)
-            == VarMap.find_index(List.rev(BuiltinFunctions.ctx), x)) {
           Expands(BuiltInLit(x), ty, delta);
-        } else {
-          Expands(BoundVar(x), ty, delta);
-        }
       | (Some(ty), _) => Expands(BoundVar(x), ty, delta)
       | (None, _) => ExpandResult.DoesNotExpand
       };
