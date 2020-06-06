@@ -1,6 +1,6 @@
 let ctx: VarCtx.t = [
-  ("length", HTyp.Arrow(String, Int)),
-  ("string_of_int", HTyp.Arrow(Int, String)),
+  ("length", HTyp.Arrow(String, Int), false),
+  ("string_of_int", HTyp.Arrow(Int, String), false),
 ];
 
 let builtinlookup = x => VarMap.lookup(ctx, x);
