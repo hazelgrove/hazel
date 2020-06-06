@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t_('a) = list((Var.t, 'a, bool));
+type t_('a) = list((Var.t, 'a));
 
 let empty = [];
 
@@ -13,17 +13,17 @@ let is_empty =
 let rec drop = (ctx, x) =>
   switch (ctx) {
   | [] => ctx
-  | [(y, elt, shadow), ...ctx'] =>
+  | [(y, elt), ...ctx'] =>
     if (Var.eq(x, y)) {
       ctx';
     } else {
-      [(y, elt, shadow), ...drop(ctx', x)];
+      [(y, elt), ...drop(ctx', x)];
     }
   };
 
 let extend = (ctx, xa) => {
   let (x, typ) = xa;
-  [(x, typ, false), ...drop(ctx, x)];
+  [(x, typ), ...drop(ctx, x)];
 };
 
 let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
@@ -31,7 +31,7 @@ let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
 let rec lookup = (ctx, x) =>
   switch (ctx) {
   | [] => None
-  | [(y, elt, _), ...ctx'] =>
+  | [(y, elt), ...ctx'] =>
     if (Var.eq(x, y)) {
       Some(elt);
     } else {
@@ -48,9 +48,8 @@ let contains = (ctx, x) =>
 let map = (f, xs) =>
   List.map(
     xa => {
-      let (x, ty, _) = xa;
-      let xa' = (x, ty);
-      (x, f(xa'));
+      let (x, _) = xa;
+      (x, f(xa));
     },
     xs,
   );
