@@ -1271,8 +1271,7 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x), BuiltinFunctions.builtinlookup(x)) {
-      | (_, Some(ty)) =>
-          Expands(BuiltInLit(x), ty, delta);
+      | (_, Some(ty)) => Expands(BuiltInLit(x), ty, delta)
       | (Some(ty), _) => Expands(BoundVar(x), ty, delta)
       | (None, _) => ExpandResult.DoesNotExpand
       };
