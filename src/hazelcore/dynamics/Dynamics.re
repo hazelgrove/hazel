@@ -456,6 +456,7 @@ module Exp = {
         d2;
       }
     | FreeVar(_) => d2
+    | BuiltInLit(_) => d2
     | Keyword(_) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -742,6 +743,7 @@ module Exp = {
     | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
+    | BuiltInLit(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
@@ -804,6 +806,7 @@ module Exp = {
       matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
+    | BuiltInLit(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
@@ -864,6 +867,7 @@ module Exp = {
     | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
+    | BuiltInLit(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
@@ -1274,16 +1278,23 @@ module Exp = {
       | None => ExpandResult.DoesNotExpand
       };
     | Var(NotInHole, InVarHole(reason, u), x) =>
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
-      let delta =
-        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, Hole, gamma)));
-      let d =
-        switch (reason) {
-        | Free => DHExp.FreeVar(u, 0, sigma, x)
-        | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
-        };
-      Expands(d, Hole, delta);
+      switch (BuiltinFunctions.builtinlookup(x)) {
+      | Some(ty) => Expands(BuiltInLit(x), ty, delta)
+      | None =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let delta =
+          MetaVarMap.extend_unique(
+            delta,
+            (u, (ExpressionHole, Hole, gamma)),
+          );
+        let d =
+          switch (reason) {
+          | Free => DHExp.FreeVar(u, 0, sigma, x)
+          | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+          };
+        Expands(d, Hole, delta);
+      }
     | IntLit(NotInHole, n) =>
       switch (int_of_string_opt(n)) {
       | Some(n) => Expands(IntLit(n), Int, delta)
@@ -1684,16 +1695,20 @@ module Exp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | Var(NotInHole, InVarHole(reason, u), x) =>
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
-      let delta =
-        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-      let d: DHExp.t =
-        switch (reason) {
-        | Free => FreeVar(u, 0, sigma, x)
-        | Keyword(k) => Keyword(u, 0, sigma, k)
-        };
-      Expands(d, ty, delta);
+      switch (BuiltinFunctions.builtinlookup(x)) {
+      | Some(ty) => Expands(BuiltInLit(x), ty, delta)
+      | None =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let delta =
+          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+        let d: DHExp.t =
+          switch (reason) {
+          | Free => FreeVar(u, 0, sigma, x)
+          | Keyword(k) => Keyword(u, 0, sigma, k)
+          };
+        Expands(d, ty, delta);
+      }
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
     | Lam(NotInHole, p, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
@@ -1825,6 +1840,7 @@ module Exp = {
           : (DHExp.t, HoleInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
+    | BuiltInLit(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -1935,6 +1951,7 @@ module Exp = {
           : (DHExp.t, HoleInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
+    | BuiltInLit(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -2191,6 +2208,7 @@ module Evaluator = {
         BoxedValue(Lam(Var("x"), Arrow(Int, String), BoundVar("x")));
       | _ => InvalidInput(1)
       };
+    | BuiltInLit(_) => BoxedValue(d)
     | Let(dp, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2208,6 +2226,12 @@ module Evaluator = {
       print_endline("EVALUATE AP Dynamics2202");
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(BuiltInLit(v)) =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d2) => BoxedValue(BuiltinFunctions.evaluate(v, d2))
+        | Indet(d2) => Indet(d2)
+        }
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
