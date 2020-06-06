@@ -254,6 +254,7 @@ module Exp = {
     switch (d) {
     | BoundVar(_)
     | FreeVar(_)
+    | BuiltInLit(_)
     | Keyword(_)
     | BoolLit(_)
     | IntLit(_)
@@ -411,6 +412,7 @@ module Exp = {
         | FreeVar(u, i, _sigma, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
         | BoundVar(x) => text(x)
+        | BuiltInLit(x) => text(x)
         | Triv => Delim.triv
         | BoolLit(b) => mk_BoolLit(b)
         | IntLit(n) => mk_IntLit(n)
