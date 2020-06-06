@@ -1272,11 +1272,15 @@ module Exp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | Var(NotInHole, NotInVarHole, x) =>
-      let gamma = Contexts.gamma(ctx);
-      switch (VarMap.lookup(gamma, x)) {
-      | Some(ty) => Expands(BoundVar(x), ty, delta)
-      | None => ExpandResult.DoesNotExpand
-      };
+      switch (BuiltinFunctions.builtinlookup(x)) {
+      | Some(ty) => Expands(BuiltInLit(x), ty, delta)
+      | None =>
+        let gamma = Contexts.gamma(ctx);
+        switch (VarMap.lookup(gamma, x)) {
+        | Some(ty) => Expands(BoundVar(x), ty, delta)
+        | None => ExpandResult.DoesNotExpand
+        };
+      }
     | Var(NotInHole, InVarHole(reason, u), x) =>
       switch (BuiltinFunctions.builtinlookup(x)) {
       | Some(ty) => Expands(BuiltInLit(x), ty, delta)
@@ -2198,17 +2202,7 @@ module Evaluator = {
 
   let rec evaluate = (d: DHExp.t): result =>
     switch (d) {
-    | BoundVar(var) =>
-      print_endline("Dynamics2182");
-      switch (var) {
-      | "length" =>
-        BoxedValue(Lam(Var("x"), Arrow(String, Int), BoundVar("x")))
-      | "string_of_int" =>
-        print_endline("EVALUATE string_of_int Dynamics2185");
-        BoxedValue(Lam(Var("x"), Arrow(Int, String), BoundVar("x")));
-      | _ => InvalidInput(1)
-      };
-    | BuiltInLit(_) => BoxedValue(d)
+    | BoundVar(_) => InvalidInput(1)
     | Let(dp, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2230,7 +2224,7 @@ module Evaluator = {
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2) => BoxedValue(BuiltinFunctions.evaluate(v, d2))
-        | Indet(d2) => Indet(d2)
+        | Indet(d2) => Indet(Ap(d1, d2))
         }
       | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
@@ -2343,6 +2337,7 @@ module Evaluator = {
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
+    | BuiltInLit(_)
     | Triv => BoxedValue(d)
     | StringLit(s) =>
       let (_, err) = StringUtil.find_and_replace("", s, "OK");
