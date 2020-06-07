@@ -384,26 +384,12 @@ let view =
                    | Step(_)
                    | EmptyLine
                    | SpaceOp => vs
-                   | Token({shape, len, has_cursor}) =>
+                   | Token({shape, _}) =>
                      let clss =
                        switch (shape) {
                        | Text => ["code-text"]
                        | Op => ["code-op"]
                        | Delim(_) => ["code-delim"]
-                       };
-                     let vs =
-                       switch (has_cursor) {
-                       | None => vs
-                       | Some(j) => [
-                           caret_from_left(
-                             len == 0
-                               ? 0.0
-                               : float_of_int(j)
-                                 /. float_of_int(len)
-                                 *. 100.0,
-                           ),
-                           ...vs,
-                         ]
                        };
                      [Node.span([Attr.classes(clss)], vs)];
                    | DelimGroup => [
@@ -418,7 +404,7 @@ let view =
                      ]
                    | Indent => [Node.span([Attr.classes(["Indent"])], vs)]
 
-                   | HoleLabel(_) =>
+                   | HoleLabel({len}) =>
                      let font_width = font_metrics.col_width;
                      let font_shrink = 0.65;
                      let full_space = font_width *. float_of_int(len);
@@ -442,10 +428,7 @@ let view =
                      let styling =
                        Vdom.Attr.style(Css_gen.combine(padding, font_size));
                      [
-                       Node.span(
-                         [styling, Attr.classes(["HoleLabel"])],
-                         go(l),
-                       ),
+                       Node.span([styling, Attr.classes(["HoleLabel"])], vs),
                      ];
                    | UserNewline => [
                        Node.span([Attr.classes(["UserNewline"])], vs),
@@ -521,12 +504,12 @@ let view =
 
       let children =
         switch (caret_pos) {
-        | None => go(l)
+        | None => vs
         | Some((row, col)) =>
           let x = float_of_int(col) *. model.font_metrics.col_width;
           let y = float_of_int(row) *. model.font_metrics.row_height;
           let caret = caret_from_pos(x, y);
-          [caret, ...go(l)];
+          [caret, ...vs];
         };
       let id = "code-root";
       Node.div(
