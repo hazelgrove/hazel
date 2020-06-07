@@ -28,3 +28,8 @@ let test = (opt: option(_)): bool =>
   | None => false
   | Some(_) => true
   };
+
+module Let_syntax = {
+  let map = (x, ~f) => Option.map(f, x);
+  let bind = (x, ~f) => Option.bind(x, f);
+};
