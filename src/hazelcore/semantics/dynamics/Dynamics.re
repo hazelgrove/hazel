@@ -548,6 +548,14 @@ module Exp = {
     | DoesNotMatch
     | Indet;
 
+  /*
+   case xs
+   | [] -> 0
+   | [x1] -> 1
+   | [x1, x2] -> 2
+   | hd::tl -> 3
+   */
+
   let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     switch (dp, d) {
     | (_, BoundVar(_)) => DoesNotMatch
@@ -759,6 +767,27 @@ module Exp = {
       )
       : match_result =>
     switch (d) {
+    | ListLit(_, []) => DoesNotMatch
+    | ListLit(ty, [d1, ...ds]) =>
+      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet => Indet
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        let d2 = DHExp.ListLit(ty, ds);
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet => Indet
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
     | Cons(d1, d2) =>
       switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -796,8 +825,6 @@ module Exp = {
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
-    // | ListNil(_) => DoesNotMatch
-    | ListLit(_) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
     | Case(_, _, _) => Indet
@@ -1087,7 +1114,45 @@ module Exp = {
     | ListLit(_, Some(opseq)) =>
       let OpSeq(skel, seq) = opseq;
       let subskels = UHExp.get_tuple_elements(skel);
-      let rec syn_subskels = subskels =>
+
+      let glb_ty: option(HTyp.t) =
+        subskels
+        |> List.map(subskel => Statics.Exp.syn_skel(ctx, subskel, seq))
+        |> (
+          fun
+          | [] => failwith("empty tuple")
+          | [hd, ...tl] =>
+            tl
+            |> List.fold_left(
+                 (glb_ty, tl_ty) =>
+                   OptUtil.map2(
+                     (glb_ty, tl_ty) => Statics.glb([glb_ty, tl_ty]),
+                     glb_ty,
+                     tl_ty,
+                   )
+                   |> Option.join,
+                 hd,
+               )
+        );
+
+      switch (glb_ty) {
+      | None => DoesNotExpand
+      | Some(glb_ty) =>
+        let f = (delta, subskel) =>
+          switch (syn_expand_skel(ctx, delta, subskel, seq)) {
+          | DoesNotExpand => None
+          | Expands(d, ty, delta) =>
+            Some((delta, DHExp.Cast(d, ty, glb_ty)))
+          };
+        switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
+        | None => DoesNotExpand
+        | Some((delta, lst)) =>
+          Expands(ListLit(glb_ty, lst), List(glb_ty), delta)
+        };
+      };
+
+    /*
+     let rec syn_subskels = subskels =>
         switch (subskels) {
         | [] => failwith("invalid")
         | [hd] =>
@@ -1101,12 +1166,13 @@ module Exp = {
           | Expands(d1, ty1, _) => [(ty1, d1), ...syn_subskels(tl)]
           }
         };
-      let (types, deltas) = List.split(syn_subskels(subskels));
+      let (types, ds) = List.split(syn_subskels(subskels));
       switch (Statics.glb(types)) {
       // Add listlit in DHExp.re
-      | Some(ty) => Expands(ListLit(List(ty), deltas), List(ty), delta)
+      | Some(ty) => Expands(ListLit(List(ty), ds), List(ty), delta)
       | _ => DoesNotExpand
       };
+      */
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
