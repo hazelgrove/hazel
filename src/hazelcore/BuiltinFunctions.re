@@ -3,11 +3,18 @@ let ctx: VarCtx.t = [
   ("string_of_int", HTyp.Arrow(Int, String)),
 ];
 
-let shadowing_ctx: VarCtx.t = [];
+/* let shadowing_var = [("length", false), ("string_of_int", false)]; */
 
 let lookup = x => VarMap.lookup(ctx, x);
+/*
+ let contains = x => VarMap.contains(ctx, x); */
 
-let extend = x => VarMap.extend(shadowing_ctx, x);
+/* let shadow_extend = x =>
+   if (List.mem(x, shadowing_var) == false) {
+     [x, ...shadowing_var];
+   } else {
+     shadowing_var;
+   }; */
 
 let evaluate = (x: string, d: DHExp.t): DHExp.t =>
   switch (d) {

@@ -22,8 +22,8 @@ let rec drop = (ctx, x) =>
   };
 
 let extend = (ctx, xa) => {
-  let (x, typ) = xa;
-  [(x, typ), ...drop(ctx, x)];
+  let (x, _) = xa;
+  [xa, ...drop(ctx, x)];
 };
 
 let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
