@@ -1142,7 +1142,7 @@ module Exp = {
           switch (syn_expand_skel(ctx, delta, subskel, seq)) {
           | DoesNotExpand => None
           | Expands(d, ty, delta) =>
-            Some((delta, DHExp.Cast(d, ty, glb_ty)))
+            Some((delta, DHExp.cast(d, ty, glb_ty)))
           };
         switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
         | None => DoesNotExpand
