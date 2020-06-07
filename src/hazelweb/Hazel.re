@@ -8,6 +8,7 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+module ResizeObserver = Js_of_ocaml.ResizeObserver;
 open Incr_dom;
 
 module Model = Model;
@@ -15,16 +16,26 @@ module Action = Update.Action;
 module State = State;
 
 let on_startup = (~schedule_action, _) => {
-  let update_font_metrics = () => {
-    let rect =
-      JSUtil.force_get_elem_by_id("font-specimen")##getBoundingClientRect;
-    schedule_action(
-      Update.Action.UpdateFontMetrics({
-        row_height: rect##.bottom -. rect##.top,
-        col_width: rect##.right -. rect##.left,
-      }),
+  let _ =
+    ResizeObserver.observe(
+      ~node=JSUtil.force_get_elem_by_id("font-specimen"),
+      ~f=
+        (entries, _) => {
+          let array = Js_of_ocaml.Js.to_array(entries);
+          switch (array) {
+          | [|entry|] =>
+            let rect = entry##.contentRect;
+            schedule_action(
+              Update.Action.UpdateFontMetrics({
+                row_height: rect##.bottom -. rect##.top,
+                col_width: rect##.right -. rect##.left,
+              }),
+            );
+          | _ => failwith("Expected 1 entry")
+          };
+        },
+      (),
     );
-  };
 
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
@@ -32,13 +43,6 @@ let on_startup = (~schedule_action, _) => {
     )
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
-
-  Dom_html.window##.onresize :=
-    Dom_html.handler(_ => {
-      update_font_metrics();
-      Js._true;
-    });
-  update_font_metrics();
 
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
