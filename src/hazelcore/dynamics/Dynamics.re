@@ -453,7 +453,13 @@ module Exp = {
         d2;
       }
     | FreeVar(_) => d2
-    | BuiltInLit(_) => d2
+    | BuiltInLit(y) =>
+      /* BuiltinFunctions.extend(BuiltinFunctions.shadowing_ctx, (x, )) */
+      if (Var.eq(x, y)) {
+        d1;
+      } else {
+        d2;
+      }
     | Keyword(_) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -1270,7 +1276,7 @@ module Exp = {
       Expands(d, ty, delta);
     | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
-      switch (VarMap.lookup(gamma, x), BuiltinFunctions.builtinlookup(x)) {
+      switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
       | (_, Some(ty)) => Expands(BuiltInLit(x), ty, delta)
       | (Some(ty), _) => Expands(BoundVar(x), ty, delta)
       | (None, _) => ExpandResult.DoesNotExpand

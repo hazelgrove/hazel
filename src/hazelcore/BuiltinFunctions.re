@@ -3,7 +3,11 @@ let ctx: VarCtx.t = [
   ("string_of_int", HTyp.Arrow(Int, String)),
 ];
 
-let builtinlookup = x => VarMap.lookup(ctx, x);
+let shadowing_ctx: VarCtx.t = [];
+
+let lookup = x => VarMap.lookup(ctx, x);
+
+let extend = x => VarMap.extend(shadowing_ctx, x);
 
 let evaluate = (x: string, d: DHExp.t): DHExp.t =>
   switch (d) {
@@ -19,5 +23,3 @@ let evaluate = (x: string, d: DHExp.t): DHExp.t =>
     }
   | _ => Triv
   };
-
-include VarMap;
