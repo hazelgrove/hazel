@@ -454,7 +454,6 @@ module Exp = {
       }
     | FreeVar(_) => d2
     | BuiltInLit(y) =>
-      /* BuiltinFunctions.extend(BuiltinFunctions.shadowing_ctx, (x, )) */
       if (Var.eq(x, y)) {
         d1;
       } else {
@@ -1277,8 +1276,26 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
-      | (_, Some(ty)) => Expands(BuiltInLit(x), ty, delta)
-      | (Some(ty), _) => Expands(BoundVar(x), ty, delta)
+      | (Some(ty'), Some(ty)) =>
+        print_endline("Dynamics1280");
+        /* if (List.mem(x, BuiltinFunctions.shadowing_var) == true) { */
+        if (HTyp.is_Arrow(ty') == false) {
+          print_endline("Dynamics1282");
+          Expands(BoundVar(x), ty', delta);
+        } else {
+          /* TODO: fix this with self-defined functions */
+          Expands(
+            BuiltInLit(x),
+            ty,
+            delta,
+          );
+        };
+      /* } else {
+            Expands(BuiltInLit(x), ty, delta);
+         } */
+      | (Some(ty), _) =>
+        print_endline("Dynamics1295");
+        Expands(BoundVar(x), ty, delta);
       | (None, _) => ExpandResult.DoesNotExpand
       };
     | Var(NotInHole, InVarHole(reason, u), x) =>
