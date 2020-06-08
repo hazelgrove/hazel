@@ -37,6 +37,20 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
     opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys])
   };
 
+let for_all2_opt =
+    (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
+  switch (List.for_all2(f, xs, ys)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
+let map2_opt =
+    (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
+  switch (List.map2(f, xs, ys)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
 /**
  * Zips together the prefixes of two lists,
  * up to the length of the shorter list

@@ -5,13 +5,39 @@ type t('annot) =
   | VBox(list(t('annot))) // note: due to alignment, VBox([]) is not a zero
   | Annot('annot, t('annot)); // Annotations
 
+module Key: Hashtbl.HashedType = {
+  // We use `Obj.magic` to convert all value to `unit`.  This allows
+  // functions that use the memoization table to have a polymorphic key.
+  type t = unit;
+  let hash = Hashtbl.hash;
+  let equal = (==);
+};
+
+module MemoTable = Ephemeron.K1.Make(Key);
+
+// Memoization on polymorphic key types
+let memoize: ('a => 'b, 'a) => 'b =
+  f => {
+    let table = MemoTable.create(0);
+    let f' = (key: 'a): 'b => {
+      let key': Key.t = Obj.magic(key);
+      switch (MemoTable.find_opt(table, key')) {
+      | Some(value) => value
+      | None =>
+        let value = f(Obj.magic(key'));
+        MemoTable.add(table, key', value);
+        value;
+      };
+    };
+    f';
+  };
+
 let rec box_height: 'annot. t('annot) => int =
   layout =>
-    Obj.magic(snd(Lazy.force(box_height_memo_table), Obj.magic(layout)))
+    Obj.magic((Lazy.force(box_height_memo_table), Obj.magic(layout)))
 
-and box_height_memo_table:
-  Lazy.t((Memoize.WeakPoly.Table.t(int), t(unit) => int)) =
-  lazy(Memoize.WeakPoly.make(box_height'))
+and box_height_memo_table: Lazy.t(t(unit) => int) =
+  lazy(memoize(box_height'))
 
 and box_height' = (box: t('annot)): int => {
   switch (box) {

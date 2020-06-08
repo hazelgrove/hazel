@@ -15,8 +15,8 @@
 %right VBAR
 %right AMP
 
-%start <UHTyp.operator Skel.t> skel_typ
-%type <UHTyp.operator Skel.t> ty
+%start <Operators.Typ.t Skel.t> skel_typ
+%type <Operators.Typ.t Skel.t> ty
 
 (* %% ends the declarations section of the grammar definition *)
 
@@ -31,22 +31,22 @@ ty:
   | ty1 = ty; COMMA; ty2 = ty {
     Skel.BinOp(
       NotInHole,
-      UHTyp.Prod,
+      Operators.Typ.Prod,
       ty1, ty2) }
   | ty1 = ty; ARROW; ty2 = ty {
     Skel.BinOp(
       NotInHole,
-      UHTyp.Arrow,
+      Operators.Typ.Arrow,
       ty1, ty2) }
   | ty1 = ty; VBAR; ty2 = ty {
     Skel.BinOp(
       NotInHole,
-      UHTyp.Sum,
+      Operators.Typ.Sum,
       ty1, ty2) }
   | ty1 = ty; AMP; ty2 = ty {
     Skel.BinOp(
       NotInHole,
-      UHTyp.Prod,
+      Operators.Typ.Prod,
       ty1, ty2) }
   ;
 
