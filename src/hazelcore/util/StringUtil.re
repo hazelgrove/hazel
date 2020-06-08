@@ -40,11 +40,7 @@ let rec find_and_replace =
     if (len_s == (-1) && s.[0] == '\\') {
       (
         acc ++ s,
-        if (err == "OK") {
-          "Not terminated";
-        } else {
-          err;
-        },
+        err
       );
     } else {
       (acc ++ s, err);
@@ -72,7 +68,7 @@ let rec find_and_replace =
         (result ++ String.sub(acc, len, String.length(acc) - len), err);
       };
     | "\\n" => find_and_replace(acc ++ "\n", String.sub(s, 2, len_s), err)
-    | "\\\\" => find_and_replace(acc ++ "\\\\", String.sub(s, 2, len_s), err)
+    | "\\\\" => find_and_replace(acc ++ "\\", String.sub(s, 2, len_s), err)
     | "\\\"" => find_and_replace(acc ++ "\"", String.sub(s, 2, len_s), err)
     | "\\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s), err)
     | "\\ " => find_and_replace(acc ++ " ", String.sub(s, 2, len_s), err)
@@ -94,11 +90,7 @@ let rec find_and_replace =
           find_and_replace(
             acc ++ String.sub(s, 0, 1),
             String.sub(s, 1, len_s + 1),
-            if (err == "OK") {
-              "Illegal";
-            } else {
-              err;
-            },
+            "Illegal"
           );
         };
       } else {
@@ -122,11 +114,7 @@ let rec find_and_replace =
         find_and_replace(
           acc ++ String.sub(s, 0, 1),
           String.sub(s, 1, len_s + 1),
-          if (err == "OK") {
-            "Illegal";
-          } else {
-            err;
-          },
+          "Illegal"
         );
       };
     | _ =>
@@ -146,11 +134,7 @@ let rec find_and_replace =
             find_and_replace(
               acc ++ String.sub(s, 0, 1),
               String.sub(s, 1, len_s + 1),
-              if (err == "OK") {
-                "Illegal";
-              } else {
-                err;
-              },
+              "Illegal"
             );
           };
         } else {
