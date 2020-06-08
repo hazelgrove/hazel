@@ -2112,9 +2112,9 @@ module Exp = {
       ((new_prefix_lines, zline, new_suffix_lines), u_gen);
     };
 
-  let can_split_cases: ZExp.zrule => bool =
+  let can_split_cases: ZExp.zrules => bool =
     fun
-    | RuleZP(zpat, _) => {
+    | ([], RuleZP(zpat, _), []) => {
         let OpSeq(_, seq) = ZPat.erase(zpat);
         // Only try to derive type and continue if the only rule was just an empty hole
         seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
@@ -3922,7 +3922,7 @@ module Exp = {
       }
     | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
-    | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrule) =>
+    | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrules) =>
       switch (split_cases(u_gen, pat_ty, exp)) {
       | None => Failed
       | Some((u_gen, zrules)) =>
@@ -4089,7 +4089,7 @@ module Exp = {
       ) =>
       Failed
 
-    | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrule) =>
+    | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrules) =>
       switch (split_cases(u_gen, pat_ty, exp)) {
       | None => Failed
       | Some((u_gen, zrules)) =>
