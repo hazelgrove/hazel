@@ -268,9 +268,6 @@ let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
-let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
-  Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);
-
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_DelimGroup;
   let close_group = Delim.close_Parenthesized() |> annot_DelimGroup;
@@ -279,11 +276,21 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
 };
 
 let mk_ListLit =
-    (~sort: TermSort.t, ~err: ErrStatus.t, body: formatted_child): t => {
-  let open_group = Delim.open_List() |> annot_DelimGroup;
-  let close_group = Delim.close_List() |> annot_DelimGroup;
-  Doc.hcats([open_group, body |> pad_open_child, close_group])
-  |> annot_Operand(~sort, ~err);
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t,
+      ~body: option(formatted_child)=?,
+      (),
+    )
+    : t => {
+  switch (body) {
+  | None => mk_text("[]") |> annot_Operand(~sort, ~err)
+  | Some(body) =>
+    let open_group = Delim.open_List() |> annot_DelimGroup;
+    let close_group = Delim.close_List() |> annot_DelimGroup;
+    Doc.hcats([open_group, body |> pad_open_child, close_group])
+    |> annot_Operand(~sort, ~err);
+  };
 };
 
 let mk_List = (body: formatted_child): t => {
@@ -592,7 +599,6 @@ module Pat = {
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Pat);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Pat);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Pat);
-  let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Pat);
   let mk_ListLit = mk_ListLit(~sort=Pat);
   let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
     mk_Var(~sort=Pat);
@@ -646,11 +652,11 @@ module Pat = {
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
           | BoolLit(err, b) => mk_BoolLit(~err, b)
-          | ListLit(err, None) => mk_ListNil(~err, ())
+          | ListLit(err, None) => mk_ListLit(~err, ())
           | ListLit(err, Some(body)) =>
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-            mk_ListLit(~err, body);
+            mk_ListLit(~err, ~body, ());
           | Parenthesized(body) =>
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
@@ -701,7 +707,6 @@ module Exp = {
   let mk_IntLit: (~err: ErrStatus.t, string) => t = mk_IntLit(~sort=Exp);
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Exp);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
-  let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Exp);
   let mk_ListLit = mk_ListLit(~sort=Exp);
   let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
     mk_Var(~sort=Exp);
@@ -823,7 +828,7 @@ module Exp = {
           | IntLit(err, n) => mk_IntLit(~err, n)
           | FloatLit(err, f) => mk_FloatLit(~err, f)
           | BoolLit(err, b) => mk_BoolLit(~err, b)
-          | ListLit(err, None) => mk_ListNil(~err, ())
+          | ListLit(err, None) => mk_ListLit(~err, ())
           | ListLit(err, Some(opseq)) =>
             let formattable_body = (~enforce_inline) =>
               Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
@@ -832,7 +837,7 @@ module Exp = {
               enforce_inline
                 ? EnforcedInline(formattable_body(~enforce_inline=true))
                 : Unformatted(formattable_body);
-            mk_ListLit(~err, formatted_body);
+            mk_ListLit(~err, ~body=formatted_body, ());
           | Lam(err, p, ann, body) =>
             let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let ann =
