@@ -378,10 +378,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     | SwapEdit(swap_group) =>
       switch (swap_group) {
-      | Up => indicate_words_view("swap lines up")
-      | Down => indicate_words_view("swap lines down")
-      | Left => indicate_words_view("swap lines left")
-      | Right => indicate_words_view("swap lines right")
+      | Up => indicate_words_view("swap line up")
+      | Down => indicate_words_view("swap line down")
+      | Left => indicate_words_view("swap operand left")
+      | Right => indicate_words_view("swap operand right")
       }
     | Init => indicate_words_view("initial state")
     };
