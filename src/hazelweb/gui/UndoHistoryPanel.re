@@ -376,6 +376,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | SwapEdit(swap_group) =>
+      switch (swap_group) {
+      | Up => indicate_words_view("swap lines up")
+      | Down => indicate_words_view("swap lines down")
+      | Left => indicate_words_view("swap lines left")
+      | Right => indicate_words_view("swap lines right")
+      }
     | Init => indicate_words_view("initial state")
     };
   };
@@ -427,6 +434,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | SwapEdit(_)
     | Init => None
     };
   };
