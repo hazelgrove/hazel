@@ -4,7 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 
 let mk_sidebar =
     (
-      panels,
+      panels_thunk,
       collapsible_sidebar_id: string,
       tab_id: string,
       tab_opened_icon,
@@ -14,7 +14,8 @@ let mk_sidebar =
       body_id: string,
       sidebar_open: bool,
       ~on_toggle: Js.t(Dom_html.mouseEvent) => Vdom.Event.t,
-    ) =>
+    ) => {
+  let panels = sidebar_open ? panels_thunk() : [];
   Vdom.(
     Node.div(
       [
@@ -66,6 +67,7 @@ let mk_sidebar =
       ],
     )
   );
+};
 
 let left = (~inject, model: Model.t, left_panels) => {
   mk_sidebar(
