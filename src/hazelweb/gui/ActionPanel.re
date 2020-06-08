@@ -382,6 +382,29 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       ],
     ),
     section(
+      "Strings",
+      [
+        info([
+          text("Enter string literals directly e.g. "),
+          mono_text("\"abc\""),
+        ]),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"S\""),
+            text(" to insert a String type"),
+          ],
+          Action.Construct(SChar("S")),
+        ),
+        operator_list(~on_type=false, "Operators", [Caret]),
+        combo_and_cursor(
+          ~on_type=false,
+          LeftBracket,
+          [text("Insert "), mono_text("subscript")],
+        ),
+      ],
+    ),
+    section(
       "Lists",
       [
         combo_and_cursor(
