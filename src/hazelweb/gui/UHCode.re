@@ -117,20 +117,33 @@ let view =
             let full_space = font_width *. float_of_int(len);
             let shrunk_space = full_space *. font_shrink;
             let per_side_padding = (full_space -. shrunk_space) /. 2.0;
-            let padding =
-              Css_gen.padding(
-                ~left=`Px(int_of_float(per_side_padding)),
-                ~right=`Px(int_of_float(per_side_padding)),
-                (),
-              );
-            let font_size =
-              Css_gen.font_size(
-                `Percent(
-                  Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
-                ),
-              );
+            /*let padding =
+                Css_gen.padding(
+                  ~left=`Px(int_of_float(per_side_padding)),
+                  ~right=`Px(int_of_float(per_side_padding)),
+                  (),
+                );
+              let font_size =
+                Css_gen.font_size(
+                  `Percent(
+                    Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
+                  ),
+                );
+              let styling =
+                Vdom.Attr.style(Css_gen.combine(padding, font_size));*/
             let styling =
-              Vdom.Attr.style(Css_gen.combine(padding, font_size));
+              Vdom.Attr.create(
+                "style",
+                "padding-right: "
+                ++ string_of_float(per_side_padding)
+                ++ "0px; "
+                ++ "padding-left: "
+                ++ string_of_float(per_side_padding)
+                ++ "0px; "
+                ++ "font-size: "
+                ++ string_of_int(int_of_float(font_shrink *. 100.0))
+                ++ "%;",
+              );
             [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
           }
         | Annot(UserNewline, l) => [
