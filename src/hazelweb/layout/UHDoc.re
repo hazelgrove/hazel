@@ -93,7 +93,7 @@ module Delim = {
   let close_Case_ann = (): t => mk(~index=1, "end :");
 
   let bar_Rule = (): t => mk(~index=0, "|");
-  let arrow_Rule = (): t => mk(~index=1, UnicodeConstants.caseArrowSym);
+  let arrow_Rule = (): t => mk(~index=1, "=>");
 
   let let_LetLine = (): t => mk(~index=0, "let");
   let colon_LetLine = (): t => mk(~index=1, ":");
