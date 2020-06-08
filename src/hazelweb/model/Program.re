@@ -82,8 +82,7 @@ let get_expansion = (program: t): DHExp.t =>
   };
 
 exception InvalidInput;
-let evaluate =
-  Memo.general(~cache_size_bound=1000, Evaluation.Evaluator.evaluate);
+let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
