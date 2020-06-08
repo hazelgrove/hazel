@@ -87,7 +87,13 @@ let view =
           } else if (StringUtil.is_empty(s)) {
             [];
           } else if (String.length(s) == 1) {
-            [Node.text(s)];
+            if (s == "\\") {
+              [
+                Node.span([Attr.classes(["InvalidSeq"])], [Node.text(s)]),
+              ];
+            } else {
+              [Node.text(s)];
+            };
           } else {
             switch (String.sub(s, 0, 1)) {
             | "\\" =>
