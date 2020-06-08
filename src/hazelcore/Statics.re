@@ -125,7 +125,7 @@ module Pat = {
         Some((ty, ctx));
       }
     | Parenthesized(p) => syn(ctx, p)
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     ana_opseq(ctx, p, ty)
@@ -237,7 +237,7 @@ module Pat = {
         ana(ctx, p1, ty1);
       }
     | Parenthesized(p) => ana(ctx, p, ty)
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     };
 
   /**
@@ -476,7 +476,7 @@ module Pat = {
         | R => HTyp.Sum(Hole, ty1)
         };
       (p, ty, ctx, u_gen);
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     };
   }
   and ana_fix_holes =
@@ -746,7 +746,7 @@ module Pat = {
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
       }
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     };
   };
 
@@ -1020,8 +1020,8 @@ module Exp = {
         }
       };
     | Parenthesized(body) => syn(ctx, body)
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     }
   and syn_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -1237,8 +1237,8 @@ module Exp = {
         }
       }
     | Parenthesized(body) => ana(ctx, body, ty)
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1796,8 +1796,8 @@ module Exp = {
           u_gen,
         );
       };
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     };
   }
   and syn_fix_holes_rules =
@@ -2268,8 +2268,8 @@ module Exp = {
           u_gen,
         );
       };
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     };
 
   let syn_fix_holes_z =

@@ -946,6 +946,7 @@ module Pat = {
                mk(PatAnalyzed(ty), ctx, cursor_term),
              )
            )
+      | Label(_) => failwith("unimplemented")
       }
     | InjZ(InHole(WrongLength, _), _, _) => None
     | InjZ(InHole(TypeInconsistent, _), _, _) =>
@@ -1604,6 +1605,8 @@ module Exp = {
               : None;
           }
         }
+      | Label(_) => failwith("unimplemented")
+      | Prj(_) => failwith("unimplemented")
       } /* zipper cases */
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */

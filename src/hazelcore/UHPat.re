@@ -82,7 +82,7 @@ and get_err_status_operand =
   | ListNil(err)
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status(p)
-  | Label(_, _) => failwith("unimplemented");
+  | Label(_) => failwith("unimplemented");
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
   p |> set_err_status_opseq(err)
@@ -99,7 +99,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
-  | Label(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -141,7 +141,7 @@ and mk_inconsistent_operand =
   | Parenthesized(p) =>
     let (set_p, u_gen) = p |> mk_inconsistent(u_gen);
     (Parenthesized(set_p), u_gen);
-  | Label(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
   };
 
 let text_operand =
@@ -200,6 +200,6 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Parenthesized(body) => is_complete(body)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
-  | Label(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
   };
 };

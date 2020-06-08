@@ -203,8 +203,8 @@ and get_err_status_operand =
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
   | Parenthesized(e) => get_err_status(e)
-  | Label(_, _) => failwith("unimplemented")
-  | Prj(_, _) => failwith("unimplemented");
+  | Label(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented");
 
 /* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
@@ -228,8 +228,8 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Label(_, _) => failwith("unimplemented")
-  | Prj(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented")
   };
 
 let is_inconsistent = operand =>
@@ -285,8 +285,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
-  | Label(_, _) => failwith("unimplemented")
-  | Prj(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented")
   };
 
 let rec drop_outer_parentheses = (operand): t =>
@@ -379,8 +379,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Label(_, _) => failwith("unimplemented")
-  | Prj(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented")
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {

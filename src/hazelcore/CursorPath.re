@@ -628,7 +628,7 @@ module Pat = {
           |> OptUtil.map(zbody => ZPat.InjZ(err, side, zbody))
         | _ => None
         }
-      | Label(_, _) => failwith("unimplemented")
+      | Label(_) => failwith("unimplemented")
       }
     }
   and follow_operator =
@@ -681,7 +681,7 @@ module Pat = {
           body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(0, path))
         | _ => None
         }
-      | Label(_, _) => failwith("unimplemented")
+      | Label(_) => failwith("unimplemented")
       }
     }
   and of_steps_operator =
@@ -741,7 +741,7 @@ module Pat = {
           ...body_holes,
         ]
       };
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     };
 
   let rec holes_z = (zp: ZPat.t, rev_steps: rev_steps): zhole_list =>
@@ -1005,8 +1005,8 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
-      | Label(_, _) => failwith("unimplemented")
-      | Prj(_, _) => failwith("unimplemented")
+      | Label(_) => failwith("unimplemented")
+      | Prj(_) => failwith("unimplemented")
       }
     }
   and follow_rules =
@@ -1181,8 +1181,8 @@ module Exp = {
           let (_, e) = ty_e;
           e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path));
         };
-      | Label(_, _) => failwith("unimplemented")
-      | Prj(_, _) => failwith("unimplemented")
+      | Label(_) => failwith("unimplemented")
+      | Prj(_) => failwith("unimplemented")
       }
     }
   and of_steps_rule =
@@ -1290,8 +1290,8 @@ module Exp = {
         hs,
       )
       |> holes_err(err, rev_steps);
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     }
   and holes_rule =
       (Rule(p, clause): UHExp.rule, rev_steps: rev_steps, hs: hole_list)

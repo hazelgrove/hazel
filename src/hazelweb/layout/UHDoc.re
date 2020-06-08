@@ -648,7 +648,7 @@ module Pat = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_Inj(~err, ~inj_side, body);
-          | Label(_, _) => failwith("unimplemented")
+          | Label(_) => failwith("unimplemented")
           }: t
         )
       )
@@ -851,8 +851,8 @@ module Exp = {
               mk_Case(~err, scrut, rules);
             }
           | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
-          | Label(_, _) => failwith("unimplemented")
-          | Prj(_, _) => failwith("unimplemented")
+          | Label(_) => failwith("unimplemented")
+          | Prj(_) => failwith("unimplemented")
           }: t
         )
       )

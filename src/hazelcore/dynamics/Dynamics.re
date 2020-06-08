@@ -172,7 +172,7 @@ module Pat = {
           };
         Expands(dp, ty, ctx, delta);
       }
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
@@ -390,7 +390,7 @@ module Pat = {
           Expands(Inj(side, dp1), ty, ctx, delta);
         };
       }
-    | Label(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
     };
 
   let rec renumber_result_only =
@@ -1305,8 +1305,8 @@ module Exp = {
          ana_expand_exp ctx bound_expansion expansion_ty
        | None -> ExpandResult.DoesNotExpand
        end */
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     }
   and syn_expand_rules =
       (
@@ -1688,8 +1688,8 @@ module Exp = {
     | ApPalette(NotInHole, _, _, _) =>
       /* subsumption */
       syn_expand_operand(ctx, delta, operand)
-    | Label(_, _) => failwith("unimplemented")
-    | Prj(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     }
   and ana_expand_rules =
       (

@@ -229,6 +229,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
+    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     }
   | Pat(_, operand) =>
     switch (operand) {
@@ -241,6 +243,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | ListNil(_)
     | Parenthesized(_)
     | Inj(_, _, _) => MaxLen
+    | Label(_) => failwith("unimplemented")
     }
   | Typ(_, operand) =>
     switch (operand) {
@@ -251,6 +254,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Bool
     | Parenthesized(_)
     | List(_) => MaxLen
+    | Label(_) => failwith("unimplemented")
     }
   | ExpOp(_, _)
   | PatOp(_, _)

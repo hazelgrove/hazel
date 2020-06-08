@@ -105,8 +105,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
-  | Label(_, _) => failwith("unimplemented")
-  | Prj(_, _) => failwith("unimplemented");
+  | Label(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented");
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -175,8 +175,8 @@ and is_before_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Label(_, _)) => failwith("unimplemented")
-  | CursorE(_, Prj(_, _)) => failwith("unimplemented");
+  | CursorE(_, Label(_)) => failwith("unimplemented")
+  | CursorE(_, Prj(_)) => failwith("unimplemented");
 let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true
@@ -224,8 +224,8 @@ and is_after_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Label(_, _))
-  | CursorE(_, Prj(_, _)) => failwith("unimplemented");
+  | CursorE(_, Label(_))
+  | CursorE(_, Prj(_)) => failwith("unimplemented");
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
@@ -273,8 +273,8 @@ and is_outer_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Label(_, _))
-  | CursorE(_, Prj(_, _)) => failwith("unimplemented");
+  | CursorE(_, Label(_))
+  | CursorE(_, Prj(_)) => failwith("unimplemented");
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =

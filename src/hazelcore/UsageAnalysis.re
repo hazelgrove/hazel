@@ -20,7 +20,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
-  | Label(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
   };
 
 let rec find_uses =
@@ -86,8 +86,8 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
-  | Label(_, _) => failwith("unimplemented")
-  | Prj(_, _) => failwith("unimplemented")
+  | Label(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented")
   }
 and find_uses_rule =
     (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>
