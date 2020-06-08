@@ -101,7 +101,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program |> get_edit_state;
-  switch (Action.Exp.syn_perform(Contexts.empty, a, edit_state)) {
+  switch (ActionExp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
