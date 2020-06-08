@@ -444,7 +444,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action.Exp.syn_perform(Contexts.empty, a, edit_state)) {
+    switch (ActionExp.syn_perform(Contexts.empty, a, edit_state)) {
     | Failed => false
     | CursorEscaped(_)
     | Succeeded(_) => true
