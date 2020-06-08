@@ -4040,6 +4040,7 @@ module Exp = {
 
     | (Construct(SLeftBracket), CursorE(_, operand))
         when ZExp.is_after_zoperand(zoperand) =>
+      print_endline("Action4043");
       switch (operand) {
       | EmptyHole(_) =>
         let delim_cursor = CursorPosition.OnDelim(0, Before);
@@ -4069,9 +4070,10 @@ module Exp = {
             ),
           );
         Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, ze)));
-      }
+      };
 
     | (Construct(SLeftBracket), CursorE(OnDelim(0, Before), EmptyHole(_))) =>
+      print_endline("Action4075");
       let ze = UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
       Succeeded(SynDone((ze, ty, u_gen)));
 
@@ -4326,7 +4328,9 @@ module Exp = {
           ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, body1, body2, zbody3));
         Succeeded(SynDone((new_ze, ty, u_gen)));
       }
-    | (Construct(SLeftBracket), _) => Failed
+    | (Construct(SLeftBracket), _) =>
+      print_endline("Action4330");
+      Failed;
 
     | (Init, _) => failwith("Init action should not be performed.")
     };
