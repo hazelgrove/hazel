@@ -6,11 +6,11 @@ module WidthPosKey = {
   let equal = ((w1, p1), (w2, p2)) => w1 == w2 && p1 == p2;
 };
 
-// NOTE: pos is relative to most recent `Align`
-type m'('a) = PosMap.t((int /*cost*/, 'a));
-type m('a) = (~width: int, ~pos: int) => m'('a);
-
 module M = Hashtbl.Make(WidthPosKey);
+
+// NOTE: pos is relative to most recent `Align`
+type m'('a) = PosMap.t((Cost.t, 'a));
+type m('a) = (~width: int, ~pos: int) => m'('a);
 
 [@deriving sexp]
 type t('annot) = {
