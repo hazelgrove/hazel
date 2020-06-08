@@ -187,9 +187,9 @@ let group_action_group =
   | (VarGroup(_), _) => false
   /* "insert" and "insert and delete" should be grouped together */
   | (DeleteEdit(Term(_, true)), VarGroup(Insert(_))) => true
-  | (DeleteEdit(_), _) => false
-  | (ConstructEdit(_), _) => false
-  | (SwapEdit(_), _) => false
+  | (DeleteEdit(_), _)
+  | (ConstructEdit(_), _)
+  | (SwapEdit(_), _)
   | (Init, _) => false
   };
 
