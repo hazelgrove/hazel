@@ -548,6 +548,23 @@ module Exp = {
     | DoesNotMatch
     | Indet;
 
+  module MatchResult = {
+    type t =
+      | Matches(Environment.t)
+      | DoesNotMatch
+      | Indet;
+
+    let map2 =
+        (f: (Environment.t, Environment.t) => Environment.t, r1: t, r2: t): t =>
+      switch (r1, r2) {
+      | (DoesNotMatch, _)
+      | (_, DoesNotMatch) => DoesNotMatch
+      | (Indet, _)
+      | (_, Indet) => Indet
+      | (Matches(env1), Matches(env2)) => Matches(f(env1, env2))
+      };
+  };
+
   /*
    case xs
    | [] -> 0
@@ -630,7 +647,12 @@ module Exp = {
     // | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
     // | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
     // | (ListNil, _) => DoesNotMatch
-    | (ListLit(_, _), _) => DoesNotMatch // TODO
+    // | (ListLit(_, _), _) => DoesNotMatch // TODO
+    | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
+      matches_cast_Cons(dp, d, [(ty1, ty2)])
+    // | ListLit(dps)
+    | (Cons(_) | ListLit(_), Cast(d, Hole, List(_))) => matches(dp, d)
+    | (Cons(_) | ListLit(_), Cast(d, List(_), Hole)) => matches(dp, d)
     | (Cons(dp1, dp2), Cons(d1, d2)) =>
       switch (matches(dp1, d1)) {
       | DoesNotMatch => DoesNotMatch
@@ -642,11 +664,10 @@ module Exp = {
         | Matches(env2) => Matches(Environment.union(env1, env2))
         }
       }
-    | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
-      matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-    | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-    | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
-    | (Cons(_, _), _) => DoesNotMatch
+    | (ListLit(_, _), Cons(_, _)) => failwith("unimplemented")
+    | (Cons(_, _), ListLit(_, _)) => failwith("unimplemented")
+    | (ListLit(_, _), ListLit(_, _)) => failwith("unimplemented")
+    | (Cons(_) | ListLit(_), _) => DoesNotMatch
     | (Ap(_, _), _) => DoesNotMatch
     }
   and matches_cast_Inj =
@@ -759,58 +780,90 @@ module Exp = {
     | FailedCast(_, _, _) => Indet
     }
   and matches_cast_Cons =
-      (
-        dp1: DHPat.t,
-        dp2: DHPat.t,
-        d: DHExp.t,
-        elt_casts: list((HTyp.t, HTyp.t)),
-      )
+      //dp1: DHPat.t,
+      //dp2: DHPat.t,
+      (dp: DHPat.t, d: DHExp.t, elt_casts: list((HTyp.t, HTyp.t)))
       : match_result =>
+    // case [1, 2]
+    // | dp1::dp2 -> _
+    // | [x, y] ->
+    //   x + y + 1
+    // | [dp1, dp2, ...(so on)] -> _
+    // | dp -> _
+    // end
     switch (d) {
     | ListLit(_, []) => DoesNotMatch
-    | ListLit(ty, [d1, ...ds]) =>
-      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env1) =>
-        let list_casts =
-          List.map(
-            (c: (HTyp.t, HTyp.t)) => {
-              let (ty1, ty2) = c;
-              (HTyp.List(ty1), HTyp.List(ty2));
-            },
-            elt_casts,
-          );
-        let d2 = DHExp.ListLit(ty, ds);
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+    | ListLit(ty, [dhd, ...dtl] as ds) =>
+      switch (dp) {
+      | Cons(dp1, dp2) =>
+        switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
         | DoesNotMatch => DoesNotMatch
         | Indet => Indet
-        | Matches(env2) => Matches(Environment.union(env1, env2))
-        };
+        | Matches(env1) =>
+          let list_casts =
+            List.map(
+              (c: (HTyp.t, HTyp.t)) => {
+                let (ty1, ty2) = c;
+                (HTyp.List(ty1), HTyp.List(ty2));
+              },
+              elt_casts,
+            );
+          let d2 = DHExp.ListLit(ty, dtl);
+          switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet => Indet
+          | Matches(env2) => Matches(Environment.union(env1, env2))
+          };
+        }
+      | ListLit(_, dps) =>
+        switch (ListUtil.opt_zip(dps, ds)) {
+        | None => DoesNotMatch
+        | Some(lst) =>
+          lst
+          |> List.map(((dp, d)) => matches(dp, d))
+          |> List.fold_left(
+               (match1, match2) =>
+                 switch (match1, match2) {
+                 | (DoesNotMatch, _)
+                 | (_, DoesNotMatch) => DoesNotMatch
+                 | (Indet, _)
+                 | (_, Indet) => Indet
+                 | (Matches(env1), Matches(env2)) =>
+                   Matches(Environment.union(env1, env2))
+                 },
+               Matches(Environment.empty),
+             )
+        }
+      | _ => failwith("called matches_cast_Cons with non-list pattern")
       }
     | Cons(d1, d2) =>
-      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env1) =>
-        let list_casts =
-          List.map(
-            (c: (HTyp.t, HTyp.t)) => {
-              let (ty1, ty2) = c;
-              (HTyp.List(ty1), HTyp.List(ty2));
-            },
-            elt_casts,
-          );
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+      switch (dp) {
+      | Cons(dp1, dp2) =>
+        switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
         | DoesNotMatch => DoesNotMatch
         | Indet => Indet
-        | Matches(env2) => Matches(Environment.union(env1, env2))
-        };
+        | Matches(env1) =>
+          let list_casts =
+            List.map(
+              (c: (HTyp.t, HTyp.t)) => {
+                let (ty1, ty2) = c;
+                (HTyp.List(ty1), HTyp.List(ty2));
+              },
+              elt_casts,
+            );
+          switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet => Indet
+          | Matches(env2) => Matches(Environment.union(env1, env2))
+          };
+        }
+      | ListLit(_, _dps) => failwith("unimplemented")
+      | _ => failwith("called matches_cast_Cons with non-list pattern")
       }
     | Cast(d', List(ty1), List(ty2)) =>
-      matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-    | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-    | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+      matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
+    | Cast(d', List(_), Hole) => matches_cast_Cons(dp, d', elt_casts)
+    | Cast(d', Hole, List(_)) => matches_cast_Cons(dp, d', elt_casts)
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
