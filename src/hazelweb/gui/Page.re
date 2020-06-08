@@ -218,7 +218,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               Sidebar.left(~inject, model, () =>
                 [ActionPanel.view(~inject, model)]
-              ), //the_history_panel,
+              ),
               Node.div(
                 [Attr.classes(["flex-wrapper"])],
                 [
