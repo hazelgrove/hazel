@@ -1203,19 +1203,25 @@ module Exp = {
           | Some((_, InVarHole(Keyword(k), _))) =>
             Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
           | Some((NotInHole, NotInVarHole)) =>
-            switch (
-              Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand),
-              zoperand,
-            ) {
-            | (_, CursorE(_, InvalidText(_))) =>
+            let operand_nih =
+              zoperand
+              |> ZExp.erase_zoperand
+              |> UHExp.set_err_status_operand(NotInHole);
+            switch (operand_nih) {
+            | InvalidText(_) =>
               Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
-            | (None, _) => None
-            | (Some(ty), _) =>
-              HTyp.matched_arrow(ty)
-              |> OptUtil.map(((ty1, ty2)) =>
-                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-                 )
-            }
+            | _ =>
+              switch (
+                Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
+              ) {
+              | None => None
+              | Some(ty) =>
+                HTyp.matched_arrow(ty)
+                |> OptUtil.map(((ty1, ty2)) =>
+                     mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+                   )
+              }
+            };
           };
         } else {
           switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
