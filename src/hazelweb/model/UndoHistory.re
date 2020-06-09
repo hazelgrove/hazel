@@ -656,10 +656,13 @@ let get_new_action_group =
     | Backspace =>
       backspace(~prev_group, ~new_cardstacks_before, ~new_cursor_term_info)
     | Construct(shape) =>
+      print_endline("UH660");
       switch (shape) {
       | SLine =>
         switch (CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)) {
-        | None => Some(ConstructEdit(shape))
+        | None =>
+          print_endline("UH665");
+          Some(ConstructEdit(shape));
         | Some(zrules_before) =>
           switch (
             CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
@@ -675,7 +678,6 @@ let get_new_action_group =
         }
       | SParenthesized
       | SList
-      | SQuote
       | SLeftBracket
       | SAsc
       | SLam
@@ -683,6 +685,7 @@ let get_new_action_group =
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))
+      | SQuote
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
@@ -695,15 +698,19 @@ let get_new_action_group =
                   }),
                 ),
             )) {
+          print_endline("UH699");
           switch (get_initial_entry_in_group(prev_group)) {
           | None =>
-            Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)))
+            print_endline("UH701");
+            Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
           | Some(initial_entry) =>
             if (is_var_insert(initial_entry.action_group)) {
+              print_endline("UH705");
               Some(
                 VarGroup(Insert(new_cursor_term_info.cursor_term_after)),
               );
             } else {
+              print_endline("UH710");
               Some(
                 VarGroup(
                   Edit({
@@ -725,8 +732,10 @@ let get_new_action_group =
                         CursorInfo.cursor_term_is_editable(
                           new_cursor_term_info.cursor_term_before,
                         )) {
+          print_endline("UH732");
           Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
         } else {
+          print_endline("UH735");
           Some(
             VarGroup(
               Edit({
@@ -817,7 +826,7 @@ let get_new_action_group =
         }
 
       | SApPalette(_) => failwith("ApPalette is not implemented")
-      }
+      };
     | MoveTo(_)
     | MoveLeft
     | MoveRight
