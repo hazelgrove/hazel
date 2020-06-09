@@ -69,16 +69,16 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
-exception DoesNotExpand;
+exception DoesNotElaborate;
 let expand =
   Memo.general(
     ~cache_size_bound=1000,
-    Expansion.Exp.syn_expand(Contexts.empty, Delta.empty),
+    Elaborator.Exp.syn_elab(Contexts.empty, Delta.empty),
   );
 let get_expansion = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
-  | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) => d
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
   };
 
 exception InvalidInput;
@@ -88,11 +88,11 @@ let get_result = (program: t): Result.t =>
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
-      Expansion.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) =
-      Expansion.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
