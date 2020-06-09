@@ -99,7 +99,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               code_keywords_view("String"),
               indicate_words_view(" literal "),
-              code_view(str),
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
             ],
           )
         );
@@ -183,7 +197,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               code_keywords_view("String"),
               indicate_words_view(" literal "),
-              code_view(str),
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
             ],
           )
         );
@@ -315,7 +343,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" expression")],
         )
       )
-    | SQuote => indicate_words_view("new string")
+    | SQuote
     | SList
     | SLeftBracket
     | SListNil
@@ -373,6 +401,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       | SLam => indicate_words_view("construct function")
       | _ =>
+        print_endline("UHP376");
         Vdom.(
           Node.span(
             [],
@@ -381,7 +410,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               action_shape_view(edit_detail),
             ],
           )
-        )
+        );
       }
     | VarGroup(var_edit) =>
       switch (var_edit) {
