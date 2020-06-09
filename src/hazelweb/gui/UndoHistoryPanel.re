@@ -401,7 +401,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         )
       | SLam => indicate_words_view("construct function")
       | _ =>
-        print_endline("UHP376");
         Vdom.(
           Node.span(
             [],
@@ -410,7 +409,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               action_shape_view(edit_detail),
             ],
           )
-        );
+        )
       }
     | VarGroup(var_edit) =>
       switch (var_edit) {
