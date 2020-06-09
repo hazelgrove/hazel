@@ -179,6 +179,7 @@ html, body {
    * overflow to the left during its hide animation.
    */
   direction: rtl;
+  overflow: hidden;
 }
 
 #collapsible-right-bar {
