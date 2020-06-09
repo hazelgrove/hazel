@@ -815,6 +815,7 @@ h1 {
 }
 .code-delim {
   font-weight: bold;
+  font-variant-ligatures: normal;
 }
 
 .DHCode .Align {
