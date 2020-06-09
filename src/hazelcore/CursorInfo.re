@@ -916,7 +916,7 @@ module Pat = {
       | InvalidText(_) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(PatAnaInvalid(Hole), ctx, cursor_term),
+            mk(PatAnaInvalid(ty), ctx, cursor_term),
           ),
         )
       | Var(NotInHole, _, x) =>
