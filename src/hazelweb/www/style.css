@@ -1503,7 +1503,10 @@ h1 {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }
-
+.ellipses {
+  color: gray;
+  background-color: lightgoldenrodyellow;
+}
 .timestamp-txt{
   float: right;
   text-align: center;

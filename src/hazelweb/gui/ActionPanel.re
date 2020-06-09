@@ -468,13 +468,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let is_action_allowed = (a: Action.t): bool => {
     switch (Action.Exp.syn_perform(Contexts.empty, a, edit_state)) {
-    | Failed =>
-      print_endline("AP472");
-      false;
+    | Failed => false
     | CursorEscaped(_)
-    | Succeeded(_) =>
-      print_endline("AP476");
-      true;
+    | Succeeded(_) => true
     };
   };
 
