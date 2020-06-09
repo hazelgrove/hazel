@@ -795,6 +795,7 @@ h1 {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
+  font-variant-ligatures: none;
 }
 .code.presentation * {
   position: relative;
