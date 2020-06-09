@@ -52,11 +52,14 @@ let has_child_clss = (has_child: bool) =>
 
 let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
   let pos_attr =
-    Vdom.Attr.style(
-      Css_gen.combine(
-        Css_gen.left(`Px(int_of_float(x))),
-        Css_gen.top(`Px(int_of_float(y))),
-      ),
+    Vdom.Attr.create(
+      "style",
+      "left: "
+      ++ string_of_float(x)
+      ++ "0px; "
+      ++ "top: "
+      ++ string_of_float(y)
+      ++ "0px;",
     );
   Vdom.Node.span(
     [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
@@ -117,21 +120,15 @@ let view =
             let full_space = font_width *. float_of_int(len);
             let shrunk_space = full_space *. font_shrink;
             let per_side_padding = (full_space -. shrunk_space) /. 2.0;
-            /*let padding =
-                Css_gen.padding(
-                  ~left=`Px(int_of_float(per_side_padding)),
-                  ~right=`Px(int_of_float(per_side_padding)),
-                  (),
-                );
-              let font_size =
+            let font_size =
+              Vdom.Attr.style(
                 Css_gen.font_size(
                   `Percent(
                     Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
                   ),
-                );
-              let styling =
-                Vdom.Attr.style(Css_gen.combine(padding, font_size));*/
-            let styling =
+                ),
+              );
+            let padding =
               Vdom.Attr.create(
                 "style",
                 "padding-right: "
@@ -139,12 +136,14 @@ let view =
                 ++ "0px; "
                 ++ "padding-left: "
                 ++ string_of_float(per_side_padding)
-                ++ "0px; "
-                ++ "font-size: "
-                ++ string_of_int(int_of_float(font_shrink *. 100.0))
-                ++ "%;",
+                ++ "0px;",
               );
-            [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
+            [
+              Node.span(
+                [font_size, padding, Attr.classes(["HoleLabel"])],
+                go(l),
+              ),
+            ];
           }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
