@@ -803,7 +803,9 @@ h1 {
   color: blue;
 }
 .code.presentation .InvalidSeq {
-  color:  #b30000;
+  --err-hole-color: blue;
+  border: 1px dotted var(--err-hole-color);
+  margin: -1px;
 }
 .code.presentation .Term.Rule,
 .code.presentation .Term.Case,
