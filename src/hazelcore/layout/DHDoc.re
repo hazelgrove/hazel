@@ -76,7 +76,7 @@ module Delim = {
   let close_Case = mk("end");
 
   let bar_Rule = mk("|");
-  let arrow_Rule = mk(UnicodeConstants.caseArrowSym);
+  let arrow_Rule = mk("=>");
 
   let open_Cast = mk("<");
   let arrow_Cast = mk(UnicodeConstants.castArrowSym);
