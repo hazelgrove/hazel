@@ -434,7 +434,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         ]),
         combo(Alt_C, simple("Insert case expression")),
         combo(Enter, simple("Add new rule")),
-        combo(Alt_Y, simple("Split the case")),
+        combo(Alt_Y, simple("Case split")),
       ],
     ),
   ];
