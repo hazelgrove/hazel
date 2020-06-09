@@ -52,14 +52,11 @@ let has_child_clss = (has_child: bool) =>
 
 let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
   let pos_attr =
-    Vdom.Attr.create(
-      "style",
-      "left: "
-      ++ string_of_float(x)
-      ++ "0px; "
-      ++ "top: "
-      ++ string_of_float(y)
-      ++ "0px;",
+    Vdom.Attr.style(
+      Css_gen.combine(
+        Css_gen.left(`Px(int_of_float(Float.round(x)))),
+        Css_gen.top(`Px(int_of_float(Float.round(y)))),
+      ),
     );
   Vdom.Node.span(
     [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
@@ -116,34 +113,11 @@ let view =
 
         | Annot(HoleLabel({len}), l) => {
             let font_width = font_metrics.col_width;
-            let font_shrink = 0.65;
             let full_space = font_width *. float_of_int(len);
-            let shrunk_space = full_space *. font_shrink;
-            let per_side_padding = (full_space -. shrunk_space) /. 2.0;
-            let font_size =
-              Vdom.Attr.style(
-                Css_gen.font_size(
-                  `Percent(
-                    Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
-                  ),
-                ),
-              );
-            let padding =
-              Vdom.Attr.create(
-                "style",
-                "padding-right: "
-                ++ string_of_float(per_side_padding)
-                ++ "0px; "
-                ++ "padding-left: "
-                ++ string_of_float(per_side_padding)
-                ++ "0px;",
-              );
-            [
-              Node.span(
-                [font_size, padding, Attr.classes(["HoleLabel"])],
-                go(l),
-              ),
-            ];
+            let width =
+              Css_gen.width(`Px(int_of_float(Float.round(full_space))));
+            let styling = Vdom.Attr.style(width);
+            [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
           }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
