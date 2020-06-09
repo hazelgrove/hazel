@@ -32,9 +32,9 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
-  | List(_) => OpSeq.wrap(operand)
+  | List(_)
+  | Label(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
-  | Label(_) => failwith("unimplemented")
   };
 
 let associate = (seq: seq) => {
@@ -87,6 +87,8 @@ let contract = (ty: HTyp.t): t => {
       | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
+      | Label(_) => failwith("unimplemented")
+      | Label_Elt(_) => failwith("unimplemented")
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -116,7 +118,14 @@ and expand_skel = (skel, seq) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
     Sum(ty1, ty2);
-  | BinOp(_, Space, _, _) => failwith("unimplemented")
+  | BinOp(_, Space, skel1, skel2) =>
+    let ty1 = expand_skel(skel1, seq);
+    let ty2 = expand_skel(skel2, seq);
+    switch (ty1) {
+    | Label(_)
+    | Hole => Label_Elt(ty1, ty2)
+    | _ => failwith("Expecting a Label Got a Type")
+    };
   }
 and expand_operand =
   fun
@@ -127,7 +136,7 @@ and expand_operand =
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq))
-  | Label(_) => failwith("unimplemented");
+  | Label(id) => Label(id);
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
@@ -138,7 +147,7 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Bool => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
-  | Label(_) => failwith("unimplemented")
+  | Label(_) => true
   };
 }
 and is_complete_skel = (sk: skel, sq: seq) => {

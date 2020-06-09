@@ -83,6 +83,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         hcats([choices([linebreak(), space()]), text("| ")]),
         d2,
       ]);
+    | Label(_) => failwith("unimplemented")
+    | Label_Elt(_) => failwith("unimplemented")
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

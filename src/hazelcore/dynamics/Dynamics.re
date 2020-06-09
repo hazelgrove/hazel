@@ -2034,6 +2034,8 @@ module Evaluator = {
     | Arrow(_, _) => grounded_Arrow
     | Sum(_, _) => grounded_Sum
     | List(_) => grounded_List
+    | Label(_) => failwith("unimplemented")
+    | Label_Elt(_, _) => failwith("unimplemented")
     };
 
   let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>

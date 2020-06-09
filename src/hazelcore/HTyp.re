@@ -10,8 +10,9 @@ type t =
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list(t))
-  | List(t);
-
+  | List(t)
+  | Label(Label.t)
+  | Label_Elt(t, t);
 [@deriving sexp]
 type join =
   | GLB
@@ -26,6 +27,7 @@ let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
 let precedence_const = 4;
+let precedence_Label = 5;
 let precedence = (ty: t): int =>
   switch (ty) {
   | Int
@@ -33,10 +35,12 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
-  | List(_) => precedence_const
+  | List(_)
+  | Label(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
+  | Label_Elt(_, _) => precedence_Label
   };
 
 /* equality
@@ -66,6 +70,11 @@ let rec consistent = (x, y) =>
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
+  | (Label_Elt(id, ty), Label_Elt(id', ty')) =>
+    consistent(id, id') && consistent(ty, ty')
+  | (Label_Elt(_), _) => false
+  | (Label(id), Label(id')) => id == id'
+  | (Label(_), _) => false
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
@@ -134,8 +143,10 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
+  | Label(_) => true
   | Arrow(ty1, ty2)
-  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Sum(ty1, ty2)
+  | Label_Elt(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
@@ -181,6 +192,23 @@ let rec join = (j, ty1, ty2) =>
     | None => None
     }
   | (List(_), _) => None
+  | (Label_Elt(Label(id), ty), Label_Elt(Label(id'), ty')) =>
+    if (id == id') {
+      switch (join(j, ty, ty')) {
+      | Some(ty) => Some(Label_Elt(Label(id), ty))
+      | None => None
+      };
+    } else {
+      None;
+    }
+  | (Label_Elt(_, _), _) => None
+  | (Label(id), Label(id')) =>
+    if (id == id') {
+      Some(Label(id));
+    } else {
+      None;
+    }
+  | (Label(_), _) => None
   };
 
 let join_all = (j: join, types: list(t)): option(t) => {
