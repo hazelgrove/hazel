@@ -434,7 +434,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
-    | SwapEdit(_)
+    | SwapEdit(swap_group) =>
+      switch (swap_group) {
+      | Up
+      | Down => Some(Exp)
+      | Left
+      | Right =>
+        Some(
+          get_cursor_term_tag_typ(
+            undo_history_entry.cursor_term_info.cursor_term_after,
+          ),
+        )
+      }
     | Init => None
     };
   };
