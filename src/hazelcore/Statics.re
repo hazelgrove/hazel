@@ -51,16 +51,6 @@ let stable_ana_fixer =
     };
   };
 
-type syn_rule_fixer('term, 'extra_output) =
-  (
-    Contexts.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool,
-    ~pat_ty: HTyp.t,
-    'term
-  ) =>
-  ('term, 'extra_output, MetaVarGen.t);
-
 type type_mode =
   | Syn
   | Ana(HTyp.t);
@@ -729,7 +719,6 @@ module Pat = {
             Contexts.t,
             MetaVarGen.t,
           )
-          // handle n-tuples
         )
       )
     )
@@ -1689,9 +1678,9 @@ module Exp = {
               ~renumber_empty_holes,
               block,
             );
-          let (conclusion, u_gen) = u_gen |> UHExp.new_EmptyHole;
+          let (conclusion, u_gen) = UHExp.new_EmptyHole(u_gen);
           (
-            leading @ [UHExp.ExpLine(conclusion |> OpSeq.wrap)],
+            leading @ [UHExp.ExpLine(OpSeq.wrap(conclusion))],
             HTyp.Hole,
             u_gen,
           );
