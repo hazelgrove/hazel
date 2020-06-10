@@ -8,13 +8,10 @@ open Sexplib.Std;
 module Decoration = {
   [@deriving sexp]
   type shape = {
-    indent: int,
-    // start col of first line
-    hd_start: int,
-    // end of first line
-    hd_end: int,
-    // ends of all other lines
-    tl_ends: list(int),
+    // start col of first line (relative to indent)
+    start_col: int,
+    // box: (height, width)
+    boxes: list((int, int)),
   };
 
   type path_segment =
@@ -35,8 +32,9 @@ module Decoration = {
   let outline_path = (~corner_radii, shape) => {
     let (rx, ry) = corner_radii;
 
-    let vline_down = VLine(0.5 -. ry);
-    let vline_up = VLine(Float.neg(0.5 -. ry));
+    // TODO fix confusing api, returns half of passed len
+    let vline_down = len => VLine(0.5 *. Float.of_int(len) -. ry);
+    let vline_up = len => VLine(Float.neg(0.5 *. Float.of_int(len) -. ry));
 
     let hline_left = len =>
       HLine(Float.neg(Float.of_int(len) -. 2.0 *. rx));
@@ -47,87 +45,110 @@ module Decoration = {
     let corner_BottomLeft = d => Corner(BottomLeft, d, corner_radii);
     let corner_BottomRight = d => Corner(BottomRight, d, corner_radii);
 
-    let top_cap = width => [
-      vline_up,
+    let top_cap = ((height, width)) => [
+      vline_up(height),
       corner_TopLeft(CW),
       hline_right(width),
       corner_TopRight(CW),
-      vline_down,
+      vline_down(height),
     ];
-    let bottom_cap = width => [
-      vline_down,
+    let bottom_cap = ((height, width)) => [
+      vline_down(height),
       corner_BottomRight(CW),
       hline_left(width),
       corner_BottomLeft(CW),
-      vline_up,
+      vline_up(height),
     ];
 
     let left_edge =
         // list of cols from last line up
-        (cols: list(int)) =>
-      cols
+        (dims: list((int, int))) => {
+      dims
       |> ListUtil.pairs
-      |> List.map(((col1, col2)) =>
+      |> List.map((((height1, col1), (height2, col2))) =>
            if (col1 == col2) {
-             [VLine(-1.0)];
+             [
+               VLine(
+                 (-1.0)
+                 *. (
+                   Float.of_int(height1)
+                   /. 2.0
+                   +. Float.of_int(height2)
+                   /. 2.0
+                 ),
+               ),
+             ];
            } else if (col1 > col2) {
              [
-               vline_up,
+               vline_up(height1),
                corner_TopRight(CCW),
                hline_left(col1 - col2),
                corner_BottomLeft(CW),
-               vline_up,
+               vline_up(height2),
              ];
            } else {
              [
-               vline_up,
+               vline_up(height1),
                corner_TopLeft(CW),
                hline_right(col2 - col1),
                corner_BottomRight(CCW),
-               vline_up,
+               vline_up(height2),
              ];
            }
          )
       |> List.flatten;
+    };
     let right_edge =
         // list of cols from first line down
-        (cols: list(int)) =>
-      cols
+        (dims: list((int, int))) => {
+      dims
       |> ListUtil.pairs
-      |> List.map(((col1, col2)) =>
+      |> List.map((((height1, col1), (height2, col2))) =>
            if (col1 == col2) {
-             [VLine(1.0)];
+             [
+               VLine(
+                 Float.of_int(height1) /. 2.0 +. Float.of_int(height2) /. 2.0,
+               ),
+             ];
            } else if (col1 > col2) {
              [
-               vline_down,
+               vline_down(height1),
                corner_BottomRight(CW),
                hline_left(col1 - col2),
                corner_TopLeft(CCW),
-               vline_down,
+               vline_down(height2),
              ];
            } else {
              [
-               vline_down,
+               vline_down(height1),
                corner_BottomLeft(CCW),
                hline_right(col2 - col1),
                corner_TopRight(CW),
-               vline_down,
+               vline_down(height2),
              ];
            }
          )
       |> List.flatten;
+    };
 
-    let hd_width = shape.hd_end - shape.hd_start;
-    let tl_widths = shape.tl_ends |> List.map(tl_end => tl_end - shape.indent);
-    switch (ListUtil.split_last(tl_widths)) {
-    | None => top_cap(hd_width) @ bottom_cap(hd_width)
-    | Some((_, last_width)) =>
-      top_cap(hd_width)
-      @ right_edge([hd_width, ...tl_widths])
-      @ bottom_cap(last_width)
+    let (leading, last) =
+      shape.boxes
+      |> ListUtil.split_last
+      |> OptUtil.get(() => failwith("expected at least one box"));
+    switch (leading) {
+    | [] => top_cap(last) @ bottom_cap(last)
+    | [(hd_height, _) as hd, ..._] =>
+      top_cap(hd)
+      @ right_edge(shape.boxes)
+      @ bottom_cap(last)
       @ left_edge(
-          ListUtil.replicate(List.length(tl_widths), 0)
-          @ [shape.hd_start - shape.indent],
+          List.rev([
+            (hd_height, shape.start_col),
+            ...List.map(
+                 ((height, _)) => (height, 0),
+                 List.tl(shape.boxes),
+               ),
+          ]),
         )
     };
   };
@@ -180,7 +201,11 @@ module Decoration = {
             "d",
             StringUtil.sep([
               "M 0 0",
-              "m " ++ string_of_int(rel_hd_start) ++ " 0.5",
+              "m "
+              ++ string_of_int(snd(rel_hd_start))
+              ++ " "
+              ++ string_of_float(0.5 *. Float.of_int(fst(rel_hd_start)))
+              ++ "0",
               ...d_path_segments,
             ]),
           ),
@@ -195,13 +220,11 @@ module Decoration = {
   let err_hole_view = (~font_metrics, shape) => {
     let FontMetrics.{row_height, col_width} = font_metrics;
 
-    let hd_width = shape.hd_end - shape.hd_start;
-    let tl_widths = shape.tl_ends |> List.map(tl_end => tl_end - shape.indent);
-
-    let num_rows = 1 + List.length(tl_widths);
+    let num_rows = shape.boxes |> List.map(fst) |> List.fold_left((+), 0);
     let buffered_height = float_of_int(num_rows + 1) *. row_height;
 
-    let num_cols = tl_widths |> List.fold_left(max, hd_width);
+    let num_cols =
+      shape.boxes |> List.map(snd) |> List.fold_left(max, Int.min_int);
     let buffered_width = float_of_int(num_cols + 1) *. col_width;
 
     let path_view = {
@@ -211,7 +234,9 @@ module Decoration = {
       );
       shape
       |> outline_path(~corner_radii)
-      |> path_view(~rel_hd_start=shape.hd_start - shape.indent);
+      |> path_view(
+           ~rel_hd_start=(fst(List.hd(shape.boxes)), shape.start_col),
+         );
     };
 
     Vdom.(
@@ -336,11 +361,9 @@ let view =
                  (
                    Pretty.Layout.Linebreak,
                    [Node.br([])],
-                   Decoration.{
-                     indent: pos.indent,
-                     hd_start: pos.col,
-                     hd_end: pos.col,
-                     tl_ends: [pos.indent],
+                   {
+                     let start_col = pos.col - pos.indent;
+                     Decoration.{start_col, boxes: [(1, 0), (1, 0)]};
                    },
                  ),
              ~text=
@@ -349,10 +372,8 @@ let view =
                    Text(s),
                    StringUtil.is_empty(s) ? [] : [Node.text(s)],
                    {
-                     indent: pos.indent,
-                     hd_start: pos.col,
-                     hd_end: pos.col + StringUtil.utf8_length(s),
-                     tl_ends: [],
+                     start_col: pos.col - pos.indent,
+                     boxes: [(1, StringUtil.utf8_length(s))],
                    },
                  ),
              ~align=
@@ -360,20 +381,44 @@ let view =
                  (
                    Align(l),
                    [Node.div([Attr.classes(["Align"])], vs)],
-                   {...shape, indent: pos.indent},
+                   {
+                     let (total_height, max_width) =
+                       shape.boxes
+                       |> List.fold_left(
+                            ((total_height, max_width), (height, width)) =>
+                              (total_height + height, max(max_width, width)),
+                            (0, Int.min_int),
+                          );
+                     {
+                       start_col: pos.col - pos.indent,
+                       boxes: [(total_height, max_width)],
+                     };
+                   },
                  ),
              ~cat=
                (_, (l1, vs1, shape1), (l2, vs2, shape2)) =>
                  (
                    Cat(l1, l2),
                    vs1 @ vs2,
-                   switch (ListUtil.split_last(shape1.tl_ends)) {
-                   | None => {...shape2, hd_start: shape1.hd_start}
-                   | Some((tl_leading, _)) => {
+                   {
+                     let (leading, last) =
+                       shape1.boxes
+                       |> ListUtil.split_last
+                       |> OptUtil.get(() =>
+                            failwith("expected at least one box")
+                          );
+                     let mid_height =
+                       max(fst(last), fst(List.hd(shape2.boxes)));
+                     let mid_width = snd(last) + snd(List.hd(shape2.boxes));
+                     {
                        ...shape1,
-                       tl_ends:
-                         tl_leading @ [shape2.hd_end, ...shape2.tl_ends],
-                     }
+                       boxes:
+                         leading
+                         @ [
+                           (mid_height, mid_width),
+                           ...List.tl(shape2.boxes),
+                         ],
+                     };
                    },
                  ),
              ~annot=
