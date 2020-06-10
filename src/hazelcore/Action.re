@@ -2589,7 +2589,12 @@ module Exp = {
         | Analyzed(_, Some((_, binding_steps, _, _)))
         | SynErrorArrow(_, _, Some((_, binding_steps, _, _)))
         | SynMatchingArrow(_, _, Some((_, binding_steps, _, _)))
-        | Synthesized(_, Some((_, binding_steps, _, _))) =>
+        | Synthesized(_, Some((_, binding_steps, _, _)))
+        | SynBranchClause(
+            _,
+            Synthesized(_, Some((_, binding_steps, _, _))),
+            _,
+          ) =>
           syn_move(
             ctx,
             MoveTo((binding_steps, OnText(0))),
@@ -2612,12 +2617,19 @@ module Exp = {
         | Analyzed(_, Some((_, _, _, [])))
         | SynErrorArrow(_, _, Some((_, _, _, [])))
         | SynMatchingArrow(_, _, Some((_, _, _, [])))
-        | Synthesized(_, Some((_, _, _, []))) => Failed
+        | Synthesized(_, Some((_, _, _, [])))
+        | SynBranchClause(_, Synthesized(_, Some((_, _, _, []))), _) =>
+          Failed
         | AnaTypeInconsistent(_, _, Some((_, _, i_cur, other_uses)))
         | Analyzed(_, Some((_, _, i_cur, other_uses)))
         | SynErrorArrow(_, _, Some((_, _, i_cur, other_uses)))
         | SynMatchingArrow(_, _, Some((_, _, i_cur, other_uses)))
-        | Synthesized(_, Some((_, _, i_cur, other_uses))) =>
+        | Synthesized(_, Some((_, _, i_cur, other_uses)))
+        | SynBranchClause(
+            _,
+            Synthesized(_, Some((_, _, i_cur, other_uses))),
+            _,
+          ) =>
           let len = List.length(other_uses);
           let result_steps =
             switch (a) {

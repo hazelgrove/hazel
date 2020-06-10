@@ -183,7 +183,8 @@ let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
   | Analyzed(_, Some((_, var_def, _, other_uses)))
   | SynErrorArrow(_, _, Some((_, var_def, _, other_uses)))
   | SynMatchingArrow(_, _, Some((_, var_def, _, other_uses)))
-  | Synthesized(_, Some((_, var_def, _, other_uses))) =>
+  | Synthesized(_, Some((_, var_def, _, other_uses)))
+  | SynBranchClause(_, Synthesized(_, Some((_, var_def, _, other_uses))), _) =>
     let l =
       l
       |> UHLayout.find_and_decorate_var_def(~steps=var_def)
