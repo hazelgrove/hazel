@@ -29,7 +29,7 @@ let get_u_gen: t => MetaVarGen.t;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo.t;
 
-exception DoesNotExpand;
+exception DoesNotElaborate;
 let get_expansion: t => DHExp.t;
 
 exception InvalidInput;
@@ -87,5 +87,13 @@ let get_cursor_map:
     t
   ) =>
   CursorMap.t;
+let get_cursor_map_z:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  (CursorMap.t, CursorMap.binding);
 
 let cursor_on_exp_hole: t => option(MetaVar.t);

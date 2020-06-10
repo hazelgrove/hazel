@@ -170,8 +170,8 @@ let apply_action =
         | exception Program.InvalidInput =>
           JSUtil.log("[Program.InvalidInput]");
           model;
-        | exception Program.DoesNotExpand =>
-          JSUtil.log("[Program.DoesNotExpand]");
+        | exception Program.DoesNotElaborate =>
+          JSUtil.log("[Program.DoesNotElaborate]");
           model;
         }
       | MoveAction(Key(move_key)) =>
