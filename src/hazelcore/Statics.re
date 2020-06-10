@@ -1882,13 +1882,13 @@ module Exp = {
       )
       : (UHExp.splice_map, MetaVarGen.t) =>
     IntMap.fold(
-      splice_map,
-      ((splice_map, u_gen), (splice_name, (ty, e))) => {
+      (splice_name, (ty, e), (splice_map, u_gen)) => {
         let (e, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, e, ty);
         let splice_map = splice_map |> IntMap.add(splice_name, (ty, e));
         (splice_map, u_gen);
       },
+      splice_map,
       (splice_map, u_gen),
     )
   and ana_fix_holes =
