@@ -601,7 +601,9 @@ module Pat = {
   and follow_operand =
       ((steps, cursor): t, operand: UHPat.operand): option(ZPat.zoperand) =>
     switch (steps) {
-    | [] => operand |> ZPat.place_cursor_operand(cursor)
+    | [] =>
+      print_endline("CP605");
+      operand |> ZPat.place_cursor_operand(cursor);
     | [x, ...xs] =>
       switch (operand) {
       | EmptyHole(_)
@@ -891,7 +893,8 @@ module Exp = {
       switch (ZList.split_at(x, block)) {
       | None => None
       | Some(split_lines) =>
-        split_lines |> ZList.optmap_z(follow_line((xs, cursor)))
+        print_endline("CP894");
+        split_lines |> ZList.optmap_z(follow_line((xs, cursor)));
       }
     }
   and follow_line =
@@ -904,11 +907,13 @@ module Exp = {
       line |> ZExp.place_cursor_line(cursor)
     | ([_, ..._], EmptyLine) => None
     | ([x, ...xs], LetLine(p, ann, def)) =>
+      print_endline("CP907");
       switch (x) {
       | 0 =>
+        print_endline("CP911");
         p
         |> Pat.follow((xs, cursor))
-        |> OptUtil.map(zp => ZExp.LetLineZP(zp, ann, def))
+        |> OptUtil.map(zp => ZExp.LetLineZP(zp, ann, def));
       | 1 =>
         switch (ann) {
         | None => None
@@ -922,7 +927,7 @@ module Exp = {
         |> follow((xs, cursor))
         |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
       | _ => None
-      }
+      };
     }
   and follow_opseq = (path: t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
     follow_opseq_(~follow_operand, ~follow_operator, path, opseq)

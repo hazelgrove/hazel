@@ -1033,10 +1033,11 @@ module Pat = {
       | Some(zp) => mk_syn_result(ctx, u_gen, zp)
       }
     | MoveRight =>
+      print_endline("Action1036");
       switch (zp |> ZPat.move_cursor_right) {
       | None => CursorEscaped(After)
       | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-      }
+      };
     | Construct(_)
     | Delete
     | Backspace
@@ -1109,8 +1110,10 @@ module Pat = {
 
   let rec syn_perform =
           (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
-          : Outcome.t(syn_success) =>
-    syn_perform_opseq(ctx, u_gen, a, zp)
+          : Outcome.t(syn_success) => {
+    print_endline("Action1113");
+    syn_perform_opseq(ctx, u_gen, a, zp);
+  }
   and syn_perform_opseq =
       (
         ctx: Contexts.t,
@@ -1375,7 +1378,9 @@ module Pat = {
         let zp = ZOpSeq.wrap(zhole);
         Succeeded((zp, Hole, ctx, u_gen));
       } else {
+        print_endline("Action1378");
         let new_text = s |> StringUtil.backspace(j);
+        print_endline("new text=" ++ new_text);
         let text_cursor = CursorPosition.OnText(j - 1);
         let zp =
           ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -1462,7 +1467,6 @@ module Pat = {
     | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, s2))) =>
-      print_endline("Action1465");
       let text_cursor = CursorPosition.OnText(j + String.length(s));
       let new_text = StringUtil.insert(j, s, s2);
       let zp =
@@ -1888,11 +1892,8 @@ module Pat = {
     | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
     | (Backspace, CursorP(OnText(j), StringLit(_, s))) =>
+      print_endline("Action1894");
       if (j == 0) {
-        let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-        let zp = ZOpSeq.wrap(zhole);
-        Succeeded((zp, ctx, u_gen));
-      } else if (HTyp.consistent(ty, HTyp.String)) {
         let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zp = ZOpSeq.wrap(zhole);
         Succeeded((zp, ctx, u_gen));
@@ -1907,7 +1908,7 @@ module Pat = {
           let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
           Succeeded((zp, ctx, u_gen));
         };
-      }
+      };
 
     /* ( _ )<|  ==>  _| */
     /* (<| _ )  ==>  |_ */
@@ -2636,14 +2637,16 @@ module Exp = {
             a: t,
             (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
           )
-          : Outcome.t(syn_success) =>
+          : Outcome.t(syn_success) => {
+    print_endline("Action2641");
     switch (a) {
     /* Movement */
     | MoveTo(path) =>
+      print_endline("Action2645");
       switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
       | None => Failed
       | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
-      }
+      };
     | MoveToPrevHole =>
       switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
       | None => Failed
@@ -2669,11 +2672,12 @@ module Exp = {
            Succeeded(SynDone((ze, ty, u_gen)))
          )
     | MoveRight =>
+      print_endline("Action2672");
       ze
       |> ZExp.move_cursor_right
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), ze =>
            Succeeded(SynDone((ze, ty, u_gen)))
-         )
+         );
     | Construct(_)
     | Delete
     | Backspace
@@ -2689,6 +2693,7 @@ module Exp = {
         ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
       )
     };
+  };
 
   let rec ana_move =
           (
@@ -2758,6 +2763,7 @@ module Exp = {
             (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
           )
           : Outcome.t(syn_done) => {
+    print_endline("Action2761");
     switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -2791,7 +2797,9 @@ module Exp = {
     | MoveToPrevHole
     | MoveToNextHole
     | MoveLeft
-    | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
+    | MoveRight =>
+      print_endline("Action2798");
+      syn_move(ctx, a, (zblock, ty, u_gen));
 
     /* Backspace & Delete */
 
@@ -3016,11 +3024,12 @@ module Exp = {
            mk_result(u_gen, ([], zline, []))
          )
     | (MoveRight, _) =>
+      print_endline("Action3019");
       zline
       |> ZExp.move_cursor_right_zline
       |> Option.fold(~none=Outcome.CursorEscaped(After), ~some=zline =>
            mk_result(u_gen, ([], zline, []))
-         )
+         );
 
     /* Backspace & Delete */
 
@@ -3112,6 +3121,7 @@ module Exp = {
       }
 
     | (_, LetLineZP(zp, None, def)) =>
+      print_endline("Action3118");
       switch (Statics.Exp.syn(ctx, def)) {
       | None => Failed
       | Some(ty_def) =>
@@ -3124,7 +3134,7 @@ module Exp = {
           let new_zline = ZExp.LetLineZP(new_zp, None, new_def);
           Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
         }
-      }
+      };
     | (_, LetLineZP(zp, Some(ann), def)) =>
       let ty = ann |> UHTyp.expand;
       switch (Pat.ana_perform(ctx, u_gen, a, zp, ty)) {
