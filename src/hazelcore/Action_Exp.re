@@ -497,24 +497,24 @@ let rec syn_move =
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
-    switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
+    switch (CursorPath_Exp.follow(path, ze |> ZExp.erase)) {
     | None => Failed
     | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
     }
   | MoveToPrevHole =>
-    switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.prev_hole_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+      switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
       | None => Failed
       | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.Exp.next_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.next_hole_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+      switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
       | None => Failed
       | Some(path) => syn_move(ctx, MoveTo(path), (ze, ty, u_gen))
       }
@@ -560,24 +560,24 @@ let rec ana_move =
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
-    switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
+    switch (CursorPath_Exp.follow(path, ze |> ZExp.erase)) {
     | None => Failed
     | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
     }
   | MoveToPrevHole =>
-    switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.prev_hole_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+      switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
       | None => Failed
       | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.Exp.next_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.next_hole_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Exp.of_steps(steps, ze |> ZExp.erase)) {
+      switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
       | None => Failed
       | Some(path) => ana_move(ctx, MoveTo(path), (ze, u_gen), ty)
       }
@@ -835,16 +835,16 @@ and syn_perform_line =
   | (MoveTo(path), _) =>
     zline
     |> ZExp.erase_zline
-    |> CursorPath.Exp.follow_line(path)
+    |> CursorPath_Exp.follow_line(path)
     |> Option.fold(~none=Action_common.Outcome.Failed, ~some=zline =>
          mk_result(u_gen, ([], zline, []))
        )
   | (MoveToPrevHole, _) =>
-    switch (CursorPath.Exp.prev_hole_steps_zline(zline)) {
+    switch (CursorPath_Exp.prev_hole_steps_zline(zline)) {
     | None => Failed
     | Some(steps) =>
       switch (
-        CursorPath.Exp.of_steps_line(
+        CursorPath_Exp.of_steps_line(
           steps,
           ~side=Before,
           zline |> ZExp.erase_zline,
@@ -855,11 +855,11 @@ and syn_perform_line =
       }
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath.Exp.next_hole_steps_zline(zline)) {
+    switch (CursorPath_Exp.next_hole_steps_zline(zline)) {
     | None => Failed
     | Some(steps) =>
       switch (
-        CursorPath.Exp.of_steps_line(
+        CursorPath_Exp.of_steps_line(
           steps,
           ~side=Before,
           zline |> ZExp.erase_zline,

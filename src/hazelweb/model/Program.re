@@ -45,7 +45,7 @@ let get_zexp = program => {
 let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
 let get_uhexp = program => program |> get_zexp |> erase;
 
-let get_path = program => program |> get_zexp |> CursorPath.Exp.of_z;
+let get_path = program => program |> get_zexp |> CursorPath_Exp.of_z;
 let get_steps = program => {
   let (steps, _) = program |> get_path;
   steps;
@@ -119,12 +119,12 @@ let perform_edit_action = (a, program) => {
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program |> get_edit_state;
-  let holes = CursorPath.Exp.holes(ZExp.erase(ze), [], []);
+  let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
   switch (CursorPath.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>
     let e = ZExp.erase(ze);
-    switch (CursorPath.Exp.of_steps(hole_steps, e)) {
+    switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)
     | Some(hole_path) => program |> perform_edit_action(MoveTo(hole_path))
     };
