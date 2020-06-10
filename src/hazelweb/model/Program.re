@@ -1,5 +1,8 @@
+open Sexplib.Std;
+
 module Memo = Core_kernel.Memo;
 
+[@deriving sexp]
 type t = {
   edit_state: Statics.edit_state,
   width: int,
@@ -66,31 +69,30 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
-exception DoesNotExpand;
+exception DoesNotElaborate;
 let expand =
   Memo.general(
     ~cache_size_bound=1000,
-    Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty),
+    Elaborator.Exp.syn_elab(Contexts.empty, Delta.empty),
   );
 let get_expansion = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
-  | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) => d
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
   };
 
 exception InvalidInput;
-let evaluate =
-  Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
+let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
@@ -128,12 +130,15 @@ let move_to_hole = (u, program) => {
   };
 };
 
-let move_to_case_branch = (steps_to_case, branch_index, program) => {
+let move_to_case_branch =
+    (steps_to_case, branch_index, program): (t, Action.t) => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
-  perform_edit_action(
-    MoveTo((steps_to_branch, OnDelim(1, After))),
-    program,
-  );
+  let new_program =
+    perform_edit_action(
+      MoveTo((steps_to_branch, OnDelim(1, After))),
+      program,
+    );
+  (new_program, MoveTo((steps_to_branch, OnDelim(1, After))));
 };
 
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
@@ -257,7 +262,8 @@ let move_via_click =
       ~memoize_doc: bool,
       row_col,
       program,
-    ) => {
+    )
+    : (t, Action.t) => {
   let (_, rev_path) =
     program
     |> get_cursor_map(
@@ -267,7 +273,9 @@ let move_via_click =
        )
     |> CursorMap.find_nearest_within_row(row_col);
   let path = CursorPath.rev(rev_path);
-  program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  let new_program =
+    program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
+  (new_program, MoveTo(path));
 };
 
 let move_via_key =
@@ -277,7 +285,8 @@ let move_via_key =
       ~memoize_doc: bool,
       move_key: JSUtil.MoveKey.t,
       program,
-    ) => {
+    )
+    : (t, Action.t) => {
   let (cmap, ((row, col), _) as z) =
     program
     |> get_cursor_map_z(
@@ -305,11 +314,14 @@ let move_via_key =
     | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
     | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
     };
+
   switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
     let path = CursorPath.rev(rev_path);
-    program |> update_start_col |> perform_edit_action(MoveTo(path));
+    let new_program =
+      program |> update_start_col |> perform_edit_action(MoveTo(path));
+    (new_program, MoveTo(path));
   };
 };
 
