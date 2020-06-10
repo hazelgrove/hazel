@@ -1462,6 +1462,7 @@ module Pat = {
     | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
     | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, s2))) =>
+      print_endline("Action1465");
       let text_cursor = CursorPosition.OnText(j + String.length(s));
       let new_text = StringUtil.insert(j, s, s2);
       let zp =

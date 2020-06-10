@@ -515,32 +515,49 @@ and is_text_cursor_zblock = ((_, zline, _): ZExp.zblock): bool =>
 and is_text_cursor_zline =
   fun
   | CursorL(_) => false
-  | ExpLineZ(zopseq) => zopseq |> is_text_cursor_zopseq
-  | LetLineZP(_)
+  | ExpLineZ(zopseq) => zopseq |> is_text_cursor_zopseq_exp
+  | LetLineZP(zp, _, _) => zp |> is_text_cursor_zopseq_pat
   | LetLineZA(_) => false
   | LetLineZE(_, _, zdef) => zdef |> is_text_cursor
-and is_text_cursor_zopseq =
+and is_text_cursor_zopseq_exp =
   fun
-  | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> is_text_cursor_zoperand
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    zoperand |> is_text_cursor_zoperand_exp
   | ZOpSeq(_, ZOperator(_)) => false
-and is_text_cursor_zoperator =
-  fun
-  | _ => false
-and is_text_cursor_zoperand =
+and is_text_cursor_zoperand_exp =
   fun
   | CursorE(OnText(_), StringLit(_, _)) => true
-  | CursorE(_)
-  | ParenthesizedZ(_)
-  | LamZP(_)
+  | CaseZR(_, _, zrules) => {
+      let (_, zrule, _) = zrules;
+      zrule |> is_text_cursor_zrule;
+    }
+  | LamZP(_, zp, _, _) => zp |> is_text_cursor_zopseq_pat
+  | ParenthesizedZ(ze)
+  | LamZE(_, _, _, ze)
+  | InjZ(_, _, ze)
+  | CaseZE(_, ze, _)
+  | SubscriptZE1(_, ze, _, _)
+  | SubscriptZE2(_, _, ze, _)
+  | SubscriptZE3(_, _, _, ze) => ze |> is_text_cursor
   | LamZA(_)
-  | LamZE(_)
-  | InjZ(_)
-  | CaseZE(_)
-  | CaseZR(_)
   | ApPaletteZ(_)
-  | SubscriptZE1(_)
-  | SubscriptZE2(_)
-  | SubscriptZE3(_) => false;
+  | CursorE(_) => false
+and is_text_cursor_zrule =
+  fun
+  | RuleZP(zp, _) => zp |> is_text_cursor_zopseq_pat
+  | RuleZE(_, ze) => ze |> is_text_cursor
+  | CursorR(_) => false
+and is_text_cursor_zopseq_pat =
+  fun
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    zoperand |> is_text_cursor_zoperand_pat
+  | ZOpSeq(_, ZOperator(_)) => false
+and is_text_cursor_zoperand_pat =
+  fun
+  | CursorP(OnText(_), StringLit(_, _)) => true
+  | ParenthesizedZ(zp) => zp |> is_text_cursor_zopseq_pat
+  | InjZ(_, _, zp) => zp |> is_text_cursor_zopseq_pat
+  | CursorP(_) => false;
 
 let is_invalid_escape_sequence = (j, s) =>
   if (String.length(s) > j && s.[j] == '\\') {
