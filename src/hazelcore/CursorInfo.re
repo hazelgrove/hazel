@@ -13,7 +13,7 @@ type typed =
   /* cursor in analytic position */
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
-  | AnaTypeInconsistent(HTyp.t, HTyp.t)
+  | AnaTypeInconsistent(HTyp.t, HTyp.t, string)
   // cursor is on a tuple of the wrong length
   | AnaWrongLength
       // expected length
@@ -31,7 +31,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
+  | AnaSubsumed(HTyp.t, HTyp.t, string)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -70,10 +70,10 @@ type typed =
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
-  | Synthesized(HTyp.t)
+  | Synthesized(HTyp.t, string)
   /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
-  | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
+  | PatAnaTypeInconsistent(HTyp.t, HTyp.t, string)
   // cursor is on a tuple pattern of the wrong length
   | PatAnaWrongLength
       // expected length
@@ -89,10 +89,10 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
+  | PatAnaSubsumed(HTyp.t, HTyp.t, string)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
-  | PatSynthesized(HTyp.t)
+  | PatSynthesized(HTyp.t, string)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
   | OnType
@@ -542,6 +542,190 @@ and is_text_cursor_zoperand =
   | SubscriptZE2(_)
   | SubscriptZE3(_) => false;
 
+let is_invalid_escape_sequence = (j, s) =>
+  if (String.length(s) > j && s.[j] == '\\') {
+    /* |\ */
+    if (String.length(s) == j + 1) {
+      true;
+    } else {
+      switch (s.[j + 1]) {
+      | 'b'
+      | 't'
+      | 'r'
+      | 'n'
+      | '\\'
+      | '"'
+      | '\''
+      | ' ' => false
+      | 'o' =>
+        if (String.length(s) < j + 5) {
+          true;
+        } else {
+          let ch1 = s.[j + 2];
+          let ch2 = s.[j + 3];
+          let ch3 = s.[j + 4];
+          if ((ch1 >= '0' && ch1 <= '7')
+              && (ch2 >= '0' && ch2 <= '7')
+              && ch3 >= '0'
+              && ch3 <= '7') {
+            false;
+          } else {
+            true;
+          };
+        }
+      | 'x' =>
+        if (String.length(s) < j + 4) {
+          true;
+        } else {
+          let ch1 = Char.lowercase_ascii(s.[j + 2]);
+          let ch2 = Char.lowercase_ascii(s.[j + 3]);
+          if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+              && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
+            false;
+          } else {
+            true;
+          };
+        }
+      | _ =>
+        if (String.length(s) < j + 4) {
+          true;
+        } else {
+          let ch1 = s.[j + 1];
+          let ch2 = s.[j + 2];
+          let ch3 = s.[j + 3];
+          if ((ch1 >= '0' && ch1 <= '9')
+              && (ch2 >= '0' && ch2 <= '9')
+              && ch3 >= '0'
+              && ch3 <= '9') {
+            false;
+          } else {
+            true;
+          };
+        }
+      };
+    };
+  } else if (j >= 1 && s.[j - 1] == '\\') {
+    /* \| */
+    if (String.length(s) == j) {
+      true;
+    } else {
+      switch (s.[j]) {
+      | 'b'
+      | 't'
+      | 'r'
+      | 'n'
+      | '\\'
+      | '"'
+      | '\''
+      | ' ' => false
+      | 'o' =>
+        if (String.length(s) < j + 4) {
+          true;
+        } else {
+          let ch1 = s.[j + 1];
+          let ch2 = s.[j + 2];
+          let ch3 = s.[j + 3];
+          if ((ch1 >= '0' && ch1 <= '7')
+              && (ch2 >= '0' && ch2 <= '7')
+              && ch3 >= '0'
+              && ch3 <= '7') {
+            false;
+          } else {
+            true;
+          };
+        }
+      | 'x' =>
+        if (String.length(s) < j + 3) {
+          true;
+        } else {
+          let ch1 = Char.lowercase_ascii(s.[j + 1]);
+          let ch2 = Char.lowercase_ascii(s.[j + 2]);
+          if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+              && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
+            false;
+          } else {
+            true;
+          };
+        }
+      | _ =>
+        if (String.length(s) < j + 3) {
+          true;
+        } else {
+          let ch1 = s.[j];
+          let ch2 = s.[j + 1];
+          let ch3 = s.[j + 2];
+          if ((ch1 >= '0' && ch1 <= '9')
+              && (ch2 >= '0' && ch2 <= '9')
+              && ch3 >= '0'
+              && ch3 <= '9') {
+            false;
+          } else {
+            true;
+          };
+        }
+      };
+    };
+  } else if (j >= 2 && s.[j - 2] == '\\') {
+    /* "\b|" */
+    switch (s.[j - 1]) {
+    | 'b'
+    | 't'
+    | 'r'
+    | 'n'
+    | '\\'
+    | '"'
+    | '\''
+    | ' ' => false
+    | 'o' =>
+      if (String.length(s) < j + 3) {
+        true;
+      } else {
+        let ch1 = s.[j];
+        let ch2 = s.[j + 1];
+        let ch3 = s.[j + 2];
+        if ((ch1 >= '0' && ch1 <= '7')
+            && (ch2 >= '0' && ch2 <= '7')
+            && ch3 >= '0'
+            && ch3 <= '7') {
+          false;
+        } else {
+          true;
+        };
+      }
+    | 'x' =>
+      if (String.length(s) < j + 2) {
+        true;
+      } else {
+        let ch1 = Char.lowercase_ascii(s.[j]);
+        let ch2 = Char.lowercase_ascii(s.[j + 1]);
+        if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+            && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
+          false;
+        } else {
+          true;
+        };
+      }
+    | _ =>
+      if (String.length(s) < j + 2) {
+        true;
+      } else {
+        let ch1 = s.[j - 1];
+        let ch2 = s.[j];
+        let ch3 = s.[j + 1];
+        if ((ch1 >= '0' && ch1 <= '9')
+            && (ch2 >= '0' && ch2 <= '9')
+            && ch3 >= '0'
+            && ch3 <= '9') {
+          false;
+        } else {
+          true;
+        };
+      }
+    };
+  } else {
+    false;
+  };
+
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(t) =>
     Some(mk(OnType, ctx, extract_cursor_type_term(typ)));
@@ -595,7 +779,7 @@ module Pat = {
       |> OptUtil.map(((rev_tys, _)) =>
            CursorNotOnDeferredVarPat(
              mk(
-               PatSynthesized(Prod(rev_tys |> List.rev)),
+               PatSynthesized(Prod(rev_tys |> List.rev), ""),
                ctx,
                extract_cursor_pat_zseq(zseq),
              ),
@@ -650,7 +834,11 @@ module Pat = {
         Statics.Pat.syn_skel(ctx, skel, seq)
         |> OptUtil.map(((ty, _)) =>
              CursorNotOnDeferredVarPat(
-               mk(PatSynthesized(ty), ctx, extract_cursor_pat_zseq(zseq)),
+               mk(
+                 PatSynthesized(ty, ""),
+                 ctx,
+                 extract_cursor_pat_zseq(zseq),
+               ),
              )
            )
       };
@@ -701,7 +889,7 @@ module Pat = {
              uses =>
                mk(
                  ~uses,
-                 PatSynthesized(ty),
+                 PatSynthesized(ty, ""),
                  ctx,
                  extract_from_zpat_operand(zoperand),
                ),
@@ -709,16 +897,43 @@ module Pat = {
            )
          )
     | CursorP(_, p) =>
-      Statics.Pat.syn_operand(ctx, p)
-      |> OptUtil.map(((ty, _)) =>
-           CursorNotOnDeferredVarPat(
-             mk(
-               PatSynthesized(ty),
-               ctx,
-               extract_from_zpat_operand(zoperand),
-             ),
+      switch (zoperand) {
+      | CursorP(OnText(j), StringLit(_, s)) =>
+        if (is_invalid_escape_sequence(j, s)) {
+          Statics.Pat.syn_operand(ctx, p)
+          |> OptUtil.map(((ty, _)) =>
+               CursorNotOnDeferredVarPat(
+                 mk(
+                   PatSynthesized(ty, ", Got invalid escape sequence"),
+                   ctx,
+                   extract_from_zpat_operand(zoperand),
+                 ),
+               )
+             );
+        } else {
+          Statics.Pat.syn_operand(ctx, p)
+          |> OptUtil.map(((ty, _)) =>
+               CursorNotOnDeferredVarPat(
+                 mk(
+                   PatSynthesized(ty, ""),
+                   ctx,
+                   extract_from_zpat_operand(zoperand),
+                 ),
+               )
+             );
+        }
+      | _ =>
+        Statics.Pat.syn_operand(ctx, p)
+        |> OptUtil.map(((ty, _)) =>
+             CursorNotOnDeferredVarPat(
+               mk(
+                 PatSynthesized(ty, ""),
+                 ctx,
+                 extract_from_zpat_operand(zoperand),
+               ),
+             )
            )
-         )
+      }
     | InjZ(_, _, zbody)
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
@@ -773,7 +988,7 @@ module Pat = {
         |> Option.map(((ty', _)) =>
              CursorNotOnDeferredVarPat(
                mk(
-                 PatAnaTypeInconsistent(ty, ty'),
+                 PatAnaTypeInconsistent(ty, ty', ""),
                  ctx,
                  extract_cursor_pat_zseq(zseq),
                ),
@@ -856,7 +1071,7 @@ module Pat = {
           |> Option.map(((ty', _)) =>
                CursorNotOnDeferredVarPat(
                  mk(
-                   PatAnaTypeInconsistent(ty, ty'),
+                   PatAnaTypeInconsistent(ty, ty', ""),
                    ctx,
                    extract_cursor_pat_zseq(zseq),
                  ),
@@ -916,7 +1131,7 @@ module Pat = {
       | EmptyHole(_) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
+            mk(PatAnaSubsumed(ty, Hole, ""), ctx, cursor_term),
           ),
         )
       | Wild(InHole(TypeInconsistent, _))
@@ -931,11 +1146,36 @@ module Pat = {
         switch (Statics.Pat.syn_operand(ctx, operand')) {
         | None => None
         | Some((ty', _)) =>
-          Some(
-            CursorNotOnDeferredVarPat(
-              mk(PatAnaTypeInconsistent(ty, ty'), ctx, cursor_term),
-            ),
-          )
+          switch (zoperand) {
+          | CursorP(OnText(j), StringLit(_, s)) =>
+            if (is_invalid_escape_sequence(j, s)) {
+              Some(
+                CursorNotOnDeferredVarPat(
+                  mk(
+                    PatAnaTypeInconsistent(
+                      ty,
+                      ty',
+                      ", Got invalid escape sequence",
+                    ),
+                    ctx,
+                    cursor_term,
+                  ),
+                ),
+              );
+            } else {
+              Some(
+                CursorNotOnDeferredVarPat(
+                  mk(PatAnaTypeInconsistent(ty, ty', ""), ctx, cursor_term),
+                ),
+              );
+            }
+          | _ =>
+            Some(
+              CursorNotOnDeferredVarPat(
+                mk(PatAnaTypeInconsistent(ty, ty', ""), ctx, cursor_term),
+              ),
+            )
+          }
         };
       | Wild(InHole(WrongLength, _))
       | Var(InHole(WrongLength, _), _, _)
@@ -967,27 +1207,48 @@ module Pat = {
       | IntLit(NotInHole, _) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
+            mk(PatAnaSubsumed(ty, Int, ""), ctx, cursor_term),
           ),
         )
       | FloatLit(NotInHole, _) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
+            mk(PatAnaSubsumed(ty, Float, ""), ctx, cursor_term),
           ),
         )
       | BoolLit(NotInHole, _) =>
         Some(
           CursorNotOnDeferredVarPat(
-            mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
+            mk(PatAnaSubsumed(ty, Bool, ""), ctx, cursor_term),
           ),
         )
       | StringLit(NotInHole, _) =>
-        Some(
-          CursorNotOnDeferredVarPat(
-            mk(PatAnaSubsumed(ty, String), ctx, cursor_term),
-          ),
-        )
+        switch (zoperand) {
+        | CursorP(OnText(j), StringLit(_, s)) =>
+          if (is_invalid_escape_sequence(j, s)) {
+            Some(
+              CursorNotOnDeferredVarPat(
+                mk(
+                  PatAnaSubsumed(ty, String, ", Got invalid escape sequence"),
+                  ctx,
+                  cursor_term,
+                ),
+              ),
+            );
+          } else {
+            Some(
+              CursorNotOnDeferredVarPat(
+                mk(PatAnaSubsumed(ty, String, ""), ctx, cursor_term),
+              ),
+            );
+          }
+        | _ =>
+          Some(
+            CursorNotOnDeferredVarPat(
+              mk(PatAnaSubsumed(ty, String, ""), ctx, cursor_term),
+            ),
+          )
+        }
       | Inj(NotInHole, _, _) =>
         Some(
           CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx, cursor_term)),
@@ -1148,7 +1409,7 @@ module Exp = {
       // cursor on tuple comma
       Statics.Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
       |> OptUtil.map(ty =>
-           mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
+           mk(Synthesized(ty, ""), ctx, extract_from_zexp_zseq(zseq))
          )
     | _ =>
       // cursor within tuple element
@@ -1181,7 +1442,7 @@ module Exp = {
       | ZOperator(_) =>
         Statics.Exp.syn_skel(ctx, skel, seq)
         |> OptUtil.map(ty =>
-             mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
+             mk(Synthesized(ty, ""), ctx, extract_from_zexp_zseq(zseq))
            )
       };
     } else {
@@ -1311,7 +1572,26 @@ module Exp = {
     | CursorE(_, e) =>
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
-      | Some(ty) => Some(mk(Synthesized(ty), ctx, cursor_term))
+      | Some(ty) =>
+        print_endline("CI1319");
+        switch (cursor_term) {
+        | Exp(OnText(j), StringLit(_, s)) =>
+          print_endline("CI1322");
+          if (is_invalid_escape_sequence(j, s)) {
+            Some(
+              mk(
+                Synthesized(ty, ", Got invalid escape sequence"),
+                ctx,
+                cursor_term,
+              ),
+            );
+          } else {
+            Some(mk(Synthesized(ty, ""), ctx, cursor_term));
+          };
+        | _ =>
+          print_endline("CI1335");
+          Some(mk(Synthesized(ty, ""), ctx, cursor_term));
+        };
       }
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
@@ -1479,7 +1759,7 @@ module Exp = {
         let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
         Statics.Exp.syn_opseq(ctx, opseq')
         |> Option.map(ty' =>
-             mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term)
+             mk(AnaTypeInconsistent(ty, ty', ""), ctx, cursor_term)
            );
       };
     | _ =>
@@ -1540,7 +1820,7 @@ module Exp = {
           let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
           Statics.Exp.syn_opseq(ctx, opseq')
           |> Option.map(ty' =>
-               mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term)
+               mk(AnaTypeInconsistent(ty, ty', ""), ctx, cursor_term)
              );
         };
       };
@@ -1619,7 +1899,26 @@ module Exp = {
         switch (Statics.Exp.syn_operand(ctx, operand')) {
         | None => None
         | Some(ty') =>
-          Some(mk(AnaTypeInconsistent(ty, ty'), ctx, cursor_term))
+          switch (zoperand) {
+          | CursorE(OnText(j), StringLit(_, s)) =>
+            if (is_invalid_escape_sequence(j, s)) {
+              Some(
+                mk(
+                  AnaTypeInconsistent(
+                    ty,
+                    ty',
+                    ", Got invalid escape sequence",
+                  ),
+                  ctx,
+                  cursor_term,
+                ),
+              );
+            } else {
+              Some(mk(AnaTypeInconsistent(ty, ty', ""), ctx, cursor_term));
+            }
+          | _ =>
+            Some(mk(AnaTypeInconsistent(ty, ty', ""), ctx, cursor_term))
+          }
         };
       | Var(InHole(WrongLength, _), _, _)
       | IntLit(InHole(WrongLength, _), _)
@@ -1647,7 +1946,22 @@ module Exp = {
       | Subscript(NotInHole, _, _, _) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
         | None => None
-        | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+        | Some(ty') =>
+          switch (zoperand) {
+          | CursorE(OnText(j), StringLit(_, s)) =>
+            if (is_invalid_escape_sequence(j, s)) {
+              Some(
+                mk(
+                  AnaSubsumed(ty, ty', ", Got invalid escape sequence"),
+                  ctx,
+                  cursor_term,
+                ),
+              );
+            } else {
+              Some(mk(AnaSubsumed(ty, ty', ""), ctx, cursor_term));
+            }
+          | _ => Some(mk(AnaSubsumed(ty, ty', ""), ctx, cursor_term))
+          }
         }
       | ListNil(NotInHole)
       | Inj(NotInHole, _, _)

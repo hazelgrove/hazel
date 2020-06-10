@@ -804,7 +804,7 @@ h1 {
   color: blue;
 }
 .code.presentation .InvalidSeq {
-  --err-hole-color: blue;
+  --err-hole-color: red;
   border: 1px dotted var(--err-hole-color);
   margin: -1px;
 }
@@ -824,12 +824,6 @@ h1 {
   font-weight: bold;
 }
 
-.DHCode .ValidSeq {
-  color:  blue;
-}
-.DHCode .InvalidSeq {
-  color:  #b30000;
-}
 .DHCode .Align {
   display: inline-block;
 }

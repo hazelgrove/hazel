@@ -113,11 +113,15 @@ let view =
         [Panel.view_of_other_title_bar(title_text), type_div],
       )
     );
-  let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
-  let got_as_expected_ty_indicator = ty =>
-    got_indicator("Got as expected", typebar(ty));
-  let got_inconsistent_indicator = got_ty =>
-    got_indicator("Got inconsistent type", typebar(got_ty));
+  let got_ty_indicator = (~msg="", ty) =>
+    got_indicator("Got type" ++ msg, typebar(ty));
+  let got_as_expected_ty_indicator = (~msg="", ty) =>
+    got_indicator(
+      "Got as expected, got invalid escape sequence" ++ msg,
+      typebar(ty),
+    );
+  let got_inconsistent_indicator = (~msg="", got_ty) =>
+    got_indicator("Got inconsistent type" ++ msg, typebar(got_ty));
   let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
     got_indicator(
       "Got inconsistent type ▶ assumed ",
@@ -132,8 +136,8 @@ let view =
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
 
-  let got_consistent_indicator = got_ty =>
-    got_indicator("Got consistent type", typebar(got_ty));
+  let got_consistent_indicator = (~msg="", got_ty) =>
+    got_indicator("Got consistent type" ++ msg, typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
@@ -156,9 +160,9 @@ let view =
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | AnaTypeInconsistent(expected_ty, got_ty) =>
+    | AnaTypeInconsistent(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
+      let ind2 = got_inconsistent_indicator(~msg, got_ty);
       (ind1, ind2, TypeInconsistency);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
@@ -178,20 +182,20 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | AnaSubsumed(expected_ty, got_ty) =>
+    | AnaSubsumed(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
+          ? got_as_expected_ty_indicator(~msg, got_ty)
+          : got_consistent_indicator(~msg, got_ty);
       (ind1, ind2, OK);
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | Synthesized(ty) =>
+    | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_ty_indicator(ty);
+      let ind2 = got_ty_indicator(~msg, ty);
       (ind1, ind2, OK);
     | SynFree =>
       let ind1 = expected_any_indicator;
@@ -248,12 +252,12 @@ let view =
         };
       let (ind2, err_state_b) =
         switch (join, typed) {
-        | (JoinTy(ty), Synthesized(got_ty)) =>
+        | (JoinTy(ty), Synthesized(got_ty, msg)) =>
           switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
-          | (true, false) => (got_consistent_indicator(got_ty), OK)
+          | (true, true) => (got_as_expected_ty_indicator(~msg, got_ty), OK)
+          | (true, false) => (got_consistent_indicator(~msg, got_ty), OK)
           | (false, _) => (
-              got_inconsistent_indicator(got_ty),
+              got_inconsistent_indicator(~msg, got_ty),
               TypeInconsistency,
             )
           }
@@ -274,9 +278,9 @@ let view =
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
-    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
+    | PatAnaTypeInconsistent(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
+      let ind2 = got_inconsistent_indicator(~msg, got_ty);
       (ind1, ind2, TypeInconsistency);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
@@ -292,20 +296,20 @@ let view =
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
-    | PatAnaSubsumed(expected_ty, got_ty) =>
+    | PatAnaSubsumed(expected_ty, got_ty, msg) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
-          ? got_as_expected_ty_indicator(got_ty)
-          : got_consistent_indicator(got_ty);
+          ? got_as_expected_ty_indicator(~msg, got_ty)
+          : got_consistent_indicator(~msg, got_ty);
       (ind1, ind2, OK);
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | PatSynthesized(ty) =>
+    | PatSynthesized(ty, msg) =>
       let ind1 = expected_any_indicator_pat;
-      let ind2 = got_ty_indicator(ty);
+      let ind2 = got_ty_indicator(~msg, ty);
       (ind1, ind2, OK);
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
