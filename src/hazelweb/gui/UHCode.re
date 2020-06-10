@@ -112,11 +112,16 @@ let view =
           ]
 
         | Annot(HoleLabel({len}), l) => {
-            let font_width = font_metrics.col_width;
-            let full_space = font_width *. float_of_int(len);
-            let width =
-              Css_gen.width(`Px(int_of_float(Float.round(full_space))));
-            let styling = Vdom.Attr.style(width);
+            let font_shrink = 0.65;
+            let full_space = 1.0 /. font_shrink *. float_of_int(len);
+            let width = Css_gen.width(`Ch(full_space));
+            let font_size =
+              Css_gen.font_size(
+                `Percent(
+                  Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
+                ),
+              );
+            let styling = Vdom.Attr.style(Css_gen.combine(width, font_size));
             [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
           }
         | Annot(UserNewline, l) => [
