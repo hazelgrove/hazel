@@ -18,6 +18,7 @@
 
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
+  --tyverr-hole-color: #ce5f00;
 
   --default-code-bg-color: transparent;
   --caret-color: red;
@@ -929,6 +930,10 @@ h1 {
 }
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
+  margin: -1px;
+}
+.InTyVarHole {
+  border: 1px dashed var(--tyverr-hole-color);
   margin: -1px;
 }
 .InconsistentBranches {

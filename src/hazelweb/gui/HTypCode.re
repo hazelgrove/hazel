@@ -17,6 +17,7 @@ let view_of_layout =
         switch (annot) {
         | Delim => [Node.span([Attr.classes(["Delim"])], vs)]
         | HoleLabel => [Node.span([Attr.classes(["HoleLabel"])], vs)]
+        | TyVarHole => [Node.span([Attr.classes(["InTyVarHole"])], vs)]
         },
       t_of_imp: vs => Node.div([Attr.classes(["code", "HTypCode"])], vs),
     },

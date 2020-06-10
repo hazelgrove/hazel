@@ -50,6 +50,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(DivideByZero, l) => [
         Node.span([Attr.classes(["DivideByZero"])], go(l)),
       ]
+    | Annot(TyVarHole, l) => [
+        Node.span([Attr.classes(["InTyVarHole"])], go(l)),
+      ]
     };
   Node.div([Attr.classes(["code", "DHCode"])], go(l));
 };
