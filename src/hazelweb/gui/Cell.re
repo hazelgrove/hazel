@@ -104,6 +104,7 @@ let view = (~inject, model: Model.t) => {
               | Some(move_key) =>
                 prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
               | None =>
+                print_endline("Cell107");
                 let s = JSUtil.get_key(evt);
                 switch (
                   s,
@@ -136,9 +137,10 @@ let view = (~inject, model: Model.t) => {
                     " ",
                     true,
                   ) =>
+                  print_endline("Cell140");
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(SChar(s))),
-                  )
+                  );
                 | ("Enter", true) =>
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(SChar("\n"))),
