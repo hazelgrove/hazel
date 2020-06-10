@@ -65,8 +65,35 @@ let view = (~inject, model: Model.t) => {
     () => {
       open Vdom;
       let program = model |> Model.get_program;
+      let measure_program_get_doc =
+        model.measurements.measurements && model.measurements.program_get_doc;
+      let measure_layoutOfDoc_layout_of_doc =
+        model.measurements.measurements
+        && model.measurements.layoutOfDoc_layout_of_doc;
+      let memoize_doc = model.memoize_doc;
       let code_view =
-        UHCode.view(~model, ~inject, ~font_metrics=model.font_metrics);
+        if (Model.is_cell_focused(model)) {
+          let (_, ((row, col), _)) =
+            Program.get_cursor_map_z(
+              ~measure_program_get_doc,
+              ~measure_layoutOfDoc_layout_of_doc,
+              ~memoize_doc,
+              program,
+            );
+          UHCode.view(
+            ~model,
+            ~inject,
+            ~font_metrics=model.font_metrics,
+            ~caret_pos=Some((row, col)),
+          );
+        } else {
+          UHCode.view(
+            ~model,
+            ~inject,
+            ~font_metrics=model.font_metrics,
+            ~caret_pos=None,
+          );
+        };
       let prevent_stop_inject = a =>
         Event.Many([
           Event.Prevent_default,
@@ -152,13 +179,9 @@ let view = (~inject, model: Model.t) => {
           let view =
             program
             |> Program.get_decorated_layout(
-                 ~measure_program_get_doc=
-                   model.measurements.measurements
-                   && model.measurements.program_get_doc,
-                 ~measure_layoutOfDoc_layout_of_doc=
-                   model.measurements.measurements
-                   && model.measurements.layoutOfDoc_layout_of_doc,
-                 ~memoize_doc=model.memoize_doc,
+                 ~measure_program_get_doc,
+                 ~measure_layoutOfDoc_layout_of_doc,
+                 ~memoize_doc,
                )
             |> code_view;
           (key_handlers, view);
@@ -167,13 +190,9 @@ let view = (~inject, model: Model.t) => {
             [],
             program
             |> Program.get_layout(
-                 ~measure_program_get_doc=
-                   model.measurements.measurements
-                   && model.measurements.program_get_doc,
-                 ~measure_layoutOfDoc_layout_of_doc=
-                   model.measurements.measurements
-                   && model.measurements.layoutOfDoc_layout_of_doc,
-                 ~memoize_doc=model.memoize_doc,
+                 ~measure_program_get_doc,
+                 ~measure_layoutOfDoc_layout_of_doc,
+                 ~memoize_doc,
                )
             |> code_view,
           );
