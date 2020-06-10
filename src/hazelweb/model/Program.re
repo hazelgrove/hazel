@@ -60,7 +60,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo.Exp.syn_cursor_info(Contexts.empty),
+    CursorInfo_Exp.syn_cursor_info(Contexts.empty),
   );
 let get_cursor_info = (program: t) => {
   program
@@ -101,7 +101,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program |> get_edit_state;
-  switch (ActionExp.syn_perform(Contexts.empty, a, edit_state)) {
+  switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
@@ -132,7 +132,7 @@ let move_to_hole = (u, program) => {
 };
 
 let move_to_case_branch =
-    (steps_to_case, branch_index, program): (t, Action.t) => {
+    (steps_to_case, branch_index, program): (t, Action_common.t) => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
   let new_program =
     perform_edit_action(
@@ -264,7 +264,7 @@ let move_via_click =
       row_col,
       program,
     )
-    : (t, Action.t) => {
+    : (t, Action_common.t) => {
   let (_, rev_path) =
     program
     |> get_cursor_map(
@@ -287,7 +287,7 @@ let move_via_key =
       move_key: JSUtil.MoveKey.t,
       program,
     )
-    : (t, Action.t) => {
+    : (t, Action_common.t) => {
   let (cmap, ((row, col), _) as z) =
     program
     |> get_cursor_map_z(

@@ -37,7 +37,7 @@ let get_result: t => Result.t;
 
 exception FailedAction;
 exception CursorEscaped;
-let perform_edit_action: (Action.t, t) => t;
+let perform_edit_action: (Action_common.t, t) => t;
 let move_via_key:
   (
     ~measure_program_get_doc: bool,
@@ -46,7 +46,7 @@ let move_via_key:
     JSUtil.MoveKey.t,
     t
   ) =>
-  (t, Action.t);
+  (t, Action_common.t);
 let move_via_click:
   (
     ~measure_program_get_doc: bool,
@@ -55,11 +55,11 @@ let move_via_click:
     (CursorMap.Row.t, CursorMap.Col.t),
     t
   ) =>
-  (t, Action.t);
+  (t, Action_common.t);
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
-let move_to_case_branch: (CursorPath.steps, int, t) => (t, Action.t);
+let move_to_case_branch: (CursorPath.steps, int, t) => (t, Action_common.t);
 
 let get_doc:
   (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc.t;
