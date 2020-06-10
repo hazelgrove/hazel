@@ -19,6 +19,11 @@ let clss_of_vwarn: VarWarnStatus.t => list(cls) =
   | NoWarning => []
   | CritUnused => ["InVarWarnHole"];
 
+let clss_of_case_err: CaseErrStatus.t => list(cls) =
+  fun
+  | StandardErrStatus(err) => clss_of_err(err)
+  | InconsistentBranches(_) => ["InconsistentBranches"];
+
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
@@ -31,7 +36,7 @@ let sort_clss: TermSort.t => list(cls) =
 let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
-  | Case({err}) => ["Case", ...clss_of_err(err)]
+  | Case({err}) => ["Case", ...clss_of_case_err(err)]
   | Var({err, verr, vwarn, show_def, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
     @ clss_of_verr(verr)
@@ -52,15 +57,16 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
 let has_child_clss = (has_child: bool) =>
   has_child ? ["has-child"] : ["no-children"];
 
-let caret_from_left = (from_left: float): Vdom.Node.t => {
-  assert(0.0 <= from_left && from_left <= 100.0);
-  let left_attr =
-    Vdom.Attr.create(
-      "style",
-      "left: " ++ string_of_float(from_left) ++ "0%;",
+let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
+  let pos_attr =
+    Vdom.Attr.style(
+      Css_gen.combine(
+        Css_gen.left(`Px(int_of_float(x))),
+        Css_gen.top(`Px(int_of_float(y))),
+      ),
     );
   Vdom.Node.span(
-    [Vdom.Attr.id("caret"), left_attr, Vdom.Attr.classes(["blink"])],
+    [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
     [],
   );
 };
@@ -70,6 +76,7 @@ let view =
       ~model: Model.t,
       ~inject: Update.Action.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
+      ~caret_pos: option((int, int)),
       l: UHLayout.t,
     )
     : Vdom.Node.t => {
@@ -88,25 +95,14 @@ let view =
 
         | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
 
-        | Annot(Token({shape, len, has_cursor}), l) => {
+        | Annot(Token({shape, _}), l) => {
             let clss =
               switch (shape) {
               | Text => ["code-text"]
               | Op => ["code-op"]
               | Delim(_) => ["code-delim"]
               };
-            let children =
-              switch (has_cursor) {
-              | None => go(l)
-              | Some(j) => [
-                  caret_from_left(
-                    len == 0
-                      ? 0.0 : float_of_int(j) /. float_of_int(len) *. 100.0,
-                  ),
-                  ...go(l),
-                ]
-              };
-            [Node.span([Attr.classes(clss)], children)];
+            [Node.span([Attr.classes(clss)], go(l))];
           }
         | Annot(DelimGroup, l) => [
             Node.span([Attr.classes(["DelimGroup"])], go(l)),
@@ -122,9 +118,28 @@ let view =
             Node.span([Attr.classes(["Indent"])], go(l)),
           ]
 
-        | Annot(HoleLabel(_), l) => [
-            Node.span([Attr.classes(["HoleLabel"])], go(l)),
-          ]
+        | Annot(HoleLabel({len}), l) => {
+            let font_width = font_metrics.col_width;
+            let font_shrink = 0.65;
+            let full_space = font_width *. float_of_int(len);
+            let shrunk_space = full_space *. font_shrink;
+            let per_side_padding = (full_space -. shrunk_space) /. 2.0;
+            let padding =
+              Css_gen.padding(
+                ~left=`Px(int_of_float(per_side_padding)),
+                ~right=`Px(int_of_float(per_side_padding)),
+                (),
+              );
+            let font_size =
+              Css_gen.font_size(
+                `Percent(
+                  Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
+                ),
+              );
+            let styling =
+              Vdom.Attr.style(Css_gen.combine(padding, font_size));
+            [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
+          }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
           ]
@@ -163,6 +178,15 @@ let view =
             ),
           ];
 
+      let children =
+        switch (caret_pos) {
+        | None => go(l)
+        | Some((row, col)) =>
+          let x = float_of_int(col) *. model.font_metrics.col_width;
+          let y = float_of_int(row) *. model.font_metrics.row_height;
+          let caret = caret_from_pos(x, y);
+          [caret, ...go(l)];
+        };
       let id = "code-root";
       Node.div(
         [
@@ -190,7 +214,7 @@ let view =
             inject(Update.Action.MoveAction(Click(row_col)));
           }),
         ],
-        go(l),
+        children,
       );
     },
   );

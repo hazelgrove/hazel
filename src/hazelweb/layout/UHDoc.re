@@ -93,7 +93,7 @@ module Delim = {
   let close_Case_ann = (): t => mk(~index=1, "end :");
 
   let bar_Rule = (): t => mk(~index=0, "|");
-  let arrow_Rule = (): t => mk(~index=1, UnicodeConstants.caseArrowSym);
+  let arrow_Rule = (): t => mk(~index=1, "=>");
 
   let let_LetLine = (): t => mk(~index=0, "let");
   let colon_LetLine = (): t => mk(~index=1, ":");
@@ -132,7 +132,7 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =
   Doc.annot(
     UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
   );
-let annot_Case = (~err: ErrStatus.t): (t => t) =>
+let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
@@ -346,42 +346,10 @@ let mk_Lam =
   |> annot_Operand(~sort=Exp, ~err);
 };
 
-let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
+let mk_Case =
+    (~err: CaseErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
   let open_group = Delim.open_Case() |> annot_DelimGroup;
   let close_group = Delim.close_Case() |> annot_DelimGroup;
-  Doc.(
-    vseps(
-      [
-        hcats([
-          open_group,
-          scrut
-          |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
-        ]),
-        ...rules,
-      ]
-      @ [close_group],
-    )
-  )
-  |> annot_Case(~err);
-};
-
-let mk_Case_ann =
-    (
-      ~err: ErrStatus.t,
-      scrut: formatted_child,
-      rules: list(t),
-      ann: formatted_child,
-    )
-    : t => {
-  let open_group = Delim.open_Case() |> annot_DelimGroup;
-  let close_group = {
-    let end_delim = Delim.close_Case_ann();
-    Doc.hcats([
-      end_delim,
-      ann |> pad_left_delimited_child(~is_open=false, ~inline_padding=space_),
-    ])
-    |> annot_DelimGroup;
-  };
   Doc.(
     vseps(
       [
@@ -546,7 +514,7 @@ let mk_NTuple =
 module Typ = {
   let inline_padding_of_operator: UHTyp.operator => (t, t) =
     fun
-    | UHTyp.Prod => (empty_, space_)
+    | Prod => (empty_, space_)
     | Arrow
     | Sum => (space_, space_);
 
@@ -586,7 +554,7 @@ module Typ = {
       )
     )
   and mk_operator = (op: UHTyp.operator): t =>
-    mk_op(UHTyp.string_of_operator(op))
+    mk_op(Operators.Typ.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
@@ -624,7 +592,7 @@ module Typ = {
 module Pat = {
   let inline_padding_of_operator: UHPat.operator => (t, t) =
     fun
-    | UHPat.Comma => (empty_, space_)
+    | Comma => (empty_, space_)
     | Space
     | Cons => (empty_, empty_);
 
@@ -679,7 +647,8 @@ module Pat = {
       )
     )
   and mk_operator = (op: UHPat.operator): t =>
-    op |> UHPat.is_Space ? mk_space_op : mk_op(UHPat.string_of_operator(op))
+    op |> Operators.Pat.is_Space
+      ? mk_space_op : mk_op(Operators.Pat.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
@@ -716,16 +685,18 @@ module Pat = {
 };
 
 module Exp = {
-  let inline_padding_of_operator =
+  let inline_padding_of_operator: UHExp.operator => (t, t) =
     fun
-    | UHExp.Space
-    | Times
-    | FTimes
+    | Space
     | Cons => (empty_, empty_)
     | Plus
     | Minus
     | FPlus
     | FMinus
+    | Times
+    | Divide
+    | FTimes
+    | FDivide
     | LessThan
     | GreaterThan
     | Equals
@@ -856,7 +827,8 @@ module Exp = {
       )
     )
   and mk_operator = (op: UHExp.operator): t =>
-    op |> UHExp.is_Space ? mk_space_op : mk_op(UHExp.string_of_operator(op))
+    op |> Operators.Exp.is_Space
+      ? mk_space_op : mk_op(Operators.Exp.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
@@ -886,7 +858,7 @@ module Exp = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_Parenthesized(body);
-          | Case(err, scrut, rules, ann) =>
+          | Case(err, scrut, rules) =>
             if (enforce_inline) {
               Doc.fail();
             } else {
@@ -903,18 +875,7 @@ module Exp = {
                      Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
                      |> annot_Step(1 + i)
                    );
-              switch (ann) {
-              | None => mk_Case(~err, scrut, rules)
-              | Some(ann) =>
-                let ann =
-                  Typ.mk_child(
-                    ~memoize,
-                    ~enforce_inline=false,
-                    ~child_step=1 + List.length(rules),
-                    ann,
-                  );
-                mk_Case_ann(~err, scrut, rules, ann);
-              };
+              mk_Case(~err, scrut, rules);
             }
           | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
           }: t

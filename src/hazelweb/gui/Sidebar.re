@@ -2,9 +2,9 @@ open Incr_dom;
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
 
-let make_sidebar =
+let mk_sidebar =
     (
-      panels,
+      panels_thunk,
       collapsible_sidebar_id: string,
       tab_id: string,
       tab_opened_icon,
@@ -14,7 +14,8 @@ let make_sidebar =
       body_id: string,
       sidebar_open: bool,
       ~on_toggle: Js.t(Dom_html.mouseEvent) => Vdom.Event.t,
-    ) =>
+    ) => {
+  let panels = sidebar_open ? panels_thunk() : [];
   Vdom.(
     Node.div(
       [
@@ -66,9 +67,10 @@ let make_sidebar =
       ],
     )
   );
+};
 
 let left = (~inject, model: Model.t, left_panels) => {
-  make_sidebar(
+  mk_sidebar(
     left_panels,
     "collapsible-left-bar",
     "left-tab",
@@ -84,7 +86,7 @@ let left = (~inject, model: Model.t, left_panels) => {
 };
 
 let right = (~inject, model: Model.t, right_panels) => {
-  make_sidebar(
+  mk_sidebar(
     right_panels,
     "collapsible-right-bar",
     "right-tab",
