@@ -271,24 +271,24 @@ let rec syn_move =
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
-    switch (CursorPath.Pat.follow(path, zp |> ZPat.erase)) {
+    switch (CursorPath_Pat.follow(path, zp |> ZPat.erase)) {
     | None => Failed
     | Some(zp) => mk_syn_result(ctx, u_gen, zp)
     }
   | MoveToPrevHole =>
-    switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
+    switch (CursorPath.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+      switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
       | None => Failed
       | Some(path) => syn_move(ctx, u_gen, MoveTo(path), zp)
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
+    switch (CursorPath.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+      switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
       | None => Failed
       | Some(path) => syn_move(ctx, u_gen, MoveTo(path), zp)
       }
@@ -331,24 +331,24 @@ let rec ana_move =
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
-    switch (CursorPath.Pat.follow(path, zp |> ZPat.erase)) {
+    switch (CursorPath_Pat.follow(path, zp |> ZPat.erase)) {
     | None => Failed
     | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
     }
   | MoveToPrevHole =>
-    switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
+    switch (CursorPath.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+      switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
       | None => Failed
       | Some(path) => ana_move(ctx, u_gen, MoveTo(path), zp, ty)
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
+    switch (CursorPath.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Pat.of_steps(steps, zp |> ZPat.erase)) {
+      switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
       | None => Failed
       | Some(path) => ana_move(ctx, u_gen, MoveTo(path), zp, ty)
       }

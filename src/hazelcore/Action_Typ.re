@@ -49,24 +49,24 @@ let rec move =
         (a: Action_common.t, zty: ZTyp.t): Action_common.Outcome.t(ZTyp.t) =>
   switch (a) {
   | MoveTo(path) =>
-    switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
+    switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
     | None => Failed
     | Some(zty) => Succeeded(zty)
     }
   | MoveToPrevHole =>
-    switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
+    switch (CursorPath.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+      switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
       | None => Failed
       | Some(path) => move(MoveTo(path), zty)
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
+    switch (CursorPath.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))) {
     | None => Failed
     | Some(steps) =>
-      switch (CursorPath.Typ.of_steps(steps, zty |> ZTyp.erase)) {
+      switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
       | None => Failed
       | Some(path) => move(MoveTo(path), zty)
       }

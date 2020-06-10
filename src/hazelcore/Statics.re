@@ -749,10 +749,10 @@ module Pat = {
   let syn_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
       : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
-    let path = CursorPath.Pat.of_z(zp);
+    let path = CursorPath_Pat.of_z(zp);
     let (p, ty, ctx, u_gen) = syn_fix_holes(ctx, u_gen, ZPat.erase(zp));
     let zp =
-      CursorPath.Pat.follow(path, p)
+      CursorPath_Pat.follow(path, p)
       |> OptUtil.get(() =>
            failwith(
              "syn_fix_holes did not preserve path "
@@ -765,10 +765,10 @@ module Pat = {
   let ana_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
       : (ZPat.t, Contexts.t, MetaVarGen.t) => {
-    let path = CursorPath.Pat.of_z(zp);
+    let path = CursorPath_Pat.of_z(zp);
     let (p, ctx, u_gen) = ana_fix_holes(ctx, u_gen, ZPat.erase(zp), ty);
     let zp =
-      CursorPath.Pat.follow(path, p)
+      CursorPath_Pat.follow(path, p)
       |> OptUtil.get(() =>
            failwith(
              "ana_fix_holes did not preserve path "
@@ -2263,10 +2263,10 @@ module Exp = {
   let syn_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
       : (ZExp.t, HTyp.t, MetaVarGen.t) => {
-    let path = CursorPath.Exp.of_z(ze);
+    let path = CursorPath_Exp.of_z(ze);
     let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
     let ze =
-      CursorPath.Exp.follow(path, e)
+      CursorPath_Exp.follow(path, e)
       |> OptUtil.get(() =>
            failwith(
              "syn_fix_holes did not preserve path "
@@ -2279,11 +2279,11 @@ module Exp = {
   let syn_fix_holes_zlines =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
       : (ZExp.zblock, Contexts.t, MetaVarGen.t) => {
-    let path = CursorPath.Exp.of_zblock(zlines);
+    let path = CursorPath_Exp.of_zblock(zlines);
     let (lines, ctx, u_gen) =
       syn_fix_holes_lines(ctx, u_gen, ZExp.erase_zblock(zlines));
     let zlines =
-      CursorPath.Exp.follow_block(path, lines)
+      CursorPath_Exp.follow_block(path, lines)
       |> OptUtil.get(() =>
            failwith(
              "syn_fix_holes_lines did not preserve path "
@@ -2301,12 +2301,12 @@ module Exp = {
         pat_ty: HTyp.t,
       )
       : (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t) => {
-    let path = CursorPath.Exp.of_zrules(zrules);
+    let path = CursorPath_Exp.of_zrules(zrules);
     let rules = ZExp.erase_zrules(zrules);
     let (rules, u_gen, rule_types, common_type) =
       syn_fix_holes_rules(ctx, u_gen, rules, pat_ty);
     let zrules =
-      CursorPath.Exp.follow_rules(path, rules)
+      CursorPath_Exp.follow_rules(path, rules)
       |> OptUtil.get(() =>
            failwith(
              "syn_fix_holes_rules did not preserve path "
@@ -2319,10 +2319,10 @@ module Exp = {
   let ana_fix_holes_z =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
       : (ZExp.t, MetaVarGen.t) => {
-    let path = CursorPath.Exp.of_z(ze);
+    let path = CursorPath_Exp.of_z(ze);
     let (e, u_gen) = ana_fix_holes(ctx, u_gen, ZExp.erase(ze), ty);
     let ze =
-      CursorPath.Exp.follow(path, e)
+      CursorPath_Exp.follow(path, e)
       |> OptUtil.get(() =>
            failwith(
              "ana_fix_holes did not preserve path "
@@ -2338,10 +2338,10 @@ module Exp = {
     syn_fix_holes(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
 
   let fix_and_renumber_holes_z = (ctx: Contexts.t, ze: ZExp.t): edit_state => {
-    let path = CursorPath.Exp.of_z(ze);
+    let path = CursorPath_Exp.of_z(ze);
     let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
     let ze =
-      CursorPath.Exp.follow(path, e)
+      CursorPath_Exp.follow(path, e)
       |> OptUtil.get(() =>
            failwith(
              "fix_and_renumber_holes did not preserve path "
