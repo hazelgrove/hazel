@@ -255,7 +255,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let action_shape_view = (shape: Action.shape) => {
+  let action_shape_view = (shape: Action_common.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
     | SInj(side) =>
@@ -281,12 +281,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SListNil
     | SLine
     | SAsc
-    | SParenthesized => indicate_words_view(Action.shape_to_string(shape))
-    | SChar(_) => code_view(Action.shape_to_string(shape))
+    | SParenthesized =>
+      indicate_words_view(Action_common.shape_to_string(shape))
+    | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {
       | SSpace => indicate_words_view("space")
-      | _ => code_view(Action.shape_to_string(shape))
+      | _ => code_view(Action_common.shape_to_string(shape))
       }
     | SApPalette(_) => failwith("ApPalette not implemented")
     };

@@ -1,4 +1,5 @@
-let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
+let operator_of_shape =
+    (os: Action_common.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
@@ -16,7 +17,7 @@ let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   | SCons => None
   };
 
-let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
+let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
   switch (op) {
   | Arrow => SArrow
   | Prod => SComma
@@ -44,7 +45,8 @@ let construct_operator =
   ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
 };
 
-let rec move = (a: Action.t, zty: ZTyp.t): Action.Outcome.t(ZTyp.t) =>
+let rec move =
+        (a: Action_common.t, zty: ZTyp.t): Action_common.Outcome.t(ZTyp.t) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
@@ -72,13 +74,15 @@ let rec move = (a: Action.t, zty: ZTyp.t): Action.Outcome.t(ZTyp.t) =>
   | MoveLeft =>
     zty
     |> ZTyp.move_cursor_left
-    |> OptUtil.map_default(~default=Action.Outcome.CursorEscaped(Before), z =>
+    |> OptUtil.map_default(
+         ~default=Action_common.Outcome.CursorEscaped(Before), z =>
          Succeeded(z)
        )
   | MoveRight =>
     zty
     |> ZTyp.move_cursor_right
-    |> OptUtil.map_default(~default=Action.Outcome.CursorEscaped(After), z =>
+    |> OptUtil.map_default(
+         ~default=Action_common.Outcome.CursorEscaped(After), z =>
          Succeeded(z)
        )
   | Construct(_)
@@ -93,15 +97,16 @@ let rec move = (a: Action.t, zty: ZTyp.t): Action.Outcome.t(ZTyp.t) =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
+      ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
     )
   };
 
-let rec perform = (a: Action.t, zty: ZTyp.t): Action.Outcome.t(ZTyp.t) =>
+let rec perform =
+        (a: Action_common.t, zty: ZTyp.t): Action_common.Outcome.t(ZTyp.t) =>
   perform_opseq(a, zty)
 and perform_opseq =
-    (a: Action.t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq)
-    : Action.Outcome.t(ZTyp.t) =>
+    (a: Action_common.t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq)
+    : Action_common.Outcome.t(ZTyp.t) =>
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
@@ -124,7 +129,7 @@ and perform_opseq =
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    perform_opseq(Action.escape(side), zopseq)
+    perform_opseq(Action_common.escape(side), zopseq)
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
@@ -148,7 +153,7 @@ and perform_opseq =
     perform_opseq(MoveRight, zopseq)
   /* ...or construction after movement */
   | (Construct(_) as a, ZOperator((OnOp(side), _), _)) =>
-    switch (perform_opseq(Action.escape(side), zopseq)) {
+    switch (perform_opseq(Action_common.escape(side), zopseq)) {
     | Failed
     | CursorEscaped(_) => Failed
     | Succeeded(zty) => perform(a, zty)
@@ -197,7 +202,8 @@ and perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     switch (perform_operand(a, zoperand)) {
     | Failed => Failed
-    | CursorEscaped(side) => perform_opseq(Action.escape(side), zopseq)
+    | CursorEscaped(side) =>
+      perform_opseq(Action_common.escape(side), zopseq)
     | Succeeded(ZOpSeq(_, zseq)) =>
       switch (zseq) {
       | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
@@ -217,7 +223,8 @@ and perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and perform_operand =
-    (a: Action.t, zoperand: ZTyp.zoperand): Action.Outcome.t(ZTyp.t) =>
+    (a: Action_common.t, zoperand: ZTyp.zoperand)
+    : Action_common.Outcome.t(ZTyp.t) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
@@ -279,7 +286,7 @@ and perform_operand =
       when
         !ZTyp.is_before_zoperand(zoperand)
         && !ZTyp.is_after_zoperand(zoperand) =>
-    switch (perform_operand(Action.escape(side), zoperand)) {
+    switch (perform_operand(Action_common.escape(side), zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(zty) => perform(a, zty)
     }
@@ -311,14 +318,16 @@ and perform_operand =
   | (_, ParenthesizedZ(zbody)) =>
     switch (perform(a, zbody)) {
     | Failed => Failed
-    | CursorEscaped(side) => perform_operand(Action.escape(side), zoperand)
+    | CursorEscaped(side) =>
+      perform_operand(Action_common.escape(side), zoperand)
     | Succeeded(zbody) =>
       Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(zbody)))
     }
   | (_, ListZ(zbody)) =>
     switch (perform(a, zbody)) {
     | Failed => Failed
-    | CursorEscaped(side) => perform_operand(Action.escape(side), zoperand)
+    | CursorEscaped(side) =>
+      perform_operand(Action_common.escape(side), zoperand)
     | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
     }
   | (Init, _) => failwith("Init action should not be performed.")
