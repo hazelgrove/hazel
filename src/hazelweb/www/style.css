@@ -1321,6 +1321,9 @@ h1 {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   /* line-height: initial; */
 }
+#code-container .HoleLabel span {
+  font-size: 65%;
+}
 .DHCode .HoleLabel {
   font-size: 65%;
   padding-left: 2px;
