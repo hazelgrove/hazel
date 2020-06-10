@@ -111,7 +111,7 @@ let rec find_and_replace =
         find_and_replace(
           acc ++ String.sub(s, 0, 1),
           String.sub(s, 1, len_s + 1),
-          "Illegal",
+          err,
         );
       };
     | _ =>
