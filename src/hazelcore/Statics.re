@@ -51,10 +51,6 @@ let stable_ana_fixer =
     };
   };
 
-// type syn_fixer('term, 'extra_output) =
-//   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool, 'term) =>
-//   ('term, 'extra_output, MetaVarGen.t);
-
 type syn_rule_fixer('term, 'extra_output) =
   (
     Contexts.t,
@@ -64,87 +60,6 @@ type syn_rule_fixer('term, 'extra_output) =
     'term
   ) =>
   ('term, 'extra_output, MetaVarGen.t);
-
-// let optimize_syn_fixer =
-//     (f: syn_fixer('term, 'extra_output)): syn_fixer('term, 'extra_output) =>
-//   (ctx, u_gen, ~renumber_empty_holes, term) => {
-//     let (fixed_term, extra_output, u_gen2) =
-//       f(ctx, u_gen, ~renumber_empty_holes, term);
-//     if (u_gen2 == u_gen) {
-//       (term, extra_output, u_gen2);
-//     } else {
-//       (fixed_term, extra_output, u_gen2);
-//     };
-//   };
-
-// let optimize_syn_rule_fixer =
-//     (f: syn_rule_fixer('term, 'extra_output))
-//     : syn_rule_fixer('term, 'extra_output) =>
-//   (ctx, u_gen, ~renumber_empty_holes, ~pat_ty, term) => {
-//     let (fixed_term, extra_output, u_gen2) =
-//       f(ctx, u_gen, ~renumber_empty_holes, ~pat_ty, term);
-//     if (u_gen2 == u_gen) {
-//       (term, extra_output, u_gen2);
-//     } else {
-//       (fixed_term, extra_output, u_gen2);
-//     };
-//   };
-
-// type ana_fixer('term, 'extra_output) =
-//   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool, 'term, HTyp.t) =>
-//   ('term, 'extra_output, MetaVarGen.t);
-
-// let optimize_ana_fixer =
-//     (f: ana_fixer('term, 'extra_output)): ana_fixer('term, 'extra_output) =>
-//   (ctx, u_gen, ~renumber_empty_holes, term, ty) => {
-//     let (fixed_term, extra_output, u_gen2) =
-//       f(ctx, u_gen, ~renumber_empty_holes, term, ty);
-//     if (u_gen2 == u_gen) {
-//       (term, extra_output, u_gen2);
-//     } else {
-//       (fixed_term, extra_output, u_gen2);
-//     };
-//   };
-
-// type ana_exp_fixer('term) =
-//   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool, 'term, HTyp.t) =>
-//   ('term, MetaVarGen.t);
-
-/*let optimize_ana_exp_fixer =
-      (f': ana_exp_fixer('term)): ana_exp_fixer('term) => {
-    let f = (ctx, u_gen, ~renumber_empty_holes, term, ty) => {
-      let (term, u_gen) = f'(ctx, u_gen, ~renumber_empty_holes, term, ty);
-      (term, (), u_gen);
-    };
-    (ctx, u_gen, ~renumber_empty_holes, term, ty) => {
-      let (term, (), u_gen) =
-        optimize_ana_fixer(f, ctx, u_gen, ~renumber_empty_holes, term, ty);
-      (term, u_gen);
-    };
-  };*/
-
-// type ana_rule_fixer('term) =
-//   (
-//     Contexts.t,
-//     MetaVarGen.t,
-//     ~renumber_empty_holes: bool,
-//     ~pat_ty: HTyp.t,
-//     'term,
-//     HTyp.t
-//   ) =>
-//   ('term, MetaVarGen.t);
-
-// let optimize_ana_rule_fixer =
-//     (f: ana_rule_fixer('term)): ana_rule_fixer('term) =>
-//   (ctx, u_gen, ~renumber_empty_holes, ~pat_ty, term, ty) => {
-//     let (fixed_term, u_gen2) =
-//       f(ctx, u_gen, ~renumber_empty_holes, ~pat_ty, term, ty);
-//     if (u_gen2 == u_gen) {
-//       (term, u_gen2);
-//     } else {
-//       (fixed_term, u_gen2);
-//     };
-//   };
 
 type type_mode =
   | Syn
