@@ -116,10 +116,7 @@ let view =
   let got_ty_indicator = (~msg="", ty) =>
     got_indicator("Got type" ++ msg, typebar(ty));
   let got_as_expected_ty_indicator = (~msg="", ty) =>
-    got_indicator(
-      "Got as expected, got invalid escape sequence" ++ msg,
-      typebar(ty),
-    );
+    got_indicator("Got as expected" ++ msg, typebar(ty));
   let got_inconsistent_indicator = (~msg="", got_ty) =>
     got_indicator("Got inconsistent type" ++ msg, typebar(got_ty));
   let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>

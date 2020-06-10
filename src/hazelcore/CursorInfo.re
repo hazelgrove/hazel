@@ -1573,10 +1573,8 @@ module Exp = {
       switch (Statics.Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty) =>
-        print_endline("CI1319");
         switch (cursor_term) {
         | Exp(OnText(j), StringLit(_, s)) =>
-          print_endline("CI1322");
           if (is_invalid_escape_sequence(j, s)) {
             Some(
               mk(
@@ -1587,11 +1585,9 @@ module Exp = {
             );
           } else {
             Some(mk(Synthesized(ty, ""), ctx, cursor_term));
-          };
-        | _ =>
-          print_endline("CI1335");
-          Some(mk(Synthesized(ty, ""), ctx, cursor_term));
-        };
+          }
+        | _ => Some(mk(Synthesized(ty, ""), ctx, cursor_term))
+        }
       }
     | ParenthesizedZ(zbody) =>
       syn_cursor_info(~steps=steps @ [0], ctx, zbody)
