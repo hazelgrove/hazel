@@ -131,7 +131,8 @@ let view =
 
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
-
+  let got_free_tyvar_indicator =
+    got_indicator("Got a free type variable", typebar(HTyp.Hole));
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = (k: Kind.t) =>
@@ -278,7 +279,7 @@ let view =
       (ind1, ind2, BindingError);
     | TypFree =>
       let ind1 = expected_a_type_indicator;
-      let ind2 = got_free_indicator;
+      let ind2 = got_free_tyvar_indicator;
       (ind1, ind2, BindingError);
     | OnType(k) =>
       let ind1 = expected_a_type_indicator;
