@@ -91,6 +91,7 @@ let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
+  | FailedAssert(d1) => Indet(d1)
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -111,10 +112,11 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(BuiltInLit(v)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d2) =>
-        switch (BuiltinFunctions.evaluate(v, d2)) {
-        | StringLit("Failed") => Indet(Ap(BuiltInLit(v), d2))
-        | _ => BoxedValue(BuiltinFunctions.evaluate(v, d2))
+      | BoxedValue(d2') =>
+        switch (BuiltinFunctions.evaluate(v, d2')) {
+        | StringLit("Failed") => Indet(Ap(BuiltInLit(v), d2'))
+        | StringLit("assertion") => Indet(FailedAssert(d2))
+        | _ => BoxedValue(BuiltinFunctions.evaluate(v, d2'))
         }
       | Indet(d2) =>
         print_endline("Dynamics2228");

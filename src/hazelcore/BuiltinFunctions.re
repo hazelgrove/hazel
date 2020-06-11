@@ -12,6 +12,7 @@ let ctx: VarCtx.t = [
   ("compare", Arrow(String, Arrow(String, Int))),
   ("trim", Arrow(String, String)),
   ("escaped", Arrow(String, String)),
+  ("assert", Arrow(Bool, Prod([]))),
 ];
 
 /* let shadowing_var = [("length", false), ("string_of_int", false)]; */
@@ -56,6 +57,7 @@ let evaluate = (x: string, d: DHExp.t): DHExp.t =>
   | BoolLit(b) =>
     switch (x) {
     | "string_of_bool" => StringLit(string_of_bool(b))
+    | "assert" => b ? Triv : StringLit("assertion")
     | _ => StringLit("Failed")
     }
   | FloatLit(n) =>
