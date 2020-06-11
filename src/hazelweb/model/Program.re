@@ -146,7 +146,7 @@ let move_to_case_branch =
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
   TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () => {
     Lazy.force(
-      UHDoc.Exp.mk,
+      UHDoc_Exp.mk,
       ~memoize=memoize_doc,
       ~enforce_inline=false,
       get_uhexp(program),
@@ -178,7 +178,7 @@ let decorate_cursor = (steps, l) =>
   l
   |> UHLayout.find_and_decorate_cursor(~steps)
   |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
-let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
+let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
   switch (ci.uses) {
   | None => l
   | Some(uses) =>

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type cursor_term = CursorInfo.cursor_term;
+type cursor_term = CursorInfo_common.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
@@ -439,10 +439,12 @@ let delete_group =
       ~new_cursor_term_info: cursor_term_info,
     )
     : option(action_group) =>
-  if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
+  if (CursorInfo_common.is_empty_line(new_cursor_term_info.cursor_term_before)) {
     Some(DeleteEdit(EmptyLine));
-  } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-             || CursorInfo.is_empty_hole(
+  } else if (CursorInfo_common.is_empty_line(
+               new_cursor_term_info.cursor_term_after,
+             )
+             || CursorInfo_common.is_empty_hole(
                   new_cursor_term_info.cursor_term_after,
                 )) {
     /* if the term becomes hole or empty line, the action group is deleting the whole term */
@@ -496,7 +498,9 @@ let delim_edge_handle =
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
-  } else if (CursorInfo.is_empty_hole(new_cursor_term_info.cursor_term_before)) {
+  } else if (CursorInfo_common.is_empty_hole(
+               new_cursor_term_info.cursor_term_before,
+             )) {
     /* delete space */
     Some(DeleteEdit(Space));
   } else {
@@ -715,14 +719,14 @@ let get_new_action_group =
               );
             }
           };
-        } else if (CursorInfo.is_empty_hole(
+        } else if (CursorInfo_common.is_empty_hole(
                      new_cursor_term_info.cursor_term_before,
                    )
-                   || CursorInfo.is_empty_line(
+                   || CursorInfo_common.is_empty_line(
                         new_cursor_term_info.cursor_term_before,
                       )
                    || !
-                        CursorInfo.cursor_term_is_editable(
+                        CursorInfo_common.cursor_term_is_editable(
                           new_cursor_term_info.cursor_term_before,
                         )) {
           Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
