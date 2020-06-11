@@ -70,31 +70,34 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
-exception DoesNotExpand;
+exception DoesNotElaborate;
 let expand =
   Memo.general(
     ~cache_size_bound=1000,
-    Dynamics_Exp.syn_expand(Contexts.empty, Delta.empty),
+    Elaborator.Exp.syn_elab(Contexts.empty, Delta.empty),
+
   );
 let get_expansion = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
-  | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) => d
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
   };
 
 exception InvalidInput;
-let evaluate =
-  Memo.general(~cache_size_bound=1000, Dynamics_common.Evaluator.evaluate);
+
+let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
-      Dynamics_Exp.renumber([], HoleInstanceInfo.empty, d);
+
+      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) =
-      Dynamics_Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
+
     (d_renumbered, hii, Indet(d_renumbered));
   };
 

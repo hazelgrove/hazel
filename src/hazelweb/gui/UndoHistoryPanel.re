@@ -377,6 +377,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | SwapEdit(swap_group) =>
+      switch (swap_group) {
+      | Up => indicate_words_view("swap line up")
+      | Down => indicate_words_view("swap line down")
+      | Left => indicate_words_view("swap operand left")
+      | Right => indicate_words_view("swap operand right")
+      }
     | Init => indicate_words_view("initial state")
     };
   };
@@ -429,6 +436,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | SwapEdit(swap_group) =>
+      switch (swap_group) {
+      | Up
+      | Down => Some(Exp)
+      | Left
+      | Right =>
+        Some(
+          get_cursor_term_tag_typ(
+            undo_history_entry.cursor_term_info.cursor_term_after,
+          ),
+        )
+      }
     | Init => None
     };
   };

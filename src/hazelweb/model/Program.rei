@@ -29,7 +29,7 @@ let get_u_gen: t => MetaVarGen.t;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo_common.t;
 
-exception DoesNotExpand;
+exception DoesNotElaborate;
 let get_expansion: t => DHExp.t;
 
 exception InvalidInput;
