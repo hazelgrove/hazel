@@ -8,7 +8,7 @@ module MoveKey = JSUtil.MoveKey;
 open ViewUtil;
 open Sexplib.Std;
 
-let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action_common.t) =
+let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
   [
     (KeyCombo.Backspace, _ => Action_common.Backspace),
     (Delete, _ => Action_common.Delete),
@@ -17,7 +17,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action_common.t) =
     (
       KeyCombo.GT,
       fun
-      | {CursorInfo.typed: OnType, _} =>
+      | {CursorInfo_common.typed: OnType, _} =>
         Action_common.Construct(SOp(SArrow))
       | _ => Action_common.Construct(SOp(SGreaterThan)),
     ),
@@ -38,7 +38,8 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action_common.t) =
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType, _} => Action_common.Construct(SList)
+      | {CursorInfo_common.typed: OnType, _} =>
+        Action_common.Construct(SList)
       | _ => Action_common.Construct(SListNil),
     ),
     (Semicolon, _ => Action_common.Construct(SOp(SCons))),
