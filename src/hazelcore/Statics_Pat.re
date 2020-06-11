@@ -722,7 +722,7 @@ let syn_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
          )
        );
   (zp, ty, ctx, u_gen);
@@ -738,7 +738,7 @@ let ana_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "ana_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
          )
        );
   (zp, ctx, u_gen);

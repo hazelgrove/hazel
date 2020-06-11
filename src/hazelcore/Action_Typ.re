@@ -54,7 +54,9 @@ let rec move =
     | Some(zty) => Succeeded(zty)
     }
   | MoveToPrevHole =>
-    switch (CursorPath.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))) {
+    switch (
+      CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
@@ -63,7 +65,9 @@ let rec move =
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))) {
+    switch (
+      CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {

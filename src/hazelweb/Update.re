@@ -48,7 +48,7 @@ module Action = {
     //
     | ToggleMemoizeDoc
     | SelectHoleInstance(HoleInstance.t)
-    | SelectCaseBranch(CursorPath.steps, int)
+    | SelectCaseBranch(CursorPath_common.steps, int)
     | InvalidVar(string)
     | FocusCell
     | BlurCell

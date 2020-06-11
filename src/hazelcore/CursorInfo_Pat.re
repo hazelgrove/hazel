@@ -49,7 +49,7 @@ let rec syn_cursor_info =
   syn_cursor_info_zopseq(~steps, ctx, zp)
 and syn_cursor_info_zopseq =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq): ZPat.zopseq,
     )
@@ -115,7 +115,7 @@ and syn_cursor_info_zopseq =
 }
 and syn_cursor_info_skel =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
@@ -175,7 +175,11 @@ and syn_cursor_info_skel =
   };
 }
 and syn_cursor_info_zoperand =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZPat.zoperand)
+    (
+      ~steps: CursorPath_common.steps,
+      ctx: Contexts.t,
+      zoperand: ZPat.zoperand,
+    )
     : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
   switch (zoperand) {
   | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
@@ -223,7 +227,7 @@ and ana_cursor_info =
 }
 and ana_cursor_info_zopseq =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
@@ -314,7 +318,7 @@ and ana_cursor_info_zopseq =
 }
 and ana_cursor_info_skel =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
@@ -403,7 +407,7 @@ and ana_cursor_info_skel =
 }
 and ana_cursor_info_zoperand =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,

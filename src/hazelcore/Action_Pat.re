@@ -276,7 +276,9 @@ let rec syn_move =
     | Some(zp) => mk_syn_result(ctx, u_gen, zp)
     }
   | MoveToPrevHole =>
-    switch (CursorPath.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
+    switch (
+      CursorPath_common.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
@@ -285,7 +287,9 @@ let rec syn_move =
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
+    switch (
+      CursorPath_common.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
@@ -336,7 +340,9 @@ let rec ana_move =
     | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
     }
   | MoveToPrevHole =>
-    switch (CursorPath.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
+    switch (
+      CursorPath_common.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
@@ -345,7 +351,9 @@ let rec ana_move =
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))) {
+    switch (
+      CursorPath_common.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Pat.of_steps(steps, zp |> ZPat.erase)) {
