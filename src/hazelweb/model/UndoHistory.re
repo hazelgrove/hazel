@@ -23,6 +23,13 @@ type var_group =
     });
 
 [@deriving sexp]
+type swap_group =
+  | Up
+  | Down
+  | Left
+  | Right;
+
+[@deriving sexp]
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
@@ -30,6 +37,7 @@ type action_group =
   /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | SwapEdit(swap_group)
   | Init;
 
 [@deriving sexp]
@@ -179,8 +187,9 @@ let group_action_group =
   | (VarGroup(_), _) => false
   /* "insert" and "insert and delete" should be grouped together */
   | (DeleteEdit(Term(_, true)), VarGroup(Insert(_))) => true
-  | (DeleteEdit(_), _) => false
-  | (ConstructEdit(_), _) => false
+  | (DeleteEdit(_), _)
+  | (ConstructEdit(_), _)
+  | (SwapEdit(_), _)
   | (Init, _) => false
   };
 
@@ -818,15 +827,15 @@ let get_new_action_group =
 
       | SApPalette(_) => failwith("ApPalette is not implemented")
       }
+    | SwapUp => Some(SwapEdit(Up))
+    | SwapDown => Some(SwapEdit(Down))
+    | SwapLeft => Some(SwapEdit(Left))
+    | SwapRight => Some(SwapEdit(Right))
     | MoveTo(_)
     | MoveLeft
     | MoveRight
     | MoveToNextHole
     | MoveToPrevHole
-    | SwapUp /* what's that */
-    | SwapDown
-    | SwapLeft
-    | SwapRight
     | Init => None
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
