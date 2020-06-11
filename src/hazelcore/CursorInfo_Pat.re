@@ -71,7 +71,7 @@ and syn_cursor_info_zopseq =
            switch (acc) {
            | None => None
            | Some((rev_tys, ctx)) =>
-             switch (Statics.Pat.syn_skel(ctx, skel, seq)) {
+             switch (Statics_Pat.syn_skel(ctx, skel, seq)) {
              | None => None
              | Some((ty, ctx)) => Some(([ty, ...rev_tys], ctx))
              }
@@ -99,7 +99,7 @@ and syn_cursor_info_zopseq =
              switch (opt_ctx) {
              | None => None
              | Some(ctx) =>
-               Statics.Pat.syn_skel(ctx, skel, seq)
+               Statics_Pat.syn_skel(ctx, skel, seq)
                |> Option.map(((_, ctx)) => ctx)
              },
            Some(ctx),
@@ -133,7 +133,7 @@ and syn_cursor_info_skel =
         zoperand,
       )
     | ZOperator(_) =>
-      Statics.Pat.syn_skel(ctx, skel, seq)
+      Statics_Pat.syn_skel(ctx, skel, seq)
       |> OptUtil.map(((ty, _)) =>
            CursorInfo.CursorNotOnDeferredVarPat(
              CursorInfo.mk(
@@ -156,7 +156,7 @@ and syn_cursor_info_skel =
       switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.Hole)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics.Pat.ana_skel(ctx, skel1, seq, Hole)) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole)) {
         | None => None
         | Some(ctx) => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole)
         }
@@ -165,7 +165,7 @@ and syn_cursor_info_skel =
       switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics.Pat.syn_skel(ctx, skel1, seq)) {
+        switch (Statics_Pat.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some((ty_elt, ctx)) =>
           ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.List(ty_elt))
@@ -189,7 +189,7 @@ and syn_cursor_info_zoperand =
       ),
     )
   | CursorP(_, Var(NotInHole, NotInVarHole, x) as p) =>
-    Statics.Pat.syn_operand(ctx, p)
+    Statics_Pat.syn_operand(ctx, p)
     |> OptUtil.map(((ty, _)) =>
          CursorInfo.CursorOnDeferredVarPat(
            uses =>
@@ -203,7 +203,7 @@ and syn_cursor_info_zoperand =
          )
        )
   | CursorP(_, p) =>
-    Statics.Pat.syn_operand(ctx, p)
+    Statics_Pat.syn_operand(ctx, p)
     |> OptUtil.map(((ty, _)) =>
          CursorInfo.CursorNotOnDeferredVarPat(
            CursorInfo.mk(
@@ -266,7 +266,7 @@ and ana_cursor_info_zopseq =
       );
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-      Statics.Pat.syn_opseq(ctx, opseq')
+      Statics_Pat.syn_opseq(ctx, opseq')
       |> Option.map(((ty', _)) =>
            CursorInfo.CursorNotOnDeferredVarPat(
              CursorInfo.mk(
@@ -279,7 +279,7 @@ and ana_cursor_info_zopseq =
     };
   | _ =>
     // cursor in tuple element
-    switch (Statics.Pat.tuple_zip(skel, ty)) {
+    switch (Statics_Pat.tuple_zip(skel, ty)) {
     | None =>
       // wrong length, switch to syn
       let zopseq_not_in_hole =
@@ -295,7 +295,7 @@ and ana_cursor_info_zopseq =
              (opt_ctx, (skel, ty)) =>
                switch (opt_ctx) {
                | None => None
-               | Some(ctx) => Statics.Pat.ana_skel(ctx, skel, seq, ty)
+               | Some(ctx) => Statics_Pat.ana_skel(ctx, skel, seq, ty)
                },
              Some(ctx),
            );
@@ -339,7 +339,7 @@ and ana_cursor_info_skel =
       let err = UHPat.get_err_status_opseq(opseq);
       switch (err) {
       | NotInHole =>
-        Statics.Pat.ana_skel(ctx, skel, seq, ty)
+        Statics_Pat.ana_skel(ctx, skel, seq, ty)
         |> OptUtil.map(_ =>
              CursorInfo.CursorNotOnDeferredVarPat(
                CursorInfo.mk(
@@ -353,7 +353,7 @@ and ana_cursor_info_skel =
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
         let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-        Statics.Pat.syn_opseq(ctx, opseq')
+        Statics_Pat.syn_opseq(ctx, opseq')
         |> Option.map(((ty', _)) =>
              CursorInfo.CursorNotOnDeferredVarPat(
                CursorInfo.mk(
@@ -379,7 +379,7 @@ and ana_cursor_info_skel =
       switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, Hole)) {
       | Some(_) as res => res
       | None =>
-        switch (Statics.Pat.ana_skel(ctx, skel1, seq, Hole)) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Hole)) {
         | None => None
         | Some(ctx) => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Hole)
         }
@@ -391,7 +391,7 @@ and ana_cursor_info_skel =
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {
         | Some(_) as res => res
         | None =>
-          switch (Statics.Pat.ana_skel(ctx, skel1, seq, ty_elt)) {
+          switch (Statics_Pat.ana_skel(ctx, skel1, seq, ty_elt)) {
           | None => None
           | Some(ctx) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, List(ty_elt))
@@ -428,7 +428,7 @@ and ana_cursor_info_zoperand =
     | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-      switch (Statics.Pat.syn_operand(ctx, operand')) {
+      switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
       | Some((ty', _)) =>
         Some(
@@ -490,7 +490,7 @@ and ana_cursor_info_zoperand =
         ),
       )
     | Parenthesized(body) =>
-      Statics.Pat.ana(ctx, body, ty)
+      Statics_Pat.ana(ctx, body, ty)
       |> OptUtil.map(_ =>
            CursorInfo.CursorNotOnDeferredVarPat(
              CursorInfo.mk(PatAnalyzed(ty), ctx, cursor_term),

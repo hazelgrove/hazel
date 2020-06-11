@@ -33,26 +33,26 @@ type ana_success = (ZPat.t, Contexts.t, MetaVarGen.t);
 let mk_and_syn_fix_ZOpSeq =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq): syn_success => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
-  Statics.Pat.syn_fix_holes_z(ctx, u_gen, zopseq);
+  Statics_Pat.syn_fix_holes_z(ctx, u_gen, zopseq);
 };
 let mk_and_ana_fix_ZOpSeq =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
     : ana_success => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
-  Statics.Pat.ana_fix_holes_z(ctx, u_gen, zopseq, ty);
+  Statics_Pat.ana_fix_holes_z(ctx, u_gen, zopseq, ty);
 };
 
 let mk_syn_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : Action_common.Outcome.t(syn_success) =>
-  switch (Statics.Pat.syn(ctx, zp |> ZPat.erase)) {
+  switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
   | None => Failed
   | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
   };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : Action_common.Outcome.t(ana_success) =>
-  switch (Statics.Pat.ana(ctx, zp |> ZPat.erase, ty)) {
+  switch (Statics_Pat.ana(ctx, zp |> ZPat.erase, ty)) {
   | None => Failed
   | Some(ctx) => Succeeded((zp, ctx, u_gen))
   };
@@ -185,7 +185,7 @@ let syn_split_text =
       let zoperand = roperand |> ZPat.place_before_operand;
       ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, new_ze));
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 };
 let ana_split_text =
@@ -214,7 +214,7 @@ let ana_split_text =
       let zoperand = roperand |> ZPat.place_before_operand;
       ZPat.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
     };
-    Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
+    Succeeded(Statics_Pat.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
   };
 };
 
@@ -519,7 +519,7 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
-      Statics.Pat.syn_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq)
+      Statics_Pat.syn_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq)
     ) {
     | None => Failed
     | Some(Syn) =>
@@ -639,7 +639,7 @@ and syn_perform_operand =
       CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
     ) =>
     let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
-    Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor));
+    Succeeded(Statics_Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor));
 
   /* Construction */
 
@@ -716,7 +716,7 @@ and syn_perform_operand =
 
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));
-    switch (Statics.Pat.syn(ctx, zp |> ZPat.erase)) {
+    switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
     | Some((body_ty, ctx)) =>
       let ty =
@@ -870,7 +870,7 @@ and ana_perform_opseq =
         && !(zopseq |> has_Comma)
         && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
     let (opseq, ctx, u_gen) =
-      Statics.Pat.ana_fix_holes_opseq(
+      Statics_Pat.ana_fix_holes_opseq(
         ctx,
         u_gen,
         zopseq |> ZPat.erase_zopseq,
@@ -929,7 +929,7 @@ and ana_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
-      Statics.Pat.ana_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq, ty)
+      Statics_Pat.ana_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq, ty)
     ) {
     | None => Failed
     | Some(Syn) =>
@@ -994,7 +994,7 @@ and ana_perform_operand =
     let err = zp |> ZPat.erase |> UHPat.get_err_status;
     let zp' = zp |> ZPat.set_err_status(NotInHole);
     let p' = zp' |> ZPat.erase;
-    switch (Statics.Pat.syn(ctx, p')) {
+    switch (Statics_Pat.syn(ctx, p')) {
     | None => Failed
     | Some(_) =>
       switch (syn_perform(ctx, u_gen, a, zp')) {
@@ -1077,7 +1077,7 @@ and ana_perform_operand =
     ) =>
     let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
     Succeeded(
-      Statics.Pat.ana_fix_holes_z(ctx, u_gen, body |> place_cursor, ty),
+      Statics_Pat.ana_fix_holes_z(ctx, u_gen, body |> place_cursor, ty),
     );
 
   /* Construct */
@@ -1159,7 +1159,7 @@ and ana_perform_operand =
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       let (zbody, ctx, u_gen) =
-        Statics.Pat.ana_fix_holes_z(
+        Statics_Pat.ana_fix_holes_z(
           ctx,
           u_gen,
           ZOpSeq.wrap(zoperand),
@@ -1169,7 +1169,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     | None =>
       let (zbody, _, ctx, u_gen) =
-        Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zoperand));
+        Statics_Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zoperand));
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let zp =
         ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));

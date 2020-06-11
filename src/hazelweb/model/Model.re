@@ -125,7 +125,7 @@ let init = (): t => {
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics.edit_state =>
+let get_edit_state = (model: t): Statics_common.edit_state =>
   model |> get_program |> Program.get_edit_state;
 
 let get_cursor_info = (model: t): CursorInfo.t =>
@@ -305,7 +305,7 @@ let load_example = (model: t, e: UHExp.t): t =>
   |> put_program(
        Program.mk(
          ~width=model.cell_width,
-         Statics.Exp.fix_and_renumber_holes_z(
+         Statics_Exp.fix_and_renumber_holes_z(
            Contexts.empty,
            ZExp.place_before(e),
          ),
