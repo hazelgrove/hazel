@@ -88,6 +88,48 @@ let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
   | Caret => StringLit(n1 ++ n2)
   };
 
+let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
+  switch (d) {
+  | StringLit(s) =>
+    switch (x) {
+    | "length" => BoxedValue(IntLit(String.length(s)))
+    | "int_of_string" => BoxedValue(IntLit(int_of_string(s)))
+    | "bool_of_string" => BoxedValue(BoolLit(bool_of_string(s)))
+    | "float_of_string" => BoxedValue(FloatLit(float_of_string(s)))
+    | "trim" =>
+      print_endline("TRIM s=" ++ s);
+      BoxedValue(StringLit(String.trim(s)));
+    | "escaped" =>
+      print_endline("ESCAPED s=" ++ s);
+      BoxedValue(StringLit(String.escaped(s)));
+    | "equal" =>
+      BoxedValue(Lam(Var(x), String, BoolLit(String.equal(s, x))))
+    | "compare" =>
+      BoxedValue(Lam(Var(x), String, IntLit(String.compare(s, x))))
+    | _ => Indet(Ap(BuiltInLit(x), d))
+    }
+  | IntLit(n) =>
+    switch (x) {
+    | "string_of_int" => BoxedValue(StringLit(string_of_int(n)))
+    | "float_of_int" => BoxedValue(FloatLit(float_of_int(n)))
+    | _ => Indet(Ap(BuiltInLit(x), d))
+    }
+  | BoolLit(b) =>
+    switch (x) {
+    | "string_of_bool" => BoxedValue(StringLit(string_of_bool(b)))
+    | "assert" =>
+      b ? Indet(FailedAssert(d)) : BoxedValue(StringLit("assertion"))
+    | _ => Indet(Ap(BuiltInLit(x), d))
+    }
+  | FloatLit(n) =>
+    switch (x) {
+    | "string_of_float" => BoxedValue(StringLit(string_of_float(n)))
+    | "int_of_float" => BoxedValue(IntLit(int_of_float(n)))
+    | _ => Indet(Ap(BuiltInLit(x), d))
+    }
+  | _ => Indet(Ap(BuiltInLit(x), d))
+  };
+
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
@@ -112,12 +154,7 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(BuiltInLit(v)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d2') =>
-        switch (BuiltinFunctions.evaluate(v, d2')) {
-        | StringLit("Failed") => Indet(Ap(BuiltInLit(v), d2'))
-        | StringLit("assertion") => Indet(FailedAssert(d2))
-        | _ => BoxedValue(BuiltinFunctions.evaluate(v, d2'))
-        }
+      | BoxedValue(d2') => builtinfunctions_evaluate(v, d2')
       | Indet(d2) =>
         print_endline("Dynamics2228");
         Indet(Ap(d1, d2));

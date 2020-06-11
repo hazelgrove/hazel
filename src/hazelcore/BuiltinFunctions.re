@@ -15,59 +15,59 @@ let ctx: VarCtx.t = [
   ("assert", Arrow(Bool, Prod([]))),
 ];
 
-/* let shadowing_var = [("length", false), ("string_of_int", false)]; */
-
 let lookup = x => VarMap.lookup(ctx, x);
-/*
- let contains = x => VarMap.contains(ctx, x); */
 
-/* let shadow_extend = x =>
-   if (List.mem(x, shadowing_var) == false) {
-     [x, ...shadowing_var];
-   } else {
-     shadowing_var;
-   }; */
+let rec is_int_of_string_mix = (s, hex) =>
+  if (s == "") {
+    false;
+  } else if (String.length(s) == 1) {
+    if (s.[0] >= '0' && s.[0] <= hex) {
+      true;
+    } else {
+      false;
+    };
+  } else if (s.[0] >= '0' && s.[0] <= hex) {
+    is_int_of_string_mix(String.sub(s, 1, String.length(s) - 1), hex);
+  } else {
+    false;
+  };
 
-// let is_int_of_string = s =>
+let rec is_int_of_string_hex = s =>
+  if (s == "") {
+    false;
+  } else if (String.length(s) == 1) {
+    let ch1 = Char.lowercase_ascii(s.[0]);
+    if (ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f') {
+      true;
+    } else {
+      false;
+    };
+  } else {
+    let ch1 = Char.lowercase_ascii(s.[0]);
+    if (ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f') {
+      is_int_of_string_hex(String.sub(s, 1, String.length(s) - 1));
+    } else {
+      false;
+    };
+  };
 
-let evaluate = (x: string, d: DHExp.t): Evaluator.result =>
-  switch (d) {
-  | StringLit(s) =>
-    switch (x) {
-    | "length" => BoxedValue(IntLit(String.length(s)))
-    | "int_of_string" => BoxedValue(IntLit(int_of_string(s)))
-    | "bool_of_string" => BoxedValue(BoolLit(bool_of_string(s)))
-    | "float_of_string" => BoxedValue(FloatLit(float_of_string(s)))
-    | "trim" =>
-      print_endline("TRIM s=" ++ s);
-      BoxedValue(StringLit(String.trim(s)));
-    | "escaped" =>
-      print_endline("ESCAPED s=" ++ s);
-      BoxedValue(StringLit(String.escaped(s)));
-    | "equal" =>
-      BoxedValue(Lam(Var(x), String, BoolLit(String.equal(s, x))))
-    | "compare" =>
-      BoxedValue(Lam(Var(x), String, IntLit(String.compare(s, x))))
-    | _ => Indet(Ap(BoxedValue(x), d))
-    }
-  | IntLit(n) =>
-    switch (x) {
-    | "string_of_int" => BoxedValue(StringLit(string_of_int(n)))
-    | "float_of_int" => BoxedValue(FloatLit(float_of_int(n)))
-    | _ => Indet(Ap(BuiltInLit(x), d))
-    }
-  | BoolLit(b) =>
-    switch (x) {
-    | "string_of_bool" => BoxedValue(StringLit(string_of_bool(b)))
-    | "assert" =>
-      b ? Indet(Ap(BuiltInLit(x), d)) : BoxedValue(StringLit("assertion"))
-    | _ => Indet(Ap(BuiltInLit(x), d))
-    }
-  | FloatLit(n) =>
-    switch (x) {
-    | "string_of_float" => BoxedValue(StringLit(string_of_float(n)))
-    | "int_of_float" => BoxedValue(IntLit(int_of_float(n)))
-    | _ => Indet(Ap(BuiltInLit(x), d))
-    }
-  | _ => Indet(Ap(BuiltInLit(x), d))
+let is_int_of_string = s =>
+  if (s == "") {
+    false;
+  } else if (String.length(s) == 1) {
+    if (s.[0] >= '0' && s.[0] <= '9') {
+      true;
+    } else {
+      false;
+    };
+  } else {
+    let hex = String.sub(s, 0, 2);
+    switch (hex) {
+    | "0b" =>
+      is_int_of_string_mix(String.sub(s, 2, String.length(s) - 2), '1')
+    | "0o" =>
+      is_int_of_string_mix(String.sub(s, 2, String.length(s) - 2), '7')
+    | "0x" => is_int_of_string_hex(String.sub(s, 2, String.length(s) - 2))
+    | _ => is_int_of_string_mix(String.sub(s, 2, String.length(s) - 2), '9')
+    };
   };
