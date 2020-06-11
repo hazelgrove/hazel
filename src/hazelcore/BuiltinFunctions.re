@@ -8,8 +8,8 @@ let ctx: VarCtx.t = [
   ("float_of_string", Arrow(String, Float)),
   ("int_of_float", Arrow(Float, Int)),
   ("float_of_int", Arrow(Int, Float)),
-  ("equal", Arrow(Arrow(String, String), Bool)),
-  ("compare", Arrow(Arrow(String, String), Int)),
+  ("equal", Arrow(String, Arrow(String, Bool))),
+  ("compare", Arrow(String, Arrow(String, Int))),
   ("trim", Arrow(String, String)),
   ("escaped", Arrow(String, String)),
 ];
@@ -27,40 +27,44 @@ let lookup = x => VarMap.lookup(ctx, x);
      shadowing_var;
    }; */
 
-let evaluate = (x: string, d: DHExp.t): DHExp.t =>
+// let is_int_of_string = s =>
+
+let evaluate = (x: string, d: DHExp.t): Dynamics.Evaluator.result =>
   switch (d) {
   | StringLit(s) =>
     switch (x) {
-    | "length" => IntLit(String.length(s))
-    | "int_of_string" => IntLit(int_of_string(s))
-    | "bool_of_string" => BoolLit(bool_of_string(s))
-    | "float_of_string" => FloatLit(float_of_string(s))
+    | "length" => BoxedValue(IntLit(String.length(s)))
+    | "int_of_string" => BoxedValue(IntLit(int_of_string(s)))
+    | "bool_of_string" => BoxedValue(BoolLit(bool_of_string(s)))
+    | "float_of_string" => BoxedValue(FloatLit(float_of_string(s)))
     | "trim" =>
       print_endline("TRIM s=" ++ s);
-      StringLit(String.trim(s));
+      BoxedValue(StringLit(String.trim(s)));
     | "escaped" =>
       print_endline("ESCAPED s=" ++ s);
-      StringLit(String.escaped(s));
-    | "equal"
-    | "compare"
-    | _ => Triv
+      BoxedValue(StringLit(String.escaped(s)));
+    | "equal" =>
+      BoxedValue(Lam(Var(x), String, BoolLit(String.equal(s, x))))
+    | "compare" =>
+      BoxedValue(Lam(Var(x), String, IntLit(String.compare(s, x))))
+    | _ => Indet(BuiltInLit(x), d)
     }
   | IntLit(n) =>
     switch (x) {
-    | "string_of_int" => StringLit(string_of_int(n))
-    | "float_of_int" => FloatLit(float_of_int(n))
-    | _ => Triv
+    | "string_of_int" => BoxedValue(StringLit(string_of_int(n)))
+    | "float_of_int" => BoxedValue(FloatLit(float_of_int(n)))
+    | _ => Indet(BuiltInLit(x), d)
     }
   | BoolLit(b) =>
     switch (x) {
-    | "string_of_bool" => StringLit(string_of_bool(b))
-    | _ => Triv
+    | "string_of_bool" => BoxedValue(StringLit(string_of_bool(b)))
+    | _ => Indet(BuiltInLit(x), d)
     }
   | FloatLit(n) =>
     switch (x) {
-    | "string_of_float" => StringLit(string_of_float(n))
-    | "int_of_float" => IntLit(int_of_float(n))
-    | _ => Triv
+    | "string_of_float" => BoxedValue(StringLit(string_of_float(n)))
+    | "int_of_float" => BoxedValue(IntLit(int_of_float(n)))
+    | _ => Indet(BuiltInLit(x), d)
     }
-  | _ => Triv
+  | _ => Indet(BuiltInLit(x), d)
   };
