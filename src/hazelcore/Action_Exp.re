@@ -45,7 +45,7 @@ let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
   |> ZExp.erase_zseq
   |> Seq.operators
-  |> List.exists(op => op == Operators.Exp.Comma);
+  |> List.exists(op => op == Operators_Exp.Comma);
 
 let mk_and_syn_fix_OpSeq =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, seq: UHExp.seq)
@@ -99,7 +99,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action_common.t =>
 //TBD
 let delete_operator =
   Action_common.delete_operator_(
-    ~space=Operators.Exp.Space,
+    ~space=Operators_Exp.Space,
     ~is_EmptyHole=UHExp.is_EmptyHole,
     ~place_before_operand=ZExp.place_before_operand,
     ~place_after_operand=ZExp.place_after_operand,
@@ -109,7 +109,7 @@ let delete_operator =
 //TBD
 let construct_operator_before_zoperand =
   Action_common.construct_operator_before_zoperand_(
-    ~is_Space=Operators.Exp.is_Space,
+    ~is_Space=Operators_Exp.is_Space,
     ~new_EmptyHole=UHExp.new_EmptyHole,
     ~erase_zoperand=ZExp.erase_zoperand,
     ~place_before_operand=ZExp.place_before_operand,
@@ -119,7 +119,7 @@ let construct_operator_before_zoperand =
 //TBD
 let construct_operator_after_zoperand =
   Action_common.construct_operator_after_zoperand_(
-    ~is_Space=Operators.Exp.is_Space,
+    ~is_Space=Operators_Exp.is_Space,
     ~new_EmptyHole=UHExp.new_EmptyHole,
     ~erase_zoperand=ZExp.erase_zoperand,
     ~place_before_operand=ZExp.place_before_operand,
@@ -130,8 +130,8 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
-    ~comma=Operators.Exp.Comma,
-    ~zcomma=(OnOp(After), Operators.Exp.Comma),
+    ~comma=Operators_Exp.Comma,
+    ~zcomma=(OnOp(After), Operators_Exp.Comma),
     ~new_EmptyHole=UHExp.new_EmptyHole,
   );
 
@@ -1087,13 +1087,13 @@ and syn_perform_opseq =
     ) =>
     let new_operator = {
       switch (oper) {
-      | Operators.Exp.FPlus => Some(Operators.Exp.Plus)
-      | Operators.Exp.FMinus => Some(Operators.Exp.Minus)
-      | Operators.Exp.FTimes => Some(Operators.Exp.Times)
-      | Operators.Exp.FDivide => Some(Operators.Exp.Divide)
-      | Operators.Exp.FLessThan => Some(Operators.Exp.LessThan)
-      | Operators.Exp.FGreaterThan => Some(Operators.Exp.GreaterThan)
-      | Operators.Exp.FEquals => Some(Operators.Exp.Equals)
+      | Operators_Exp.FPlus => Some(Operators_Exp.Plus)
+      | Operators_Exp.FMinus => Some(Operators_Exp.Minus)
+      | Operators_Exp.FTimes => Some(Operators_Exp.Times)
+      | Operators_Exp.FDivide => Some(Operators_Exp.Divide)
+      | Operators_Exp.FLessThan => Some(Operators_Exp.LessThan)
+      | Operators_Exp.FGreaterThan => Some(Operators_Exp.GreaterThan)
+      | Operators_Exp.FEquals => Some(Operators_Exp.Equals)
       | _ => None
       };
     };
@@ -1151,13 +1151,13 @@ and syn_perform_opseq =
   | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
     let new_operator = {
       switch (oper) {
-      | Operators.Exp.Plus => Some(Operators.Exp.FPlus)
-      | Operators.Exp.Minus => Some(Operators.Exp.FMinus)
-      | Operators.Exp.Times => Some(Operators.Exp.FTimes)
-      | Operators.Exp.Divide => Some(Operators.Exp.FDivide)
-      | Operators.Exp.LessThan => Some(Operators.Exp.FLessThan)
-      | Operators.Exp.GreaterThan => Some(Operators.Exp.FGreaterThan)
-      | Operators.Exp.Equals => Some(Operators.Exp.FEquals)
+      | Operators_Exp.Plus => Some(Operators_Exp.FPlus)
+      | Operators_Exp.Minus => Some(Operators_Exp.FMinus)
+      | Operators_Exp.Times => Some(Operators_Exp.FTimes)
+      | Operators_Exp.Divide => Some(Operators_Exp.FDivide)
+      | Operators_Exp.LessThan => Some(Operators_Exp.FLessThan)
+      | Operators_Exp.GreaterThan => Some(Operators_Exp.FGreaterThan)
+      | Operators_Exp.Equals => Some(Operators_Exp.FEquals)
       | _ => None
       };
     };
@@ -2430,13 +2430,13 @@ and ana_perform_opseq =
     ) =>
     let new_operator = {
       switch (oper) {
-      | Operators.Exp.FPlus => Some(Operators.Exp.Plus)
-      | Operators.Exp.FMinus => Some(Operators.Exp.Minus)
-      | Operators.Exp.FTimes => Some(Operators.Exp.Times)
-      | Operators.Exp.FDivide => Some(Operators.Exp.Divide)
-      | Operators.Exp.FLessThan => Some(Operators.Exp.LessThan)
-      | Operators.Exp.FGreaterThan => Some(Operators.Exp.GreaterThan)
-      | Operators.Exp.FEquals => Some(Operators.Exp.Equals)
+      | Operators_Exp.FPlus => Some(Operators_Exp.Plus)
+      | Operators_Exp.FMinus => Some(Operators_Exp.Minus)
+      | Operators_Exp.FTimes => Some(Operators_Exp.Times)
+      | Operators_Exp.FDivide => Some(Operators_Exp.Divide)
+      | Operators_Exp.FLessThan => Some(Operators_Exp.LessThan)
+      | Operators_Exp.FGreaterThan => Some(Operators_Exp.GreaterThan)
+      | Operators_Exp.FEquals => Some(Operators_Exp.Equals)
       | _ => None
       };
     };
@@ -2509,13 +2509,13 @@ and ana_perform_opseq =
   | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
     let new_operator = {
       switch (oper) {
-      | Operators.Exp.Plus => Some(Operators.Exp.FPlus)
-      | Operators.Exp.Minus => Some(Operators.Exp.FMinus)
-      | Operators.Exp.Times => Some(Operators.Exp.FTimes)
-      | Operators.Exp.Divide => Some(Operators.Exp.FDivide)
-      | Operators.Exp.LessThan => Some(Operators.Exp.FLessThan)
-      | Operators.Exp.GreaterThan => Some(Operators.Exp.FGreaterThan)
-      | Operators.Exp.Equals => Some(Operators.Exp.FEquals)
+      | Operators_Exp.Plus => Some(Operators_Exp.FPlus)
+      | Operators_Exp.Minus => Some(Operators_Exp.FMinus)
+      | Operators_Exp.Times => Some(Operators_Exp.FTimes)
+      | Operators_Exp.Divide => Some(Operators_Exp.FDivide)
+      | Operators_Exp.LessThan => Some(Operators_Exp.FLessThan)
+      | Operators_Exp.GreaterThan => Some(Operators_Exp.FGreaterThan)
+      | Operators_Exp.Equals => Some(Operators_Exp.FEquals)
       | _ => None
       };
     };

@@ -437,7 +437,7 @@ and holes_line =
     |> CursorPath.holes_opseq(
          ~holes_operand,
          ~hole_desc,
-         ~is_space=Operators.Exp.is_Space,
+         ~is_space=Operators_Exp.is_Space,
          ~rev_steps,
          opseq,
        )
@@ -617,7 +617,7 @@ and holes_zopseq =
     ~holes_operand,
     ~holes_zoperand,
     ~hole_desc,
-    ~is_space=Operators.Exp.is_Space,
+    ~is_space=Operators_Exp.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZExp.erase_zopseq,
     zopseq,

@@ -25,7 +25,7 @@ let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   zseq
   |> ZPat.erase_zseq
   |> Seq.operators
-  |> List.exists(op => op == Operators.Pat.Comma);
+  |> List.exists(op => op == Operators_Pat.Comma);
 
 type syn_success = (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
 type ana_success = (ZPat.t, Contexts.t, MetaVarGen.t);
@@ -220,7 +220,7 @@ let ana_split_text =
 
 let delete_operator =
   Action_common.delete_operator_(
-    ~space=Operators.Pat.Space,
+    ~space=Operators_Pat.Space,
     ~is_EmptyHole=UHPat.is_EmptyHole,
     ~place_before_operand=ZPat.place_before_operand,
     ~place_after_operand=ZPat.place_after_operand,
@@ -229,7 +229,7 @@ let delete_operator =
 
 let construct_operator_before_zoperand =
   Action_common.construct_operator_before_zoperand_(
-    ~is_Space=Operators.Pat.is_Space,
+    ~is_Space=Operators_Pat.is_Space,
     ~new_EmptyHole=UHPat.new_EmptyHole,
     ~erase_zoperand=ZPat.erase_zoperand,
     ~place_before_operand=ZPat.place_before_operand,
@@ -237,7 +237,7 @@ let construct_operator_before_zoperand =
   );
 let construct_operator_after_zoperand =
   Action_common.construct_operator_after_zoperand_(
-    ~is_Space=Operators.Pat.is_Space,
+    ~is_Space=Operators_Pat.is_Space,
     ~new_EmptyHole=UHPat.new_EmptyHole,
     ~erase_zoperand=ZPat.erase_zoperand,
     ~place_before_operand=ZPat.place_before_operand,
@@ -247,8 +247,8 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
-    ~comma=Operators.Pat.Comma,
-    ~zcomma=(OnOp(After), Operators.Pat.Comma),
+    ~comma=Operators_Pat.Comma,
+    ~zcomma=(OnOp(After), Operators_Pat.Comma),
     ~new_EmptyHole=UHPat.new_EmptyHole,
   );
 
