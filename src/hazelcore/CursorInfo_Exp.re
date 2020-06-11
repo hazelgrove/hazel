@@ -245,7 +245,7 @@ let rec syn_cursor_info =
 }
 and syn_cursor_info_zblock =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
     )
@@ -270,7 +270,7 @@ and syn_cursor_info_zblock =
     }
   }
 and syn_cursor_info_line =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zline: ZExp.zline)
+    (~steps: CursorPath_common.steps, ctx: Contexts.t, zline: ZExp.zline)
     : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
   switch (zline) {
   | CursorL(_) =>
@@ -325,7 +325,7 @@ and syn_cursor_info_line =
   }
 and syn_cursor_info_zopseq =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
     )
@@ -358,7 +358,7 @@ and syn_cursor_info_zopseq =
 }
 and syn_cursor_info_skel =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
@@ -493,7 +493,11 @@ and syn_cursor_info_skel =
   };
 }
 and syn_cursor_info_zoperand =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZExp.zoperand)
+    (
+      ~steps: CursorPath_common.steps,
+      ctx: Contexts.t,
+      zoperand: ZExp.zoperand,
+    )
     : option(CursorInfo_common.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
@@ -599,7 +603,7 @@ and ana_cursor_info =
   ana_cursor_info_zblock(~steps, ctx, ze, ty)
 and ana_cursor_info_zblock =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       (prefix, zline, suffix): ZExp.zblock,
       ty: HTyp.t,
@@ -647,7 +651,7 @@ and ana_cursor_info_zblock =
   }
 and ana_cursor_info_zopseq =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
       ty: HTyp.t,
@@ -702,7 +706,7 @@ and ana_cursor_info_zopseq =
 and ana_cursor_info_skel =
     // steps of whole opseq
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       skel: UHExp.skel,
       zseq: ZExp.zseq,
@@ -790,7 +794,7 @@ and ana_cursor_info_skel =
 }
 and ana_cursor_info_zoperand =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       zoperand: ZExp.zoperand,
       ty: HTyp.t,
@@ -974,7 +978,7 @@ and ana_cursor_info_zoperand =
 }
 and syn_cursor_info_rule =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
@@ -1014,7 +1018,7 @@ and syn_cursor_info_rule =
   }
 and ana_cursor_info_rule =
     (
-      ~steps: CursorPath.steps,
+      ~steps: CursorPath_common.steps,
       ctx: Contexts.t,
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,

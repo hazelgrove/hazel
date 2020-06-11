@@ -1,20 +1,20 @@
 type cls = string;
 
 [@deriving sexp]
-type delim_path = (CursorPath.steps, DelimIndex.t);
+type delim_path = (CursorPath_common.steps, DelimIndex.t);
 [@deriving sexp]
-type op_path = (CursorPath.steps, OpIndex.t);
+type op_path = (CursorPath_common.steps, OpIndex.t);
 
 let cell_id = "cell";
 
 let text_id = steps =>
-  "text__" ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps));
+  "text__" ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps));
 let path_id = path =>
-  "path__" ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path));
+  "path__" ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path));
 
 let multi_line_skel_hole_id = (steps, (a, b), i) =>
   "multi_line_skel_hole__"
-  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -25,7 +25,7 @@ let multi_line_skel_hole_id = (steps, (a, b), i) =>
   ++ string_of_int(i);
 let single_line_skel_hole_id = (steps, (a, b)) =>
   "multi_line_skel_hole__"
-  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -35,7 +35,7 @@ let single_line_skel_hole_id = (steps, (a, b)) =>
 
 let multi_line_ap_hole_id = (steps, (a, b), i) =>
   "multi_line_ap_hole__"
-  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -46,7 +46,7 @@ let multi_line_ap_hole_id = (steps, (a, b), i) =>
   ++ string_of_int(i);
 let single_line_ap_hole_id = (steps, (a, b)) =>
   "multi_line_ap_hole__"
-  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -59,7 +59,7 @@ let steps_of_text_id = s =>
     None;
   } else {
     Some(
-      CursorPath.steps_of_sexp(
+      CursorPath_common.steps_of_sexp(
         Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
       ),
     );
@@ -69,7 +69,7 @@ let path_of_path_id = s =>
     None;
   } else {
     Some(
-      CursorPath.t_of_sexp(
+      CursorPath_common.t_of_sexp(
         Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
       ),
     );

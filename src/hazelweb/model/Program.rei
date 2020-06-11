@@ -21,8 +21,8 @@ let put_edit_state: (Statics_common.edit_state, t) => t;
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
-let get_path: t => CursorPath.t;
-let get_steps: t => CursorPath.steps;
+let get_path: t => CursorPath_common.t;
+let get_steps: t => CursorPath_common.steps;
 
 let get_u_gen: t => MetaVarGen.t;
 
@@ -59,7 +59,8 @@ let move_via_click:
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
-let move_to_case_branch: (CursorPath.steps, int, t) => (t, Action_common.t);
+let move_to_case_branch:
+  (CursorPath_common.steps, int, t) => (t, Action_common.t);
 
 let get_doc:
   (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc_common.t;

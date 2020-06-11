@@ -1,22 +1,27 @@
-let rec of_z = (zp: ZPat.t): CursorPath.t => of_zopseq(zp)
-and of_zopseq = (zopseq: ZPat.zopseq): CursorPath.t =>
-  CursorPath.of_zopseq_(~of_zoperand, zopseq)
+let rec of_z = (zp: ZPat.t): CursorPath_common.t => of_zopseq(zp)
+and of_zopseq = (zopseq: ZPat.zopseq): CursorPath_common.t =>
+  CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand =
   fun
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody)
-  | InjZ(_, _, zbody) => CursorPath.cons'(0, of_z(zbody))
+  | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
 
-let rec follow = (path: CursorPath.t, p: UHPat.t): option(ZPat.t) =>
+let rec follow = (path: CursorPath_common.t, p: UHPat.t): option(ZPat.t) =>
   follow_opseq(path, p)
 and follow_opseq =
-    (path: CursorPath.t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
-  CursorPath.follow_opseq_(~follow_operand, ~follow_operator, path, opseq)
+    (path: CursorPath_common.t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
+  CursorPath_common.follow_opseq_(
+    ~follow_operand,
+    ~follow_operator,
+    path,
+    opseq,
+  )
 and follow_operand =
-    ((steps, cursor): CursorPath.t, operand: UHPat.operand)
+    ((steps, cursor): CursorPath_common.t, operand: UHPat.operand)
     : option(ZPat.zoperand) =>
   switch (steps) {
   | [] => operand |> ZPat.place_cursor_operand(cursor)
@@ -48,7 +53,7 @@ and follow_operand =
     }
   }
 and follow_operator =
-    ((steps, cursor): CursorPath.t, operator: UHPat.operator)
+    ((steps, cursor): CursorPath_common.t, operator: UHPat.operator)
     : option(ZPat.zoperator) =>
   switch (steps) {
   | [] => operator |> ZPat.place_cursor_operator(cursor)
@@ -56,13 +61,13 @@ and follow_operator =
   };
 
 let rec of_steps =
-        (steps: CursorPath.steps, ~side: Side.t=Before, p: UHPat.t)
-        : option(CursorPath.t) =>
+        (steps: CursorPath_common.steps, ~side: Side.t=Before, p: UHPat.t)
+        : option(CursorPath_common.t) =>
   of_steps_opseq(steps, ~side, p)
 and of_steps_opseq =
-    (steps: CursorPath.steps, ~side: Side.t, opseq: UHPat.opseq)
-    : option(CursorPath.t) =>
-  CursorPath.of_steps_opseq_(
+    (steps: CursorPath_common.steps, ~side: Side.t, opseq: UHPat.opseq)
+    : option(CursorPath_common.t) =>
+  CursorPath_common.of_steps_opseq_(
     ~of_steps_operand,
     ~of_steps_operator,
     steps,
@@ -70,8 +75,8 @@ and of_steps_opseq =
     opseq,
   )
 and of_steps_operand =
-    (steps: CursorPath.steps, ~side: Side.t, operand: UHPat.operand)
-    : option(CursorPath.t) =>
+    (steps: CursorPath_common.steps, ~side: Side.t, operand: UHPat.operand)
+    : option(CursorPath_common.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -94,7 +99,7 @@ and of_steps_operand =
       | 0 =>
         body
         |> of_steps(xs, ~side)
-        |> OptUtil.map(path => CursorPath.cons'(0, path))
+        |> OptUtil.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
     | Inj(_, _, body) =>
@@ -102,14 +107,14 @@ and of_steps_operand =
       | 0 =>
         body
         |> of_steps(xs, ~side)
-        |> OptUtil.map(path => CursorPath.cons'(0, path))
+        |> OptUtil.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
     }
   }
 and of_steps_operator =
-    (steps: CursorPath.steps, ~side: Side.t, operator: UHPat.operator)
-    : option(CursorPath.t) =>
+    (steps: CursorPath_common.steps, ~side: Side.t, operator: UHPat.operator)
+    : option(CursorPath_common.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -124,17 +129,17 @@ and of_steps_operator =
   | [_, ..._] => None
   };
 
-let hole_desc = (u: MetaVar.t): CursorPath.hole_desc => PatHole(u);
+let hole_desc = (u: MetaVar.t): CursorPath_common.hole_desc => PatHole(u);
 
 let rec holes =
         (
           p: UHPat.t,
-          rev_steps: CursorPath.rev_steps,
-          hs: CursorPath.hole_list,
+          rev_steps: CursorPath_common.rev_steps,
+          hs: CursorPath_common.hole_list,
         )
-        : CursorPath.hole_list =>
+        : CursorPath_common.hole_list =>
   hs
-  |> CursorPath.holes_opseq(
+  |> CursorPath_common.holes_opseq(
        ~holes_operand,
        ~hole_desc,
        ~is_space=Operators_Pat.is_Space,
@@ -144,10 +149,10 @@ let rec holes =
 and holes_operand =
     (
       operand: UHPat.operand,
-      rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hole_list,
+      rev_steps: CursorPath_common.rev_steps,
+      hs: CursorPath_common.hole_list,
     )
-    : CursorPath.hole_list =>
+    : CursorPath_common.hole_list =>
   switch (operand) {
   | EmptyHole(u)
   | Wild(InHole(_, u))
@@ -173,12 +178,13 @@ and holes_operand =
   };
 
 let rec holes_z =
-        (zp: ZPat.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
+        (zp: ZPat.t, rev_steps: CursorPath_common.rev_steps)
+        : CursorPath_common.zhole_list =>
   holes_zopseq(zp, rev_steps)
 and holes_zopseq =
-    (zopseq: ZPat.zopseq, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhole_list =>
-  CursorPath.holes_zopseq_(
+    (zopseq: ZPat.zopseq, rev_steps: CursorPath_common.rev_steps)
+    : CursorPath_common.zhole_list =>
+  CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
     ~hole_desc,
@@ -188,21 +194,21 @@ and holes_zopseq =
     zopseq,
   )
 and holes_zoperand =
-    (zoperand: ZPat.zoperand, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhole_list =>
+    (zoperand: ZPat.zoperand, rev_steps: CursorPath_common.rev_steps)
+    : CursorPath_common.zhole_list =>
   switch (zoperand) {
-  | CursorP(OnOp(_), _) => CursorPath.no_holes
+  | CursorP(OnOp(_), _) => CursorPath_common.no_holes
   | CursorP(_, EmptyHole(u)) =>
-    CursorPath.mk_zholes(
+    CursorPath_common.mk_zholes(
       ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
       (),
     )
   | CursorP(_, Var(err, verr, _)) =>
     switch (err, verr) {
-    | (NotInHole, NotInVarHole) => CursorPath.no_holes
+    | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
     | (InHole(_, u), _)
     | (_, InVarHole(_, u)) =>
-      CursorPath.mk_zholes(
+      CursorPath_common.mk_zholes(
         ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
         (),
       )
@@ -213,9 +219,9 @@ and holes_zoperand =
   | CursorP(_, BoolLit(err, _))
   | CursorP(_, ListNil(err)) =>
     switch (err) {
-    | NotInHole => CursorPath.no_holes
+    | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
-      CursorPath.mk_zholes(
+      CursorPath_common.mk_zholes(
         ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
         (),
       )
@@ -223,25 +229,32 @@ and holes_zoperand =
   | CursorP(OnDelim(k, _), Parenthesized(body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
-    | 0 => CursorPath.mk_zholes(~holes_before=body_holes, ())
-    | 1 => CursorPath.mk_zholes(~holes_after=body_holes, ())
-    | _ => CursorPath.no_holes
+    | 0 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
+    | 1 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
+    | _ => CursorPath_common.no_holes
     };
   | CursorP(OnDelim(k, _), Inj(err, _, body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     let hole_selected =
       switch (err) {
       | NotInHole => None
-      | InHole(_, u) => Some((CursorPath.PatHole(u), rev_steps |> List.rev))
+      | InHole(_, u) =>
+        Some((CursorPath_common.PatHole(u), rev_steps |> List.rev))
       };
     switch (k) {
-    | 0 => CursorPath.mk_zholes(~holes_before=body_holes, ~hole_selected, ())
-    | 1 => CursorPath.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
-    | _ => CursorPath.no_holes
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=body_holes,
+        ~hole_selected,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
+    | _ => CursorPath_common.no_holes
     };
   | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _)) =>
     // invalid cursor position
-    CursorPath.no_holes
+    CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | InjZ(err, _, zbody) =>
     let zbody_holes = holes_z(zbody, [0, ...rev_steps]);

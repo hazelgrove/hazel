@@ -121,7 +121,7 @@ exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program |> get_edit_state;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
-  switch (CursorPath.steps_to_hole(holes, u)) {
+  switch (CursorPath_common.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>
     let e = ZExp.erase(ze);
@@ -191,7 +191,9 @@ let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
                 failwith(
                   __LOC__
                   ++ ": could not find var use"
-                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+                  ++ Sexplib.Sexp.to_string(
+                       CursorPath_common.sexp_of_steps(use),
+                     ),
                 )
               }),
          l,
@@ -274,7 +276,7 @@ let move_via_click =
          ~memoize_doc,
        )
     |> CursorMap.find_nearest_within_row(row_col);
-  let path = CursorPath.rev(rev_path);
+  let path = CursorPath_common.rev(rev_path);
   let new_program =
     program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
   (new_program, MoveTo(path));
@@ -320,7 +322,7 @@ let move_via_key =
   switch (new_z) {
   | None => raise(CursorEscaped)
   | Some((_, rev_path)) =>
-    let path = CursorPath.rev(rev_path);
+    let path = CursorPath_common.rev(rev_path);
     let new_program =
       program |> update_start_col |> perform_edit_action(MoveTo(path));
     (new_program, MoveTo(path));
