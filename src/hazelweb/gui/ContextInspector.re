@@ -76,18 +76,22 @@ let view =
       if (model.compute_results.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
-        | None => Dynamics_Exp.id_env(ctx)
+
+        | None => Elaborator.Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
-            Dynamics_Exp.id_env(ctx);
+
+            Elaborator.Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Dynamics_Exp.id_env(ctx);
+
+        Elaborator.Exp.id_env(ctx);
+
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
