@@ -137,7 +137,7 @@ let rec holes =
   |> CursorPath.holes_opseq(
        ~holes_operand,
        ~hole_desc,
-       ~is_space=Operators.Pat.is_Space,
+       ~is_space=Operators_Pat.is_Space,
        ~rev_steps,
        p,
      )
@@ -182,7 +182,7 @@ and holes_zopseq =
     ~holes_operand,
     ~holes_zoperand,
     ~hole_desc,
-    ~is_space=Operators.Pat.is_Space,
+    ~is_space=Operators_Pat.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZPat.erase_zopseq,
     zopseq,

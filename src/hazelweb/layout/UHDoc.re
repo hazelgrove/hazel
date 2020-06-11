@@ -538,7 +538,7 @@ module Typ = {
       )
     )
   and mk_operator = (op: UHTyp.operator): t =>
-    mk_op(Operators.Typ.to_string(op))
+    mk_op(Operators_Typ.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
@@ -624,8 +624,8 @@ module Pat = {
       )
     )
   and mk_operator = (op: UHPat.operator): t =>
-    op |> Operators.Pat.is_Space
-      ? mk_space_op : mk_op(Operators.Pat.to_string(op))
+    op |> Operators_Pat.is_Space
+      ? mk_space_op : mk_op(Operators_Pat.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
@@ -797,8 +797,8 @@ module Exp = {
       )
     )
   and mk_operator = (op: UHExp.operator): t =>
-    op |> Operators.Exp.is_Space
-      ? mk_space_op : mk_op(Operators.Exp.to_string(op))
+    op |> Operators_Exp.is_Space
+      ? mk_space_op : mk_op(Operators_Exp.to_string(op))
   and mk_operand =
     lazy(
       memoize((~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
