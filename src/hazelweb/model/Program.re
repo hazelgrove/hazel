@@ -74,8 +74,7 @@ exception DoesNotElaborate;
 let expand =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator.Exp.syn_elab(Contexts.empty, Delta.empty),
-
+    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
   );
 let get_expansion = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
@@ -91,12 +90,11 @@ let get_result = (program: t): Result.t =>
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
-
-      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) =
-      Elaborator.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
 
     (d_renumbered, hii, Indet(d_renumbered));
   };
