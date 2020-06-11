@@ -99,8 +99,18 @@ let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
       } else {
         Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToInt));
       }
-    | "bool_of_string" => BoxedValue(BoolLit(bool_of_string(s)))
-    | "float_of_string" => BoxedValue(FloatLit(float_of_string(s)))
+    | "bool_of_string" =>
+      if (BuiltinFunctions.is_bool_of_string(s)) {
+        BoxedValue(BoolLit(bool_of_string(s)));
+      } else {
+        Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToBool));
+      }
+    | "float_of_string" =>
+      if (BuiltinFunctions.is_float_of_string(s)) {
+        BoxedValue(FloatLit(float_of_string(s)));
+      } else {
+        Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToFloat));
+      }
     | "trim" =>
       print_endline("TRIM s=" ++ s);
       BoxedValue(StringLit(String.trim(s)));
