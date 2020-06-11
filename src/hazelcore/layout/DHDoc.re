@@ -255,6 +255,7 @@ module Exp = {
     | BoundVar(_)
     | FreeVar(_)
     | BuiltInLit(_)
+    | FailedAssert(_)
     | Keyword(_)
     | BoolLit(_)
     | IntLit(_)
@@ -511,6 +512,12 @@ module Exp = {
           hcats([d_doc, cast_decoration]);
         | FailedCast(_d, _ty1, _ty2) =>
           failwith("unexpected FailedCast without inner cast")
+        | FailedAssert(x) =>
+          let (d_doc, _) = go'(x);
+          let decoration =
+            Doc.text("assertion failure")
+            |> annot(DHAnnot.InvalidOpDecoration);
+          hcats([d_doc, decoration]);
         | InvalidOperation(d, err) =>
           switch (err) {
           | DivideByZero =>

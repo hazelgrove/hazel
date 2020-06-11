@@ -204,6 +204,7 @@ type t =
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
+  | FailedAssert(t)
 and case =
   | Case(t, list(rule), int)
 and rule =
@@ -240,6 +241,7 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
+  | FailedAssert(_) => "FailedAssert"
   };
 
 let rec mk_tuple: list(t) => t =

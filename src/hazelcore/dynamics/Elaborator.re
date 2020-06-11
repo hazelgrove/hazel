@@ -458,6 +458,7 @@ module Exp = {
       } else {
         d2;
       }
+    | FailedAssert(_)
     | Keyword(_) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -745,6 +746,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | BuiltInLit(_) => DoesNotMatch
+    | FailedAssert(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
@@ -808,6 +810,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | BuiltInLit(_) => DoesNotMatch
+    | FailedAssert(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
@@ -869,6 +872,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | BuiltInLit(_) => DoesNotMatch
+    | FailedAssert(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
@@ -1859,6 +1863,7 @@ module Exp = {
     switch (d) {
     | BoundVar(_)
     | BuiltInLit(_)
+    | FailedAssert(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
@@ -1970,6 +1975,7 @@ module Exp = {
     switch (d) {
     | BoundVar(_)
     | BuiltInLit(_)
+    | FailedAssert(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
