@@ -74,7 +74,7 @@ exception DoesNotExpand;
 let expand =
   Memo.general(
     ~cache_size_bound=1000,
-    Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty),
+    Dynamics_Exp.syn_expand(Contexts.empty, Delta.empty),
   );
 let get_expansion = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand) {
@@ -84,17 +84,17 @@ let get_expansion = (program: t): DHExp.t =>
 
 exception InvalidInput;
 let evaluate =
-  Memo.general(~cache_size_bound=1000, Dynamics.Evaluator.evaluate);
+  Memo.general(~cache_size_bound=1000, Dynamics_common.Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_expansion |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) =>
     let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Dynamics_Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
     let (d_renumbered, hii) =
-      Dynamics.Exp.renumber([], HoleInstanceInfo.empty, d);
+      Dynamics_Exp.renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
