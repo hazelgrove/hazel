@@ -93,7 +93,12 @@ let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
   | StringLit(s) =>
     switch (x) {
     | "length" => BoxedValue(IntLit(String.length(s)))
-    | "int_of_string" => BoxedValue(IntLit(int_of_string(s)))
+    | "int_of_string" =>
+      if (BuiltinFunctions.is_int_of_string(s)) {
+        BoxedValue(IntLit(int_of_string(s)));
+      } else {
+        Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToInt));
+      }
     | "bool_of_string" => BoxedValue(BoolLit(bool_of_string(s)))
     | "float_of_string" => BoxedValue(FloatLit(float_of_string(s)))
     | "trim" =>
