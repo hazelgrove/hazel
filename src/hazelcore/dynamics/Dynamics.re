@@ -186,7 +186,7 @@ module Pat = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    switch (Statics.Pat.tuple_zip(skel, ty)) {
+    switch (Statics_Pat.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -937,7 +937,7 @@ module Exp = {
       | Some(uty1) =>
         let ty1 = UHTyp.expand(uty1);
         let (ctx1, is_recursive_fn) =
-          Statics.Exp.ctx_for_let'(ctx, p, ty1, def);
+          Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
         switch (ana_expand(ctx1, delta, def, ty1)) {
         | ExpandResult.DoesNotExpand => LinesDoNotExpand
         | Expands(d1, ty1', delta) =>
@@ -1000,7 +1000,7 @@ module Exp = {
       };
     | BinOp(InHole(WrongLength, _), _, _, _) => ExpandResult.DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
+      switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
       | None => ExpandResult.DoesNotExpand
       | Some(ty1) =>
         switch (HTyp.matched_arrow(ty1)) {
@@ -1312,7 +1312,7 @@ module Exp = {
         pat_ty: HTyp.t,
       )
       : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
-    switch (Statics.Exp.syn_rules(ctx, rules, pat_ty)) {
+    switch (Statics_Exp.syn_rules(ctx, rules, pat_ty)) {
     | None => None
     | Some(glb) =>
       let expanded_rule_info =
@@ -1384,7 +1384,7 @@ module Exp = {
       )
       : ExpandResult.t => {
     // handle n-tuples
-    switch (Statics.Exp.tuple_zip(skel, ty)) {
+    switch (Statics_Exp.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
