@@ -143,6 +143,10 @@ let is_complete_line: (line, bool) => bool;
 
 let is_complete_block: (block, bool) => bool;
 
+let is_complete_rule: (rule, bool) => bool;
+
+let is_complete_rules: (rules, bool) => bool;
+
 let is_complete_operand: (operand, bool) => bool;
 
 let is_complete: (t, bool) => bool;
