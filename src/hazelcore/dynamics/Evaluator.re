@@ -172,7 +172,12 @@ let rec evaluate = (d: DHExp.t): result =>
       | BoxedValue(d2') => builtinfunctions_evaluate(v, d2')
       | Indet(d2) =>
         print_endline("Dynamics2228");
-        Indet(Ap(d1, d2));
+        switch (d2) {
+        | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
+            when n > 2147483647. && int_of_float(n) < 0 =>
+          Indet(InvalidOperation(Ap(d1, d2), IntOutBound))
+        | _ => Indet(Ap(d1, d2))
+        };
       }
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {

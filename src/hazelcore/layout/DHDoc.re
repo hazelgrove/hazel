@@ -556,6 +556,12 @@ module Exp = {
               Doc.text(InvalidOperationError.err_msg(err))
               |> annot(DHAnnot.InvalidOpDecoration);
             hcats([d_doc, decoration]);
+          | IntOutBound =>
+            let (d_doc, _) = go'(d);
+            let decoration =
+              Doc.text(InvalidOperationError.err_msg(err))
+              |> annot(DHAnnot.InvalidOpDecoration);
+            hcats([d_doc, decoration]);
           | StrNotTerminate =>
             let (d_doc, _) = go'(d);
             let decoration =

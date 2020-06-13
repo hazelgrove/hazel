@@ -6,6 +6,7 @@ type t =
   | StrNotConvToInt
   | StrNotConvToFloat
   | StrNotConvToBool
+  | IntOutBound
   | StrNotTerminate;
 
 let err_msg = (err: t): string =>
@@ -16,5 +17,6 @@ let err_msg = (err: t): string =>
   | StrNotConvToInt => "Error: String cannot be converted to Int"
   | StrNotConvToFloat => "Error: String cannot be converted to Float"
   | StrNotConvToBool => "Error: String cannot be converted to Bool"
+  | IntOutBound => "Error: Integer literal exceeds the range of representable integers of type int"
   | StrNotTerminate => "Error: String literal not terminated"
   };
