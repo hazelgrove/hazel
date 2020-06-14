@@ -77,7 +77,9 @@ We use
   the `Main` module, which inserts content in the specified element.
 
   The `Main` module implements the Hazel UI by following a model-view-update
-  architecture using Jane Street's [`Incr_dom`](https://github.com/janestreet/incr_dom) library.
+  architecture using Jane Street's [`Incr_dom`](https://github.com/janestreet/incr_dom) library. For a gentle overview of model-view-update, read through the section
+  titled [The Elm Architecture](https://guide.elm-lang.org/architecture/) in
+  the Elm documentation.
 
   - `www`:
     the assets (e.g. `fonts`, `imgs`, `style.css`, `index.html`) loaded
