@@ -5,6 +5,7 @@ type t =
   | Int
   | Float
   | Bool
+  | String
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list(t))
