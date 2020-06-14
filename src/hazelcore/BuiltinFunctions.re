@@ -68,7 +68,7 @@ let is_int_of_string = s =>
     | "0o" =>
       is_int_of_string_mix(String.sub(s, 2, String.length(s) - 2), '7')
     | "0x" => is_int_of_string_hex(String.sub(s, 2, String.length(s) - 2))
-    | _ => is_int_of_string_mix(String.sub(s, 2, String.length(s) - 2), '9')
+    | _ => is_int_of_string_mix(s, '9')
     };
   };
 
@@ -83,7 +83,7 @@ let rec is_float_of_string_dec = (s, count) =>
   if (s == "" || count > 1) {
     false;
   } else if (String.length(s) == 1) {
-    if (s.[0] >= '0' && s.[0] <= '9') {
+    if (s.[0] >= '0' && s.[0] <= '9' || s.[0] == '.') {
       true;
     } else {
       false;
@@ -100,14 +100,10 @@ let rec is_float_of_string_dec = (s, count) =>
   };
 
 let is_float_of_string = s =>
-  if (s == "") {
+  if (s == "" || s == ".") {
     false;
-  } else if (String.length(s) == 1) {
-    if (s.[0] >= '0' && s.[0] <= '9') {
-      true;
-    } else {
-      false;
-    };
+  } else if (is_int_of_string(s)) {
+    true;
   } else {
-    is_float_of_string_dec(String.sub(s, 2, String.length(s) - 2), 0);
+    is_float_of_string_dec(s, 0);
   };
