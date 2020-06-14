@@ -114,7 +114,8 @@ let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
       }
     | "trim" =>
       print_endline("TRIM s=" ++ s);
-      BoxedValue(StringLit(String.trim(s)));
+      let (s', _) = StringUtil.find_and_replace("", s, "OK");
+      BoxedValue(StringLit(String.trim(s')));
     | "escaped" =>
       print_endline("ESCAPED s=" ++ s);
       BoxedValue(StringLit(String.escaped(s)));
