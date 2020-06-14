@@ -26,7 +26,6 @@ type t = {
   compute_results,
   measurements,
   memoize_doc: bool,
-  selected_example: option(UHExp.t),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
@@ -109,7 +108,6 @@ let init = (): t => {
       update_apply_action: true,
     },
     memoize_doc: true,
-    selected_example: None,
     left_sidebar_open: false,
     right_sidebar_open: true,
     font_metrics:
