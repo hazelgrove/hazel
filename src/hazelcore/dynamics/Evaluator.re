@@ -94,7 +94,8 @@ let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
     switch (x) {
     | "length" => BoxedValue(IntLit(String.length(s)))
     | "int_of_string" =>
-      if (BuiltinFunctions.is_int_of_string(s)) {
+      if (BuiltinFunctions.is_int_of_string(s)
+          && float_of_string(s) <= 2147483647.) {
         BoxedValue(IntLit(int_of_string(s)));
       } else {
         Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToInt));
@@ -117,6 +118,7 @@ let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
     | "escaped" =>
       print_endline("ESCAPED s=" ++ s);
       BoxedValue(StringLit(String.escaped(s)));
+    /* multiple arguments */
     | "equal" =>
       BoxedValue(Lam(Var(x), String, BoolLit(String.equal(s, x))))
     | "compare" =>
@@ -169,12 +171,15 @@ let rec evaluate = (d: DHExp.t): result =>
     | BoxedValue(BuiltInLit(v)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d2') => builtinfunctions_evaluate(v, d2')
+      | BoxedValue(d2') =>
+        print_endline("Eva174");
+        builtinfunctions_evaluate(v, d2');
       | Indet(d2) =>
-        print_endline("Dynamics2228");
+        print_endline("Eva177");
         switch (d2) {
+        /* int overflow */
         | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
-            when n > 2147483647. && int_of_float(n) < 0 =>
+            when Float.is_integer(n) =>
           Indet(InvalidOperation(Ap(d1, d2), IntOutBound))
         | _ => Indet(Ap(d1, d2))
         };
