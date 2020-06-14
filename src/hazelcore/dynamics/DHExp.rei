@@ -8,6 +8,7 @@ module BinBoolOp: {
 
   let to_op: t => UHExp.operator;
 };
+
 module BinIntOp: {
   [@deriving sexp]
   type t =
@@ -23,6 +24,7 @@ module BinIntOp: {
 
   let to_op: t => UHExp.operator;
 };
+
 module BinFloatOp: {
   [@deriving sexp]
   type t =
