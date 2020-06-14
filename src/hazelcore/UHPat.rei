@@ -9,6 +9,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | InvalidText(string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -26,6 +27,8 @@ type seq = OpSeq.seq(operand, operator);
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
 let wild: (~err: ErrStatus.t=?, unit) => operand;
+
+let invalidtext: string => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 

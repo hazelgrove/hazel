@@ -5,6 +5,7 @@ type t =
   | Wild
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
+  | InvalidText(string)
   | Var(Var.t)
   | IntLit(int)
   | FloatLit(float)

@@ -19,6 +19,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
+  | InvalidText(string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -52,6 +53,8 @@ let find_line_line: line => line;
 let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
+
+let invalidtext: string => operand;
 
 let intlit: (~err: ErrStatus.t=?, string) => operand;
 
