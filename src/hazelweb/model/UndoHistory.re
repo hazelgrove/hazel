@@ -76,7 +76,8 @@ type undo_history_group = {
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
-  /* disable the auto-scrolling when disable_auto_scrolling is true */
+  /* history panel automatically scrolls current entry into view,
+     but this behavior should be disabled when user is hovering over panel */
   disable_auto_scrolling: bool,
   preview_on_hover: bool,
   hover_recover_group_id: int,
