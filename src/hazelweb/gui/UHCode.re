@@ -280,12 +280,13 @@ let view =
           ]
 
         | Annot(HoleLabel({len}), l) => {
-            let font_width = font_metrics.col_width;
-            let full_space = font_width *. float_of_int(len);
-            let width =
-              Css_gen.width(`Px(int_of_float(Float.round(full_space))));
-            let styling = Vdom.Attr.style(width);
-            [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
+            let width = Css_gen.width(`Ch(float_of_int(len)));
+            [
+              Node.span(
+                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+                [Node.span([Attr.classes(["HoleNumber"])], go(l))],
+              ),
+            ];
           }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
