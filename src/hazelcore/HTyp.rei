@@ -10,9 +10,9 @@ type t =
   | Prod(list(t))
   | List(t);
 
-type join = 
+type join =
   | GLB
-  | LUB
+  | LUB;
 
 let is_Prod: t => bool;
 
@@ -54,6 +54,6 @@ let has_matched_list: t => bool;
 /* complete (i.e. does not have any holes) */
 let complete: t => bool;
 
-let join: (join, t, t) => option(t)
+let join: (join, t, t) => option(t);
 
 let join_all: (join, list(t)) => option(t);

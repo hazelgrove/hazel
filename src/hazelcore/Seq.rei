@@ -22,23 +22,27 @@ and affix('operand, 'operator) =
   /* Affix */
   | A('operator, t('operand, 'operator));
 
-let mk_affix: list(('operator, 'operand))  => affix('operand, 'operator);
+let mk_affix: list(('operator, 'operand)) => affix('operand, 'operator);
 let mk: ('operand, list(('operator, 'operand))) => t('operand, 'operator);
 let wrap: 'operand => t('operand, 'operator);
 
 let rev: t('operand, 'operator) => t('operand, 'operator);
 
-let affix_affix: (affix('operand, 'operator), affix('operand, 'operator)) =>
+let affix_affix:
+  (affix('operand, 'operator), affix('operand, 'operator)) =>
   affix('operand, 'operator);
 
-let seq_op_seq: (t('operand, 'operator), 'operator, t('operand, 'operator)) =>
+let seq_op_seq:
+  (t('operand, 'operator), 'operator, t('operand, 'operator)) =>
   t('operand, 'operator);
 
-let affix_seq: (affix('operand, 'operator), t('operand, 'operator)) =>
+let affix_seq:
+  (affix('operand, 'operator), t('operand, 'operator)) =>
   t('operand, 'operator);
 
-let seq_affix: (t('operand, 'operator), affix('operand, 'operator)) =>
-  t('operand, 'operator)
+let seq_affix:
+  (t('operand, 'operator), affix('operand, 'operator)) =>
+  t('operand, 'operator);
 
 let length: t('operand, 'operator) => int;
 
@@ -55,13 +59,14 @@ let operands_of_affix: affix('operand, _) => list('operand);
 let operators: t(_, 'operator) => list('operator);
 let operators_of_affix: affix(_, 'operator) => list('operator);
 
-let opt_update_nth_operand: (int, 'operand, t('operand, 'operator)) =>
-  option(t('operand, 'operator));
-let opt_update_nth_operand_of_affix: (int, 'operand, affix('operand, 'operator)) =>
+let opt_update_nth_operand:
+  (int, 'operand, t('operand, 'operator)) => option(t('operand, 'operator));
+let opt_update_nth_operand_of_affix:
+  (int, 'operand, affix('operand, 'operator)) =>
   option(affix('operand, 'operator));
 
-let update_nth_operand: (int, 'operand, t('operand, 'operator)) =>
-  t('operand, 'operator);
+let update_nth_operand:
+  (int, 'operand, t('operand, 'operator)) => t('operand, 'operator);
 
 [@deriving sexp]
 type operand_surround('operand, 'operator) = (
@@ -74,23 +79,28 @@ type operator_surround('operand, 'operator) = (
   t('operand, 'operator),
 );
 
-let opt_split_nth_operand: (int, t('operand, 'operator)) =>
+let opt_split_nth_operand:
+  (int, t('operand, 'operator)) =>
   option(('operand, operand_surround('operand, 'operator)));
-let split_nth_operand: (int, t('operand, 'operator)) =>
-  ('operand, operand_surround('operand, 'operator))
+let split_nth_operand:
+  (int, t('operand, 'operator)) =>
+  ('operand, operand_surround('operand, 'operator));
 
-let opt_split_nth_operator: (int, t('operand, 'operator)) =>
+let opt_split_nth_operator:
+  (int, t('operand, 'operator)) =>
   option(('operator, operator_surround('operand, 'operator)));
-let split_nth_operator: (int, t('operand, 'operator)) =>
+let split_nth_operator:
+  (int, t('operand, 'operator)) =>
   ('operator, operator_surround('operand, 'operator));
 
-let split_first_and_suffix: t('operand, 'operator) =>
-  ('operand, affix('operand, 'operator));
-let split_prefix_and_last: t('operand, 'operator) =>
-  (affix('operand, 'operator), 'operand);
+let split_first_and_suffix:
+  t('operand, 'operator) => ('operand, affix('operand, 'operator));
+let split_prefix_and_last:
+  t('operand, 'operator) => (affix('operand, 'operator), 'operand);
 
-let t_of_operand_and_surround: 
+let t_of_operand_and_surround:
   ('operand, operand_surround('operand, 'operator)) => t('operand, 'operator);
 
 let t_of_operator_and_surround:
-  ('operator, operator_surround('operand, 'operator)) => t('operand, 'operator);
+  ('operator, operator_surround('operand, 'operator)) =>
+  t('operand, 'operator);
