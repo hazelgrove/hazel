@@ -1,5 +1,5 @@
 [@deriving sexp]
-type operator = Operators.Exp.t;
+type operator = Operators_Exp.t;
 
 // TODO
 // type t =
@@ -135,7 +135,7 @@ let drop_outer_parentheses: operand => t;
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
-let associate: seq => Skel.t(Operators.Exp.t);
+let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
