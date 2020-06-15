@@ -565,7 +565,13 @@ let is_invalid_escape_sequence = (j, s) =>
     if (String.length(s) == j + 1) {
       true;
     } else {
-      switch (s.[j + 1]) {
+      let ch =
+        if (j >= 2 && s.[j - 2] == '\\') {
+          s.[j - 1];
+        } else {
+          s.[j + 1];
+        };
+      switch (ch) {
       | 'b'
       | 't'
       | 'r'
