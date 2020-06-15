@@ -3,6 +3,7 @@ module Vdom = Virtual_dom.Vdom;
 type err_state_b =
   | TypeInconsistency
   | BindingError
+  | InvalidEscape
   | OK;
 
 let view =
@@ -185,7 +186,11 @@ let view =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(~msg, got_ty)
           : got_consistent_indicator(~msg, got_ty);
-      (ind1, ind2, OK);
+      if (msg == ", Got invalid escape sequence") {
+        (ind1, ind2, InvalidEscape);
+      } else {
+        (ind1, ind2, OK);
+      };
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
@@ -193,7 +198,11 @@ let view =
     | Synthesized(ty, msg) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(~msg, ty);
-      (ind1, ind2, OK);
+      if (msg == ", Got invalid escape sequence") {
+        (ind1, ind2, InvalidEscape);
+      } else {
+        (ind1, ind2, OK);
+      };
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -299,7 +308,11 @@ let view =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(~msg, got_ty)
           : got_consistent_indicator(~msg, got_ty);
-      (ind1, ind2, OK);
+      if (msg == ", Got invalid escape sequence") {
+        (ind1, ind2, InvalidEscape);
+      } else {
+        (ind1, ind2, OK);
+      };
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
@@ -307,7 +320,11 @@ let view =
     | PatSynthesized(ty, msg) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(~msg, ty);
-      (ind1, ind2, OK);
+      if (msg == ", Got invalid escape sequence") {
+        (ind1, ind2, InvalidEscape);
+      } else {
+        (ind1, ind2, OK);
+      };
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
@@ -330,6 +347,7 @@ let view =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"
     | BindingError => "cursor-BindingError"
+    | InvalidEscape => "cursor-InvalidEscape"
     | OK => "cursor-OK"
     };
 

@@ -301,6 +301,10 @@ html, body {
   outline: 1px solid #8e0000;
 }
 
+.cursor-InvalidEscape.cursor-inspector {
+  outline: 1px solid #8e0000;
+}
+
 .cursor-BindingError.cursor-inspector {
   outline: 1px solid #ce5f00;
 }
@@ -314,6 +318,10 @@ html, body {
 }
 
 .cursor-TypeInconsistency .title-bar {
+  background-color: #8e0000;
+}
+
+.cursor-InvalidEscape .title-bar {
   background-color: #8e0000;
 }
 
@@ -348,6 +356,10 @@ html, body {
 }
 
 .cursor-TypeInconsistency .typebar, .cursor-TypeInconsistency .infobar {
+  background-color: #ffe0e0;
+}
+
+.cursor-InvalidEscape .typebar, .cursor-InvalidEscape .infobar {
   background-color: #ffe0e0;
 }
 
