@@ -395,13 +395,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SAsc
     | SParenthesized => indicate_words_view(Action.shape_to_string(shape))
     | SChar(s) =>
-      print_endline("UHP354");
-      if (s == "\n") {
-        print_endline("UHP355");
-        code_view(Action.shape_to_string(SChar("\\n")));
-      } else {
-        code_view(Action.shape_to_string(shape));
-      };
+      code_view(Action.shape_to_string(shape));
     | SOp(op) =>
       switch (op) {
       | SSpace => indicate_words_view("space")
