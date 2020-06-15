@@ -72,6 +72,12 @@ let associate: seq => Skel.t(Operators.Pat.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
+let make_holy_tuple:
+  (~first_opt: OpSeq.t(operand, operator)=?, list(HTyp.t), MetaVarGen.t) =>
+  (OpSeq.t(operand, operator), MetaVarGen.t);
+
+let patterns_of_type: (MetaVarGen.t, HTyp.t) => (list(t), MetaVarGen.t);
+
 let is_complete_skel: (skel, seq) => bool;
 
 let is_complete: t => bool;

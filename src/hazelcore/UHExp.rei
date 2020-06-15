@@ -139,6 +139,10 @@ let associate: seq => Skel.t(Operators.Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
+let make_holy_tuple:
+  (~first_opt: OpSeq.t(operand, operator)=?, list(HTyp.t), MetaVarGen.t) =>
+  (OpSeq.t(operand, operator), MetaVarGen.t);
+
 let is_complete_line: (line, bool) => bool;
 
 let is_complete_block: (block, bool) => bool;
