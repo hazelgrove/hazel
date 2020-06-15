@@ -25,7 +25,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (LeftParen, _ => Action.Construct(SParenthesized)),
     (Colon, _ => Action.Construct(SAsc)),
     (Equals, _ => Action.Construct(SOp(SEquals))),
-    (Enter, _ => Action.Construct(SLine)),
+    (Enter, _ => Action.Construct(SChar("\n"))),
     (Backslash, _ => Action.Construct(SLam)),
     (Plus, _ => Action.Construct(SOp(SPlus))),
     (Minus, _ => Action.Construct(SOp(SMinus))),

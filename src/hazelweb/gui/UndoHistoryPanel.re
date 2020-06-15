@@ -118,7 +118,28 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           )
         );
       } else {
-        code_view(str);
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
+            ],
+          )
+        );
       }
     | BoolLit(_, bool_val) =>
       Vdom.(
@@ -216,7 +237,28 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           )
         );
       } else {
-        code_view(str);
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
+            ],
+          )
+        );
       }
     | BoolLit(_, bool_val) =>
       Vdom.(
@@ -350,7 +392,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SLine
     | SAsc
     | SParenthesized => indicate_words_view(Action.shape_to_string(shape))
-    | SChar(_) => code_view(Action.shape_to_string(shape))
+    | SChar(s) =>
+      print_endline("UHP354");
+      if (s == "\n") {
+        print_endline("UHP355");
+        code_view(Action.shape_to_string(SChar("\\n")));
+      } else {
+        code_view(Action.shape_to_string(shape));
+      };
     | SOp(op) =>
       switch (op) {
       | SSpace => indicate_words_view("space")
