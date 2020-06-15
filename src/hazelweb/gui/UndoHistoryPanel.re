@@ -92,6 +92,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         code_view(num);
       }
     | StringLit(_, str) =>
+      let str = StringUtil.escaped_enter(str);
       if (show_indicate_word) {
         Vdom.(
           Node.span(
@@ -140,7 +141,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             ],
           )
         );
-      }
+      };
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -211,6 +212,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         code_view(num);
       }
     | StringLit(_, str) =>
+      let str = StringUtil.escaped_enter(str);
       if (show_indicate_word) {
         Vdom.(
           Node.span(
@@ -259,7 +261,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             ],
           )
         );
-      }
+      };
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(

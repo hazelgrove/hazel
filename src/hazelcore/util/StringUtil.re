@@ -158,4 +158,14 @@ let rec find_and_replace =
   };
 };
 
+let rec escaped_enter = (s: string): string =>
+  if (s == "") {
+    s;
+  } else if (s.[0] == '\n') {
+    "\\n" ++ escaped_enter(String.sub(s, 1, String.length(s) - 1));
+  } else {
+    String.sub(s, 0, 1)
+    ++ escaped_enter(String.sub(s, 1, String.length(s) - 1));
+  };
+
 let utf8_length = CamomileLibrary.UTF8.length;
