@@ -383,6 +383,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Left => indicate_words_view("swap operand left")
       | Right => indicate_words_view("swap operand right")
       }
+    | SplitCasesEdit => indicate_words_view("split case")
     | Init => indicate_words_view("initial state")
     };
   };
@@ -446,6 +447,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
       }
+    | SplitCasesEdit => Some(Exp)
     | Init => None
     };
   };

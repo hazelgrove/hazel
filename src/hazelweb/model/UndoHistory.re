@@ -38,6 +38,7 @@ type action_group =
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
+  | SplitCasesEdit
   | Init;
 
 [@deriving sexp]
@@ -191,6 +192,7 @@ let group_action_group =
   | (DeleteEdit(_), _)
   | (ConstructEdit(_), _)
   | (SwapEdit(_), _)
+  | (SplitCasesEdit, _)
   | (Init, _) => false
   };
 
@@ -825,12 +827,12 @@ let get_new_action_group =
     | SwapDown => Some(SwapEdit(Down))
     | SwapLeft => Some(SwapEdit(Left))
     | SwapRight => Some(SwapEdit(Right))
+    | SplitCases => Some(SplitCasesEdit)
     | MoveTo(_)
     | MoveLeft
     | MoveRight
     | MoveToNextHole
     | MoveToPrevHole
-    | SplitCases
     | Init => None
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
