@@ -134,6 +134,7 @@ let rec evaluate = (d: DHExp.t): result =>
         switch (evaluate(d3)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(IntLit(n2) as n2') =>
+          let (s1, _) = StringUtil.find_and_replace("", s1, "OK");
           let len = String.length(s1);
           if (n1 >= (-1) * len && n1 <= len && n2 >= (-1) * len && n2 <= len) {
             let n1' =
@@ -148,7 +149,8 @@ let rec evaluate = (d: DHExp.t): result =>
               } else {
                 n2;
               };
-            BoxedValue(StringLit(String.sub(s1, n1', max(0, n2' - n1'))));
+            let s1 = String.sub(s1, n1', max(0, n2' - n1'));
+            BoxedValue(StringLit(String.escaped(s1)));
           } else {
             Indet(
               InvalidOperation(Subscript(s1', n1', n2'), IndexOutBound),
