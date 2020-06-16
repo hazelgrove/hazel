@@ -95,7 +95,9 @@ type typed =
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
   /* cursor in type position */
-  | OnType
+  | TypKeyword(ExpandingKeyword.t)
+  | TypFree
+  | OnType(Kind.t)
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;

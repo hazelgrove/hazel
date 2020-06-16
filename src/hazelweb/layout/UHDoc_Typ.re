@@ -53,6 +53,8 @@ and mk_operand =
       (
         switch (operand) {
         | Hole => mk_EmptyHole("?")
+        | TyVar(verr, tyid) =>
+          UHDoc_common.mk_Var(~sort=Typ, ~err=NotInHole, ~verr, tyid)
         | Unit => UHDoc_common.mk_Unit()
         | Int => UHDoc_common.mk_Int()
         | Float => UHDoc_common.mk_Float()

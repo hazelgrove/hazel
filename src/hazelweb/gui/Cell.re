@@ -17,9 +17,9 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
     (
       KeyCombo.GT,
       fun
-      | {CursorInfo.typed: OnType(_) | TypFree | TypKeyword(_), _} =>
-        Action.Construct(SOp(SArrow))
-      | _ => Action.Construct(SOp(SGreaterThan)),
+      | {CursorInfo_common.typed: OnType(_) | TypFree | TypKeyword(_), _} =>
+        Action_common.Construct(SOp(SArrow))
+      | _ => Action_common.Construct(SOp(SGreaterThan)),
     ),
     (Ampersand, _ => Action_common.Construct(SOp(SAnd))),
     (VBar, _ => Action_common.Construct(SOp(SOr))),
@@ -38,9 +38,9 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType(_) | TypFree | TypKeyword(_), _} =>
-        Action.Construct(SList)
-      | _ => Action.Construct(SListNil),
+      | {CursorInfo_common.typed: OnType(_) | TypFree | TypKeyword(_), _} =>
+        Action_common.Construct(SList)
+      | _ => Action_common.Construct(SListNil),
     ),
     (Semicolon, _ => Action_common.Construct(SOp(SCons))),
     (Alt_L, _ => Action_common.Construct(SInj(L))),
