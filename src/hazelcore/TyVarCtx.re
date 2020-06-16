@@ -17,6 +17,7 @@ let rec _index_of = (ctx: t, x: TyId.t, n: int): option(int) =>
   };
 
 let index_of = (ctx: t, x: TyId.t): option(int) => _index_of(ctx, x, 0);
+
 let index_of_exn = (ctx: t, x: TyId.t): int =>
   OptUtil.get(() => failwith("identifier not found"), index_of(ctx, x));
 

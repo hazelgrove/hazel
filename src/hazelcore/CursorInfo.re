@@ -585,7 +585,8 @@ module Typ = {
     | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
     };
   };
-}; /*
+};
+/*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
