@@ -894,9 +894,7 @@ module Pat = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidTextShape(_), _, _)
-    | (_, None, _)
-    | (_, _, InvalidTextShape(_)) => Failed
+    | (_, None, _) => Failed
     | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
@@ -923,9 +921,7 @@ module Pat = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidTextShape(_), _, _)
-    | (_, None, _)
-    | (_, _, InvalidTextShape(_)) => Failed
+    | (_, None, _) => Failed
     | (lshape, Some(op), rshape) =>
       let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
       let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
@@ -1375,6 +1371,11 @@ module Pat = {
 
     // TODO consider relaxing guards and
     // merging with regular op construction
+    | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(t)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, t)
     | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
         when
           !ZPat.is_before_zoperand(zoperand)
@@ -1814,6 +1815,11 @@ module Pat = {
 
     // TODO consider relaxing guards and
     // merging with regular op construction
+    | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(t)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, t, ty)
     | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
         when
           !ZPat.is_before_zoperand(zoperand)
@@ -2367,9 +2373,7 @@ module Exp = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidTextShape(_), _, _)
-    | (_, None, _)
-    | (_, _, InvalidTextShape(_)) => Failed
+    | (_, None, _) => Failed
     | (ExpandingKeyword(kw), Some(Space), rshape) =>
       let (subject, u_gen) = {
         let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
@@ -2409,9 +2413,7 @@ module Exp = {
       operator_of_shape(sop),
       TextShape.of_text(r),
     ) {
-    | (InvalidTextShape(_), _, _)
-    | (_, None, _)
-    | (_, _, InvalidTextShape(_)) => Failed
+    | (_, None, _) => Failed
     | (ExpandingKeyword(kw), Some(Space), rshape) =>
       let (subject, u_gen) = {
         let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
@@ -3440,6 +3442,11 @@ module Exp = {
 
     // TODO consider relaxing guards and
     // merging with regular op construction
+    | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(t)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, t)
     | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
         when
           !ZExp.is_before_zoperand(zoperand)
@@ -4873,6 +4880,11 @@ module Exp = {
 
     // TODO consider relaxing guards and
     // merging with regular op construction
+    | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(t)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, t, ty)
     | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
         when
           !ZExp.is_before_zoperand(zoperand)
