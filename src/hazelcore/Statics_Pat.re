@@ -324,6 +324,10 @@ let stable_ana_fixer = f => {
     g(ctx, u_gen, ~renumber_empty_holes, ~extra_input=(), term, ty);
 };
 
+/**
+ * Note: need to wrap these definitions with lazy in order to make them statically
+ * constructive <https://caml.inria.fr/pub/docs/manual-ocaml/letrecvalues.html>
+ */
 let rec syn_fix_holes =
         (
           ctx: Contexts.t,
