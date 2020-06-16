@@ -20,13 +20,15 @@ let grounded_List = NotGroundOrHole(List(Hole));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
-  | Hole => Hole
+  | Hole
+  | TyVarHole(_, _) => Hole
   | Bool
   | Int
   | Float
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
-  | List(Hole) => Ground
+  | List(Hole)
+  | TyVar(_, _) => Ground
   | Prod(tys) =>
     if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
       Ground;

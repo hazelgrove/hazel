@@ -931,7 +931,7 @@ module Exp = {
     | LetLine(p, ann, def) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
+        let ty1 = UHTyp.expand(uty1, Contexts.tyvars(ctx));
         let (ctx1, is_recursive_fn) =
           Statics.Exp.ctx_for_let'(ctx, p, ty1, def);
         switch (ana_elab(ctx1, delta, def, ty1)) {
@@ -1235,7 +1235,7 @@ module Exp = {
     | Lam(NotInHole, p, ann, body) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
         | None => HTyp.Hole
         };
       switch (Pat.ana_elab(ctx, delta, p, ty1)) {
@@ -1583,7 +1583,7 @@ module Exp = {
       | Some((ty1_given, ty2)) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
+          let ty1_ann = UHTyp.expand(uty1, Contexts.tyvars(ctx));
           switch (HTyp.consistent(ty1_ann, ty1_given)) {
           | false => DoesNotElaborate
           | true =>

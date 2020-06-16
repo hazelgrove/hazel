@@ -10,6 +10,7 @@ and operand =
   | Int
   | Float
   | Bool
+  | TyVar(VarErrStatus.t, TyId.t)
   | Parenthesized(t)
   | List(t);
 
@@ -28,17 +29,19 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let contract: HTyp.t => t;
 
-let expand: t => HTyp.t;
+let expand: (t, TyVarCtx.t) => HTyp.t;
 
-let expand_opseq: t => HTyp.t;
+let expand_opseq: (t, TyVarCtx.t) => HTyp.t;
 
 let expand_skel:
-  (OpSeq.skel(operator), OpSeq.seq(operand, operator)) => HTyp.t;
+  (OpSeq.skel(operator), OpSeq.seq(operand, operator), TyVarCtx.t) => HTyp.t;
 
-let expand_operand: operand => HTyp.t;
+let expand_operand: (TyVarCtx.t, operand) => HTyp.t;
 
 let is_complete_operand: operand => bool;
 
 let is_complete_skel: (skel, seq) => bool;
 
 let is_complete: t => bool;
+
+let of_string: operand => string;
