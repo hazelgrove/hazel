@@ -788,7 +788,7 @@ and syn_fix_holes_line =
       | LetLine(p, ann, def) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1 = UHTyp.expand(uty1);
+          let ty1 = UHTyp.expand(uty1, Contexts.tyvars(ctx));
           let ctx_def = ctx_for_let(ctx, p, ty1, def);
           let (def, u_gen) =
             ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
@@ -1091,7 +1091,7 @@ and syn_fix_holes_operand =
       | Lam(_, p, ann, body) =>
         let ty1 =
           switch (ann) {
-          | Some(uty1) => UHTyp.expand(uty1)
+          | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
           | None => HTyp.Hole
           };
         let (p, ctx, u_gen) =
@@ -1655,7 +1655,7 @@ and ana_fix_holes_operand =
           | Some((ty1_given, ty2)) =>
             switch (ann) {
             | Some(uty1) =>
-              let ty1_ann = UHTyp.expand(uty1);
+              let ty1_ann = UHTyp.expand(uty1, Contexts.tyvars(ctx));
               if (HTyp.consistent(ty1_ann, ty1_given)) {
                 let (p, ctx, u_gen) =
                   Statics_Pat.ana_fix_holes(
