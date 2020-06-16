@@ -70,7 +70,7 @@ let view =
     )
     : Vdom.Node.t => {
   d
-  |> DHDoc.Exp.mk(
+  |> DHDoc_Exp.mk(
        ~show_casts,
        ~show_fn_bodies,
        ~show_case_clauses,

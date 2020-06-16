@@ -8,12 +8,12 @@ module MoveKey = JSUtil.MoveKey;
 open ViewUtil;
 open Sexplib.Std;
 
-let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
+let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
   [
-    (KeyCombo.Backspace, _ => Action.Backspace),
-    (Delete, _ => Action.Delete),
-    (ShiftTab, _ => Action.MoveToPrevHole),
-    (Tab, _ => Action.MoveToNextHole),
+    (KeyCombo.Backspace, _ => Action_common.Backspace),
+    (Delete, _ => Action_common.Delete),
+    (ShiftTab, _ => Action_common.MoveToPrevHole),
+    (Tab, _ => Action_common.MoveToNextHole),
     (
       KeyCombo.GT,
       fun
@@ -21,20 +21,20 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
         Action.Construct(SOp(SArrow))
       | _ => Action.Construct(SOp(SGreaterThan)),
     ),
-    (Ampersand, _ => Action.Construct(SOp(SAnd))),
-    (VBar, _ => Action.Construct(SOp(SOr))),
-    (LeftParen, _ => Action.Construct(SParenthesized)),
-    (Colon, _ => Action.Construct(SAsc)),
-    (Equals, _ => Action.Construct(SOp(SEquals))),
-    (Enter, _ => Action.Construct(SLine)),
-    (Backslash, _ => Action.Construct(SLam)),
-    (Plus, _ => Action.Construct(SOp(SPlus))),
-    (Minus, _ => Action.Construct(SOp(SMinus))),
-    (Asterisk, _ => Action.Construct(SOp(STimes))),
-    (Slash, _ => Action.Construct(SOp(SDivide))),
-    (LT, _ => Action.Construct(SOp(SLessThan))),
-    (Space, _ => Action.Construct(SOp(SSpace))),
-    (Comma, _ => Action.Construct(SOp(SComma))),
+    (Ampersand, _ => Action_common.Construct(SOp(SAnd))),
+    (VBar, _ => Action_common.Construct(SOp(SOr))),
+    (LeftParen, _ => Action_common.Construct(SParenthesized)),
+    (Colon, _ => Action_common.Construct(SAsc)),
+    (Equals, _ => Action_common.Construct(SOp(SEquals))),
+    (Enter, _ => Action_common.Construct(SLine)),
+    (Backslash, _ => Action_common.Construct(SLam)),
+    (Plus, _ => Action_common.Construct(SOp(SPlus))),
+    (Minus, _ => Action_common.Construct(SOp(SMinus))),
+    (Asterisk, _ => Action_common.Construct(SOp(STimes))),
+    (Slash, _ => Action_common.Construct(SOp(SDivide))),
+    (LT, _ => Action_common.Construct(SOp(SLessThan))),
+    (Space, _ => Action_common.Construct(SOp(SSpace))),
+    (Comma, _ => Action_common.Construct(SOp(SComma))),
     (
       LeftBracket,
       fun
@@ -42,14 +42,14 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
         Action.Construct(SList)
       | _ => Action.Construct(SListNil),
     ),
-    (Semicolon, _ => Action.Construct(SOp(SCons))),
-    (Alt_L, _ => Action.Construct(SInj(L))),
-    (Alt_R, _ => Action.Construct(SInj(R))),
-    (Alt_C, _ => Action.Construct(SCase)),
-    (Ctrl_Alt_I, _ => Action.SwapUp),
-    (Ctrl_Alt_K, _ => Action.SwapDown),
-    (Ctrl_Alt_J, _ => Action.SwapLeft),
-    (Ctrl_Alt_L, _ => Action.SwapRight),
+    (Semicolon, _ => Action_common.Construct(SOp(SCons))),
+    (Alt_L, _ => Action_common.Construct(SInj(L))),
+    (Alt_R, _ => Action_common.Construct(SInj(R))),
+    (Alt_C, _ => Action_common.Construct(SCase)),
+    (Ctrl_Alt_I, _ => Action_common.SwapUp),
+    (Ctrl_Alt_K, _ => Action_common.SwapDown),
+    (Ctrl_Alt_J, _ => Action_common.SwapLeft),
+    (Ctrl_Alt_L, _ => Action_common.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
