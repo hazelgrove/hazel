@@ -670,6 +670,9 @@ and stable_ana_rule_fixer = f => {
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
+ *
+ * Note: need to wrap these definitions with lazy in order to make them statically
+ * constructive <https://caml.inria.fr/pub/docs/manual-ocaml/letrecvalues.html>
  */
 let rec syn_fix_holes =
         (
@@ -1385,6 +1388,7 @@ and ana_fix_holes_opseq =
       ) =>
       (
         {
+          // handle n-tuples
           switch (tuple_zip(skel, ty)) {
           | Some(skel_tys) =>
             skel_tys
@@ -1475,7 +1479,6 @@ and ana_fix_holes_opseq =
           UHExp.opseq,
           MetaVarGen.t,
         )
-        // handle n-tuples
       )
     )
   )
