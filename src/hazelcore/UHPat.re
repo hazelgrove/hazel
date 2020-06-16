@@ -3,7 +3,7 @@ open Sexplib.Std;
 exception FreeVarInPat;
 
 [@deriving sexp]
-type operator = Operators.Pat.t;
+type operator = Operators_Pat.t;
 
 [@deriving sexp]
 type t = opseq
@@ -164,7 +164,7 @@ let text_operand =
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators.Pat.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators_Pat.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
 };
