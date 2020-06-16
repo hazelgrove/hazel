@@ -29,14 +29,14 @@ module ColMap = {
     map |> find_first_opt(c => Int.compare(c, col) >= 0);
 };
 
-type t = RowMap.t(ColMap.t(CursorPath.rev_t));
+type t = RowMap.t(ColMap.t(CursorPath_common.rev_t));
 [@deriving sexp]
-type binding = ((Row.t, Col.t), CursorPath.rev_t);
+type binding = ((Row.t, Col.t), CursorPath_common.rev_t);
 
 let compare_overlapping_paths =
     (
-      (pos1, rev_steps1): CursorPath.rev_t,
-      (pos2, rev_steps2): CursorPath.rev_t,
+      (pos1, rev_steps1): CursorPath_common.rev_t,
+      (pos2, rev_steps2): CursorPath_common.rev_t,
     ) => {
   let n1 = List.length(rev_steps1);
   let n2 = List.length(rev_steps2);
