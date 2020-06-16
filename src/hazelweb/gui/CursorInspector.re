@@ -135,8 +135,7 @@ let view =
     got_indicator("Got a free type variable", typebar(HTyp.Hole));
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
-  let got_a_type_indicator = 
-    got_indicator("Got", special_msg_bar("a type"))
+  let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =

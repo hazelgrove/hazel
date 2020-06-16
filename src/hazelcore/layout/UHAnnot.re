@@ -9,6 +9,7 @@ type term_data = {
 
 [@deriving sexp]
 type token_shape =
+  | BoldText
   | Text
   | Op
   | Delim(DelimIndex.t);

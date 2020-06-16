@@ -815,6 +815,9 @@ h1 {
 .code-delim {
   font-weight: bold;
 }
+.code-boldtext {
+  font-weight: bold;
+}
 
 .DHCode .Align {
   display: inline-block;

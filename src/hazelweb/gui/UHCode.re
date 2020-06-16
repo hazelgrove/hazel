@@ -91,6 +91,7 @@ let view =
         | Annot(Token({shape, _}), l) => {
             let clss =
               switch (shape) {
+              | BoldText => ["code-boldtext"]
               | Text => ["code-text"]
               | Op => ["code-op"]
               | Delim(_) => ["code-delim"]

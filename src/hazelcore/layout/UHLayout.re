@@ -121,7 +121,7 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Token({shape: Text, _} as token_data) =>
+             | Token({shape: Text | BoldText, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
