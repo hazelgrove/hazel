@@ -1,7 +1,7 @@
 exception FreeVarInPat;
 
 [@deriving sexp]
-type operator = Operators.Pat.t;
+type operator = Operators_Pat.t;
 
 [@deriving sexp]
 type t = opseq
@@ -71,7 +71,7 @@ let mk_inconsistent_operand:
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
-let associate: seq => Skel.t(Operators.Pat.t);
+let associate: seq => Skel.t(Operators_Pat.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 

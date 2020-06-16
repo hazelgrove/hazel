@@ -77,13 +77,13 @@ let rec evaluate = (d: DHExp.t): result =>
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1)
     | Indet(d1) =>
-      switch (Elaborator.Exp.matches(dp, d1)) {
+      switch (Elaborator_Exp.matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(Elaborator.Exp.subst(env, d2))
+      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d2))
       }
     }
-  | FixF(x, _, d1) => evaluate(Elaborator.Exp.subst_var(d, x, d1))
+  | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
@@ -93,12 +93,12 @@ let rec evaluate = (d: DHExp.t): result =>
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2)
       | Indet(d2) =>
-        switch (Elaborator.Exp.matches(dp, d2)) {
+        switch (Elaborator_Exp.matches(dp, d2)) {
         | DoesNotMatch => Indet(d)
         | Indet => Indet(d)
         | Matches(env) =>
           /* beta rule */
-          evaluate(Elaborator.Exp.subst(env, d3))
+          evaluate(Elaborator_Exp.subst(env, d3))
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -344,7 +344,7 @@ and evaluate_case =
         Indet(InconsistentBranches(u, i, sigma, case))
       };
     | Some(Rule(dp, d)) =>
-      switch (Elaborator.Exp.matches(dp, scrut)) {
+      switch (Elaborator_Exp.matches(dp, scrut)) {
       | Indet =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
@@ -352,7 +352,7 @@ and evaluate_case =
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
         };
-      | Matches(env) => evaluate(Elaborator.Exp.subst(env, d))
+      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d))
       | DoesNotMatch =>
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
