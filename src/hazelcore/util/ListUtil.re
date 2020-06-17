@@ -130,11 +130,21 @@ let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
 
 let last = (xs: list('a)): option('a) => first(List.rev(xs));
 
-let split_last = (xs: list('a)): option((list('a), 'a)) =>
+let split_last_opt = (xs: list('a)): option((list('a), 'a)) =>
   switch (List.rev(xs)) {
   | [] => None
   | [y, ...ys] => Some((List.rev(ys), y))
   };
+let split_last = (xs: list('a)): (list('a), 'a) =>
+  OptUtil.get(() => failwith("empty list"), split_last_opt(xs));
+
+let split_first_opt = (xs: list('a)): option(('a, list('a))) =>
+  switch (xs) {
+  | [] => None
+  | [first, ...trailing] => Some((first, trailing))
+  };
+let split_first = (xs: list('a)): ('a, list('a)) =>
+  OptUtil.get(() => failwith("empty list"), split_first_opt(xs));
 
 let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
