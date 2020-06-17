@@ -95,10 +95,6 @@ let get_result = (program: t): Result.t =>
   | Indet(d) =>
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-<<<<<<< HEAD
-=======
-
->>>>>>> dev
     (d_renumbered, hii, Indet(d_renumbered));
   };
 

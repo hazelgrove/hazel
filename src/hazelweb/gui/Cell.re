@@ -3,7 +3,7 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
-module KeyCombo = JSUtil.KeyCombo;
+
 module MoveKey = JSUtil.MoveKey;
 open ViewUtil;
 open Sexplib.Std;
@@ -105,7 +105,7 @@ let view = (~inject, model: Model.t) => {
           let key_handlers = [
             Attr.on_keypress(_ => Event.Prevent_default),
             Attr.on_keydown(evt => {
-              switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+              switch (MoveKey.of_key(KeyCombo.get_key(evt))) {
               | Some(move_key) =>
                 prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
               | None =>

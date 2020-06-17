@@ -1,5 +1,4 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 
 exception InvalidInstance;
 let view =
@@ -82,10 +81,6 @@ let view =
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
-<<<<<<< HEAD
-=======
-
->>>>>>> dev
             Elaborator_Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }

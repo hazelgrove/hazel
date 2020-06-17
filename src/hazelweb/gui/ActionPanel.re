@@ -1,5 +1,4 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 
 let action_panel = (children: list(Vdom.Node.t)): Vdom.Node.t => {
   open Vdom;
