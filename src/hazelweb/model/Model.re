@@ -18,6 +18,11 @@ type measurements = {
   update_apply_action: bool,
 };
 
+type coordinate = {
+  x: int,
+  y: int,
+};
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -30,6 +35,7 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  mouse_position: ref(coordinate),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -117,6 +123,7 @@ let init = (): t => {
         col_width: 1.0,
       },
     is_mac: true,
+    mouse_position: ref({x: 0, y: 0}),
   };
 };
 
