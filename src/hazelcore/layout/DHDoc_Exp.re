@@ -294,7 +294,19 @@ let rec mk =
             Doc.text(InvalidOperationError.err_msg(err))
             |> annot(DHAnnot.InvalidOpDecoration);
           hcats([d_doc, decoration]);
-        | IndexOutBound =>
+        | StartOutBound =>
+          let (d_doc, _) = go'(d);
+          let decoration =
+            Doc.text(InvalidOperationError.err_msg(err))
+            |> annot(DHAnnot.InvalidOpDecoration);
+          hcats([d_doc, decoration]);
+        | EndOutBound =>
+          let (d_doc, _) = go'(d);
+          let decoration =
+            Doc.text(InvalidOperationError.err_msg(err))
+            |> annot(DHAnnot.InvalidOpDecoration);
+          hcats([d_doc, decoration]);
+        | StartEndOutBound =>
           let (d_doc, _) = go'(d);
           let decoration =
             Doc.text(InvalidOperationError.err_msg(err))

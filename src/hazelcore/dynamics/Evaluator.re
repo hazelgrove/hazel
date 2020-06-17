@@ -151,9 +151,15 @@ let rec evaluate = (d: DHExp.t): result =>
               };
             let s1 = String.sub(s1, n1', max(0, n2' - n1'));
             BoxedValue(StringLit(String.escaped(s1)));
+          } else if (n2 >= (-1) * len && n2 <= len) {
+            Indet(
+              InvalidOperation(Subscript(s1', n1', n2'), StartOutBound),
+            );
+          } else if (n1 >= (-1) * len && n1 <= len) {
+            Indet(InvalidOperation(Subscript(s1', n1', n2'), EndOutBound));
           } else {
             Indet(
-              InvalidOperation(Subscript(s1', n1', n2'), IndexOutBound),
+              InvalidOperation(Subscript(s1', n1', n2'), StartEndOutBound),
             );
           };
         | BoxedValue(_) => InvalidInput(3)

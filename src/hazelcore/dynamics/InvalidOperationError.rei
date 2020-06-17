@@ -1,7 +1,9 @@
 [@deriving sexp]
 type t =
   | DivideByZero
-  | IndexOutBound
+  | StartOutBound
+  | EndOutBound
+  | StartEndOutBound
   | IllegalEscape;
 
 let err_msg: t => string;
