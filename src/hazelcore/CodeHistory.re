@@ -2,7 +2,7 @@
  * and the user's current position within it.
  */
 type t = {
-  actions: list(Action.t), /* all of the actions ever performed */
+  actions: list(Action_common.t), /* all of the actions ever performed */
   action_count: int,
   undo_count: int, /* current position in history */
   snapshots: list(ZExp.t) /* prevents having to totally replay history on undo/redo */
@@ -13,7 +13,7 @@ let empty: t = {actions: [], action_count: 0, undo_count: 0, snapshots: []};
 /* Add a new action to the history, dropping any existing
  * history which has been undone by the user.
  */
-let add = (action: Action.t, history: t): t => {
+let add = (action: Action_common.t, history: t): t => {
   actions: [action, ...ListUtil.drop(history.undo_count, history.actions)],
   action_count: history.action_count - history.undo_count + 1,
   undo_count: 0,
