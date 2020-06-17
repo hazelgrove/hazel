@@ -242,6 +242,14 @@ let get_mouse_position = evt => {
   );
 };
 
+let unsafe_get_elt_by_coordinate = (x: int, y: int) => {
+  Js.Unsafe.meth_call(
+    Dom_html.document,
+    "elementFromPoint",
+    [|Js.Unsafe.inject(x), Js.Unsafe.inject(y)|],
+  );
+};
+
 let force_get_parent_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.parentNode)

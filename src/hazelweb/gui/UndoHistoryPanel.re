@@ -1082,18 +1082,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let unsafe_get_elt_under_mouse = (model: Model.t) => {
-    Js.Unsafe.meth_call(
-      Dom_html.document,
-      "elementFromPoint",
-      [|
-        Js.Unsafe.inject(model.mouse_position^.x),
-        Js.Unsafe.inject(model.mouse_position^.y),
-      |],
-    );
-  };
   let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
-    let elt: Js.t(Dom_html.divElement) = unsafe_get_elt_under_mouse(model);
+    let elt: Js.t(Dom_html.divElement) =
+      JSUtil.unsafe_get_elt_by_coordinate(
+        model.mouse_position^.x,
+        model.mouse_position^.y,
+      );
     switch (
       JSUtil.get_attr("group_id", elt),
       JSUtil.get_attr("elt_id", elt),
