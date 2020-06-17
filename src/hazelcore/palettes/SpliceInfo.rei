@@ -2,7 +2,7 @@
 type splice_name = int;
 
 [@deriving sexp]
-type splice_map('exp) = NatMap.t((HTyp.t, 'exp));
+type splice_map('exp) = IntMap.t((HTyp.t, 'exp));
 
 [@deriving sexp]
 type t('exp) = {
@@ -10,11 +10,6 @@ type t('exp) = {
   splice_map: splice_map('exp),
   splice_order: list(splice_name),
 };
-
-let t_of_sexp:
-  (Ppx_sexp_conv_lib.Sexp.t => 'exp, Ppx_sexp_conv_lib.Sexp.t) => t('exp);
-let sexp_of_t:
-  ('exp => Ppx_sexp_conv_lib.Sexp.t, t('exp)) => Ppx_sexp_conv_lib.Sexp.t;
 
 let empty: t('exp);
 
