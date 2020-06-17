@@ -125,7 +125,7 @@ let rec find_and_decorate_Annot =
 };
 
 let rec follow_steps_and_decorate =
-        (~steps: CursorPath.steps, ~decorate: t => option(t), l: t)
+        (~steps: CursorPath_common.steps, ~decorate: t => option(t), l: t)
         : option(t) => {
   let go = follow_steps_and_decorate(~decorate);
   switch (steps) {
@@ -151,7 +151,7 @@ let rec follow_steps_and_decorate =
 };
 
 let find_and_decorate_caret =
-    (~path as (steps, cursor): CursorPath.t, l: t): option(t) =>
+    (~path as (steps, cursor): CursorPath_common.t, l: t): option(t) =>
   l
   |> follow_steps_and_decorate(
        ~steps,
@@ -214,7 +214,7 @@ let find_and_decorate_caret =
 // TODO document difference from follow_steps_and_decorate
 let rec find_and_decorate_Term =
         (
-          ~steps: CursorPath.steps,
+          ~steps: CursorPath_common.steps,
           ~decorate_Term: (UHAnnot.term_data, t) => t,
           l: t,
         )
