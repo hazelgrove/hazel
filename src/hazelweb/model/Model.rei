@@ -26,6 +26,15 @@ type measurements = {
   update_apply_action: bool,
 };
 
+/**
+ * the coordinates of the mouse
+ * relative to the left and top edges of the document
+ */
+type coordinate = {
+  x: int,
+  y: int,
+};
+
 type t = {
   /**
    * all cardstacks along with current cardstack,
@@ -45,6 +54,7 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  mouse_position: ref(coordinate),
 };
 
 let cardstack_info: list(CardstackInfo.t);
