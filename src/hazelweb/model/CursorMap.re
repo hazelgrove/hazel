@@ -105,7 +105,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
       | Some(j) =>
         let pos: CursorPosition.t =
           switch (shape) {
-          | BoldText
+          | Keyword
           | Text => OnText(j)
           | Op => OnOp(j == 0 ? Before : After)
           | Delim(k) => OnDelim(k, j == 0 ? Before : After)
@@ -114,7 +114,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
       };
       let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
         switch (shape) {
-        | BoldText
+        | Keyword
         | Text => (OnText(0), OnText(len))
         | Op => (OnOp(Before), OnOp(After))
         | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))

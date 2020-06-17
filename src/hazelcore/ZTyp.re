@@ -11,13 +11,15 @@ type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
 type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 
+let length_of_operand_str = (operand: UHTyp.operand): int =>
+  operand |> UHTyp.to_string |> String.length;
+
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
   | Unit => CursorPosition.delim_cursors(1)
-  | Int => CursorPosition.text_cursors(3)
-  | Float => CursorPosition.text_cursors(5)
-  | Bool => CursorPosition.text_cursors(4)
+  | (Int | Float | Bool) as operand =>
+    operand |> length_of_operand_str |> CursorPosition.text_cursors
   | TyVar(_, x) => CursorPosition.text_cursors(TyId.length(x))
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);
@@ -77,9 +79,8 @@ and is_after_zoperand =
   fun
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit) => cursor == OnDelim(0, After)
-  | CursorT(cursor, Int) => cursor == OnText(3)
-  | CursorT(cursor, Float) => cursor == OnText(5)
-  | CursorT(cursor, Bool) => cursor == OnText(4)
+  | CursorT(cursor, (Int | Float | Bool) as operand) =>
+    cursor == OnText(length_of_operand_str(operand))
   | CursorT(cursor, TyVar(_, x)) => cursor == OnText(TyId.length(x))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
@@ -108,9 +109,8 @@ and place_after_opseq = opseq =>
 and place_after_operand =
   fun
   | (Hole | Unit) as operand => CursorT(OnDelim(0, After), operand)
-  | Int as operand => CursorT(OnText(3), operand)
-  | Float as operand => CursorT(OnText(5), operand)
-  | Bool as operand => CursorT(OnText(4), operand)
+  | (Int | Float | Bool) as operand =>
+    CursorT(OnText(length_of_operand_str(operand)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand)
   | TyVar(_, x) as operand => CursorT(OnText(TyId.length(x)), operand);

@@ -29,12 +29,12 @@ let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let contract: HTyp.t => t;
 
-let expand: (t, TyVarCtx.t) => HTyp.t;
+let expand: (TyVarCtx.t, t) => HTyp.t;
 
-let expand_opseq: (t, TyVarCtx.t) => HTyp.t;
+let expand_opseq: (TyVarCtx.t, t) => HTyp.t;
 
 let expand_skel:
-  (OpSeq.skel(operator), OpSeq.seq(operand, operator), TyVarCtx.t) => HTyp.t;
+  (TyVarCtx.t, OpSeq.skel(operator), OpSeq.seq(operand, operator)) => HTyp.t;
 
 let expand_operand: (TyVarCtx.t, operand) => HTyp.t;
 
@@ -44,4 +44,4 @@ let is_complete_skel: (skel, seq) => bool;
 
 let is_complete: t => bool;
 
-let of_string: operand => string;
+let to_string: operand => string;

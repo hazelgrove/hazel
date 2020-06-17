@@ -135,9 +135,9 @@ let mk_text = (s: string): t =>
     Doc.text(s),
   );
 
-let mk_boldtext = (s: string): t =>
+let mk_keyword = (s: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(~shape=BoldText, ~len=StringUtil.utf8_length(s), ()),
+    UHAnnot.mk_Token(~shape=Keyword, ~len=StringUtil.utf8_length(s), ()),
     Doc.text(s),
   );
 
@@ -243,11 +243,11 @@ let pad_left_delimited_child =
 
 let mk_Unit = (): t => Delim.mk(~index=0, "()") |> annot_Operand(~sort=Typ);
 
-let mk_Bool = (): t => mk_boldtext("Bool") |> annot_Operand(~sort=Typ);
+let mk_Bool = (): t => mk_keyword("Bool") |> annot_Operand(~sort=Typ);
 
-let mk_Int = (): t => mk_boldtext("Int") |> annot_Operand(~sort=Typ);
+let mk_Int = (): t => mk_keyword("Int") |> annot_Operand(~sort=Typ);
 
-let mk_Float = (): t => mk_boldtext("Float") |> annot_Operand(~sort=Typ);
+let mk_Float = (): t => mk_keyword("Float") |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>

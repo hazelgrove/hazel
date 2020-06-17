@@ -99,27 +99,27 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t, ctx: TyVarCtx.t): HTyp.t => expand_opseq(ty, ctx)
-and expand_opseq = (ty, ctx) =>
+let rec expand = (ctx: TyVarCtx.t, ty: t): HTyp.t => expand_opseq(ctx, ty)
+and expand_opseq = (ctx, ty) =>
   switch (ty) {
-  | OpSeq(skel, seq) => expand_skel(skel, seq, ctx)
+  | OpSeq(skel, seq) => expand_skel(ctx, skel, seq)
   }
-and expand_skel = (skel, seq, ctx) =>
+and expand_skel = (ctx, skel, seq) =>
   switch (skel) {
   | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand(ctx)
   | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq, ctx);
-    let ty2 = expand_skel(skel2, seq, ctx);
+    let ty1 = expand_skel(ctx, skel1, seq);
+    let ty2 = expand_skel(ctx, skel2, seq);
     Arrow(ty1, ty2);
   | BinOp(_, Prod, _, _) =>
     Prod(
       skel
       |> get_prod_elements
-      |> List.map(skel => expand_skel(skel, seq, ctx)),
+      |> List.map(skel => expand_skel(ctx, skel, seq)),
     )
   | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq, ctx);
-    let ty2 = expand_skel(skel2, seq, ctx);
+    let ty1 = expand_skel(ctx, skel1, seq);
+    let ty2 = expand_skel(ctx, skel2, seq);
     Sum(ty1, ty2);
   }
 and expand_operand = (ctx, operand) =>
@@ -131,8 +131,8 @@ and expand_operand = (ctx, operand) =>
   | Bool => Bool
   | TyVar(NotInVarHole, t) => TyVar(TyVarCtx.index_of_exn(ctx, t), t)
   | TyVar(InVarHole(_, u), t) => TyVarHole(u, t)
-  | Parenthesized(opseq) => expand(opseq, ctx)
-  | List(opseq) => List(expand(opseq, ctx))
+  | Parenthesized(opseq) => expand(ctx, opseq)
+  | List(opseq) => List(expand(ctx, opseq))
   };
 
 let rec is_complete_operand = (operand: 'operand) => {
@@ -162,7 +162,7 @@ and is_complete = (ty: t) => {
   };
 };
 
-let of_string =
+let to_string =
   fun
   | Int => "Int"
   | Float => "Float"
