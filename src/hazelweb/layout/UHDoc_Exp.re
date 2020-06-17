@@ -92,7 +92,7 @@ and mk_block =
          Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
          |> UHDoc_common.annot_Step(offset + i)
        )
-    |> ListUtil.split_last
+    |> ListUtil.split_last_opt
     |> (
       fun
       | None => failwith(__LOC__ ++ ": empty block")
