@@ -81,7 +81,7 @@ let init = (): t => {
     ) {
     | (false, _)
     | (_, None) => si
-    | (true, Some(u)) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    | (true, Some(u)) => UserSelectedInstances.add(u, 0, si)
     };
   };
   {
@@ -171,15 +171,15 @@ let get_selected_hole_instance = model =>
   | Some(u) =>
     let i =
       model.selected_instances
-      |> UserSelectedInstances.lookup(u)
+      |> UserSelectedInstances.find_opt(u)
       |> Option.get;
     Some((u, i));
   };
 
-let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
+let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(Program.move_to_hole(u))
-  |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
+  |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
 let update_program = (a: Action_common.t, new_program, model) => {
@@ -195,8 +195,8 @@ let update_program = (a: Action_common.t, new_program, model) => {
     | (false, _)
     | (_, None) => si
     | (true, Some(u)) =>
-      switch (si |> UserSelectedInstances.lookup(u)) {
-      | None => si |> UserSelectedInstances.insert_or_update((u, 0))
+      switch (si |> UserSelectedInstances.find_opt(u)) {
+      | None => si |> UserSelectedInstances.add(u, 0)
       | Some(_) => si
       }
     };
@@ -323,7 +323,7 @@ let load_undo_history =
     let si = UserSelectedInstances.init;
     switch (Program.cursor_on_exp_hole(new_program)) {
     | None => si
-    | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    | Some(u) => si |> UserSelectedInstances.add(u, 0)
     };
   };
   model
