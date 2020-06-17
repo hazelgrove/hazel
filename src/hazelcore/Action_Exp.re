@@ -302,11 +302,6 @@ let mk_syn_text =
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
     } else {
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.invalidtext(t)));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
@@ -362,11 +357,6 @@ let mk_ana_text =
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
     } else {
@@ -1554,9 +1544,6 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SAsc), CursorE(_)) => Failed
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(t))) =>
@@ -2932,9 +2919,6 @@ and ana_perform_operand =
 
   /* Construction */
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(t))) =>
