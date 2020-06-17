@@ -340,6 +340,163 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
   );
 };
 
+type box = {
+  height: int,
+  // Max number of columns used. For the first box, add to offset to get last
+  // column used (relative to nearest containing Align).  For any other box,
+  // `width` is the last column used (again relative to nearest containing
+  // Align).
+  width: int,
+};
+type metrics = {
+  // column offset of the first box relative to nearest containing Align
+  offset: int,
+  boxes: list(box),
+  // TODO: add last_offset so we can support aligns
+  // that are not padded on the right
+};
+
+let table: WeakMap.t(UHLayout.t, IntMap.t((metrics, list(Vdom.Node.t)))) =
+  WeakMap.mk();
+
+let rec mem_view =
+        (~offset: int, l: UHLayout.t): (metrics, list(Vdom.Node.t)) => {
+  open Vdom;
+  let f = (~offset, l: UHLayout.t): (metrics, list(Vdom.Node.t)) =>
+    switch (l) {
+    | Linebreak =>
+      let metrics = {
+        let box = {height: 1, width: 0};
+        {offset, boxes: [box, box]};
+      };
+      (metrics, [Node.br([])]);
+    | Text(s) =>
+      let metrics = {
+        offset,
+        boxes: [{height: 1, width: StringUtil.utf8_length(s)}],
+      };
+      let vs = StringUtil.is_empty(s) ? [] : [Node.text(s)];
+      (metrics, vs);
+    | Align(l) =>
+      let (metrics, vs) = mem_view(~offset=0, l);
+      let bounding_metrics = {
+        let bounding_box =
+          metrics.boxes
+          |> List.fold_left(
+               ({height: bh, width: bw}, {height, width}) =>
+                 {height: bh + height, width: max(bw, width)},
+               {height: 0, width: 0},
+             );
+        {offset, boxes: [bounding_box]};
+      };
+      let vs = [Node.div([Attr.classes(["Align"])], vs)];
+      (bounding_metrics, vs);
+    | Cat(l1, l2) =>
+      let (metrics1, vs1) = mem_view(~offset, l1);
+      let (leading, last) = ListUtil.split_last(metrics1.boxes);
+      let (metrics2, vs2) = {
+        // If metrics1 is only one box, then width of the last box is added
+        // to offset, otherwise it is from offset 0.
+        // TODO: This assumes all aligns are padded on the right.
+        let start_offset = leading == [] ? offset : 0;
+        let offset = last.width + start_offset;
+        mem_view(~offset, l2);
+      };
+      let (first, trailing) = ListUtil.split_first(metrics2.boxes);
+      let mid_box = {
+        height: max(last.height, first.height),
+        width: last.width + first.width,
+      };
+      let metrics = {offset, boxes: leading @ [mid_box, ...trailing]};
+      (metrics, vs1 @ vs2);
+    | Annot(annot, l) =>
+      let (metrics, vs) = mem_view(~offset, l);
+      let vs =
+        switch (annot) {
+        | Step(_)
+        | EmptyLine
+        | SpaceOp => vs
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | DelimGroup => [Node.span([Attr.classes(["DelimGroup"])], vs)]
+        | LetLine => [Node.span([Attr.classes(["LetLine"])], vs)]
+
+        | Padding => [Node.span([Attr.classes(["Padding"])], vs)]
+        | Indent => [Node.span([Attr.classes(["Indent"])], vs)]
+
+        | HoleLabel({len}) =>
+          // TODO use metrics and remove len
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+
+        | OpenChild({is_inline}) => [
+            Node.span(
+              [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
+              vs,
+            ),
+          ]
+        | ClosedChild({is_inline}) => [
+            Node.span(
+              [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
+              vs,
+            ),
+          ]
+
+        | Term({has_cursor, shape: term_shape, sort}) => [
+            Node.span(
+              [
+                Attr.classes(
+                  List.concat([
+                    ["Term"],
+                    cursor_clss(has_cursor),
+                    sort_clss(sort),
+                    shape_clss(term_shape),
+                    open_child_clss(
+                      l |> UHLayout.has_inline_OpenChild,
+                      l |> UHLayout.has_para_OpenChild,
+                    ),
+                    has_child_clss(l |> UHLayout.has_child),
+                  ]),
+                ),
+              ],
+              vs,
+            ),
+          ]
+        };
+
+      (metrics, vs);
+    };
+
+  switch (WeakMap.get(table, l)) {
+  | Some(offset_table) =>
+    switch (IntMap.find_opt(offset, offset_table)) {
+    | Some(result) => result
+    | None =>
+      let result = f(~offset, l);
+      ignore(
+        WeakMap.set(table, l, IntMap.add(offset, result, offset_table)),
+      );
+      result;
+    }
+  | None =>
+    let result = f(~offset, l);
+    ignore(WeakMap.set(table, l, IntMap.singleton(offset, result)));
+    result;
+  };
+};
+
 let view =
     (
       ~model: Model.t,
@@ -347,193 +504,15 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~caret_pos: option((int, int)),
       l: UHLayout.t,
-    ) =>
+    )
+    : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
     model.measurements.measurements && model.measurements.uhcode_view,
     () => {
       open Vdom;
-      let (_, vs, _): (UHLayout.t, list(Vdom.Node.t), Decoration.shape) =
-        l
-        |> UHLayout.pos_fold(
-             ~linebreak=
-               pos =>
-                 (
-                   Pretty.Layout.Linebreak,
-                   [Node.br([])],
-                   {
-                     let start_col = pos.col - pos.indent;
-                     Decoration.{start_col, boxes: [(1, 0), (1, 0)]};
-                   },
-                 ),
-             ~text=
-               (pos, s) =>
-                 (
-                   Text(s),
-                   StringUtil.is_empty(s) ? [] : [Node.text(s)],
-                   {
-                     start_col: pos.col - pos.indent,
-                     boxes: [(1, StringUtil.utf8_length(s))],
-                   },
-                 ),
-             ~align=
-               (pos, (l, vs, shape)) =>
-                 (
-                   Align(l),
-                   [Node.div([Attr.classes(["Align"])], vs)],
-                   {
-                     let (total_height, max_width) =
-                       shape.boxes
-                       |> List.fold_left(
-                            ((total_height, max_width), (height, width)) =>
-                              (total_height + height, max(max_width, width)),
-                            (0, Int.min_int),
-                          );
-                     {
-                       start_col: pos.col - pos.indent,
-                       boxes: [(total_height, max_width)],
-                     };
-                   },
-                 ),
-             ~cat=
-               (_, (l1, vs1, shape1), (l2, vs2, shape2)) =>
-                 (
-                   Cat(l1, l2),
-                   vs1 @ vs2,
-                   {
-                     let (leading, last) =
-                       shape1.boxes
-                       |> ListUtil.split_last
-                       |> OptUtil.get(() =>
-                            failwith("expected at least one box")
-                          );
-                     let mid_height =
-                       max(fst(last), fst(List.hd(shape2.boxes)));
-                     let mid_width = snd(last) + snd(List.hd(shape2.boxes));
-                     {
-                       ...shape1,
-                       boxes:
-                         leading
-                         @ [
-                           (mid_height, mid_width),
-                           ...List.tl(shape2.boxes),
-                         ],
-                     };
-                   },
-                 ),
-             ~annot=
-               (_, annot, (l, vs, shape)) =>
-                 (
-                   Annot(annot, l),
-                   switch (annot) {
-                   | Step(_)
-                   | EmptyLine
-                   | SpaceOp => vs
-                   | Token({shape, _}) =>
-                     let clss =
-                       switch (shape) {
-                       | Text => ["code-text"]
-                       | Op => ["code-op"]
-                       | Delim(_) => ["code-delim"]
-                       };
-                     [Node.span([Attr.classes(clss)], vs)];
-                   | DelimGroup => [
-                       Node.span([Attr.classes(["DelimGroup"])], vs),
-                     ]
-                   | LetLine => [
-                       Node.span([Attr.classes(["LetLine"])], vs),
-                     ]
 
-                   | Padding => [
-                       Node.span([Attr.classes(["Padding"])], vs),
-                     ]
-                   | Indent => [Node.span([Attr.classes(["Indent"])], vs)]
-
-                   | HoleLabel({len}) =>
-                     let width = Css_gen.width(`Ch(float_of_int(len)));
-                     [
-                       Node.span(
-                         [
-                           Vdom.Attr.style(width),
-                           Attr.classes(["HoleLabel"]),
-                         ],
-                         [
-                           Node.span([Attr.classes(["HoleNumber"])], go(l)),
-                         ],
-                       ),
-                     ];
-                   | UserNewline => [
-                       Node.span([Attr.classes(["UserNewline"])], vs),
-                     ]
-
-                   | OpenChild({is_inline}) => [
-                       Node.span(
-                         [
-                           Attr.classes([
-                             "OpenChild",
-                             is_inline ? "Inline" : "Para",
-                           ]),
-                         ],
-                         vs,
-                       ),
-                     ]
-                   | ClosedChild({is_inline}) => [
-                       Node.span(
-                         [
-                           Attr.classes([
-                             "ClosedChild",
-                             is_inline ? "Inline" : "Para",
-                           ]),
-                         ],
-                         vs,
-                       ),
-                     ]
-
-                   | Term({has_cursor, shape: term_shape, sort}) =>
-                     let err_hole_decoration =
-                       switch (term_shape) {
-                       | Rule
-                       | SubBlock(_) => []
-                       | Var({err, _})
-                       | Operand({err})
-                       | BinOp({err, _})
-                       | NTuple({err, _})
-                       | Case({err: StandardErrStatus(err)}) =>
-                         switch (err) {
-                         | NotInHole => []
-                         | InHole(_) => [
-                             Decoration.err_hole_view(~font_metrics, shape),
-                           ]
-                         }
-                       | Case({err: InconsistentBranches(_)}) => [
-                           Decoration.err_hole_view(~font_metrics, shape),
-                         ]
-                       };
-                     [
-                       Node.span(
-                         [
-                           Attr.classes(
-                             List.concat([
-                               ["Term"],
-                               cursor_clss(has_cursor),
-                               sort_clss(sort),
-                               shape_clss(term_shape),
-                               open_child_clss(
-                                 l |> UHLayout.has_inline_OpenChild,
-                                 l |> UHLayout.has_para_OpenChild,
-                               ),
-                               has_child_clss(l |> UHLayout.has_child),
-                             ]),
-                           ),
-                         ],
-                         err_hole_decoration @ vs,
-                       ),
-                     ];
-                   },
-                   shape,
-                 ),
-           );
-
+      let (_, vs) = mem_view(~offset=0, l);
       let children =
         switch (caret_pos) {
         | None => vs
@@ -574,3 +553,4 @@ let view =
       );
     },
   );
+};
