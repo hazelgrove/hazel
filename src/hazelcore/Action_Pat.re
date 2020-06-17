@@ -66,11 +66,6 @@ let mk_syn_text =
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
-      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
     } else {
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.invalidtext(t)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
@@ -116,11 +111,6 @@ let mk_ana_text =
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
-      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
     } else {
@@ -699,9 +689,6 @@ and syn_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1156,9 +1143,6 @@ and ana_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
