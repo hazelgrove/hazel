@@ -985,7 +985,7 @@ and syn_perform_line =
       }
     }
   | (_, LetLineZP(zp, Some(ann), def)) =>
-    let ty = UHTyp.expand(ann, Contexts.tyvars(ctx));
+    let ty = UHTyp.expand(Contexts.tyvars(ctx), ann);
     switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
@@ -999,13 +999,13 @@ and syn_perform_line =
     };
 
   | (_, LetLineZA(p, zann, def)) =>
-    let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
+    let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
     let k = Statics_Typ.syn(ctx, hty);
     switch (Action_Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zann, _, _)) =>
-      let ty = UHTyp.expand(ZTyp.erase(new_zann), Contexts.tyvars(ctx));
+      let ty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zann));
       let (p, new_ctx, u_gen) = Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty);
       let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, def);
       let (def, u_gen) = Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
@@ -1028,7 +1028,7 @@ and syn_perform_line =
       }
     }
   | (_, LetLineZE(p, Some(ann), zdef)) =>
-    let ty = UHTyp.expand(ann, Contexts.tyvars(ctx));
+    let ty = UHTyp.expand(Contexts.tyvars(ctx), ann);
     let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
     switch (ana_perform(ctx_def, a, (zdef, u_gen), ty)) {
     | Failed => Failed
@@ -1735,7 +1735,7 @@ and syn_perform_operand =
   | (_, LamZP(_, zp, ann, body)) =>
     let ty1 =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
+      | Some(uty1) => UHTyp.expand(Contexts.tyvars(ctx), uty1)
       | None => HTyp.Hole
       };
     switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
@@ -1753,7 +1753,7 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     };
   | (_, LamZA(_, p, zann, body)) =>
-    let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
+    let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
     let k = Statics_Typ.syn(ctx, hty);
     switch (Action_Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
     | Failed => Failed
@@ -1764,7 +1764,7 @@ and syn_perform_operand =
         (zoperand, ty, u_gen),
       )
     | Succeeded((zann, _, _)) =>
-      let ty1 = UHTyp.expand(ZTyp.erase(zann), Contexts.tyvars(ctx));
+      let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
       let (p, ctx, u_gen) = Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
       let (body, ty2, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, body);
       let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
@@ -1776,7 +1776,7 @@ and syn_perform_operand =
     | Some((_, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
+        | Some(uty1) => UHTyp.expand(Contexts.tyvars(ctx), uty1)
         | None => HTyp.Hole
         };
       switch (Statics_Pat.ana(ctx, p, ty1)) {
@@ -3119,7 +3119,7 @@ and ana_perform_operand =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
+        | Some(uty1) => UHTyp.expand(Contexts.tyvars(ctx), uty1)
         | None => ty1_given
         };
       switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
@@ -3141,7 +3141,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
-      let hty = UHTyp.expand(zann |> ZTyp.erase, Contexts.tyvars(ctx));
+      let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
       let k = Statics_Typ.syn(ctx, hty);
       switch (Action_Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
       | Failed => Failed
@@ -3153,7 +3153,7 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded((zann, _, _)) =>
-        let ty1 = UHTyp.expand(ZTyp.erase(zann), Contexts.tyvars(ctx));
+        let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
         HTyp.consistent(ty1, ty1_given)
           ? {
             let (p, ctx, u_gen) =
@@ -3183,7 +3183,7 @@ and ana_perform_operand =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1, Contexts.tyvars(ctx))
+        | Some(uty1) => UHTyp.expand(Contexts.tyvars(ctx), uty1)
         | None => ty1_given
         };
       switch (Statics_Pat.ana(ctx, p, ty1)) {

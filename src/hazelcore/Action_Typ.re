@@ -31,13 +31,13 @@ module Outcome = Action_common.Outcome;
 let mk_syn_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
     : Outcome.t(syn_success) => {
-  let hty = UHTyp.expand(zty |> ZTyp.erase, Contexts.tyvars(ctx));
+  let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
   Succeeded((zty, Statics_Typ.syn(ctx, hty), u_gen));
 };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
     : Outcome.t(ana_success) => {
-  let hty = UHTyp.expand(zty |> ZTyp.erase, Contexts.tyvars(ctx));
+  let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
   if (Statics_Typ.ana(ctx, hty, k)) {
     Succeeded((zty, u_gen));
   } else {
@@ -415,7 +415,7 @@ and syn_perform_opseq =
     syn_perform_operand(ctx, a, (zoperand, k, u_gen))
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
-    let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
+    let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
     let k_operand = Statics_Typ.syn(ctx, hty);
     switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
     | Failed => Failed
@@ -503,9 +503,9 @@ and syn_perform_operand =
       Backspace,
       CursorT(OnText(caret_index), (Int | Bool | Float) as operand),
     ) =>
-    syn_backspace_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string)
+    syn_backspace_text(ctx, u_gen, caret_index, operand |> UHTyp.to_string)
   | (Delete, CursorT(OnText(caret_index), (Int | Bool | Float) as operand)) =>
-    syn_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string)
+    syn_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.to_string)
   /* TyVar-related Backspace & Delete */
   | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
     syn_delete_text(ctx, u_gen, caret_index, text)
@@ -544,7 +544,7 @@ and syn_perform_operand =
       Construct(SChar(s)),
       CursorT(OnText(j), (Int | Bool | Float) as operand),
     ) =>
-    syn_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.of_string)
+    syn_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.to_string)
   | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(_)), CursorT(_)) => Failed
@@ -718,7 +718,7 @@ and ana_perform_opseq =
     ana_perform_operand(ctx, a, (zoperand, u_gen), k)
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
-    let hty = UHTyp.expand(uhty, Contexts.tyvars(ctx));
+    let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
     let k_operand = Statics_Typ.syn(ctx, hty);
     switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
     | Failed => Failed
@@ -815,9 +815,9 @@ and ana_perform_operand =
       Backspace,
       CursorT(OnText(caret_index), (Int | Bool | Float) as operand),
     ) =>
-    ana_backspace_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string, k)
+    ana_backspace_text(ctx, u_gen, caret_index, operand |> UHTyp.to_string, k)
   | (Delete, CursorT(OnText(caret_index), (Int | Bool | Float) as operand)) =>
-    ana_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.of_string, k)
+    ana_delete_text(ctx, u_gen, caret_index, operand |> UHTyp.to_string, k)
   /* TyVar-related Backspace & Delete */
   | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
     ana_delete_text(ctx, u_gen, caret_index, text, k)
@@ -857,7 +857,7 @@ and ana_perform_operand =
       Construct(SChar(s)),
       CursorT(OnText(j), (Int | Bool | Float) as operand),
     ) =>
-    ana_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.of_string, k)
+    ana_insert_text(ctx, u_gen, (j, s), operand |> UHTyp.to_string, k)
   | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, k)
   | (Construct(SChar(_)), CursorT(_)) => Failed

@@ -58,7 +58,7 @@ and cursor_info_zopseq =
   switch (zseq) {
   | ZOperator((_, Prod), _) =>
     // cursor on tuple comma
-    let hty = UHTyp.expand_opseq(zopseq |> ZTyp.erase, Contexts.tyvars(ctx));
+    let hty = UHTyp.expand_opseq(Contexts.tyvars(ctx), zopseq |> ZTyp.erase);
     let syn_k = Statics_Typ.syn(ctx, hty);
     Some(
       CursorInfo_common.mk(OnType(syn_k), ctx, extract_cursor_term(zopseq)),
@@ -90,7 +90,7 @@ and cursor_info_skel =
         zoperand,
       )
     | ZOperator(_) =>
-      let hty = UHTyp.expand_skel(skel, seq, Contexts.tyvars(ctx));
+      let hty = UHTyp.expand_skel(Contexts.tyvars(ctx), skel, seq);
       let syn_k = Statics_Typ.syn(ctx, hty);
       Some(
         CursorInfo_common.mk(OnType(syn_k), ctx, extract_from_zseq(zseq)),
