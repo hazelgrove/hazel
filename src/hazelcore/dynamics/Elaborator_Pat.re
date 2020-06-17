@@ -179,7 +179,7 @@ and ana_elab_opseq =
     )
     : ElaborationResult.t => {
   // handle n-tuples
-  switch (Statics.Pat.tuple_zip(skel, ty)) {
+  switch (Statics_Pat.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(

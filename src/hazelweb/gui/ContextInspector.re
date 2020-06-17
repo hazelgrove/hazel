@@ -70,7 +70,7 @@ let view =
     let ctx =
       program
       |> Program.get_cursor_info
-      |> CursorInfo.get_ctx
+      |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
       if (model.compute_results.compute_results) {
@@ -82,6 +82,10 @@ let view =
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
+<<<<<<< HEAD
+=======
+
+>>>>>>> dev
             Elaborator_Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
@@ -312,7 +316,7 @@ let view =
       let ctx =
         program
         |> Program.get_cursor_info
-        |> CursorInfo.get_ctx
+        |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {

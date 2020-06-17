@@ -12,7 +12,7 @@
   --page-padding: 15px;
 
   --code-font-family: "Fira Code", monospace;
-  --code-font-size: 16px;
+  --code-font-size: 13pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
@@ -1315,14 +1315,17 @@ h1 {
 }
 
 .HoleLabel {
-  font-size: 65%;
   color: #BBB;
   display: inline-block;
   text-align: center;
   /* border-bottom: 1px solid var(--empty-hole-color); */
   /* line-height: initial; */
 }
+#code-container .HoleLabel span {
+  font-size: 65%;
+}
 .DHCode .HoleLabel {
+  font-size: 65%;
   padding-left: 2px;
   padding-right: 2px;
 }
