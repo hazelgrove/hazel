@@ -499,7 +499,7 @@ and syn_elab_line =
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
       let (ctx1, is_recursive_fn) =
-        Statics.Exp.ctx_for_let'(ctx, p, ty1, def);
+        Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1', delta) =>
@@ -559,7 +559,7 @@ and syn_elab_skel =
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
+    switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
     | None => DoesNotElaborate
     | Some(ty1) =>
       switch (HTyp.matched_arrow(ty1)) {
@@ -821,7 +821,32 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | ApPalette(NotInHole, _name, _serialized_model, _hole_data) => DoesNotElaborate /* let (_, palette_ctx) = ctx in   begin match (VarMap.lookup palette_ctx name) with   | Some palette_defn ->     let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in     let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in     let expansion = to_exp serialized_model in     let (_, hole_map) = hole_data in     (* bind each free variable in expansion by wrapping expansion      * in lambda, then apply lambda to args in hole data      *)     let bound_expansion :=         NatMap.fold hole_map           (fun bound entry ->             let (n, typ_exp) = entry in             let (htyp, hexp) = typ_exp in             let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in             let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in             let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators.Exp.Space (UHExp.Parenthesized hexp_ann) in             let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in             UHExp.Tm NotInHole ap           )           expansion in     ana_elab_exp ctx bound_expansion expansion_ty   | None -> DoesNotElaborate   end */ /* TODO fix me */
+  | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
+    DoesNotElaborate /* let (_, palette_ctx) = ctx in
+     begin match (VarMap.lookup palette_ctx name) with
+     | Some palette_defn ->
+       let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
+       let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
+       let expansion = to_exp serialized_model in
+       let (_, hole_map) = hole_data in
+       (* bind each free variable in expansion by wrapping expansion
+        * in lambda, then apply lambda to args in hole data
+        *)
+       let bound_expansion :=
+           NatMap.fold hole_map
+             (fun bound entry ->
+               let (n, typ_exp) = entry in
+               let (htyp, hexp) = typ_exp in
+               let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
+               let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
+               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
+               let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
+               UHExp.Tm NotInHole ap
+             )
+             expansion in
+       ana_elab_exp ctx bound_expansion expansion_ty
+     | None -> DoesNotElaborate
+     end */ /* TODO fix me */
   }
 and syn_elab_rules =
     (
@@ -831,7 +856,7 @@ and syn_elab_rules =
       pat_ty: HTyp.t,
     )
     : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
-  switch (Statics.Exp.syn_rules(ctx, rules, pat_ty)) {
+  switch (Statics_Exp.syn_rules(ctx, rules, pat_ty)) {
   | None => None
   | Some(glb) =>
     let elabed_rule_info =
@@ -903,7 +928,7 @@ and ana_elab_opseq =
     )
     : ElaborationResult.t => {
   // handle n-tuples
-  switch (Statics.Exp.tuple_zip(skel, ty)) {
+  switch (Statics_Exp.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
     skel_tys
     |> List.fold_left(
@@ -1105,8 +1130,7 @@ and ana_elab_operand =
       _,
       _,
     )
-  | ApPalette(InHole(WrongLength, _), _, _, _) =>
-    DoesNotElaborate /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
