@@ -1,5 +1,4 @@
 let lamSym = "λ"; // U+03BB "Greek small letter lambda"
-let caseArrowSym = "⇒"; // U+21D2 "Rightwards Double Arrow"
 let typeArrowSym = "→"; // U+2192 "Rightwards Arrow"
 let castArrowSym = "⇨";
 
