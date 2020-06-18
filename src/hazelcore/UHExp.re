@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type operator = Operators.Exp.t;
+type operator = Operators_Exp.t;
 
 // TODO
 // type t =
@@ -306,7 +306,7 @@ let text_operand =
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators.Exp.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };
@@ -340,6 +340,15 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
 and is_complete_block = (b: block, check_type_holes: bool): bool => {
   b |> List.for_all(l => is_complete_line(l, check_type_holes));
 }
+and is_complete_rule = (rule: rule, check_type_holes: bool): bool => {
+  switch (rule) {
+  | Rule(pat, body) =>
+    UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+  };
+}
+and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
+  rules |> List.for_all(l => is_complete_rule(l, check_type_holes));
+}
 and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   switch (operand) {
   | EmptyHole(_) => false
@@ -371,8 +380,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
-  | Case(StandardErrStatus(NotInHole), body, _) =>
+  | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
+    && is_complete_rules(rules, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
