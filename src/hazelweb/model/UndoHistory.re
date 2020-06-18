@@ -37,6 +37,7 @@ type action_group =
   /* SLine in Action_common.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | Subscript
   | SwapEdit(swap_group)
   | Init;
 
@@ -171,6 +172,8 @@ let group_action_group =
   switch (action_group_prev, action_group_next) {
   | (CaseRule, CaseRule) => true
   | (CaseRule, _) => false
+  | (Subscript, Subscript) => true
+  | (Subscript, _) => false
   | (VarGroup(_), VarGroup(_)) => true
   | (VarGroup(_), DeleteEdit(delete_group)) =>
     switch (delete_group) {
@@ -695,13 +698,18 @@ let get_new_action_group =
         }
       | SParenthesized
       | SList
-      | SLeftBracket
       | SAsc
       | SLam
       | SListNil
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))
+      | SLeftBracket =>
+        switch (new_cursor_term_info.cursor_term_before) {
+        | Exp(OnDelim(_, After), _)
+        | Pat(OnDelim(_, After), _) => Some(Subscript)
+        | _ => Some(ConstructEdit(shape))
+        }
       | SQuote
       | SChar(_) =>
         if (group_entry(

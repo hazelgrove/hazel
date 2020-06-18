@@ -489,6 +489,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | Subscript =>
+      Vdom.(Node.span([], [indicate_words_view("insert substring")]))
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up => indicate_words_view("swap line up")
@@ -548,6 +550,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | Subscript =>
+      Some(
+        get_cursor_term_tag_typ(
+          undo_history_entry.cursor_term_info.cursor_term_after,
+        ),
+      )
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up
