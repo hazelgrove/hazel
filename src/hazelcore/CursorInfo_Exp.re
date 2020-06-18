@@ -452,8 +452,35 @@ and syn_cursor_info_skel =
             zoperand
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
-          Statics_Exp.syn_operand(ctx, operand_nih)
-          |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
+          let ty = Statics_Exp.syn_operand(ctx, operand_nih);
+          switch (ty) {
+          | Some(String) =>
+            switch (zoperand) {
+            | CursorE(OnText(j), StringLit(_, s)) =>
+              switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+              | Some(s) =>
+                ty
+                |> OptUtil.map(ty =>
+                     mk(SynErrorArrow(Arrow(Hole, Hole), ty, s))
+                   )
+              | None =>
+                ty
+                |> OptUtil.map(ty =>
+                     mk(SynErrorArrow(Arrow(Hole, Hole), ty, ""))
+                   )
+              }
+            | _ =>
+              ty
+              |> OptUtil.map(ty =>
+                   mk(SynErrorArrow(Arrow(Hole, Hole), ty, ""))
+                 )
+            }
+          | _ =>
+            ty
+            |> OptUtil.map(ty =>
+                 mk(SynErrorArrow(Arrow(Hole, Hole), ty, ""))
+               )
+          };
         | Some((_, InVarHole(Free, _))) =>
           Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some((_, InVarHole(Keyword(k), _))) =>
@@ -536,16 +563,11 @@ and syn_cursor_info_zoperand =
     | Some(ty) =>
       switch (cursor_term) {
       | Exp(OnText(j), StringLit(_, s)) =>
-        if (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
-          Some(
-            CursorInfo_common.mk(
-              Synthesized(ty, ", Got invalid escape sequence"),
-              ctx,
-              cursor_term,
-            ),
-          );
-        } else {
-          Some(CursorInfo_common.mk(Synthesized(ty, ""), ctx, cursor_term));
+        switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+        | None =>
+          Some(CursorInfo_common.mk(Synthesized(ty, ""), ctx, cursor_term))
+        | Some(s) =>
+          Some(CursorInfo_common.mk(Synthesized(ty, s), ctx, cursor_term))
         }
       | _ =>
         Some(CursorInfo_common.mk(Synthesized(ty, ""), ctx, cursor_term))
@@ -868,22 +890,23 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         switch (zoperand) {
         | CursorE(OnText(j), StringLit(_, s)) =>
-          if (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
-            Some(
-              CursorInfo_common.mk(
-                AnaTypeInconsistent(ty, ty', ", Got invalid escape sequence"),
-                ctx,
-                cursor_term,
-              ),
-            );
-          } else {
+          switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+          | None =>
             Some(
               CursorInfo_common.mk(
                 AnaTypeInconsistent(ty, ty', ""),
                 ctx,
                 cursor_term,
               ),
-            );
+            )
+          | Some(s) =>
+            Some(
+              CursorInfo_common.mk(
+                AnaTypeInconsistent(ty, ty', s),
+                ctx,
+                cursor_term,
+              ),
+            )
           }
         | _ =>
           Some(
@@ -924,22 +947,23 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         switch (zoperand) {
         | CursorE(OnText(j), StringLit(_, s)) =>
-          if (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
-            Some(
-              CursorInfo_common.mk(
-                AnaSubsumed(ty, ty', ", Got invalid escape sequence"),
-                ctx,
-                cursor_term,
-              ),
-            );
-          } else {
+          switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+          | None =>
             Some(
               CursorInfo_common.mk(
                 AnaSubsumed(ty, ty', ""),
                 ctx,
                 cursor_term,
               ),
-            );
+            )
+          | Some(s) =>
+            Some(
+              CursorInfo_common.mk(
+                AnaSubsumed(ty, ty', s),
+                ctx,
+                cursor_term,
+              ),
+            )
           }
         | _ =>
           Some(

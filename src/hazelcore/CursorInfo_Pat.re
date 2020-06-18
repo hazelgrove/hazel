@@ -209,18 +209,8 @@ and syn_cursor_info_zoperand =
   | CursorP(_, p) =>
     switch (zoperand) {
     | CursorP(OnText(j), StringLit(_, s)) =>
-      if (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
-        Statics_Pat.syn_operand(ctx, p)
-        |> OptUtil.map(((ty, _)) =>
-             CursorInfo_common.CursorNotOnDeferredVarPat(
-               CursorInfo_common.mk(
-                 PatSynthesized(ty, ", Got invalid escape sequence"),
-                 ctx,
-                 extract_from_zpat_operand(zoperand),
-               ),
-             )
-           );
-      } else {
+      switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+      | None =>
         Statics_Pat.syn_operand(ctx, p)
         |> OptUtil.map(((ty, _)) =>
              CursorInfo_common.CursorNotOnDeferredVarPat(
@@ -230,7 +220,18 @@ and syn_cursor_info_zoperand =
                  extract_from_zpat_operand(zoperand),
                ),
              )
-           );
+           )
+      | Some(s) =>
+        Statics_Pat.syn_operand(ctx, p)
+        |> OptUtil.map(((ty, _)) =>
+             CursorInfo_common.CursorNotOnDeferredVarPat(
+               CursorInfo_common.mk(
+                 PatSynthesized(ty, s),
+                 ctx,
+                 extract_from_zpat_operand(zoperand),
+               ),
+             )
+           )
       }
     | _ =>
       Statics_Pat.syn_operand(ctx, p)
@@ -469,21 +470,8 @@ and ana_cursor_info_zoperand =
       | Some((ty', _)) =>
         switch (zoperand) {
         | CursorP(OnText(j), StringLit(_, s)) =>
-          if (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
-            Some(
-              CursorNotOnDeferredVarPat(
-                CursorInfo_common.mk(
-                  PatAnaTypeInconsistent(
-                    ty,
-                    ty',
-                    ", Got invalid escape sequence",
-                  ),
-                  ctx,
-                  cursor_term,
-                ),
-              ),
-            );
-          } else {
+          switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+          | None =>
             Some(
               CursorNotOnDeferredVarPat(
                 CursorInfo_common.mk(
@@ -492,7 +480,17 @@ and ana_cursor_info_zoperand =
                   cursor_term,
                 ),
               ),
-            );
+            )
+          | Some(s) =>
+            Some(
+              CursorNotOnDeferredVarPat(
+                CursorInfo_common.mk(
+                  PatAnaTypeInconsistent(ty, ty', s),
+                  ctx,
+                  cursor_term,
+                ),
+              ),
+            )
           }
         | _ =>
           Some(
@@ -569,17 +567,8 @@ and ana_cursor_info_zoperand =
     | StringLit(NotInHole, _) =>
       switch (zoperand) {
       | CursorP(OnText(j), StringLit(_, s)) =>
-        if (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
-          Some(
-            CursorNotOnDeferredVarPat(
-              CursorInfo_common.mk(
-                PatAnaSubsumed(ty, String, ", Got invalid escape sequence"),
-                ctx,
-                cursor_term,
-              ),
-            ),
-          );
-        } else {
+        switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+        | None =>
           Some(
             CursorNotOnDeferredVarPat(
               CursorInfo_common.mk(
@@ -588,7 +577,17 @@ and ana_cursor_info_zoperand =
                 cursor_term,
               ),
             ),
-          );
+          )
+        | Some(s) =>
+          Some(
+            CursorNotOnDeferredVarPat(
+              CursorInfo_common.mk(
+                PatAnaSubsumed(ty, String, s),
+                ctx,
+                cursor_term,
+              ),
+            ),
+          )
         }
       | _ =>
         Some(
