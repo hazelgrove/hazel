@@ -42,6 +42,7 @@ type typed =
         HTyp.t,
         // got
         HTyp.t,
+        string,
       )
   // cursor is on the function position of an ap,
   // and that expression does synthesize a type
@@ -247,13 +248,13 @@ let is_invalid_escape_sequence = (j, s) =>
   if (String.length(s) > j && s.[j] == '\\') {
     /* |\ */
     if (String.length(s) == j + 1) {
-      true;
+      Some("\\");
     } else {
-      let ch =
+      let (ch, ind) =
         if (j >= 2 && s.[j - 2] == '\\') {
-          s.[j - 1];
+          (s.[j - 1], j - 2);
         } else {
-          s.[j + 1];
+          (s.[j + 1], j);
         };
       switch (ch) {
       | 'b'
@@ -263,10 +264,10 @@ let is_invalid_escape_sequence = (j, s) =>
       | '\\'
       | '"'
       | '\''
-      | ' ' => false
+      | ' ' => None
       | 'o' =>
         if (String.length(s) < j + 5) {
-          true;
+          Some(String.sub(s, ind, 2));
         } else {
           let ch1 = s.[j + 2];
           let ch2 = s.[j + 3];
@@ -275,27 +276,27 @@ let is_invalid_escape_sequence = (j, s) =>
               && (ch2 >= '0' && ch2 <= '7')
               && ch3 >= '0'
               && ch3 <= '7') {
-            false;
+            None;
           } else {
-            true;
+            Some(String.sub(s, ind, 2));
           };
         }
       | 'x' =>
         if (String.length(s) < j + 4) {
-          true;
+          Some(String.sub(s, ind, 2));
         } else {
           let ch1 = Char.lowercase_ascii(s.[j + 2]);
           let ch2 = Char.lowercase_ascii(s.[j + 3]);
           if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
               && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
-            false;
+            None;
           } else {
-            true;
+            Some(String.sub(s, ind, 2));
           };
         }
       | _ =>
         if (String.length(s) < j + 4) {
-          true;
+          Some(String.sub(s, ind, 2));
         } else {
           let ch1 = s.[j + 1];
           let ch2 = s.[j + 2];
@@ -304,9 +305,9 @@ let is_invalid_escape_sequence = (j, s) =>
               && (ch2 >= '0' && ch2 <= '9')
               && ch3 >= '0'
               && ch3 <= '9') {
-            false;
+            None;
           } else {
-            true;
+            Some(String.sub(s, ind, 2));
           };
         }
       };
@@ -314,7 +315,7 @@ let is_invalid_escape_sequence = (j, s) =>
   } else if (j >= 1 && s.[j - 1] == '\\') {
     /* \| */
     if (String.length(s) == j) {
-      true;
+      Some("\\");
     } else {
       switch (s.[j]) {
       | 'b'
@@ -324,10 +325,10 @@ let is_invalid_escape_sequence = (j, s) =>
       | '\\'
       | '"'
       | '\''
-      | ' ' => false
+      | ' ' => None
       | 'o' =>
         if (String.length(s) < j + 4) {
-          true;
+          Some(String.sub(s, j - 1, 2));
         } else {
           let ch1 = s.[j + 1];
           let ch2 = s.[j + 2];
@@ -336,27 +337,27 @@ let is_invalid_escape_sequence = (j, s) =>
               && (ch2 >= '0' && ch2 <= '7')
               && ch3 >= '0'
               && ch3 <= '7') {
-            false;
+            None;
           } else {
-            true;
+            Some(String.sub(s, j - 1, 2));
           };
         }
       | 'x' =>
         if (String.length(s) < j + 3) {
-          true;
+          Some(String.sub(s, j - 1, 2));
         } else {
           let ch1 = Char.lowercase_ascii(s.[j + 1]);
           let ch2 = Char.lowercase_ascii(s.[j + 2]);
           if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
               && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
-            false;
+            None;
           } else {
-            true;
+            Some(String.sub(s, j - 1, 2));
           };
         }
       | _ =>
         if (String.length(s) < j + 3) {
-          true;
+          Some(String.sub(s, j - 1, 2));
         } else {
           let ch1 = s.[j];
           let ch2 = s.[j + 1];
@@ -365,9 +366,9 @@ let is_invalid_escape_sequence = (j, s) =>
               && (ch2 >= '0' && ch2 <= '9')
               && ch3 >= '0'
               && ch3 <= '9') {
-            false;
+            None;
           } else {
-            true;
+            Some(String.sub(s, j - 1, 2));
           };
         }
       };
@@ -382,10 +383,10 @@ let is_invalid_escape_sequence = (j, s) =>
     | '\\'
     | '"'
     | '\''
-    | ' ' => false
+    | ' ' => None
     | 'o' =>
       if (String.length(s) < j + 3) {
-        true;
+        Some(String.sub(s, j - 2, 2));
       } else {
         let ch1 = s.[j];
         let ch2 = s.[j + 1];
@@ -394,27 +395,27 @@ let is_invalid_escape_sequence = (j, s) =>
             && (ch2 >= '0' && ch2 <= '7')
             && ch3 >= '0'
             && ch3 <= '7') {
-          false;
+          None;
         } else {
-          true;
+          Some(String.sub(s, j - 2, 2));
         };
       }
     | 'x' =>
       if (String.length(s) < j + 2) {
-        true;
+        Some(String.sub(s, j - 2, 2));
       } else {
         let ch1 = Char.lowercase_ascii(s.[j]);
         let ch2 = Char.lowercase_ascii(s.[j + 1]);
         if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
             && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
-          false;
+          None;
         } else {
-          true;
+          Some(String.sub(s, j - 2, 2));
         };
       }
     | _ =>
       if (String.length(s) < j + 2) {
-        true;
+        Some(String.sub(s, j - 2, 2));
       } else {
         let ch1 = s.[j - 1];
         let ch2 = s.[j];
@@ -423,14 +424,14 @@ let is_invalid_escape_sequence = (j, s) =>
             && (ch2 >= '0' && ch2 <= '9')
             && ch3 >= '0'
             && ch3 <= '9') {
-          false;
+          None;
         } else {
-          true;
+          Some(String.sub(s, j - 2, 2));
         };
       }
     };
   } else {
-    false;
+    None;
   };
 
 let mk = (~uses=?, typed, ctx, cursor_term) => {
