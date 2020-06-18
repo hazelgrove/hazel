@@ -56,7 +56,7 @@ let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
   | SQuote => "new string"
-  | SLeftBracket => "new list/substring"
+  | SLeftBracket => "new list"
   | SParenthesized => "parentheses"
   | SChar(str) => str
   | SAsc => "type annotation"
