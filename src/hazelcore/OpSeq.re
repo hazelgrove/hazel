@@ -6,6 +6,26 @@ type t('operand, 'operator) =
 and skel('operator) = Skel.t('operator)
 and seq('operand, 'operator) = Seq.t('operand, 'operator);
 
+// skel
+//    / \
+//   /   \
+//  /\    \
+
+//
+// 1 * 2 + 3
+/*
+   OpSeq(
+     BinOp(_, Plus,
+       BinOp(_, Times,
+         Placeholder(0),
+         Placeholder(1),
+       ),
+       Placeholder(2),
+     ),
+     S(NumLit(1), A(Times, S(NumLit(2), A(Plus, S(NumLit(3), E))))),
+   )
+ */
+
 let mk =
     (
       ~associate: seq('operand, 'operator) => Skel.t('operator),

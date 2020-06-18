@@ -311,6 +311,11 @@ let associate = (seq: seq) => {
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };
 
+// let mk_OpSeq = (seq: seq): opseq => {
+//   let rec go_seq = (~output_stack: list(skel), seq)
+//   and go_affix = (~output_stack: list(skel), affix)
+// };
+// print_endline("Print associate");
 let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
