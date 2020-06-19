@@ -28,15 +28,32 @@ let get_steps: t => CursorPath_common.steps;
 
 let get_u_gen: t => MetaVarGen.t;
 
+/**
+ * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
+ * (indicates a bug, either in that function or in Action
+ * because Action needs to return a well-typed edit state)
+ */
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo_common.t;
 
+/**
+ * Raised when edit state does not elaborate
+ * (indicates a bug, either in that function or in Action
+ * because Action needs to return a well-typed edit state) */
 exception DoesNotElaborate;
 let get_expansion: t => DHExp.t;
 
+/**
+ * Raised when evaluation fails with the InvalidInput output
+ * (indicates a bug, either in that function or in Action
+ * because Action needs to return a well-typed edit state)
+ */
 exception InvalidInput;
 let get_result: t => Result.t;
 
+/**
+ * Raised when an attempted edit action does not succeed
+ */
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action_common.t, t) => t;
@@ -61,6 +78,12 @@ let move_via_click:
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => t;
+
+/**
+ * `select_case_branch(steps, n, program)` moves the cursor to the `n`th branch
+ * in case expression found at `steps` (when the user clicks on a branch type
+ * in the error message for a case expression with inconsistent branches)
+ */
 let move_to_case_branch:
   (CursorPath_common.steps, int, t) => (t, Action_common.t);
 
@@ -74,6 +97,10 @@ let get_layout:
     t
   ) =>
   UHLayout.t;
+/**
+ * Returns a `UHLayout.t` that has been decorated with the caret,
+ * current term, and variable uses. (Will be refactored away.)
+ */
 let get_decorated_layout:
   (
     ~measure_program_get_doc: bool,
@@ -82,6 +109,7 @@ let get_decorated_layout:
     t
   ) =>
   UHLayout.t;
+
 let get_cursor_map:
   (
     ~measure_program_get_doc: bool,
