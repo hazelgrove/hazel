@@ -1841,7 +1841,9 @@ module Pat = {
           Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZOpSeq.wrap(zoperand));
         let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let zp =
-          ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
+          ZOpSeq.wrap(
+            ZPat.InjZ(InHole(TypeInconsistent(None), u), side, zbody),
+          );
         Succeeded((zp, ctx, u_gen));
       }
 
@@ -4708,7 +4710,9 @@ module Exp = {
           );
         let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
         let new_ze =
-          ZExp.ZBlock.wrap(InjZ(InHole(TypeInconsistent, u), side, zbody));
+          ZExp.ZBlock.wrap(
+            InjZ(InHole(TypeInconsistent(None), u), side, zbody),
+          );
         Succeeded(AnaDone((new_ze, u_gen)));
       }
 
@@ -4730,7 +4734,7 @@ module Exp = {
         let new_ze =
           ZExp.ZBlock.wrap(
             LamZP(
-              InHole(TypeInconsistent, u),
+              InHole(TypeInconsistent(None), u),
               ZOpSeq.wrap(zhole),
               None,
               body,
@@ -4897,7 +4901,7 @@ module Exp = {
               let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
               let new_ze =
                 ZExp.ZBlock.wrap(
-                  LamZA(InHole(TypeInconsistent, u), p, zann, body),
+                  LamZA(InHole(TypeInconsistent(None), u), p, zann, body),
                 );
               Succeeded(AnaDone((new_ze, u_gen)));
             };

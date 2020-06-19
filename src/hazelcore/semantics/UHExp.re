@@ -235,7 +235,7 @@ and set_err_status_operand = (err, operand) =>
 
 let is_inconsistent = operand =>
   switch (operand |> get_err_status_operand) {
-  | InHole(TypeInconsistent, _) => true
+  | InHole(TypeInconsistent(_), _) => true
   | _ => false
   };
 
@@ -254,15 +254,15 @@ and make_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _)
+  | Var(InHole(TypeInconsistent(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent(_), _), _)
+  | FloatLit(InHole(TypeInconsistent(_), _), _)
+  | BoolLit(InHole(TypeInconsistent(_), _), _)
+  | ListNil(InHole(TypeInconsistent(_), _))
+  | Lam(InHole(TypeInconsistent(_), _), _, _, _)
+  | Inj(InHole(TypeInconsistent(_), _), _, _)
+  | Case(InHole(TypeInconsistent(_), _), _, _, _)
+  | ApLivelit(_, InHole(TypeInconsistent(_), _), _, _, _)
   | FreeLivelit(_) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -276,7 +276,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let operand =
-      operand |> set_err_status_operand(InHole(TypeInconsistent, u));
+      operand |> set_err_status_operand(InHole(TypeInconsistent(None), u));
     (operand, u_gen);
   /* err in constructor args */
   | Parenthesized(body) =>

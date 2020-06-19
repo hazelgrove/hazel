@@ -31,7 +31,13 @@ type t =
       llu: MetaVar.t,
       llview:
         [@sexp.opaque] (Livelits.trigger_serialized => Livelits.LivelitView.t),
-      splice_map_opt: option(SpliceInfo.splice_map(option(DHExp.t))),
+      sim_dargs_opt:
+        option(
+          (
+            SpliceInfo.splice_map(option(DHExp.t)),
+            list((Var.t, option(DHExp.t))),
+          ),
+        ),
     })
 [@deriving sexp]
 and term_data = {

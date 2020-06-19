@@ -119,6 +119,7 @@ type t =
       VarMap.t_(t),
       LivelitName.t,
       SpliceInfo.t(option(t)),
+      list((Var.t, HTyp.t, option(t))),
       t,
     )
   | Triv

@@ -1,8 +1,16 @@
+open Sexplib.Std;
+
+module SubReason = {
+  [@deriving sexp]
+  type t =
+    | InsufficientParams;
+};
+
 module HoleReason = {
   /* Variable: `reason` */
   [@deriving sexp]
   type t =
-    | TypeInconsistent
+    | TypeInconsistent(option(SubReason.t))
     | WrongLength;
 };
 

@@ -103,7 +103,7 @@ let make_inconsistent =
     | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       (
-        BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
+        BinOp(InHole(TypeInconsistent(None), u), op, skel1, skel2),
         ZOperator(zop, surround),
         u_gen,
       );
@@ -113,7 +113,7 @@ let make_inconsistent =
     | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
       (
-        BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
+        BinOp(InHole(TypeInconsistent(None), u), op, skel1, skel2),
         ZOperand(zoperand, surround),
         u_gen,
       );

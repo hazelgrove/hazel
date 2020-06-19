@@ -82,13 +82,13 @@ module Pat = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some((Hole, ctx))
-    | Wild(InHole(TypeInconsistent, _))
-    | Var(InHole(TypeInconsistent, _), _, _)
-    | IntLit(InHole(TypeInconsistent, _), _)
-    | FloatLit(InHole(TypeInconsistent, _), _)
-    | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
-    | Inj(InHole(TypeInconsistent, _), _, _) =>
+    | Wild(InHole(TypeInconsistent(_), _))
+    | Var(InHole(TypeInconsistent(_), _), _, _)
+    | IntLit(InHole(TypeInconsistent(_), _), _)
+    | FloatLit(InHole(TypeInconsistent(_), _), _)
+    | BoolLit(InHole(TypeInconsistent(_), _), _)
+    | ListNil(InHole(TypeInconsistent(_), _))
+    | Inj(InHole(TypeInconsistent(_), _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand')
       |> OptUtil.map(((_, gamma)) => (HTyp.Hole, gamma));
@@ -134,7 +134,7 @@ module Pat = {
     | None =>
       switch (opseq |> UHPat.get_err_status_opseq) {
       | NotInHole
-      | InHole(TypeInconsistent, _) => None
+      | InHole(TypeInconsistent(_), _) => None
       | InHole(WrongLength, _) =>
         let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
@@ -160,7 +160,7 @@ module Pat = {
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       ana_operand(ctx, pn, ty);
-    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent(_), _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_skel(ctx, skel_not_in_hole, seq)) {
       | None => None
@@ -187,13 +187,13 @@ module Pat = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some(ctx)
-    | Wild(InHole(TypeInconsistent, _))
-    | Var(InHole(TypeInconsistent, _), _, _)
-    | IntLit(InHole(TypeInconsistent, _), _)
-    | FloatLit(InHole(TypeInconsistent, _), _)
-    | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
-    | Inj(InHole(TypeInconsistent, _), _, _) =>
+    | Wild(InHole(TypeInconsistent(_), _))
+    | Var(InHole(TypeInconsistent(_), _), _, _)
+    | IntLit(InHole(TypeInconsistent(_), _), _)
+    | FloatLit(InHole(TypeInconsistent(_), _), _)
+    | BoolLit(InHole(TypeInconsistent(_), _), _)
+    | ListNil(InHole(TypeInconsistent(_), _))
+    | Inj(InHole(TypeInconsistent(_), _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
     | Wild(InHole(WrongLength, _))
@@ -322,7 +322,7 @@ module Pat = {
       | Placeholder(n') =>
         assert(n == n');
         Some(Ana(ty));
-      | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+      | BinOp(InHole(TypeInconsistent(_), _), op, skel1, skel2) =>
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
         _syn_nth_type_mode(ctx, n, skel_not_in_hole, seq);
       | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -418,7 +418,7 @@ module Pat = {
       let (u, u_gen) = MetaVarGen.next_hole(u_gen);
       let skel =
         Skel.BinOp(
-          InHole(TypeInconsistent, u),
+          InHole(TypeInconsistent(None), u),
           Operators.Pat.Space,
           skel1,
           skel2,
@@ -646,7 +646,7 @@ module Pat = {
       let (u, u_gen) = MetaVarGen.next_hole(u_gen);
       let skel =
         Skel.BinOp(
-          InHole(TypeInconsistent, u),
+          InHole(TypeInconsistent(None), u),
           Operators.Pat.Space,
           skel1,
           skel2,
@@ -692,7 +692,7 @@ module Pat = {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         let skel =
           Skel.BinOp(
-            InHole(TypeInconsistent, u),
+            InHole(TypeInconsistent(None), u),
             Operators.Pat.Cons,
             skel1,
             skel2,
@@ -734,7 +734,10 @@ module Pat = {
       } else {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
-          UHPat.set_err_status_operand(InHole(TypeInconsistent, u), operand'),
+          UHPat.set_err_status_operand(
+            InHole(TypeInconsistent(None), u),
+            operand',
+          ),
           ctx,
           u_gen,
         );
@@ -744,7 +747,7 @@ module Pat = {
       | Some(_) => (ListNil(NotInHole), ctx, u_gen)
       | None =>
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (ListNil(InHole(TypeInconsistent, u)), ctx, u_gen);
+        (ListNil(InHole(TypeInconsistent(None), u)), ctx, u_gen);
       }
     | Parenthesized(p1) =>
       let (p1, ctx, u_gen) =
@@ -761,7 +764,7 @@ module Pat = {
         let (p1, _, ctx, u_gen) =
           syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p1);
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
+        (Inj(InHole(TypeInconsistent(None), u), side, p1), ctx, u_gen);
       }
     };
   };
@@ -817,7 +820,7 @@ module Exp = {
    */
   let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
     syn_block(ctx, e)
-  and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
+  and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
     switch (block |> UHExp.Block.split_conclusion) {
     | None => None
     | Some((leading, conclusion)) =>
@@ -825,7 +828,8 @@ module Exp = {
       | None => None
       | Some(ctx) => syn_opseq(ctx, conclusion)
       }
-    }
+    };
+  }
   and syn_lines =
       (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
     lines
@@ -901,15 +905,38 @@ module Exp = {
         ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (syn_skel(ctx, skel1, seq)) {
-      | None => None
-      | Some(ty1) =>
-        switch (HTyp.matched_arrow(ty1)) {
+      let livelit_ap_check = LivelitUtil.check_livelit(ctx, seq, skel);
+      switch (livelit_ap_check) {
+      | Some((
+          ApLivelitData(_, _, model, splice_info),
+          livelit_defn,
+          param_tys,
+          args,
+        )) =>
+        let (_, param_tys') = List.split(param_tys);
+        let all_args_ana =
+          List.for_all2(
+            (ty_n, skel_n) =>
+              ana_skel(ctx, skel_n, seq, ty_n) |> OptUtil.test,
+            param_tys',
+            args,
+          );
+        if (all_args_ana) {
+          syn_ApLivelit(ctx, livelit_defn, model, splice_info, param_tys);
+        } else {
+          None;
+        };
+      | _ =>
+        switch (syn_skel(ctx, skel1, seq)) {
         | None => None
-        | Some((ty2, ty)) =>
-          ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
+        | Some(ty1) =>
+          switch (HTyp.matched_arrow(ty1)) {
+          | None => None
+          | Some((ty2, ty)) =>
+            ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
+          }
         }
-      }
+      };
     | BinOp(NotInHole, Comma, _, _) =>
       skel
       |> UHExp.get_tuple_elements
@@ -928,15 +955,15 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some(Hole)
-    | Var(InHole(TypeInconsistent, _), _, _)
-    | IntLit(InHole(TypeInconsistent, _), _)
-    | FloatLit(InHole(TypeInconsistent, _), _)
-    | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
-    | Lam(InHole(TypeInconsistent, _), _, _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _)
-    | Case(InHole(TypeInconsistent, _), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _) =>
+    | Var(InHole(TypeInconsistent(_), _), _, _)
+    | IntLit(InHole(TypeInconsistent(_), _), _)
+    | FloatLit(InHole(TypeInconsistent(_), _), _)
+    | BoolLit(InHole(TypeInconsistent(_), _), _)
+    | ListNil(InHole(TypeInconsistent(_), _))
+    | Lam(InHole(TypeInconsistent(_), _), _, _, _)
+    | Inj(InHole(TypeInconsistent(_), _), _, _)
+    | Case(InHole(TypeInconsistent(_), _), _, _, _)
+    | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
@@ -981,28 +1008,58 @@ module Exp = {
       }
     | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.expand(uty))
     | Case(NotInHole, _, _, None) => None
-    | ApLivelit(_, NotInHole, name, serialized_model, si) =>
+    | ApLivelit(
+        _,
+        (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
+        name,
+        serialized_model,
+        si,
+      ) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => None
       | Some(livelit_defn) =>
-        switch (ana_splice_map(ctx, si.splice_map)) {
-        | None => None
-        | Some(splice_ctx) =>
-          let expansion_ty = livelit_defn.expansion_ty;
-          let expand = livelit_defn.expand;
-          let expansion = expand(serialized_model);
-          switch (ana(splice_ctx, expansion, expansion_ty)) {
-          | None => None
-          | Some(_) => Some(expansion_ty)
-          };
-        }
+        let param_tys = livelit_defn.param_tys;
+        switch (err_status, param_tys) {
+        | (NotInHole, [_, ..._])
+        | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
+          None
+        | _ =>
+          let rslt =
+            syn_ApLivelit(ctx, livelit_defn, serialized_model, si, param_tys);
+          err_status == NotInHole ? rslt : rslt |> OptUtil.map(_ => HTyp.Hole);
+        };
       };
     | FreeLivelit(_, _) => Some(Hole)
     | Parenthesized(body) => syn(ctx, body)
     }
-  and ana_splice_map =
-      (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
+  and syn_ApLivelit =
+      (ctx, livelit_defn, serialized_model, splice_info, param_tys)
+      : option(HTyp.t) =>
+    switch (ana_splice_map_and_params(ctx, splice_info.splice_map, param_tys)) {
+    | None => None
+    | Some(splice_ctx) =>
+      let expansion_ty = livelit_defn.expansion_ty;
+      let expand = livelit_defn.expand;
+      let expansion = expand(serialized_model);
+      switch (ana(splice_ctx, expansion, expansion_ty)) {
+      | None => None
+      | Some(_) => Some(expansion_ty)
+      };
+    }
+  and ana_splice_map_and_params =
+      (
+        ctx: Contexts.t,
+        splice_map: UHExp.splice_map,
+        param_tys: list((Var.t, HTyp.t)),
+      )
+      : option(Contexts.t) => {
+    let params_ctx =
+      param_tys
+      |> List.fold_left(
+           (acc, (name, ty)) => Contexts.extend_gamma(acc, (name, ty)),
+           Contexts.empty,
+         );
     NatMap.fold(
       splice_map,
       (c, (splice_name, (ty, e))) =>
@@ -1016,8 +1073,9 @@ module Exp = {
             Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
           }
         },
-      Some(Contexts.empty),
-    )
+      Some(params_ctx),
+    );
+  }
   /**
    * Analyze e against expected type ty
    */
@@ -1040,7 +1098,7 @@ module Exp = {
     | None =>
       switch (opseq |> UHExp.get_err_status_opseq) {
       | NotInHole
-      | InHole(TypeInconsistent, _) => None
+      | InHole(TypeInconsistent(_), _) => None
       | InHole(WrongLength, _) =>
         let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
         syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
@@ -1069,7 +1127,7 @@ module Exp = {
         | Some(_) => ana_skel(ctx, skel2, seq, List(ty_elt))
         }
       }
-    | BinOp(InHole(TypeInconsistent, _), _, _, _)
+    | BinOp(InHole(TypeInconsistent(_), _), _, _, _)
     | BinOp(
         NotInHole,
         And | Or | Minus | Plus | Times | FMinus | FPlus | FTimes | LessThan |
@@ -1092,15 +1150,15 @@ module Exp = {
     switch (operand) {
     /* in hole */
     | EmptyHole(_) => Some()
-    | Var(InHole(TypeInconsistent, _), _, _)
-    | IntLit(InHole(TypeInconsistent, _), _)
-    | FloatLit(InHole(TypeInconsistent, _), _)
-    | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListNil(InHole(TypeInconsistent, _))
-    | Lam(InHole(TypeInconsistent, _), _, _, _)
-    | Inj(InHole(TypeInconsistent, _), _, _)
-    | Case(InHole(TypeInconsistent, _), _, _, _)
-    | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _) =>
+    | Var(InHole(TypeInconsistent(_), _), _, _)
+    | IntLit(InHole(TypeInconsistent(_), _), _)
+    | FloatLit(InHole(TypeInconsistent(_), _), _)
+    | BoolLit(InHole(TypeInconsistent(_), _), _)
+    | ListNil(InHole(TypeInconsistent(_), _))
+    | Lam(InHole(TypeInconsistent(_), _), _, _, _)
+    | Inj(InHole(TypeInconsistent(_), _), _, _)
+    | Case(InHole(TypeInconsistent(_), _), _, _, _)
+    | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
@@ -1129,15 +1187,15 @@ module Exp = {
     | ApLivelit(_, NotInHole, _, _, _)
     | FreeLivelit(_, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-      switch (syn_operand(ctx, operand')) {
-      | None => None
-      | Some(ty') =>
-        if (HTyp.consistent(ty, ty')) {
-          Some();
-        } else {
-          None;
-        }
-      };
+      ana_subsume_operand(ctx, operand', ty);
+    | ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        _,
+        _,
+        _,
+      ) =>
+      ana_subsume_operand(ctx, operand, ty)
     | Lam(NotInHole, p, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => None
@@ -1181,6 +1239,16 @@ module Exp = {
       | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
       }
     | Parenthesized(body) => ana(ctx, body, ty)
+    }
+  and ana_subsume_operand = (ctx, operand, ty) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some(ty') =>
+      if (HTyp.consistent(ty, ty')) {
+        Some();
+      } else {
+        None;
+      }
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1228,18 +1296,30 @@ module Exp = {
       | BinOp(NotInHole, Comma, skel1, skel2) =>
         n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
       | BinOp(NotInHole, Space, skel1, skel2) =>
-        switch (syn_skel(ctx, skel1, seq)) {
-        | None => None
-        | Some(ty1) =>
-          if (n <= Skel.rightmost_tm_index(skel1)) {
-            go(skel1);
+        let livelit_ap_check = LivelitUtil.check_livelit(ctx, seq, skel);
+        switch (livelit_ap_check) {
+        | Some((_, _, param_tys, _)) =>
+          let (_, param_tys) = List.split(param_tys);
+          let param_offset = n - Skel.leftmost_tm_index(skel);
+          if (param_offset == 0) {
+            Some(Syn);
           } else {
-            switch (HTyp.matched_arrow(ty1)) {
-            | None => None
-            | Some((ty2, _)) => ana_go(skel2, ty2)
-            };
+            Some(Ana(List.nth(param_tys, param_offset - 1)));
+          };
+        | None =>
+          switch (syn_skel(ctx, skel1, seq)) {
+          | None => None
+          | Some(ty1) =>
+            if (n <= Skel.rightmost_tm_index(skel1)) {
+              go(skel1);
+            } else {
+              switch (HTyp.matched_arrow(ty1)) {
+              | None => None
+              | Some((ty2, _)) => ana_go(skel2, ty2)
+              };
+            }
           }
-        }
+        };
       | BinOp(NotInHole, Cons, skel1, skel2) =>
         switch (syn_skel(ctx, skel1, seq)) {
         | None => None
@@ -1330,7 +1410,7 @@ module Exp = {
       | Placeholder(n') =>
         assert(n == n');
         Some(Ana(ty));
-      | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+      | BinOp(InHole(TypeInconsistent(_), _), op, skel1, skel2) =>
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
         syn_go(skel_not_in_hole);
       | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -1579,33 +1659,97 @@ module Exp = {
         );
       (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
     | BinOp(_, Space, skel1, skel2) =>
-      let (skel1, seq, ty1, u_gen) =
-        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      switch (HTyp.matched_arrow(ty1)) {
-      | Some((ty2, ty)) =>
-        let (skel2, seq, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel2,
-            seq,
-            ty2,
+      let livelit_check =
+        LivelitUtil.check_livelit(
+          ~permit_free_livelit=true,
+          ~permit_insufficient_params_hole=true,
+          ctx,
+          seq,
+          skel,
+        );
+      switch (livelit_check) {
+      | Some((data, livelit_defn, param_tys, args)) =>
+        let (_, param_tys) = List.split(param_tys);
+        let (fixed_ll, fixed_ty, u_gen) =
+          switch (data) {
+          | ApLivelitData(llu, lln, model, splice_info) =>
+            syn_fix_holes_ApLivelit(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              false,
+              livelit_defn,
+              llu,
+              lln,
+              model,
+              splice_info,
+            )
+          | FreeLivelitData(_, lln) =>
+            syn_fix_holes_FreeLivelit(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              false,
+              livelit_defn,
+              lln,
+            )
+          };
+        let ((seq, u_gen), new_args) =
+          ListUtil.map_with_accumulator(
+            ((seq, u_gen), (param_ty, arg)) => {
+              let (new_arg, seq, u_gen) =
+                ana_fix_holes_skel(
+                  ctx,
+                  u_gen,
+                  ~renumber_empty_holes,
+                  arg,
+                  seq,
+                  param_ty,
+                );
+              ((seq, u_gen), new_arg);
+            },
+            (seq, u_gen),
+            List.combine(param_tys, args),
           );
-        (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
+        let livelitN = Skel.leftmost_tm_index(skel);
+        let seq = seq |> Seq.update_nth_operand(livelitN, fixed_ll);
+        let skel =
+          new_args
+          |> List.fold_left(
+               (skel, arg) =>
+                 Skel.BinOp(NotInHole, Operators.Exp.Space, skel, arg),
+               Placeholder(livelitN),
+             );
+        (skel, seq, fixed_ty, u_gen);
       | None =>
-        let (skel2, seq, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel2,
-            seq,
-            HTyp.Hole,
-          );
-        let (OpSeq(skel1, seq), u_gen) =
-          UHExp.make_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+        let (skel1, seq, ty1, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+        switch (HTyp.matched_arrow(ty1)) {
+        | Some((ty2, ty)) =>
+          let (skel2, seq, u_gen) =
+            ana_fix_holes_skel(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              skel2,
+              seq,
+              ty2,
+            );
+          (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
+        | None =>
+          let (skel2, seq, u_gen) =
+            ana_fix_holes_skel(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              skel2,
+              seq,
+              HTyp.Hole,
+            );
+          let (OpSeq(skel1, seq), u_gen) =
+            UHExp.make_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
+          (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+        };
       };
     | BinOp(_, Comma, _, _) =>
       let ((u_gen, seq), pairs) =
@@ -1730,54 +1874,114 @@ module Exp = {
         HTyp.Hole,
         u_gen,
       );
-    | ApLivelit(llu, _, name, serialized_model, si) =>
+    | ApLivelit(llu, _, lln, model, splice_info) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
-      switch (LivelitCtx.lookup(livelit_ctx, name)) {
+      switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (FreeLivelit(u, name), Hole, u_gen);
+        (FreeLivelit(u, lln), Hole, u_gen);
       | Some(livelit_defn) =>
-        let (splice_map, u_gen) =
-          ana_fix_holes_splice_map(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            SpliceInfo.splice_map(si),
-          );
-        let si = SpliceInfo.update_splice_map(si, splice_map);
-        let expansion_ty = livelit_defn.expansion_ty;
-        (
-          ApLivelit(llu, NotInHole, name, serialized_model, si),
-          expansion_ty,
+        let put_in_hole = List.length(livelit_defn.param_tys) != 0;
+        syn_fix_holes_ApLivelit(
+          ctx,
           u_gen,
+          ~renumber_empty_holes,
+          put_in_hole,
+          livelit_defn,
+          llu,
+          lln,
+          model,
+          splice_info,
         );
       };
-    | FreeLivelit(_, name) =>
+    | FreeLivelit(_, lln) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
-      switch (LivelitCtx.lookup(livelit_ctx, name)) {
+      switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None => (e, Hole, u_gen)
       | Some(livelit_defn) =>
-        /* initialize the livelit if it has come into scope */
-        let init_model_cmd = livelit_defn.init_model;
-        let (init_serialized_model, init_splice_info, u_gen) =
-          SpliceGenCmd.exec(init_model_cmd, SpliceInfo.empty, u_gen);
-        let (splice_map, u_gen) =
-          ana_fix_holes_splice_map(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            init_splice_info.splice_map,
-          );
-        let si = SpliceInfo.update_splice_map(init_splice_info, splice_map);
-        let expansion_ty = livelit_defn.expansion_ty;
-        let (llu, u_gen) = MetaVarGen.next_livelit(u_gen);
-        (
-          ApLivelit(llu, NotInHole, name, init_serialized_model, si),
-          expansion_ty,
+        let put_in_hole = List.length(livelit_defn.param_tys) != 0;
+        syn_fix_holes_FreeLivelit(
+          ctx,
           u_gen,
+          ~renumber_empty_holes,
+          put_in_hole,
+          livelit_defn,
+          lln,
         );
       };
     };
+  }
+  and syn_fix_holes_FreeLivelit =
+      (ctx, u_gen, ~renumber_empty_holes, put_in_hole, livelit_defn, lln) => {
+    /* initialize the livelit if it has come into scope */
+    let init_model_cmd = livelit_defn.init_model;
+    let (init_serialized_model, init_splice_info, u_gen) =
+      SpliceGenCmd.exec(init_model_cmd, SpliceInfo.empty, u_gen);
+    let (splice_map, u_gen) =
+      ana_fix_holes_splice_map(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        init_splice_info.splice_map,
+      );
+    let si = SpliceInfo.update_splice_map(init_splice_info, splice_map);
+    let (llu, u_gen) = MetaVarGen.next_livelit(u_gen);
+    syn_fix_holes_livelit(
+      ~put_in_hole,
+      u_gen,
+      livelit_defn,
+      llu,
+      lln,
+      init_serialized_model,
+      si,
+    );
+  }
+  and syn_fix_holes_ApLivelit =
+      (
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        put_in_hole,
+        livelit_defn,
+        llu,
+        lln,
+        model,
+        splice_info,
+      )
+      : (UHExp.operand, HTyp.t, MetaVarGen.t) => {
+    let (splice_map, u_gen) =
+      ana_fix_holes_splice_map(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        SpliceInfo.splice_map(splice_info),
+      );
+    let splice_info = SpliceInfo.update_splice_map(splice_info, splice_map);
+    syn_fix_holes_livelit(
+      ~put_in_hole,
+      u_gen,
+      livelit_defn,
+      llu,
+      lln,
+      model,
+      splice_info,
+    );
+  }
+  and syn_fix_holes_livelit =
+      (~put_in_hole, u_gen, livelit_defn, llu, lln, model, splice_info) => {
+    let expansion_ty = livelit_defn.expansion_ty;
+    let (typ, err_status, u_gen) =
+      if (put_in_hole) {
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (
+          HTyp.Hole,
+          ErrStatus.InHole(TypeInconsistent(Some(InsufficientParams)), u),
+          u_gen,
+        );
+      } else {
+        (expansion_ty, NotInHole, u_gen);
+      };
+    (UHExp.ApLivelit(llu, err_status, lln, model, splice_info), typ, u_gen);
   }
   and ana_fix_holes_rules =
       (
@@ -2055,7 +2259,7 @@ module Exp = {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         let skel =
           Skel.BinOp(
-            InHole(TypeInconsistent, u),
+            InHole(TypeInconsistent(None), u),
             Operators.Exp.Cons,
             skel1,
             skel2,
@@ -2101,6 +2305,24 @@ module Exp = {
       } else {
         (e, u_gen);
       }
+    | ApLivelit(
+        _,
+        InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        _,
+        _,
+        _,
+      ) =>
+      let (e, ty', u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+      switch (UHExp.get_err_status_operand(e)) {
+      | NotInHole when !HTyp.consistent(ty, ty') =>
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (
+          UHExp.set_err_status_operand(InHole(TypeInconsistent(None), u), e),
+          u_gen,
+        );
+      | _ => (e, u_gen)
+      };
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -2114,7 +2336,7 @@ module Exp = {
       } else {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e),
+          UHExp.set_err_status_operand(InHole(TypeInconsistent(None), u), e),
           u_gen,
         );
       };
@@ -2123,7 +2345,7 @@ module Exp = {
       | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
       | None =>
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
-        (ListNil(InHole(TypeInconsistent, u)), u_gen);
+        (ListNil(InHole(TypeInconsistent(None), u)), u_gen);
       }
     | Parenthesized(body) =>
       let (body, u_gen) =
@@ -2152,7 +2374,10 @@ module Exp = {
               syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
             let (u, u_gen) = MetaVarGen.next_hole(u_gen);
             (
-              UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+              UHExp.set_err_status_operand(
+                InHole(TypeInconsistent(None), u),
+                e',
+              ),
               u_gen,
             );
           };
@@ -2174,7 +2399,10 @@ module Exp = {
           syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+          UHExp.set_err_status_operand(
+            InHole(TypeInconsistent(None), u),
+            e',
+          ),
           u_gen,
         );
       }
@@ -2198,7 +2426,10 @@ module Exp = {
         } else {
           let (u, u_gen) = MetaVarGen.next_hole(u_gen);
           (
-            UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+            UHExp.set_err_status_operand(
+              InHole(TypeInconsistent(None), u),
+              e',
+            ),
             u_gen,
           );
         };
@@ -2234,7 +2465,10 @@ module Exp = {
           syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+          UHExp.set_err_status_operand(
+            InHole(TypeInconsistent(None), u),
+            e',
+          ),
           u_gen,
         );
       };

@@ -12,14 +12,16 @@ type splice_getters = {
   dhcode: SpliceName.t => option((DHExp.t, div_type)),
 };
 
-type splice_getters_to_vdom = splice_getters => div_type;
+type splices_and_params_to_vdom =
+  (splice_getters, option(list((Var.t, option((DHExp.t, div_type)))))) =>
+  div_type;
 
 module LivelitView = {
   type t =
-    | Inline(splice_getters_to_vdom, int)
-    | MultiLine(splice_getters_to_vdom, int);
+    | Inline(splices_and_params_to_vdom, int)
+    | MultiLine(splices_and_params_to_vdom, int);
 
-  let get_splice_getters_to_vdom =
+  let get_splices_and_params_to_vdom =
     fun
     | Inline(x, _)
     | MultiLine(x, _) => x;
@@ -28,6 +30,7 @@ module LivelitView = {
 module type LIVELIT = {
   let name: LivelitName.t;
   let expansion_ty: HTyp.t;
+  let param_tys: list((Var.t, HTyp.t));
 
   [@deriving sexp]
   type model;
@@ -48,6 +51,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   let livelit_defn =
     LivelitDefinition.{
       expansion_ty: L.expansion_ty,
+      param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>
         SpliceGenCmd.bind(
@@ -82,9 +86,25 @@ module LivelitContexts = {
   type t = (LivelitCtx.t, LivelitViewCtx.t);
   let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
   let extend =
-      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => {
+      (
+        (livelit_ctx, livelit_view_ctx),
+        (name, def: LivelitDefinition.t, serialized_view_fn),
+      ) => {
     if (!LivelitName.is_valid(name)) {
       failwith("Invalid livelit name " ++ name);
+    };
+    let (param_names, _) = List.split(def.param_tys);
+    let rec contains_dupl =
+      fun
+      | [] => false
+      | [hd, ...tl] => List.mem(hd, tl) || contains_dupl(tl);
+    if (contains_dupl(param_names)) {
+      failwith(
+        "Parameter names for livelit "
+        ++ name
+        ++ " must be unique: "
+        ++ String.concat(", ", param_names),
+      );
     };
     (
       VarMap.extend(livelit_ctx, (name, def)),
@@ -104,6 +124,7 @@ let prop_val = (prop: string, value: string) =>
 module PairLivelit: LIVELIT = {
   let name = "$pair";
   let expansion_ty = HTyp.(Prod([Hole, Hole]));
+  let param_tys = [];
 
   [@deriving sexp]
   type model = (int, int);
@@ -121,7 +142,7 @@ module PairLivelit: LIVELIT = {
 
   let view = ((leftID, rightID), _) =>
     LivelitView.Inline(
-      ({uhcode, _}) =>
+      ({uhcode, _}, _) =>
         Vdom.(
           Node.div(
             [Attr.classes(["pair-livelit"])],
@@ -150,6 +171,7 @@ module type MAT_INFO = {
 module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
   let name = I.name;
   let expansion_ty = HTyp.(List(List(Int)));
+  let param_tys = [];
 
   // assume nonzero height and width
   [@deriving sexp]
@@ -266,7 +288,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     );
 
   let view = ((selected, m), trig) => {
-    let splice_getters_to_vdom = ({uhcode, dhcode}) => {
+    let splices_and_params_to_vdom = ({uhcode, dhcode}, _) => {
       open Vdom;
       let width = get_width(m);
       let height = get_height(m);
@@ -427,7 +449,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     };
     let num_rows = List.length(m);
     LivelitView.MultiLine(
-      splice_getters_to_vdom,
+      splices_and_params_to_vdom,
       num_rows + 2 + (I.is_live ? 1 : 0),
     );
   };
@@ -469,6 +491,7 @@ module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
 module GradeCutoffLivelit: LIVELIT = {
   let name = "$grade_cutoffs";
   let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
+  let param_tys = [];
 
   [@deriving sexp]
   type letter_grade =
@@ -725,7 +748,7 @@ module GradeCutoffLivelit: LIVELIT = {
     | _ => None;
 
   let view = ({a, b, c, d, selected_grade, dataID}, trig) => {
-    let splice_getters_to_vdom = ({uhcode, dhcode}) => {
+    let splices_and_params_to_vdom = ({uhcode, dhcode}, _) => {
       let data_opt = dhcode(dataID);
       let grades_opt =
         data_opt |> OptUtil.and_then(((d, _)) => dhexp_to_grades([], d));
@@ -818,7 +841,7 @@ module GradeCutoffLivelit: LIVELIT = {
       );
     };
     LivelitView.MultiLine(
-      splice_getters_to_vdom,
+      splices_and_params_to_vdom,
       // TODO
       5,
     );
@@ -843,6 +866,7 @@ module GradeCutoffLivelit: LIVELIT = {
 module ColorLivelit: LIVELIT = {
   let name = "$color";
   let expansion_ty = HTyp.Prod([Float, Float, Float, Float]);
+  let param_tys = [];
 
   // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L197
   let hsv_of_rgb = ((r, g, b)) => {
@@ -1007,7 +1031,7 @@ module ColorLivelit: LIVELIT = {
 
   let view = ({rgb: (r, g, b), a, hsv, is_open, selecting_sat_val}, trigger) => {
     LivelitView.Inline(
-      ({uhcode, dhcode}) => {
+      ({uhcode, dhcode}, _) => {
         open Vdom;
 
         let is_valid = color_value =>
@@ -1257,6 +1281,7 @@ module ColorLivelitAdapter = LivelitAdapter(ColorLivelit);
 module GradientLivelit: LIVELIT = {
   let name = "$gradient";
   let expansion_ty = ColorLivelit.expansion_ty;
+  let param_tys = [];
 
   let (color_livelit_ctx, _) =
     LivelitContexts.extend(
@@ -1306,7 +1331,7 @@ module GradientLivelit: LIVELIT = {
 
   let view = (model, trigger) =>
     LivelitView.Inline(
-      ({uhcode, _}) => {
+      ({uhcode, _}, _) => {
         Vdom.(
           Node.span(
             [Attr.classes(["gradient-livelit"])],
@@ -1423,6 +1448,7 @@ module GradientLivelit: LIVELIT = {
 module CheckboxLivelit: LIVELIT = {
   let name = "$checkbox";
   let expansion_ty = HTyp.Bool;
+  let param_tys = [];
 
   [@deriving sexp]
   type model = bool;
@@ -1448,7 +1474,7 @@ module CheckboxLivelit: LIVELIT = {
         )
       );
     let view_span = Vdom.Node.span([], [input_elt]);
-    LivelitView.Inline(_ => view_span, /* TODO! */ 1);
+    LivelitView.Inline((_, _) => view_span, /* TODO! */ 1);
   };
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));

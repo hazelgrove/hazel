@@ -471,14 +471,17 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
     let (zbody, u_gen) = make_inconsistent(u_gen, zbody);
     (ParenthesizedZ(zbody), u_gen);
   /* already in hole */
-  | LamZP(InHole(TypeInconsistent, _), _, _, _)
-  | LamZA(InHole(TypeInconsistent, _), _, _, _)
-  | LamZE(InHole(TypeInconsistent, _), _, _, _)
-  | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(InHole(TypeInconsistent, _), _, _, _)
-  | CaseZR(InHole(TypeInconsistent, _), _, _, _)
-  | CaseZA(InHole(TypeInconsistent, _), _, _, _)
-  | ApLivelitZ(_, InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
+  | LamZP(InHole(TypeInconsistent(_), _), _, _, _)
+  | LamZA(InHole(TypeInconsistent(_), _), _, _, _)
+  | LamZE(InHole(TypeInconsistent(_), _), _, _, _)
+  | InjZ(InHole(TypeInconsistent(_), _), _, _)
+  | CaseZE(InHole(TypeInconsistent(_), _), _, _, _)
+  | CaseZR(InHole(TypeInconsistent(_), _), _, _, _)
+  | CaseZA(InHole(TypeInconsistent(_), _), _, _, _)
+  | ApLivelitZ(_, InHole(TypeInconsistent(_), _), _, _, _) => (
+      zoperand,
+      u_gen,
+    )
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -490,7 +493,7 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
   | ApLivelitZ(_, NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let zoperand =
-      zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
+      zoperand |> set_err_status_zoperand(InHole(TypeInconsistent(None), u));
     (zoperand, u_gen);
   };
 let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {

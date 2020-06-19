@@ -57,10 +57,10 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
   | CursorP(cursor, operand) =>
     let (operand, u_gen) = operand |> UHPat.make_inconsistent_operand(u_gen);
     (CursorP(cursor, operand), u_gen);
-  | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+  | InjZ(InHole(TypeInconsistent(_), _), _, _) => (zoperand, u_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
-    (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
+    (InjZ(InHole(TypeInconsistent(None), u), inj_side, zp), u_gen);
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> make_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);

@@ -99,7 +99,20 @@ let _fill_and_resume_llii =
     (llii: LivelitInstanceInfo.t): LivelitInstanceInfo.t =>
   llii
   |> MetaVarMap.map(
-       List.map(((env, path, si)) => {
+       List.map(((env, path, (si, dargs_opt))) => {
+         let eval_ = (kind, d) =>
+           switch (_evaluate(~eval_livelit_holes=true, d)) {
+           | InvalidInput(msg) =>
+             failwith(
+               Printf.sprintf(
+                 "Unexpected evaluation failure during %s fill and resume: %d",
+                 kind,
+                 msg,
+               ),
+             )
+           | BoxedValue(d)
+           | Indet(d) => d
+           };
          let env =
            env
            |> List.map(((v, d)) =>
@@ -107,18 +120,7 @@ let _fill_and_resume_llii =
                   v,
                   switch (d) {
                   | DHExp.BoundVar(_) => d
-                  | _ =>
-                    switch (_evaluate(~eval_livelit_holes=true, d)) {
-                    | InvalidInput(msg) =>
-                      failwith(
-                        Printf.sprintf(
-                          "Unexpected evaluation failure during env fill and resume: %d",
-                          msg,
-                        ),
-                      )
-                    | BoxedValue(d)
-                    | Indet(d) => d
-                    }
+                  | _ => eval_("env", d)
                   },
                 )
               );
@@ -138,7 +140,12 @@ let _fill_and_resume_llii =
                 )
               );
          let si = SpliceInfo.update_splice_map(si, sim);
-         (env, path, si);
+         let dargs_opt =
+           dargs_opt
+           |> List.map(((v, darg_opt)) =>
+                (v, darg_opt |> OptUtil.map(eval_("livelit args")))
+              );
+         (env, path, (si, dargs_opt));
        }),
      );
 

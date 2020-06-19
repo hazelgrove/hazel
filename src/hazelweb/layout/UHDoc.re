@@ -365,7 +365,13 @@ let mk_ApLivelit =
       llu: MetaVar.t,
       lln: LivelitName.t,
       llview: Livelits.trigger_serialized => Livelits.LivelitView.t,
-      splice_map_opt: option(SpliceInfo.splice_map(option(DHExp.t))),
+      sim_dargs_opt:
+        option(
+          (
+            SpliceInfo.splice_map(option(DHExp.t)),
+            list((Var.t, option(DHExp.t))),
+          ),
+        ),
     )
     : t => {
   let lln_doc = Doc.annot(UHAnnot.LivelitName, mk_text(lln));
@@ -380,7 +386,7 @@ let mk_ApLivelit =
           : Doc.hcats(ListUtil.replicate(height, Doc.linebreak()))
       };
     Doc.annot(
-      UHAnnot.LivelitView({llu, llview, splice_map_opt}),
+      UHAnnot.LivelitView({llu, llview, sim_dargs_opt}),
       spaceholder,
     );
   };
@@ -774,10 +780,12 @@ module Exp = {
             | None => LivelitInstanceInfo.default_instance(llii, llu)
             | Some(inst) => Some(inst)
             };
-          let sim_opt =
+          let sim_dargs_opt =
             inst_opt
             |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-            |> OptUtil.map(((_, _, si)) => SpliceInfo.splice_map(si));
+            |> OptUtil.map(((_, _, (si, dargs))) =>
+                 (SpliceInfo.splice_map(si), dargs)
+               );
           let llview = svf(m);
           let ap_docs =
             splice_info.splice_map
@@ -788,7 +796,7 @@ module Exp = {
                  mk_block(~enforce_inline, splice_e)
                );
           splice_docs := splice_docs^ |> SpliceMap.put_ap(llu, ap_docs);
-          mk_ApLivelit(~enforce_inline, llu, lln, llview, sim_opt);
+          mk_ApLivelit(~enforce_inline, llu, lln, llview, sim_dargs_opt);
         }
       }
     and mk_rule = (Rule(p, clause): UHExp.rule): t => {

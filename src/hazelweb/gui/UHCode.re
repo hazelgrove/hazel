@@ -158,13 +158,21 @@ let view =
     | Annot(LivelitName, l) => [
         Node.span([Attr.classes(["LivelitName"])], go(l)),
       ]
-    | Annot(LivelitView({llu, llview, splice_map_opt}), _) => {
+    | Annot(LivelitView({llu, llview, sim_dargs_opt}), _) => {
         let trigger = serialized_action =>
           inject(Update.Action.LivelitAction(llu, serialized_action));
         let livelit_view = llview(trigger);
         let vs = {
-          let splice_getters_to_vdom =
-            Livelits.LivelitView.get_splice_getters_to_vdom(livelit_view);
+          let splices_and_params_to_vdom =
+            Livelits.LivelitView.get_splices_and_params_to_vdom(livelit_view);
+          let get_div = d =>
+            DHCode.view(
+              ~inject,
+              // TODO undo hardcoded width
+              ~width=80,
+              d,
+            );
+
           let uhcode = splice_name => {
             let splice_layout =
               splice_ls |> SpliceMap.get_splice(llu, splice_name);
@@ -182,27 +190,29 @@ let view =
           };
 
           let dhcode = splice_name =>
-            splice_map_opt
-            |> OptUtil.and_then(splice_map =>
+            sim_dargs_opt
+            |> OptUtil.and_then(((splice_map, _)) =>
                  switch (NatMap.lookup(splice_map, splice_name)) {
                  | None => raise(Not_found)
                  | Some((_, d_opt)) =>
-                   d_opt
-                   |> OptUtil.map(d =>
-                        (
-                          d,
-                          DHCode.view(
-                            ~inject,
-                            // TODO undo hardcoded width
-                            ~width=80,
-                            d,
-                          ),
-                        )
-                      )
+                   d_opt |> OptUtil.map(d => (d, get_div(d)))
                  }
                );
 
-          [splice_getters_to_vdom({uhcode, dhcode})];
+          let dargs =
+            sim_dargs_opt
+            |> OptUtil.map(((_, dargs)) =>
+                 dargs
+                 |> List.map(((v, darg_opt)) =>
+                      (
+                        v,
+                        darg_opt
+                        |> OptUtil.map(darg => (darg, get_div(darg))),
+                      )
+                    )
+               );
+
+          [splices_and_params_to_vdom({uhcode, dhcode}, dargs)];
         };
         let dim_attr =
           switch (livelit_view) {
