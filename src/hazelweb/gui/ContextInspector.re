@@ -2,7 +2,7 @@ module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   open Vdom;
 
   let static_info = ((x, ty)) =>

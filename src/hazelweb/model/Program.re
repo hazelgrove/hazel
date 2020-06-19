@@ -287,7 +287,7 @@ let move_via_key =
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      move_key: JSUtil.MoveKey.t,
+      move_key: MoveKey.t,
       program,
     )
     : (t, Action_common.t) => {
