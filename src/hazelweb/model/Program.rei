@@ -43,7 +43,7 @@ let move_via_key:
     ~measure_program_get_doc: bool,
     ~measure_layoutOfDoc_layout_of_doc: bool,
     ~memoize_doc: bool,
-    JSUtil.MoveKey.t,
+    MoveKey.t,
     t
   ) =>
   (t, Action_common.t);

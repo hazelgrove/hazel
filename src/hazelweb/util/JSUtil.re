@@ -323,27 +323,6 @@ let single_key_string: single_key => string =
     | Underscore => "_"
     };
 
-module MoveKey = {
-  [@deriving sexp]
-  type t =
-    | ArrowLeft
-    | ArrowRight
-    | ArrowUp
-    | ArrowDown
-    | Home
-    | End;
-
-  let of_key =
-    fun
-    | "ArrowLeft" => Some(ArrowLeft)
-    | "ArrowRight" => Some(ArrowRight)
-    | "ArrowDown" => Some(ArrowDown)
-    | "ArrowUp" => Some(ArrowUp)
-    | "Home" => Some(Home)
-    | "End" => Some(End)
-    | _ => None;
-};
-
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {
     let key = KeyCombo.get_key(evt);

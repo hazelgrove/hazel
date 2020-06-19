@@ -64,7 +64,7 @@ let mono_text = content => {
 let action_button =
     (
       is_action_allowed: Action_common.t => bool,
-      inject: Update.Action.t => Vdom.Event.t,
+      inject: ModelAction.t => Vdom.Event.t,
       a: Action_common.t,
       lbl: list(Vdom.Node.t),
       key_combo,
@@ -78,11 +78,11 @@ let action_button =
             ? ["action-panel-entry", "action-enabled"]
             : ["action-panel-entry", "action-disabled"],
         ),
-        Attr.on_click(_ => inject(Update.Action.EditAction(a))),
+        Attr.on_click(_ => inject(ModelAction.EditAction(a))),
         Attr.on_keydown(evt =>
           if (KeyCombo.Details.matches(key_combo, evt)) {
             Event.Many([
-              inject(Update.Action.EditAction(a)),
+              inject(ModelAction.EditAction(a)),
               Event.Prevent_default,
             ]);
           } else {
@@ -127,12 +127,12 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
             ? ["keyboard-shortcut", "action-enabled"]
             : ["keyboard-shortcut", "action-disabled"],
         ),
-        Attr.on_click(_ => inject(Update.Action.EditAction(action))),
+        Attr.on_click(_ => inject(ModelAction.EditAction(action))),
         Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
         Attr.on_keydown(evt =>
           if (KeyCombo.Details.matches(combo, evt)) {
             Event.Many([
-              inject(Update.Action.EditAction(action)),
+              inject(ModelAction.EditAction(action)),
               Event.Prevent_default,
             ]);
           } else {
@@ -150,7 +150,7 @@ let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
 let action_list =
     (
       is_action_allowed: Action_common.t => bool,
-      inject: Update.Action.t => Vdom.Event.t,
+      inject: ModelAction.t => Vdom.Event.t,
       actions: list((KeyCombo.Details.t, Action_common.t)),
       label: string,
     ) => {
@@ -438,7 +438,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   ];
 };
 
-let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let edit_state = Model.get_edit_state(model);
   let cursor_info = Model.get_cursor_info(model);
 
