@@ -65,10 +65,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
     let go' = go(~indent, ~rev_steps);
     switch (l) {
     | Text(s) =>
-      print_endline("s = " ++ s);
-      print_endline("before_col = " ++ string_of_int(col^));
       col := col^ + StringUtil.utf8_length(s);
-      print_endline("after_col = " ++ string_of_int(col^));
       RowMap.empty;
     | Linebreak =>
       row := row^ + 1;
@@ -112,12 +109,6 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
           | Op => OnOp(j == 0 ? Before : After)
           | Delim(k) => OnDelim(k, j == 0 ? Before : After)
           };
-        print_endline(
-          "Token, col_before, j = "
-          ++ string_of_int(col_before)
-          ++ " "
-          ++ string_of_int(j),
-        );
         z := Some(((row^, col_before + j), (pos, rev_steps)));
       };
       let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
@@ -134,9 +125,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
         ColMap.singleton(col_before, (pos_before, rev_steps))
         |> ColMap.add(col_after, (pos_after, rev_steps)),
       );
-    | Annot(_, l) =>
-      print_endline("CursorMap132");
-      go'(l);
+    | Annot(_, l) => go'(l)
     };
   };
   let map = go(~indent=0, ~rev_steps=[], l);
