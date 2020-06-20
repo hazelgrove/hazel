@@ -235,7 +235,7 @@ and set_err_status_operand = (err, operand) =>
 
 let is_inconsistent = operand =>
   switch (operand |> get_err_status_operand) {
-  | InHole(TypeInconsistent(_), _) => true
+  | InHole(TypeInconsistent(None), _) => true
   | _ => false
   };
 
