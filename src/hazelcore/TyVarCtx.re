@@ -23,3 +23,6 @@ let index_of_exn = (ctx: t, x: TyId.t): int =>
 
 let contains = (ctx: t, x: TyId.t): bool =>
   Option.is_some(index_of(ctx, x));
+
+let tyvar_with_idx = (ctx: t, idx: HTyp.idx): (TyId.t, Kind.t) =>
+  List.nth(ctx, idx);
