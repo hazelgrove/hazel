@@ -1,4 +1,4 @@
-open Sexplib.Std /* hole instance numbers are all 0 after expansion and during evaluation -- * renumbering is done on the final result (see below) */;
+open Sexplib.Std;
 
 [@deriving sexp]
 type result =
@@ -277,7 +277,6 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     }
   | _ => Indet(ApBuiltin(x, l))
   };
-
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(x) => evaluate(builtin_subst(BoundVar(x)))
@@ -290,13 +289,13 @@ let rec evaluate = (d: DHExp.t): result =>
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(d1)
     | Indet(d1) =>
-      switch (Elaborator.Exp.matches(dp, d1)) {
+      switch (Elaborator_Exp.matches(dp, d1)) {
       | Indet => Indet(d)
       | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(Elaborator.Exp.subst(env, d2))
+      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d2))
       }
     }
-  | FixF(x, _, d1) => evaluate(Elaborator.Exp.subst_var(d, x, d1))
+  | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     print_endline("EVALUATE AP Dynamics2202");
@@ -323,12 +322,12 @@ let rec evaluate = (d: DHExp.t): result =>
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2)
       | Indet(d2) =>
-        switch (Elaborator.Exp.matches(dp, d2)) {
+        switch (Elaborator_Exp.matches(dp, d2)) {
         | DoesNotMatch => Indet(d)
         | Indet => Indet(d)
         | Matches(env) =>
           /* beta rule */
-          evaluate(Elaborator.Exp.subst(env, d3))
+          evaluate(Elaborator_Exp.subst(env, d3))
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -348,7 +347,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     };
-  | Subscript(d1, d2, d3) =>
+  /*| Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(StringLit(s1) as s1') =>
@@ -376,6 +375,79 @@ let rec evaluate = (d: DHExp.t): result =>
           } else {
             Indet(
               InvalidOperation(Subscript(s1', n1', n2'), IndexOutBound),
+            );
+          };
+        | BoxedValue(_) => InvalidInput(3)
+        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
+        }
+      | BoxedValue(_) => InvalidInput(4)
+      | Indet(n1') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(n2')
+        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
+        }
+      }
+    | BoxedValue(s1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(n1')
+      | Indet(n1') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(n2')
+        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
+        }
+      }
+
+    | Indet(s1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(n1')
+      | Indet(n1') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(n2')
+        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
+        }
+      }
+    }*/
+  | Subscript(d1, d2, d3) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(StringLit(s1) as s1') =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(IntLit(n1) as n1') =>
+        switch (evaluate(d3)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(IntLit(n2) as n2') =>
+          let (s1, _) = StringUtil.find_and_replace("", s1, "OK");
+          let len = String.length(s1);
+          if (n1 >= (-1) * len && n1 <= len && n2 >= (-1) * len && n2 <= len) {
+            let n1' =
+              if (n1 < 0) {
+                n1 + len;
+              } else {
+                n1;
+              };
+            let n2' =
+              if (n2 < 0) {
+                n2 + len;
+              } else {
+                n2;
+              };
+            let s1 = String.sub(s1, n1', max(0, n2' - n1'));
+            BoxedValue(StringLit(String.escaped(s1)));
+          } else if (n2 >= (-1) * len && n2 <= len) {
+            Indet(
+              InvalidOperation(Subscript(s1', n1', n2'), StartOutBound),
+            );
+          } else if (n1 >= (-1) * len && n1 <= len) {
+            Indet(InvalidOperation(Subscript(s1', n1', n2'), EndOutBound));
+          } else {
+            Indet(
+              InvalidOperation(Subscript(s1', n1', n2'), StartEndOutBound),
             );
           };
         | BoxedValue(_) => InvalidInput(3)
@@ -664,7 +736,7 @@ and evaluate_case =
         Indet(InconsistentBranches(u, i, sigma, case))
       };
     | Some(Rule(dp, d)) =>
-      switch (Elaborator.Exp.matches(dp, scrut)) {
+      switch (Elaborator_Exp.matches(dp, scrut)) {
       | Indet =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
@@ -672,7 +744,7 @@ and evaluate_case =
         | Some((u, i, sigma)) =>
           Indet(InconsistentBranches(u, i, sigma, case))
         };
-      | Matches(env) => evaluate(Elaborator.Exp.subst(env, d))
+      | Matches(env) => evaluate(Elaborator_Exp.subst(env, d))
       | DoesNotMatch =>
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }

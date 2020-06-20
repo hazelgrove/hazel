@@ -92,6 +92,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         code_view(num);
       }
     | StringLit(_, str) =>
+      let str = StringUtil.escaped_enter(str);
       if (show_indicate_word) {
         Vdom.(
           Node.span(
@@ -99,13 +100,48 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               code_keywords_view("String"),
               indicate_words_view(" literal "),
-              code_view(str),
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
             ],
           )
         );
       } else {
-        code_view(str);
-      }
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
+            ],
+          )
+        );
+      };
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -176,6 +212,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         code_view(num);
       }
     | StringLit(_, str) =>
+      let str = StringUtil.escaped_enter(str);
       if (show_indicate_word) {
         Vdom.(
           Node.span(
@@ -183,13 +220,48 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               code_keywords_view("String"),
               indicate_words_view(" literal "),
-              code_view(str),
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
             ],
           )
         );
       } else {
-        code_view(str);
-      }
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.text("\""),
+              if (String.length(str) <= 6) {
+                code_view(str);
+              } else {
+                code_view(String.sub(str, 0, 6));
+              },
+              if (String.length(str) > 6) {
+                Node.span(
+                  [Attr.classes(["ellipses"])],
+                  [Node.text("...")],
+                );
+              } else {
+                Node.text("");
+              },
+              Node.text("\""),
+            ],
+          )
+        );
+      };
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -262,14 +334,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let cursor_term_view =
-      (cursor_term: CursorInfo.cursor_term, show_indicate_word: bool) => {
+      (cursor_term: CursorInfo_common.cursor_term, show_indicate_word: bool) => {
     switch (cursor_term) {
     | Exp(_, exp) => exp_view(exp, show_indicate_word)
     | Pat(_, pat) => pat_view(pat, show_indicate_word)
     | Typ(_, typ) => typ_view(typ)
-    | ExpOp(_, op) => code_view(Operators.Exp.to_string(op))
-    | PatOp(_, op) => code_view(Operators.Pat.to_string(op))
-    | TypOp(_, op) => code_view(Operators.Typ.to_string(op))
+    | ExpOp(_, op) => code_view(Operators_Exp.to_string(op))
+    | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
+    | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
@@ -293,7 +365,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let action_shape_view = (shape: Action.shape) => {
+  let action_shape_view = (shape: Action_common.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
     | SInj(side) =>
@@ -315,18 +387,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" expression")],
         )
       )
-    | SQuote => indicate_words_view("new string")
+    | SQuote
     | SList
     | SLeftBracket
     | SListNil
     | SLine
     | SAsc
-    | SParenthesized => indicate_words_view(Action.shape_to_string(shape))
-    | SChar(_) => code_view(Action.shape_to_string(shape))
+    | SParenthesized =>
+      indicate_words_view(Action_common.shape_to_string(shape))
+    | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {
       | SSpace => indicate_words_view("space")
-      | _ => code_view(Action.shape_to_string(shape))
+      | _ => code_view(Action_common.shape_to_string(shape))
       }
     | SApPalette(_) => failwith("ApPalette not implemented")
     };
@@ -416,6 +489,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | Subscript =>
+      Vdom.(Node.span([], [indicate_words_view("insert substring")]))
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up => indicate_words_view("swap line up")
@@ -427,7 +502,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
+  let get_cursor_term_tag_typ =
+      (cursor_term: CursorInfo_common.cursor_term): tag_typ => {
     switch (cursor_term) {
     | Exp(_, _) => Exp
     | Pat(_, _) => Pat
@@ -474,6 +550,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | Subscript =>
+      Some(
+        get_cursor_term_tag_typ(
+          undo_history_entry.cursor_term_info.cursor_term_after,
+        ),
+      )
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up

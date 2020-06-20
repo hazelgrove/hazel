@@ -38,14 +38,7 @@ let rec find_and_replace =
   let len_s = String.length(s) - 2;
   if (len_s <= (-1)) {
     if (len_s == (-1) && s.[0] == '\\') {
-      (
-        acc ++ s,
-        if (err == "OK") {
-          "Not terminated";
-        } else {
-          err;
-        },
-      );
+      (acc ++ s, err);
     } else {
       (acc ++ s, err);
     };
@@ -72,7 +65,7 @@ let rec find_and_replace =
         (result ++ String.sub(acc, len, String.length(acc) - len), err);
       };
     | "\\n" => find_and_replace(acc ++ "\n", String.sub(s, 2, len_s), err)
-    | "\\\\" => find_and_replace(acc ++ "\\\\", String.sub(s, 2, len_s), err)
+    | "\\\\" => find_and_replace(acc ++ "\\", String.sub(s, 2, len_s), err)
     | "\\\"" => find_and_replace(acc ++ "\"", String.sub(s, 2, len_s), err)
     | "\\\'" => find_and_replace(acc ++ "\'", String.sub(s, 2, len_s), err)
     | "\\ " => find_and_replace(acc ++ " ", String.sub(s, 2, len_s), err)
@@ -94,11 +87,7 @@ let rec find_and_replace =
           find_and_replace(
             acc ++ String.sub(s, 0, 1),
             String.sub(s, 1, len_s + 1),
-            if (err == "OK") {
-              "Illegal";
-            } else {
-              err;
-            },
+            "Illegal",
           );
         };
       } else {
@@ -122,11 +111,7 @@ let rec find_and_replace =
         find_and_replace(
           acc ++ String.sub(s, 0, 1),
           String.sub(s, 1, len_s + 1),
-          if (err == "OK") {
-            "Illegal";
-          } else {
-            err;
-          },
+          err,
         );
       };
     | _ =>
@@ -146,11 +131,7 @@ let rec find_and_replace =
             find_and_replace(
               acc ++ String.sub(s, 0, 1),
               String.sub(s, 1, len_s + 1),
-              if (err == "OK") {
-                "Illegal";
-              } else {
-                err;
-              },
+              "Illegal",
             );
           };
         } else {
@@ -176,5 +157,15 @@ let rec find_and_replace =
     };
   };
 };
+
+let rec escaped_enter = (s: string): string =>
+  if (s == "") {
+    s;
+  } else if (s.[0] == '\n') {
+    "\\n" ++ escaped_enter(String.sub(s, 1, String.length(s) - 1));
+  } else {
+    String.sub(s, 0, 1)
+    ++ escaped_enter(String.sub(s, 1, String.length(s) - 1));
+  };
 
 let utf8_length = CamomileLibrary.UTF8.length;

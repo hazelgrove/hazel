@@ -50,8 +50,8 @@
 %right CARET
 %left SPACEOP
 
-%start <Operators.Exp.t Skel.t> skel_expr
-%type <Operators.Exp.t Skel.t> expr
+%start <Operators_Exp.t Skel.t> skel_expr
+%type <Operators_Exp.t Skel.t> expr
 
 (* %% ends the declarations section of the grammar definition *)
 
@@ -66,102 +66,102 @@ expr:
   | e1 = expr; COMMA; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Comma,
+      Operators_Exp.Comma,
       e1, e2) }
   | e1 = expr; LT; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.LessThan,
+      Operators_Exp.LessThan,
       e1, e2) }
   | e1 = expr; GT; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.GreaterThan,
+      Operators_Exp.GreaterThan,
       e1, e2) }
   | e1 = expr; EQ; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Equals,
+      Operators_Exp.Equals,
       e1, e2) }
   | e1 = expr; FLT; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FLessThan,
+      Operators_Exp.FLessThan,
       e1, e2) }
   | e1 = expr; FGT; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FGreaterThan,
+      Operators_Exp.FGreaterThan,
       e1, e2) }
   | e1 = expr; FEQ; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FEquals,
+      Operators_Exp.FEquals,
       e1, e2) }
   | e1 = expr; CONS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Cons,
+      Operators_Exp.Cons,
       e1, e2) }
   | e1 = expr; PLUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Plus,
+      Operators_Exp.Plus,
       e1, e2) }
   | e1 = expr; MINUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Minus,
+      Operators_Exp.Minus,
       e1, e2) }
   | e1 = expr; FPLUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FPlus,
+      Operators_Exp.FPlus,
       e1, e2) }
   | e1 = expr; FMINUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FMinus,
+      Operators_Exp.FMinus,
       e1, e2) }
   | e1 = expr; CARET; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Caret,
+      Operators_Exp.Caret,
       e1, e2) }
   | e1 = expr; AND; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.And,
+      Operators_Exp.And,
       e1, e2) }
   | e1 = expr; OR; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Or,
+      Operators_Exp.Or,
       e1, e2) }
   | e1 = expr; TIMES; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Times,
+      Operators_Exp.Times,
       e1, e2) }
   | e1 = expr; DIVIDE; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Divide,
+      Operators_Exp.Divide,
       e1, e2) }
   | e1 = expr; FTIMES; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FTimes,
+      Operators_Exp.FTimes,
       e1, e2) }
   | e1 = expr; FDIVIDE; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.FDivide,
+      Operators_Exp.FDivide,
       e1, e2) }
   | e1 = expr; SPACEOP; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      Operators.Exp.Space,
+      Operators_Exp.Space,
       e1, e2) }
   ;
 
