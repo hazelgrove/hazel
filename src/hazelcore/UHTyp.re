@@ -1,5 +1,5 @@
 [@deriving sexp]
-type operator = Operators.Typ.t;
+type operator = Operators_Typ.t;
 
 [@deriving sexp]
 type t = opseq
@@ -38,7 +38,7 @@ let unwrap_parentheses = (operand: operand): t =>
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators.Typ.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators_Typ.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
 };
@@ -67,7 +67,7 @@ let contract = (ty: HTyp.t): t => {
       | Bool => Seq.wrap(Bool)
       | String => Seq.wrap(String)
       | Arrow(ty1, ty2) =>
-        mk_seq_operand(HTyp.precedence_Arrow, Operators.Typ.Arrow, ty1, ty2)
+        mk_seq_operand(HTyp.precedence_Arrow, Operators_Typ.Arrow, ty1, ty2)
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
@@ -79,7 +79,7 @@ let contract = (ty: HTyp.t): t => {
              )
            )
         |> List.fold_left(
-             (seq1, seq2) => Seq.seq_op_seq(seq1, Operators.Typ.Prod, seq2),
+             (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
              contract_to_seq(
                ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
                head,

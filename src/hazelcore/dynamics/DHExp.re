@@ -186,9 +186,10 @@ type t =
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
+  | FloatLit(float)
   | BuiltInLit(string)
   | ApBuiltin(string, list(t))
-  | FloatLit(float)
+  | FailedAssert(t)
   | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -205,7 +206,6 @@ type t =
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
-  | FailedAssert(t)
 and case =
   | Case(t, list(rule), int)
 and rule =
@@ -221,12 +221,12 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
-  | Subscript(_, _, _) => "Subscript"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | BuiltInLit(_) => "BuiltInLit"
   | ApBuiltin(_, _) => "ApBuiltin"
+  | Subscript(_, _, _) => "Subscript"
   | FloatLit(_) => "FloatLit"
   | StringLit(_) => "StringLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"

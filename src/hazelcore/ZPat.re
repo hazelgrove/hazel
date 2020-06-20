@@ -21,7 +21,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
     | StringLit(_, s) =>
-      List.append(delim_cursors(1), text_cursors(String.length(s)))
+      List.append(delim_cursors(2), text_cursors(String.length(s)))
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
@@ -171,8 +171,14 @@ let place_after_operator = (op: UHPat.operator): option(zoperator) =>
 
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
-  is_valid_cursor_operand(cursor, operand)
-    ? Some(CursorP(cursor, operand)) : None;
+  if (is_valid_cursor_operand(cursor, operand)) {
+    print_endline("ZPat175");
+    Some(CursorP(cursor, operand));
+  } else {
+    print_endline("ZPat177");
+    None;
+  };
+
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): option(zoperator) =>
   is_valid_cursor_operator(cursor, operator)

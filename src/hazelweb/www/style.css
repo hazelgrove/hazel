@@ -12,7 +12,7 @@
   --page-padding: 15px;
 
   --code-font-family: "Fira Code", monospace;
-  --code-font-size: 16px;
+  --code-font-size: 13pt;
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
@@ -301,6 +301,10 @@ html, body {
   outline: 1px solid #8e0000;
 }
 
+.cursor-InvalidEscape.cursor-inspector {
+  outline: 1px solid #8e0000;
+}
+
 .cursor-BindingError.cursor-inspector {
   outline: 1px solid #ce5f00;
 }
@@ -314,6 +318,10 @@ html, body {
 }
 
 .cursor-TypeInconsistency .title-bar {
+  background-color: #8e0000;
+}
+
+.cursor-InvalidEscape .title-bar {
   background-color: #8e0000;
 }
 
@@ -348,6 +356,10 @@ html, body {
 }
 
 .cursor-TypeInconsistency .typebar, .cursor-TypeInconsistency .infobar {
+  background-color: #ffe0e0;
+}
+
+.cursor-InvalidEscape .typebar, .cursor-InvalidEscape .infobar {
   background-color: #ffe0e0;
 }
 
@@ -804,7 +816,9 @@ h1 {
   color: blue;
 }
 .code.presentation .InvalidSeq {
-  color:  #b30000;
+  --err-hole-color: red;
+  border: 1px dotted var(--err-hole-color);
+  margin: -1px;
 }
 .code.presentation .Term.Rule,
 .code.presentation .Term.Case,
@@ -822,12 +836,6 @@ h1 {
   font-weight: bold;
 }
 
-.DHCode .ValidSeq {
-  color:  blue;
-}
-.DHCode .InvalidSeq {
-  color:  #b30000;
-}
 .DHCode .Align {
   display: inline-block;
 }
@@ -1333,14 +1341,17 @@ h1 {
 }
 
 .HoleLabel {
-  font-size: 65%;
   color: #BBB;
   display: inline-block;
   text-align: center;
   /* border-bottom: 1px solid var(--empty-hole-color); */
   /* line-height: initial; */
 }
+#code-container .HoleLabel span {
+  font-size: 65%;
+}
 .DHCode .HoleLabel {
+  font-size: 65%;
   padding-left: 2px;
   padding-right: 2px;
 }
@@ -1504,7 +1515,10 @@ h1 {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }
-
+.ellipses {
+  color: gray;
+  background-color: lightgoldenrodyellow;
+}
 .timestamp-txt{
   float: right;
   text-align: center;
