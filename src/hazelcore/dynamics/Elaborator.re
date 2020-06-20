@@ -440,7 +440,21 @@ module Pat = {
       (Pair(dp1, dp2), hii);
     };
 };
-
+let rec builtin_subst =
+        (li: list(DHExp.t), d1: DHExp.t, x: Var.t): list(DHExp.t) =>
+  switch (li) {
+  | [a, ...asa] =>
+    switch (a) {
+    | BoundVar(s) =>
+      if (Var.eq(x, s)) {
+        [d1, ...asa];
+      } else {
+        [a, ...builtin_subst(asa, d1, x)];
+      }
+    | _ => [a, ...builtin_subst(asa, d1, x)]
+    }
+  | [] => []
+  };
 module Exp = {
   /* closed substitution [d1/x]d2*/
   let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
@@ -458,6 +472,7 @@ module Exp = {
       } else {
         d2;
       }
+    | ApBuiltin(z, y) => ApBuiltin(z, builtin_subst(y, d1, x))
     | FailedAssert(_)
     | Keyword(_) => d2
     | Let(dp, d3, d4) =>
@@ -746,6 +761,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | BuiltInLit(_) => DoesNotMatch
+    | ApBuiltin(_, _) => DoesNotMatch
     | FailedAssert(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
@@ -810,6 +826,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | BuiltInLit(_) => DoesNotMatch
+    | ApBuiltin(_, _) => DoesNotMatch
     | FailedAssert(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
@@ -872,6 +889,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | BuiltInLit(_) => DoesNotMatch
+    | ApBuiltin(_, _) => DoesNotMatch
     | FailedAssert(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
@@ -1277,6 +1295,31 @@ module Exp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Elaborates(d, ty, delta);
+    /*| Var(NotInHole, NotInVarHole, x) =>
+      let gamma = Contexts.gamma(ctx);
+      switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
+      | (Some(ty'), Some(ty)) =>
+        print_endline("Dynamics1280");
+        /* if (List.mem(x, BuiltinFunctions.shadowing_var) == true) { */
+        if (HTyp.is_Arrow(ty') == false) {
+          print_endline("Dynamics1282");
+          Elaborates(BoundVar(x), ty', delta);
+        } else {
+          /* TODO: fix this with self-defined functions */
+          Elaborates(
+            ApBuiltin(x, [Triv]),
+            ty,
+            delta,
+          );
+        };
+      /* } else {
+            Elaborates(BuiltInLit(x), ty, delta);
+         } */
+      | (Some(ty), _) =>
+        print_endline("Dynamics1295");
+        Elaborates(BoundVar(x), ty, delta);
+      | (None, _) => ElaborationResult.DoesNotElaborate
+      };*/
     | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
@@ -1289,7 +1332,7 @@ module Exp = {
         } else {
           /* TODO: fix this with self-defined functions */
           Elaborates(
-            BuiltInLit(x),
+            BoundVar(x),
             ty,
             delta,
           );
@@ -1863,6 +1906,7 @@ module Exp = {
     switch (d) {
     | BoundVar(_)
     | BuiltInLit(_)
+    | ApBuiltin(_, _)
     | FailedAssert(_)
     | BoolLit(_)
     | IntLit(_)
@@ -1975,6 +2019,7 @@ module Exp = {
     switch (d) {
     | BoundVar(_)
     | BuiltInLit(_)
+    | ApBuiltin(_, _)
     | FailedAssert(_)
     | BoolLit(_)
     | IntLit(_)

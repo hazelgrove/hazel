@@ -179,7 +179,7 @@ type t =
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | BoundVar(Var.t)
+  | BoundVar(Var.t) //elab for apbuiltin
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
@@ -187,6 +187,7 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | BuiltInLit(string)
+  | ApBuiltin(string, list(t))
   | FloatLit(float)
   | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
@@ -225,6 +226,7 @@ let constructor_string = (d: t): string =>
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | BuiltInLit(_) => "BuiltInLit"
+  | ApBuiltin(_, _) => "ApBuiltin"
   | FloatLit(_) => "FloatLit"
   | StringLit(_) => "StringLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"

@@ -88,70 +88,203 @@ let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
   | Caret => StringLit(n1 ++ n2)
   };
 
-let builtinfunctions_evaluate = (x: string, d: DHExp.t): result =>
-  switch (d) {
-  | StringLit(s) =>
-    switch (x) {
-    | "length" => BoxedValue(IntLit(String.length(s)))
-    | "int_of_string" =>
-      if (BuiltinFunctions.is_int_of_string(s)
-          && float_of_string(s) <= 2147483647.) {
-        BoxedValue(IntLit(int_of_string(s)));
-      } else {
-        Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToInt));
+let builtin_subst = (d_in: DHExp.t): DHExp.t =>
+  switch (d_in) {
+  | BoundVar(x) =>
+    print_endline("was here");
+    switch (BuiltinFunctions.lookup(x)) {
+    | None => d_in //InvalidInput(1)
+    | Some(ty) =>
+      switch (x) {
+      | "equal" =>
+        Lam(
+          Var("x1"),
+          ty,
+          Lam(
+            Var("x2"),
+            Arrow(String, Bool),
+            ApBuiltin("equal", [BoundVar("x1"), BoundVar("x2")]),
+          ),
+        )
+      | "compare" =>
+        Lam(
+          Var("x1"),
+          ty,
+          Lam(
+            Var("x2"),
+            Arrow(String, Int),
+            ApBuiltin("compare", [BoundVar("x1"), BoundVar("x2")]),
+          ),
+        )
+      | _ => Lam(Var("x1"), ty, ApBuiltin(x, [BoundVar("x1")]))
       }
-    | "bool_of_string" =>
-      if (BuiltinFunctions.is_bool_of_string(s)) {
-        BoxedValue(BoolLit(bool_of_string(s)));
-      } else {
-        Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToBool));
+    };
+  | _ => d_in
+  };
+
+let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
+  switch (x) {
+  | "length" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | StringLit(s) => BoxedValue(IntLit(String.length(s)))
+      | _ => Indet(ApBuiltin(x, l))
       }
-    | "float_of_string" =>
-      if (BuiltinFunctions.is_float_of_string(s)) {
-        BoxedValue(FloatLit(float_of_string(s)));
-      } else {
-        Indet(InvalidOperation(Ap(BuiltInLit(x), d), StrNotConvToFloat));
+    }
+  | "int_of_string" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | StringLit(s) =>
+        if (BuiltinFunctions.is_int_of_string(s)
+            && float_of_string(s) <= 2147483647.) {
+          BoxedValue(IntLit(int_of_string(s)));
+        } else {
+          Indet(InvalidOperation(ApBuiltin(x, l), StrNotConvToInt));
+        }
+      | _ => Indet(ApBuiltin(x, l))
       }
-    | "trim" =>
-      print_endline("TRIM s=" ++ s);
-      let (s', _) = StringUtil.find_and_replace("", s, "OK");
-      BoxedValue(StringLit(String.trim(s')));
-    | "escaped" =>
-      print_endline("ESCAPED s=" ++ s);
-      BoxedValue(StringLit(String.escaped(s)));
-    /* multiple arguments */
-    | "equal" =>
-      BoxedValue(Lam(Var(x), String, BoolLit(String.equal(s, x))))
-    | "compare" =>
-      BoxedValue(Lam(Var(x), String, IntLit(String.compare(s, x))))
-    | _ => Indet(Ap(BuiltInLit(x), d))
     }
-  | IntLit(n) =>
-    switch (x) {
-    | "string_of_int" => BoxedValue(StringLit(string_of_int(n)))
-    | "float_of_int" => BoxedValue(FloatLit(float_of_int(n)))
-    | _ => Indet(Ap(BuiltInLit(x), d))
+  | "bool_of_string" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | StringLit(s) =>
+        if (BuiltinFunctions.is_bool_of_string(s)) {
+          BoxedValue(BoolLit(bool_of_string(s)));
+        } else {
+          Indet(InvalidOperation(ApBuiltin(x, l), StrNotConvToBool));
+        }
+      | _ => Indet(ApBuiltin(x, l))
+      }
     }
-  | BoolLit(b) =>
-    switch (x) {
-    | "string_of_bool" => BoxedValue(StringLit(string_of_bool(b)))
-    | "assert" =>
-      b ? Indet(FailedAssert(d)) : BoxedValue(StringLit("assertion"))
-    | _ => Indet(Ap(BuiltInLit(x), d))
+  | "float_of_string" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | StringLit(s) =>
+        if (BuiltinFunctions.is_float_of_string(s)) {
+          BoxedValue(FloatLit(float_of_string(s)));
+        } else {
+          Indet(InvalidOperation(ApBuiltin(x, l), StrNotConvToFloat));
+        }
+      | _ => Indet(ApBuiltin(x, l))
+      }
     }
-  | FloatLit(n) =>
-    switch (x) {
-    | "string_of_float" => BoxedValue(StringLit(string_of_float(n)))
-    | "int_of_float" => BoxedValue(IntLit(int_of_float(n)))
-    | _ => Indet(Ap(BuiltInLit(x), d))
+  | "trim" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | StringLit(s) => BoxedValue(StringLit(String.trim(s)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
     }
-  | _ => Indet(Ap(BuiltInLit(x), d))
+  | "escaped" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | StringLit(s) =>
+        print_endline("ESCAPED s=" ++ s);
+        BoxedValue(StringLit(String.escaped(s)));
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  | "string_of_int" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | IntLit(i) => BoxedValue(StringLit(string_of_int(i)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  | "float_of_int" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | IntLit(i) => BoxedValue(FloatLit(float_of_int(i)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  | "string_of_bool" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | BoolLit(b) => BoxedValue(StringLit(string_of_bool(b)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  | "assert" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | BoolLit(b) =>
+        b ? Indet(FailedAssert(a)) : BoxedValue(StringLit("assertion"))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  | "string_of_float" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | FloatLit(f) => BoxedValue(StringLit(string_of_float(f)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  | "int_of_float" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, ..._] =>
+      switch (a) {
+      | FloatLit(f) => BoxedValue(IntLit(int_of_float(f)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    }
+  /* multiple arguments */
+  // TODO: simplest way is to simple add all of them case by case but I think we can make it work recursively
+  | "equal" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, b] =>
+      switch (a, b) {
+      | (StringLit(s1), StringLit(s2)) =>
+        BoxedValue(BoolLit(String.equal(s1, s2)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    | _ => BoxedValue(Triv)
+    }
+  | "compare" =>
+    switch (l) {
+    | [] => Indet(ApBuiltin(x, l))
+    | [a, b] =>
+      switch (a, b) {
+      | (StringLit(s1), StringLit(s2)) =>
+        BoxedValue(IntLit(String.compare(s1, s2)))
+      | _ => Indet(ApBuiltin(x, l))
+      }
+    | _ => BoxedValue(Triv)
+    }
+  | _ => Indet(ApBuiltin(x, l))
   };
 
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
-  | BoundVar(_) => InvalidInput(1)
+  | BoundVar(x) => evaluate(builtin_subst(BoundVar(x)))
   | FailedAssert(d1) => Indet(d1)
+  | ApBuiltin(x, l) =>
+    print_endline("hit");
+    builtinfunctions_evaluate(x, l);
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -169,7 +302,7 @@ let rec evaluate = (d: DHExp.t): result =>
     print_endline("EVALUATE AP Dynamics2202");
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(BuiltInLit(v)) =>
+    /*| BoxedValue(BuiltInLit(v)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2') =>
@@ -184,7 +317,7 @@ let rec evaluate = (d: DHExp.t): result =>
           Indet(InvalidOperation(Ap(d1, d2), IntOutBound))
         | _ => Indet(Ap(d1, d2))
         };
-      }
+      }*/
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
