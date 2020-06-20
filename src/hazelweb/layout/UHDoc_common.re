@@ -113,26 +113,10 @@ let annot_Padding = (d: t): t =>
   | Text("") => d
   | _ => Doc.annot(UHAnnot.Padding, d)
   };
-let annot_ValidSeq = (line: int, seq: int, s: string): t =>
-  Doc.annot(
-    UHAnnot.mk_ValidSeq(
-      ~start_line=line,
-      ~start_seq=seq,
-      ~len=StringUtil.utf8_length(s),
-      (),
-    ),
-    Doc.text(s),
-  );
-let annot_InvalidSeq = (line: int, seq: int, s: string): t =>
-  Doc.annot(
-    UHAnnot.mk_InvalidSeq(
-      ~start_line=line,
-      ~start_seq=seq,
-      ~len=StringUtil.utf8_length(s),
-      (),
-    ),
-    Doc.text(s),
-  );
+let annot_ValidSeq = (s: string): t =>
+  Doc.annot(UHAnnot.ValidSeq, Doc.text(s));
+let annot_InvalidSeq = (s: string): t =>
+  Doc.annot(UHAnnot.InvalidSeq, Doc.text(s));
 let annot_DelimGroup: t => t = Doc.annot(UHAnnot.DelimGroup);
 let annot_OpenChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_OpenChild(~is_inline, ()));
@@ -167,18 +151,18 @@ let mk_text = (~start_index=0, s: string): t => {
   );
 };
 
-let rec mk_text_string = (~start_index=0, ~start_seq=0, s: string): list(t) => {
+let rec mk_text_string_rec = (~start_index=0, s: string): t => {
   print_endline("start_index = " ++ string_of_int(start_index));
   if (List.length(String.split_on_char('\\', s)) <= 1) {
-    [mk_text(~start_index, s)];
+    mk_text(~start_index, s);
   } else if (StringUtil.is_empty(s)) {
-    [mk_text(~start_index, "")];
+    mk_text(~start_index, "");
   } else if (String.length(s) == 1) {
     if (s == "\\") {
       print_endline("UHDoc160");
-      [annot_InvalidSeq(start_index, start_seq, s)];
+      annot_InvalidSeq(s);
     } else {
-      [mk_text(~start_index, s)];
+      mk_text(~start_index, s);
     };
   } else {
     switch (String.sub(s, 0, 1)) {
@@ -191,14 +175,11 @@ let rec mk_text_string = (~start_index=0, ~start_seq=0, s: string): list(t) => {
       | " "
       | "\\"
       | "\""
-      | "\'" => [
-          annot_ValidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-          ...mk_text_string(
-               ~start_index,
-               ~start_seq=start_index + 2,
-               String.sub(s, 2, String.length(s) - 2),
-             ),
-        ]
+      | "\'" =>
+        Doc.hcat(
+          annot_ValidSeq(String.sub(s, 0, 2)),
+          mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+        )
       | "o" =>
         if (String.length(s) >= 5) {
           let ch1 = s.[2];
@@ -209,43 +190,27 @@ let rec mk_text_string = (~start_index=0, ~start_seq=0, s: string): list(t) => {
               && ch3 >= '0'
               && ch3 <= '7') {
             if (ch1 <= '3') {
-              [
-                annot_ValidSeq(start_index, start_seq, String.sub(s, 0, 5)),
-                ...mk_text_string(
-                     ~start_index,
-                     ~start_seq=start_seq + 5,
-                     String.sub(s, 5, String.length(s) - 5),
-                   ),
-              ];
+              Doc.hcat(
+                annot_ValidSeq(String.sub(s, 0, 5)),
+                mk_text_string_rec(String.sub(s, 5, String.length(s) - 5)),
+              );
             } else {
-              [
-                annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 5)),
-                ...mk_text_string(
-                     ~start_index,
-                     ~start_seq=start_seq + 5,
-                     String.sub(s, 5, String.length(s) - 5),
-                   ),
-              ];
+              Doc.hcat(
+                annot_InvalidSeq(String.sub(s, 0, 5)),
+                mk_text_string_rec(String.sub(s, 5, String.length(s) - 5)),
+              );
             };
           } else {
-            [
-              annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-              ...mk_text_string(
-                   ~start_index,
-                   ~start_seq=start_seq + 2,
-                   String.sub(s, 2, String.length(s) - 2),
-                 ),
-            ];
+            Doc.hcat(
+              annot_InvalidSeq(String.sub(s, 0, 2)),
+              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+            );
           };
         } else {
-          [
-            annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-            ...mk_text_string(
-                 ~start_index,
-                 ~start_seq=start_seq + 2,
-                 String.sub(s, 2, String.length(s) - 2),
-               ),
-          ];
+          Doc.hcat(
+            annot_InvalidSeq(String.sub(s, 0, 2)),
+            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+          );
         }
       | "x" =>
         if (String.length(s) >= 4) {
@@ -253,33 +218,21 @@ let rec mk_text_string = (~start_index=0, ~start_seq=0, s: string): list(t) => {
           let ch2 = Char.lowercase_ascii(s.[3]);
           if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
               && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
-            [
-              annot_ValidSeq(start_index, start_seq, String.sub(s, 0, 4)),
-              ...mk_text_string(
-                   ~start_index,
-                   ~start_seq=start_seq + 4,
-                   String.sub(s, 4, String.length(s) - 4),
-                 ),
-            ];
+            Doc.hcat(
+              annot_ValidSeq(String.sub(s, 0, 4)),
+              mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
+            );
           } else {
-            [
-              annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-              ...mk_text_string(
-                   ~start_index,
-                   ~start_seq=start_seq + 2,
-                   String.sub(s, 2, String.length(s) - 2),
-                 ),
-            ];
+            Doc.hcat(
+              annot_InvalidSeq(String.sub(s, 0, 2)),
+              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+            );
           };
         } else {
-          [
-            annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-            ...mk_text_string(
-                 ~start_index,
-                 ~start_seq=start_seq + 2,
-                 String.sub(s, 2, String.length(s) - 2),
-               ),
-          ];
+          Doc.hcat(
+            annot_InvalidSeq(String.sub(s, 0, 2)),
+            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+          );
         }
       | _ =>
         let ch1 = s.[1];
@@ -291,57 +244,48 @@ let rec mk_text_string = (~start_index=0, ~start_seq=0, s: string): list(t) => {
               && ch3 >= '0'
               && ch3 <= '9') {
             if (int_of_string(String.sub(s, 1, 3)) < 256) {
-              [
-                annot_ValidSeq(start_index, start_seq, String.sub(s, 0, 4)),
-                ...mk_text_string(
-                     ~start_index,
-                     ~start_seq=start_seq + 4,
-                     String.sub(s, 4, String.length(s) - 4),
-                   ),
-              ];
+              Doc.hcat(
+                annot_ValidSeq(String.sub(s, 0, 4)),
+                mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
+              );
             } else {
-              [
-                annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 4)),
-                ...mk_text_string(
-                     ~start_index,
-                     ~start_seq=start_seq + 4,
-                     String.sub(s, 4, String.length(s) - 4),
-                   ),
-              ];
+              Doc.hcat(
+                annot_InvalidSeq(String.sub(s, 0, 4)),
+                mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
+              );
             };
           } else {
-            [
-              annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-              ...mk_text_string(
-                   ~start_index,
-                   ~start_seq=start_seq + 2,
-                   String.sub(s, 2, String.length(s) - 2),
-                 ),
-            ];
+            Doc.hcat(
+              annot_InvalidSeq(String.sub(s, 0, 2)),
+              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+            );
           };
         } else {
-          [
-            annot_InvalidSeq(start_index, start_seq, String.sub(s, 0, 2)),
-            ...mk_text_string(
-                 ~start_index,
-                 ~start_seq=start_seq + 2,
-                 String.sub(s, 2, String.length(s) - 2),
-               ),
-          ];
+          Doc.hcat(
+            annot_InvalidSeq(String.sub(s, 0, 2)),
+            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+          );
         };
       }
     | _ =>
       print_endline("mk_text_string = " ++ String.sub(s, 0, 1));
-      [
+      Doc.hcat(
         mk_text(~start_index, String.sub(s, 0, 1)),
-        ...mk_text_string(
-             ~start_index,
-             ~start_seq=start_seq + 1,
-             String.sub(s, 1, String.length(s) - 1),
-           ),
-      ];
+        mk_text_string_rec(String.sub(s, 1, String.length(s) - 1)),
+      );
     };
   };
+};
+
+let mk_text_string = (~start_index=0, s: string): t => {
+  Doc.annot(
+    UHAnnot.mk_Token(
+      ~shape=Text({start_index: start_index}),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
+    mk_text_string_rec(~start_index, s),
+  );
 };
 
 let pad_operator =
@@ -490,11 +434,11 @@ let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
            (
              (start_index + StringUtil.utf8_length(line) + 1, line_no + 1),
              if (line_no == 0) {
-               Doc.hcats(mk_text_string(~start_index, line));
+               mk_text_string(~start_index, line);
              } else {
                Doc.hcats([
                  annot_Padding(space_),
-                 ...mk_text_string(~start_index, line),
+                 mk_text_string(~start_index, line),
                ]);
              },
            ),

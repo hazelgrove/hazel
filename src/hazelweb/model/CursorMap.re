@@ -134,51 +134,6 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
         ColMap.singleton(col_before, (pos_before, rev_steps))
         |> ColMap.add(col_after, (pos_after, rev_steps)),
       );
-    | Annot(ValidSeq({start_line, start_seq, len, has_cursor}), l) =>
-      let col_before = col^;
-      let _ = go'(l);
-      let col_after = col^;
-      switch (has_cursor) {
-      | None => ()
-      | Some(j) =>
-        let pos: CursorPosition.t = OnText(start_line + j);
-        z := Some(((row^, col_before - start_seq + j), (pos, rev_steps)));
-      };
-      let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) = (
-        OnText(start_line + start_seq),
-        OnText(start_line + start_seq + len),
-      );
-      RowMap.singleton(
-        row^,
-        ColMap.singleton(col_before, (pos_before, rev_steps))
-        |> ColMap.add(col_after, (pos_after, rev_steps)),
-      );
-    | Annot(InvalidSeq({start_line, start_seq, len, has_cursor}), l) =>
-      let col_before = col^;
-      let _ = go'(l);
-      let col_after = col^;
-      switch (has_cursor) {
-      | None => ()
-      | Some(j) =>
-        let pos: CursorPosition.t = OnText(start_line + j);
-        print_endline(
-          "Seq, col_before, j = "
-          ++ string_of_int(col_before)
-          ++ " "
-          ++ string_of_int(j),
-        );
-        z := Some(((row^, col_before - start_seq + j), (pos, rev_steps)));
-      };
-      let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) = (
-        OnText(start_line + start_seq),
-        OnText(start_line + start_seq + len),
-      );
-      RowMap.singleton(
-        row^,
-        ColMap.singleton(col_before, (pos_before, rev_steps))
-        |> ColMap.add(col_after, (pos_after, rev_steps)),
-      );
-
     | Annot(_, l) =>
       print_endline("CursorMap132");
       go'(l);
