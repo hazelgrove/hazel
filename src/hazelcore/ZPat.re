@@ -172,10 +172,8 @@ let place_after_operator = (op: UHPat.operator): option(zoperator) =>
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
   if (is_valid_cursor_operand(cursor, operand)) {
-    print_endline("ZPat175");
     Some(CursorP(cursor, operand));
   } else {
-    print_endline("ZPat177");
     None;
   };
 

@@ -119,12 +119,10 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
-           print_endline("UHLayout122, j=" ++ string_of_int(j));
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
              | Token({shape: Text({start_index}), len, _} as token_data)
                  when start_index <= j && j <= start_index + len =>
-               print_endline("UHLayout127");
                Return(
                  l
                  |> Layout.annot(
@@ -133,48 +131,12 @@ let find_and_decorate_caret =
                         has_cursor: Some(j - start_index),
                       }),
                     ),
-               );
-             //  | ValidSeq({start_line, start_seq, len, _} as data)
-             //      when
-             //        start_line
-             //        + start_seq <= j
-             //        && j <= start_line
-             //        + start_seq
-             //        + len =>
-             //    print_endline("UHLayout144");
-             //    Return(
-             //      l
-             //      |> Layout.annot(
-             //           UHAnnot.ValidSeq({
-             //             ...data,
-             //             has_cursor: Some(j - start_line),
-             //           }),
-             //         ),
-             //    );
-             //  | InvalidSeq({start_line, start_seq, len, _} as data)
-             //      when
-             //        start_line
-             //        + start_seq <= j
-             //        && j <= start_line
-             //        + start_seq
-             //        + len =>
-             //    print_endline("UHLayout161");
-             //    Return(
-             //      l
-             //      |> Layout.annot(
-             //           UHAnnot.InvalidSeq({
-             //             ...data,
-             //             has_cursor: Some(j - start_line),
-             //           }),
-             //         ),
-             //    );
+               )
              | EmptyLine
              | Term(_) => Skip
-             | _ =>
-               print_endline("UHLayout170");
-               Stop;
+             | _ => Stop
              }
-           );
+           )
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {

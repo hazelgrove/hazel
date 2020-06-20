@@ -140,7 +140,6 @@ let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
 let mk_text = (~start_index=0, s: string): t => {
-  print_endline("mk_text = " ++ s);
   Doc.annot(
     UHAnnot.mk_Token(
       ~shape=Text({start_index: start_index}),
@@ -151,15 +150,13 @@ let mk_text = (~start_index=0, s: string): t => {
   );
 };
 
-let rec mk_text_string_rec = (~start_index=0, s: string): t => {
-  print_endline("start_index = " ++ string_of_int(start_index));
+let rec mk_text_string_rec = (~start_index=0, s: string): t =>
   if (List.length(String.split_on_char('\\', s)) <= 1) {
     mk_text(~start_index, s);
   } else if (StringUtil.is_empty(s)) {
     mk_text(~start_index, "");
   } else if (String.length(s) == 1) {
     if (s == "\\") {
-      print_endline("UHDoc160");
       annot_InvalidSeq(s);
     } else {
       mk_text(~start_index, s);
@@ -268,14 +265,12 @@ let rec mk_text_string_rec = (~start_index=0, s: string): t => {
         };
       }
     | _ =>
-      print_endline("mk_text_string = " ++ String.sub(s, 0, 1));
       Doc.hcat(
         mk_text(~start_index, String.sub(s, 0, 1)),
         mk_text_string_rec(String.sub(s, 1, String.length(s) - 1)),
-      );
+      )
     };
   };
-};
 
 let mk_text_string = (~start_index=0, s: string): t => {
   Doc.annot(
@@ -446,14 +441,12 @@ let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
        )
     |> snd
     |> ListUtil.join(Doc.linebreak());
-  print_endline("UHDoc470");
   let temp =
     Doc.(
       hcats(
         [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
       )
     );
-  print_endline("UHDoc476");
   temp |> annot_Operand(~sort, ~err);
 };
 
