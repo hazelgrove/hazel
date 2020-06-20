@@ -32,27 +32,11 @@ type t =
   | LetLine
   | Step(int)
   | Term(term_data)
-  | ValidSeq({
-      start_line: int,
-      start_seq: int,
-      len: int,
-      has_cursor: option(int),
-    })
-  | InvalidSeq({
-      start_line: int,
-      start_seq: int,
-      len: int,
-      has_cursor: option(int),
-    });
+  | ValidSeq
+  | InvalidSeq;
 
 let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
   Token({has_cursor, len, shape});
-let mk_ValidSeq =
-    (~has_cursor=None, ~len: int, ~start_seq: int, ~start_line: int, ()) =>
-  ValidSeq({has_cursor, len, start_seq, start_line});
-let mk_InvalidSeq =
-    (~has_cursor=None, ~len: int, ~start_seq: int, ~start_line: int, ()) =>
-  InvalidSeq({has_cursor, len, start_seq, start_line});
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});
