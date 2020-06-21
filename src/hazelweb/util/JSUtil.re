@@ -297,7 +297,7 @@ let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
     if (ctrlKey || altKey || metaKey) {
       None;
     } else {
-      let key = KeyCombo.get_key(evt);
+      let key = Key.get_key(evt);
       switch (int_of_string_opt(key)) {
       | Some(n) => Some(Number(n))
       | None =>
@@ -325,7 +325,7 @@ let single_key_string: single_key => string =
 
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
   evt => {
-    let key = KeyCombo.get_key(evt);
+    let key = Key.get_key(evt);
     switch (key) {
     | "ArrowLeft"
     | "ArrowRight"

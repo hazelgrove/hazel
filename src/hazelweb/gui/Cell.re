@@ -104,7 +104,7 @@ let view = (~inject, model: Model.t) => {
           let key_handlers = [
             Attr.on_keypress(_ => Event.Prevent_default),
             Attr.on_keydown(evt => {
-              switch (MoveKey.of_key(KeyCombo.get_key(evt))) {
+              switch (MoveKey.of_key(Key.get_key(evt))) {
               | Some(move_key) =>
                 prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
               | None =>
