@@ -32,7 +32,7 @@ type t =
   | Term(term_data)
   | ValidSeq
   | InvalidSeq
-  | Quotation;
+  | String;
 
 let mk_Token:
   (~has_cursor: option(int)=?, ~len: int, ~shape: token_shape, unit) => t;

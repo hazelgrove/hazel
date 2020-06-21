@@ -88,8 +88,8 @@ let view =
         | Annot(InvalidSeq, l) => [
             Node.span([Attr.classes(["InvalidSeq"])], go(l)),
           ]
-        | Annot(Quotation, l) => [
-            Node.span([Attr.classes(["Quotation"])], go(l)),
+        | Annot(String, l) => [
+            Node.span([Attr.classes(["String"])], go(l)),
           ]
         | Linebreak => [Node.br([])]
         | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
