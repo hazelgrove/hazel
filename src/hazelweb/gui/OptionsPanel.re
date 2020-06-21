@@ -165,20 +165,20 @@ let view =
             ~on_change=() => inject(ToggleMemoizeDoc),
             model.memoize_doc,
           ),
-          Node.button(
-            [
-              Attr.on_click(_ => {
-                Printf.printf(
-                  "%s\n%!",
-                  Extraction_uhexp.extraction_call(
-                    ~t=model |> Model.get_program |> Program.get_uhexp,
-                  ),
-                );
-                Event.Ignore;
-              }),
-            ],
-            [Node.text("Extraction to Ocaml")],
-          ),
+          // Node.button(
+          //   [
+          //     Attr.on_click(_ => {
+          //       Printf.printf(
+          //         "%s\n%!",
+          //         Extraction_uhexp.extraction_call(
+          //           ~t=model |> Model.get_program |> Program.get_uhexp,
+          //         ),
+          //       );
+          //       Event.Ignore;
+          //     }),
+          //   ],
+          //   [Node.text("Extraction to Ocaml")],
+          // ),
         ],
       )
     );
