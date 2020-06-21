@@ -130,7 +130,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | StringLit(s) => BoxedValue(IntLit(String.length(s)))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "int_of_string" =>
@@ -143,9 +143,9 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
             && float_of_string(s) <= 2147483647.) {
           BoxedValue(IntLit(int_of_string(s)));
         } else {
-          Indet(InvalidOperation(ApBuiltin(x, l), StrNotConvToInt));
+          Indet(InvalidOperation(Ap(ApBuiltin(x, l), a), StrNotConvToInt));
         }
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "bool_of_string" =>
@@ -157,9 +157,11 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
         if (BuiltinFunctions.is_bool_of_string(s)) {
           BoxedValue(BoolLit(bool_of_string(s)));
         } else {
-          Indet(InvalidOperation(ApBuiltin(x, l), StrNotConvToBool));
+          Indet(
+            InvalidOperation(Ap(ApBuiltin(x, l), a), StrNotConvToBool),
+          );
         }
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "float_of_string" =>
@@ -171,9 +173,11 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
         if (BuiltinFunctions.is_float_of_string(s)) {
           BoxedValue(FloatLit(float_of_string(s)));
         } else {
-          Indet(InvalidOperation(ApBuiltin(x, l), StrNotConvToFloat));
+          Indet(
+            InvalidOperation(Ap(ApBuiltin(x, l), a), StrNotConvToFloat),
+          );
         }
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "trim" =>
@@ -184,7 +188,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       | StringLit(s) =>
         let (s', _) = StringUtil.find_and_replace("", s, "OK");
         BoxedValue(StringLit(String.trim(s')));
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "escaped" =>
@@ -195,7 +199,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       | StringLit(s) =>
         print_endline("ESCAPED s=" ++ s);
         BoxedValue(StringLit(String.escaped(s)));
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "string_of_int" =>
@@ -207,8 +211,8 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       /* int overflow */
       | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
           when Float.is_integer(n) =>
-        Indet(InvalidOperation(ApBuiltin(x, l), IntOutBound))
-      | _ => Indet(ApBuiltin(x, l))
+        Indet(InvalidOperation(Ap(ApBuiltin(x, l), a), IntOutBound))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "float_of_int" =>
@@ -219,8 +223,8 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       | IntLit(i) => BoxedValue(FloatLit(float_of_int(i)))
       | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
           when Float.is_integer(n) =>
-        Indet(InvalidOperation(ApBuiltin(x, l), IntOutBound))
-      | _ => Indet(ApBuiltin(x, l))
+        Indet(InvalidOperation(Ap(ApBuiltin(x, l), a), IntOutBound))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "string_of_bool" =>
@@ -229,7 +233,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | BoolLit(b) => BoxedValue(StringLit(string_of_bool(b)))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "assert" =>
@@ -239,7 +243,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       switch (a) {
       | BoolLit(b) =>
         b ? Indet(FailedAssert(a)) : BoxedValue(StringLit("assertion"))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "string_of_float" =>
@@ -248,7 +252,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | FloatLit(f) => BoxedValue(StringLit(string_of_float(f)))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   | "int_of_float" =>
@@ -257,7 +261,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | FloatLit(f) => BoxedValue(IntLit(int_of_float(f)))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
   /* multiple arguments */
@@ -269,7 +273,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       switch (a, b) {
       | (StringLit(s1), StringLit(s2)) =>
         BoxedValue(BoolLit(String.equal(s1, s2)))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(Ap(ApBuiltin(x, l), a), b))
       }
     | _ => BoxedValue(Triv)
     }
@@ -280,7 +284,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       switch (a, b) {
       | (StringLit(s1), StringLit(s2)) =>
         BoxedValue(IntLit(String.compare(s1, s2)))
-      | _ => Indet(ApBuiltin(x, l))
+      | _ => Indet(Ap(Ap(ApBuiltin(x, l), a), b))
       }
     | _ => BoxedValue(Triv)
     }
@@ -333,11 +337,16 @@ let rec evaluate = (d: DHExp.t): result =>
       | BoxedValue(d2)
       | Indet(d2) =>
         switch (Elaborator_Exp.matches(dp, d2)) {
-        | DoesNotMatch => Indet(d)
-        | Indet => Indet(d)
+        | DoesNotMatch =>
+          print_endline("Evaluator DoesNotMatch");
+          Indet(d);
+        | Indet =>
+          print_endline("Evaluator Indet");
+          Indet(d);
         | Matches(env) =>
           /* beta rule */
-          evaluate(Elaborator_Exp.subst(env, d3))
+          print_endline("Evaluator Matches");
+          evaluate(Elaborator_Exp.subst(env, d3));
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
