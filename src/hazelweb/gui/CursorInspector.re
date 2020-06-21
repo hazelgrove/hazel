@@ -115,15 +115,7 @@ let view =
       )
     );
   let got_invalid_escape = s =>
-    got_indicator(
-      "Got",
-      Vdom.(
-        Node.div(
-          [Attr.classes(["infobar", "typebar"])],
-          [Node.text("invalid escape sequence " ++ s)],
-        )
-      ),
-    );
+    got_indicator("Got", special_msg_bar("invalid escape sequence " ++ s));
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
