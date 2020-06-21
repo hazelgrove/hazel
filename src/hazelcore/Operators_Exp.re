@@ -55,3 +55,23 @@ let is_Space =
   fun
   | Space => true
   | _ => false;
+
+let precedence =
+  fun
+  | Plus => 1
+  | Minus => 1
+  | Times => 2
+  | Divide => 2
+  | FPlus => 1
+  | FMinus => 1
+  | FTimes => 2
+  | FDivide => 2
+  | LessThan => 5
+  | GreaterThan => 5
+  | Equals => 5
+  | FLessThan => 5
+  | FGreaterThan => 5
+  | FEquals => 5
+  | And => 3
+  | Or => 3
+  | _ => (-1);

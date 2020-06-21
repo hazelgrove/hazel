@@ -305,17 +305,174 @@ let text_operand =
     );
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
+let rec print_seq = (seq: seq) => {
+  switch (seq) {
+  | S(IntLit(_, hd), E) => print_endline(hd)
+  | S(IntLit(_, hd), A(op, seq)) =>
+    print_string(hd ++ " " ++ Operators_Exp.to_string(op) ++ " ");
+    print_seq(seq);
+  | _ => print_newline()
+  };
 };
 
-// let mk_OpSeq = (seq: seq): opseq => {
-//   let rec go_seq = (~output_stack: list(skel), seq)
-//   and go_affix = (~output_stack: list(skel), affix)
+let rec print_skel = (skel: skel) => {
+  switch (skel) {
+  | BinOp(_, op, Placeholder(m), Placeholder(n)) =>
+    print_endline(
+      Operators_Exp.to_string(op) ++ string_of_int(m) ++ string_of_int(n),
+    )
+  | BinOp(_, op, skel', Placeholder(n)) =>
+    print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
+    print_skel(skel');
+  | BinOp(_, op, Placeholder(n), skel') =>
+    print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
+    print_skel(skel');
+  | _ => print_newline()
+  };
+};
+// let associate = (seq: seq) => {
+//   // print_seq(seq);
+//   let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
+//   let lexbuf = Lexing.from_string(skel_str);
+//   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 // };
-// print_endline("Print associate");
+// OpSeq(
+//      BinOp(_, Plus,
+//        BinOp(_, Times,
+//          Placeholder(0),
+//          Placeholder(1),
+//        ),
+//        Placeholder(2),
+//      ),
+//      S(NumLit(1), A(Times, S(NumLit(2), A(Plus, S(NumLit(3), E))))),
+//    )
+
+/* Wikipedia Example
+
+   3 * 4 + 2
+   S(IntLit(3), A(Times, S(IntLit(4), A(Plus, S(IntLit(2), E)))))
+
+   1. S(IntLit(3), A(Times, S(IntLit(4), A(Plus, S(IntLit(2), E)))))
+     seq stack:
+       []
+
+     skel queue:
+       [Skel.Placeholder(0)]
+
+   2. A(Times, S(IntLit(4), A(Plus, S(IntLit(2), E))))
+     seq stack:
+       [Times]
+
+     skel list:
+       [Skel.Placeholder(0)]
+
+   3. S(IntLit(4), A(Plus, S(IntLit(2), E)))
+     seq stack:
+       [Times]
+
+     skel list:
+       [Skel.Placeholder(0)::Skel.Placeholder(1)]
+
+   4. A(Plus, S(IntLit(2), E))
+     seq stack:
+       [Plus]
+
+     skel list:
+       [ BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)) ]
+
+   5. S(IntLit(2), E)
+       BinOp(_, Plus, BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)), Placeholder(2))
+   */
+
+let associate = (seq: seq) => {
+  /**
+   * Write two mutually recursive functions that bounce back and forth as
+   * you get seq and affix.
+   */
+  print_seq(seq);
+  let rec go_seq =
+          (
+            skels: list(skel),
+            op_stack: list(Operators_Exp.t),
+            seq: seq,
+            lex_addr: int,
+          )
+          : skel => {
+    switch (seq) {
+    | S(_, seq) =>
+      // print_endline("go_seq");
+
+      go_affix(
+        [Skel.Placeholder(lex_addr), ...skels],
+        op_stack,
+        seq,
+        lex_addr + 1,
+      )
+    };
+  }
+  and go_affix =
+      (
+        skels: list(skel),
+        op_stack: list(Operators_Exp.t),
+        affix: affix,
+        lex_addr: int,
+      )
+      : skel => {
+    switch (affix) {
+    | A(rator, seq') =>
+      // print_endline("go_affix");
+      let should_mv = op' =>
+        Operators_Exp.precedence(rator) <= Operators_Exp.precedence(op');
+      let (skels', op_stack') = mv_while(skels, op_stack, should_mv);
+
+      go_seq(skels', [rator, ...op_stack'], seq', lex_addr);
+    | E =>
+      let (skels', _) = mv_while(skels, op_stack, _ => true); /* while there are operators on the seq stack pop, pop 2 from skel stack, push (op, skel_1, skel_2) */
+      List.hd(skels');
+    };
+  }
+  and mv_while =
+      (skels: list(skel), op_stack: list(Operators_Exp.t), should_mv)
+      : (list(skel), list(Operators_Exp.t)) => {
+    switch (op_stack) {
+    | [] => (skels, op_stack)
+    | [hd, ...op_stack'] =>
+      if (should_mv(hd)) {
+        let rand_1 = List.hd(skels);
+        let skels' = List.tl(skels);
+        let rand_2 = List.hd(skels');
+        let skels'' = List.tl(skels');
+
+        mv_while(
+          [Skel.BinOp(ErrStatus.NotInHole, hd, rand_1, rand_2), ...skels''],
+          op_stack',
+          should_mv,
+        );
+      } else {
+        (skels, op_stack);
+      }
+    };
+  };
+  go_seq([], [], seq, 0);
+};
+
+let test_seq =
+  Seq.S(
+    IntLit(NotInHole, "1"),
+    Seq.A(
+      Operators_Exp.Plus,
+      Seq.S(
+        IntLit(NotInHole, "2"),
+        Seq.A(Operators_Exp.Times, Seq.S(IntLit(NotInHole, "4"), Seq.E)),
+      ),
+    ),
+  );
+// let answer_skel =
+//   Skel.BinOp(NotInHole, Operators_Exp.Plus, Placeholder(0), Placeholder(1));
+// print_seq(test_seq);
+// print_skel(answer_skel);
+print_skel(associate(test_seq));
+// OpSeq.mk(~associate, seq);
 let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
