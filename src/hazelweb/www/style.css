@@ -830,10 +830,11 @@ h1 {
 }
 .code.presentation .InvalidSeq {
   --err-hole-color: red;
+  color: red;
   border: 1px dotted var(--err-hole-color);
   margin: -1px;
 }
-.code.presentation .Quotation {
+.code.presentation .String {
   color: #654321;
 }
 .code.presentation .Term.Rule,

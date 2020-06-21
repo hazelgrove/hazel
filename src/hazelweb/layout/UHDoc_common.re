@@ -73,7 +73,7 @@ module Delim = {
         ~shape=Delim(index),
         (),
       ),
-      Doc.annot(UHAnnot.Quotation, Doc.text(delim_text)),
+      Doc.annot(UHAnnot.String, Doc.text(delim_text)),
     );
 
   let empty_hole_doc = (hole_lbl: string): t => {
@@ -160,16 +160,27 @@ let mk_text = (~start_index=0, s: string): t => {
   );
 };
 
+let mk_text_str = (~start_index=0, s: string): t => {
+  Doc.annot(
+    UHAnnot.mk_Token(
+      ~shape=Text({start_index: start_index}),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
+    Doc.annot(UHAnnot.String, Doc.text(s)),
+  );
+};
+
 let rec mk_text_string_rec = (~start_index=0, s: string): t =>
   if (List.length(String.split_on_char('\\', s)) <= 1) {
-    mk_text(~start_index, s);
+    mk_text_str(~start_index, s);
   } else if (StringUtil.is_empty(s)) {
-    mk_text(~start_index, "");
+    mk_text_str(~start_index, "");
   } else if (String.length(s) == 1) {
     if (s == "\\") {
       annot_InvalidSeq(s);
     } else {
-      mk_text(~start_index, s);
+      mk_text_str(~start_index, s);
     };
   } else {
     switch (String.sub(s, 0, 1)) {
@@ -276,7 +287,7 @@ let rec mk_text_string_rec = (~start_index=0, s: string): t =>
       }
     | _ =>
       Doc.hcat(
-        mk_text(~start_index, String.sub(s, 0, 1)),
+        mk_text_str(~start_index, String.sub(s, 0, 1)),
         mk_text_string_rec(String.sub(s, 1, String.length(s) - 1)),
       )
     };
@@ -451,13 +462,12 @@ let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
        )
     |> snd
     |> ListUtil.join(Doc.linebreak());
-  let temp =
-    Doc.(
-      hcats(
-        [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
-      )
-    );
-  temp |> annot_Operand(~sort, ~err);
+  Doc.(
+    hcats(
+      [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
+    )
+  )
+  |> annot_Operand(~sort, ~err);
 };
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
