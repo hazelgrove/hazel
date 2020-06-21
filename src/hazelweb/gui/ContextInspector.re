@@ -234,13 +234,11 @@ let view =
         ],
       );
 
-    let prev_key = KeyCombo.Details.alt_PageUp;
-    let next_key = KeyCombo.Details.alt_PageDown;
+    let prev_key = KeyCombo.alt_PageUp;
+    let next_key = KeyCombo.alt_PageDown;
 
-    let prev_title =
-      "Previous instance (" ++ KeyCombo.Details.name(prev_key) ++ ")";
-    let next_title =
-      "Next instance (" ++ KeyCombo.Details.name(next_key) ++ ")";
+    let prev_title = "Previous instance (" ++ KeyCombo.name(prev_key) ++ ")";
+    let next_title = "Next instance (" ++ KeyCombo.name(next_key) ++ ")";
 
     let prev_btn =
       if (i > 0) {
@@ -252,7 +250,7 @@ let view =
             Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(prev_key, ev)
+                KeyCombo.matches(prev_key, ev)
                   ? [inject(SelectHoleInstance(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
@@ -279,7 +277,7 @@ let view =
             Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(next_key, ev)
+                KeyCombo.matches(next_key, ev)
                   ? [inject(SelectHoleInstance(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
