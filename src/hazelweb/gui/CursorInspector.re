@@ -123,7 +123,7 @@ let view =
           [
             Node.div(
               [Attr.classes(["special-msg-bar"])],
-              [Node.text("invalid escape sequence\ ")],
+              [Node.text("invalid escape sequence ")],
             ),
             Node.div([Attr.classes(["code-bar"])], [Node.text(s)]),
           ],

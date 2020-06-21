@@ -4,6 +4,7 @@ type t =
   | StartOutBound
   | EndOutBound
   | StartEndOutBound
+  | GreaterStart
   | IllegalEscape;
 
 let err_msg: t => string;
