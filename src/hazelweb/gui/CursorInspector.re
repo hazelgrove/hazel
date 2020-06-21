@@ -119,11 +119,18 @@ let view =
       "Got",
       Vdom.(
         Node.div(
-          [Attr.classes(["infobar", "typebar"])],
-          [Node.text("invalid escape sequence " ++ s)],
+          [Attr.classes(["infobar"])],
+          [
+            Node.div(
+              [Attr.classes(["special-msg-bar"])],
+              [Node.text("invalid escape sequence\ ")],
+            ),
+            Node.div([Attr.classes(["code-bar"])], [Node.text(s)]),
+          ],
         )
       ),
     );
+
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
