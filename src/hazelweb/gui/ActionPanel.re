@@ -192,7 +192,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       inject,
       action,
       description,
-      KeyCombo.get_details(combo),
+      HazelKeyCombos.get_details(combo),
     );
   };
 
@@ -225,7 +225,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       List.map(
         combo => {
           let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
-          (KeyCombo.get_details(combo), action);
+          (HazelKeyCombos.get_details(combo), action);
         },
         combos,
       );
@@ -235,7 +235,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let keyboard_button = combo => {
     let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
-    let combo = KeyCombo.get_details(combo);
+    let combo = HazelKeyCombos.get_details(combo);
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
 
@@ -265,7 +265,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     spaced_line([label, elems]);
   };
 
-  KeyCombo.[
+  HazelKeyCombos.[
     section(
       "Movement",
       [

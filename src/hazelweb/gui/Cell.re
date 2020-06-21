@@ -7,14 +7,15 @@ module Sexp = Sexplib.Sexp;
 open ViewUtil;
 open Sexplib.Std;
 
-let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
+let kc_actions:
+  Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
   [
-    (KeyCombo.Backspace, _ => Action_common.Backspace),
+    (HazelKeyCombos.Backspace, _ => Action_common.Backspace),
     (Delete, _ => Action_common.Delete),
     (ShiftTab, _ => Action_common.MoveToPrevHole),
     (Tab, _ => Action_common.MoveToNextHole),
     (
-      KeyCombo.GT,
+      HazelKeyCombos.GT,
       fun
       | {CursorInfo_common.typed: OnType, _} =>
         Action_common.Construct(SOp(SArrow))
@@ -108,7 +109,7 @@ let view = (~inject, model: Model.t) => {
               | Some(move_key) =>
                 prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
               | None =>
-                switch (KeyCombo.of_evt(evt)) {
+                switch (HazelKeyCombos.of_evt(evt)) {
                 | Some(Ctrl_Z) =>
                   if (model.is_mac) {
                     Event.Ignore;
@@ -144,7 +145,7 @@ let view = (~inject, model: Model.t) => {
                     ),
                   )
                 | None =>
-                  switch (KeyCombo.of_evt(evt)) {
+                  switch (HazelKeyCombos.of_evt(evt)) {
                   | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
                   | Some(Ctrl_Shift_Z) =>
                     prevent_stop_inject(ModelAction.Redo)
