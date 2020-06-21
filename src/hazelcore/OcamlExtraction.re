@@ -3,7 +3,7 @@ module Typ = {
 
   let rec extract = (~t: HTyp.t): ocaml_typ =>
     switch (t) {
-    | Hole => "'a" // FIXME: maybe it means an error?
+    | Hole => "'a"
     | Int => "int"
     | Float => "float"
     | Bool => "bool"
