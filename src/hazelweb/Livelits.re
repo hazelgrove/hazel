@@ -718,55 +718,53 @@ module GradeCutoffLivelit: LIVELIT = {
     );
   };
 
-  let svgs_of_grades = grades => {
+  let grades_invalids_to_svgs = ((grades, invalid_count)) => {
     let valid_grades =
       grades
-      |> List.for_all(grade => {
-           let valid = grade >= 0 && grade <= 100;
-           if (!valid) {
-             JSUtil.log(Printf.sprintf("Invalid grade %d", grade));
-           };
-           valid;
-         });
-    if (valid_grades) {
-      Some(
-        grades
-        |> List.map(grade =>
-             _svg(
-               "rect",
-               [
-                 (
-                   "x",
-                   line_width
-                   / 100
-                   * grade
-                   + margin_x_left
-                   - grade_point_half_size
-                   |> soi,
-                 ),
-                 ("y", line_y - grade_point_half_size |> soi),
-                 ("rx", "3"),
-                 ("ry", "3"),
-                 ("height", grade_point_size |> soi),
-                 ("width", grade_point_size |> soi),
-                 ("fill", "blue"),
-               ],
-               ~attrs=[Vdom.Attr.classes(["grade-point"])],
-               (),
-             )
-           ),
-      );
-    } else {
-      None;
-    };
+      |> List.filter_map(grade =>
+           if (grade >= 0 && grade <= 100) {
+             Some(
+               _svg(
+                 "rect",
+                 [
+                   (
+                     "x",
+                     line_width
+                     / 100
+                     * grade
+                     + margin_x_left
+                     - grade_point_half_size
+                     |> soi,
+                   ),
+                   ("y", line_y - grade_point_half_size |> soi),
+                   ("rx", "3"),
+                   ("ry", "3"),
+                   ("height", grade_point_size |> soi),
+                   ("width", grade_point_size |> soi),
+                   ("fill", "blue"),
+                 ],
+                 ~attrs=[Vdom.Attr.classes(["grade-point"])],
+                 (),
+               ),
+             );
+           } else {
+             None;
+           }
+         );
+    (
+      valid_grades,
+      invalid_count + List.length(grades) - List.length(valid_grades),
+    );
   };
 
-  let rec dhexp_to_grades = rslt =>
+  let rec dhexp_to_grades_invalids = (rslt, invalid_count) =>
     fun
-    | DHExp.ListNil(_) => Some(List.rev(rslt))
-    | DHExp.Cons(DHExp.IntLit(g), d) => dhexp_to_grades([g, ...rslt], d)
-    // currently, we are very strict, and the presence of any indet is immediate failure
-    | _ => None;
+    | DHExp.Cons(DHExp.IntLit(g), d) =>
+      dhexp_to_grades_invalids([g, ...rslt], invalid_count, d)
+    | DHExp.Cons(_, d) =>
+      dhexp_to_grades_invalids(rslt, invalid_count + 1, d)
+    | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
+    | _ => (List.rev(rslt), invalid_count + 1);
 
   let view =
       (
@@ -775,24 +773,27 @@ module GradeCutoffLivelit: LIVELIT = {
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
     let data_opt = dhcode(dataID);
-    let grades_opt =
-      data_opt |> OptUtil.and_then(((d, _)) => dhexp_to_grades([], d));
-    let grades_svgs_opt = grades_opt |> OptUtil.and_then(svgs_of_grades);
-    let grades_svgs = grades_svgs_opt |> OptUtil.get_default(~default=[]);
-    let data_err_msg =
-      switch (data_opt, grades_opt, grades_svgs_opt) {
-      | (None, _, _) => [Vdom.Node.text("Grades data was never evaluated")]
-      | (_, None, _) => [
-          Vdom.Node.text(
-            "Grades data was indeterminate (maybe it contains a hole?)",
-          ),
-        ]
-      | (_, _, None) => [
-          Vdom.Node.text(
-            "Grades data was invalid (i.e. it contains a number < 0 or > 100)",
-          ),
-        ]
-      | _ => []
+    let grades_svgs_invalids_opt =
+      data_opt
+      |> OptUtil.map(((d, _)) =>
+           dhexp_to_grades_invalids([], 0, d) |> grades_invalids_to_svgs
+         );
+    let (grades_svgs, data_err_msg) =
+      switch (grades_svgs_invalids_opt) {
+      | None => ([], [Vdom.Node.text("Grades data was never evaluated")])
+      | Some((grades_svgs, invalid_count)) => (
+          grades_svgs,
+          invalid_count == 0
+            ? []
+            : [
+              Vdom.Node.text(
+                Printf.sprintf(
+                  "%d grades were indeterminate or out of bounds",
+                  invalid_count,
+                ),
+              ),
+            ],
+        )
       };
     Vdom.(
       Node.div(
