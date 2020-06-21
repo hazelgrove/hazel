@@ -1000,17 +1000,22 @@ and syn_perform_line =
 
   | (_, LetLineZA(p, zann, def)) =>
     let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
-    let k = Statics_Typ.syn(ctx, hty);
-    switch (Action_Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) => escape(u_gen, side)
-    | Succeeded((new_zann, _, _)) =>
-      let ty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zann));
-      let (p, new_ctx, u_gen) = Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty);
-      let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, def);
-      let (def, u_gen) = Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
-      let new_zline = ZExp.LetLineZA(p, new_zann, def);
-      Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => Failed
+    | Some(kind) =>
+      switch (Action_Typ.syn_perform(ctx, a, (zann, kind, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded((new_zann, _, _)) =>
+        let ty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zann));
+        let (p, new_ctx, u_gen) =
+          Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty);
+        let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, def);
+        let (def, u_gen) =
+          Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
+        let new_zline = ZExp.LetLineZA(p, new_zann, def);
+        Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
+      }
     };
 
   | (_, LetLineZE(p, None, zdef)) =>
@@ -1754,22 +1759,26 @@ and syn_perform_operand =
     };
   | (_, LamZA(_, p, zann, body)) =>
     let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
-    let k = Statics_Typ.syn(ctx, hty);
-    switch (Action_Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, ty, u_gen),
-      )
-    | Succeeded((zann, _, _)) =>
-      let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
-      let (p, ctx, u_gen) = Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
-      let (body, ty2, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, body);
-      let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
-      Succeeded(SynDone((new_ze, Arrow(ty1, ty2), u_gen)));
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => Failed
+    | Some(kind) =>
+      switch (Action_Typ.syn_perform(ctx, a, (zann, kind, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded((zann, _, _)) =>
+        let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
+        let (p, ctx, u_gen) = Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
+        let (body, ty2, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, body);
+        let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
+        Succeeded(SynDone((new_ze, Arrow(ty1, ty2), u_gen)));
+      }
     };
+
   | (_, LamZE(_, p, ann, zbody)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
@@ -3142,41 +3151,45 @@ and ana_perform_operand =
     | None => Failed
     | Some((ty1_given, ty2)) =>
       let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
-      let k = Statics_Typ.syn(ctx, hty);
-      switch (Action_Typ.syn_perform(ctx, a, (zann, k, u_gen))) {
-      | Failed => Failed
-      | CursorEscaped(side) =>
-        ana_perform_operand(
-          ctx,
-          Action_common.escape(side),
-          (zoperand, u_gen),
-          ty,
-        )
-      | Succeeded((zann, _, _)) =>
-        let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
-        HTyp.consistent(ty1, ty1_given)
-          ? {
-            let (p, ctx, u_gen) =
-              Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
-            let (body, u_gen) =
-              Statics_Exp.ana_fix_holes(ctx, u_gen, body, ty2);
-            let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
-            Succeeded(AnaDone((new_ze, u_gen)));
-          }
-          : {
-            let (p, ctx, u_gen) =
-              Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
-            let (body, _, u_gen) =
-              Statics_Exp.syn_fix_holes(ctx, u_gen, body);
-            let (u, u_gen) = u_gen |> MetaVarGen.next;
-            let new_ze =
-              ZExp.ZBlock.wrap(
-                LamZA(InHole(TypeInconsistent, u), p, zann, body),
-              );
-            Succeeded(AnaDone((new_ze, u_gen)));
-          };
+      switch (Statics_Typ.syn(ctx, hty)) {
+      | None => Failed
+      | Some(kind) =>
+        switch (Action_Typ.syn_perform(ctx, a, (zann, kind, u_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform_operand(
+            ctx,
+            Action_common.escape(side),
+            (zoperand, u_gen),
+            ty,
+          )
+        | Succeeded((zann, _, _)) =>
+          let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
+          HTyp.consistent(ty1, ty1_given)
+            ? {
+              let (p, ctx, u_gen) =
+                Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
+              let (body, u_gen) =
+                Statics_Exp.ana_fix_holes(ctx, u_gen, body, ty2);
+              let new_ze = ZExp.ZBlock.wrap(LamZA(NotInHole, p, zann, body));
+              Succeeded(AnaDone((new_ze, u_gen)));
+            }
+            : {
+              let (p, ctx, u_gen) =
+                Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
+              let (body, _, u_gen) =
+                Statics_Exp.syn_fix_holes(ctx, u_gen, body);
+              let (u, u_gen) = u_gen |> MetaVarGen.next;
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  LamZA(InHole(TypeInconsistent, u), p, zann, body),
+                );
+              Succeeded(AnaDone((new_ze, u_gen)));
+            };
+        }
       };
     }
+
   | (_, LamZE(_, p, ann, zbody)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed

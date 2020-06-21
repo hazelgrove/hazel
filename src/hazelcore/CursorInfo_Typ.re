@@ -59,10 +59,17 @@ and cursor_info_zopseq =
   | ZOperator((_, Prod), _) =>
     // cursor on tuple comma
     let hty = UHTyp.expand_opseq(Contexts.tyvars(ctx), zopseq |> ZTyp.erase);
-    let syn_k = Statics_Typ.syn(ctx, hty);
-    Some(
-      CursorInfo_common.mk(OnType(syn_k), ctx, extract_cursor_term(zopseq)),
-    );
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => None
+    | Some(kind) =>
+      Some(
+        CursorInfo_common.mk(
+          OnType(kind),
+          ctx,
+          extract_cursor_term(zopseq),
+        ),
+      )
+    };
   | _ =>
     // cursor within tuple element
     let skels = skel |> UHTyp.get_prod_elements;
@@ -91,10 +98,13 @@ and cursor_info_skel =
       )
     | ZOperator(_) =>
       let hty = UHTyp.expand_skel(Contexts.tyvars(ctx), skel, seq);
-      let syn_k = Statics_Typ.syn(ctx, hty);
-      Some(
-        CursorInfo_common.mk(OnType(syn_k), ctx, extract_from_zseq(zseq)),
-      );
+      switch (Statics_Typ.syn(ctx, hty)) {
+      | None => None
+      | Some(kind) =>
+        Some(
+          CursorInfo_common.mk(OnType(kind), ctx, extract_from_zseq(zseq)),
+        )
+      };
     };
   } else {
     // recurse toward cursor
@@ -131,8 +141,12 @@ and cursor_info_zoperand =
     Some(CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term))
   | CursorT(_, e) =>
     let hty = UHTyp.expand_operand(Contexts.tyvars(ctx), e);
-    let syn_k = Statics_Typ.syn(ctx, hty);
-    Some(CursorInfo_common.mk(OnType(syn_k), ctx, cursor_term));
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => None
+    | Some(kind) =>
+      Some(CursorInfo_common.mk(OnType(kind), ctx, cursor_term))
+    };
+
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
   };

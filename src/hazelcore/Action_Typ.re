@@ -32,7 +32,10 @@ let mk_syn_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
     : Outcome.t(syn_success) => {
   let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
-  Succeeded((zty, Statics_Typ.syn(ctx, hty), u_gen));
+  switch (Statics_Typ.syn(ctx, hty)) {
+  | None => Failed
+  | Some(kind) => Succeeded((zty, kind, u_gen))
+  };
 };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
@@ -416,29 +419,36 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
-    let k_operand = Statics_Typ.syn(ctx, hty);
-    switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_opseq(ctx, Action_common.escape(side), (zopseq, k, u_gen))
-    | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
-      switch (zseq) {
-      | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
-        let new_prefix = Seq.affix_affix(inner_prefix, prefix);
-        let new_suffix = Seq.affix_affix(inner_suffix, suffix);
-        mk_syn_result(
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => Failed
+    | Some(kind) =>
+      switch (syn_perform_operand(ctx, a, (zoperand, kind, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_opseq(
           ctx,
-          u_gen,
-          ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
-        );
-      | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
-        let new_prefix = Seq.seq_affix(inner_prefix, prefix);
-        let new_suffix = Seq.seq_affix(inner_suffix, suffix);
-        mk_syn_result(
-          ctx,
-          u_gen,
-          ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
-        );
+          Action_common.escape(side),
+          (zopseq, k, u_gen),
+        )
+      | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
+        switch (zseq) {
+        | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
+          let new_prefix = Seq.affix_affix(inner_prefix, prefix);
+          let new_suffix = Seq.affix_affix(inner_suffix, suffix);
+          mk_syn_result(
+            ctx,
+            u_gen,
+            ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+          );
+        | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
+          let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+          let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+          mk_syn_result(
+            ctx,
+            u_gen,
+            ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+          );
+        }
       }
     };
   }
@@ -719,31 +729,39 @@ and ana_perform_opseq =
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
-    let k_operand = Statics_Typ.syn(ctx, hty);
-    switch (syn_perform_operand(ctx, a, (zoperand, k_operand, u_gen))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      ana_perform_opseq(ctx, Action_common.escape(side), (zopseq, u_gen), k)
-    | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
-      switch (zseq) {
-      | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
-        let new_prefix = Seq.affix_affix(inner_prefix, prefix);
-        let new_suffix = Seq.affix_affix(inner_suffix, suffix);
-        mk_ana_result(
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => Failed
+    | Some(kind) =>
+      switch (syn_perform_operand(ctx, a, (zoperand, kind, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_opseq(
           ctx,
-          u_gen,
-          ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+          Action_common.escape(side),
+          (zopseq, u_gen),
           k,
-        );
-      | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
-        let new_prefix = Seq.seq_affix(inner_prefix, prefix);
-        let new_suffix = Seq.seq_affix(inner_suffix, suffix);
-        mk_ana_result(
-          ctx,
-          u_gen,
-          ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
-          k,
-        );
+        )
+      | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
+        switch (zseq) {
+        | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
+          let new_prefix = Seq.affix_affix(inner_prefix, prefix);
+          let new_suffix = Seq.affix_affix(inner_suffix, suffix);
+          mk_ana_result(
+            ctx,
+            u_gen,
+            ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
+            k,
+          );
+        | ZOperator(zoperator, (inner_prefix, inner_suffix)) =>
+          let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+          let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+          mk_ana_result(
+            ctx,
+            u_gen,
+            ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
+            k,
+          );
+        }
       }
     };
   }

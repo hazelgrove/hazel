@@ -6,8 +6,8 @@ type idx = int; /* we use de Bruijn indices */
 /* types with holes */
 [@deriving sexp]
 type t =
-  | TyVar(idx, Var.t) /* bound type variable */
-  | TyVarHole(MetaVar.t, Var.t) /* free type variables */
+  | TyVar(idx, TyId.t) /* bound type variable */
+  | TyVarHole(MetaVar.t, TyId.t) /* free type variables */
   | Hole
   | Int
   | Float
@@ -51,9 +51,7 @@ let precedence = (ty: t): int =>
    but this will change when polymorphic types are implemented */
 let eq = (x, y) =>
   switch (x, y) {
-  | (TyVarHole(_), TyVarHole(_))
-  | (Hole, TyVarHole(_))
-  | (TyVarHole(_), Hole) => true
+  | (TyVarHole(_, id1), TyVarHole(_, id2)) => id1 == id2
   | _ => x == y
   };
 
