@@ -828,6 +828,9 @@ h1 {
   border: 1px dotted var(--err-hole-color);
   margin: -1px;
 }
+.code.presentation .Quotation {
+  color: #654321;
+}
 .code.presentation .Term.Rule,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,

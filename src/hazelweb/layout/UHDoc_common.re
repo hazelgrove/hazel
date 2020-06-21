@@ -66,6 +66,16 @@ module Delim = {
       Doc.text(delim_text),
     );
 
+  let mk_quotation = (~index: int, delim_text: string): t =>
+    Doc.annot(
+      UHAnnot.mk_Token(
+        ~len=StringUtil.utf8_length(delim_text),
+        ~shape=Delim(index),
+        (),
+      ),
+      Doc.annot(UHAnnot.Quotation, Doc.text(delim_text)),
+    );
+
   let empty_hole_doc = (hole_lbl: string): t => {
     let len = hole_lbl |> StringUtil.utf8_length;
     Doc.text(hole_lbl)
@@ -73,8 +83,8 @@ module Delim = {
     |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
   };
 
-  let open_StringLit = (): t => mk(~index=0, "\"");
-  let close_StringLit = (): t => mk(~index=1, "\"");
+  let open_StringLit = (): t => mk_quotation(~index=0, "\"");
+  let close_StringLit = (): t => mk_quotation(~index=1, "\"");
   let open_List = (): t => mk(~index=0, "[");
   let close_List = (): t => mk(~index=1, "]");
 

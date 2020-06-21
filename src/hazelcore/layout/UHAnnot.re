@@ -33,7 +33,8 @@ type t =
   | Step(int)
   | Term(term_data)
   | ValidSeq
-  | InvalidSeq;
+  | InvalidSeq
+  | Quotation;
 
 let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
   Token({has_cursor, len, shape});
