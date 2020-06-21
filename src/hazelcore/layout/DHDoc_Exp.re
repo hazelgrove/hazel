@@ -287,38 +287,43 @@ let rec mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        switch (err) {
-        | DivideByZero =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.InvalidOpDecoration);
-          hcats([d_doc, decoration]);
-        | StartOutBound =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.InvalidOpDecoration);
-          hcats([d_doc, decoration]);
-        | EndOutBound =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.InvalidOpDecoration);
-          hcats([d_doc, decoration]);
-        | StartEndOutBound =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.InvalidOpDecoration);
-          hcats([d_doc, decoration]);
-        | IllegalEscape =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.InvalidOpDecoration);
-          hcats([d_doc, decoration]);
-        }
+        let (d_doc, _) = go'(d);
+        let decoration =
+          Doc.text(InvalidOperationError.err_msg(err))
+          |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
+      /* switch (err) {
+          | DivideByZero =>
+           let (d_doc, _) = go'(d);
+           let decoration =
+             Doc.text(InvalidOperationError.err_msg(err))
+             |> annot(DHAnnot.InvalidOpDecoration);
+           hcats([d_doc, decoration]);
+         | StartOutBound =>
+           let (d_doc, _) = go'(d);
+           let decoration =
+             Doc.text(InvalidOperationError.err_msg(err))
+             |> annot(DHAnnot.InvalidOpDecoration);
+           hcats([d_doc, decoration]);
+         | EndOutBound =>
+           let (d_doc, _) = go'(d);
+           let decoration =
+             Doc.text(InvalidOperationError.err_msg(err))
+             |> annot(DHAnnot.InvalidOpDecoration);
+           hcats([d_doc, decoration]);
+         | StartEndOutBound =>
+           let (d_doc, _) = go'(d);
+           let decoration =
+             Doc.text(InvalidOperationError.err_msg(err))
+             |> annot(DHAnnot.InvalidOpDecoration);
+           hcats([d_doc, decoration]);
+         | IllegalEscape =>
+           let (d_doc, _) = go'(d);
+           let decoration =
+             Doc.text(InvalidOperationError.err_msg(err))
+             |> annot(DHAnnot.InvalidOpDecoration);
+           hcats([d_doc, decoration]);
+         } */
       /*
        let (d_doc, d_cast) as dcast_doc = go'(d);
        let cast_decoration =

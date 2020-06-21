@@ -4,6 +4,7 @@ type t =
   | StartOutBound
   | EndOutBound
   | StartEndOutBound
+  | GreaterStart
   | IllegalEscape;
 
 let err_msg = (err: t): string =>
@@ -12,5 +13,6 @@ let err_msg = (err: t): string =>
   | StartOutBound => "Error: Starting subscript out of bound"
   | EndOutBound => "Error: Ending subscript out of bound"
   | StartEndOutBound => "Error: Starting and ending subscript out of bound"
+  | GreaterStart => "Error: Starting subscript is greater than the ending subscript"
   | IllegalEscape => "Error: illegal backslash escape in string"
   };

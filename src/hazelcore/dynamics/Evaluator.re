@@ -137,20 +137,26 @@ let rec evaluate = (d: DHExp.t): result =>
           let (s1, _) = StringUtil.find_and_replace("", s1, "OK");
           let len = String.length(s1);
           if (n1 >= (-1) * len && n1 <= len && n2 >= (-1) * len && n2 <= len) {
-            let n1' =
+            let n1'' =
               if (n1 < 0) {
                 n1 + len;
               } else {
                 n1;
               };
-            let n2' =
+            let n2'' =
               if (n2 < 0) {
                 n2 + len;
               } else {
                 n2;
               };
-            let s1 = String.sub(s1, n1', max(0, n2' - n1'));
-            BoxedValue(StringLit(String.escaped(s1)));
+            if (n2'' - n1'' >= 0) {
+              let s1 = String.sub(s1, n1'', n2'' - n1'');
+              BoxedValue(StringLit(String.escaped(s1)));
+            } else {
+              Indet(
+                InvalidOperation(Subscript(s1', n1', n2'), GreaterStart),
+              );
+            };
           } else if (n2 >= (-1) * len && n2 <= len) {
             Indet(
               InvalidOperation(Subscript(s1', n1', n2'), StartOutBound),

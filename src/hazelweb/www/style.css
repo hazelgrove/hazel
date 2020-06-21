@@ -352,7 +352,7 @@ html, body {
 }
 
 .code-bar {
-  font-family: "Lucida Console", Courier, monospace;
+  font-family: var(--code-font-family);
   font-size: 12pt;
   display: flex;
   align-items: center;
