@@ -181,7 +181,9 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [] => Indet(ApBuiltin(x, l))
     | [a, ..._] =>
       switch (a) {
-      | StringLit(s) => BoxedValue(StringLit(String.trim(s)))
+      | StringLit(s) =>
+        let (s', _) = StringUtil.find_and_replace("", s, "OK");
+        BoxedValue(StringLit(String.trim(s')));
       | _ => Indet(ApBuiltin(x, l))
       }
     }
@@ -202,6 +204,10 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | IntLit(i) => BoxedValue(StringLit(string_of_int(i)))
+      /* int overflow */
+      | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
+          when Float.is_integer(n) =>
+        Indet(InvalidOperation(ApBuiltin(x, l), IntOutBound))
       | _ => Indet(ApBuiltin(x, l))
       }
     }
@@ -211,6 +217,9 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | IntLit(i) => BoxedValue(FloatLit(float_of_int(i)))
+      | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
+          when Float.is_integer(n) =>
+        Indet(InvalidOperation(ApBuiltin(x, l), IntOutBound))
       | _ => Indet(ApBuiltin(x, l))
       }
     }
@@ -277,6 +286,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     }
   | _ => Indet(ApBuiltin(x, l))
   };
+
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(x) => evaluate(builtin_subst(BoundVar(x)))
