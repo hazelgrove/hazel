@@ -3,14 +3,14 @@ open Sexplib.Std;
 [@deriving sexp]
 type splice_name = int;
 [@deriving sexp]
-type splice_map('exp) = NatMap.t((HTyp.t, 'exp));
+type splice_map('exp) = IntMap.t((HTyp.t, 'exp));
 [@deriving sexp]
 type t('exp) = {
   next: splice_name,
   splice_map: splice_map('exp),
   splice_order: list(splice_name),
 };
-let empty: t('exp) = {next: 0, splice_map: NatMap.empty, splice_order: []};
+let empty: t('exp) = {next: 0, splice_map: IntMap.empty, splice_order: []};
 
 let splice_map = ({splice_map, _}) => splice_map;
 let update_splice_map = ({next, splice_order, _}, splice_map) => {
