@@ -70,24 +70,25 @@ let view =
     let ctx =
       program
       |> Program.get_cursor_info
-      |> CursorInfo.get_ctx
+      |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
       if (model.compute_results.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
-        | None => Dynamics.Exp.id_env(ctx)
+        | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
-            Dynamics.Exp.id_env(ctx);
+
+            Elaborator_Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Dynamics.Exp.id_env(ctx);
+        Elaborator_Exp.id_env(ctx);
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
@@ -312,7 +313,7 @@ let view =
       let ctx =
         program
         |> Program.get_cursor_info
-        |> CursorInfo.get_ctx
+        |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {

@@ -180,7 +180,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        let doc =
          lazy(
            Lazy.force(
-             UHDoc.Exp.mk,
+             UHDoc_Exp.mk,
              ~memoize=model.memoize_doc /*TODO:memoize*/,
              ~enforce_inline=false,
              e,
@@ -216,10 +216,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["main-area"])],
             [
-              Sidebar.left(
-                ~inject,
-                model,
-                [ActionPanel.view(~inject, model)] //the_history_panel,
+              Sidebar.left(~inject, model, () =>
+                [ActionPanel.view(~inject, model)]
               ),
               Node.div(
                 [Attr.classes(["flex-wrapper"])],
@@ -285,14 +283,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ),
                 ],
               ),
-              Sidebar.right(
-                ~inject,
-                model,
+              Sidebar.right(~inject, model, () =>
                 [
                   CursorInspector.view(~inject, model),
                   ContextInspector.view(~inject, model),
+                  UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
-                ],
+                ]
               ),
             ],
           ),
