@@ -80,7 +80,7 @@ let action_button =
         ),
         Attr.on_click(_ => inject(ModelAction.EditAction(a))),
         Attr.on_keydown(evt =>
-          if (KeyCombo.Details.matches(key_combo, evt)) {
+          if (KeyCombo.matches(key_combo, evt)) {
             Event.Many([
               inject(ModelAction.EditAction(a)),
               Event.Prevent_default,
@@ -94,7 +94,7 @@ let action_button =
         Node.div([Attr.classes(["action-label"])], lbl),
         Node.div(
           [Attr.classes(["keyboard-shortcut"])],
-          [Node.text(KeyCombo.Details.name(key_combo))],
+          [Node.text(KeyCombo.name(key_combo))],
         ),
       ],
     )
@@ -130,7 +130,7 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
         Attr.on_click(_ => inject(ModelAction.EditAction(action))),
         Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
         Attr.on_keydown(evt =>
-          if (KeyCombo.Details.matches(combo, evt)) {
+          if (KeyCombo.matches(combo, evt)) {
             Event.Many([
               inject(ModelAction.EditAction(action)),
               Event.Prevent_default,
@@ -140,7 +140,7 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
           }
         ),
       ],
-      [Node.text(KeyCombo.Details.name(combo))],
+      [Node.text(KeyCombo.name(combo))],
     )
   );
 };
@@ -151,7 +151,7 @@ let action_list =
     (
       is_action_allowed: Action_common.t => bool,
       inject: ModelAction.t => Vdom.Event.t,
-      actions: list((KeyCombo.Details.t, Action_common.t)),
+      actions: list((KeyCombo.t, Action_common.t)),
       label: string,
     ) => {
   let item = ((combo, action)) => {
