@@ -351,6 +351,14 @@ html, body {
   min-height: 38px;
 }
 
+.code-bar {
+  font-family: "Lucida Console", Courier, monospace;
+  font-size: 12pt;
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+}
+
 .cursor-OK .typebar, .cursor-OK .infobar {
   background-color: #FEFEEA;
 }
