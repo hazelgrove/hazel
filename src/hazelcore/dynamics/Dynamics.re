@@ -41,7 +41,7 @@ module Pat = {
     switch (skel) {
     | Placeholder(n) =>
       syn_expand_operand(ctx, delta, seq |> Seq.nth_operand(n))
-    | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
+    | BinOp(InHole(TypeInconsistent(_) as reason, u), op, skel1, skel2)
     | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -110,13 +110,13 @@ module Pat = {
       (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand)
       : ExpandResult.t =>
     switch (operand) {
-    | Wild(InHole(TypeInconsistent as reason, u))
-    | Var(InHole(TypeInconsistent as reason, u), _, _)
-    | IntLit(InHole(TypeInconsistent as reason, u), _)
-    | FloatLit(InHole(TypeInconsistent as reason, u), _)
-    | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
-    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+    | Wild(InHole(TypeInconsistent(_) as reason, u))
+    | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
+    | IntLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | ListNil(InHole(TypeInconsistent(_) as reason, u))
+    | Inj(InHole(TypeInconsistent(_) as reason, u), _, _) =>
       let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -244,7 +244,7 @@ module Pat = {
       } else {
         switch (opseq |> UHPat.get_err_status_opseq) {
         | NotInHole
-        | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
+        | InHole(TypeInconsistent(_), _) => ExpandResult.DoesNotExpand
         | InHole(WrongLength as reason, u) =>
           switch (
             syn_expand_opseq(
@@ -284,7 +284,7 @@ module Pat = {
     | Placeholder(n) =>
       let pn = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, pn, ty);
-    | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent(_) as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -327,13 +327,13 @@ module Pat = {
       (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
       : ExpandResult.t =>
     switch (operand) {
-    | Wild(InHole(TypeInconsistent as reason, u))
-    | Var(InHole(TypeInconsistent as reason, u), _, _)
-    | IntLit(InHole(TypeInconsistent as reason, u), _)
-    | FloatLit(InHole(TypeInconsistent as reason, u), _)
-    | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
-    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+    | Wild(InHole(TypeInconsistent(_) as reason, u))
+    | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
+    | IntLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | ListNil(InHole(TypeInconsistent(_) as reason, u))
+    | Inj(InHole(TypeInconsistent(_) as reason, u), _, _) =>
       let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -528,22 +528,29 @@ module Exp = {
       let d3' = subst_var(d1, x, d3);
       let sigma' = subst_var_env(d1, x, sigma);
       NonEmptyHole(reason, u, i, sigma', d3');
-    | LivelitHole(su, si, sigma, lln, splice_info, model) =>
+    | LivelitHole(su, si, sigma, lln, splice_info, dargs, model) =>
       let model' =
         if (List.mem(
               x,
               List.map(
                 SpliceInfo.var_of_splice_name,
                 splice_info.splice_order,
-              ),
+              )
+              @ List.map(((v, _, _)) => v, dargs),
             )) {
           model;
         } else {
           subst_var(d1, x, model);
         };
       let splice_info' = subst_splices(splice_info);
+      let dargs' =
+        dargs
+        |> List.map(((v, t, d_opt)) => {
+             let new_d = d_opt |> OptUtil.map(subst_var(d1, x));
+             (v, t, new_d);
+           });
       let sigma' = subst_var_env(d1, x, sigma);
-      LivelitHole(su, si, sigma', lln, splice_info', model');
+      LivelitHole(su, si, sigma', lln, splice_info', dargs', model');
     | Cast(d, ty1, ty2) =>
       let d' = subst_var(d1, x, d);
       Cast(d', ty1, ty2);
@@ -587,15 +594,15 @@ module Exp = {
        );
 
   type names_to_vars_map = NatMap.t(Var.t);
-  let to_ctx = (SpliceInfo.{splice_map, _}) => {
+  let to_ctx = (SpliceInfo.{splice_map, _}, param_tys) => {
     let splice_list = NatMap.to_list(splice_map);
-    let var_ctx_list =
+    let splice_ctx_list =
       splice_list
       |> List.map(((i, (ty, _))) => {
            let x = SpliceInfo.var_of_splice_name(i);
            (x, ty);
          });
-    let var_ctx = VarCtx.of_list(var_ctx_list);
+    let var_ctx = VarCtx.of_list(splice_ctx_list @ param_tys);
     let livelit_ctx = LivelitCtx.empty;
     let ctx: Contexts.t = (var_ctx, livelit_ctx);
 
@@ -1051,7 +1058,7 @@ module Exp = {
     | Placeholder(n) =>
       let en = seq |> Seq.nth_operand(n);
       syn_expand_operand(~livelit_holes, ctx, delta, en);
-    | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
+    | BinOp(InHole(TypeInconsistent(_) as reason, u), op, skel1, skel2)
     | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (
@@ -1070,38 +1077,84 @@ module Exp = {
       };
     | BinOp(InHole(WrongLength, _), _, _, _) => ExpandResult.DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
-      | None => ExpandResult.DoesNotExpand
-      | Some(ty1) =>
-        switch (HTyp.matched_arrow(ty1)) {
+      let livelit_ap_check =
+        LivelitUtil.check_livelit(
+          ~permit_insufficient_params_hole=true,
+          ~permit_insufficient_args=true,
+          ctx,
+          seq,
+          skel,
+        );
+      switch (livelit_ap_check) {
+      | Some((
+          ApLivelitData(llu, lln, model, splice_info),
+          livelit_defn,
+          param_tys,
+          args,
+        )) =>
+        let args_opt =
+          args
+          |> ListUtil.map_with_accumulator_opt(
+               ((), arg) =>
+                 switch (arg) {
+                 | Skel.Placeholder(n) =>
+                   Some(((), seq |> Seq.nth_operand(n) |> UHExp.Block.wrap))
+                 | BinOp(_) =>
+                   // This heavily assumes that Space will always retain highest precedence
+                   None
+                 },
+               (),
+             );
+        switch (args_opt) {
+        | None => DoesNotExpand
+        | Some((_, args)) =>
+          syn_expand_ApLivelit(
+            ~livelit_holes,
+            ctx,
+            delta,
+            llu,
+            lln,
+            model,
+            splice_info,
+            livelit_defn,
+            param_tys,
+            args,
+          )
+        };
+      | _ =>
+        switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
         | None => ExpandResult.DoesNotExpand
-        | Some((ty2, ty)) =>
-          let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
-          switch (
-            ana_expand_skel(
-              ~livelit_holes,
-              ctx,
-              delta,
-              skel1,
-              seq,
-              ty2_arrow_ty,
-            )
-          ) {
-          | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
-          | Expands(d1, ty1', delta) =>
+        | Some(ty1) =>
+          switch (HTyp.matched_arrow(ty1)) {
+          | None => ExpandResult.DoesNotExpand
+          | Some((ty2, ty)) =>
+            let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
             switch (
-              ana_expand_skel(~livelit_holes, ctx, delta, skel2, seq, ty2)
+              ana_expand_skel(
+                ~livelit_holes,
+                ctx,
+                delta,
+                skel1,
+                seq,
+                ty2_arrow_ty,
+              )
             ) {
             | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
-            | Expands(d2, ty2', delta) =>
-              let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
-              let dc2 = DHExp.cast(d2, ty2', ty2);
-              let d = DHExp.Ap(dc1, dc2);
-              Expands(d, ty, delta);
-            }
-          };
+            | Expands(d1, ty1', delta) =>
+              switch (
+                ana_expand_skel(~livelit_holes, ctx, delta, skel2, seq, ty2)
+              ) {
+              | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
+              | Expands(d2, ty2', delta) =>
+                let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
+                let dc2 = DHExp.cast(d2, ty2', ty2);
+                let d = DHExp.Ap(dc1, dc2);
+                Expands(d, ty, delta);
+              }
+            };
+          }
         }
-      }
+      };
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHExp.get_tuple_elements(skel)) {
       | [skel1, skel2, ...tail] =>
@@ -1220,15 +1273,19 @@ module Exp = {
       : ExpandResult.t =>
     switch (operand) {
     /* in hole */
-    | Var(InHole(TypeInconsistent as reason, u), _, _)
-    | IntLit(InHole(TypeInconsistent as reason, u), _)
-    | FloatLit(InHole(TypeInconsistent as reason, u), _)
-    | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
-    | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
-    | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-    | ApLivelit(_, InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
+    | IntLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | ListNil(InHole(TypeInconsistent(_) as reason, u))
+    | Lam(InHole(TypeInconsistent(_) as reason, u), _, _, _)
+    | Inj(InHole(TypeInconsistent(_) as reason, u), _, _)
+    | Case(
+        StandardErrStatus(InHole(TypeInconsistent(_) as reason, u)),
+        _,
+        _,
+      )
+    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(~livelit_holes, ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1373,56 +1430,144 @@ module Exp = {
           Expands(d, glb, delta);
         }
       }
-    | ApLivelit(llu, NotInHole, name, serialized_model, si) =>
+    | ApLivelit(
+        llu,
+        (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
+        name,
+        serialized_model,
+        si,
+      ) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => DoesNotExpand
       | Some(livelit_defn) =>
-        let expansion_ty = livelit_defn.expansion_ty;
-        let expand = livelit_defn.expand;
-        let proto_expansion = expand(serialized_model);
-        let proto_elaboration_ctx = to_ctx(si);
-        let proto_elaboration_result =
-          ana_expand(
+        let param_tys = livelit_defn.param_tys;
+        switch (err_status, param_tys) {
+        | (NotInHole, [_, ..._])
+        | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
+          DoesNotExpand
+        | _ =>
+          syn_expand_ApLivelit(
             ~livelit_holes,
-            proto_elaboration_ctx,
+            ctx,
             delta,
-            proto_expansion,
-            expansion_ty,
-          );
-        switch (proto_elaboration_result) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(proto_elaboration, _, delta) =>
-          // For each splice, expand the splice exp and substitute it into the elab
-          let elab_sim_delta_opt =
-            wrap_proto_expansion(
-              ~livelit_holes,
-              ctx,
-              delta,
-              proto_elaboration,
-              si,
-            );
-          switch (elab_sim_delta_opt) {
-          | None => DoesNotExpand
-          | Some((elab, si, delta)) =>
-            let gamma = Contexts.gamma(ctx);
-            let sigma = id_env(gamma);
-            let rslt_dhexp =
-              livelit_holes
-                ? DHExp.LivelitHole(
-                    llu,
-                    0,
-                    sigma,
-                    name,
-                    si,
-                    proto_elaboration,
-                  )
-                : elab;
-            Expands(rslt_dhexp, expansion_ty, delta);
-          };
+            llu,
+            name,
+            serialized_model,
+            si,
+            livelit_defn,
+            param_tys,
+            [],
+          )
         };
       };
     }
+  and syn_expand_ApLivelit =
+      (
+        ~livelit_holes,
+        ctx,
+        delta,
+        llu,
+        lln,
+        serialized_model,
+        si,
+        livelit_defn,
+        param_tys,
+        args,
+      ) => {
+    let expansion_ty = livelit_defn.expansion_ty;
+    let expand = livelit_defn.expand;
+    let proto_expansion = expand(serialized_model);
+    let proto_elaboration_ctx = to_ctx(si, param_tys);
+    let proto_elaboration_result =
+      ana_expand(
+        ~livelit_holes,
+        proto_elaboration_ctx,
+        delta,
+        proto_expansion,
+        expansion_ty,
+      );
+    switch (proto_elaboration_result) {
+    | DoesNotExpand => DoesNotExpand
+    | Expands(proto_elaboration, _, delta) =>
+      // Like List.combine, but pads missing args with None
+      let rec params_args = (p, a) =>
+        switch (p, a) {
+        | ([], _) => []
+        | ([ph, ...pt], []) => [(ph, None), ...params_args(pt, [])]
+        | ([ph, ...pt], [ah, ...at]) => [
+            (ph, Some(ah)),
+            ...params_args(pt, at),
+          ]
+        };
+      // expand the args
+      let dargs_opt =
+        params_args(param_tys, args)
+        |> ListUtil.map_with_accumulator_opt(
+             (delta, ((name, ty), arg_opt)) =>
+               switch (arg_opt) {
+               | None => Some((delta, (name, ty, None)))
+               | Some(arg) =>
+                 switch (ana_expand(~livelit_holes, ctx, delta, arg, ty)) {
+                 | DoesNotExpand => None
+                 | Expands(d, _, delta) =>
+                   Some((delta, (name, ty, Some(d))))
+                 }
+               },
+             delta,
+           );
+      switch (dargs_opt) {
+      | None => DoesNotExpand
+      | Some((delta, dargs)) =>
+        // expand the splices
+        let si_opt =
+          si.splice_map
+          |> ListUtil.map_with_accumulator_opt(
+               (delta, (name, (ty, exp))) =>
+                 switch (ana_expand(~livelit_holes, ctx, delta, exp, ty)) {
+                 | DoesNotExpand => None
+                 | Expands(d, _, delta) => Some((delta, (name, (ty, d))))
+                 },
+               delta,
+             );
+        switch (si_opt) {
+        | None => DoesNotExpand
+        | Some((delta, sim)) =>
+          let si =
+            SpliceInfo.update_splice_map(
+              si,
+              sim |> List.map(((name, (ty, d))) => (name, (ty, Some(d)))),
+            );
+          let dargs_opt' =
+            dargs
+            |> ListUtil.map_with_accumulator_opt(
+                 ((), (v, t, arg_opt)) =>
+                   arg_opt |> OptUtil.map(arg => ((), (v, t, arg))),
+                 (),
+               );
+          let rslt =
+            switch (dargs_opt') {
+            | Some(((), dargs')) when !livelit_holes =>
+              // subst each splice and arg into the elab
+              wrap_proto_expansion(proto_elaboration, sim, dargs')
+            | _ =>
+              let gamma = Contexts.gamma(ctx);
+              let sigma = id_env(gamma);
+              DHExp.LivelitHole(
+                llu,
+                0,
+                sigma,
+                lln,
+                si,
+                dargs,
+                proto_elaboration,
+              );
+            };
+          Expands(rslt, expansion_ty, delta);
+        };
+      };
+    };
+  }
   and syn_expand_rules =
       (
         ctx: Contexts.t,
@@ -1477,43 +1622,25 @@ module Exp = {
   }
   and wrap_proto_expansion =
       (
-        ~livelit_holes: bool,
-        ctx: Contexts.t,
-        delta: Delta.t,
         proto_expansion,
-        si: UHExp.splice_info,
+        sim: SpliceInfo.splice_map(DHExp.t),
+        dargs: list((Var.t, HTyp.t, DHExp.t)),
       )
-      : option((DHExp.t, SpliceInfo.t(option(DHExp.t)), Delta.t)) => {
-    let expanded_sim_delta =
-      si.splice_map
+      : DHExp.t => {
+    let wrap_ap = (var, ty, body, arg) =>
+      DHExp.Ap(DHExp.Lam(DHPat.Var(var), ty, body), arg);
+    let post_args_expansion =
+      dargs
       |> List.fold_left(
-           (
-             res:
-               option(
-                 (DHExp.t, SpliceInfo.splice_map(option(DHExp.t)), Delta.t),
-               ),
-             (name, (ty, exp)),
-           ) => {
-             switch (res) {
-             | None => None
-             | Some((expansion, sim, delta)) =>
-               let var = SpliceInfo.var_of_splice_name(name);
-               switch (ana_expand(~livelit_holes, ctx, delta, exp, ty)) {
-               | DoesNotExpand => None
-               | Expands(d, _, delta) =>
-                 let expansion =
-                   DHExp.Ap(DHExp.Lam(DHPat.Var(var), ty, expansion), d);
-                 let sim =
-                   NatMap.insert_or_update(sim, (name, (ty, Some(d))));
-                 Some((expansion, sim, delta));
-               };
-             }
-           },
-           Some((proto_expansion, NatMap.empty, delta)),
+           (expansion, (name, ty, arg)) =>
+             wrap_ap(name, ty, expansion, arg),
+           proto_expansion,
          );
-    expanded_sim_delta
-    |> OptUtil.map(((expanded, sim, delta)) =>
-         (expanded, SpliceInfo.update_splice_map(si, sim), delta)
+    sim
+    |> List.fold_left(
+         (expansion, (name, (ty, d))) =>
+           wrap_ap(SpliceInfo.var_of_splice_name(name), ty, expansion, d),
+         post_args_expansion,
        );
   }
   and ana_expand =
@@ -1631,7 +1758,7 @@ module Exp = {
       } else {
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
-        | InHole(TypeInconsistent, _) => ExpandResult.DoesNotExpand
+        | InHole(TypeInconsistent(_), _) => ExpandResult.DoesNotExpand
         | InHole(WrongLength as reason, u) =>
           switch (
             syn_expand_opseq(
@@ -1674,7 +1801,7 @@ module Exp = {
     | Placeholder(n) =>
       let en = seq |> Seq.nth_operand(n);
       ana_expand_operand(~livelit_holes, ctx, delta, en, ty);
-    | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent(_) as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (
         syn_expand_skel(~livelit_holes, ctx, delta, skel_not_in_hole, seq)
@@ -1746,15 +1873,19 @@ module Exp = {
       : ExpandResult.t =>
     switch (operand) {
     /* in hole */
-    | Var(InHole(TypeInconsistent as reason, u), _, _)
-    | IntLit(InHole(TypeInconsistent as reason, u), _)
-    | FloatLit(InHole(TypeInconsistent as reason, u), _)
-    | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u))
-    | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
-    | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-    | ApLivelit(_, InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
+    | IntLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | BoolLit(InHole(TypeInconsistent(_) as reason, u), _)
+    | ListNil(InHole(TypeInconsistent(_) as reason, u))
+    | Lam(InHole(TypeInconsistent(_) as reason, u), _, _, _)
+    | Inj(InHole(TypeInconsistent(_) as reason, u), _, _)
+    | Case(
+        StandardErrStatus(InHole(TypeInconsistent(_) as reason, u)),
+        _,
+        _,
+      )
+    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(~livelit_holes, ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1879,7 +2010,13 @@ module Exp = {
     | BoolLit(NotInHole, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
-    | ApLivelit(_, NotInHole, _, _, _) =>
+    | ApLivelit(
+        _,
+        NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        _,
+        _,
+        _,
+      ) =>
       /* subsumption */
       syn_expand_operand(~livelit_holes, ctx, delta, operand)
     }
@@ -1957,6 +2094,28 @@ module Exp = {
          );
     let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
     (splice_info, hii, llii);
+  };
+
+  let _renumber_dargs =
+      (
+        renumberer,
+        dargs: list((Var.t, HTyp.t, option(DHExp.t))),
+        hii,
+        llii,
+      ) => {
+    let ((hii, llii), dargs) =
+      dargs
+      |> ListUtil.map_with_accumulator(
+           ((hii, llii), (v, t, darg_opt)) =>
+             switch (darg_opt) {
+             | None => ((hii, llii), (v, t, None))
+             | Some(darg) =>
+               let (darg, hii, llii) = renumberer(hii, llii, darg);
+               ((hii, llii), (v, t, Some(darg)));
+             },
+           (hii, llii),
+         );
+    (dargs, hii, llii);
   };
 
   let rec renumber_result_only =
@@ -2038,7 +2197,7 @@ module Exp = {
     | FreeLivelit(u, _, sigma, name) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (FreeLivelit(u, i, sigma, name), hii, llii);
-    | LivelitHole(su, _, sigma, lln, splice_info, model) =>
+    | LivelitHole(su, _, sigma, lln, splice_info, dargs, model) =>
       let (splice_info, hii, llii) =
         _renumber_splices(
           renumber_result_only(path),
@@ -2046,9 +2205,21 @@ module Exp = {
           hii,
           llii,
         );
+      let (dargs, hii, llii) =
+        _renumber_dargs(renumber_result_only(path), dargs, hii, llii);
       let (si, llii) =
-        LivelitInstanceInfo.next(llii, su, sigma, path, splice_info);
-      (LivelitHole(su, si, sigma, lln, splice_info, model), hii, llii);
+        LivelitInstanceInfo.next(
+          llii,
+          su,
+          sigma,
+          path,
+          (splice_info, dargs |> List.map(((v, _, darg)) => (v, darg))),
+        );
+      (
+        LivelitHole(su, si, sigma, lln, splice_info, dargs, model),
+        hii,
+        llii,
+      );
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
       (Cast(d1, ty1, ty2), hii, llii);
@@ -2166,7 +2337,7 @@ module Exp = {
       let (sigma, hii, llii) = renumber_sigma(path, u, i, hii, llii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeLivelit(u, i, sigma, name), hii, llii);
-    | LivelitHole(su, si, sigma, lln, splice_info, model) =>
+    | LivelitHole(su, si, sigma, lln, splice_info, dargs, model) =>
       let (sigma, hii, llii) =
         renumber_sigma(path, su, si, hii, llii, sigma);
       let (splice_info, hii, llii) =
@@ -2176,14 +2347,20 @@ module Exp = {
           hii,
           llii,
         );
+      let (dargs, hii, llii) =
+        _renumber_dargs(renumber_sigmas_only(path), dargs, hii, llii);
       let llii =
         LivelitInstanceInfo.update_environment(
           llii,
           (su, si),
           sigma,
-          splice_info,
+          (splice_info, dargs |> List.map(((v, _, darg)) => (v, darg))),
         );
-      (LivelitHole(su, si, sigma, lln, splice_info, model), hii, llii);
+      (
+        LivelitHole(su, si, sigma, lln, splice_info, dargs, model),
+        hii,
+        llii,
+      );
     | Cast(d1, ty1, ty2) =>
       let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
       (Cast(d1, ty1, ty2), hii, llii);
@@ -2514,7 +2691,7 @@ module Evaluator = {
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
     | FreeLivelit(_, _, _, _) => Indet(d)
-    | LivelitHole(su, si, sigma, lln, splice_info, model) =>
+    | LivelitHole(su, si, sigma, lln, splice_info, dargs, model) =>
       // evaluate the splices
       let sim_res =
         Result.Ok(NatMap.empty)
@@ -2538,11 +2715,46 @@ module Evaluator = {
                }
              })
            );
-      switch (sim_res) {
-      | Error(msg) => InvalidInput(msg)
-      | Ok(sim) =>
+      // evaluate dargs
+      let dargs_res =
+        List.fold_right(
+          ((v, t, darg_opt), res) =>
+            Result.bind(res, acc =>
+              switch (darg_opt) {
+              | None => Result.Ok([(v, t, None), ...acc])
+              | Some(darg) =>
+                switch (_eval(darg)) {
+                | InvalidInput(msg) => Result.Error(msg)
+                | BoxedValue(evald)
+                | Indet(evald) => Result.Ok([(v, t, Some(evald)), ...acc])
+                }
+              }
+            ),
+          dargs,
+          Result.Ok([]),
+        );
+      switch (sim_res, dargs_res) {
+      | (Error(msg), _)
+      | (_, Error(msg)) => InvalidInput(msg)
+      | (Ok(sim), Ok(dargs)) =>
         let splice_info = SpliceInfo.update_splice_map(splice_info, sim);
-        if (eval_livelit_holes) {
+        let dargs_opt' =
+          dargs
+          |> ListUtil.map_with_accumulator_opt(
+               ((), (v, t, arg_opt)) =>
+                 arg_opt |> OptUtil.map(arg => ((), (v, t, arg))),
+               (),
+             );
+        switch (dargs_opt') {
+        | Some(((), dargs')) when eval_livelit_holes =>
+          // subst dargs before eval
+          let model =
+            dargs'
+            |> List.fold_left(
+                 (model, (v, _, darg)) => Exp.subst_var(darg, v, model),
+                 model,
+               );
+          // subst splices before eval
           let model_res =
             Result.Ok(model)
             |> NatMap.fold(sim, (model_res, (name, (_, to_subst_opt))) =>
@@ -2564,8 +2776,8 @@ module Evaluator = {
           | Result.Error(msg) => InvalidInput(msg)
           | Result.Ok(model) => _eval(model)
           };
-        } else {
-          Indet(LivelitHole(su, si, sigma, lln, splice_info, model));
+        | _ =>
+          Indet(LivelitHole(su, si, sigma, lln, splice_info, dargs, model))
         };
       };
     | Cast(d1, ty, ty') =>

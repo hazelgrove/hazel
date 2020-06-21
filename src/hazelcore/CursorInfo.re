@@ -733,7 +733,7 @@ module Pat = {
             ),
           ),
         );
-      | InHole(TypeInconsistent, _) =>
+      | InHole(TypeInconsistent(_), _) =>
         let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
         Statics.Pat.syn_opseq(ctx, opseq')
         |> Option.map(((ty', _)) =>
@@ -816,7 +816,7 @@ module Pat = {
              )
         | InHole(WrongLength, _) =>
           failwith(__LOC__ ++ ": n-tuples handled at opseq level")
-        | InHole(TypeInconsistent, _) =>
+        | InHole(TypeInconsistent(_), _) =>
           let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
           Statics.Pat.syn_opseq(ctx, opseq')
           |> Option.map(((ty', _)) =>
@@ -885,13 +885,13 @@ module Pat = {
             mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
           ),
         )
-      | Wild(InHole(TypeInconsistent, _))
-      | Var(InHole(TypeInconsistent, _), _, _)
-      | IntLit(InHole(TypeInconsistent, _), _)
-      | FloatLit(InHole(TypeInconsistent, _), _)
-      | BoolLit(InHole(TypeInconsistent, _), _)
-      | ListNil(InHole(TypeInconsistent, _))
-      | Inj(InHole(TypeInconsistent, _), _, _) =>
+      | Wild(InHole(TypeInconsistent(_), _))
+      | Var(InHole(TypeInconsistent(_), _), _, _)
+      | IntLit(InHole(TypeInconsistent(_), _), _)
+      | FloatLit(InHole(TypeInconsistent(_), _), _)
+      | BoolLit(InHole(TypeInconsistent(_), _), _)
+      | ListNil(InHole(TypeInconsistent(_), _))
+      | Inj(InHole(TypeInconsistent(_), _), _, _) =>
         let operand' = UHPat.set_err_status_operand(NotInHole, operand);
         switch (Statics.Pat.syn_operand(ctx, operand')) {
         | None => None
@@ -959,7 +959,7 @@ module Pat = {
            )
       }
     | InjZ(InHole(WrongLength, _), _, _) => None
-    | InjZ(InHole(TypeInconsistent, _), _, _) =>
+    | InjZ(InHole(TypeInconsistent(_), _), _, _) =>
       syn_cursor_info_zoperand(~steps, ctx, zoperand)
     | InjZ(NotInHole, position, zbody) =>
       switch (HTyp.matched_sum(ty)) {
@@ -1188,13 +1188,19 @@ module Exp = {
           | None =>
             syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
           | Some((InHole(WrongLength, _), _)) => None
-          | Some((InHole(TypeInconsistent, _), _)) =>
+          | Some((InHole(TypeInconsistent(None), _), _)) =>
             let operand_nih =
               zoperand
               |> ZExp.erase_zoperand
               |> UHExp.set_err_status_operand(NotInHole);
             Statics.Exp.syn_operand(ctx, operand_nih)
             |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
+          | Some((
+              InHole(TypeInconsistent(Some(InsufficientParams)), _),
+              _,
+            )) =>
+            Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))
+            |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)))
           | Some((_, InVarHole(Free, _))) =>
             Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
           | Some((_, InVarHole(Keyword(k), _))) =>
@@ -1223,19 +1229,43 @@ module Exp = {
           };
         }
       | BinOp(_, Space, skel1, skel2) =>
-        switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
-        | Some(_) as result => result
-        | None =>
-          switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
-          | None => None
-          | Some(ty) =>
-            switch (HTyp.matched_arrow(ty)) {
+        let livelit_check = LivelitUtil.check_livelit(ctx, seq, skel);
+        switch (livelit_check) {
+        | Some((ApLivelitData(_), _, param_tys, args)) =>
+          let (_, param_tys) = List.split(param_tys);
+          let arg_results =
+            List.combine(args, param_tys)
+            |> List.filter_map(((arg, param_ty)) =>
+                 if (ZOpSeq.skel_contains_cursor(arg, zseq)) {
+                   ana_cursor_info_skel(~steps, ctx, arg, zseq, param_ty);
+                 } else {
+                   None;
+                 }
+               );
+          switch (arg_results) {
+          | [result] => Some(result)
+          | [_, _, ..._] => None
+          | [] =>
+            Statics.Exp.syn_skel(ctx, skel, seq)
+            |> OptUtil.map(ty =>
+                 mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
+               )
+          };
+        | _ =>
+          switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
+          | Some(_) as result => result
+          | None =>
+            switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
             | None => None
-            | Some((ty1, _)) =>
-              ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
+            | Some(ty) =>
+              switch (HTyp.matched_arrow(ty)) {
+              | None => None
+              | Some((ty1, _)) =>
+                ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
+              }
             }
           }
-        }
+        };
       | BinOp(_, Cons, skel1, skel2) =>
         switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
         | Some(_) as result => result
@@ -1422,7 +1452,7 @@ module Exp = {
             cursor_term,
           ),
         );
-      | InHole(TypeInconsistent, _) =>
+      | InHole(TypeInconsistent(_), _) =>
         let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
         Statics.Exp.syn_opseq(ctx, opseq')
         |> Option.map(ty' =>
@@ -1483,7 +1513,7 @@ module Exp = {
           |> OptUtil.map(_ => mk(Analyzed(ty), ctx, cursor_term))
         | InHole(WrongLength, _) =>
           failwith(__LOC__ ++ ": n-tuples handled at opseq level")
-        | InHole(TypeInconsistent, _) =>
+        | InHole(TypeInconsistent(_), _) =>
           let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
           Statics.Exp.syn_opseq(ctx, opseq')
           |> Option.map(ty' =>
@@ -1547,15 +1577,15 @@ module Exp = {
         Some(mk(AnaKeyword(ty, k), ctx, cursor_term))
       | Var(_, InVarHole(Free, _), _) =>
         Some(mk(AnaFree(ty), ctx, cursor_term))
-      | Var(InHole(TypeInconsistent, _), _, _)
-      | IntLit(InHole(TypeInconsistent, _), _)
-      | FloatLit(InHole(TypeInconsistent, _), _)
-      | BoolLit(InHole(TypeInconsistent, _), _)
-      | ListNil(InHole(TypeInconsistent, _))
-      | Lam(InHole(TypeInconsistent, _), _, _, _)
-      | Inj(InHole(TypeInconsistent, _), _, _)
-      | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-      | ApLivelit(_, InHole(TypeInconsistent, _), _, _, _) =>
+      | Var(InHole(TypeInconsistent(_), _), _, _)
+      | IntLit(InHole(TypeInconsistent(_), _), _)
+      | FloatLit(InHole(TypeInconsistent(_), _), _)
+      | BoolLit(InHole(TypeInconsistent(_), _), _)
+      | ListNil(InHole(TypeInconsistent(_), _))
+      | Lam(InHole(TypeInconsistent(_), _), _, _, _)
+      | Inj(InHole(TypeInconsistent(_), _), _, _)
+      | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
+      | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _) =>
         let operand' =
           zoperand
           |> ZExp.erase_zoperand
@@ -1584,7 +1614,13 @@ module Exp = {
       | IntLit(NotInHole, _)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
-      | ApLivelit(_, NotInHole, _, _, _) =>
+      | ApLivelit(
+          _,
+          NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+          _,
+          _,
+          _,
+        ) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
         | None => None
         | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
@@ -1636,14 +1672,13 @@ module Exp = {
         _,
       )
     | ApLivelitZ(_, InHole(WrongLength, _), _, _, _) => None
-    | LamZP(InHole(TypeInconsistent, _), _, _, _)
-    | LamZA(InHole(TypeInconsistent, _), _, _, _)
-    | LamZE(InHole(TypeInconsistent, _), _, _, _)
-    | InjZ(InHole(TypeInconsistent, _), _, _)
-    | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-    | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-    | ApLivelitZ(_, InHole(TypeInconsistent, _), _, _, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | LamZP(InHole(TypeInconsistent(_), _), _, _, _)
+    | LamZA(InHole(TypeInconsistent(_), _), _, _, _)
+    | LamZE(InHole(TypeInconsistent(_), _), _, _, _)
+    | InjZ(InHole(TypeInconsistent(_), _), _, _)
+    | CaseZE(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
+    | CaseZR(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
+    | ApLivelitZ(_) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
     /* zipper not in hole */
     | LamZP(NotInHole, zp, ann, body) =>
       switch (HTyp.matched_arrow(ty)) {
@@ -1703,8 +1738,6 @@ module Exp = {
           ty,
         )
       }
-    | ApLivelitZ(_, NotInHole, _, _, _) =>
-      syn_cursor_info_zoperand(~steps, ctx, zoperand)
     };
   }
   and syn_cursor_info_rule =

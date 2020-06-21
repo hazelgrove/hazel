@@ -8,12 +8,13 @@ module Vdom = Virtual_dom.Vdom;
 module LivelitView = {
   type div_type = Vdom.Node.t;
 
-  type splice_getters = {
+  type splice_and_param_getters = {
     uhcode: SpliceName.t => div_type,
     dhcode: SpliceName.t => option((DHExp.t, div_type)),
+    dargs: option(list((Var.t, option((DHExp.t, div_type))))),
   };
 
-  type t = splice_getters => div_type;
+  type t = splice_and_param_getters => div_type;
 
   [@deriving sexp]
   type shape =
@@ -24,6 +25,7 @@ module LivelitView = {
 module type LIVELIT = {
   let name: LivelitName.t;
   let expansion_ty: HTyp.t;
+  let param_tys: list((Var.t, HTyp.t));
 
   [@deriving sexp]
   type model;
@@ -45,6 +47,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   let livelit_defn =
     LivelitDefinition.{
       expansion_ty: L.expansion_ty,
+      param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
       update: (serialized_model, serialized_action) =>
         SpliceGenCmd.bind(
@@ -90,10 +93,28 @@ module LivelitContexts = {
   let extend =
       (
         (livelit_ctx, livelit_view_ctx),
-        (name, def, serialized_view_fn, serialized_view_shape_fn),
+        (
+          name,
+          def: LivelitDefinition.t,
+          serialized_view_fn,
+          serialized_view_shape_fn,
+        ),
       ) => {
     if (!LivelitName.is_valid(name)) {
       failwith("Invalid livelit name " ++ name);
+    };
+    let (param_names, _) = List.split(def.param_tys);
+    let rec contains_dupl =
+      fun
+      | [] => false
+      | [hd, ...tl] => List.mem(hd, tl) || contains_dupl(tl);
+    if (contains_dupl(param_names)) {
+      failwith(
+        "Parameter names for livelit "
+        ++ name
+        ++ " must be unique: "
+        ++ String.concat(", ", param_names),
+      );
     };
     (
       VarMap.extend(livelit_ctx, (name, def)),
@@ -116,6 +137,7 @@ let prop_val = (prop: string, value: string) =>
 module PairLivelit: LIVELIT = {
   let name = "$pair";
   let expansion_ty = HTyp.(Prod([Hole, Hole]));
+  let param_tys = [];
 
   [@deriving sexp]
   type model = (int, int);
@@ -131,7 +153,12 @@ module PairLivelit: LIVELIT = {
     );
   let update = (m, _) => SpliceGenCmd.return(m);
 
-  let view = ((leftID, rightID), _, {uhcode, _}: LivelitView.splice_getters) =>
+  let view =
+      (
+        (leftID, rightID),
+        _,
+        {uhcode, _}: LivelitView.splice_and_param_getters,
+      ) =>
     Vdom.(
       Node.div(
         [Attr.classes(["pair-livelit"])],
@@ -162,6 +189,7 @@ module type MAT_INFO = {
 module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
   let name = I.name;
   let expansion_ty = HTyp.(List(List(Int)));
+  let param_tys = [];
 
   // assume nonzero height and width
   [@deriving sexp]
@@ -278,7 +306,11 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     );
 
   let view =
-      ((selected, m), trig, {uhcode, dhcode}: LivelitView.splice_getters) => {
+      (
+        (selected, m),
+        trig,
+        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
+      ) => {
     open Vdom;
     let width = get_width(m);
     let height = get_height(m);
@@ -480,6 +512,7 @@ module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
 module GradeCutoffLivelit: LIVELIT = {
   let name = "$grade_cutoffs";
   let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
+  let param_tys = [];
 
   [@deriving sexp]
   type letter_grade =
@@ -739,7 +772,7 @@ module GradeCutoffLivelit: LIVELIT = {
       (
         {a, b, c, d, selected_grade, dataID},
         trig,
-        {uhcode, dhcode}: LivelitView.splice_getters,
+        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
     let data_opt = dhcode(dataID);
     let grades_opt =
@@ -856,6 +889,7 @@ module GradeCutoffLivelit: LIVELIT = {
 module ColorLivelit: LIVELIT = {
   let name = "$color";
   let expansion_ty = HTyp.Prod([Float, Float, Float, Float]);
+  let param_tys = [];
 
   // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L197
   let hsv_of_rgb = ((r, g, b)) => {
@@ -1022,7 +1056,7 @@ module ColorLivelit: LIVELIT = {
       (
         {rgb: (r, g, b), a, hsv, is_open, selecting_sat_val},
         trigger,
-        {uhcode, dhcode}: LivelitView.splice_getters,
+        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
     open Vdom;
 
@@ -1258,6 +1292,7 @@ module ColorLivelitAdapter = LivelitAdapter(ColorLivelit);
 module GradientLivelit: LIVELIT = {
   let name = "$gradient";
   let expansion_ty = ColorLivelit.expansion_ty;
+  let param_tys = [];
 
   let (color_livelit_ctx, _) =
     LivelitContexts.extend(
@@ -1305,7 +1340,8 @@ module GradientLivelit: LIVELIT = {
     | Slide(n) => SpliceGenCmd.return({...model, slider_value: n})
     };
 
-  let view = (model, trigger, {uhcode, _}: LivelitView.splice_getters) => {
+  let view =
+      (model, trigger, {uhcode, _}: LivelitView.splice_and_param_getters) => {
     Vdom.(
       Node.span(
         [Attr.classes(["gradient-livelit"])],
@@ -1422,6 +1458,7 @@ module GradientLivelit: LIVELIT = {
 module CheckboxLivelit: LIVELIT = {
   let name = "$checkbox";
   let expansion_ty = HTyp.Bool;
+  let param_tys = [];
 
   [@deriving sexp]
   type model = bool;
@@ -1457,35 +1494,7 @@ module CheckboxLivelit: LIVELIT = {
 module SliderLivelit: LIVELIT = {
   let name = "$slider";
   let expansion_ty = HTyp.Int;
-
-  module EditableValue = {
-    [@deriving sexp]
-    type t = {
-      value: int,
-      editing: option(string),
-    };
-
-    let init = value => {value, editing: None};
-
-    let start_editing = editable => {
-      ...editable,
-      editing: Some(string_of_int(editable.value)),
-    };
-
-    let edit = (new_edit_value, editable) => {
-      ...editable,
-      editing: Some(new_edit_value),
-    };
-
-    let stop_editing = (new_value, editable) => {
-      editing: None,
-      value:
-        switch (new_value) {
-        | None => editable.value
-        | Some(new_value) => new_value
-        },
-    };
-  };
+  let param_tys = [("min", HTyp.Int), ("max", HTyp.Int)];
 
   [@deriving sexp]
   type endpoint =
@@ -1493,88 +1502,29 @@ module SliderLivelit: LIVELIT = {
     | Max;
 
   [@deriving sexp]
-  type model = {
-    min: EditableValue.t,
-    max: EditableValue.t,
-    value: int,
-  };
-
-  let map_endpoint = (f, endpoint, model) =>
-    switch (endpoint) {
-    | Min => {...model, min: f(model.min)}
-    | Max => {...model, max: f(model.max)}
-    };
-
-  let start_editing = map_endpoint(EditableValue.start_editing);
-  let edit = (endpoint, new_value, model) =>
-    model |> map_endpoint(EditableValue.edit(new_value), endpoint);
-  let stop_editing = (endpoint, new_value, model) =>
-    model |> map_endpoint(EditableValue.stop_editing(new_value), endpoint);
+  type model = int;
 
   [@deriving sexp]
   type action =
-    | Slide(int)
-    | StartEditing(endpoint)
-    | Edit(endpoint, string)
-    | StopEditing(endpoint, option(int));
+    | Slide(int);
   type trigger = action => Vdom.Event.t;
 
-  /* overflow paranoia */
-  let max_slider_value = 1000 * 1000 * 1000;
-  let min_slider_value = (-1) * max_slider_value;
-  /*let crop_slider_value = value =>
-    max(min_slider_value, min(max_slider_value, value));*/
+  let init_model = SpliceGenCmd.return(0);
 
-  let init_model =
-    SpliceGenCmd.return({
-      min: EditableValue.init(0),
-      max: EditableValue.init(10),
-      value: 5,
-    });
-  let update = (model, a) =>
+  let update = (_, a) =>
     switch (a) {
-    | Slide(n) => SpliceGenCmd.return({...model, value: n})
-    | StartEditing(Min) => SpliceGenCmd.return(model |> start_editing(Min))
-    | StartEditing(Max) => SpliceGenCmd.return(model |> start_editing(Max))
-    | Edit(endpoint, new_value) =>
-      SpliceGenCmd.return(model |> edit(endpoint, new_value))
-    | StopEditing(endpoint, new_value) =>
-      SpliceGenCmd.return(model |> stop_editing(endpoint, new_value))
+    | Slide(n) => SpliceGenCmd.return(n)
     };
 
   let view = (model, trigger: trigger) => {
     open Vdom;
 
-    let endpoint_view =
-        (
-          ~clss,
-          ~is_valid: string => option(int),
-          (endpoint, editable: EditableValue.t),
-        ) => {
-      let editing_clss =
-        switch (editable.editing) {
-        | None => []
-        | Some(_) => ["editing"]
-        };
-      let err_clss =
-        switch (editable.editing) {
-        | None => []
-        | Some(edit_value) =>
-          switch (is_valid(edit_value)) {
-          | Some(_) => []
-          | None => ["err"]
-          }
-        };
-      let display_value =
-        switch (editable.editing) {
-        | None => string_of_int(editable.value)
-        | Some(edit_value) => edit_value
-        };
+    let endpoint_view = (cls, value) => {
       let padding = "3px";
-      Node.input(
+      let val_str = string_of_int(value);
+      Node.label(
         [
-          Attr.classes(clss @ editing_clss @ err_clss),
-          Attr.type_("text"),
+          Attr.classes([cls]),
           attr_style(
             StringUtil.sep([
               prop_val("padding", padding),
@@ -1582,84 +1532,73 @@ module SliderLivelit: LIVELIT = {
                 "width",
                 Printf.sprintf(
                   "calc(%dch + %s)",
-                  String.length(display_value),
+                  String.length(val_str),
                   padding,
                 ),
               ),
             ]),
           ),
-          // only sets initial value
-          Attr.value(display_value),
-          Attr.on_focus(_ => trigger(StartEditing(endpoint))),
-          Attr.on_blur(evt => {
-            let new_value = Option.bind(editable.editing, is_valid);
-            {
-              let target = Js.Opt.get(evt##.target, () => assert(false));
-              let new_value =
-                switch (new_value) {
-                | None => editable.value
-                | Some(new_value) => new_value
-                };
-              Js.Unsafe.set(target, "value", string_of_int(new_value));
-            };
-            trigger(StopEditing(endpoint, new_value));
-          }),
-          Attr.on_input((_, new_edit_value) =>
-            trigger(Edit(endpoint, new_edit_value))
-          ),
         ],
-        [],
+        [Node.text(val_str)],
       );
     };
 
-    let view_span =
+    ({dargs, _}: LivelitView.splice_and_param_getters) => {
+      let (min_valid, min_val, max_valid, max_val) =
+        switch (dargs) {
+        | None => (false, model - 1, false, model + 1)
+        | Some([("min", min'), ("max", max')]) =>
+          switch (min', max') {
+          | (Some((DHExp.IntLit(min'), _)), Some((DHExp.IntLit(max'), _))) => (
+              true,
+              min',
+              true,
+              max',
+            )
+          | (Some((DHExp.IntLit(min'), _)), _) => (
+              true,
+              min',
+              false,
+              max(min', model) + 1,
+            )
+          | (_, Some((DHExp.IntLit(max'), _))) => (
+              false,
+              min(max', model - 1),
+              true,
+              max',
+            )
+          | _ => (false, model - 1, false, model + 1)
+          }
+        | _ => failwith("Wrong $slider params")
+        };
       Node.span(
         [Attr.classes(["slider-livelit"])],
         [
-          endpoint_view(
-            ~clss=["min-input"],
-            ~is_valid=
-              edit_value =>
-                edit_value
-                |> int_of_string_opt
-                |> OptUtil.filter(new_min =>
-                     min_slider_value < new_min && new_min < model.max.value
-                   ),
-            (Min, model.min),
-          ),
+          endpoint_view(min_valid ? "min-input" : "err", min_val),
           Node.input(
             [
               Attr.classes(["slider"]),
               Attr.type_("range"),
-              Attr.create("min", string_of_int(model.min.value)),
-              Attr.create("max", string_of_int(model.max.value)),
-              Attr.value(string_of_int(model.value)),
+              Attr.create("min", string_of_int(min_val)),
+              Attr.create("max", string_of_int(max_val)),
+              Attr.value(string_of_int(model)),
               Attr.on_change((_, value_str) => {
-                let new_value = int_of_string(value_str);
+                let new_value =
+                  max(min(int_of_string(value_str), max_val), min_val);
                 trigger(Slide(new_value));
               }),
             ],
             [],
           ),
-          endpoint_view(
-            ~clss=["max-input"],
-            ~is_valid=
-              edit_value =>
-                edit_value
-                |> int_of_string_opt
-                |> OptUtil.filter(new_max =>
-                     model.min.value < new_max && new_max < max_slider_value
-                   ),
-            (Max, model.max),
-          ),
+          endpoint_view(max_valid ? "max-input" : "err", max_val),
         ],
       );
-    _ => view_span;
+    };
   };
 
   let view_shape = _ => LivelitView.Inline(20);
 
-  let expand = model => UHExp.Block.wrap(UHExp.intlit'(model.value));
+  let expand = model => UHExp.Block.wrap(UHExp.intlit'(model));
 };
 
 /* ----------

@@ -101,7 +101,7 @@ and set_err_status_operand = (err, operand) =>
 
 let is_inconsistent = (p: t): bool =>
   switch (get_err_status(p)) {
-  | InHole(TypeInconsistent, _) => true
+  | InHole(TypeInconsistent(None), _) => true
   | _ => false
   };
 
@@ -116,13 +116,13 @@ and mk_inconsistent_operand =
   switch (operand) {
   // already in hole
   | EmptyHole(_)
-  | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | Wild(InHole(TypeInconsistent(_), _))
+  | Var(InHole(TypeInconsistent(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent(_), _), _)
+  | FloatLit(InHole(TypeInconsistent(_), _), _)
+  | BoolLit(InHole(TypeInconsistent(_), _), _)
+  | ListNil(InHole(TypeInconsistent(_), _))
+  | Inj(InHole(TypeInconsistent(_), _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -133,7 +133,7 @@ and mk_inconsistent_operand =
   | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let set_operand =
-      operand |> set_err_status_operand(InHole(TypeInconsistent, u));
+      operand |> set_err_status_operand(InHole(TypeInconsistent(None), u));
     (set_operand, u_gen);
   | Parenthesized(p) =>
     let (set_p, u_gen) = p |> mk_inconsistent(u_gen);

@@ -60,14 +60,18 @@ let mk_inconsistent =
       seq |> Seq.nth_operand(n) |> mk_inconsistent_operand(u_gen);
     let set_seq = seq |> Seq.update_nth_operand(n, set_operand);
     (OpSeq(skel, set_seq), u_gen);
-  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) => (opseq, u_gen)
+  | OpSeq(BinOp(InHole(TypeInconsistent(_), _), _, _, _), _) => (
+      opseq,
+      u_gen,
+    )
   | OpSeq(
       BinOp(NotInHole, op, skel1, skel2) |
       BinOp(InHole(WrongLength, _), op, skel1, skel2),
       seq,
     ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
-    let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
+    let set_skel =
+      Skel.BinOp(InHole(TypeInconsistent(None), u), op, skel1, skel2);
     (OpSeq(set_skel, seq), u_gen);
   };
 

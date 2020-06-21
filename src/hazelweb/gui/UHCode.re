@@ -231,33 +231,44 @@ let view =
                 | None => LivelitInstanceInfo.default_instance(llii, llu)
                 | Some(inst) => Some(inst)
                 };
-              let splice_map_opt =
+              let sim_dargs_opt =
                 inst_opt
                 |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-                |> OptUtil.map(((_, _, si)) => SpliceInfo.splice_map(si));
+                |> OptUtil.map(((_, _, (si, dargs))) =>
+                     (SpliceInfo.splice_map(si), dargs)
+                   );
+
+              let dhview =
+                DHCode.view(
+                  ~inject,
+                  // TODO undo hardcoded width
+                  ~width=80,
+                );
 
               let dhcode = splice_name =>
-                splice_map_opt
-                |> OptUtil.and_then(splice_map =>
+                sim_dargs_opt
+                |> OptUtil.and_then(((splice_map, _)) =>
                      switch (NatMap.lookup(splice_map, splice_name)) {
                      | None => raise(Not_found)
                      | Some((_, d_opt)) =>
-                       d_opt
-                       |> OptUtil.map(d =>
-                            (
-                              d,
-                              DHCode.view(
-                                ~inject,
-                                // TODO undo hardcoded width
-                                ~width=80,
-                                d,
-                              ),
-                            )
-                          )
+                       d_opt |> OptUtil.map(d => (d, dhview(d)))
                      }
                    );
 
-              [livelit_view({uhcode, dhcode})];
+              let dargs =
+                sim_dargs_opt
+                |> OptUtil.map(((_, dargs)) =>
+                     dargs
+                     |> List.map(((v, darg_opt)) =>
+                          (
+                            v,
+                            darg_opt
+                            |> OptUtil.map(darg => (darg, dhview(darg))),
+                          )
+                        )
+                   );
+
+              [livelit_view({uhcode, dhcode, dargs})];
             };
             let dim_attr =
               switch (shape) {
