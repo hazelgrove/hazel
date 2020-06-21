@@ -65,14 +65,18 @@ module Exp = {
       | None => failwith("Exp: FreeVar Not Found")
       | Some(e) =>
         let ocaml_e = extract(~ctx, ~de=e);
-        (x ++ " : " ++ Typ.extract(~t=snd(ocaml_e)), snd(ocaml_e));
+        //add a parenthesize to avoid any possible order priority
+        (
+          "(" ++ x ++ " : " ++ Typ.extract(~t=snd(ocaml_e)) ++ ")",
+          snd(ocaml_e),
+        );
       };
     | BoundVar(x) =>
       //directly lookup type in environment
       let typ = VarCtx.lookup(Contexts.gamma(ctx), x);
       switch (typ) {
       | None => failwith("Exp: BoundVar Not Found")
-      | Some(t) => (x ++ " : " ++ Typ.extract(~t), t)
+      | Some(t) => ("(" ++ x ++ " : " ++ Typ.extract(~t) ++ ")", t)
       };
     | Let(dp, de1, de2) =>
       switch (dp) {
@@ -81,6 +85,7 @@ module Exp = {
         let ocaml_de1 = extract(~ctx, ~de=de1);
         let ctx' = Contexts.extend_gamma(ctx, (x, snd(ocaml_de1)));
         let ocaml_de2 = extract(~ctx=ctx', ~de=de2);
+        // use the "let .. = ..;;" format
         (
           "let "
           ++ ocaml_dp
@@ -88,7 +93,7 @@ module Exp = {
           ++ Typ.extract(~t=snd(ocaml_de2))
           ++ " = "
           ++ fst(ocaml_de1)
-          ++ " in \n\t"
+          ++ ";;\n"
           ++ fst(ocaml_de2),
           snd(ocaml_de2),
         );
@@ -101,7 +106,16 @@ module Exp = {
       let ctx' = Contexts.extend_gamma(ctx, (x, ht));
       let ocaml_de = extract(~ctx=ctx', ~de);
       // here ht should equal snd(ocaml_de)
-      ("let rec " ++ x ++ " : " ++ ocaml_ht ++ " = " ++ fst(ocaml_de), ht);
+      (
+        "let rec "
+        ++ x
+        ++ " : "
+        ++ ocaml_ht
+        ++ " = "
+        ++ fst(ocaml_de)
+        ++ ";;\n",
+        ht,
+      );
     | Lam(dp, ht, de) =>
       //Htyp.t is the ground type of pattern
       switch (dp) {
@@ -131,8 +145,8 @@ module Exp = {
       | (BoolLit(b1), BoolLit(b2)) =>
         let str_of_op: DHExp.BinBoolOp.t => string = (
           fun
-          | And => "&&"
-          | Or => "||"
+          | And => " && "
+          | Or => " || "
         );
         // add parenthesis to avoid evaluation priority
         let str =
@@ -147,13 +161,13 @@ module Exp = {
     | BinIntOp(op, d1, d2) =>
       let str_of_op: DHExp.BinIntOp.t => (string, HTyp.t) = (
         fun
-        | Minus => ("-", Int)
-        | Plus => ("+", Int)
-        | Times => ("*", Int)
-        | Divide => ("/", Int)
-        | LessThan => ("<", Bool)
-        | GreaterThan => (">", Bool)
-        | Equals => ("==", Bool)
+        | Minus => (" - ", Int)
+        | Plus => (" + ", Int)
+        | Times => (" * ", Int)
+        | Divide => (" / ", Int)
+        | LessThan => (" < ", Bool)
+        | GreaterThan => (" > ", Bool)
+        | Equals => (" == ", Bool)
       );
       let ocaml_op = str_of_op(op);
       let ocaml_d1 = extract(~ctx, ~de=d1);
@@ -168,13 +182,13 @@ module Exp = {
     | BinFloatOp(op, d1, d2) =>
       let str_of_op: DHExp.BinFloatOp.t => (string, HTyp.t) = (
         fun
-        | FPlus => ("+.", Float)
-        | FMinus => ("-.", Float)
-        | FTimes => ("*.", Float)
-        | FDivide => ("/.", Float)
-        | FLessThan => ("<", Bool)
-        | FGreaterThan => (">", Bool)
-        | FEquals => ("==", Bool)
+        | FPlus => (" +. ", Float)
+        | FMinus => (" -. ", Float)
+        | FTimes => (" *. ", Float)
+        | FDivide => (" /. ", Float)
+        | FLessThan => (" < ", Bool)
+        | FGreaterThan => (" > ", Bool)
+        | FEquals => (" == ", Bool)
       );
       let ocaml_op = str_of_op(op);
       let ocaml_d1 = extract(~ctx, ~de=d1);
