@@ -27,7 +27,7 @@ let mk_sidebar =
       ],
       [
         Node.div(
-          [Attr.classes(["sidebar"])],
+          [Attr.classes(["sidebar"]), Attr.on_click(on_toggle)],
           [
             Node.div(
               [
@@ -44,22 +44,21 @@ let mk_sidebar =
                         sidebar_open ? [] : ["sidebar-body-padding-expanded"]
                       ),
                     ),
-                    Attr.on_click(on_toggle),
                   ],
                   [],
                 ),
                 Node.div(
-                  [Attr.id(body_id), Attr.classes(["sidebar-body"])],
+                  [
+                    Attr.id(body_id),
+                    Attr.on_click(_ => {Vdom.Event.Stop_propagation}),
+                    Attr.classes(["sidebar-body"]),
+                  ],
                   panels,
                 ),
               ],
             ),
             Node.div(
-              [
-                Attr.id(tab_id),
-                Attr.classes(["sidebar-tab"]),
-                Attr.on_click(on_toggle),
-              ],
+              [Attr.id(tab_id), Attr.classes(["sidebar-tab"])],
               [sidebar_open ? tab_opened_icon : tab_closed_icon],
             ),
           ],
