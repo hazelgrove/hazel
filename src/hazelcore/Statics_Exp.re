@@ -56,7 +56,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty) =>
-      let ty = UHTyp.expand(uty);
+      let ty = UHTyp.expand(Contexts.tyvars(ctx), uty);
       let ctx_def = ctx_for_let(ctx, p, ty, def);
       switch (ana(ctx_def, def, ty)) {
       | None => None
@@ -189,7 +189,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
-      | Some(uty) => UHTyp.expand(uty)
+      | Some(uty) => UHTyp.expand(Contexts.tyvars(ctx), uty)
       | None => HTyp.Hole
       };
     switch (Statics_Pat.ana(ctx, p, ty1)) {
@@ -409,7 +409,7 @@ and ana_operand =
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+        let ty1_ann = UHTyp.expand(Contexts.tyvars(ctx), uty1);
         switch (HTyp.consistent(ty1_ann, ty1_given)) {
         | false => None
         | true =>
@@ -696,7 +696,7 @@ and syn_fix_holes_line =
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
+      let ty1 = UHTyp.expand(Contexts.tyvars(ctx), uty1);
       let ctx_def = ctx_for_let(ctx, p, ty1, def);
       let (def, u_gen) =
         ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
@@ -943,7 +943,7 @@ and syn_fix_holes_operand =
   | Lam(_, p, ann, body) =>
     let ty1 =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
+      | Some(uty1) => UHTyp.expand(Contexts.tyvars(ctx), uty1)
       | None => HTyp.Hole
       };
     let (p, ctx, u_gen) =
@@ -1358,7 +1358,7 @@ and ana_fix_holes_operand =
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+        let ty1_ann = UHTyp.expand(Contexts.tyvars(ctx), uty1);
         if (HTyp.consistent(ty1_ann, ty1_given)) {
           let (p, ctx, u_gen) =
             Statics_Pat.ana_fix_holes(
