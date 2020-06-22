@@ -305,6 +305,94 @@ let ana_backspace_text = Action_common.ana_backspace_text_(~mk_ana_text);
 let syn_delete_text = Action_common.syn_delete_text_(~mk_syn_text);
 let ana_delete_text = Action_common.ana_delete_text_(~mk_ana_text);
 
+let text_operand =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, shape: TyTextShape.t)
+    : (UHTyp.operand, MetaVarGen.t) =>
+  switch (shape) {
+  | Int => (Int, u_gen)
+  | Bool => (Bool, u_gen)
+  | Float => (Float, u_gen)
+  | ExpandingKeyword(k) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (
+      TyVar(InVarHole(Keyword(k), u), k |> ExpandingKeyword.to_string),
+      u_gen,
+    );
+  | TyVar(id) =>
+    if (TyVarCtx.contains(Contexts.tyvars(ctx), id)) {
+      (TyVar(NotInVarHole, id), u_gen);
+    } else {
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      (TyVar(InVarHole(Free, u), id), u_gen);
+    }
+  };
+
+let syn_split_text =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      caret_index: int,
+      sop: Action_common.operator_shape,
+      text: string,
+    )
+    : Outcome.t(syn_success) => {
+  let (l, r) = text |> StringUtil.split_string(caret_index);
+  switch (
+    TyTextShape.of_text(l),
+    operator_of_shape(sop),
+    TyTextShape.of_text(r),
+  ) {
+  | (None, _, _)
+  | (_, None, _)
+  | (_, _, None) => Failed
+  | (Some(lshape), Some(op), Some(rshape)) =>
+    let (loperand, u_gen) = text_operand(ctx, u_gen, lshape);
+    let (roperand, u_gen) = text_operand(ctx, u_gen, rshape);
+    let new_zty = {
+      let zoperand = roperand |> ZTyp.place_before_operand;
+      ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+    };
+    switch (
+      Statics_Typ.syn(
+        ctx,
+        UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zty)),
+      )
+    ) {
+    | None => Failed
+    | Some(kind) => Succeeded((new_zty, kind, u_gen))
+    };
+  };
+};
+
+let ana_split_text =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      caret_index: int,
+      sop: Action_common.operator_shape,
+      text: string,
+    )
+    : Outcome.t(ana_success) => {
+  let (l, r) = text |> StringUtil.split_string(caret_index);
+  switch (
+    TyTextShape.of_text(l),
+    operator_of_shape(sop),
+    TyTextShape.of_text(r),
+  ) {
+  | (None, _, _)
+  | (_, None, _)
+  | (_, _, None) => Failed
+  | (Some(lshape), Some(op), Some(rshape)) =>
+    let (loperand, u_gen) = text_operand(ctx, u_gen, lshape);
+    let (roperand, u_gen) = text_operand(ctx, u_gen, rshape);
+    let new_zty = {
+      let zoperand = roperand |> ZTyp.place_before_operand;
+      ZTyp.mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+    };
+    Succeeded((new_zty, u_gen));
+  };
+};
+
 let rec syn_perform =
         (
           ctx: Contexts.t,
@@ -381,12 +469,7 @@ and syn_perform_opseq =
   | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
       when ZTyp.is_after_zoperand(zoperand) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, k, u_gen))
-  | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(op) =>
-      mk_syn_result(ctx, u_gen, construct_operator(op, zoperand, surround))
-    }
+
   /* SwapLeft and SwapRight actions */
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
@@ -571,11 +654,23 @@ and syn_perform_operand =
       u_gen,
       ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
     )
-
+  /* split */
+  | (
+      Construct(SOp(os)),
+      CursorT(OnText(j), (Int | Bool | Float) as operand),
+    )
+      when
+        !ZTyp.is_before_zoperand(zoperand)
+        && !ZTyp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, os, operand |> UHTyp.to_string)
+  | (Construct(SOp(os)), CursorT(OnText(j), TyVar(_, id)))
+      when
+        !ZTyp.is_before_zoperand(zoperand)
+        && !ZTyp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, os, id)
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
-    // TODO: fix this
     | Some(op) =>
       mk_syn_result(ctx, u_gen, construct_operator(op, zoperand, (E, E)))
     }
@@ -686,7 +781,7 @@ and ana_perform_opseq =
   | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
       when ZTyp.is_after_zoperand(zoperand) =>
     ana_perform_opseq(ctx, MoveRight, (zopseq, u_gen), k)
-  | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
+  /*| (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(op) =>
@@ -696,7 +791,7 @@ and ana_perform_opseq =
         construct_operator(op, zoperand, surround),
         k,
       )
-    }
+    }*/
   /* SwapLeft and SwapRight actions */
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
@@ -894,7 +989,20 @@ and ana_perform_operand =
       ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))),
       k,
     )
-
+  /* split */
+  | (
+      Construct(SOp(os)),
+      CursorT(OnText(j), (Int | Bool | Float) as operand),
+    )
+      when
+        !ZTyp.is_before_zoperand(zoperand)
+        && !ZTyp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, os, operand |> UHTyp.to_string)
+  | (Construct(SOp(os)), CursorT(OnText(j), TyVar(_, id)))
+      when
+        !ZTyp.is_before_zoperand(zoperand)
+        && !ZTyp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, os, id)
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed
