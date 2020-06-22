@@ -234,8 +234,8 @@ let mk_syn_text =
     ));
   | Some(TyVar(x)) =>
     if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
-      let idx = TyVarCtx.index_of_exn(ctx.tyvars, x);
-      let (_, k) = List.nth(ctx.tyvars, idx);
+      let idx = TyVarCtx.index_of_exn(Contexts.tyvars(ctx), x);
+      let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
       Succeeded((
         ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInVarHole, x))),
         k,
