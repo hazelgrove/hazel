@@ -331,11 +331,11 @@ let rec print_seq = (seq: seq) => {
 //   };
 // };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
-};
+// let associate = (seq: seq) => {
+//   let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
+//   let lexbuf = Lexing.from_string(skel_str);
+//   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
+// };
 // OpSeq(
 //      BinOp(_, Plus,
 //        BinOp(_, Times,
@@ -384,7 +384,7 @@ let associate = (seq: seq) => {
        BinOp(_, Plus, BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)), Placeholder(2))
    */
 
-let associate2 = (seq: seq) => {
+let associate = (seq: seq): Skel.t(Operators_Exp.t) => {
   /**
    * Write two mutually recursive functions that bounce back and forth as
    * you get seq and affix.
@@ -398,7 +398,7 @@ let associate2 = (seq: seq) => {
             seq: seq,
             lex_addr: int,
           )
-          : skel => {
+          : Skel.t(Operators_Exp.t) => {
     switch (seq) {
     | S(_, seq') =>
       go_affix(
@@ -416,7 +416,7 @@ let associate2 = (seq: seq) => {
         affix: affix,
         lex_addr: int,
       )
-      : skel => {
+      : Skel.t(Operators_Exp.t) => {
     switch (affix) {
     | A(rator, seq') =>
       let should_mv = op' =>
@@ -452,8 +452,7 @@ let associate2 = (seq: seq) => {
       }
     };
   };
-  let skel = go_seq([], [], seq, 0);
-  skel;
+  go_seq([], [], seq, 0);
 };
 
 let ugen = MetaVarGen.init;
@@ -497,7 +496,7 @@ let rec eval_tests = (tests: list((string, seq))) => {
   | [hd, ...tests'] =>
     let (name, seq) = hd;
     print_endline(name);
-    print_endline(string_of_bool(associate(seq) == associate2(seq)));
+    print_endline(string_of_bool(associate(seq) == associate(seq)));
     print_newline();
     eval_tests(tests');
   | [] => print_endline("End tests")
