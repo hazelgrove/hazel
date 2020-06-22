@@ -400,11 +400,11 @@ let associate2 = (seq: seq) => {
           )
           : skel => {
     switch (seq) {
-    | S(_, seq) =>
+    | S(_, seq') =>
       go_affix(
         [Skel.Placeholder(lex_addr), ...skels],
         op_stack,
-        seq,
+        seq',
         lex_addr + 1,
       )
     };
@@ -426,6 +426,7 @@ let associate2 = (seq: seq) => {
       go_seq(skels', [rator, ...op_stack'], seq', lex_addr);
     | E =>
       let (skels', _) = mv_while(skels, op_stack, _ => true); /* while there are operators on the seq stack, pop 2 from skel stack, push (op, skel_1, skel_2) */
+      assert(List.tl(skels') == []);
       List.hd(skels');
     };
   }
@@ -436,9 +437,9 @@ let associate2 = (seq: seq) => {
     | [] => (skels, op_stack)
     | [hd, ...op_stack'] =>
       if (should_mv(hd)) {
-        let rand_1 = List.hd(skels);
+        let rand_2 = List.hd(skels);
         let skels' = List.tl(skels);
-        let rand_2 = List.hd(skels');
+        let rand_1 = List.hd(skels');
         let skels'' = List.tl(skels');
 
         mv_while(
@@ -452,7 +453,6 @@ let associate2 = (seq: seq) => {
     };
   };
   let skel = go_seq([], [], seq, 0);
-  print_endline("associate finished");
   skel;
 };
 
@@ -499,7 +499,7 @@ let rec eval_tests = (tests: list((string, seq))) => {
     print_endline(name);
     print_endline(string_of_bool(associate(seq) == associate2(seq)));
     print_newline();
-    eval_tests(tests')
+    eval_tests(tests');
   | [] => print_endline("End tests")
   };
 };
