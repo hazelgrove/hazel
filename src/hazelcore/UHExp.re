@@ -315,27 +315,27 @@ let rec print_seq = (seq: seq) => {
   };
 };
 
-let rec print_skel = (skel: skel) => {
-  switch (skel) {
-  | BinOp(_, op, Placeholder(m), Placeholder(n)) =>
-    print_endline(
-      Operators_Exp.to_string(op) ++ string_of_int(m) ++ string_of_int(n),
-    )
-  | BinOp(_, op, skel', Placeholder(n)) =>
-    print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
-    print_skel(skel');
-  | BinOp(_, op, Placeholder(n), skel') =>
-    print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
-    print_skel(skel');
-  | _ => print_newline()
-  };
-};
-// let associate = (seq: seq) => {
-//   // print_seq(seq);
-//   let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-//   let lexbuf = Lexing.from_string(skel_str);
-//   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
+// let rec print_skel = (skel: skel) => {
+//   switch (skel) {
+//   | BinOp(_, op, Placeholder(m), Placeholder(n)) =>
+//     print_endline(
+//       Operators_Exp.to_string(op) ++ string_of_int(m) ++ string_of_int(n),
+//     )
+//   | BinOp(_, op, skel', Placeholder(n)) =>
+//     print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
+//     print_skel(skel');
+//   | BinOp(_, op, Placeholder(n), skel') =>
+//     print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
+//     print_skel(skel');
+//   | _ => print_newline()
+//   };
 // };
+
+let associate = (seq: seq) => {
+  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
+  let lexbuf = Lexing.from_string(skel_str);
+  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
+};
 // OpSeq(
 //      BinOp(_, Plus,
 //        BinOp(_, Times,
@@ -384,12 +384,13 @@ let rec print_skel = (skel: skel) => {
        BinOp(_, Plus, BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)), Placeholder(2))
    */
 
-let associate = (seq: seq) => {
+let associate2 = (seq: seq) => {
   /**
    * Write two mutually recursive functions that bounce back and forth as
    * you get seq and affix.
    */
   print_seq(seq);
+  print_endline("associate called");
   let rec go_seq =
           (
             skels: list(skel),
@@ -400,8 +401,6 @@ let associate = (seq: seq) => {
           : skel => {
     switch (seq) {
     | S(_, seq) =>
-      // print_endline("go_seq");
-
       go_affix(
         [Skel.Placeholder(lex_addr), ...skels],
         op_stack,
@@ -420,14 +419,13 @@ let associate = (seq: seq) => {
       : skel => {
     switch (affix) {
     | A(rator, seq') =>
-      // print_endline("go_affix");
       let should_mv = op' =>
         Operators_Exp.precedence(rator) <= Operators_Exp.precedence(op');
       let (skels', op_stack') = mv_while(skels, op_stack, should_mv);
 
       go_seq(skels', [rator, ...op_stack'], seq', lex_addr);
     | E =>
-      let (skels', _) = mv_while(skels, op_stack, _ => true); /* while there are operators on the seq stack pop, pop 2 from skel stack, push (op, skel_1, skel_2) */
+      let (skels', _) = mv_while(skels, op_stack, _ => true); /* while there are operators on the seq stack, pop 2 from skel stack, push (op, skel_1, skel_2) */
       List.hd(skels');
     };
   }
@@ -453,26 +451,61 @@ let associate = (seq: seq) => {
       }
     };
   };
-  go_seq([], [], seq, 0);
+  let skel = go_seq([], [], seq, 0);
+  print_endline("associate finished");
+  skel;
 };
 
-let test_seq =
+let ugen = MetaVarGen.init;
+let test_single_operand = (
+  "single op",
+  Seq.S(IntLit(NotInHole, "1"), Seq.E),
+);
+let test_simple_add = (
+  "simple add",
   Seq.S(
     IntLit(NotInHole, "1"),
-    Seq.A(
-      Operators_Exp.Plus,
-      Seq.S(
-        IntLit(NotInHole, "2"),
-        Seq.A(Operators_Exp.Times, Seq.S(IntLit(NotInHole, "4"), Seq.E)),
-      ),
-    ),
-  );
-// let answer_skel =
-//   Skel.BinOp(NotInHole, Operators_Exp.Plus, Placeholder(0), Placeholder(1));
-// print_seq(test_seq);
-// print_skel(answer_skel);
-print_skel(associate(test_seq));
-// OpSeq.mk(~associate, seq);
+    Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
+  ),
+);
+let test_single_hole = ("single hole", Seq.S(EmptyHole(ugen), E));
+let test_add_l_hole = (
+  "add with l hole",
+  Seq.S(
+    EmptyHole(ugen),
+    Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
+  ),
+);
+let test_add_r_hole = (
+  "add with r hole",
+  Seq.S(
+    IntLit(NotInHole, "1"),
+    Seq.A(Operators_Exp.Plus, Seq.S(EmptyHole(ugen), E)),
+  ),
+);
+
+let tests = [
+  test_single_operand,
+  test_simple_add,
+  test_single_hole,
+  test_add_l_hole,
+  test_add_r_hole,
+];
+
+let rec eval_tests = (tests: list((string, seq))) => {
+  switch (tests) {
+  | [hd, ...tests'] =>
+    let (name, seq) = hd;
+    print_endline(name);
+    print_endline(string_of_bool(associate(seq) == associate2(seq)));
+    print_newline();
+    eval_tests(tests')
+  | [] => print_endline("End tests")
+  };
+};
+
+eval_tests(tests);
+
 let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
