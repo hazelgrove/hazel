@@ -827,7 +827,6 @@ and syn_elab_operand =
     switch (VarMap.lookup(gamma, x)) {
     | Some(ty) => Elaborates(BoundVar(x), ty, delta)
     | None => DoesNotElaborate
-    };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);

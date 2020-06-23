@@ -490,15 +490,13 @@ let rec syn_move =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
         : Action_common.Outcome.t(syn_success) => {
-  print_endline("Action2641");
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
-    print_endline("Action2645");
     switch (CursorPath_Exp.follow(path, ze |> ZExp.erase)) {
     | None => Failed
     | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
-    };
+    }
   | MoveToPrevHole =>
     switch (CursorPath_Exp.prev_hole_steps_z(ze)) {
     | None => Failed
@@ -525,13 +523,12 @@ let rec syn_move =
          Succeeded(SynDone((ze, ty, u_gen)))
        )
   | MoveRight =>
-    print_endline("Action2672");
     ze
     |> ZExp.move_cursor_right
     |> OptUtil.map_default(
          ~default=Action_common.Outcome.CursorEscaped(After), ze =>
          Succeeded(SynDone((ze, ty, u_gen)))
-       );
+       )
   | Construct(_)
   | Delete
   | Backspace
@@ -619,7 +616,6 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
         : Action_common.Outcome.t(syn_done) => {
-  print_endline("Action2761");
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -653,9 +649,7 @@ and syn_perform_block =
   | MoveToPrevHole
   | MoveToNextHole
   | MoveLeft
-  | MoveRight =>
-    print_endline("Action2798");
-    syn_move(ctx, a, (zblock, ty, u_gen));
+  | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
 
   /* Backspace & Delete */
 
@@ -880,13 +874,12 @@ and syn_perform_line =
          mk_result(u_gen, ([], zline, []))
        )
   | (MoveRight, _) =>
-    print_endline("Action3019");
     zline
     |> ZExp.move_cursor_right_zline
     |> Option.fold(
          ~none=Action_common.Outcome.CursorEscaped(After), ~some=zline =>
          mk_result(u_gen, ([], zline, []))
-       );
+       )
 
   /* Backspace & Delete */
 
@@ -976,7 +969,6 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, None, def)) =>
-    print_endline("Action3118");
     switch (Statics_Exp.syn(ctx, def)) {
     | None => Failed
     | Some(ty_def) =>
@@ -988,7 +980,7 @@ and syn_perform_line =
         let new_zline = ZExp.LetLineZP(new_zp, None, new_def);
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       }
-    };
+    }
   | (_, LetLineZP(zp, Some(ann), def)) =>
     let ty = ann |> UHTyp.expand;
     switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty)) {

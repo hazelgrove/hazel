@@ -304,11 +304,10 @@ let rec syn_move =
     | Some(zp) => mk_syn_result(ctx, u_gen, zp)
     }
   | MoveRight =>
-    print_endline("Action1036");
     switch (zp |> ZPat.move_cursor_right) {
     | None => CursorEscaped(After)
     | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-    };
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -392,7 +391,6 @@ let rec ana_move =
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action_common.t, zp: ZPat.t)
         : Action_common.Outcome.t(syn_success) => {
-  print_endline("Action1113");
   syn_perform_opseq(ctx, u_gen, a, zp);
 }
 and syn_perform_opseq =
@@ -663,9 +661,7 @@ and syn_perform_operand =
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, Hole, ctx, u_gen));
     } else {
-      print_endline("Action1378");
       let new_text = s |> StringUtil.backspace(j);
-      print_endline("new text=" ++ new_text);
       let text_cursor = CursorPosition.OnText(j - 1);
       let zp =
         ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -1182,7 +1178,6 @@ and ana_perform_operand =
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
   | (Backspace, CursorP(OnText(j), StringLit(_, s))) =>
-    print_endline("Action1894");
     if (j == 0) {
       let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
       let zp = ZOpSeq.wrap(zhole);
@@ -1198,7 +1193,7 @@ and ana_perform_operand =
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
         Succeeded((zp, ctx, u_gen));
       };
-    };
+    }
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
