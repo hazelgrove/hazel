@@ -30,7 +30,7 @@ module Pat = {
     | EmptyHole(_, _) => failwith("Pat: Empty Hole")
     | NonEmptyHole(_, _, _, _) => failwith("Pat: NonEmptyHole")
     | Wild => "_"
-    | Keyword(_, _, _) => failwith("Pat: Incomplete Program(Keyword)")
+    | Keyword(_, _, _) => failwith("Pat: Incomplete Program, Keyword")
     | Var(s) => s
     | IntLit(i) => string_of_int(i)
     | FloatLit(f) => string_of_float(f)
@@ -310,17 +310,7 @@ module Exp = {
       if (HTyp.consistent(snd(head), snd(tail))) {
         (fst(head) ++ "\n" ++ fst(tail), snd(head));
       } else {
-        failwith(
-          "Exp: Case rules with inconsistent results"
-          ++ "\n"
-          ++ fst(head)
-          ++ " is "
-          ++ Typ.extract(~t=snd(head))
-          ++ "\n"
-          ++ Typ.extract(~t=snd(head))
-          ++ "\n"
-          ++ Typ.extract(~t=snd(tail)),
-        );
+        failwith("Exp: Case rules with inconsistent results");
       };
     }
   and rule_extract =
