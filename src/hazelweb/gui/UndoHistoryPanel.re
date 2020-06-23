@@ -1081,7 +1081,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ],
       )
     );
-
+    
+  /* return option((group_id, elt_id)) */
   let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
     let elt: Js.t(Dom_html.divElement) =
       JSUtil.element_from_point(model.mouse_position^);
