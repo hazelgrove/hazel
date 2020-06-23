@@ -7,9 +7,12 @@ module Typ = {
     | Int => "int"
     | Float => "float"
     | Bool => "bool"
-    | Arrow(t1, t2) => extract(~t=t1) ++ " -> " ++ extract(~t=t2)
-    | Sum(t1, t2) => extract(~t=t1) ++ " | " ++ extract(~t=t2)
-    | Prod(tl) => list_prod(~tl)
+    // add parenthesis is necessary
+    // (int -> int) -> int != int -> int -> int
+    | Arrow(t1, t2) =>
+      "(" ++ extract(~t=t1) ++ " -> " ++ extract(~t=t2) ++ ")"
+    | Sum(t1, t2) => "(" ++ extract(~t=t1) ++ " | " ++ extract(~t=t2) ++ ")"
+    | Prod(tl) => "(" ++ list_prod(~tl) ++ ")"
     | List(t) => extract(~t) ++ " list"
     }
   and list_prod = (~tl: list(HTyp.t)): ocaml_typ =>
@@ -53,6 +56,8 @@ module Exp = {
   type extract_result = (ocaml_exp, HTyp.t);
 
   /* Theorem: If extract(ctx, d) = Some(ce, ty) and ctx |- d : ty then ce :_ocaml Typ.extract(ty) */
+
+  //TODO: replace == with HTyp.consistent
   let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): extract_result =>
     switch (de) {
     | EmptyHole(_) => failwith("Exp: Empty Hole")
@@ -76,8 +81,14 @@ module Exp = {
       //directly lookup type in environment
       let typ = VarCtx.lookup(Contexts.gamma(ctx), x);
       switch (typ) {
-      | None => failwith("Exp: BoundVar Not Found")
-      | Some(t) => ("(" ++ x ++ " : " ++ Typ.extract(~t) ++ ")", t)
+      | None => failwith("Exp: BoundVar " ++ x ++ " Not Found")
+      // if the hole type, we don't print the type
+      | Some(t) =>
+        if (t == Hole) {
+          ("(" ++ x ++ ")", t);
+        } else {
+          ("(" ++ x ++ " : " ++ Typ.extract(~t) ++ ")", t);
+        }
       };
     | Let(dp, de1, de2) =>
       switch (dp) {
@@ -87,18 +98,26 @@ module Exp = {
         let ctx' = Contexts.extend_gamma(ctx, (x, snd(ocaml_de1)));
         let ocaml_de2 = extract(~ctx=ctx', ~de=de2);
         // use the "let .. = ..;;" format
-        (
-          "let "
-          ++ ocaml_dp
-          ++ " : "
-          ++ Typ.extract(~t=snd(ocaml_de2))
-          ++ " = "
-          ++ fst(ocaml_de1)
-          ++ ";;\n"
-          ++ fst(ocaml_de2),
-          snd(ocaml_de2),
-        );
-      | _ => failwith("Exp: Let")
+        // if it's a recursive function, we skip to directly evaluating the FixF (de1)
+        // because the recursive function should be declared by "rec" only in ocaml
+        switch (de1) {
+        | FixF(_, _, _) => (
+            fst(ocaml_de1) ++ fst(ocaml_de2),
+            snd(ocaml_de2),
+          )
+        | _ => (
+            "let "
+            ++ ocaml_dp
+            ++ " : "
+            ++ Typ.extract(~t=snd(ocaml_de2))
+            ++ " = "
+            ++ fst(ocaml_de1)
+            ++ ";;\n"
+            ++ fst(ocaml_de2),
+            snd(ocaml_de2),
+          )
+        };
+      | _ => failwith("Exp: Let, not a variable pattern")
       }
     | FixF(x, ht, de) =>
       //it's the case of fixpoint/ recursive functions
@@ -214,19 +233,27 @@ module Exp = {
         )
       | _ => failwith("Exp: BinFloatOp")
       };
-    | ListNil(t) => ("[]", t)
+    | ListNil(t) => ("[]", List(t))
     | Cons(d1, d2) =>
       let ocaml_d1 = extract(~ctx, ~de=d1);
       let ocaml_d2 = extract(~ctx, ~de=d2);
       switch (snd(ocaml_d2)) {
       //can't determine type
-      | Hole => (fst(ocaml_d1) ++ "::" ++ fst(ocaml_d2), snd(ocaml_d1))
-      | _ =>
-        if (snd(ocaml_d2) == snd(ocaml_d1)) {
-          (fst(ocaml_d1) ++ "::" ++ fst(ocaml_d2), snd(ocaml_d1));
+      | Hole => (
+          fst(ocaml_d1) ++ "::" ++ fst(ocaml_d2),
+          List(snd(ocaml_d1)),
+        )
+      //d2 is already a list
+      | List(t) =>
+        if (t == snd(ocaml_d1) || t == Hole) {
+          (
+            "(" ++ fst(ocaml_d1) ++ "::" ++ fst(ocaml_d2) ++ ")",
+            snd(ocaml_d2),
+          );
         } else {
-          failwith("Exp: Cons");
+          failwith("Exp: Cons, type inconsistent");
         }
+      | _ => failwith("Exp: Cons")
       };
     | Inj(t, side, de) =>
       //ocaml don't have injection
@@ -252,7 +279,7 @@ module Exp = {
       // the int seems useless
       | Case(de, rules, _) =>
         let ocaml_de = extract(~ctx, ~de);
-        let ocaml_rules = rules_extract(~ctx, ~rules);
+        let ocaml_rules = rules_extract(~ctx, ~rules, ~pat_t=snd(ocaml_de));
         let str =
           "((match ("
           ++ fst(ocaml_de)
@@ -271,25 +298,87 @@ module Exp = {
     | InvalidOperation(_, _) => failwith("Exp: Invalid Operation")
     }
   and rules_extract =
-      (~ctx: Contexts.t, ~rules: list(DHExp.rule)): extract_result =>
+      (~ctx: Contexts.t, ~rules: list(DHExp.rule), ~pat_t: HTyp.t)
+      : extract_result =>
     switch (rules) {
     | [] => ("", Hole) //no rules, won't happen actually
-    | [h] => rule_extract(~ctx, ~rule=h)
+    | [h] => rule_extract(~ctx, ~rule=h, ~pat_t)
     | [h, ...t] =>
-      let head = rule_extract(~ctx, ~rule=h);
-      let tail = rules_extract(~ctx, ~rules=t);
-      if (snd(head) == snd(tail)) {
+      let head = rule_extract(~ctx, ~rule=h, ~pat_t);
+      let tail = rules_extract(~ctx, ~rules=t, ~pat_t);
+      // if (snd(head) == snd(tail)) {
+      if (HTyp.consistent(snd(head), snd(tail))) {
         (fst(head) ++ "\n" ++ fst(tail), snd(head));
       } else {
-        failwith("Exp: Case rules with inconsistent results");
+        failwith(
+          "Exp: Case rules with inconsistent results"
+          ++ "\n"
+          ++ fst(head)
+          ++ " is "
+          ++ Typ.extract(~t=snd(head))
+          ++ "\n"
+          ++ Typ.extract(~t=snd(head))
+          ++ "\n"
+          ++ Typ.extract(~t=snd(tail)),
+        );
       };
     }
-  and rule_extract = (~ctx: Contexts.t, ~rule: DHExp.rule): extract_result =>
+  and rule_extract =
+      (~ctx: Contexts.t, ~rule: DHExp.rule, ~pat_t: HTyp.t): extract_result =>
     switch (rule) {
     | Rule(dp, de) =>
       let ocaml_dp = Pat.extract(~dp);
-      //we seems don't allow constructors/variables as pattern
-      let ocaml_de = extract(~ctx, ~de);
+      //we seems don't allow constructors as pattern
+      //we should add the patterns into the context
+      let rec update_ctx = (dp: DHPat.t, ctx: Contexts.t): Contexts.t =>
+        switch (dp) {
+        | Var(x) => Contexts.extend_gamma(ctx, (x, pat_t))
+        | Inj(_, p) => update_ctx(p, ctx)
+        | Cons(p1, p2) =>
+          switch (pat_t) {
+          | List(t) =>
+            // only add variable into context
+            let ctx1 =
+              switch (p1) {
+              | Var(x) => Contexts.extend_gamma(ctx, (x, t))
+              | _ => ctx
+              };
+            switch (p2) {
+            | Var(y) => Contexts.extend_gamma(ctx1, (y, List(t)))
+            | _ => ctx1
+            };
+          | _ => failwith("Exp: Case wrong rule pattern, list")
+          }
+        //TODO: rewrite it more beautiful
+        | Pair(p1, p2) =>
+          switch (pat_t) {
+          | Prod([h, t]) =>
+            let ctx1 =
+              switch (p1) {
+              | Var(x) => Contexts.extend_gamma(ctx, (x, h))
+              | _ => ctx
+              };
+            switch (p2) {
+            | Var(y) => Contexts.extend_gamma(ctx1, (y, t))
+            | _ => ctx1
+            };
+          | Prod([h, m, ...t]) =>
+            let ctx1 =
+              switch (p1) {
+              | Var(x) => Contexts.extend_gamma(ctx, (x, h))
+              | _ => ctx
+              };
+            switch (p2) {
+            | Var(y) => Contexts.extend_gamma(ctx1, (y, Prod([m, ...t])))
+            | _ => ctx1
+            };
+          | _ => failwith("Exp: Case wrong rule pattern, pair")
+          }
+        | Ap(_, _) => failwith("Exp: Case rule error, apply")
+        | _ => ctx
+        };
+      let ctx' = update_ctx(dp, ctx);
+      let ocaml_de = extract(~ctx=ctx', ~de);
       ("\t| " ++ ocaml_dp ++ " -> " ++ fst(ocaml_de), snd(ocaml_de));
     };
 };
