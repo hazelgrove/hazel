@@ -311,6 +311,12 @@ let pad_left_delimited_child =
   };
 };
 
+type binOp_handler('operand, 'operator) =
+  (Skel.t('operator) => t, Seq.t('operand, 'operator), Skel.t('operator)) =>
+  option(t);
+
+let def_bosh = (_, _, _) => None;
+
 let mk_Unit = (): t => Delim.mk(~index=0, "()") |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (): t =>
@@ -444,31 +450,8 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
 let mk_FreeLivelit = (lln: LivelitName.t): t =>
   annot_FreeLivelit(mk_text(lln));
 
-let mk_ApLivelit =
-    (
-      ~enforce_inline: bool,
-      view_shape: Livelits.LivelitView.shape,
-      llu: MetaVar.t,
-      llname: LivelitName.t,
-      m: SerializedModel.t,
-    )
-    : t => {
-  let lln_doc = Doc.annot(UHAnnot.LivelitName, mk_text(llname));
-  let llview_doc = {
-    let spaceholder =
-      switch (view_shape) {
-      | Inline(width) => Doc.text(String.make(width, ' '))
-      | MultiLine(height) =>
-        enforce_inline
-          ? Doc.fail()
-          : Doc.hcats(ListUtil.replicate(height, Doc.linebreak()))
-      };
-    Doc.annot(
-      UHAnnot.LivelitView({llu, llname, shape: view_shape, model: m}),
-      spaceholder,
-    );
-  };
-  annot_ApLivelit(Doc.hcats([lln_doc, llview_doc]));
+let mk_ApLivelitName = (llname: LivelitName.t): t => {
+  Doc.annot(UHAnnot.LivelitName, mk_text(llname));
 };
 
 let mk_LetLine =
@@ -512,6 +495,7 @@ let rec mk_BinOp =
           ~mk_operator: 'operator => t,
           ~inline_padding_of_operator: 'operator => (t, t),
           ~enforce_inline: bool,
+          ~special_handler: binOp_handler('operand, 'operator)=def_bosh,
           ~seq: Seq.t('operand, 'operator),
           skel: Skel.t('operator),
         )
@@ -523,25 +507,32 @@ let rec mk_BinOp =
       ~mk_operator,
       ~inline_padding_of_operator,
       ~enforce_inline,
+      ~special_handler=def_bosh, // special_handler will not be used for subskels
       ~seq,
     );
-  switch (skel) {
-  | Placeholder(n) =>
-    let operand = seq |> Seq.nth_operand(n);
-    mk_operand(~enforce_inline, operand) |> annot_Step(n);
-  | BinOp(err, op, skel1, skel2) =>
-    let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-    let op_doc = mk_operator(op) |> annot_DelimGroup;
-    let skel1_doc = go(skel1);
-    let skel2_doc = go(skel2);
-    Doc.hcats([
-      skel1_doc |> annot_OpenChild(~is_inline=true),
-      op_doc
-      |> pad_operator(~inline_padding=inline_padding_of_operator(op))
-      |> annot_Step(op_index),
-      skel2_doc |> annot_OpenChild(~is_inline=true),
-    ])
-    |> Doc.annot(UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()));
+  switch (special_handler(go, seq, skel)) {
+  | Some(rslt) => rslt
+  | None =>
+    switch (skel) {
+    | Placeholder(n) =>
+      let operand = seq |> Seq.nth_operand(n);
+      mk_operand(~enforce_inline, operand) |> annot_Step(n);
+    | BinOp(err, op, skel1, skel2) =>
+      let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
+      let op_doc = mk_operator(op) |> annot_DelimGroup;
+      let skel1_doc = go(skel1);
+      let skel2_doc = go(skel2);
+      Doc.hcats([
+        skel1_doc |> annot_OpenChild(~is_inline=true),
+        op_doc
+        |> pad_operator(~inline_padding=inline_padding_of_operator(op))
+        |> annot_Step(op_index),
+        skel2_doc |> annot_OpenChild(~is_inline=true),
+      ])
+      |> Doc.annot(
+           UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()),
+         );
+    }
   };
 };
 
@@ -553,6 +544,7 @@ let mk_NTuple =
       ~mk_operator: 'operator => t,
       ~inline_padding_of_operator: 'operator => (t, t),
       ~enforce_inline: bool,
+      ~binOp_special_handler: binOp_handler('operand, 'operator)=def_bosh,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
     )
     : t => {
@@ -563,6 +555,7 @@ let mk_NTuple =
       ~mk_operator,
       ~inline_padding_of_operator,
       ~enforce_inline,
+      ~special_handler=binOp_special_handler,
       ~seq,
     );
   switch (skel |> get_tuple_elements |> ListUtil.map_zip(mk_BinOp)) {
@@ -791,6 +784,34 @@ module Exp = {
       ~inline_padding_of_operator,
     );
 
+  let livelit_handler = (~enforce_inline, go, seq, skel) =>
+    switch (LivelitUtil.check_livelit_skel(seq, skel)) {
+    | Some((ApLivelitData(llu, llname, model, _), _)) =>
+      // TODO(livelit definitions): thread ctx
+      let ctx = Livelits.initial_livelit_view_ctx;
+      switch (VarMap.lookup(ctx, llname)) {
+      | None => assert(false)
+      | Some((_, serialized_view_shape_fn)) =>
+        let shape = serialized_view_shape_fn(model);
+        let llview_doc = {
+          let spaceholder =
+            switch (shape) {
+            | Inline(width) => Doc.text(String.make(width, ' '))
+            | MultiLine(height) =>
+              enforce_inline
+                ? Doc.fail()
+                : Doc.hcats(ListUtil.replicate(height, Doc.linebreak()))
+            };
+          Doc.annot(
+            UHAnnot.LivelitView({llu, llname, shape, model}),
+            spaceholder,
+          );
+        };
+        Some(annot_ApLivelit(Doc.hcats([go(skel), llview_doc])));
+      };
+    | _ => None
+    };
+
   let annot_SubBlock = (~hd_index: int) =>
     Doc.annot(
       UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
@@ -874,6 +895,7 @@ module Exp = {
             ~mk_operand=Lazy.force(mk_operand, ~memoize),
             ~mk_operator,
             ~enforce_inline,
+            ~binOp_special_handler=livelit_handler(~enforce_inline),
             opseq,
           ): t
         )
@@ -931,15 +953,7 @@ module Exp = {
               mk_Case(~err, scrut, rules);
             }
           | FreeLivelit(_, lln) => mk_FreeLivelit(lln)
-          | ApLivelit(llu, _, lln, m, _) =>
-            // TODO(livelit definitions): thread ctx
-            let ctx = Livelits.initial_livelit_view_ctx;
-            switch (VarMap.lookup(ctx, lln)) {
-            | None => assert(false)
-            | Some((_, serialized_view_shape_fn)) =>
-              let shape = serialized_view_shape_fn(m);
-              mk_ApLivelit(~enforce_inline, shape, llu, lln, m);
-            };
+          | ApLivelit(_, _, lln, _, _) => mk_ApLivelitName(lln)
           }: t
         )
       )

@@ -284,7 +284,15 @@ let find_and_decorate_Term =
            | DelimGroup
            | LetLine
            | Term({shape: ApLivelit | Operand(_) | Case(_) | Rule, _}) => Skip
-           | _ => Stop
+           | Term({shape, _}) =>
+             print_endline(
+               Sexplib.Sexp.to_string(UHAnnot.sexp_of_term_shape(shape)),
+             );
+             Stop;
+           | _ =>
+             print_endline("not term");
+             Stop;
+           //           | _ =>
            };
          })
     };
