@@ -123,8 +123,10 @@ let init = (): t => {
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics_common.edit_state =>
-  model |> get_program |> Program.get_edit_state;
+let get_edit_state = (model: t): Statics_common.edit_state => {
+  let program = get_program(model);
+  program.edit_state;
+};
 
 let get_cursor_info = (model: t): CursorInfo_common.t =>
   model |> get_program |> Program.get_cursor_info;
@@ -163,7 +165,10 @@ let map_selected_instances =
 let focus_cell = map_program(Program.focus);
 let blur_cell = map_program(Program.blur);
 
-let is_cell_focused = model => model |> get_program |> Program.is_focused;
+let is_cell_focused = model => {
+  let program = get_program(model);
+  program.is_focused;
+};
 
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
