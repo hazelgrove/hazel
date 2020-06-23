@@ -305,69 +305,6 @@ let text_operand =
     );
   };
 
-// let rec print_seq = (seq: seq) => {
-//   switch (seq) {
-//   | S(IntLit(_, hd), E) => print_endline(hd)
-//   | S(IntLit(_, hd), A(op, seq)) =>
-//     print_string(hd ++ " " ++ Operators_Exp.to_string(op) ++ " ");
-//     print_seq(seq);
-//   | _ => print_newline()
-//   };
-// };
-
-// let associate = (seq: seq) => {
-//   let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-//   let lexbuf = Lexing.from_string(skel_str);
-//   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
-// };
-// OpSeq(
-//      BinOp(_, Plus,
-//        BinOp(_, Times,
-//          Placeholder(0),
-//          Placeholder(1),
-//        ),
-//        Placeholder(2),
-//      ),
-//      S(NumLit(1), A(Times, S(NumLit(2), A(Plus, S(NumLit(3), E))))),
-//    )
-
-/* Wikipedia Example
-
-   3 * 4 + 2
-   S(IntLit(3), A(Times, S(IntLit(4), A(Plus, S(IntLit(2), E)))))
-
-   1. S(IntLit(3), A(Times, S(IntLit(4), A(Plus, S(IntLit(2), E)))))
-     seq stack:
-       []
-
-     skel queue:
-       [Skel.Placeholder(0)]
-
-   2. A(Times, S(IntLit(4), A(Plus, S(IntLit(2), E))))
-     seq stack:
-       [Times]
-
-     skel list:
-       [Skel.Placeholder(0)]
-
-   3. S(IntLit(4), A(Plus, S(IntLit(2), E)))
-     seq stack:
-       [Times]
-
-     skel list:
-       [Skel.Placeholder(0)::Skel.Placeholder(1)]
-
-   4. A(Plus, S(IntLit(2), E))
-     seq stack:
-       [Plus]
-
-     skel list:
-       [ BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)) ]
-
-   5. S(IntLit(2), E)
-       BinOp(_, Plus, BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)), Placeholder(2))
-   */
-
 let associate = (seq: seq): skel => {
   let rec go_seq =
           (
@@ -410,8 +347,7 @@ let associate = (seq: seq): skel => {
 
       go_seq(skels', [rator, ...op_stack'], seq', lex_addr);
     | E =>
-      let (skels', _) = mv_while(skels, op_stack, _ => true); /* while there are operators on the seq stack, pop 2 from skel stack, push (op, skel_1, skel_2) */
-      assert(List.tl(skels') == []);
+      let (skels', _) = mv_while(skels, op_stack, _ => true);
       List.hd(skels');
     };
   }
@@ -420,15 +356,15 @@ let associate = (seq: seq): skel => {
       : (list(skel), list(Operators_Exp.t)) => {
     switch (op_stack) {
     | [] => (skels, op_stack)
-    | [hd, ...op_stack'] =>
-      if (should_mv(hd)) {
+    | [op, ...op_stack'] =>
+      if (should_mv(op)) {
         let rand_2 = List.hd(skels);
         let skels' = List.tl(skels);
         let rand_1 = List.hd(skels');
         let skels'' = List.tl(skels');
 
         mv_while(
-          [Skel.BinOp(ErrStatus.NotInHole, hd, rand_1, rand_2), ...skels''],
+          [Skel.BinOp(ErrStatus.NotInHole, op, rand_1, rand_2), ...skels''],
           op_stack',
           should_mv,
         );
@@ -439,56 +375,6 @@ let associate = (seq: seq): skel => {
   };
   go_seq([], [], seq, 0);
 };
-
-let ugen = MetaVarGen.init;
-let test_single_operand = (
-  "single op",
-  Seq.S(IntLit(NotInHole, "1"), Seq.E),
-);
-let test_simple_add = (
-  "simple add",
-  Seq.S(
-    IntLit(NotInHole, "1"),
-    Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
-  ),
-);
-let test_single_hole = ("single hole", Seq.S(EmptyHole(ugen), E));
-let test_add_l_hole = (
-  "add with l hole",
-  Seq.S(
-    EmptyHole(ugen),
-    Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
-  ),
-);
-let test_add_r_hole = (
-  "add with r hole",
-  Seq.S(
-    IntLit(NotInHole, "1"),
-    Seq.A(Operators_Exp.Plus, Seq.S(EmptyHole(ugen), E)),
-  ),
-);
-
-let tests = [
-  test_single_operand,
-  test_simple_add,
-  test_single_hole,
-  test_add_l_hole,
-  test_add_r_hole,
-];
-
-let rec eval_tests = (tests: list((string, seq))) => {
-  switch (tests) {
-  | [hd, ...tests'] =>
-    let (name, seq) = hd;
-    print_endline(name);
-    print_endline(string_of_bool(associate(seq) == associate(seq)));
-    print_newline();
-    eval_tests(tests');
-  | [] => print_endline("End tests")
-  };
-};
-
-eval_tests(tests);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
