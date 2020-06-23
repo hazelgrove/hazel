@@ -235,11 +235,11 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
-let get_mouse_position = evt => {
-  (
-    Js.Optdef.get(evt##.pageX, () => assert(false)),
-    Js.Optdef.get(evt##.pageY, () => assert(false)),
-  );
+let get_mouse_position = (evt): MousePosition.t => {
+  {
+    x: Js.Optdef.get(evt##.pageX, () => assert(false)),
+    y: Js.Optdef.get(evt##.pageY, () => assert(false)),
+  };
 };
 
 let element_from_point = (mouse_pos: MousePosition.t) => {

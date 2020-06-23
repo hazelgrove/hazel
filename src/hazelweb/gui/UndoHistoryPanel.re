@@ -1081,7 +1081,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ],
       )
     );
-    
+
   /* return option((group_id, elt_id)) */
   let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
     let elt: Js.t(Dom_html.divElement) =
@@ -1112,8 +1112,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Attr.id("history-body"),
               Attr.on_mousemove(evt => {
                 /* update mouse position */
-                let (x, y) = JSUtil.get_mouse_position(evt);
-                model.mouse_position := {x, y};
+                model.mouse_position := JSUtil.get_mouse_position(evt);
                 Vdom.Event.Many([inject(FocusCell)]);
               }),
               Attr.on("scroll", _ => {
