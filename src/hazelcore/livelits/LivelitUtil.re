@@ -12,8 +12,13 @@ let get_livelit_name_from_data =
   | FreeLivelitData(_, lln)
   | ApLivelitData(_, lln, _, _) => lln;
 
-let rec check_livelit' =
-        (~permit_free_livelit, ~permit_insufficient_params_hole, seq, skel) =>
+let rec check_livelit_skel =
+        (
+          ~permit_free_livelit=false,
+          ~permit_insufficient_params_hole=false,
+          seq,
+          skel,
+        ) =>
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (seq |> Seq.nth_operand(n)) {
@@ -33,7 +38,7 @@ let rec check_livelit' =
     | _ => None
     }
   | Skel.BinOp(NotInHole, Operators.Exp.Space, skel1, skel2) =>
-    check_livelit'(
+    check_livelit_skel(
       ~permit_free_livelit,
       ~permit_insufficient_params_hole,
       seq,
@@ -71,7 +76,7 @@ let check_livelit =
       seq,
       skel,
     ) =>
-  check_livelit'(
+  check_livelit_skel(
     ~permit_free_livelit,
     ~permit_insufficient_params_hole,
     seq,

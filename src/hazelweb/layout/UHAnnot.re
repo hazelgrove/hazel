@@ -26,12 +26,12 @@ type t =
   | LetLine
   | Step(int)
   | Term(term_data)
-  | LivelitName
   | LivelitView({
       llu: MetaVar.t,
       llname: LivelitName.t,
       shape: Livelits.LivelitView.shape,
       model: SerializedModel.t,
+      hd_step: int,
     })
 [@deriving sexp]
 and term_data = {
@@ -51,6 +51,7 @@ and term_shape =
   | Operand({err: ErrStatus.t})
   | FreeLivelit
   | ApLivelit
+  | LivelitExpression
   | BinOp({
       op_index: int,
       err: ErrStatus.t,

@@ -39,6 +39,7 @@ let shape_clss: UHAnnot.term_shape => list(cls) =
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | FreeLivelit => ["FreeLivelit"]
   | ApLivelit => ["ApLivelit"]
+  | LivelitExpression => ["LivelitExpression"]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];
@@ -180,10 +181,7 @@ let view =
             ),
           ]
 
-        | Annot(LivelitName, l) => [
-            Node.span([Attr.classes(["LivelitName"])], go(l)),
-          ]
-        | Annot(LivelitView({llu, llname, shape, model: m}), _) => {
+        | Annot(LivelitView({llu, llname, shape, model: m, _}), _) => {
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
             let (llview, _) =

@@ -825,7 +825,7 @@ h1 {
   font-weight: bold;
 }
 
-.LivelitName {
+.LivelitExpression {
   border-radius: 0;
   background-color: lightblue;
   display: inline-block;
@@ -1732,7 +1732,7 @@ h1 {
 .history-entry {
   border: 1px outset #ffffff;
   width: 100%;
-  display: grid; 
+  display: grid;
   padding: 5px;
   position: relative;
 }
@@ -1753,7 +1753,7 @@ h1 {
   margin-right:10px;
   font-size: 11px;
   padding:5px;
-  font-weight: bolder; 
+  font-weight: bolder;
   float: left;
 }
 .history-type-tag-typ{

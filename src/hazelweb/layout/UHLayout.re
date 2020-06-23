@@ -187,8 +187,7 @@ let find_and_decorate_caret =
                     ),
                )
              | EmptyLine
-             | Term(_)
-             | LivelitName => Skip
+             | Term(_) => Skip
              | _ => Stop
              }
            )
@@ -262,7 +261,10 @@ let find_and_decorate_Term =
              |> go(~steps=rest)
              |> OptUtil.map(Layout.annot(annot))
              |> QueryResult.of_opt
-           | LivelitView({llu, _}) =>
+           | LivelitView({llu, hd_step, _})
+               when hd_step == next_step && rest != [] =>
+             let next_step = List.hd(rest);
+             let rest = List.tl(rest);
              splice_ls^
              |> SpliceMap.get_splice(llu, next_step)
              |> go(~steps=rest)
@@ -272,7 +274,7 @@ let find_and_decorate_Term =
                     |> SpliceMap.put_splice(llu, next_step, new_splice_layout);
                   Layout.annot(annot, l);
                 })
-             |> QueryResult.of_opt
+             |> QueryResult.of_opt;
            | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
              found_term_if(hd_index == next_step, term_data)
            | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
@@ -283,7 +285,12 @@ let find_and_decorate_Term =
            | ClosedChild(_)
            | DelimGroup
            | LetLine
-           | Term({shape: ApLivelit | Operand(_) | Case(_) | Rule, _}) => Skip
+           | Term({
+               shape:
+                 LivelitExpression | ApLivelit | Operand(_) | Case(_) | Rule,
+               _,
+             }) =>
+             Skip
            | _ => Stop
            };
          })
