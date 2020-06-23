@@ -1084,10 +1084,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
     let elt: Js.t(Dom_html.divElement) =
-      JSUtil.element_from_point(
-        model.mouse_position^.x,
-        model.mouse_position^.y,
-      );
+      JSUtil.element_from_point(model.mouse_position^);
     switch (
       JSUtil.get_attr("group_id", elt),
       JSUtil.get_attr("elt_id", elt),

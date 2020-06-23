@@ -26,15 +26,6 @@ type measurements = {
   update_apply_action: bool,
 };
 
-/**
- * the coordinates of the mouse
- * relative to the left and top edges of the document
- */
-type coordinate = {
-  x: int,
-  y: int,
-};
-
 type t = {
   /**
    * all cardstacks along with current cardstack,
@@ -61,7 +52,7 @@ type t = {
    * Recording mouse_position can retrive elements under mouse
    * to realize preview when scrolling.
    */
-  mouse_position: ref(coordinate),
+  mouse_position: ref(MousePosition.t),
 };
 
 let cardstack_info: list(CardstackInfo.t);
