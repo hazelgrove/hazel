@@ -91,7 +91,6 @@ let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
 let builtin_subst = (d_in: DHExp.t): DHExp.t =>
   switch (d_in) {
   | BoundVar(x) =>
-    print_endline("was here");
     switch (BuiltinFunctions.lookup(x)) {
     | None => d_in //InvalidInput(1)
     | Some(ty) =>
@@ -118,7 +117,7 @@ let builtin_subst = (d_in: DHExp.t): DHExp.t =>
         )
       | _ => Lam(Var("x1"), ty, ApBuiltin(x, [BoundVar("x1")]))
       }
-    };
+    }
   | _ => d_in
   };
 
@@ -196,9 +195,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [] => Indet(ApBuiltin(x, l))
     | [a, ..._] =>
       switch (a) {
-      | StringLit(s) =>
-        print_endline("ESCAPED s=" ++ s);
-        BoxedValue(StringLit(String.escaped(s)));
+      | StringLit(s) => BoxedValue(StringLit(String.escaped(s)))
       | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
@@ -295,9 +292,7 @@ let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(x) => evaluate(builtin_subst(BoundVar(x)))
   | FailedAssert(d1) => Indet(d1)
-  | ApBuiltin(x, l) =>
-    print_endline("hit");
-    builtinfunctions_evaluate(x, l);
+  | ApBuiltin(x, l) => builtinfunctions_evaluate(x, l)
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -312,7 +307,6 @@ let rec evaluate = (d: DHExp.t): result =>
   | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
-    print_endline("EVALUATE AP Dynamics2202");
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
     | BoxedValue(Lam(dp, _, d3)) =>
@@ -321,16 +315,11 @@ let rec evaluate = (d: DHExp.t): result =>
       | BoxedValue(d2)
       | Indet(d2) =>
         switch (Elaborator_Exp.matches(dp, d2)) {
-        | DoesNotMatch =>
-          print_endline("Evaluator DoesNotMatch");
-          Indet(d);
-        | Indet =>
-          print_endline("Evaluator Indet");
-          Indet(d);
+        | DoesNotMatch => Indet(d)
+        | Indet => Indet(d)
         | Matches(env) =>
           /* beta rule */
-          print_endline("Evaluator Matches");
-          evaluate(Elaborator_Exp.subst(env, d3));
+          evaluate(Elaborator_Exp.subst(env, d3))
         }
       }
     | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
@@ -349,7 +338,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | BoxedValue(d2')
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
-    };
+    }
   | Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
