@@ -313,11 +313,11 @@ let associate = (seq: seq): skel => {
    */
   let rec go_seq =
           (
-            skels: list(skel), /* List of skels to be combined into single output skel */
-            op_stack: list(Operators_Exp.t), /* stack of operators */
-            seq: seq, /* convert this seq to output skel */
+            skels: list(skel), /* List of skels to be combined into single output skel. */
+            op_stack: list(Operators_Exp.t), /* Stack of operators. */
+            seq: seq, /* Convert this seq to output skel. */
             lex_addr: int,
-          ) /* lexical address of the current operand */
+          ) /* Lexical address of the current operand. */
           : skel => {
     switch (seq) {
     | S(_, affix) =>
@@ -327,8 +327,8 @@ let associate = (seq: seq): skel => {
       go_affix(
         [Skel.Placeholder(lex_addr), ...skels],
         op_stack,
-        affix, /* tail of seq without first operand */
-        lex_addr + 1 /* increment lexical address of operand in seq */
+        affix, /* Tail of seq without first operand. */
+        lex_addr + 1 /* Increment lexical address of operand in seq. */
       )
     };
   }
@@ -362,13 +362,12 @@ let associate = (seq: seq): skel => {
 
       let (skels', op_stack') = build_ast_while(skels, op_stack, should_mv);
 
-      /* Push this operator to the operator stack */
+      /* Push this operator to the operator stack. */
       go_seq(skels', [op, ...op_stack'], seq, lex_addr);
     | E =>
       /**
        * Once there are no more operands or operators, continuously pop
-       * 1 operator and 2 operands at a time to be combined into a single
-       * output skel.
+       * operators and operands and build up the output skel.
        */
       let (skels', _) = build_ast_while(skels, op_stack, _ => true);
       List.hd(skels');
@@ -377,20 +376,22 @@ let associate = (seq: seq): skel => {
   and build_ast_while =
       (skels: list(skel), op_stack: list(Operators_Exp.t), should_mv)
       : (list(skel), list(Operators_Exp.t)) => {
-    /* Move operators from the operator stack to the output skel list while */
+    /* Move operators from the operator stack to the output skel list while... */
     switch (op_stack) {
-    | [] => (skels, op_stack) /* (1) The operator stack is not empty */
+    | [] => (skels, op_stack) /* (1) The operator stack is not empty. */
     | [op, ...op_stack'] =>
-      /* (2)  The operator on the top of the stack has greater precedence than the current */
       if (should_mv(op)) {
+        /**  (2) The operator on the top of the stack has greater precedence than the current.
+         *       Note - This impl supports only binary operators.
+         */
         let rand_2 = List.hd(skels);
         let skels' = List.tl(skels);
         let rand_1 = List.hd(skels');
         let skels'' = List.tl(skels');
 
         /**
-         * Illustrative Example:
-         *
+         * Example -
+         * 
          * skels:
          * [Placeholder(0) Placeholder(1)]
          *
@@ -405,7 +406,7 @@ let associate = (seq: seq): skel => {
          * op_stack:
          * []
          *
-         * */
+         */
         build_ast_while(
           [Skel.BinOp(ErrStatus.NotInHole, op, rand_1, rand_2), ...skels''],
           op_stack',
