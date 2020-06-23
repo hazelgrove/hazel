@@ -1,6 +1,12 @@
 [@deriving sexp]
 type t =
   | DivideByZero
+  | IndexOutBound
+  | StrNotConvToInt
+  | StrNotConvToFloat
+  | StrNotConvToBool
+  | IntOutBound
+  | StrNotTerminate
   | StartOutBound
   | EndOutBound
   | StartEndOutBound

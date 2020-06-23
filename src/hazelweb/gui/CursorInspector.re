@@ -130,7 +130,6 @@ let view =
         )
       ),
     );
-
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
