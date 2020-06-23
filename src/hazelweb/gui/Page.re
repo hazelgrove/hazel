@@ -146,7 +146,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         [Attr.classes(["htype-view"])],
                         [
                           {
-                            let (_, ty, _) = program |> Program.get_edit_state;
+                            let (_, ty, _) = program.edit_state;
                             HTypCode.view(ty);
                           },
                         ],
