@@ -179,7 +179,7 @@ type t =
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | BoundVar(Var.t)
+  | BoundVar(Var.t) //elab for apbuiltin
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Lam(DHPat.t, HTyp.t, t)
@@ -187,6 +187,8 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | ApBuiltin(string, list(t))
+  | FailedAssert(t)
   | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -218,10 +220,11 @@ let constructor_string = (d: t): string =>
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Lam(_, _, _) => "Lam"
-  | Subscript(_, _, _) => "Subscript"
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
+  | ApBuiltin(_, _) => "ApBuiltin"
+  | Subscript(_, _, _) => "Subscript"
   | FloatLit(_) => "FloatLit"
   | StringLit(_) => "StringLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"
@@ -238,6 +241,7 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
+  | FailedAssert(_) => "FailedAssert"
   };
 
 let rec mk_tuple: list(t) => t =

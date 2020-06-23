@@ -37,6 +37,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Keyword(_)
   | BoolLit(_)
   | IntLit(_)
+  | ApBuiltin(_, _)
+  | FailedAssert(_)
   | FloatLit(_)
   | StringLit(_)
   | ListNil(_)
@@ -193,6 +195,7 @@ let rec mk =
       | FreeVar(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | BoundVar(x) => text(x)
+      | ApBuiltin(x, _) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)

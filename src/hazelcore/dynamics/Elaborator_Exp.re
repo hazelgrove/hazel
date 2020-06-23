@@ -1,3 +1,18 @@
+let rec builtin_subst =
+        (li: list(DHExp.t), d1: DHExp.t, x: Var.t): list(DHExp.t) =>
+  switch (li) {
+  | [a, ...asa] =>
+    switch (a) {
+    | BoundVar(s) =>
+      if (Var.eq(x, s)) {
+        [d1, ...asa];
+      } else {
+        [a, ...builtin_subst(asa, d1, x)];
+      }
+    | _ => [a, ...builtin_subst(asa, d1, x)]
+    }
+  | [] => []
+  };
 /* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
@@ -8,6 +23,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       d2;
     }
   | FreeVar(_) => d2
+  | ApBuiltin(z, y) => ApBuiltin(z, builtin_subst(y, d1, x))
+  | FailedAssert(_)
   | Keyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -43,9 +60,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d5 = subst_var(d1, x, d5);
     Subscript(d3, d4, d5);
   | BoolLit(_)
-  | StringLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Triv => d2
   | Cons(d3, d4) =>
@@ -158,9 +175,9 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, Ap(_, _)) => Indet
   | (_, Subscript(_, _, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
+  | (_, BinStrOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
-  | (_, BinStrOp(_, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -294,6 +311,8 @@ and matches_cast_Inj =
   | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
+  | ApBuiltin(_, _) => DoesNotMatch
+  | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
@@ -302,9 +321,9 @@ and matches_cast_Inj =
   | Subscript(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
-  | BinStrOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStrOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -356,6 +375,8 @@ and matches_cast_Pair =
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
+  | ApBuiltin(_, _) => DoesNotMatch
+  | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
@@ -364,13 +385,13 @@ and matches_cast_Pair =
   | Subscript(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
-  | BinStrOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStrOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
@@ -416,6 +437,8 @@ and matches_cast_Cons =
   | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
+  | ApBuiltin(_, _) => DoesNotMatch
+  | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
@@ -424,9 +447,9 @@ and matches_cast_Cons =
   | Subscript(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
-  | BinStrOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStrOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -444,8 +467,8 @@ and matches_cast_Cons =
   };
 
 type elab_result_lines =
-  | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
-  | LinesDoNotExpand;
+  | LinesElaboration(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesDoNotElaborate;
 
 module ElaborationResult = {
   type t =
@@ -489,8 +512,8 @@ and syn_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
-    | LinesExpand(prelude, ctx, delta) =>
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaboration(prelude, ctx, delta) =>
       switch (syn_elab_opseq(ctx, delta, conclusion)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -501,15 +524,15 @@ and syn_elab_lines =
     (ctx: Contexts.t, delta: Delta.t, lines: list(UHExp.line))
     : elab_result_lines =>
   switch (lines) {
-  | [] => LinesExpand(d => d, ctx, delta)
+  | [] => LinesElaboration(d => d, ctx, delta)
   | [line, ...lines] =>
     switch (syn_elab_line(ctx, delta, line)) {
-    | LinesDoNotExpand => LinesDoNotExpand
-    | LinesExpand(prelude_line, ctx, delta) =>
+    | LinesDoNotElaborate => LinesDoNotElaborate
+    | LinesElaboration(prelude_line, ctx, delta) =>
       switch (syn_elab_lines(ctx, delta, lines)) {
-      | LinesDoNotExpand => LinesDoNotExpand
-      | LinesExpand(prelude_lines, ctx, delta) =>
-        LinesExpand(d => prelude_line(prelude_lines(d)), ctx, delta)
+      | LinesDoNotElaborate => LinesDoNotElaborate
+      | LinesElaboration(prelude_lines, ctx, delta) =>
+        LinesElaboration(d => prelude_line(prelude_lines(d)), ctx, delta)
       }
     }
   }
@@ -518,12 +541,12 @@ and syn_elab_line =
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
-    | DoesNotElaborate => LinesDoNotExpand
+    | DoesNotElaborate => LinesDoNotElaborate
     | Elaborates(d1, _, delta) =>
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
-      LinesExpand(prelude, ctx, delta);
+      LinesElaboration(prelude, ctx, delta);
     }
-  | EmptyLine => LinesExpand(d => d, ctx, delta)
+  | EmptyLine => LinesElaboration(d => d, ctx, delta)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
@@ -531,7 +554,7 @@ and syn_elab_line =
       let (ctx1, is_recursive_fn) =
         Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
-      | DoesNotElaborate => LinesDoNotExpand
+      | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty1', delta) =>
         let d1 =
           switch (is_recursive_fn) {
@@ -545,21 +568,21 @@ and syn_elab_line =
           };
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
+        | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
+          LinesElaboration(prelude, ctx, delta);
         };
       };
     | None =>
       switch (syn_elab(ctx, delta, def)) {
-      | DoesNotElaborate => LinesDoNotExpand
+      | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty1, delta) =>
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
+        | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
+          LinesElaboration(prelude, ctx, delta);
         }
       }
     }
@@ -789,7 +812,9 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    } /* not in hole */
+    }
+
+  /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -799,9 +824,15 @@ and syn_elab_operand =
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x)) {
-    | Some(ty) => Elaborates(BoundVar(x), ty, delta)
-    | None => DoesNotElaborate
+    switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
+    | (Some(ty'), Some(ty)) =>
+      if (HTyp.is_Arrow(ty') == false) {
+        Elaborates(BoundVar(x), ty', delta);
+      } else {
+        Elaborates(BoundVar(x), ty, delta);
+      }
+    | (Some(ty), _) => Elaborates(BoundVar(x), ty, delta)
+    | (None, _) => DoesNotElaborate
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
@@ -814,6 +845,7 @@ and syn_elab_operand =
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);
+  // }
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, delta)
@@ -888,31 +920,33 @@ and syn_elab_operand =
       }
     }
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-    DoesNotElaborate /* let (_, palette_ctx) = ctx in
-   begin match (VarMap.lookup palette_ctx name) with
-   | Some palette_defn ->
-     let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
-     let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
-     let expansion = to_exp serialized_model in
-     let (_, hole_map) = hole_data in
-     (* bind each free variable in expansion by wrapping expansion
-      * in lambda, then apply lambda to args in hole data
-      *)
-     let bound_expansion :=
-         NatMap.fold hole_map
-           (fun bound entry ->
-             let (n, typ_exp) = entry in
-             let (htyp, hexp) = typ_exp in
-             let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-             let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-             let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
-             let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
-             UHExp.Tm NotInHole ap
-           )
-           expansion in
-     ana_elab_exp ctx bound_expansion expansion_ty
-   | None -> DoesNotElaborate
-   end */ /* TODO fix me */
+    DoesNotElaborate
+  /* TODO fix me */
+  /* let (_, palette_ctx) = ctx in
+     begin match (VarMap.lookup palette_ctx name) with
+     | Some palette_defn ->
+       let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
+       let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
+       let expansion = to_exp serialized_model in
+       let (_, hole_map) = hole_data in
+       (* bind each free variable in expansion by wrapping expansion
+        * in lambda, then apply lambda to args in hole data
+        *)
+       let bound_expansion :=
+           NatMap.fold hole_map
+             (fun bound entry ->
+               let (n, typ_exp) = entry in
+               let (htyp, hexp) = typ_exp in
+               let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
+               let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
+               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators.Exp.Space (UHExp.Parenthesized hexp_ann) in
+               let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
+               UHExp.Tm NotInHole ap
+             )
+             expansion in
+       ana_elab_exp ctx bound_expansion expansion_ty
+     | None -> DoesNotElaborate
+     end */
   }
 and syn_elab_rules =
     (
@@ -977,8 +1011,8 @@ and ana_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
-    | LinesExpand(prelude, ctx, delta) =>
+    | LinesDoNotElaborate => DoesNotElaborate
+    | LinesElaboration(prelude, ctx, delta) =>
       switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -1093,7 +1127,7 @@ and ana_elab_skel =
       seq: UHExp.seq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
   switch (skel) {
   | BinOp(_, Comma, _, _)
   | BinOp(InHole(WrongLength, _), _, _, _) =>
@@ -1141,9 +1175,9 @@ and ana_elab_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Caret |
       And |
       Or |
+      Caret |
       Space,
       _,
       _,
@@ -1157,10 +1191,11 @@ and ana_elab_skel =
         DoesNotElaborate;
       }
     }
-  }
+  };
+}
 and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -1198,7 +1233,8 @@ and ana_elab_operand =
       _,
     )
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Subscript(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | Subscript(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1215,6 +1251,7 @@ and ana_elab_operand =
       | Keyword(k) => Keyword(u, 0, sigma, k)
       };
     Elaborates(d, ty, delta);
+  // }
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
   | Lam(NotInHole, p, ann, body) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -1287,14 +1324,15 @@ and ana_elab_operand =
     }
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
-  | StringLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
+  | StringLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ApPalette(NotInHole, _, _, _)
   | Subscript(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
-  }
+  };
+}
 and ana_elab_rules =
     (
       ctx: Contexts.t,
@@ -1345,6 +1383,8 @@ let rec renumber_result_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
+  | ApBuiltin(_, _)
+  | FailedAssert(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -1452,6 +1492,8 @@ let rec renumber_sigmas_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
+  | ApBuiltin(_, _)
+  | FailedAssert(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
