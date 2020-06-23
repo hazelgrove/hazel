@@ -97,9 +97,7 @@ let move_via_key: (JSUtil.MoveKey.t, t) => t;
 let move_via_click: ((CursorMap.Row.t, CursorMap.Col.t), t) => t;
 
 /**
- * select_case_branch(steps, n, model) moves the cursor to the nth branch
- * in case expression found at steps (when the user clicks on a branch type
- * in the error message for a case expression with inconsistent branches)
+ * See `Program.move_to_case_branch`
  */
 let select_case_branch: (CursorPath_common.steps, int, t) => t;
 
