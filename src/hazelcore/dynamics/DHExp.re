@@ -187,7 +187,6 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
-  | BuiltInLit(string)
   | ApBuiltin(string, list(t))
   | FailedAssert(t)
   | StringLit(string)
@@ -224,7 +223,6 @@ let constructor_string = (d: t): string =>
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
-  | BuiltInLit(_) => "BuiltInLit"
   | ApBuiltin(_, _) => "ApBuiltin"
   | Subscript(_, _, _) => "Subscript"
   | FloatLit(_) => "FloatLit"
