@@ -366,8 +366,8 @@ let associate = (seq: seq): skel => {
       go_seq(skels', [op, ...op_stack'], seq, lex_addr);
     | E =>
       /**
-       * Once there are no more operands or operators, continuously pop
-       * operators and operands and build up the output skel.
+       * Once the input seq is empty, continuously pop
+       * operators in the stack and build up the output skel.
        */
       let (skels', _) = build_ast_while(skels, op_stack, _ => true);
       List.hd(skels');
@@ -391,7 +391,7 @@ let associate = (seq: seq): skel => {
 
         /**
          * Example -
-         * 
+         *
          * skels:
          * [Placeholder(0) Placeholder(1)]
          *
