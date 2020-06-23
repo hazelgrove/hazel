@@ -1084,7 +1084,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
     let elt: Js.t(Dom_html.divElement) =
-      JSUtil.unsafe_get_elt_by_coordinate(
+      JSUtil.element_from_point(
         model.mouse_position^.x,
         model.mouse_position^.y,
       );
