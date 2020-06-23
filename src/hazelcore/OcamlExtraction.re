@@ -34,10 +34,11 @@ module Pat = {
     | BoolLit(b) => string_of_bool(b)
     | Inj(_side, t) => extract(~dp=t)
     | ListNil => "[]"
-    | Cons(a, b) => extract(~dp=a) ++ "::" ++ extract(~dp=b)
-    | Pair(a, b) => "(" ++ extract(~dp=a) ++ ", " ++ extract(~dp=b) ++ ")"
-    | Triv => "()" //TODO:
-    | Ap(_, _) => failwith("Pat: Apply Palette")
+    | Cons(dp1, dp2) => extract(~dp=dp1) ++ "::" ++ extract(~dp=dp2)
+    | Pair(dp1, dp2) =>
+      "(" ++ extract(~dp=dp1) ++ ", " ++ extract(~dp=dp2) ++ ")"
+    | Triv => "()"
+    | Ap(dp1, dp2) => extract(~dp=dp1) ++ " " ++ extract(~dp=dp2)
     };
   };
 };
@@ -125,18 +126,31 @@ module Exp = {
         let ctx' = Contexts.extend_gamma(ctx, (x, ht));
         let ocaml_de = extract(~ctx=ctx', ~de);
         (
-          "fun "
+          "(fun ("
           ++ ocaml_dp
           ++ " : "
           ++ ocaml_ht
-          ++ " -> ("
+          ++ ") -> ("
           ++ fst(ocaml_de)
-          ++ ")",
-          snd(ocaml_de),
+          ++ "))",
+          Arrow(ht, snd(ocaml_de)),
         );
       | _ => failwith("Exp: Lambda not variable")
       }
-    | Ap(_) => failwith("Exp: Apply Palette")
+    | Ap(de1, de2) =>
+      //apply
+      let ocaml_de1 = extract(~ctx, ~de=de1);
+      let ocaml_de2 = extract(~ctx, ~de=de2);
+      switch (snd(ocaml_de1)) {
+      | Arrow(t1, t2) =>
+        // Hole -> some type should be ok
+        if (t1 == snd(ocaml_de2) || t1 == Hole) {
+          (fst(ocaml_de1) ++ " " ++ fst(ocaml_de2), t2);
+        } else {
+          failwith("Exp: Apply, type inconsistent");
+        }
+      | _ => failwith("Exp: Apply, not an Arrow type")
+      };
     | BoolLit(bool) => (string_of_bool(bool), Bool)
     | IntLit(int) => (string_of_int(int), Int)
     | FloatLit(float) => (string_of_float(float), Float)
@@ -240,12 +254,13 @@ module Exp = {
         let ocaml_de = extract(~ctx, ~de);
         let ocaml_rules = rules_extract(~ctx, ~rules);
         let str =
-          "(match ("
+          "((match ("
           ++ fst(ocaml_de)
           ++ ") with \n"
           ++ fst(ocaml_rules)
           ++ ") : "
-          ++ Typ.extract(~t=snd(ocaml_rules));
+          ++ Typ.extract(~t=snd(ocaml_rules))
+          ++ ")";
         (str, snd(ocaml_rules));
       }
     // inconsistbranches is a case have inconsistent types
@@ -264,7 +279,7 @@ module Exp = {
       let head = rule_extract(~ctx, ~rule=h);
       let tail = rules_extract(~ctx, ~rules=t);
       if (snd(head) == snd(tail)) {
-        (fst(head) ++ "\n" ++ "fst(tail)", snd(head));
+        (fst(head) ++ "\n" ++ fst(tail), snd(head));
       } else {
         failwith("Exp: Case rules with inconsistent results");
       };
