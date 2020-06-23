@@ -242,11 +242,11 @@ let get_mouse_position = evt => {
   );
 };
 
-let element_from_point = (x: int, y: int) => {
+let element_from_point = (mouse_pos: MousePosition.t) => {
   Js.Unsafe.meth_call(
     Dom_html.document,
     "elementFromPoint",
-    [|Js.Unsafe.inject(x), Js.Unsafe.inject(y)|],
+    [|Js.Unsafe.inject(mouse_pos.x), Js.Unsafe.inject(mouse_pos.y)|],
   );
 };
 
