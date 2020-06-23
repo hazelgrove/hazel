@@ -1294,17 +1294,24 @@ and syn_perform_opseq =
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
+    print_endline("Action1297");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
     ) {
-    | None => Failed
+    | None =>
+      print_endline("Action1303");
+      Failed;
     | Some(Syn) =>
       switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
-      | None => Failed
+      | None =>
+        print_endline("Action1308");
+        Failed;
       | Some(ty_zoperand) =>
         switch (syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))) {
-        | Failed => Failed
+        | Failed =>
+          print_endline("Action1313");
+          Failed;
         | CursorEscaped(side) =>
           syn_perform_opseq(
             ctx,
@@ -1343,7 +1350,9 @@ and syn_perform_opseq =
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("Action1354");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,
