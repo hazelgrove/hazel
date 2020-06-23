@@ -23,12 +23,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       d2;
     }
   | FreeVar(_) => d2
-  | BuiltInLit(y) =>
-    if (Var.eq(x, y)) {
-      d1;
-    } else {
-      d2;
-    }
   | ApBuiltin(z, y) => ApBuiltin(z, builtin_subst(y, d1, x))
   | FailedAssert(_)
   | Keyword(_) => d2
@@ -317,7 +311,6 @@ and matches_cast_Inj =
   | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | BuiltInLit(_) => DoesNotMatch
   | ApBuiltin(_, _) => DoesNotMatch
   | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -382,7 +375,6 @@ and matches_cast_Pair =
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | BuiltInLit(_) => DoesNotMatch
   | ApBuiltin(_, _) => DoesNotMatch
   | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -445,7 +437,6 @@ and matches_cast_Cons =
   | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | BuiltInLit(_) => DoesNotMatch
   | ApBuiltin(_, _) => DoesNotMatch
   | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
@@ -858,33 +849,11 @@ and syn_elab_operand =
     };*/
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
-    | (Some(ty'), Some(ty)) =>
-      print_endline("Dynamics1280");
-      /* if (List.mem(x, BuiltinFunctions.shadowing_var) == true) { */
-      if (HTyp.is_Arrow(ty') == false) {
-        print_endline("Dynamics1282");
-        Elaborates(BoundVar(x), ty', delta);
-      } else {
-        /* TODO: fix this with self-defined functions */
-        Elaborates(
-          BoundVar(x),
-          ty,
-          delta,
-        );
-      };
-    /* } else {
-          Elaborates(BuiltInLit(x), ty, delta);
-       } */
-    | (Some(ty), _) =>
-      print_endline("Dynamics1295");
-      Elaborates(BoundVar(x), ty, delta);
-    | (None, _) => DoesNotElaborate
+    switch (VarMap.lookup(gamma, x)) {
+    | Some(ty) => Elaborates(BoundVar(x), ty, delta)
+    | None => DoesNotElaborate
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
-    // switch (BuiltinFunctions.builtinlookup(x)) {
-    // | Some(ty) => Elaborates(BuiltInLit(x), ty, delta)
-    // | None =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let delta =
@@ -895,7 +864,6 @@ and syn_elab_operand =
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);
-  // }
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, delta)
@@ -1436,7 +1404,6 @@ let rec renumber_result_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
-  | BuiltInLit(_)
   | ApBuiltin(_, _)
   | FailedAssert(_)
   | BoolLit(_)
@@ -1546,7 +1513,6 @@ let rec renumber_sigmas_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
-  | BuiltInLit(_)
   | ApBuiltin(_, _)
   | FailedAssert(_)
   | BoolLit(_)
