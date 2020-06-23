@@ -45,6 +45,14 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  /**
+   * Preview on undo history entry mainly implemented by
+   * on_mouseenter/leave will not work when scrolling
+   * because mouse pointer stay still.
+   * Recording mouse_position can retrive elements under mouse
+   * to realize preview when scrolling.
+   */
+  mouse_position: ref(MousePosition.t),
 };
 
 let cardstack_info: list(CardstackInfo.t);

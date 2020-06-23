@@ -235,22 +235,18 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
-let update_mouse_position = evt => {
-  State.mouse_position :=
-    {
-      x: Js.Optdef.get(evt##.pageX, () => assert(false)),
-      y: Js.Optdef.get(evt##.pageY, () => assert(false)),
-    };
+let get_mouse_position = (evt): MousePosition.t => {
+  {
+    x: Js.Optdef.get(evt##.pageX, () => assert(false)),
+    y: Js.Optdef.get(evt##.pageY, () => assert(false)),
+  };
 };
 
-let unsafe_get_elt_under_mouse = () => {
+let element_from_point = (mouse_pos: MousePosition.t) => {
   Js.Unsafe.meth_call(
     Dom_html.document,
     "elementFromPoint",
-    [|
-      Js.Unsafe.inject(State.mouse_position^.x),
-      Js.Unsafe.inject(State.mouse_position^.y),
-    |],
+    [|Js.Unsafe.inject(mouse_pos.x), Js.Unsafe.inject(mouse_pos.y)|],
   );
 };
 
