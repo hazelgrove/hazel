@@ -194,6 +194,7 @@ html, body {
   display: grid;
   grid-template-rows: 1fr auto;
   padding-top: 7px;
+  cursor: pointer;
 }
 
 .sidebar-tab {
@@ -217,7 +218,7 @@ html, body {
   display: block; /* MUST do this: inline elements have in-built vertical margins */
   font-family: var(--code-font-family);
   font-size: 16px;
-  cursor: default;
+  cursor: pointer;
 }
 
 .sidebar-body-slider {
@@ -232,6 +233,10 @@ html, body {
 
 #slidable-right-bar-body {
   padding-right: 7px;
+}
+
+#right-bar-body {
+  cursor: default;
 }
 
 .sidebar-body {

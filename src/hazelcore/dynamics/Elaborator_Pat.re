@@ -42,7 +42,7 @@ and syn_elab_skel =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
+        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
@@ -116,7 +116,7 @@ and syn_elab_operand =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
+        MetaVarMap.add(u, (Delta.PatternHole, HTyp.Hole, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
@@ -130,8 +130,7 @@ and syn_elab_operand =
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
     let ty = HTyp.Hole;
-    let delta =
-      MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+    let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | InvalidText(t) => Elaborates(InvalidText(t), Hole, ctx, delta)
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
@@ -251,7 +250,7 @@ and ana_elab_opseq =
         | Elaborates(dp, _, _, delta) =>
           let gamma = ctx |> Contexts.gamma;
           let delta =
-            MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+            MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
           Elaborates(NonEmptyHole(reason, u, 0, dp), ty, ctx, delta);
         }
       };
@@ -282,8 +281,7 @@ and ana_elab_skel =
     | Elaborates(dp1, _, ctx, delta) =>
       let dp = DHPat.NonEmptyHole(reason, u, 0, dp1);
       let gamma = Contexts.gamma(ctx);
-      let delta =
-        MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+      let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
       Elaborates(dp, ty, ctx, delta);
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
@@ -331,8 +329,7 @@ and ana_elab_operand =
     | Elaborates(dp1, _, ctx, delta) =>
       let dp = DHPat.NonEmptyHole(reason, u, 0, dp1);
       let gamma = Contexts.gamma(ctx);
-      let delta =
-        MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+      let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
       Elaborates(dp, ty, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
@@ -345,8 +342,7 @@ and ana_elab_operand =
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
-    let delta =
-      MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+    let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
