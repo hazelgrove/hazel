@@ -37,7 +37,7 @@ let has_next = (cardstack: t): bool => {
 };
 
 let prev_card = (cardstack: t): t => {
-  let width = cardstack |> get_program |> Program.get_width;
+  let width = get_program(cardstack).width;
   switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> ZList.shift_prev) {
   | None => cardstack
   | Some(shifted) => {
@@ -47,7 +47,7 @@ let prev_card = (cardstack: t): t => {
   };
 };
 let next_card = (cardstack: t): t => {
-  let width = cardstack |> get_program |> Program.get_width;
+  let width = get_program(cardstack).width;
   switch (cardstack.zcards |> ZList.map_z(ZCard.erase) |> ZList.shift_next) {
   | None => cardstack
   | Some(shifted) => {
