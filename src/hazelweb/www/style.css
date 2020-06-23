@@ -362,6 +362,7 @@ html, body {
   display: flex;
   align-items: center;
   min-height: 38px;
+  padding: 5px;
 }
 
 .cursor-OK .typebar, .cursor-OK .infobar {
