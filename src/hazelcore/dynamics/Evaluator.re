@@ -288,7 +288,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       }
     | _ => BoxedValue(Triv)
     }
-  | _ => Indet(ApBuiltin(x, l))
+  | _ => failwith("impossible")
   };
 
 let rec evaluate = (d: DHExp.t): result =>
@@ -315,22 +315,6 @@ let rec evaluate = (d: DHExp.t): result =>
     print_endline("EVALUATE AP Dynamics2202");
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
-    /*| BoxedValue(BuiltInLit(v)) =>
-      switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(d2') =>
-        print_endline("Eva174");
-        builtinfunctions_evaluate(v, d2');
-      | Indet(d2) =>
-        print_endline("Eva177");
-        switch (d2) {
-        /* int overflow */
-        | Cast(NonEmptyHole(_, _, _, _, FloatLit(n)), _, Int)
-            when Float.is_integer(n) =>
-          Indet(InvalidOperation(Ap(d1, d2), IntOutBound))
-        | _ => Indet(Ap(d1, d2))
-        };
-      }*/
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -366,71 +350,6 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     };
-  /*| Subscript(d1, d2, d3) =>
-    switch (evaluate(d1)) {
-    | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(StringLit(s1) as s1') =>
-      switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(IntLit(n1) as n1') =>
-        switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(IntLit(n2) as n2') =>
-          let len = String.length(s1);
-          if (n1 >= (-1) * len && n1 <= len && n2 >= (-1) * len && n2 <= len) {
-            let n1' =
-              if (n1 < 0) {
-                n1 + len;
-              } else {
-                n1;
-              };
-            let n2' =
-              if (n2 < 0) {
-                n2 + len;
-              } else {
-                n2;
-              };
-            BoxedValue(StringLit(String.sub(s1, n1', max(0, n2' - n1'))));
-          } else {
-            Indet(
-              InvalidOperation(Subscript(s1', n1', n2'), IndexOutBound),
-            );
-          };
-        | BoxedValue(_) => InvalidInput(3)
-        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-        }
-      | BoxedValue(_) => InvalidInput(4)
-      | Indet(n1') =>
-        switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(n2')
-        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-        }
-      }
-    | BoxedValue(s1') =>
-      switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(n1')
-      | Indet(n1') =>
-        switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(n2')
-        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-        }
-      }
-
-    | Indet(s1') =>
-      switch (evaluate(d2)) {
-      | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(n1')
-      | Indet(n1') =>
-        switch (evaluate(d3)) {
-        | InvalidInput(msg) => InvalidInput(msg)
-        | BoxedValue(n2')
-        | Indet(n2') => Indet(Subscript(s1', n1', n2'))
-        }
-      }
-    }*/
   | Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -508,7 +427,6 @@ let rec evaluate = (d: DHExp.t): result =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | BuiltInLit(_)
   | Triv => BoxedValue(d)
   | StringLit(s) =>
     let (_, err) = StringUtil.find_and_replace("", s, "OK");

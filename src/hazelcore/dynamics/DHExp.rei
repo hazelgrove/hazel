@@ -72,7 +72,6 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
-  | BuiltInLit(string)
   | ApBuiltin(string, list(t))
   | FailedAssert(t)
   | StringLit(string)
