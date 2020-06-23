@@ -1105,8 +1105,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let get_elt_id_under_mouse = _: option((int, int)) => {
-    let elt: Js.t(Dom_html.divElement) = JSUtil.unsafe_get_elt_under_mouse();
+  /* return option((group_id, elt_id)) */
+  let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
+    let elt: Js.t(Dom_html.divElement) =
+      JSUtil.element_from_point(model.mouse_position^);
     switch (
       JSUtil.get_attr("group_id", elt),
       JSUtil.get_attr("elt_id", elt),
@@ -1132,14 +1134,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Attr.classes(["panel-body", "context-inspector-body"]),
               Attr.id("history-body"),
               Attr.on_mousemove(evt => {
-                JSUtil.update_mouse_position(evt);
+                /* update mouse position */
+                model.mouse_position := JSUtil.get_mouse_position(evt);
                 Vdom.Event.Many([inject(FocusCell)]);
               }),
               Attr.on("scroll", _ => {
                 /* on_mouseenter/on_mouseleave will not be fired when scrolling,
                    so we get the history entry under the mouse
                    and shift to this entry manually  */
-                switch (get_elt_id_under_mouse()) {
+                switch (get_elt_id_under_mouse(model)) {
                 | Some((group_id, elt_id)) =>
                   Vdom.Event.Many([
                     inject(
