@@ -822,31 +822,6 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  /*| Var(NotInHole, NotInVarHole, x) =>
-    let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
-    | (Some(ty'), Some(ty)) =>
-      print_endline("Dynamics1280");
-      /* if (List.mem(x, BuiltinFunctions.shadowing_var) == true) { */
-      if (HTyp.is_Arrow(ty') == false) {
-        print_endline("Dynamics1282");
-        Elaborates(BoundVar(x), ty', delta);
-      } else {
-        /* TODO: fix this with self-defined functions */
-        Elaborates(
-          ApBuiltin(x, [Triv]),
-          ty,
-          delta,
-        );
-      };
-    /* } else {
-          Elaborates(BuiltInLit(x), ty, delta);
-       } */
-    | (Some(ty), _) =>
-      print_endline("Dynamics1295");
-      Elaborates(BoundVar(x), ty, delta);
-    | (None, _) => DoesNotElaborate
-    };*/
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -1260,9 +1235,6 @@ and ana_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, InVarHole(reason, u), x) =>
-    // switch (BuiltinFunctions.builtinlookup(x)) {
-    // | Some(ty) => Elaborates(BuiltInLit(x), ty, delta)
-    // | None =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);

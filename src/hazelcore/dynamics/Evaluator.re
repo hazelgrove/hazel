@@ -287,7 +287,7 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       }
     | _ => BoxedValue(Triv)
     }
-  | _ => Indet(ApBuiltin(x, l))
+  | _ => failwith("impossible")
   };
 
 let rec evaluate = (d: DHExp.t): result =>
