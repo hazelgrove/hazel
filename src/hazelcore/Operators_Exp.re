@@ -58,25 +58,25 @@ let is_Space =
 
 let precedence =
   fun
-  | Plus => 1
-  | Minus => 1
-  | Times => 2
-  | Divide => 2
-  | FPlus => 1
-  | FMinus => 1
-  | FTimes => 2
-  | FDivide => 2
-  | LessThan => 5
-  | GreaterThan => 5
-  | Equals => 5
-  | FLessThan => 5
-  | FGreaterThan => 5
-  | FEquals => 5
   | Comma => 0
-  | Cons => 0
-  | And => 3
-  | Or => 3
-  | Space => 0;
+  | LessThan => 1
+  | GreaterThan => 1
+  | Equals => 1
+  | FLessThan => 1
+  | FGreaterThan => 1
+  | FEquals => 1
+  | Cons => 2
+  | Plus => 3
+  | Minus => 3
+  | FPlus => 3
+  | FMinus => 3
+  | And => 4
+  | Or => 4
+  | Times => 5
+  | Divide => 5
+  | FTimes => 5
+  | FDivide => 5
+  | Space => 6;
 
 type associativity =
   | Left

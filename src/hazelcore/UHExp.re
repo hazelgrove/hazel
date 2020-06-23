@@ -306,21 +306,29 @@ let text_operand =
   };
 
 let associate = (seq: seq): skel => {
+  /**
+   * Shunting-yard opp algorithm according to the specification here
+   * https://en.wikipedia.org/wiki/Shunting-yard_algorithm#The_algorithm_in_detail
+   *
+   */
   let rec go_seq =
           (
-            skels: list(skel),
-            op_stack: list(Operators_Exp.t),
-            seq: seq,
+            skels: list(skel), /* List of skels to be combined into single output skel */
+            op_stack: list(Operators_Exp.t), /* stack of operators */
+            seq: seq, /* convert this seq to output skel */
             lex_addr: int,
-          )
-          : Skel.t(Operators_Exp.t) => {
+          ) /* lexical address of the current operand */
+          : skel => {
     switch (seq) {
-    | S(_, seq') =>
+    | S(_, affix) =>
+      /**
+       * If the next token is an operand, add a new operand to the output skel.
+       */
       go_affix(
         [Skel.Placeholder(lex_addr), ...skels],
         op_stack,
-        seq',
-        lex_addr + 1,
+        affix, /* tail of seq without first operand */
+        lex_addr + 1 /* increment lexical address of operand in seq */
       )
     };
   }
@@ -331,39 +339,74 @@ let associate = (seq: seq): skel => {
         affix: affix,
         lex_addr: int,
       )
-      : Skel.t(Operators_Exp.t) => {
+      : skel => {
     switch (affix) {
-    | A(rator, seq') =>
-      let should_mv = op' => {
-        switch (Operators_Exp.associativity(op')) {
-        | Left =>
-          Operators_Exp.precedence(rator) <= Operators_Exp.precedence(op')
-        | Right =>
-          Operators_Exp.precedence(rator) < Operators_Exp.precedence(op')
+    | A(op, seq) =>
+      /**
+       * If the next token is an operator, pop operators from the operator stack,
+       * then push this operator to the operator stack.
+       */
+      let should_mv = op' =>
+        /**
+         * Continue popping operators while the precedence of the top of the operator
+         * stack has greater precedence than the current operator.
+         */
+        {
+          switch (Operators_Exp.associativity(op')) {
+          | Left =>
+            Operators_Exp.precedence(op) <= Operators_Exp.precedence(op')
+          | Right =>
+            Operators_Exp.precedence(op) < Operators_Exp.precedence(op')
+          };
         };
-      };
 
-      let (skels', op_stack') = mv_while(skels, op_stack, should_mv);
+      let (skels', op_stack') = build_ast_while(skels, op_stack, should_mv);
 
-      go_seq(skels', [rator, ...op_stack'], seq', lex_addr);
+      /* Push this operator to the operator stack */
+      go_seq(skels', [op, ...op_stack'], seq, lex_addr);
     | E =>
-      let (skels', _) = mv_while(skels, op_stack, _ => true);
+      /**
+       * Once there are no more operands or operators, continuously pop
+       * 1 operator and 2 operands at a time to be combined into a single
+       * output skel.
+       */
+      let (skels', _) = build_ast_while(skels, op_stack, _ => true);
       List.hd(skels');
     };
   }
-  and mv_while =
+  and build_ast_while =
       (skels: list(skel), op_stack: list(Operators_Exp.t), should_mv)
       : (list(skel), list(Operators_Exp.t)) => {
+    /* Move operators from the operator stack to the output skel list while */
     switch (op_stack) {
-    | [] => (skels, op_stack)
+    | [] => (skels, op_stack) /* (1) The operator stack is not empty */
     | [op, ...op_stack'] =>
+      /* (2)  The operator on the top of the stack has greater precedence than the current */
       if (should_mv(op)) {
         let rand_2 = List.hd(skels);
         let skels' = List.tl(skels);
         let rand_1 = List.hd(skels');
         let skels'' = List.tl(skels');
 
-        mv_while(
+        /**
+         * Illustrative Example:
+         *
+         * skels:
+         * [Placeholder(0) Placeholder(1)]
+         *
+         * op_stack:
+         * [Plus]
+         *
+         * -->
+         *
+         * skels:
+         * [BinOp(_, Plus, Placeholder(1), Placeholder(0))]
+         *
+         * op_stack:
+         * []
+         *
+         * */
+        build_ast_while(
           [Skel.BinOp(ErrStatus.NotInHole, op, rand_1, rand_2), ...skels''],
           op_stack',
           should_mv,
