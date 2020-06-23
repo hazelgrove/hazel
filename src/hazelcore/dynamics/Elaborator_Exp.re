@@ -826,22 +826,12 @@ and syn_elab_operand =
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
     | (Some(ty'), Some(ty)) =>
-      print_endline("Dynamics1280");
-      /* if (List.mem(x, BuiltinFunctions.shadowing_var) == true) { */
       if (HTyp.is_Arrow(ty') == false) {
-        print_endline("Dynamics1282");
         Elaborates(BoundVar(x), ty', delta);
       } else {
-        /* TODO: fix this with self-defined functions */
-        Elaborates(
-          BoundVar(x),
-          ty,
-          delta,
-        );
-      };
-    | (Some(ty), _) =>
-      print_endline("Dynamics1295");
-      Elaborates(BoundVar(x), ty, delta);
+        Elaborates(BoundVar(x), ty, delta);
+      }
+    | (Some(ty), _) => Elaborates(BoundVar(x), ty, delta)
     | (None, _) => DoesNotElaborate
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
