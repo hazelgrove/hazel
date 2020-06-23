@@ -397,8 +397,15 @@ let associate = (seq: seq): skel => {
       : Skel.t(Operators_Exp.t) => {
     switch (affix) {
     | A(rator, seq') =>
-      let should_mv = op' =>
-        Operators_Exp.precedence(rator) <= Operators_Exp.precedence(op');
+      let should_mv = op' => {
+        switch (Operators_Exp.associativity(op')) {
+        | Left =>
+          Operators_Exp.precedence(rator) <= Operators_Exp.precedence(op')
+        | Right =>
+          Operators_Exp.precedence(rator) < Operators_Exp.precedence(op')
+        };
+      };
+
       let (skels', op_stack') = mv_while(skels, op_stack, should_mv);
 
       go_seq(skels', [rator, ...op_stack'], seq', lex_addr);

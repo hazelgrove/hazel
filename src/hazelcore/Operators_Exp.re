@@ -77,3 +77,12 @@ let precedence =
   | And => 3
   | Or => 3
   | Space => 0;
+
+type associativity =
+  | Left
+  | Right;
+
+let associativity =
+  fun
+  | Cons => Right
+  | _ => Left;
