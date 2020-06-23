@@ -826,7 +826,7 @@ h1 {
   position: relative;
 }
 .code.presentation .ValidSeq {
-  color: blue;
+  color: #409fa0;
 }
 .code.presentation .InvalidSeq {
   --err-hole-color: red;
