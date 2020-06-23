@@ -305,28 +305,12 @@ let text_operand =
     );
   };
 
-let rec print_seq = (seq: seq) => {
-  switch (seq) {
-  | S(IntLit(_, hd), E) => print_endline(hd)
-  | S(IntLit(_, hd), A(op, seq)) =>
-    print_string(hd ++ " " ++ Operators_Exp.to_string(op) ++ " ");
-    print_seq(seq);
-  | _ => print_newline()
-  };
-};
-
-// let rec print_skel = (skel: skel) => {
-//   switch (skel) {
-//   | BinOp(_, op, Placeholder(m), Placeholder(n)) =>
-//     print_endline(
-//       Operators_Exp.to_string(op) ++ string_of_int(m) ++ string_of_int(n),
-//     )
-//   | BinOp(_, op, skel', Placeholder(n)) =>
-//     print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
-//     print_skel(skel');
-//   | BinOp(_, op, Placeholder(n), skel') =>
-//     print_endline(Operators_Exp.to_string(op) ++ string_of_int(n));
-//     print_skel(skel');
+// let rec print_seq = (seq: seq) => {
+//   switch (seq) {
+//   | S(IntLit(_, hd), E) => print_endline(hd)
+//   | S(IntLit(_, hd), A(op, seq)) =>
+//     print_string(hd ++ " " ++ Operators_Exp.to_string(op) ++ " ");
+//     print_seq(seq);
 //   | _ => print_newline()
 //   };
 // };
@@ -384,13 +368,7 @@ let rec print_seq = (seq: seq) => {
        BinOp(_, Plus, BinOp(_, Times, Skel.Placeholder(0), Skel.Placeholder(1)), Placeholder(2))
    */
 
-let associate = (seq: seq): Skel.t(Operators_Exp.t) => {
-  /**
-   * Write two mutually recursive functions that bounce back and forth as
-   * you get seq and affix.
-   */
-  print_seq(seq);
-  print_endline("associate called");
+let associate = (seq: seq): skel => {
   let rec go_seq =
           (
             skels: list(skel),
