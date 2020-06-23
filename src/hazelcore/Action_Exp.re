@@ -303,7 +303,8 @@ let mk_syn_text =
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
     } else {
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.invalidtext(t)));
+      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
     }
   | IntLit(n) =>
@@ -360,7 +361,7 @@ let mk_ana_text =
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
     } else {
-      let it = UHExp.invalidtext(t);
+      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
       Succeeded(AnaDone((ze, u_gen)));
     }
@@ -1366,7 +1367,7 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_),
       ) |
       CursorE(
@@ -1422,7 +1423,7 @@ and syn_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(zhole);
     Succeeded(SynDone((new_ze, Hole, u_gen)));
 
-  | (Delete, CursorE(OnText(j), InvalidText(t))) =>
+  | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
@@ -1432,7 +1433,7 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
-  | (Backspace, CursorE(OnText(j), InvalidText(t))) =>
+  | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
@@ -1488,7 +1489,7 @@ and syn_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
-  | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(t)))
+  | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
@@ -1546,7 +1547,7 @@ and syn_perform_operand =
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
-  | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(t))) =>
+  | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
@@ -2760,7 +2761,7 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_),
       ) |
       CursorE(
@@ -2856,7 +2857,7 @@ and ana_perform_operand =
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
 
-  | (Delete, CursorE(OnText(j), InvalidText(t))) =>
+  | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
@@ -2867,7 +2868,7 @@ and ana_perform_operand =
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
-  | (Backspace, CursorE(OnText(j), InvalidText(t))) =>
+  | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -2921,7 +2922,7 @@ and ana_perform_operand =
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
-  | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(t))) =>
+  | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
@@ -2944,7 +2945,7 @@ and ana_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
-  | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(t)))
+  | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>

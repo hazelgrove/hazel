@@ -166,7 +166,7 @@ and mk_operand =
       (
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
-        | InvalidText(t) => mk_InvalidText(t)
+        | InvalidText(_, t) => mk_InvalidText(t)
         | Var(err, verr, x) => mk_Var(~err, ~verr, x)
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)

@@ -9,7 +9,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
-  | InvalidText(string)
+  | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -28,8 +28,6 @@ let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
 let wild: (~err: ErrStatus.t=?, unit) => operand;
 
-let invalidtext: string => operand;
-
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let intlit: (~err: ErrStatus.t=?, string) => operand;
@@ -41,6 +39,8 @@ let listnil: (~err: ErrStatus.t=?, unit) => operand;
 let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
+
+let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);

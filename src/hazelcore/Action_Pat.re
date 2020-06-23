@@ -67,7 +67,8 @@ let mk_syn_text =
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
     } else {
-      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.invalidtext(t)));
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
     }
   | Underscore =>
@@ -114,7 +115,7 @@ let mk_ana_text =
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
     } else {
-      let it = UHPat.invalidtext(t);
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
       Succeeded((zp, ctx, u_gen));
     }
@@ -558,7 +559,7 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -614,7 +615,7 @@ and syn_perform_operand =
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
 
-  | (Delete, CursorP(OnText(j), InvalidText(t))) =>
+  | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
@@ -625,7 +626,7 @@ and syn_perform_operand =
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
-  | (Backspace, CursorP(OnText(j), InvalidText(t))) =>
+  | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
@@ -663,7 +664,7 @@ and syn_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
-  | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(t)))
+  | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(_, t)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
@@ -698,7 +699,7 @@ and syn_perform_operand =
       | After => 1
       };
     syn_insert_text(ctx, u_gen, (index, s), "_");
-  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(t))) =>
+  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
@@ -980,7 +981,7 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -1062,7 +1063,7 @@ and ana_perform_operand =
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, ctx, u_gen));
 
-  | (Delete, CursorP(OnText(j), InvalidText(t))) =>
+  | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
@@ -1073,7 +1074,7 @@ and ana_perform_operand =
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
-  | (Backspace, CursorP(OnText(j), InvalidText(t))) =>
+  | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -1117,7 +1118,7 @@ and ana_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
-  | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(t)))
+  | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(_, t)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
@@ -1152,7 +1153,7 @@ and ana_perform_operand =
       | After => 1
       };
     ana_insert_text(ctx, u_gen, (index, s), "_", ty);
-  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(t))) =>
+  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
