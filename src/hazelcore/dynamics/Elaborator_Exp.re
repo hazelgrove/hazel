@@ -752,7 +752,7 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  | InvalidText(t) => Elaborates(InvalidText(t), Hole, delta)
+  | InvalidText(_, t) => Elaborates(InvalidText(t), Hole, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -1217,7 +1217,7 @@ and ana_elab_operand =
     | None => DoesNotElaborate
     | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
     }
-  | InvalidText(t) => Elaborates(InvalidText(t), Hole, delta)
+  | InvalidText(_, t) => Elaborates(InvalidText(t), Hole, delta)
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)

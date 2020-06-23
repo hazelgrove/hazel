@@ -132,7 +132,7 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | InvalidText(t) => Elaborates(InvalidText(t), Hole, ctx, delta)
+  | InvalidText(_, t) => Elaborates(InvalidText(t), Hole, ctx, delta)
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
@@ -351,7 +351,7 @@ and ana_elab_operand =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
-  | InvalidText(_)
+  | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)

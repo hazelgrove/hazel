@@ -41,7 +41,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
 
-    | InvalidText(inv_str) =>
+    | InvalidText(_, inv_str) =>
       if (show_indicate_word) {
         Vdom.(
           Node.span(
@@ -133,7 +133,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
     | Wild(_) => indicate_words_view("wild card")
-    | InvalidText(inv_str) =>
+    | InvalidText(_, inv_str) =>
       if (show_indicate_word) {
         Vdom.(
           Node.span(
