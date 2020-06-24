@@ -769,7 +769,9 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => Failed
+          | None =>
+            print_endline("Action773");
+            Failed;
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -957,6 +959,7 @@ and syn_perform_line =
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
+    print_endline("Action960");
     switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
     | None => Failed
     | Some(ty) =>
@@ -964,9 +967,10 @@ and syn_perform_line =
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, u_gen))) =>
-        Succeeded(LineDone((ze, ctx, u_gen)))
+        print_endline("Action968");
+        Succeeded(LineDone((ze, ctx, u_gen)));
       }
-    }
+    };
 
   | (_, LetLineZP(zp, None, def)) =>
     switch (Statics_Exp.syn(ctx, def)) {
@@ -1276,19 +1280,26 @@ and syn_perform_opseq =
 
   /* Zipper */
   | (Construct(SLeftBracket), ZOperand(zoperand, (prefix, suffix))) =>
+    print_endline("Action1279");
     switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
     | Succeeded(SynDone((ze, _, u_gen))) =>
+      print_endline("Action1282");
       switch (ZExp.find_zoperand(ze)) {
       | Some(zoperand') =>
         let new_ze =
           ZExp.ZBlock.wrap'(
             ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
           );
-        Succeeded(SynDone((new_ze, ty, u_gen)));
-      | _ => Failed
-      }
-    | _ => Failed
-    }
+        print_endline("Action1289");
+        Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+      | _ =>
+        print_endline("Action1290");
+        Failed;
+      };
+    | _ =>
+      print_endline("Action1294");
+      Failed;
+    };
 
   | (_, ZOperand(zoperand, (E, E))) =>
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
@@ -1942,8 +1953,10 @@ and syn_perform_operand =
     }
 
   | (Construct(SLeftBracket), CursorE(OnDelim(0, Before), EmptyHole(_))) =>
-    let ze = UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
-    Succeeded(SynDone((ze, ty, u_gen)));
+    print_endline("Action1950");
+    syn_perform_operand(ctx, Construct(SListNil), (zoperand, ty, u_gen));
+  // let ze = UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
+  // Succeeded(SynDone((ze, ty, u_gen)));
 
   | (Construct(_), CursorE(OnDelim(_, side), _))
       when
@@ -3004,7 +3017,7 @@ and ana_perform_opseq =
           ZExp.ZBlock.wrap'(
             ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
           );
-        Succeeded(AnaDone((new_ze, u_gen)));
+        Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
       | _ => Failed
       }
     | _ => Failed
