@@ -827,7 +827,7 @@ let view = (model: Model.t) => {
                     a(
                       ~a=[
                         a_class(["logo-text"]),
-                        a_href("http://hazel.org/"),
+                        a_href("https://hazel.org/"),
                       ],
                       [txt("Hazel")],
                     ),
