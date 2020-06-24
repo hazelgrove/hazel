@@ -68,7 +68,7 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
 let view =
     (
       ~model: Model.t,
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~caret_pos: option((int, int)),
       l: UHLayout.t,
@@ -192,7 +192,7 @@ let view =
                 ),
               ),
             );
-            inject(Update.Action.MoveAction(Click(row_col)));
+            inject(ModelAction.MoveAction(Click(row_col)));
           }),
         ],
         children,

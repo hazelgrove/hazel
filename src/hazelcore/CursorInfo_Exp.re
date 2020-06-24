@@ -603,7 +603,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | ApPaletteZ(_, _, _, zpsi) =>
-    let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
+    let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
   };
 }
