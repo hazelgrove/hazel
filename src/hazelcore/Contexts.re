@@ -1,4 +1,3 @@
-
 [@deriving sexp]
 type t = (VarCtx.t, PaletteCtx.t);
 let empty = (VarCtx.empty, PaletteCtx.empty);
