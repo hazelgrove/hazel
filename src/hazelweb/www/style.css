@@ -226,7 +226,7 @@ html, body {
   fill: #41392c;
   font-family: var(--code-font-family);
   font-size: 16px;
-  cursor: default;
+  cursor: pointer;
   margin-right: 2px;
 }
 
