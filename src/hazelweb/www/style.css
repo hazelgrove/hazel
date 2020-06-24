@@ -200,7 +200,7 @@ html, body {
 .sidebar-tab {
   height: 20px;
   flex-shrink: 0;
-  padding: 4px 7px 4px 7px;
+  padding: 4px 7px 12px 7px;
   display: flex;
   align-items: center; /* vertical alignment */
 }
@@ -219,6 +219,15 @@ html, body {
   font-family: var(--code-font-family);
   font-size: 16px;
   cursor: pointer;
+}
+
+.left-sidebar-tab-icon-opened {
+  display: inline-block;
+  fill: #41392c;
+  font-family: var(--code-font-family);
+  font-size: 16px;
+  cursor: pointer;
+  margin-right: 2px;
 }
 
 .sidebar-body-slider {
@@ -266,6 +275,19 @@ html, body {
 
 .sidebar-body-padding-expanded {
   width: 28px;
+}
+
+.question-mark-circle {
+  color: #fff;
+  background-color:#000;
+  width:14px;
+  height:14px;
+  display:inline-block;
+  font-size:12px;
+  font-family: var(--code-font-family);
+  text-align:center;
+  text-decoration:none;
+  border-radius:100%;
 }
 
 /* panels */
