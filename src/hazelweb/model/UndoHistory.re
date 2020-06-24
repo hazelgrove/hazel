@@ -653,7 +653,7 @@ let get_new_action_group =
       failwith("ApPalette is not implemented in undo_history")
     };
   };
-let get_cursor_info =
+let get_cursor_term_info =
     (
       ~new_cardstacks_after: ZCardstacks.t,
       ~new_cardstacks_before: ZCardstacks.t,
@@ -692,7 +692,7 @@ let push_edit_state =
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
-    get_cursor_info(~new_cardstacks_before, ~new_cardstacks_after);
+    get_cursor_term_info(~new_cardstacks_before, ~new_cardstacks_after);
   let new_action_group =
     get_new_action_group(
       ~prev_group,
