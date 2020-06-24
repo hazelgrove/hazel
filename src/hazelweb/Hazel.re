@@ -12,7 +12,7 @@ module ResizeObserver = Js_of_ocaml.ResizeObserver;
 open Incr_dom;
 
 module Model = Model;
-module Action = Update.Action;
+module Action = ModelAction;
 module State = State;
 
 // see incr_dom app_intf.ml
@@ -30,7 +30,7 @@ let on_startup = (~schedule_action, _) => {
           | [|entry|] =>
             let rect = entry##.contentRect;
             schedule_action(
-              Update.Action.UpdateFontMetrics({
+              ModelAction.UpdateFontMetrics({
                 row_height: rect##.bottom -. rect##.top,
                 col_width: rect##.right -. rect##.left,
               }),
@@ -96,7 +96,7 @@ let create =
     (
       model: Incr.t(Model.t),
       ~old_model as _: Incr.t(Model.t),
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
