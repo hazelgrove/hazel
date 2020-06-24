@@ -113,7 +113,7 @@ module Line = {
 
   let get_opseq =
     fun
-    | EmptyLine
+    | EmptyLine => None
     | LetLine(_, _, _) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -143,10 +143,11 @@ module Block = {
     switch (block |> ListUtil.split_last) {
     | None => None
     | Some((leading, last)) =>
+      print_endline("UHExp146");
       switch (last |> Line.get_opseq) {
       | None => None
       | Some(opseq) => Some((leading, opseq))
-      }
+      };
     };
   let force_split_conclusion = (block: block): (list(line), opseq) =>
     switch (block |> split_conclusion) {
