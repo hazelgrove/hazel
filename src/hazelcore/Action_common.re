@@ -92,18 +92,6 @@ let shape_to_string = (shape: shape): string => {
   };
 };
 
-module Outcome = {
-  type t('success) =
-    | Succeeded('success)
-    | CursorEscaped(Side.t)
-    | Failed;
-
-  let map = (f: 'success1 => 'success2) =>
-    fun
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded(s) => Succeeded(f(s));
-};
-
 let escape: Side.t => t =
   fun
   | Before => MoveLeft
@@ -112,13 +100,13 @@ let escape: Side.t => t =
 let syn_insert_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
+         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
     )
-    : Outcome.t('success) =>
+    : ActionOutcome.t('success) =>
   mk_syn_text(
     ctx,
     u_gen,
@@ -129,14 +117,14 @@ let ana_insert_text_ =
     (
       ~mk_ana_text:
          (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
-         Outcome.t('success),
+         ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
       ty: HTyp.t,
     )
-    : Outcome.t('success) =>
+    : ActionOutcome.t('success) =>
   mk_ana_text(
     ctx,
     u_gen,
@@ -148,13 +136,13 @@ let ana_insert_text_ =
 let syn_backspace_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
+         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
     )
-    : Outcome.t('success) =>
+    : ActionOutcome.t('success) =>
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
@@ -165,14 +153,14 @@ let ana_backspace_text_ =
     (
       ~mk_ana_text:
          (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
-         Outcome.t('success),
+         ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
       ty: HTyp.t,
     )
-    : Outcome.t('success) =>
+    : ActionOutcome.t('success) =>
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
@@ -183,13 +171,13 @@ let ana_backspace_text_ =
 let syn_delete_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
+         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
     )
-    : Outcome.t('success) =>
+    : ActionOutcome.t('success) =>
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {
@@ -200,14 +188,14 @@ let ana_delete_text_ =
     (
       ~mk_ana_text:
          (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
-         Outcome.t('success),
+         ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
       ty: HTyp.t,
     )
-    : Outcome.t('success) =>
+    : ActionOutcome.t('success) =>
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {

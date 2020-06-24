@@ -242,7 +242,7 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
 let wrap_in_SynDone:
-  Action_common.Outcome.t(syn_done) => Action_common.Outcome.t(syn_success) =
+  ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(syn_done) => Succeeded(SynDone(syn_done));
@@ -256,7 +256,7 @@ let mk_AnaExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
 let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
 let wrap_in_AnaDone:
-  Action_common.Outcome.t(ana_done) => Action_common.Outcome.t(ana_success) =
+  ActionOutcome.t(ana_done) => ActionOutcome.t(ana_success) =
   fun
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(ana_done) => Succeeded(AnaDone(ana_done));
@@ -292,7 +292,7 @@ let zcase_of_scrut_and_suffix =
 
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-    : Action_common.Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | None =>
@@ -352,7 +352,7 @@ let mk_ana_text =
       text: string,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(_) => {
+    : ActionOutcome.t(_) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | None =>
@@ -407,7 +407,7 @@ let syn_split_text =
       sop: Action_common.operator_shape,
       text: string,
     )
-    : Action_common.Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TextShape.of_text(l),
@@ -449,7 +449,7 @@ let ana_split_text =
       text: string,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TextShape.of_text(l),
@@ -489,7 +489,7 @@ let rec syn_move =
           a: Action_common.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
-        : Action_common.Outcome.t(syn_success) => {
+        : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -518,15 +518,13 @@ let rec syn_move =
   | MoveLeft =>
     ze
     |> ZExp.move_cursor_left
-    |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(Before), ze =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), ze =>
          Succeeded(SynDone((ze, ty, u_gen)))
        )
   | MoveRight =>
     ze
     |> ZExp.move_cursor_right
-    |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(After), ze =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
          Succeeded(SynDone((ze, ty, u_gen)))
        )
   | Construct(_)
@@ -544,7 +542,6 @@ let rec syn_move =
       ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
     )
   };
-};
 
 let rec ana_move =
         (
@@ -553,7 +550,7 @@ let rec ana_move =
           (ze: ZExp.t, u_gen: MetaVarGen.t),
           ty: HTyp.t,
         )
-        : Action_common.Outcome.t(ana_success) =>
+        : ActionOutcome.t(ana_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -582,15 +579,13 @@ let rec ana_move =
   | MoveLeft =>
     ze
     |> ZExp.move_cursor_left
-    |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(Before), ze =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), ze =>
          Succeeded(AnaDone((ze, u_gen)))
        )
   | MoveRight =>
     ze
     |> ZExp.move_cursor_right
-    |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(After), ze =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
          Succeeded(AnaDone((ze, u_gen)))
        )
   | Construct(_)
@@ -615,7 +610,7 @@ let rec syn_perform =
           a: Action_common.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
-        : Action_common.Outcome.t(syn_done) => {
+        : ActionOutcome.t(syn_done) => {
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -642,7 +637,7 @@ and syn_perform_block =
         u_gen: MetaVarGen.t,
       ),
     )
-    : Action_common.Outcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(_)
@@ -791,13 +786,13 @@ and syn_perform_line =
       a: Action_common.t,
       (zline: ZExp.zline, u_gen: MetaVarGen.t),
     )
-    : Action_common.Outcome.t(line_success) => {
-  let mk_result = (u_gen, zlines): Action_common.Outcome.t(_) =>
+    : ActionOutcome.t(line_success) => {
+  let mk_result = (u_gen, zlines): ActionOutcome.t(_) =>
     switch (Statics_Exp.syn_lines(ctx, ZExp.erase_zblock(zlines))) {
     | None => Failed
     | Some(ctx) => Succeeded(LineDone((zlines, ctx, u_gen)))
     };
-  let fix_and_mk_result = (u_gen, zlines): Action_common.Outcome.t(_) => {
+  let fix_and_mk_result = (u_gen, zlines): ActionOutcome.t(_) => {
     let (zlines, ctx, u_gen) =
       Statics_Exp.syn_fix_holes_zlines(ctx, u_gen, zlines);
     Succeeded(LineDone((zlines, ctx, u_gen)));
@@ -811,7 +806,7 @@ and syn_perform_line =
     zline
     |> move_cursor
     |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(side), new_zline =>
+         ~default=ActionOutcome.CursorEscaped(side), new_zline =>
          fix_and_mk_result(u_gen, ([], new_zline, []))
        );
   };
@@ -833,7 +828,7 @@ and syn_perform_line =
     zline
     |> ZExp.erase_zline
     |> CursorPath_Exp.follow_line(path)
-    |> Option.fold(~none=Action_common.Outcome.Failed, ~some=zline =>
+    |> Option.fold(~none=ActionOutcome.Failed, ~some=zline =>
          mk_result(u_gen, ([], zline, []))
        )
   | (MoveToPrevHole, _) =>
@@ -869,15 +864,13 @@ and syn_perform_line =
   | (MoveLeft, _) =>
     zline
     |> ZExp.move_cursor_left_zline
-    |> Option.fold(
-         ~none=Action_common.Outcome.CursorEscaped(Before), ~some=zline =>
+    |> Option.fold(~none=ActionOutcome.CursorEscaped(Before), ~some=zline =>
          mk_result(u_gen, ([], zline, []))
        )
   | (MoveRight, _) =>
     zline
     |> ZExp.move_cursor_right_zline
-    |> Option.fold(
-         ~none=Action_common.Outcome.CursorEscaped(After), ~some=zline =>
+    |> Option.fold(~none=ActionOutcome.CursorEscaped(After), ~some=zline =>
          mk_result(u_gen, ([], zline, []))
        )
 
@@ -1049,7 +1042,7 @@ and syn_perform_opseq =
         u_gen: MetaVarGen.t,
       ),
     )
-    : Action_common.Outcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1376,7 +1369,7 @@ and syn_perform_operand =
       a: Action_common.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : Action_common.Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1488,11 +1481,7 @@ and syn_perform_operand =
       Statics_Exp.syn_fix_holes(body_ctx, u_gen, body);
     let new_ze =
       ZExp.ZBlock.wrap(LamZP(NotInHole, ZPat.place_after(p), None, body));
-    Action_common.Outcome.Succeeded((
-      new_ze,
-      HTyp.Arrow(Hole, body_ty),
-      u_gen,
-    ))
+    ActionOutcome.Succeeded((new_ze, HTyp.Arrow(Hole, body_ty), u_gen))
     |> wrap_in_SynDone;
 
   | (
@@ -2230,7 +2219,7 @@ and syn_perform_rules =
       ((prefix, zrule, suffix) as zrules: ZExp.zrules, u_gen: MetaVarGen.t),
       pat_ty: HTyp.t,
     )
-    : Action_common.Outcome.t((ZExp.zrules, MetaVarGen.t)) => {
+    : ActionOutcome.t((ZExp.zrules, MetaVarGen.t)) => {
   let escape = (side: Side.t) => {
     let move_cursor =
       switch (side) {
@@ -2240,7 +2229,7 @@ and syn_perform_rules =
     zrules
     |> move_cursor
     |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(side), new_zrules =>
+         ~default=ActionOutcome.CursorEscaped(side), new_zrules =>
          Succeeded((new_zrules, u_gen))
        );
   };
@@ -2375,7 +2364,7 @@ and ana_perform_rules =
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : Action_common.Outcome.t((ZExp.zrules, MetaVarGen.t)) => {
+    : ActionOutcome.t((ZExp.zrules, MetaVarGen.t)) => {
   let escape = (side: Side.t) => {
     let move_cursor =
       switch (side) {
@@ -2385,7 +2374,7 @@ and ana_perform_rules =
     zrules
     |> move_cursor
     |> OptUtil.map_default(
-         ~default=Action_common.Outcome.CursorEscaped(side), new_zrules =>
+         ~default=ActionOutcome.CursorEscaped(side), new_zrules =>
          Succeeded((new_zrules, u_gen))
        );
   };
@@ -2526,7 +2515,7 @@ and ana_perform =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t((ZExp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2549,7 +2538,7 @@ and ana_perform_block =
       ((prefix, zline, suffix) as zblock: ZExp.zblock, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (a, zline) {
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2723,7 +2712,7 @@ and ana_perform_opseq =
       (ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -2787,9 +2776,7 @@ and ana_perform_opseq =
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
     let new_zseq = delete_operator(surround);
-    Action_common.Outcome.Succeeded(
-      mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty),
-    )
+    ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
@@ -2804,9 +2791,7 @@ and ana_perform_opseq =
     let S(operand, new_prefix) = prefix_tl;
     let zoperand = operand |> ZExp.place_after_operand;
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-    Action_common.Outcome.Succeeded(
-      mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty),
-    )
+    ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
@@ -2821,9 +2806,7 @@ and ana_perform_opseq =
     let S(operand, new_suffix) = suffix_tl;
     let zoperand = operand |> ZExp.place_before_operand;
     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
-    Action_common.Outcome.Succeeded(
-      mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty),
-    )
+    ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
   /* Construction */
@@ -2961,9 +2944,7 @@ and ana_perform_opseq =
     ) =>
     let new_suffix = Seq.A(operator, S(operand, suffix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Action_common.Outcome.Succeeded(
-      mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty),
-    )
+    ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
   | (SwapRight, ZOperand(CursorE(_), (_, E))) => Failed
   | (
@@ -2975,9 +2956,7 @@ and ana_perform_opseq =
     ) =>
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Action_common.Outcome.Succeeded(
-      mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty),
-    )
+    ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
 
   /* Zipper */
@@ -3089,7 +3068,7 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -3602,9 +3581,7 @@ and ana_perform_operand =
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, (E, E));
-      Action_common.Outcome.Succeeded(
-        mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty),
-      )
+      ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty))
       |> wrap_in_AnaDone;
     }
 
@@ -3891,9 +3868,7 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   | (Construct(SLeftBracket), _) => Failed
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
-
+  }
 and ana_perform_subsume =
     (
       ctx: Contexts.t,
@@ -3901,7 +3876,7 @@ and ana_perform_subsume =
       (zoperand: ZExp.zoperand, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) =>
   switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
   | None => Failed
   | Some(ty1) =>
@@ -3920,4 +3895,3 @@ and ana_perform_subsume =
       }
     }
   };
-};
