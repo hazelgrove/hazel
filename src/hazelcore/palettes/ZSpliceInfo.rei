@@ -1,5 +1,5 @@
 [@deriving sexp]
-type zsplice_map('exp, 'zexp) = ZNatMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
+type zsplice_map('exp, 'zexp) = ZIntMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
 
 [@deriving sexp]
 type t('exp, 'zexp) = {
