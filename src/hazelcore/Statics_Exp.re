@@ -32,13 +32,10 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
   switch (block |> UHExp.Block.split_conclusion) {
   | None => None
   | Some((leading, conclusion)) =>
-    print_endline("Statics35");
     switch (syn_lines(ctx, leading)) {
-    | None =>
-      print_endline("Statics38");
-      None;
+    | None => None
     | Some(ctx) => syn_opseq(ctx, conclusion)
-    };
+    }
   }
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
@@ -102,13 +99,11 @@ and syn_skel =
       ana_skel(ctx, skel2, seq, Bool) |> OptUtil.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, Caret, skel1, skel2) =>
-    print_endline("Statics105");
     switch (ana_skel(ctx, skel1, seq, HTyp.String)) {
     | None => None
     | Some(_) =>
-      print_endline("Statics110");
-      ana_skel(ctx, skel2, seq, String) |> OptUtil.map(_ => HTyp.String);
-    };
+      ana_skel(ctx, skel2, seq, String) |> OptUtil.map(_ => HTyp.String)
+    }
   | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Int)) {
     | None => None
@@ -344,7 +339,6 @@ and ana_skel =
   | BinOp(InHole(WrongLength, _), _, _, _) =>
     failwith(__LOC__ ++ ": tuples handled at opseq level")
   | Placeholder(n) =>
-    print_endline("Statics347");
     let en = Seq.nth_operand(n, seq);
     ana_operand(ctx, en, ty);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -374,9 +368,7 @@ and ana_skel =
     ) =>
     switch (syn_skel(ctx, skel, seq)) {
     | None => None
-    | Some(ty') =>
-      print_endline("Statics377");
-      HTyp.consistent(ty, ty') ? Some() : None;
+    | Some(ty') => HTyp.consistent(ty, ty') ? Some() : None
     }
   }
 and ana_operand =
@@ -395,7 +387,6 @@ and ana_operand =
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | Subscript(InHole(TypeInconsistent, _), _, _, _) =>
-    print_endline("Statics398");
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -419,11 +410,10 @@ and ana_operand =
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   /* not in hole */
   | ListNil(NotInHole) =>
-    print_endline("Statics422");
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(_) => Some()
-    };
+    }
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)

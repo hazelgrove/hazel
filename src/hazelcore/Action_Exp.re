@@ -769,9 +769,7 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None =>
-            print_endline("Action773");
-            Failed;
+          | None => Failed
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -959,7 +957,6 @@ and syn_perform_line =
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
-    print_endline("Action960");
     switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
     | None => Failed
     | Some(ty) =>
@@ -967,10 +964,9 @@ and syn_perform_line =
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, u_gen))) =>
-        print_endline("Action968");
-        Succeeded(LineDone((ze, ctx, u_gen)));
+        Succeeded(LineDone((ze, ctx, u_gen)))
       }
-    };
+    }
 
   | (_, LetLineZP(zp, None, def)) =>
     switch (Statics_Exp.syn(ctx, def)) {
@@ -1280,50 +1276,35 @@ and syn_perform_opseq =
 
   /* Zipper */
   | (Construct(SLeftBracket), ZOperand(zoperand, (prefix, suffix))) =>
-    print_endline("Action1279");
     switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
     | Succeeded(SynDone((ze, _, u_gen))) =>
-      print_endline("Action1282");
       switch (ZExp.find_zoperand(ze)) {
       | Some(zoperand') =>
         let new_ze =
           ZExp.ZBlock.wrap'(
             ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
           );
-        print_endline("Action1289");
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
-      | _ =>
-        print_endline("Action1290");
-        Failed;
-      };
-    | _ =>
-      print_endline("Action1294");
-      Failed;
-    };
+      | _ => Failed
+      }
+    | _ => Failed
+    }
 
   | (_, ZOperand(zoperand, (E, E))) =>
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
-    print_endline("Action1297");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
     ) {
-    | None =>
-      print_endline("Action1303");
-      Failed;
+    | None => Failed
     | Some(Syn) =>
-      print_endline("Action1306");
       switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
-      | None =>
-        print_endline("Action1308");
-        Failed;
+      | None => Failed
       | Some(ty_zoperand) =>
         switch (syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))) {
-        | Failed =>
-          print_endline("Action1313");
-          Failed;
+        | Failed => Failed
         | CursorEscaped(side) =>
           syn_perform_opseq(
             ctx,
@@ -1331,7 +1312,6 @@ and syn_perform_opseq =
             (zopseq, ty, u_gen),
           )
         | Succeeded(SynExpands(r)) =>
-          print_endline("Action1322");
           let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
           let (new_subject, u_gen) =
             switch (r.subject, suffix) {
@@ -1355,27 +1335,22 @@ and syn_perform_opseq =
             }),
           );
         | Succeeded(SynDone((ze, _, u_gen))) =>
-          print_endline("Action1345");
           let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
           Succeeded(
             SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
           );
         }
-      };
+      }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
-      | Failed =>
-        print_endline("Action1354");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
-        print_endline("Action1361");
         syn_perform_opseq(
           ctx,
           Action_common.escape(side),
           (zopseq, ty, u_gen),
-        );
+        )
       | Succeeded(AnaExpands(r)) =>
-        print_endline("Action1365");
         let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
         let (new_subject, u_gen) =
           resurround(u_gen, r.subject, (E, suffix));
@@ -1389,7 +1364,6 @@ and syn_perform_opseq =
           }),
         );
       | Succeeded(AnaDone((ze, u_gen))) =>
-        print_endline("Action1376");
         let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       }
@@ -1953,8 +1927,7 @@ and syn_perform_operand =
     }
 
   | (Construct(SLeftBracket), CursorE(OnDelim(0, Before), EmptyHole(_))) =>
-    print_endline("Action1950");
-    syn_perform_operand(ctx, Construct(SListNil), (zoperand, ty, u_gen));
+    syn_perform_operand(ctx, Construct(SListNil), (zoperand, ty, u_gen))
   // let ze = UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
   // Succeeded(SynDone((ze, ty, u_gen)));
 
@@ -3017,7 +2990,9 @@ and ana_perform_opseq =
           ZExp.ZBlock.wrap'(
             ZOpSeq(skel, ZOperand(zoperand', (prefix, suffix))),
           );
-        Succeeded(AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)));
+        Succeeded(
+          AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+        );
       | _ => Failed
       }
     | _ => Failed
@@ -3928,17 +3903,13 @@ and ana_perform_subsume =
     )
     : Action_common.Outcome.t(ana_success) => {
   switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
-  | None =>
-    print_endline("Action3852");
-    Failed;
+  | None => Failed
   | Some(ty1) =>
     // must call syn_perform_operand and not syn_perform
     // to pass along any keyword expansions
     switch (syn_perform_operand(ctx, a, (zoperand, ty1, u_gen))) {
     | Failed
-    | CursorEscaped(_) =>
-      print_endline("Action3860");
-      Failed;
+    | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
       if (HTyp.consistent(ty, ty1)) {
