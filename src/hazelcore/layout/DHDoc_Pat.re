@@ -1,4 +1,5 @@
 open Pretty;
+
 let precedence = (dp: DHPat.t) =>
   switch (dp) {
   | EmptyHole(_)
