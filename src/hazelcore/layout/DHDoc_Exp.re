@@ -295,6 +295,11 @@ let rec mk =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.InvalidOpDecoration);
         hcats([d_doc, decoration]);
+      | FailedAssert(x) =>
+        let (d_doc, _) = go'(x);
+        let decoration =
+          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
       | Lam(dp, ty, dbody) =>
         if (show_fn_bodies) {
           let body_doc = (~enforce_inline) =>

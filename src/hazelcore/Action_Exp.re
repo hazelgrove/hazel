@@ -1303,6 +1303,7 @@ and syn_perform_opseq =
       print_endline("Action1303");
       Failed;
     | Some(Syn) =>
+      print_endline("Action1306");
       switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
       | None =>
         print_endline("Action1308");
@@ -1319,6 +1320,7 @@ and syn_perform_opseq =
             (zopseq, ty, u_gen),
           )
         | Succeeded(SynExpands(r)) =>
+          print_endline("Action1322");
           let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
           let (new_subject, u_gen) =
             switch (r.subject, suffix) {
@@ -1342,24 +1344,27 @@ and syn_perform_opseq =
             }),
           );
         | Succeeded(SynDone((ze, _, u_gen))) =>
+          print_endline("Action1345");
           let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
           Succeeded(
             SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
           );
         }
-      }
+      };
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
       | Failed =>
         print_endline("Action1354");
         Failed;
       | CursorEscaped(side) =>
+        print_endline("Action1361");
         syn_perform_opseq(
           ctx,
           Action_common.escape(side),
           (zopseq, ty, u_gen),
-        )
+        );
       | Succeeded(AnaExpands(r)) =>
+        print_endline("Action1365");
         let (prefix_lines, u_gen) = lines_of_prefix(r.u_gen, prefix);
         let (new_subject, u_gen) =
           resurround(u_gen, r.subject, (E, suffix));
@@ -1373,6 +1378,7 @@ and syn_perform_opseq =
           }),
         );
       | Succeeded(AnaDone((ze, u_gen))) =>
+        print_endline("Action1376");
         let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       }
@@ -3827,13 +3833,74 @@ and ana_perform_operand =
       }
     }
 
+  | (_, SubscriptZE1(_, zbody1, body2, body3)) =>
+    switch (ana_perform(ctx, a, (zbody1, u_gen), String)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      ana_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, u_gen),
+        ty,
+      )
+    | Succeeded((zbody1, u_gen)) =>
+      switch (ZExp.is_opseq(zbody1)) {
+      | Some(ZOperator(zoperator, (prefix, suffix))) =>
+        switch (suffix) {
+        | S(operand, affix) =>
+          let e =
+            UHExp.Subscript(
+              NotInHole,
+              UHExp.Block.wrap(operand),
+              body2,
+              body3,
+            );
+          let new_zopseq =
+            ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
+          let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+          Succeeded(
+            AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+          );
+        }
+      | _ =>
+        let new_ze =
+          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
+        Succeeded(AnaDone((new_ze, u_gen)));
+      }
+    }
+  | (_, SubscriptZE2(_, body1, zbody2, body3)) =>
+    switch (ana_perform(ctx, a, (zbody2, u_gen), Int)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      ana_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, u_gen),
+        ty,
+      )
+    | Succeeded((zbody2, u_gen)) =>
+      let new_ze =
+        ZExp.ZBlock.wrap(SubscriptZE2(NotInHole, body1, zbody2, body3));
+      Succeeded(AnaDone((new_ze, u_gen)));
+    }
+  | (_, SubscriptZE3(_, body1, body2, zbody3)) =>
+    switch (ana_perform(ctx, a, (zbody3, u_gen), Int)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      ana_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, u_gen),
+        ty,
+      )
+    | Succeeded((zbody3, u_gen)) =>
+      let new_ze =
+        ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, body1, body2, zbody3));
+      Succeeded(AnaDone((new_ze, u_gen)));
+    }
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
-  | (_, ApPaletteZ(_))
-  | (_, SubscriptZE1(_))
-  | (_, SubscriptZE2(_))
-  | (_, SubscriptZE3(_)) =>
-    ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+  | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   | (Construct(SLeftBracket), _) => Failed
   | (Init, _) => failwith("Init action should not be performed.")
   };
@@ -3848,13 +3915,17 @@ and ana_perform_subsume =
     )
     : Action_common.Outcome.t(ana_success) => {
   switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
-  | None => Failed
+  | None =>
+    print_endline("Action3852");
+    Failed;
   | Some(ty1) =>
     // must call syn_perform_operand and not syn_perform
     // to pass along any keyword expansions
     switch (syn_perform_operand(ctx, a, (zoperand, ty1, u_gen))) {
     | Failed
-    | CursorEscaped(_) => Failed
+    | CursorEscaped(_) =>
+      print_endline("Action3860");
+      Failed;
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
       if (HTyp.consistent(ty, ty1)) {
