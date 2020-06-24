@@ -143,11 +143,10 @@ module Block = {
     switch (block |> ListUtil.split_last) {
     | None => None
     | Some((leading, last)) =>
-      print_endline("UHExp146");
       switch (last |> Line.get_opseq) {
       | None => None
       | Some(opseq) => Some((leading, opseq))
-      };
+      }
     };
   let force_split_conclusion = (block: block): (list(line), opseq) =>
     switch (block |> split_conclusion) {
