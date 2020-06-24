@@ -4,7 +4,7 @@
 
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
-website](http://hazel.org/).
+website](https://hazel.org/).
 
 You can try Hazel online with either the
 [trunk](https://hazel.org/build/trunk/index.html) or
