@@ -30,7 +30,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
     cons'(prefix_len + 1, of_zrule(zrule));
   | ApPaletteZ(_, _, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
+    let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
     cons'(n, of_z(ze));
   | SubscriptZE1(_, zbody1, _, _) => cons'(0, of_z(zbody1))
   | SubscriptZE2(_, _, zbody2, _) => cons'(1, of_z(zbody2))
@@ -977,11 +977,11 @@ and holes_zoperand =
     };
   | ApPaletteZ(_, _, _, zpsi) =>
     let zsplice_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZNatMap.prj_z_kv(zsplice_map);
+    let (n, (_, ze)) = ZIntMap.prj_z_kv(zsplice_map);
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
       holes_z(ze, [n, ...rev_steps]);
     let splice_order = zpsi.splice_order;
-    let splice_map = ZNatMap.prj_map(zsplice_map);
+    let splice_map = ZIntMap.prj_map(zsplice_map);
     let (splices_before, splices_after) = ListUtil.split_at(splice_order, n);
     let holes_splices_before =
       List.fold_left(

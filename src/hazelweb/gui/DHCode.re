@@ -33,9 +33,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
         Node.span(
           [
             Attr.classes(["EmptyHole", ...selected ? ["selected"] : []]),
-            Attr.on_click(_ =>
-              inject(Update.Action.SelectHoleInstance(inst))
-            ),
+            Attr.on_click(_ => inject(ModelAction.SelectHoleInstance(inst))),
           ],
           go(l),
         ),

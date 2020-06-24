@@ -647,7 +647,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | ApPaletteZ(_, _, _, zpsi) =>
-    let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
+    let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
   | SubscriptZE1(_, zbody1, _, _) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody1, String)
