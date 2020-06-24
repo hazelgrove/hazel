@@ -229,6 +229,7 @@ html, body {
 
 #slidable-left-bar-body {
   direction: rtl;
+  padding-left: 7px;
 }
 
 #slidable-right-bar-body {
