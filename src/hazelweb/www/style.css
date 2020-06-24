@@ -199,7 +199,7 @@ html, body {
 .sidebar-tab {
   height: 20px;
   flex-shrink: 0;
-  padding: 4px 7px 4px 7px;
+  padding: 4px 7px 12px 7px;
   display: flex;
   align-items: center; /* vertical alignment */
 }
