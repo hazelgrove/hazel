@@ -1,12 +1,12 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 
-let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
+let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
   Vdom.(
     Node.select(
       [
         Attr.on_change((_, example_id) =>
-          inject(Update.Action.LoadExample(example_id))
+          inject(ModelAction.LoadExample(example_id))
         ),
       ],
       [
@@ -43,7 +43,7 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
 
 let cardstacks_select =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
     ) => {
   let cardstack_options =
@@ -63,7 +63,7 @@ let cardstacks_select =
     Node.select(
       [
         Attr.on_change((_, example_idx) =>
-          inject(Update.Action.LoadCardstack(int_of_string(example_idx)))
+          inject(ModelAction.LoadCardstack(int_of_string(example_idx)))
         ),
       ],
       cardstack_options,
@@ -78,7 +78,7 @@ let prev_card_button = (~inject, model: Model.t) => {
     Node.button(
       [
         Attr.id("cardstack-prev-button"),
-        Attr.on_click(_ => inject(Update.Action.PrevCard)),
+        Attr.on_click(_ => inject(ModelAction.PrevCard)),
         ...show_prev,
       ],
       [Node.text("Previous")],
@@ -93,7 +93,7 @@ let next_card_button = (~inject, model: Model.t) => {
     Node.button(
       [
         Attr.id("cardstack-next-button"),
-        Attr.on_click(_ => inject(Update.Action.NextCard)),
+        Attr.on_click(_ => inject(ModelAction.NextCard)),
         ...show_next,
       ],
       [Node.text("Next")],
@@ -117,7 +117,7 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
-let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   TimeUtil.measure_time(
     "Page.view",
     model.measurements.measurements && model.measurements.page_view,

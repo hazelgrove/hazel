@@ -80,7 +80,7 @@ let left = (~inject, model: Model.t, left_panels) => {
     "left-bar-body",
     model.left_sidebar_open,
     ~on_toggle=_ =>
-    inject(Update.Action.ToggleLeftSidebar)
+    inject(ModelAction.ToggleLeftSidebar)
   );
 };
 
@@ -96,6 +96,6 @@ let right = (~inject, model: Model.t, right_panels) => {
     "right-bar-body",
     model.right_sidebar_open,
     ~on_toggle=_ =>
-    inject(Update.Action.ToggleRightSidebar)
+    inject(ModelAction.ToggleRightSidebar)
   );
 };
