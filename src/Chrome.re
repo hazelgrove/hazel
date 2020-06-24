@@ -839,7 +839,7 @@ let view = (model: Model.t) => {
                     a(
                       ~a=[
                         a_id("link-to-dev-text"),
-                        a_href("http://hazel.org/build/dev/index.html"),
+                        a_href("https://hazel.org/build/dev/index.html"),
                       ],
                       [txt(">> use dev version (unstable)")],
                     ),
