@@ -45,7 +45,7 @@ let construct_operator =
   ZTyp.mk_ZOpSeq(ZOperand(zoperand, surround));
 };
 
-let rec move = (a: Action_common.t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
+let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
@@ -77,13 +77,13 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
   | MoveLeft =>
     zty
     |> ZTyp.move_cursor_left
-    |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), z =>
          Succeeded(z)
        )
   | MoveRight =>
     zty
     |> ZTyp.move_cursor_right
-    |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), z =>
          Succeeded(z)
        )
   | Construct(_)
@@ -102,11 +102,11 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
     )
   };
 
-let rec perform = (a: Action_common.t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
+let rec perform = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   perform_opseq(a, zty)
 and perform_opseq =
     (a: Action_common.t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq)
-    : Outcome.t(ZTyp.t) =>
+    : ActionOutcome.t(ZTyp.t) =>
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
@@ -223,7 +223,7 @@ and perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and perform_operand =
-    (a: Action_common.t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
+    (a: Action_common.t, zoperand: ZTyp.zoperand): ActionOutcome.t(ZTyp.t) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
