@@ -1,4 +1,4 @@
-# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: master](https://img.shields.io/travis/hazelgrove/hazel/master?label=build:%20master)](https://travis-ci.org/hazelgrove/hazel)
+# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: trunk](https://img.shields.io/travis/hazelgrove/hazel/trunk?label=build:%20trunk)](https://travis-ci.org/hazelgrove/hazel)
 
 [![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
@@ -7,8 +7,8 @@ type theory. You can find the relevant papers and more motivation at [the Hazel
 website](http://hazel.org/).
 
 You can try Hazel online with either the
-[master](https://hazel.org/build/master/index.html) or
-[dev](https://hazel.org/build/dev/index.html) version. Note that the master
+[trunk](https://hazel.org/build/trunk/index.html) or
+[dev](https://hazel.org/build/dev/index.html) version. Note that the trunk
 branch is updated infrequently and is currently almost two years behind!
 
 <!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
