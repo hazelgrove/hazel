@@ -942,7 +942,28 @@ module Exp = {
           | Matches(env2) => Matches(Environment.union(env1, env2))
           };
         }
-      | ListLit(_, _dps) => failwith("unimplemented")
+      | ListLit(_, []) => DoesNotMatch
+      | ListLit(ty, [dphd, ...dptl]) =>
+        // failwith("unimplemented")
+        switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | Indet => Indet
+        | Matches(env1) =>
+          let list_casts =
+            List.map(
+              (c: (HTyp.t, HTyp.t)) => {
+                let (ty1, ty2) = c;
+                (HTyp.List(ty1), HTyp.List(ty2));
+              },
+              elt_casts,
+            );
+          let dp2 = DHPat.ListLit(ty, dptl);
+          switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+          | DoesNotMatch => DoesNotMatch
+          | Indet => Indet
+          | Matches(env2) => Matches(Environment.union(env1, env2))
+          };
+        }
       | _ => failwith("called matches_cast_Cons with non-list pattern")
       }
     | Cast(d', List(ty1), List(ty2)) =>
