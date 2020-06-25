@@ -68,19 +68,29 @@ let mk_sidebar =
   );
 };
 
+let left_side_bar_icon_opened =
+  Vdom.(
+    Node.div(
+      [],
+      [
+        Icons.left_arrow(["left-sidebar-tab-icon-opened"]),
+        Icons.question_mark_circle,
+      ],
+    )
+  );
 let left = (~inject, model: Model.t, left_panels) => {
   mk_sidebar(
     left_panels,
     "collapsible-left-bar",
     "left-tab",
-    Icons.left_arrow(["sidebar-tab-icon"]),
-    Icons.right_arrow(["sidebar-tab-icon"]),
+    left_side_bar_icon_opened,
+    Icons.question_mark_circle,
     "slidable-left-bar-body",
     "left-bar-body-padding",
     "left-bar-body",
     model.left_sidebar_open,
     ~on_toggle=_ =>
-    inject(Update.Action.ToggleLeftSidebar)
+    inject(ModelAction.ToggleLeftSidebar)
   );
 };
 
@@ -96,6 +106,6 @@ let right = (~inject, model: Model.t, right_panels) => {
     "right-bar-body",
     model.right_sidebar_open,
     ~on_toggle=_ =>
-    inject(Update.Action.ToggleRightSidebar)
+    inject(ModelAction.ToggleRightSidebar)
   );
 };
