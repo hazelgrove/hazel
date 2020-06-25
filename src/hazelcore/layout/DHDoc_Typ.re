@@ -1,4 +1,5 @@
 open Pretty;
+
 let promote_annot =
   fun
   | HTypAnnot.HoleLabel => DHAnnot.HoleLabel
