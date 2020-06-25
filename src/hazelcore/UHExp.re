@@ -350,6 +350,11 @@ let associate = (seq: seq): skel => {
         /**
          * Continue popping operators while the precedence of the top of the operator
          * stack has greater precedence than the current operator.
+         * 
+         * Either the operator on the top of the stack is left associative and
+         * has greater or equal precedence to the current operator, or the
+         * operator on the top of the stack is right associative and has strictly
+         * greater precedence to the current operator.
          */
         {
           switch (Operators_Exp.associativity(op')) {
@@ -370,7 +375,11 @@ let associate = (seq: seq): skel => {
        * operators in the stack and build up the output skel.
        */
       let (skels', _) = build_ast_while(skels, op_stack, _ => true);
-      List.hd(skels');
+      switch (skels') {
+        | [final_skel, ...[]] => final_skel
+        | _ => Skel.BinOp(ErrStatus.InHole),
+
+      }
     };
   }
   and build_ast_while =
@@ -381,15 +390,9 @@ let associate = (seq: seq): skel => {
     | [] => (skels, op_stack) /* (1) The operator stack is not empty. */
     | [op, ...op_stack'] =>
       if (should_mv(op)) {
-        /**  (2) The operator on the top of the stack has greater precedence than the current.
+        /**  (2) See defn of should_mv in go_affix.
          *       Note - This impl supports only binary operators.
-         */
-        let rand_2 = List.hd(skels);
-        let skels' = List.tl(skels);
-        let rand_1 = List.hd(skels');
-        let skels'' = List.tl(skels');
-
-        /**
+         *
          * Example -
          *
          * skels:
@@ -407,10 +410,19 @@ let associate = (seq: seq): skel => {
          * []
          *
          */
-        build_ast_while(
-          [Skel.BinOp(ErrStatus.NotInHole, op, rand_1, rand_2), ...skels''],
-          op_stack',
-          should_mv,
+        (
+          switch (skels) {
+          | [rand_2, rand_1, ...skels'] =>
+            build_ast_while(
+              [
+                Skel.BinOp(ErrStatus.NotInHole, op, rand_1, rand_2),
+                ...skels',
+              ],
+              op_stack',
+              should_mv,
+            )
+          | _ => (skels, op_stack)
+          }
         );
       } else {
         (skels, op_stack);
