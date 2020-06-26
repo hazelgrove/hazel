@@ -10,7 +10,7 @@ type warn_state_b =
   | NoWarn;
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(

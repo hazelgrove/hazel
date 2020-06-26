@@ -289,9 +289,8 @@ and syn_rule =
 }
 and ana_splice_map =
     (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
-  NatMap.fold(
-    splice_map,
-    (c, (splice_name, (ty, e))) =>
+  IntMap.fold(
+    (splice_name, (ty, e), c) =>
       switch (c) {
       | None => None
       | Some(splice_ctx) =>
@@ -302,6 +301,7 @@ and ana_splice_map =
           Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
         }
       },
+    splice_map,
     Some(Contexts.empty),
   )
 /**
@@ -1117,15 +1117,14 @@ and ana_fix_holes_splice_map =
       splice_map: UHExp.splice_map,
     )
     : (UHExp.splice_map, MetaVarGen.t) =>
-  NatMap.fold(
-    splice_map,
-    ((splice_map, u_gen), (splice_name, (ty, e))) => {
+  IntMap.fold(
+    (splice_name, (ty, e), (splice_map, u_gen)) => {
       let (e, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, e, ty);
-      let splice_map =
-        NatMap.extend_unique(splice_map, (splice_name, (ty, e)));
+      let splice_map = splice_map |> IntMap.add(splice_name, (ty, e));
       (splice_map, u_gen);
     },
+    splice_map,
     (splice_map, u_gen),
   )
 and ana_fix_holes =

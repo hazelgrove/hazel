@@ -15,7 +15,7 @@ deploy:
   skip_cleanup: true
   on:
     all_branches: true
-    condition: ("$TRAVIS_PULL_REQUEST" == false) && ("$TRAVIS_BRANCH" =~ ^(dev|master)$)
+    condition: ("$TRAVIS_PULL_REQUEST" == false) && ("$TRAVIS_BRANCH" =~ ^(dev|trunk)$)
 
 # General settings
 cache:

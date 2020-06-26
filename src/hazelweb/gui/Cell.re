@@ -3,19 +3,19 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
-module KeyCombo = JSUtil.KeyCombo;
-module MoveKey = JSUtil.MoveKey;
+
 open ViewUtil;
 open Sexplib.Std;
 
-let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
+let kc_actions:
+  Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
   [
-    (KeyCombo.Backspace, _ => Action_common.Backspace),
+    (HazelKeyCombos.Backspace, _ => Action_common.Backspace),
     (Delete, _ => Action_common.Delete),
     (ShiftTab, _ => Action_common.MoveToPrevHole),
     (Tab, _ => Action_common.MoveToNextHole),
     (
-      KeyCombo.GT,
+      HazelKeyCombos.GT,
       fun
       | {CursorInfo_common.typed: OnType, _} =>
         Action_common.Construct(SOp(SArrow))
@@ -109,20 +109,20 @@ let view = (~inject, model: Model.t) => {
           let key_handlers = [
             Attr.on_keypress(_ => Event.Prevent_default),
             Attr.on_keydown(evt => {
-              switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+              switch (MoveKey.of_key(Key.get_key(evt))) {
               | Some(move_key) =>
-                prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
+                prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
               | None =>
-                switch (KeyCombo.of_evt(evt)) {
+                switch (HazelKeyCombos.of_evt(evt)) {
                 | Some(Ctrl_Z) =>
                   if (model.is_mac) {
                     Event.Ignore;
                   } else {
-                    prevent_stop_inject(Update.Action.Undo);
+                    prevent_stop_inject(ModelAction.Undo);
                   }
                 | Some(Meta_Z) =>
                   if (model.is_mac) {
-                    prevent_stop_inject(Update.Action.Undo);
+                    prevent_stop_inject(ModelAction.Undo);
                   } else {
                     Event.Ignore;
                   }
@@ -130,17 +130,17 @@ let view = (~inject, model: Model.t) => {
                   if (model.is_mac) {
                     Event.Ignore;
                   } else {
-                    prevent_stop_inject(Update.Action.Redo);
+                    prevent_stop_inject(ModelAction.Redo);
                   }
                 | Some(Meta_Shift_Z) =>
                   if (model.is_mac) {
-                    prevent_stop_inject(Update.Action.Redo);
+                    prevent_stop_inject(ModelAction.Redo);
                   } else {
                     Event.Ignore;
                   }
                 | Some(kc) =>
                   prevent_stop_inject(
-                    Update.Action.EditAction(
+                    ModelAction.EditAction(
                       Hashtbl.find(
                         kc_actions,
                         kc,
@@ -149,13 +149,13 @@ let view = (~inject, model: Model.t) => {
                     ),
                   )
                 | None =>
-                  switch (KeyCombo.of_evt(evt)) {
-                  | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
+                  switch (HazelKeyCombos.of_evt(evt)) {
+                  | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
                   | Some(Ctrl_Shift_Z) =>
-                    prevent_stop_inject(Update.Action.Redo)
+                    prevent_stop_inject(ModelAction.Redo)
                   | Some(kc) =>
                     prevent_stop_inject(
-                      Update.Action.EditAction(
+                      ModelAction.EditAction(
                         Hashtbl.find(
                           kc_actions,
                           kc,
@@ -168,7 +168,7 @@ let view = (~inject, model: Model.t) => {
                     | None => Event.Ignore
                     | Some(single_key) =>
                       prevent_stop_inject(
-                        Update.Action.EditAction(
+                        ModelAction.EditAction(
                           Construct(
                             SChar(JSUtil.single_key_string(single_key)),
                           ),
@@ -206,8 +206,8 @@ let view = (~inject, model: Model.t) => {
           Attr.id(cell_id),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
         [
