@@ -1,5 +1,5 @@
 /**
- * the coordinates of the mouse
+ * The coordinates of the mouse (in px)
  * relative to the left and top edges of the document
  */
 type t = {
