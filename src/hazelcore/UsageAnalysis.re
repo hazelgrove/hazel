@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type uses_list = list(CursorPath.steps);
+type uses_list = list(CursorPath_common.steps);
 
 let rec binds_var = (x: Var.t, p: UHPat.t): bool => binds_var_opseq(x, p)
 and binds_var_opseq = (x, OpSeq(_, seq): UHPat.opseq): bool =>
@@ -23,7 +23,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   };
 
 let rec find_uses =
-        (~steps: CursorPath.steps, x: Var.t, e: UHExp.t): uses_list =>
+        (~steps: CursorPath_common.steps, x: Var.t, e: UHExp.t): uses_list =>
   find_uses_block(~steps, x, e)
 and find_uses_block =
     (~offset=0, ~steps=[], x: Var.t, block: UHExp.block): uses_list => {
@@ -156,15 +156,15 @@ let ana_var_block = (lines: UHExp.block): UHExp.block => {
 };
 
 let ana_var_zblock = zblock => {
-  let path = CursorPath.Exp.of_z(zblock);
+  let path = CursorPath_Exp.of_z(zblock);
   let block = ZExp.erase(zblock);
   let block = ana_var_block(block);
   let zblock =
-    CursorPath.Exp.follow(path, block)
+    CursorPath_Exp.follow(path, block)
     |> OptUtil.get(() =>
          failwith(
            "ana_var_block did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
          )
        );
   zblock;

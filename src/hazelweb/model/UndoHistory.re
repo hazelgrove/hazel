@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type cursor_term = CursorInfo.cursor_term;
+type cursor_term = CursorInfo_common.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
@@ -33,8 +33,8 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action.shape)
-  /* SLine in Action.shape stands for both empty line and case rule,
+  | ConstructEdit(Action_common.shape)
+  /* SLine in Action_common.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
@@ -61,7 +61,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info,
-  previous_action: Action.t,
+  previous_action: Action_common.t,
   action_group,
   timestamp,
 };
@@ -76,7 +76,8 @@ type undo_history_group = {
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
   all_hidden_history_expand: bool,
-  /* disable the auto-scrolling when disable_auto_scrolling is true */
+  /* history panel automatically scrolls current entry into view,
+     but this behavior should be disabled when user is hovering over panel */
   disable_auto_scrolling: bool,
   preview_on_hover: bool,
   hover_recover_group_id: int,
@@ -448,10 +449,12 @@ let delete_group =
       ~new_cursor_term_info: cursor_term_info,
     )
     : option(action_group) =>
-  if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_before)) {
+  if (CursorInfo_common.is_empty_line(new_cursor_term_info.cursor_term_before)) {
     Some(DeleteEdit(EmptyLine));
-  } else if (CursorInfo.is_empty_line(new_cursor_term_info.cursor_term_after)
-             || CursorInfo.is_empty_hole(
+  } else if (CursorInfo_common.is_empty_line(
+               new_cursor_term_info.cursor_term_after,
+             )
+             || CursorInfo_common.is_empty_hole(
                   new_cursor_term_info.cursor_term_after,
                 )) {
     /* if the term becomes hole or empty line, the action group is deleting the whole term */
@@ -505,7 +508,9 @@ let delim_edge_handle =
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
-  } else if (CursorInfo.is_empty_hole(new_cursor_term_info.cursor_term_before)) {
+  } else if (CursorInfo_common.is_empty_hole(
+               new_cursor_term_info.cursor_term_before,
+             )) {
     /* delete space */
     Some(DeleteEdit(Space));
   } else {
@@ -523,7 +528,9 @@ let delete =
 
   switch (cursor_pos) {
   | OnText(_) =>
-    if (CursorInfo.caret_is_after_zoperand(new_cursor_term_info.zexp_before)) {
+    if (CursorInfo_Exp.caret_is_after_zoperand(
+          new_cursor_term_info.zexp_before,
+        )) {
       delim_edge_handle(
         ~new_cursor_term_info,
         ~adjacent_is_empty_line=new_cursor_term_info.next_is_empty_line,
@@ -588,7 +595,9 @@ let backspace =
   let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
   | OnText(_) =>
-    if (CursorInfo.caret_is_before_zoperand(new_cursor_term_info.zexp_before)) {
+    if (CursorInfo_Exp.caret_is_before_zoperand(
+          new_cursor_term_info.zexp_before,
+        )) {
       delim_edge_handle(
         ~new_cursor_term_info,
         ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
@@ -648,7 +657,7 @@ let get_new_action_group =
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: cursor_term_info,
-      ~action: Action.t,
+      ~action: Action_common.t,
     )
     : option(action_group) =>
   if (is_move_action(new_cursor_term_info)) {
@@ -663,11 +672,13 @@ let get_new_action_group =
     | Construct(shape) =>
       switch (shape) {
       | SLine =>
-        switch (CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_before)) {
+        switch (
+          CursorInfo_Exp.get_outer_zrules(new_cursor_term_info.zexp_before)
+        ) {
         | None => Some(ConstructEdit(shape))
         | Some(zrules_before) =>
           switch (
-            CursorInfo.get_outer_zrules(new_cursor_term_info.zexp_after)
+            CursorInfo_Exp.get_outer_zrules(new_cursor_term_info.zexp_after)
           ) {
           | None => Some(ConstructEdit(shape))
           | Some(zrules_after) =>
@@ -718,14 +729,14 @@ let get_new_action_group =
               );
             }
           };
-        } else if (CursorInfo.is_empty_hole(
+        } else if (CursorInfo_common.is_empty_hole(
                      new_cursor_term_info.cursor_term_before,
                    )
-                   || CursorInfo.is_empty_line(
+                   || CursorInfo_common.is_empty_line(
                         new_cursor_term_info.cursor_term_before,
                       )
                    || !
-                        CursorInfo.cursor_term_is_editable(
+                        CursorInfo_common.cursor_term_is_editable(
                           new_cursor_term_info.cursor_term_before,
                         )) {
           Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
@@ -847,7 +858,7 @@ let get_cursor_info =
   let zexp_before =
     new_cardstacks_before |> ZCardstacks.get_program |> Program.get_zexp;
   let (prev_is_empty_line, next_is_empty_line) =
-    CursorInfo.adjacent_is_emptyline(zexp_before);
+    CursorInfo_Exp.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
     new_cardstacks_before |> ZCardstacks.get_program |> Program.get_cursor_info;
   let cursor_term_before = cursor_info_before.cursor_term;
@@ -872,7 +883,7 @@ let push_edit_state =
       undo_history: t,
       new_cardstacks_before: ZCardstacks.t,
       new_cardstacks_after: ZCardstacks.t,
-      action: Action.t,
+      action: Action_common.t,
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);

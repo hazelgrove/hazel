@@ -1,7 +1,7 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
-module EditAction = Action;
+module EditAction = Action_common;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 
@@ -48,7 +48,7 @@ module Action = {
     //
     | ToggleMemoizeDoc
     | SelectHoleInstance(HoleInstance.t)
-    | SelectCaseBranch(CursorPath.steps, int)
+    | SelectCaseBranch(CursorPath_common.steps, int)
     | InvalidVar(string)
     | FocusCell
     | BlurCell
@@ -170,8 +170,8 @@ let apply_action =
         | exception Program.InvalidInput =>
           JSUtil.log("[Program.InvalidInput");
           model;
-        | exception Program.DoesNotExpand =>
-          JSUtil.log("[Program.DoesNotExpand]");
+        | exception Program.DoesNotElaborate =>
+          JSUtil.log("[Program.DoesNotElaborate]");
           model;
         }
       | MoveAction(Key(move_key)) =>

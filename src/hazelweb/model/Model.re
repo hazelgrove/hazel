@@ -26,7 +26,6 @@ type t = {
   compute_results,
   measurements,
   memoize_doc: bool,
-  selected_example: option(UHExp.t),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
@@ -109,7 +108,6 @@ let init = (): t => {
       update_apply_action: true,
     },
     memoize_doc: true,
-    selected_example: None,
     left_sidebar_open: false,
     right_sidebar_open: true,
     font_metrics:
@@ -125,10 +123,10 @@ let init = (): t => {
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics.edit_state =>
+let get_edit_state = (model: t): Statics_common.edit_state =>
   model |> get_program |> Program.get_edit_state;
 
-let get_cursor_info = (model: t): CursorInfo.t =>
+let get_cursor_info = (model: t): CursorInfo_common.t =>
   model |> get_program |> Program.get_cursor_info;
 
 let put_program = (program: Program.t, model: t): t => {
@@ -184,7 +182,7 @@ let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
   |> focus_cell;
 
-let update_program = (a: Action.t, new_program, model) => {
+let update_program = (a: Action_common.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -233,7 +231,7 @@ let next_card = model => {
   |> focus_cell;
 };
 
-let perform_edit_action = (a: Action.t, model: t): t => {
+let perform_edit_action = (a: Action_common.t, model: t): t => {
   TimeUtil.measure_time(
     "Model.perform_edit_action",
     model.measurements.measurements
@@ -281,7 +279,7 @@ let move_via_click = (row_col, model) => {
 };
 
 let select_case_branch =
-    (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
+    (path_to_case: CursorPath_common.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
   let (new_program, action) =
     Program.move_to_case_branch(path_to_case, branch_index, program);
@@ -305,7 +303,7 @@ let load_example = (model: t, e: UHExp.t): t =>
   |> put_program(
        Program.mk(
          ~width=model.cell_width,
-         Statics.Exp.fix_and_renumber_holes_z(
+         Statics_Exp.fix_and_renumber_holes_z(
            Contexts.empty,
            ZExp.place_before(e),
          ),

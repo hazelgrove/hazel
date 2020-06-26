@@ -1,9 +1,7 @@
 open Sexplib.Std;
 
-exception DuplicateVarInExp;
-
 [@deriving sexp]
-type operator = Operators.Exp.t;
+type operator = Operators_Exp.t;
 
 // TODO
 // type t =
@@ -322,7 +320,7 @@ let text_operand =
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators.Exp.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };
