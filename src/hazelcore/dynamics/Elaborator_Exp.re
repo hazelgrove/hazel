@@ -1118,12 +1118,40 @@ and ana_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-      _,
-    )
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
+    switch (syn_elab(ctx, delta, scrut)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, pat_ty, delta) =>
+      let elab_rules =
+        List.fold_left2(
+          (b, r_t, r) =>
+            switch (b) {
+            | None => None
+            | Some((drs, delta)) =>
+              switch (syn_elab_rule(ctx, delta, r, pat_ty, r_t)) {
+              | None => None
+              | Some((dr, delta)) =>
+                let drs = drs @ [dr];
+                Some((drs, delta));
+              }
+            },
+          Some(([], delta)),
+          rule_types,
+          rules,
+        );
+      switch (elab_rules) {
+      | None => DoesNotElaborate
+      | Some((drs, delta)) =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+        let d = DHExp.Case(d1, drs, 0);
+        Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
+      };
+    } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
