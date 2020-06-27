@@ -280,7 +280,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                          */
                       ),
                       Node.div(
-                        [Attr.classes(["error"])],
+                        [Attr.classes(["error-message"])],
                         [
                           Node.span(
                             [Attr.classes(["closebtn"])],
