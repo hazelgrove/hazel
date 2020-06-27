@@ -33,13 +33,13 @@ of type `HTyp.t`.
         - `DelimIndex`
         - `OpIndex`
         - `Side`
-      - `CursorPath`
+      - `CursorPath_common`, `CursorPath_Exp`, `CursorPath_Pat`, `CursorPath_Typ`
   - typechecking:
-    - `Statics`
+    - `Statics_common`, `Statics_Exp`, `Statics_Pat`
     - `HTyp`
     - `Contexts`, `VarCtx`, `VarMap`
   - edit action semantics:
-    - `Action`
+    - `Action_common`, `Action_Exp`, `Action_Pat`, `Action_Typ`
     - `ExpandingKeyword`
     - `MetaVarGen`
     - `TextShape`
@@ -61,7 +61,7 @@ of type `HTyp.t`.
       - `HoleInstanceInfo`
       - `InstancePath` (used by context inspector)
   - editor services:
-    - `CursorInfo`
+    - `CursorInfo_common`, `CursorInfo_Exp`, `CursorInfo_Pat`, `CursorInfo_Typ`
     - `UsageAnalysis`
     - `CodeHistory`
   - livelits
@@ -77,7 +77,9 @@ We use
   the `Main` module, which inserts content in the specified element.
 
   The `Main` module implements the Hazel UI by following a model-view-update
-  architecture using Jane Street's [`Incr_dom`](https://github.com/janestreet/incr_dom) library.
+  architecture using Jane Street's [`Incr_dom`](https://github.com/janestreet/incr_dom) library. For a gentle overview of model-view-update, read through the section
+  titled [The Elm Architecture](https://guide.elm-lang.org/architecture/) in
+  the Elm documentation.
 
   - `www`:
     the assets (e.g. `fonts`, `imgs`, `style.css`, `index.html`) loaded
@@ -91,11 +93,11 @@ We use
         - (we use "term" to range over expressions, patterns, and types)
         - `TermShape`: various term shapes that are handled differently visually
         - `TermSort` exp vs pat vs typ
-      - `UHDoc` all possible choices of layout
+      - `UHDoc_common`, `UHDoc_Exp`, `UHDoc_Pat`, `UHDoc_Typ` all possible choices of layout
       - `UHLayout` final layout chosen by `pretty`
     - `doc/layout` for internal expressions
       - `DHAnnot` annotations on `doc/layout`
-      - `DHDoc` all possible choices of layout
+      - `DHDoc_common`, `DHDoc_Exp`, `DHDoc_Pat`, `DHDoc_Typ` all possible choices of layout
       - `DHLayout` final layout chosen by `pretty`
     - `doc/layout` for `HTyp`
       - `HTypAnnot`, `HTypDoc`, `HTypLayout`
@@ -108,7 +110,7 @@ We use
     - `Program`:
       entry point to any Hazel program, provides functions for
       acquiring semantic info as well as layout concerns, goes
-      beyond `Statics.edit_state` in that it contains information like
+      beyond `Statics_common.edit_state` in that it contains information like
       current editor width, whether its focused, etc...
     - `Result`: result of evaluating a Hazel program
     - `UndoHistory`: undo logic
@@ -132,7 +134,7 @@ We use
         `CardstackInfo`
       - `ZCard` is the selected card in a `Cardstack`, it differs from
         `Card` in that it contains a full `Program` as opposed to
-        a `Statics.edit_state`
+        a `Statics_common.edit_state`
   -
 
 

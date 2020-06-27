@@ -3,51 +3,53 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
-module KeyCombo = JSUtil.KeyCombo;
-module MoveKey = JSUtil.MoveKey;
+
 open ViewUtil;
 open Sexplib.Std;
 
-let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
+let kc_actions:
+  Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
   [
-    (KeyCombo.Backspace, _ => Action.Backspace),
-    (Delete, _ => Action.Delete),
-    (ShiftTab, _ => Action.MoveToPrevHole),
-    (Tab, _ => Action.MoveToNextHole),
+    (HazelKeyCombos.Backspace, _ => Action_common.Backspace),
+    (Delete, _ => Action_common.Delete),
+    (ShiftTab, _ => Action_common.MoveToPrevHole),
+    (Tab, _ => Action_common.MoveToNextHole),
     (
-      KeyCombo.GT,
+      HazelKeyCombos.GT,
       fun
-      | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
-      | _ => Action.Construct(SOp(SGreaterThan)),
+      | {CursorInfo_common.typed: OnType, _} =>
+        Action_common.Construct(SOp(SArrow))
+      | _ => Action_common.Construct(SOp(SGreaterThan)),
     ),
-    (Ampersand, _ => Action.Construct(SOp(SAnd))),
-    (VBar, _ => Action.Construct(SOp(SOr))),
-    (LeftParen, _ => Action.Construct(SParenthesized)),
-    (Colon, _ => Action.Construct(SAsc)),
-    (Equals, _ => Action.Construct(SOp(SEquals))),
-    (Enter, _ => Action.Construct(SLine)),
-    (Backslash, _ => Action.Construct(SLam)),
-    (Plus, _ => Action.Construct(SOp(SPlus))),
-    (Minus, _ => Action.Construct(SOp(SMinus))),
-    (Asterisk, _ => Action.Construct(SOp(STimes))),
-    (Slash, _ => Action.Construct(SOp(SDivide))),
-    (LT, _ => Action.Construct(SOp(SLessThan))),
-    (Space, _ => Action.Construct(SOp(SSpace))),
-    (Comma, _ => Action.Construct(SOp(SComma))),
+    (Ampersand, _ => Action_common.Construct(SOp(SAnd))),
+    (VBar, _ => Action_common.Construct(SOp(SOr))),
+    (LeftParen, _ => Action_common.Construct(SParenthesized)),
+    (Colon, _ => Action_common.Construct(SAsc)),
+    (Equals, _ => Action_common.Construct(SOp(SEquals))),
+    (Enter, _ => Action_common.Construct(SLine)),
+    (Backslash, _ => Action_common.Construct(SLam)),
+    (Plus, _ => Action_common.Construct(SOp(SPlus))),
+    (Minus, _ => Action_common.Construct(SOp(SMinus))),
+    (Asterisk, _ => Action_common.Construct(SOp(STimes))),
+    (Slash, _ => Action_common.Construct(SOp(SDivide))),
+    (LT, _ => Action_common.Construct(SOp(SLessThan))),
+    (Space, _ => Action_common.Construct(SOp(SSpace))),
+    (Comma, _ => Action_common.Construct(SOp(SComma))),
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
-      | _ => Action.Construct(SListNil),
+      | {CursorInfo_common.typed: OnType, _} =>
+        Action_common.Construct(SList)
+      | _ => Action_common.Construct(SListNil),
     ),
-    (Semicolon, _ => Action.Construct(SOp(SCons))),
-    (Alt_L, _ => Action.Construct(SInj(L))),
-    (Alt_R, _ => Action.Construct(SInj(R))),
-    (Alt_C, _ => Action.Construct(SCase)),
-    (Ctrl_Alt_I, _ => Action.SwapUp),
-    (Ctrl_Alt_K, _ => Action.SwapDown),
-    (Ctrl_Alt_J, _ => Action.SwapLeft),
-    (Ctrl_Alt_L, _ => Action.SwapRight),
+    (Semicolon, _ => Action_common.Construct(SOp(SCons))),
+    (Alt_L, _ => Action_common.Construct(SInj(L))),
+    (Alt_R, _ => Action_common.Construct(SInj(R))),
+    (Alt_C, _ => Action_common.Construct(SCase)),
+    (Ctrl_Alt_I, _ => Action_common.SwapUp),
+    (Ctrl_Alt_K, _ => Action_common.SwapDown),
+    (Ctrl_Alt_J, _ => Action_common.SwapLeft),
+    (Ctrl_Alt_L, _ => Action_common.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
@@ -92,7 +94,8 @@ let view = (~inject, model: Model.t) => {
               ~font_metrics=model.font_metrics,
               ~caret_pos=Some((caret_row, caret_col)),
             );
-          let ci = CursorInspector.view(~inject, model, cursor_x, cursor_y);
+          let ci =
+            CursorInspector.view(~inject, model, (cursor_x, cursor_y));
           (code_view, Some(ci));
         } else {
           (
@@ -116,20 +119,20 @@ let view = (~inject, model: Model.t) => {
           let key_handlers = [
             Attr.on_keypress(_ => Event.Prevent_default),
             Attr.on_keydown(evt => {
-              switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+              switch (MoveKey.of_key(Key.get_key(evt))) {
               | Some(move_key) =>
-                prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
+                prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
               | None =>
-                switch (KeyCombo.of_evt(evt)) {
+                switch (HazelKeyCombos.of_evt(evt)) {
                 | Some(Ctrl_Z) =>
                   if (model.is_mac) {
                     Event.Ignore;
                   } else {
-                    prevent_stop_inject(Update.Action.Undo);
+                    prevent_stop_inject(ModelAction.Undo);
                   }
                 | Some(Meta_Z) =>
                   if (model.is_mac) {
-                    prevent_stop_inject(Update.Action.Undo);
+                    prevent_stop_inject(ModelAction.Undo);
                   } else {
                     Event.Ignore;
                   }
@@ -137,17 +140,17 @@ let view = (~inject, model: Model.t) => {
                   if (model.is_mac) {
                     Event.Ignore;
                   } else {
-                    prevent_stop_inject(Update.Action.Redo);
+                    prevent_stop_inject(ModelAction.Redo);
                   }
                 | Some(Meta_Shift_Z) =>
                   if (model.is_mac) {
-                    prevent_stop_inject(Update.Action.Redo);
+                    prevent_stop_inject(ModelAction.Redo);
                   } else {
                     Event.Ignore;
                   }
                 | Some(kc) =>
                   prevent_stop_inject(
-                    Update.Action.EditAction(
+                    ModelAction.EditAction(
                       Hashtbl.find(
                         kc_actions,
                         kc,
@@ -156,13 +159,13 @@ let view = (~inject, model: Model.t) => {
                     ),
                   )
                 | None =>
-                  switch (KeyCombo.of_evt(evt)) {
-                  | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
+                  switch (HazelKeyCombos.of_evt(evt)) {
+                  | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
                   | Some(Ctrl_Shift_Z) =>
-                    prevent_stop_inject(Update.Action.Redo)
+                    prevent_stop_inject(ModelAction.Redo)
                   | Some(kc) =>
                     prevent_stop_inject(
-                      Update.Action.EditAction(
+                      ModelAction.EditAction(
                         Hashtbl.find(
                           kc_actions,
                           kc,
@@ -175,7 +178,7 @@ let view = (~inject, model: Model.t) => {
                     | None => Event.Ignore
                     | Some(single_key) =>
                       prevent_stop_inject(
-                        Update.Action.EditAction(
+                        ModelAction.EditAction(
                           Construct(
                             SChar(JSUtil.single_key_string(single_key)),
                           ),
@@ -218,8 +221,8 @@ let view = (~inject, model: Model.t) => {
           Attr.id(cell_id),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
         [

@@ -54,8 +54,8 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
   let pos_attr =
     Vdom.Attr.style(
       Css_gen.combine(
-        Css_gen.left(`Px(int_of_float(x))),
-        Css_gen.top(`Px(int_of_float(y))),
+        Css_gen.left(`Px(int_of_float(Float.round(x)))),
+        Css_gen.top(`Px(int_of_float(Float.round(y)))),
       ),
     );
   Vdom.Node.span(
@@ -67,7 +67,7 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
 let view =
     (
       ~model: Model.t,
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~caret_pos: option((int, int)),
       l: UHLayout.t,
@@ -109,27 +109,14 @@ let view =
         | Annot(Indent, l) => [
             Node.span([Attr.classes(["Indent"])], go(l)),
           ]
-
         | Annot(HoleLabel({len}), l) =>
-          let font_width = font_metrics.col_width;
-          let font_shrink = 0.65;
-          let full_space = font_width *. float_of_int(len);
-          let shrunk_space = full_space *. font_shrink;
-          let per_side_padding = (full_space -. shrunk_space) /. 2.0;
-          let padding =
-            Css_gen.padding(
-              ~left=`Px(int_of_float(per_side_padding)),
-              ~right=`Px(int_of_float(per_side_padding)),
-              (),
-            );
-          let font_size =
-            Css_gen.font_size(
-              `Percent(
-                Core_kernel.Percent.of_percentage(font_shrink *. 100.0),
-              ),
-            );
-          let styling = Vdom.Attr.style(Css_gen.combine(padding, font_size));
-          [Node.span([styling, Attr.classes(["HoleLabel"])], go(l))];
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], go(l))],
+            ),
+          ];
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
           ]
@@ -206,7 +193,7 @@ let view =
                 ),
               ),
             );
-            inject(Update.Action.MoveAction(Click(row_col)));
+            inject(ModelAction.MoveAction(Click(row_col)));
           }),
         ],
         children,

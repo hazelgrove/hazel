@@ -1,9 +1,8 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 
 exception InvalidInstance;
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   open Vdom;
 
   let static_info = ((x, ty)) =>
@@ -70,24 +69,24 @@ let view =
     let ctx =
       program
       |> Program.get_cursor_info
-      |> CursorInfo.get_ctx
+      |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
       if (model.compute_results.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
-        | None => Dynamics.Exp.id_env(ctx)
+        | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
-            Dynamics.Exp.id_env(ctx);
+            Elaborator_Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Dynamics.Exp.id_env(ctx);
+        Elaborator_Exp.id_env(ctx);
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
@@ -235,13 +234,11 @@ let view =
         ],
       );
 
-    let prev_key = KeyCombo.Details.alt_PageUp;
-    let next_key = KeyCombo.Details.alt_PageDown;
+    let prev_key = KeyCombo.alt_PageUp;
+    let next_key = KeyCombo.alt_PageDown;
 
-    let prev_title =
-      "Previous instance (" ++ KeyCombo.Details.name(prev_key) ++ ")";
-    let next_title =
-      "Next instance (" ++ KeyCombo.Details.name(next_key) ++ ")";
+    let prev_title = "Previous instance (" ++ KeyCombo.name(prev_key) ++ ")";
+    let next_title = "Next instance (" ++ KeyCombo.name(next_key) ++ ")";
 
     let prev_btn =
       if (i > 0) {
@@ -253,7 +250,7 @@ let view =
             Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(prev_key, ev)
+                KeyCombo.matches(prev_key, ev)
                   ? [inject(SelectHoleInstance(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
@@ -280,7 +277,7 @@ let view =
             Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(next_key, ev)
+                KeyCombo.matches(next_key, ev)
                   ? [inject(SelectHoleInstance(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
@@ -312,7 +309,7 @@ let view =
       let ctx =
         program
         |> Program.get_cursor_info
-        |> CursorInfo.get_ctx
+        |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {

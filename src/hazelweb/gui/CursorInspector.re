@@ -7,10 +7,9 @@ type err_state_b =
 
 let view =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       model: Model.t,
-      x: float,
-      y: float,
+      loc: (float, float),
     )
     : Vdom.Node.t => {
   let typebar = ty =>
@@ -149,7 +148,7 @@ let view =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let rec get_indicator_info = (typed: CursorInfo.typed) =>
+  let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
@@ -337,6 +336,7 @@ let view =
     | BindingError => "cursor-BindingError"
     | OK => "cursor-OK"
     };
+  let (x, y) = loc;
   let pos_attr =
     Vdom.Attr.style(
       Css_gen.combine(
