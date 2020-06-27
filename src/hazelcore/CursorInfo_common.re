@@ -52,6 +52,9 @@ type typed =
   | SynFreeArrow(HTyp.t)
   // cursor is on a keyword in the function position of an ap
   | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
+  // cursor is on a case with inconsistent branch types
+  // in the function position of an ap
+  | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath_common.steps)
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword

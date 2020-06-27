@@ -266,6 +266,11 @@ let view =
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
       (ind1, ind2, TypeInconsistency);
+    | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_inconsistent_branches_indicator(rule_types, path_to_case);
+      (ind1, ind2, TypeInconsistency);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
