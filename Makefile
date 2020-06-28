@@ -1,12 +1,13 @@
 HTML_DIR=_build/default/src/hazelweb/www
 HTML_FILE=$(HTML_DIR)/index.html
+TEST_DIR=src/test
 
 all: dev
 
 deps:
 	opam install \
 		dune reason=3.5.2 utop rtop \
-		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib
+		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib ppx_expect ppx_inline_test
 
 dev:
 	dune build @src/fmt --auto-promote || true
@@ -50,6 +51,13 @@ open:
 
 repl:
 	dune utop src/hazelcore
+
+test:
+	dune build @src/fmt --auto-promote || true
+	dune runtest || true
+
+fix-test-answers:
+	dune promote || true
 
 clean:
 	dune clean

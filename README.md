@@ -102,3 +102,9 @@ The `make dev` and `make release` commands do three things:
 You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
 
 `js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+
+### Testing
+
+You can run all of the unit tests located in `src/test` by running `dune runtest`.
+
+Unit tests are written using the ppx_expect and ppx_inline_tests. If you would like to fix the output of your expect tests run `make fix-test-answers`.
