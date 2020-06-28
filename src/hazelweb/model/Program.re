@@ -67,17 +67,15 @@ let get_cursor_info = (program: t) => {
 let get_decorations = (program: t): Decorations.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let err_holes =
-    program
-    |> get_uhexp
-    |> CursorPath_Exp.holes
-    |> List.filter_map(((hole_desc: CursorPath_common.hole_desc, steps)) =>
-         switch (hole_desc) {
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath_common.{sort, is_empty, steps}) =>
+         switch (sort) {
          | TypHole => None
-         | PatHole({is_empty, _})
-         | ExpHole({is_empty, _}) => is_empty ? None : Some(steps)
+         | PatHole(_)
+         | ExpHole(_) => is_empty ? None : Some(steps)
          }
        );
-  {current_term, err_hole};
+  {current_term, err_holes};
 };
 
 exception DoesNotElaborate;
