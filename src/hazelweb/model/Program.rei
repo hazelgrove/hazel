@@ -36,6 +36,8 @@ let get_u_gen: t => MetaVarGen.t;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo_common.t;
 
+let get_decorations: t => Decorations.t;
+
 /**
  * Raised when edit state does not elaborate
  * (indicates a bug, either in that function or in Action
