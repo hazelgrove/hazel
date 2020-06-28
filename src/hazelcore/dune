@@ -7,8 +7,9 @@
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
+ (inline_tests)
  (preprocess
-  (pps ppx_let ppx_sexp_conv)))
+  (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
 (ocamllex
  (modules SkelExprLexer SkelPatLexer SkelTypLexer))
