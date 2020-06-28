@@ -107,14 +107,13 @@ let perform = (op, (a, b), tree: t): t => {
     let interval = a < b ? (a, b) : (b, a);
     let new_root = go(op, interval, tree.root);
     {...tree, root: new_root};
-  }
+  };
 };
 let insert = perform(Insert);
 let delete = perform(Delete);
 
 let contribution = ((a: float, b: float), tree: t): list((float, float)) => {
-  let rec go =
-          (~stack=[], (a, b) as interval, node: node): list(interval) => {
+  let rec go = (~stack=[], (a, b) as interval, node: node): list(interval) => {
     let (a', b') = node.interval;
     switch (node.status) {
     | Full => stack
@@ -129,8 +128,7 @@ let contribution = ((a: float, b: float), tree: t): list((float, float)) => {
       | Leaf => stack
       | Branch(l, r) =>
         let mid = (a' + b') / 2;
-        let stack =
-          a >= mid ? stack : go(~stack, interval, Lazy.force(l));
+        let stack = a >= mid ? stack : go(~stack, interval, Lazy.force(l));
         b <= mid ? stack : go(~stack, interval, Lazy.force(r));
       }
     };
@@ -145,8 +143,8 @@ let contribution = ((a: float, b: float), tree: t): list((float, float)) => {
     let interval = a < b ? (a, b) : (b, a);
     go(interval, tree.root)
     |> List.map(((ordinal1, ordinal2)) => {
-      let (o1, o2) = a < b ? (ordinal1, ordinal2) : (ordinal2, ordinal1);
-      (tree.values[o1], tree.values[o2])
-    })
+         let (o1, o2) = a < b ? (ordinal1, ordinal2) : (ordinal2, ordinal1);
+         (tree.values[o1], tree.values[o2]);
+       });
   };
 };
