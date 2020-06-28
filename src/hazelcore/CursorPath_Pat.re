@@ -157,6 +157,7 @@ and holes_operand =
     : CursorPath_common.hole_list =>
   switch (operand) {
   | EmptyHole(u)
+  | InvalidText(u, _)
   | Wild(InHole(_, u))
   | Var(InHole(_, u), _, _)
   | Var(_, InVarHole(_, u), _)
@@ -164,7 +165,6 @@ and holes_operand =
   | FloatLit(InHole(_, u), _)
   | BoolLit(InHole(_, u), _)
   | ListNil(InHole(_, u)) => [(PatHole(u), rev_steps |> List.rev), ...hs]
-  | InvalidText(_)
   | Var(NotInHole, NotInVarHole, _)
   | Wild(NotInHole)
   | IntLit(NotInHole, _)
@@ -201,12 +201,12 @@ and holes_zoperand =
     : CursorPath_common.zhole_list =>
   switch (zoperand) {
   | CursorP(OnOp(_), _) => CursorPath_common.no_holes
-  | CursorP(_, EmptyHole(u)) =>
+  | CursorP(_, EmptyHole(u))
+  | CursorP(_, InvalidText(u, _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
       (),
     )
-  | CursorP(_, InvalidText(_)) => CursorPath_common.no_holes
   | CursorP(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
