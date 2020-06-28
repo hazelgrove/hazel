@@ -70,6 +70,22 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
+let get_decorations = (program: t): Decorations.t => {
+  let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let err_holes =
+    program
+    |> get_uhexp
+    |> CursorPath_Exp.holes
+    |> List.filter_map(((hole_desc: CursorPath_common.hole_desc, steps)) =>
+         switch (hole_desc) {
+         | TypHole => None
+         | PatHole({is_empty, _})
+         | ExpHole({is_empty, _}) => is_empty ? None : Some(steps)
+         }
+       );
+  {current_term, err_hole};
+};
+
 exception DoesNotElaborate;
 let expand =
   Memo.general(
