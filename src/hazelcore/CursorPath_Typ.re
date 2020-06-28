@@ -123,7 +123,7 @@ and of_steps_operator =
     };
   };
 
-let hole_desc = _ => CursorPath_common.TypHole;
+let hole_sort = _ => CursorPath_common.TypHole;
 let is_space = _ => false;
 
 let rec holes =
@@ -136,7 +136,7 @@ let rec holes =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
-       ~hole_desc,
+       ~hole_sort,
        ~is_space,
        ~rev_steps,
        uty,
@@ -168,7 +168,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_desc,
+    ~hole_sort,
     ~is_space,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zopseq,

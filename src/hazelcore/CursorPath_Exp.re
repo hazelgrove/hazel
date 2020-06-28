@@ -397,10 +397,10 @@ and of_steps_rule =
     };
   };
 
-let hole_desc = (u: MetaVar.t): CursorPath_common.hole_desc => ExpHole(u);
-let holes_err = CursorPath_common.holes_err(~hole_desc);
-let holes_case_err = CursorPath_common.holes_case_err(~hole_desc);
-let holes_verr = CursorPath_common.holes_verr(~hole_desc);
+let hole_sort = (u: MetaVar.t): CursorPath_common.hole_sort => ExpHole(u);
+let holes_err = CursorPath_common.holes_err(~hole_sort);
+let holes_case_err = CursorPath_common.holes_case_err(~hole_sort);
+let holes_verr = CursorPath_common.holes_verr(~hole_sort);
 
 let rec holes =
         (
@@ -445,7 +445,7 @@ and holes_line =
     hs
     |> CursorPath_common.holes_opseq(
          ~holes_operand,
-         ~hole_desc,
+         ~hole_sort,
          ~is_space=Operators_Exp.is_Space,
          ~rev_steps,
          opseq,
@@ -635,7 +635,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_desc,
+    ~hole_sort,
     ~is_space=Operators_Exp.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZExp.erase_zopseq,

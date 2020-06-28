@@ -129,7 +129,7 @@ and of_steps_operator =
   | [_, ..._] => None
   };
 
-let hole_desc = (u: MetaVar.t): CursorPath_common.hole_desc => PatHole(u);
+let hole_sort = (u: MetaVar.t): CursorPath_common.hole_sort => PatHole(u);
 
 let rec holes =
         (
@@ -141,7 +141,7 @@ let rec holes =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
-       ~hole_desc,
+       ~hole_sort,
        ~is_space=Operators_Pat.is_Space,
        ~rev_steps,
        p,
@@ -187,7 +187,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_desc,
+    ~hole_sort,
     ~is_space=Operators_Pat.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZPat.erase_zopseq,
