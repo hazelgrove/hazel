@@ -18,9 +18,6 @@ let mk =
   is_focused,
 };
 
-let get_width = program => program.width;
-
-let get_start_col = program => program.start_col_of_vertical_movement;
 let put_start_col = (start_col, program) => {
   ...program,
   start_col_of_vertical_movement: Some(start_col),
@@ -30,16 +27,13 @@ let clear_start_col = program => {
   start_col_of_vertical_movement: None,
 };
 
-let is_focused = program => program.is_focused;
-
 let focus = program => {...program, is_focused: true};
 let blur = program => {...program, is_focused: false};
 
-let get_edit_state = program => program.edit_state;
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
 let get_zexp = program => {
-  let (ze, _, _) = program |> get_edit_state;
+  let (ze, _, _) = program.edit_state;
   ze;
 };
 
@@ -53,7 +47,7 @@ let get_steps = program => {
 };
 
 let get_u_gen = program => {
-  let (_, _, u_gen) = program |> get_edit_state;
+  let (_, _, u_gen) = program.edit_state;
   u_gen;
 };
 
@@ -118,7 +112,7 @@ let get_result = (program: t): Result.t =>
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
-  let edit_state = program |> get_edit_state;
+  let edit_state = program.edit_state;
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
@@ -136,7 +130,7 @@ let perform_edit_action = (a, program) => {
 
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
-  let (ze, _, _) = program |> get_edit_state;
+  let (ze, _, _) = program.edit_state;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
   switch (CursorPath_common.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
@@ -178,7 +172,7 @@ let get_layout =
       ~memoize_doc: bool,
       program,
     ) => {
-  let width = program |> get_width;
+  let width = program.width;
   let doc = get_doc(~measure_program_get_doc, ~memoize_doc, program);
   TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc", measure_layoutOfDoc_layout_of_doc, () =>
@@ -316,7 +310,7 @@ let move_via_key =
          ~memoize_doc,
        );
   let (from_col, put_col_on_start) =
-    switch (program |> get_start_col) {
+    switch (program.start_col_of_vertical_movement) {
     | None => (col, put_start_col(col))
     | Some(col) => (col, (p => p))
     };
