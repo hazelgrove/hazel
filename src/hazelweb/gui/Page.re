@@ -262,6 +262,26 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ],
                         [Node.text("Serialize to console")],
                       ),
+                      Node.button(
+                        [
+                          Attr.on_click(_ => {
+                            Printf.printf(
+                              "%s\n%!",
+                              fst(
+                                OCamlExtraction_Exp.extract(
+                                  ~ctx=Contexts.empty,
+                                  ~de=
+                                    model
+                                    |> Model.get_program
+                                    |> Program.get_expansion,
+                                ),
+                              ),
+                            );
+                            Event.Ignore;
+                          }),
+                        ],
+                        [Node.text("Extraction to Ocaml")],
+                      ),
                       Node.div(
                         [
                           Attr.style(

@@ -73,7 +73,8 @@ module Exp = {
         let ocaml_e = extract(~ctx, ~de=e);
         //add a parenthesize to avoid any possible order priority
         (
-          "(" ++ x ++ " : " ++ Typ.extract(~t=snd(ocaml_e)) ++ ")",
+          // "(" ++ x ++ " : " ++ Typ.extract(~t=snd(ocaml_e)) ++ ")",
+          x, //we don't want annotate it everywhere
           snd(ocaml_e),
         );
       };
@@ -83,12 +84,12 @@ module Exp = {
       switch (typ) {
       | None => failwith("Exp: BoundVar " ++ x ++ " Not Found")
       // if the hole type, we don't print the type
-      | Some(t) =>
-        if (t == Hole) {
-          ("(" ++ x ++ ")", t);
-        } else {
-          ("(" ++ x ++ " : " ++ Typ.extract(~t) ++ ")", t);
-        }
+      | Some(t) => (x, t)
+      // if (t == Hole) {
+      //   ("(" ++ x ++ ")", t);
+      // } else {
+      //   ("(" ++ x ++ " : " ++ Typ.extract(~t) ++ ")", t);
+      // }
       };
     | Let(dp, de1, de2) =>
       switch (dp) {
