@@ -383,6 +383,34 @@ html, body {
   min-height: 38px;
 }
 
+.var_exp_bar {
+  font-size: 12pt;
+  align-items: center;
+  min-height: 38px;
+}
+
+.var_exp_bar > span {
+  white-space: pre;
+}
+
+.var_exp_bar > .number {
+  font-weight: bold;
+}
+
+.var_pat_bar {
+  font-size: 12pt;
+  align-items: center;
+  min-height: 38px;
+}
+
+.var_pat_bar > span {
+  white-space: pre;
+}
+
+.var_pat_bar > .number {
+  font-weight: bold;
+}
+
 .cursor-OK .typebar, .cursor-OK .infobar {
   background-color: #FEFEEA;
 }

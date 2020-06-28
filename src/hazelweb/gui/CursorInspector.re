@@ -63,6 +63,78 @@ let view =
       )
     );
 
+  let uses = num_of_uses => num_of_uses == 1 ? " use" : " uses";
+  let var_pat_bar = (shadow, num_of_non_rec_uses, num_of_rec_uses) =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar", "var_pat_bar"])],
+        (
+          shadow
+            ? [
+              Node.span(
+                [],
+                [
+                  Node.text(
+                    UnicodeConstants.info ++ "shadowing previous definition, ",
+                  ),
+                ],
+              ),
+            ]
+            : []
+        )
+        @ (
+          num_of_non_rec_uses == 0
+            ? [
+              Node.span([], [Node.text(UnicodeConstants.warning ++ " ")]),
+            ]
+            : []
+        )
+        @ (
+          num_of_rec_uses == 0
+            ? [
+              Node.span(
+                [Attr.classes(["number"])],
+                [Node.text(Int.to_string(num_of_non_rec_uses))],
+              ),
+              Node.span([], [Node.text(uses(num_of_non_rec_uses))]),
+            ]
+            : [
+              Node.span(
+                [Attr.classes(["number"])],
+                [Node.text(Int.to_string(num_of_non_rec_uses))],
+              ),
+              Node.span([], [Node.text(" non-recursive")]),
+              Node.span([], [Node.text(uses(num_of_non_rec_uses))]),
+              Node.span([], [Node.text(" and ")]),
+              Node.span(
+                [Attr.classes(["number"])],
+                [Node.text(Int.to_string(num_of_rec_uses))],
+              ),
+              Node.span([], [Node.text(" recursive")]),
+              Node.span([], [Node.text(uses(num_of_rec_uses))]),
+            ]
+        ),
+      )
+    );
+  let var_exp_bar = (ordinal, total) =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar", "var_exp_bar"])],
+        [
+          Node.span(
+            [Attr.classes(["number"])],
+            [Node.text(Int.to_string(ordinal))],
+          ),
+          Node.span([], [Node.text(" of ")]),
+          Node.span(
+            [Attr.classes(["number"])],
+            [Node.text(Int.to_string(total))],
+          ),
+          Node.span([], [Node.text(uses(total))]),
+        ],
+      )
+    );
+
   let special_msg_bar = (msg: string) =>
     Vdom.(
       Node.div(
@@ -148,39 +220,16 @@ let view =
   let got_duplicate_indicator =
     got_indicator("Got a duplicated variable", typebar(HTyp.Hole));
 
-  let uses = num_of_uses => num_of_uses == 1 ? " use" : " uses";
   let got_var_pat_indicator = (shadow, num_of_non_rec_uses, num_of_rec_uses) => {
     got_indicator(
       "Got a variable pattern",
-      special_msg_bar(
-        (
-          shadow
-            ? UnicodeConstants.info ++ " shadowing previous variable, " : ""
-        )
-        ++ (num_of_non_rec_uses == 0 ? UnicodeConstants.warning ++ " " : "")
-        ++ (
-          num_of_rec_uses == 0
-            ? Int.to_string(num_of_non_rec_uses) ++ uses(num_of_non_rec_uses)
-            : Int.to_string(num_of_non_rec_uses)
-              ++ " non-recursive"
-              ++ uses(num_of_non_rec_uses)
-              ++ " and "
-              ++ Int.to_string(num_of_rec_uses)
-              ++ " recursive"
-              ++ uses(num_of_rec_uses)
-        ),
-      ),
+      var_pat_bar(shadow, num_of_non_rec_uses, num_of_rec_uses),
     );
   };
   let got_var_indicator = (index_of_cur_use, num_of_other_uses) =>
     got_indicator(
       "Got a variable",
-      special_msg_bar(
-        Int.to_string(index_of_cur_use)
-        ++ " / "
-        ++ Int.to_string(num_of_other_uses + 1)
-        ++ uses(num_of_other_uses + 1),
-      ),
+      var_exp_bar(index_of_cur_use + 1, num_of_other_uses + 1),
     );
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
