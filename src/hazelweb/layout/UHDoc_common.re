@@ -281,6 +281,9 @@ let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
+let mk_AssertLit = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
+  mk_text("assert") |> annot_Operand(~sort, ~err);
+
 let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
   let line_docs =
     s

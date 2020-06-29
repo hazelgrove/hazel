@@ -876,6 +876,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | StringLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
+    | AssertLit(InHole(TypeInconsistent, _))
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -924,6 +925,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | StringLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
+    | AssertLit(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
@@ -939,6 +941,7 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
+    | AssertLit(NotInHole)
     | StringLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _)
     | Subscript(NotInHole, _, _, _) =>

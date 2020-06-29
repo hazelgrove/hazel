@@ -187,8 +187,10 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | Sequence(t, t)
   | ApBuiltin(string, list(t))
   | FailedAssert(t)
+  | AssertLit
   | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
@@ -226,6 +228,7 @@ let constructor_string = (d: t): string =>
   | ApBuiltin(_, _) => "ApBuiltin"
   | Subscript(_, _, _) => "Subscript"
   | FloatLit(_) => "FloatLit"
+  | Sequence(_, _) => "Sequence"
   | StringLit(_) => "StringLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
@@ -242,6 +245,7 @@ let constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   | FailedAssert(_) => "FailedAssert"
+  | AssertLit => "AssertLit"
   };
 
 let rec mk_tuple: list(t) => t =

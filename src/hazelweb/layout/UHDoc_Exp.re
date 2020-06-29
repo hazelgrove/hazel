@@ -35,6 +35,8 @@ let mk_StringLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_StringLit(~sort=Exp);
 let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc_common.t =
   UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_AssertLit: (~err: ErrStatus.t, unit) => UHDoc_common.t =
+  UHDoc_common.mk_AssertLit(~sort=Exp);
 let mk_Var:
   (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_Var(~sort=Exp);
@@ -173,6 +175,7 @@ and mk_operand =
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)
         | BoolLit(err, b) => mk_BoolLit(~err, b)
+        | AssertLit(err) => mk_AssertLit(~err, ())
         | StringLit(err, s) => mk_StringLit(~err, s)
         | ListNil(err) => mk_ListNil(~err, ())
         | Lam(err, p, ann, body) =>

@@ -16,43 +16,43 @@ let multi_line_skel_hole_id = (steps, (a, b), i) =>
   "multi_line_skel_hole__"
   ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
-  ++ "("
+  ++ ""
   ++ string_of_int(a)
   ++ " "
   ++ string_of_int(b)
-  ++ ")"
+  ++ ""
   ++ "__"
   ++ string_of_int(i);
 let single_line_skel_hole_id = (steps, (a, b)) =>
   "multi_line_skel_hole__"
   ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
-  ++ "("
+  ++ ""
   ++ string_of_int(a)
   ++ " "
   ++ string_of_int(b)
-  ++ ")";
+  ++ "";
 
 let multi_line_ap_hole_id = (steps, (a, b), i) =>
   "multi_line_ap_hole__"
   ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
-  ++ "("
+  ++ ""
   ++ string_of_int(a)
   ++ " "
   ++ string_of_int(b)
-  ++ ")"
+  ++ ""
   ++ "__"
   ++ string_of_int(i);
 let single_line_ap_hole_id = (steps, (a, b)) =>
   "multi_line_ap_hole__"
   ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_steps(steps))
   ++ "__"
-  ++ "("
+  ++ ""
   ++ string_of_int(a)
   ++ " "
   ++ string_of_int(b)
-  ++ ")";
+  ++ "";
 
 let steps_of_text_id = s =>
   if (!Re.Str.string_match(Re.Str.regexp("^text__\\(.*\\)$"), s, 0)) {

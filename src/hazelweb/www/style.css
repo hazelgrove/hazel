@@ -796,6 +796,11 @@ h1 {
   font-size: 75%;
   top: -10px;
 }
+.DHCode .AssertionFail{
+  --err-hole-color: red;
+  border: 1px dotted var(--err-hole-color);
+  margin: -1px;
+}
 .DHCode .FailedCastDelim {
   color: red;
 }

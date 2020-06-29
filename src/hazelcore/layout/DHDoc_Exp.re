@@ -38,7 +38,9 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BoolLit(_)
   | IntLit(_)
   | ApBuiltin(_, _)
+  | Sequence(_, _)
   | FailedAssert(_)
+  | AssertLit
   | FloatLit(_)
   | StringLit(_)
   | ListNil(_)
@@ -196,6 +198,10 @@ let rec mk =
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | BoundVar(x) => text(x)
       | ApBuiltin(x, _) => text(x)
+      | AssertLit => text("assert")
+      | Sequence(d1, d2) =>
+        let (doc1, doc2) = (go'(d1), go'(d2));
+        DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
@@ -358,12 +364,13 @@ let rec mk =
             |> annot(DHAnnot.InvalidOpDecoration);
           hcats([d_doc, decoration]);
         }
-
       | FailedAssert(x) =>
+        //let (d_doc, _) = go'(x);
         let (d_doc, _) = go'(x);
+        let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
         let decoration =
           Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);
-        hcats([d_doc, decoration]);
+        hcats([d_doc2, decoration]);
       /*
        let (d_doc, d_cast) as dcast_doc = go'(d);
        let cast_decoration =

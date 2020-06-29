@@ -87,6 +87,9 @@ let mk_syn_text =
   | Some(BoolLit(b)) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.Bool, ctx, u_gen));
+  | Some(AssertLit) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var("assert")));
+    Succeeded((zp, HTyp.Arrow(Bool, Prod([])), ctx, u_gen));
   | Some(ExpandingKeyword(k)) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
@@ -131,6 +134,7 @@ let mk_ana_text =
     Succeeded((zp, ctx, u_gen));
   | Some(IntLit(_))
   | Some(FloatLit(_))
+  | Some(AssertLit)
   | Some(BoolLit(_)) =>
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err

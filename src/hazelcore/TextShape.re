@@ -6,6 +6,7 @@ type t =
   | IntLit(string)
   | FloatLit(string)
   | BoolLit(bool)
+  | AssertLit
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t);
 
@@ -27,18 +28,24 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
     };
   };
 
+let is_assert = (text: string) => {
+  String.equal("assert", text);
+};
+
 let of_text = (text: string): option(t) => {
   switch (
     int_of_string_opt(text),
     hazel_float_of_string_opt(text),
     bool_of_string_opt(text),
     ExpandingKeyword.mk(text),
+    is_assert(text),
   ) {
-  | (Some(_), _, _, _) => Some(IntLit(text))
-  | (_, Some(_), _, _) => Some(FloatLit(text))
-  | (_, _, Some(b), _) => Some(BoolLit(b))
-  | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
-  | (None, None, None, None) =>
+  | (Some(_), _, _, _, _) => Some(IntLit(text))
+  | (_, Some(_), _, _, _) => Some(FloatLit(text))
+  | (_, _, Some(b), _, _) => Some(BoolLit(b))
+  | (_, _, _, Some(k), _) => Some(ExpandingKeyword(k))
+  | (_, _, _, _, true) => Some(AssertLit)
+  | (None, None, None, None, _) =>
     if (text |> String.equal("_")) {
       Some(Underscore);
     } else if (text |> Var.is_valid) {

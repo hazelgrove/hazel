@@ -149,6 +149,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | AssertLit(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -160,6 +161,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | AssertLit(InHole(WrongLength, _))
   | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
@@ -197,6 +199,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(NotInHole, _) => Some(Bool)
   | StringLit(NotInHole, _) => Some(String)
   | ListNil(NotInHole) => Some(List(Hole))
+  | AssertLit(NotInHole) => Some(Arrow(Bool, Prod([])))
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -382,6 +385,7 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | AssertLit(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -398,6 +402,7 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | AssertLit(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(
@@ -418,6 +423,7 @@ and ana_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _)
+  | AssertLit(NotInHole)
   | StringLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
@@ -992,6 +998,7 @@ and syn_fix_holes_operand =
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
   | StringLit(_, _) => (e_nih, String, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
+  | AssertLit(_) => (e_nih, Arrow(Bool, Prod([])), u_gen)
   | Parenthesized(body) =>
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1399,6 +1406,7 @@ and ana_fix_holes_operand =
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _)
+  | AssertLit(_)
   | StringLit(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

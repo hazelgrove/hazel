@@ -316,6 +316,9 @@ let mk_syn_text =
   | Some(BoolLit(b)) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+  | Some(AssertLit) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit()));
+    Succeeded(SynDone((ze, HTyp.Arrow(Bool, Prod([])), u_gen)));
   | Some(ExpandingKeyword(k)) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
@@ -376,7 +379,9 @@ let mk_ana_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(AnaDone((ze, u_gen)));
-  | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+  | Some(
+      IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_) | AssertLit,
+    ) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -1383,7 +1388,8 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+        AssertLit(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1441,6 +1447,8 @@ and syn_perform_operand =
 
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
+  | (Delete, CursorE(OnText(j), AssertLit(_))) =>
+    syn_delete_text(ctx, u_gen, j, "assert")
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
@@ -1461,6 +1469,8 @@ and syn_perform_operand =
     }
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
+  | (Backspace, CursorE(OnText(j), AssertLit(_))) =>
+    syn_backspace_text(ctx, u_gen, j, "assert")
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
   | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
@@ -1776,7 +1786,8 @@ and syn_perform_operand =
       Construct(SQuote),
       CursorE(
         OnText(_),
-        Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _),
+        Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _) |
+        AssertLit(_),
       ),
     ) =>
     Failed
@@ -3093,7 +3104,8 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+        AssertLit(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -3232,6 +3244,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorE(OnText(j), AssertLit(_))) =>
+    ana_delete_text(ctx, u_gen, j, "assert", ty)
   | (Delete, CursorE(OnText(j), StringLit(_, s))) =>
     if (j == String.length(s)) {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -3257,6 +3271,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorE(OnText(j), AssertLit(_))) =>
+    ana_backspace_text(ctx, u_gen, j, "assert", ty)
   | (Backspace, CursorE(OnText(j), StringLit(_, s))) =>
     if (j == 0) {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -3520,7 +3536,8 @@ and ana_perform_operand =
       Construct(SQuote),
       CursorE(
         OnText(_),
-        Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _),
+        Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) | BoolLit(_, _) |
+        AssertLit(_),
       ),
     ) =>
     Failed

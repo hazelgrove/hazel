@@ -123,6 +123,7 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
+    | AssertLit(_)
     | StringLit(_, _)
     | ListNil(_) => None
     | Parenthesized(body) =>
@@ -339,6 +340,7 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
+    | AssertLit(_)
     | StringLit(_, _)
     | ListNil(_) => None
     | Parenthesized(body) =>
@@ -496,6 +498,7 @@ and holes_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
+  | AssertLit(err)
   | StringLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
@@ -702,6 +705,7 @@ and holes_zoperand =
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
+  | CursorE(_, AssertLit(err))
   | CursorE(_, StringLit(err, _))
   | CursorE(_, ListNil(err)) =>
     switch (err) {

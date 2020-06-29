@@ -25,6 +25,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
+  | AssertLit(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -56,6 +57,8 @@ let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
 let intlit: (~err: ErrStatus.t=?, string) => operand;
+
+let assertlit: (~err: ErrStatus.t=?, unit) => operand;
 
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
 

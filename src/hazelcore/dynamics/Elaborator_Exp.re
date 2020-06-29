@@ -24,7 +24,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     }
   | FreeVar(_) => d2
   | ApBuiltin(z, y) => ApBuiltin(z, builtin_subst(y, d1, x))
+  | Sequence(_, _)
   | FailedAssert(_)
+  | AssertLit
   | Keyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -312,7 +314,9 @@ and matches_cast_Inj =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | ApBuiltin(_, _) => DoesNotMatch
+  | Sequence(_, _) => DoesNotMatch
   | FailedAssert(_) => DoesNotMatch
+  | AssertLit => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
@@ -376,7 +380,9 @@ and matches_cast_Pair =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | ApBuiltin(_, _) => DoesNotMatch
+  | Sequence(_, _) => DoesNotMatch
   | FailedAssert(_) => DoesNotMatch
+  | AssertLit => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
@@ -438,7 +444,9 @@ and matches_cast_Cons =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | ApBuiltin(_, _) => DoesNotMatch
+  | Sequence(_, _) => DoesNotMatch
   | FailedAssert(_) => DoesNotMatch
+  | AssertLit => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
@@ -543,7 +551,7 @@ and syn_elab_line =
     switch (syn_elab_opseq(ctx, delta, e1)) {
     | DoesNotElaborate => LinesDoNotElaborate
     | Elaborates(d1, _, delta) =>
-      let prelude = d2 => DHExp.Let(Wild, d1, d2);
+      let prelude = d2 => DHExp.Sequence(d1, d2);
       LinesElaboration(prelude, ctx, delta);
     }
   | EmptyLine => LinesElaboration(d => d, ctx, delta)
@@ -755,6 +763,7 @@ and syn_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | AssertLit(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -776,6 +785,7 @@ and syn_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | AssertLit(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -822,11 +832,14 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
+  | AssertLit(NotInHole) =>
+    Elaborates(AssertLit, HTyp.Arrow(Bool, Prod([])), delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
     | Some(ty) => Elaborates(BoundVar(x), ty, delta)
     | None => DoesNotElaborate
+    };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1196,6 +1209,7 @@ and ana_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | AssertLit(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -1215,6 +1229,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | AssertLit(InHole(WrongLength, _))
   | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
@@ -1318,6 +1333,7 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
+  | AssertLit(NotInHole)
   | StringLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ApPalette(NotInHole, _, _, _)
   | Subscript(NotInHole, _, _, _) =>
@@ -1376,7 +1392,9 @@ let rec renumber_result_only =
   switch (d) {
   | BoundVar(_)
   | ApBuiltin(_, _)
+  | Sequence(_, _)
   | FailedAssert(_)
+  | AssertLit
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -1485,7 +1503,9 @@ let rec renumber_sigmas_only =
   switch (d) {
   | BoundVar(_)
   | ApBuiltin(_, _)
+  | Sequence(_, _)
   | FailedAssert(_)
+  | AssertLit
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

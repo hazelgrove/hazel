@@ -10,12 +10,6 @@
      8 = boxed value not a float literal 2 */
 
 [@deriving sexp]
-type result =
-  | InvalidInput(int)
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
-
-[@deriving sexp]
 type ground_cases =
   | Hole
   | Ground
@@ -37,7 +31,7 @@ let eval_bin_int_op: (DHExp.BinIntOp.t, int, int) => DHExp.t;
 
 let eval_bin_float_op: (DHExp.BinFloatOp.t, float, float) => DHExp.t;
 
-let evaluate: DHExp.t => result;
+let evaluate: DHExp.t => Eval_Result.result;
 
 let evaluate_case:
   (
@@ -46,4 +40,4 @@ let evaluate_case:
     list(DHExp.rule),
     int
   ) =>
-  result;
+  Eval_Result.result;

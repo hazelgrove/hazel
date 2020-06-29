@@ -238,6 +238,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | StringLit(_, str) => Len(String.length(str))
     | BoolLit(_, _)
     | ListNil(_)
+    | AssertLit(_)
     | Lam(_, _, _, _)
     | Inj(_, _, _)
     | Case(_, _, _)

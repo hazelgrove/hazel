@@ -72,8 +72,10 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | Sequence(t, t)
   | ApBuiltin(string, list(t))
   | FailedAssert(t)
+  | AssertLit
   | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
