@@ -179,7 +179,7 @@ let rec mk =
       | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
       | FreeVar(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(t) => DHDoc_common.mk_InvalidText(t)
+      | InvalidText(_, _, _, t) => DHDoc_common.mk_InvalidText(t)
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
