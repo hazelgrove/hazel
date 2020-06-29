@@ -1,12 +1,10 @@
-/**
- * Tests for the new shunting yard implementation
- * of the skel parser.
- *
- */
+// 
+// Tests for the new shunting yard implementation
+// of the skel parser.
 let mvar = MetaVarGen.init;
 
 let%test "single operand test" = {
-  /* 1 */
+  // 1 
   let single_op_seq = Seq.S(UHExp.IntLit(NotInHole, "1"), Seq.E);
   let single_op_skel = Skel.Placeholder(0);
 
@@ -14,7 +12,7 @@ let%test "single operand test" = {
 };
 
 let%test "simple addition test" = {
-  /* 1 + 2 */
+  // 1 + 2 
   let simple_add_seq =
     Seq.S(
       UHExp.IntLit(NotInHole, "1"),
@@ -32,7 +30,7 @@ let%test "simple addition test" = {
 };
 
 let%test "single hole test" = {
-  /* _ */
+  // _ 
   let single_hole_seq = Seq.S(UHExp.EmptyHole(mvar), E);
   let single_hole_skel = Skel.Placeholder(0);
 
@@ -40,7 +38,7 @@ let%test "single hole test" = {
 };
 
 let%test "addition w/ left hole" = {
-  /* _ + 2 */
+  // _ + 2 
   let add_l_hole_seq =
     Seq.S(
       UHExp.EmptyHole(mvar),
@@ -58,7 +56,7 @@ let%test "addition w/ left hole" = {
 };
 
 let%test "operator precedence test" = {
-  /* 1 - 2 + 2 * 3 :: 4 :: [] */
+  // 1 - 2 + 2 * 3 :: 4 :: [] 
   let cons_seq =
     Seq.S(
       UHExp.IntLit(NotInHole, "3"),
