@@ -1,3 +1,4 @@
+open Sexplib.Std;
 module Vdom = Virtual_dom.Vdom;
 
 type cmd =
@@ -6,11 +7,13 @@ type cmd =
 // invariant: nonempty
 type t = list(cmd);
 
+[@deriving sexp]
 type point = {
   x: float,
   y: float,
 };
 
+[@deriving sexp]
 type rect = {
   min: point,
   width: float,
@@ -18,11 +21,14 @@ type rect = {
 };
 
 // private types
+[@deriving sexp]
 type linked_edge = {
   src: point,
   dst: point,
-  mutable next: option(linked_edge),
+  mutable next: [@sexp.opaque] option(linked_edge),
 };
+
+let linked_edge_eq = (e1, e2) => e1.src == e2.src && e1.dst == e2.dst;
 
 let cmd_of_linked_edge = edge => {
   let src = edge.src;
@@ -193,7 +199,7 @@ let mk_svg =
     switch (edge.next) {
     | None => failwith("acyclic path")
     | Some(next) =>
-      next == start
+      linked_edge_eq(next, start)
         ? [cmd_of_linked_edge(start)]
         : [cmd_of_linked_edge(next), ...build_path(next)]
     };
@@ -337,7 +343,7 @@ let to_svg =
     |> List.flatten;
 
   let buffer = Buffer.create(List.length(compressed_and_split) * 20);
-  let rec fill_buffer = (compressed_and_split: t): unit =>
+  let rec fill_buffer = (compressed_and_split: t): unit => {
     switch (compressed_and_split) {
     | [] => ()
     | [_]
@@ -367,6 +373,7 @@ let to_svg =
       Buffer.add_string(buffer, edge_svg(exit));
       fill_buffer(path);
     };
+  };
   fill_buffer(compressed_and_split);
 
   Vdom.(
