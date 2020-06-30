@@ -131,7 +131,8 @@ let mk_StringLit = s => {
     |> snd
     |> ListUtil.join(Doc.linebreak());
 
-  Doc.hcats([Delim.open_StringLit, ...line_docs] @ [Delim.close_StringLit]);
+  Doc.hcats([Delim.open_StringLit, ...line_docs] @ [Delim.close_StringLit])
+  |> Doc.annot(DHAnnot.String);
 };
 
 let mk_Inj = (inj_side, padded_child) =>
