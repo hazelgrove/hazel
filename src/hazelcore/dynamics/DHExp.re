@@ -82,6 +82,21 @@ module BinIntOp = {
     };
 };
 
+module UnIntOp = {
+  [@deriving sexp]
+  type t =
+    | Minus;
+  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+    switch (op) {
+    | Minus => Some((Minus, Int))
+    | _ => None
+    };
+  let to_op = (bio: t): UHExp.operator =>
+    switch (bio) {
+    | Minus => Minus
+    };
+};
+
 module BinFloatOp = {
   [@deriving sexp]
   type t =

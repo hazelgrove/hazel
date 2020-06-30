@@ -30,6 +30,7 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | UnaryOp(ErrStatus.t, operator, operand)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -200,7 +201,8 @@ and get_err_status_operand =
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
-  | Parenthesized(e) => get_err_status(e);
+  | Parenthesized(e) => get_err_status(e)
+  | UnaryOp(err, _, _) => err;
 
 /* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
@@ -224,6 +226,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | UnaryOp(_, unary_op, operand) => UnaryOp(err, unary_op, operand)
   };
 
 let is_inconsistent = operand =>
@@ -279,6 +282,9 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
+  | UnaryOp(err, unary_op, operand) =>
+    let (operand, u_gen) = operand |> mk_inconsistent_operand(u_gen);
+    (UnaryOp(err, unary_op, operand), u_gen);
   };
 
 let rec drop_outer_parentheses = (operand): t =>
@@ -379,6 +385,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
+  | UnaryOp(InHole(_), _, _) => false
+  | UnaryOp(NotInHole, _, operand) =>
+    is_complete_operand(operand, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   };
