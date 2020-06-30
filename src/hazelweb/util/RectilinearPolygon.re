@@ -227,6 +227,9 @@ let mk_svg =
        | (Dy(_), Dy(_)) => assert(false)
        | (Dx(dx), Dy(dy)) =>
          // TODO dedup shared code with next case
+         // Corner rounding cuts into the lengths of the entering and
+         // exiting edges. Find the maximum (proportionally scaled)
+         // radii possible given lengths of entering and exiting edges.
          let rx_min = min(rx, Float.abs(dx));
          let ry_min = min(ry, Float.abs(dy));
          let (rx, ry) =
@@ -320,71 +323,5 @@ let rounded_corner = ((rx: float, ry: float), enter: cmd, exit: cmd): string => 
     sweep ? "1" : "0",
     FloatUtil.to_string_zero(dx),
     FloatUtil.to_string_zero(dy),
-  );
-};
-
-let to_svg =
-    (
-      ~attrs: list(Vdom.Attr.t),
-      ~corner_radii as (rx, ry): (float, float),
-      path: t,
-    )
-    : Vdom.Node.t => {
-  let compressed_and_split =
-    path
-    |> compress
-    |> List.map(
-         fun
-         | Dx(dx) => {
-             let half = dx *. 0.5;
-             [Dx(half), Dx(half)];
-           }
-         | Dy(dy) => {
-             let half = dy *. 0.5;
-             [Dy(half), Dy(half)];
-           },
-       )
-    |> List.flatten;
-
-  let buffer = Buffer.create(List.length(compressed_and_split) * 20);
-  let rec fill_buffer = (compressed_and_split: t): unit => {
-    switch (compressed_and_split) {
-    | [] => ()
-    | [_]
-    | [Dx(_), Dx(_), ..._]
-    | [Dy(_), Dy(_), ..._] => assert(false)
-    | [Dx(dx) as enter, Dy(dy) as exit, ...path]
-    | [Dy(dy) as enter, Dx(dx) as exit, ...path] =>
-      let dx' = Float.abs(dx);
-      let dy' = Float.abs(dy);
-      // Corner rounding cuts into the lengths of the entering and
-      // exiting edges. Find the maximum (proportionally scaled)
-      // radii possible given lengths of entering and exiting edges.
-      let (rx', ry') as radii = {
-        let rx_min = min(rx, dx');
-        let ry_min = min(ry, dy');
-        ry_min *. rx >= rx_min *. ry
-          ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
-      };
-      let edge_svg = (
-        fun
-        | Dx(dx) => h(Float.copy_sign(dx' -. rx', dx))
-        | Dy(dy) => v(Float.copy_sign(dy' -. ry', dy))
-      );
-      let corner_svg = rounded_corner(radii, enter, exit);
-      Buffer.add_string(buffer, edge_svg(enter));
-      Buffer.add_string(buffer, corner_svg);
-      Buffer.add_string(buffer, edge_svg(exit));
-      fill_buffer(path);
-    };
-  };
-  fill_buffer(compressed_and_split);
-
-  Vdom.(
-    Node.create_svg(
-      "path",
-      [Attr.create("d", Buffer.contents(buffer)), ...attrs],
-      [],
-    )
   );
 };
