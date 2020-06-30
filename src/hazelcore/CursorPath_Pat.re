@@ -210,14 +210,23 @@ and holes_zoperand =
     : CursorPath_common.zhole_list =>
   switch (zoperand) {
   | CursorP(OnOp(_), _) => CursorPath_common.no_holes
-  | CursorP(_, EmptyHole(u))
-  | CursorP(_, InvalidText(u, _)) =>
+  | CursorP(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
         Some({
           sort: PatHole(u),
           steps: List.rev(rev_steps),
           is_empty: true,
+        }),
+      (),
+    )
+  | CursorP(_, InvalidText(u, _)) =>
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some({
+          sort: PatHole(u),
+          steps: List.rev(rev_steps),
+          is_empty: false,
         }),
       (),
     )
