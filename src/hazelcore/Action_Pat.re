@@ -44,14 +44,14 @@ let mk_and_ana_fix_ZOpSeq =
 
 let mk_syn_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
-    : Action_common.Outcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) =>
   switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
   | None => Failed
   | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
   };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
-    : Action_common.Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (Statics_Pat.ana(ctx, zp |> ZPat.erase, ty)) {
   | None => Failed
   | Some(ctx) => Succeeded((zp, ctx, u_gen))
@@ -59,7 +59,7 @@ let mk_ana_result =
 
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-    : Action_common.Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | None =>
@@ -110,7 +110,7 @@ let mk_ana_text =
       text: string,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | None =>
@@ -168,7 +168,7 @@ let syn_split_text =
       sop: Action_common.operator_shape,
       text: string,
     )
-    : Action_common.Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TextShape.of_text(l),
@@ -197,7 +197,7 @@ let ana_split_text =
       text: string,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TextShape.of_text(l),
@@ -267,7 +267,7 @@ let resurround_z =
 
 let rec syn_move =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action_common.t, zp: ZPat.t)
-        : Action_common.Outcome.t(syn_success) =>
+        : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -331,7 +331,7 @@ let rec ana_move =
           zp: ZPat.t,
           ty: HTyp.t,
         )
-        : Action_common.Outcome.t(ana_success) =>
+        : ActionOutcome.t(ana_success) =>
   switch (a) {
   /* Movement */
   | MoveTo(path) =>
@@ -389,7 +389,7 @@ let rec ana_move =
 
 let rec syn_perform =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action_common.t, zp: ZPat.t)
-        : Action_common.Outcome.t(syn_success) =>
+        : ActionOutcome.t(syn_success) =>
   syn_perform_opseq(ctx, u_gen, a, zp)
 and syn_perform_opseq =
     (
@@ -398,7 +398,7 @@ and syn_perform_opseq =
       a: Action_common.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
     )
-    : Action_common.Outcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -558,7 +558,7 @@ and syn_perform_operand =
       a: Action_common.t,
       zoperand: ZPat.zoperand,
     )
-    : Action_common.Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -785,7 +785,7 @@ and ana_perform =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   ana_perform_opseq(ctx, u_gen, a, zp, ty)
 and ana_perform_opseq =
     (
@@ -795,7 +795,7 @@ and ana_perform_opseq =
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -969,7 +969,7 @@ and ana_perform_operand =
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
-    : Action_common.Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (

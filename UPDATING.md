@@ -53,15 +53,15 @@ To update do the following:
     <https://travis-ci.org/hazelgrove/hazel>.
 
   - Test that the travis build works by going to
-    <http://hazel.org/build/dev/index.html>
+    <https://hazel.org/build/dev/index.html>
 
-- Update the version number in `.travis.yml` on the `master` branch.
+- Update the version number in `.travis.yml` on the `trunk` branch.
 
   - Check that travis builds correctly by going to
     <https://travis-ci.org/hazelgrove/hazel>.
 
   - Test that the travis build works by going to
-    <http://hazel.org/build/master/index.html>
+    <https://hazel.org/build/trunk/index.html>
 
 - Update the version numbers in `README.md`
 
