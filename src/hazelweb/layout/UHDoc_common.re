@@ -250,7 +250,7 @@ let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
   StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
 
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
-  Delim.empty_hole_doc(hole_lbl) |> annot_Operand(~sort);
+  Delim.empty_hole_doc(hole_lbl) |> annot_DelimGroup |> annot_Operand(~sort);
 
 let mk_Wild = (~err: ErrStatus.t): t =>
   Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);

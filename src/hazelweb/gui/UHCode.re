@@ -3,14 +3,16 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
-// open Sexplib.Std;
+open Sexplib.Std;
 
 module MeasuredLayout = {
+  [@deriving sexp]
   type box = {
     height: int,
     width: int,
   };
 
+  [@deriving sexp]
   type t = {
     layout: t',
     metrics: list(box),
@@ -98,7 +100,7 @@ module MeasuredLayout = {
   };
 };
 
-module Decoration = {
+module Dec = {
   let rects =
       (~row: int, ~col: int, m: MeasuredLayout.t)
       : ((int, int), list(RectilinearPolygon.rect)) =>
@@ -326,13 +328,13 @@ module Decoration = {
     let v =
       switch (d) {
       | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
-      | CurrentTerm => current_term_view(~corner_radii, ~offset, subject)
+      | CurrentTerm(_) => current_term_view(~corner_radii, ~offset, subject)
       };
 
     let cls =
       switch (d) {
       | ErrHole => "err-hole"
-      | CurrentTerm => "current-term"
+      | CurrentTerm(_) => "current-term"
       };
 
     Vdom.(
@@ -476,7 +478,7 @@ let decoration_views =
         let current_vs =
           Decorations.current(ds)
           |> List.map(
-               Decoration.view(
+               Dec.view(
                  ~font_metrics,
                  ~row,
                  ~col=indent,
