@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t = {
   err_holes: list(CursorPath_common.steps),
   current_term: option(CursorPath_common.t),
@@ -27,8 +30,9 @@ let current = (decorations: t): list(Decoration.t) => {
     |> Option.map(_ => Decoration.ErrHole)
     |> Option.to_list;
   let current_term =
-    decorations.current_term
-    |> Option.map(_ => Decoration.CurrentTerm)
-    |> Option.to_list;
+    switch (decorations.current_term) {
+    | Some(([], cursor)) => [Decoration.CurrentTerm(cursor)]
+    | _ => []
+    };
   List.concat([err_holes, current_term]);
 };
