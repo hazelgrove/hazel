@@ -3,7 +3,7 @@ open Sexplib.Std;
 exception FreeVarInPat;
 
 [@deriving sexp]
-type operator = Operators.Pat.t;
+type operator = Operators_Pat.t;
 
 [@deriving sexp]
 type t = opseq
@@ -11,6 +11,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -59,6 +60,12 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
 let injection = (~err: ErrStatus.t=NotInHole, side: InjSide.t, x: t) =>
   Inj(err, side, x);
 
+let new_InvalidText =
+    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (InvalidText(u, t), u_gen);
+};
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -78,6 +85,7 @@ and get_err_status_opseq = opseq =>
 and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
+  | InvalidText(_, _) => NotInHole
   | Wild(err)
   | Var(err, _, _)
   | IntLit(err, _)
@@ -94,6 +102,7 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
+  | InvalidText(_, _) => operand
   | Wild(_) => Wild(err)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
@@ -121,6 +130,7 @@ and mk_inconsistent_operand =
   switch (operand) {
   // already in hole
   | EmptyHole(_)
+  | InvalidText(_, _)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
@@ -146,7 +156,7 @@ and mk_inconsistent_operand =
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators.Pat.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators_Pat.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
 };
@@ -155,7 +165,7 @@ let mk_OpSeq = OpSeq.mk(~associate);
 
 let make_holy_tuple =
   OpSeq.make_holy_tuple(
-    ~comma=Operators.Pat.Comma,
+    ~comma=Operators_Pat.Comma,
     ~new_EmptyHole,
     ~mk_OpSeq,
   );
@@ -181,7 +191,7 @@ let patterns_of_type =
       let (holy_tuple, u_gen) =
         // List.length(tys) should be >= 1, because we caught the unit-case above and tuple should otherwise have at least 2 elements
         OpSeq.make_holy_tuple(
-          ~comma=Operators.Pat.Comma,
+          ~comma=Operators_Pat.Comma,
           ~new_EmptyHole,
           ~mk_OpSeq,
           tys,
@@ -201,7 +211,7 @@ let patterns_of_type =
       let (hole1, u_gen) = u_gen |> new_EmptyHole;
       let (hole2, u_gen) = u_gen |> new_EmptyHole;
       (
-        [wrap(listnil()), wrap_operator(hole1, Operators.Pat.Cons, hole2)],
+        [wrap(listnil()), wrap_operator(hole1, Operators_Pat.Cons, hole2)],
         u_gen,
       );
     }
@@ -221,8 +231,8 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
-
 let rec is_complete_skel = (sk: skel, sq: seq): bool => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
@@ -239,6 +249,7 @@ and is_complete = (p: t): bool => {
 and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
+  | InvalidText(_, _) => false
   | Wild(InHole(_)) => false
   | Wild(NotInHole) => true
   | Var(InHole(_), _, _) => false

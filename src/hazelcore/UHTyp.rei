@@ -1,5 +1,5 @@
 [@deriving sexp]
-type operator = Operators.Typ.t;
+type operator = Operators_Typ.t;
 
 [@deriving sexp]
 type t = opseq
@@ -24,7 +24,7 @@ let is_EmptyHole: operand => bool;
 
 let unwrap_parentheses: operand => t;
 
-let associate: seq => Skel.t(Operators.Typ.t);
+let associate: seq => Skel.t(Operators_Typ.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 

@@ -1,5 +1,5 @@
 [@deriving sexp]
-type operator = Operators.Exp.t;
+type operator = Operators_Exp.t;
 
 // TODO
 // type t =
@@ -19,6 +19,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
+  | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -95,6 +96,8 @@ let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
+let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
 
@@ -135,7 +138,7 @@ let drop_outer_parentheses: operand => t;
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
-let associate: seq => Skel.t(Operators.Exp.t);
+let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 

@@ -1,7 +1,7 @@
 exception FreeVarInPat;
 
 [@deriving sexp]
-type operator = Operators.Pat.t;
+type operator = Operators_Pat.t;
 
 [@deriving sexp]
 type t = opseq
@@ -9,6 +9,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -39,6 +40,8 @@ let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
+let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
 
@@ -68,7 +71,7 @@ let mk_inconsistent_operand:
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
-let associate: seq => Skel.t(Operators.Pat.t);
+let associate: seq => Skel.t(Operators_Pat.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 

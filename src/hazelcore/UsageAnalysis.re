@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type uses_list = list(CursorPath.steps);
+type uses_list = list(CursorPath_common.steps);
 
 let rec binds_var = (x: Var.t, p: UHPat.t): bool => binds_var_opseq(x, p)
 and binds_var_opseq = (x, OpSeq(_, seq): UHPat.opseq): bool =>
@@ -10,6 +10,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_)
+  | InvalidText(_)
   | Var(_, InVarHole(_), _)
   | Var(InHole(_), _, _)
   | IntLit(_)
@@ -23,7 +24,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   };
 
 let rec find_uses =
-        (~steps: CursorPath.steps, x: Var.t, e: UHExp.t): uses_list =>
+        (~steps: CursorPath_common.steps, x: Var.t, e: UHExp.t): uses_list =>
   find_uses_block(~steps, x, e)
 and find_uses_block =
     (~offset=0, ~steps, x: Var.t, block: UHExp.block): uses_list => {
@@ -62,6 +63,7 @@ and find_uses_opseq =
 and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   switch (operand) {
   | EmptyHole(_)
+  | InvalidText(_)
   | Var(_, InVarHole(_), _)
   | IntLit(_)
   | FloatLit(_)

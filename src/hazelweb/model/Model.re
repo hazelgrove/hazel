@@ -30,6 +30,7 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  mouse_position: ref(MousePosition.t),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -81,7 +82,7 @@ let init = (): t => {
     ) {
     | (false, _)
     | (_, None) => si
-    | (true, Some(u)) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    | (true, Some(u)) => UserSelectedInstances.add(u, 0, si)
     };
   };
   {
@@ -117,16 +118,19 @@ let init = (): t => {
         col_width: 1.0,
       },
     is_mac: true,
+    mouse_position: ref(MousePosition.{x: 0, y: 0}),
   };
 };
 
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics.edit_state =>
-  model |> get_program |> Program.get_edit_state;
+let get_edit_state = (model: t): Statics_common.edit_state => {
+  let program = get_program(model);
+  program.edit_state;
+};
 
-let get_cursor_info = (model: t): CursorInfo.t =>
+let get_cursor_info = (model: t): CursorInfo_common.t =>
   model |> get_program |> Program.get_cursor_info;
 
 let put_program = (program: Program.t, model: t): t => {
@@ -163,7 +167,10 @@ let map_selected_instances =
 let focus_cell = map_program(Program.focus);
 let blur_cell = map_program(Program.blur);
 
-let is_cell_focused = model => model |> get_program |> Program.is_focused;
+let is_cell_focused = model => {
+  let program = get_program(model);
+  program.is_focused;
+};
 
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
@@ -171,18 +178,18 @@ let get_selected_hole_instance = model =>
   | Some(u) =>
     let i =
       model.selected_instances
-      |> UserSelectedInstances.lookup(u)
+      |> UserSelectedInstances.find_opt(u)
       |> Option.get;
     Some((u, i));
   };
 
-let select_hole_instance = ((u, _) as inst: HoleInstance.t, model: t): t =>
+let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(Program.move_to_hole(u))
-  |> map_selected_instances(UserSelectedInstances.insert_or_update(inst))
+  |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let update_program = (a: Action.t, new_program, model) => {
+let update_program = (a: Action_common.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -195,8 +202,8 @@ let update_program = (a: Action.t, new_program, model) => {
     | (false, _)
     | (_, None) => si
     | (true, Some(u)) =>
-      switch (si |> UserSelectedInstances.lookup(u)) {
-      | None => si |> UserSelectedInstances.insert_or_update((u, 0))
+      switch (si |> UserSelectedInstances.find_opt(u)) {
+      | None => si |> UserSelectedInstances.add(u, 0)
       | Some(_) => si
       }
     };
@@ -231,7 +238,7 @@ let next_card = model => {
   |> focus_cell;
 };
 
-let perform_edit_action = (a: Action.t, model: t): t => {
+let perform_edit_action = (a: Action_common.t, model: t): t => {
   TimeUtil.measure_time(
     "Model.perform_edit_action",
     model.measurements.measurements
@@ -279,7 +286,7 @@ let move_via_click = (row_col, model) => {
 };
 
 let select_case_branch =
-    (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
+    (path_to_case: CursorPath_common.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
   let (new_program, action) =
     Program.move_to_case_branch(path_to_case, branch_index, program);
@@ -303,7 +310,7 @@ let load_example = (model: t, e: UHExp.t): t =>
   |> put_program(
        Program.mk(
          ~width=model.cell_width,
-         Statics.Exp.fix_and_renumber_holes_z(
+         Statics_Exp.fix_and_renumber_holes_z(
            Contexts.empty,
            ZExp.place_before(e),
          ),
@@ -323,7 +330,7 @@ let load_undo_history =
     let si = UserSelectedInstances.init;
     switch (Program.cursor_on_exp_hole(new_program)) {
     | None => si
-    | Some(u) => si |> UserSelectedInstances.insert_or_update((u, 0))
+    | Some(u) => si |> UserSelectedInstances.add(u, 0)
     };
   };
   model
