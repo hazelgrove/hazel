@@ -7,10 +7,10 @@ type undo_history_entry = {
   /* cardstacks_after_move is initially the same as cardstacks_after_action.
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
-  cursor_term_info: UndoHistoryUtil.cursor_term_info,
+  cursor_term_info: UndoHistoryCore.cursor_term_info,
   previous_action: Action_common.t,
-  action_group: UndoHistoryUtil.action_group,
-  timestamp: UndoHistoryUtil.timestamp,
+  action_group: UndoHistoryCore.action_group,
+  timestamp: UndoHistoryCore.timestamp,
 };
 
 [@deriving sexp]
@@ -104,11 +104,11 @@ let group_entry =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_action_group: UndoHistoryUtil.action_group,
+      ~new_action_group: UndoHistoryCore.action_group,
     )
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  UndoHistoryUtil.group_action_group(
+  UndoHistoryCore.group_action_group(
     prev_entry.action_group,
     new_action_group,
   )
@@ -127,9 +127,9 @@ let get_delete_action_group =
     (
       prev_group: undo_history_group,
       new_cardstacks_before: ZCardstacks.t,
-      new_cursor_term_info: UndoHistoryUtil.cursor_term_info,
+      new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : UndoHistoryUtil.action_group =>
+    : UndoHistoryCore.action_group =>
   if (group_entry(
         ~prev_group,
         ~new_cardstacks_before,
@@ -137,7 +137,7 @@ let get_delete_action_group =
           DeleteEdit(Term(new_cursor_term_info.cursor_term_before, true)),
       )) {
     let prev_entry = ZList.prj_z(prev_group.group_entries);
-    if (UndoHistoryUtil.is_var_group(prev_entry.action_group)) {
+    if (UndoHistoryCore.is_var_group(prev_entry.action_group)) {
       /* if delete group start from var edition, the deleted term is the initial term in this group */
       switch (get_initial_entry_in_group(prev_group)) {
       | None =>
@@ -147,15 +147,15 @@ let get_delete_action_group =
           Term(initial_entry.cursor_term_info.cursor_term_before, false),
         )
       };
-    } else if (UndoHistoryUtil.is_var_insert(prev_entry.action_group)) {
-      let cursor_term_len_larger = UndoHistoryUtil.cursor_term_len_larger;
+    } else if (UndoHistoryCore.is_var_insert(prev_entry.action_group)) {
+      let cursor_term_len_larger = UndoHistoryCore.cursor_term_len_larger;
       /* if delete group start from var insertion, the deleted term is the longest term in this group */
       let rec max_len_term =
               (
                 ls: list(undo_history_entry),
-                cursor_term: UndoHistoryUtil.cursor_term,
+                cursor_term: UndoHistoryCore.cursor_term,
               )
-              : UndoHistoryUtil.cursor_term => {
+              : UndoHistoryCore.cursor_term => {
         switch (ls) {
         | [] => cursor_term
         | [elt] =>
@@ -239,9 +239,9 @@ let delete_group =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: UndoHistoryUtil.cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : option(UndoHistoryUtil.action_group) =>
+    : option(UndoHistoryCore.action_group) =>
   if (CursorInfo_common.is_empty_line(new_cursor_term_info.cursor_term_before)) {
     Some(DeleteEdit(EmptyLine));
   } else if (CursorInfo_common.is_empty_line(
@@ -262,7 +262,7 @@ let delete_group =
     /* the action group is editing the term */
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     if (!caret_jump(prev_group, new_cardstacks_before)
-        && UndoHistoryUtil.is_var_insert(prev_entry.action_group)) {
+        && UndoHistoryCore.is_var_insert(prev_entry.action_group)) {
       Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
     } else {
       let initial_term =
@@ -297,10 +297,10 @@ let delete_group =
   };
 let delim_edge_handle =
     (
-      ~new_cursor_term_info: UndoHistoryUtil.cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
       ~adjacent_is_empty_line: bool,
     )
-    : option(UndoHistoryUtil.action_group) =>
+    : option(UndoHistoryCore.action_group) =>
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
@@ -317,11 +317,11 @@ let delete =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: UndoHistoryUtil.cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : option(UndoHistoryUtil.action_group) => {
+    : option(UndoHistoryCore.action_group) => {
   let cursor_pos =
-    UndoHistoryUtil.get_cursor_pos(new_cursor_term_info.cursor_term_before);
+    UndoHistoryCore.get_cursor_pos(new_cursor_term_info.cursor_term_before);
 
   switch (cursor_pos) {
   | OnText(_) =>
@@ -344,7 +344,7 @@ let delete =
     switch (side) {
     | Before =>
       if (pos == 1
-          && UndoHistoryUtil.has_typ_ann(
+          && UndoHistoryCore.has_typ_ann(
                new_cursor_term_info.cursor_term_before,
              )) {
         /* num==1 is the position of ':' in an expression */
@@ -389,11 +389,11 @@ let backspace =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: UndoHistoryUtil.cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : option(UndoHistoryUtil.action_group) => {
+    : option(UndoHistoryCore.action_group) => {
   let cursor_pos =
-    UndoHistoryUtil.get_cursor_pos(new_cursor_term_info.cursor_term_before);
+    UndoHistoryCore.get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
   | OnText(_) =>
     if (CursorInfo_Exp.caret_is_before_zoperand(
@@ -420,7 +420,7 @@ let backspace =
       )
     | After =>
       if (pos == 1
-          && UndoHistoryUtil.has_typ_ann(
+          && UndoHistoryCore.has_typ_ann(
                new_cursor_term_info.cursor_term_before,
              )) {
         /* num==1 is the position of ':' in an expression */
@@ -460,11 +460,11 @@ let get_new_action_group =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: UndoHistoryUtil.cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
       ~action: Action_common.t,
     )
-    : option(UndoHistoryUtil.action_group) =>
-  if (UndoHistoryUtil.is_move_action(new_cursor_term_info)) {
+    : option(UndoHistoryCore.action_group) =>
+  if (UndoHistoryCore.is_move_action(new_cursor_term_info)) {
     None;
         /* It's a caret movement */
   } else {
@@ -517,7 +517,7 @@ let get_new_action_group =
           | None =>
             Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)))
           | Some(initial_entry) =>
-            if (UndoHistoryUtil.is_var_insert(initial_entry.action_group)) {
+            if (UndoHistoryCore.is_var_insert(initial_entry.action_group)) {
               Some(
                 VarGroup(Insert(new_cursor_term_info.cursor_term_after)),
               );
@@ -578,7 +578,7 @@ let get_new_action_group =
               switch (k) {
               | Let =>
                 switch (
-                  UndoHistoryUtil.get_cursor_pos(
+                  UndoHistoryCore.get_cursor_pos(
                     new_cursor_term_info.cursor_term_before,
                   )
                 ) {
@@ -597,7 +597,7 @@ let get_new_action_group =
 
               | Case =>
                 switch (
-                  UndoHistoryUtil.get_cursor_pos(
+                  UndoHistoryCore.get_cursor_pos(
                     new_cursor_term_info.cursor_term_before,
                   )
                 ) {
@@ -658,7 +658,7 @@ let get_cursor_term_info =
       ~new_cardstacks_after: ZCardstacks.t,
       ~new_cardstacks_before: ZCardstacks.t,
     )
-    : UndoHistoryUtil.cursor_term_info => {
+    : UndoHistoryCore.cursor_term_info => {
   let zexp_before =
     new_cardstacks_before |> ZCardstacks.get_program |> Program.get_zexp;
   let (prev_is_empty_line, next_is_empty_line) =
