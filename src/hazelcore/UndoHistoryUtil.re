@@ -139,6 +139,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Exp(_, operand) =>
     switch (operand) {
     | EmptyHole(_) => MinLen
+    | InvalidText(_, t) => Len(String.length(t))
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
@@ -154,6 +155,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     switch (operand) {
     | EmptyHole(_) => MinLen
     | Wild(_) => Len(1)
+    | InvalidText(_, t) => Len(String.length(t))
     | Var(_, _, var) => Len(Var.length(var))
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
@@ -184,6 +186,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     }
   };
 };
+
 let cursor_term_len_larger =
     (cursor_term_prev: cursor_term, cursor_term_next: cursor_term)
     : cursor_term =>
@@ -196,7 +199,6 @@ let cursor_term_len_larger =
     cursor_term_prev;
   };
 
-//TBD
 let has_typ_ann = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
