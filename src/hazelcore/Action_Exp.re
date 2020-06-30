@@ -1104,6 +1104,7 @@ and syn_perform_opseq =
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
+    print_endline("Action1107");
     let new_zseq = delete_operator(surround);
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 

@@ -290,6 +290,7 @@ let delete_operator_ =
   /* _ +<| [1] + ...   ==>   |[1] + ... */
   | (S(operand, E as prefix), S(suffix_hd, new_suffix))
       when operand |> is_EmptyHole =>
+    print_endline("Action293");
     let zoperand = suffix_hd |> place_before_operand;
     ZOperand(zoperand, (prefix, new_suffix));
 

@@ -371,8 +371,9 @@ and place_before_operand = operand =>
   | Lam(_)
   | Inj(_)
   | Case(_)
-  | Parenthesized(_)
-  | Subscript(_) => CursorE(OnDelim(0, Before), operand)
+  | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
+  | Subscript(err, body1, body2, body3) =>
+    SubscriptZE1(err, place_before(body1), body2, body3)
   | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
