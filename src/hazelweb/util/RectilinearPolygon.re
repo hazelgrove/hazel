@@ -33,7 +33,7 @@ let linked_edge_eq = (e1, e2) => e1.src == e2.src && e1.dst == e2.dst;
 let cmd_of_linked_edge = edge => {
   let src = edge.src;
   let dst = edge.dst;
-  src.x == dst.x ? Dy(dst.y -. src.y) : Dx(dst.x -. dst.x);
+  src.x == dst.x ? Dy(dst.y -. src.y) : Dx(dst.x -. src.x);
 };
 
 let inc = (d, cmd) =>
@@ -164,22 +164,26 @@ let mk_svg =
   |> List.map(v => [(false, v), (true, v)])
   |> List.flatten
   |> List.sort(((is_src1, v1), (is_src2, v2)) => {
-       let pt1 = is_src1 ? v1.src : v2.dst;
+       let pt1 = is_src1 ? v1.src : v1.dst;
        let pt2 = is_src2 ? v2.src : v2.dst;
        if (pt1.y < pt2.y) {
          (-1);
-       } else if (pt2.y > pt1.y) {
+       } else if (pt1.y > pt2.y) {
          1;
        } else {
          Float.compare(pt1.x, pt2.x);
        };
      })
   |> ListUtil.disjoint_pairs
-  |> List.iter((((is_src1, v1), (_, v2))) => {
-       let (x_src, x_dst, y, prev, next) =
-         is_src1
-           ? (v2.dst.x, v1.src.x, v1.src.y, v2, v1)
-           : (v1.dst.x, v2.src.x, v2.src.y, v1, v2);
+  |> List.iter((((is_src1, v1), (is_src2, v2))) => {
+       let pt1 = is_src1 ? v1.src : v1.dst;
+       let pt2 = is_src2 ? v2.src : v2.dst;
+       assert(pt1.y == pt2.y);
+       let y = pt1.y;
+
+       let (x_src, x_dst, prev, next) =
+         is_src1 ? (pt2.x, pt1.x, v2, v1) : (pt1.x, pt2.x, v1, v2);
+
        let h = {
          src: {
            x: x_src,
