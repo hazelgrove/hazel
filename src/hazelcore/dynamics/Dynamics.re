@@ -731,20 +731,10 @@ module Exp = {
     // | ListLit(dps)
     | (Cons(_) | ListLit(_), Cast(d, Hole, List(_))) => matches(dp, d)
     | (Cons(_) | ListLit(_), Cast(d, List(_), Hole)) => matches(dp, d)
-    | (Cons(dp1, dp2), Cons(d1, d2)) =>
-      switch (matches(dp1, d1)) {
-      | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
-      | Matches(env1) =>
-        switch (matches(dp2, d2)) {
-        | DoesNotMatch => DoesNotMatch
-        | Indet => Indet
-        | Matches(env2) => Matches(Environment.union(env1, env2))
-        }
-      }
-    | (ListLit(_, _), Cons(_, _)) => failwith("unimplemented")
-    | (Cons(_, _), ListLit(_, _)) => failwith("unimplemented")
-    | (ListLit(_, _), ListLit(_, _)) => failwith("unimplemented")
+    | (Cons(_, _), Cons(_, _))
+    | (ListLit(_, _), Cons(_, _))
+    | (Cons(_, _), ListLit(_, _))
+    | (ListLit(_, _), ListLit(_, _)) => matches_cast_Cons(dp, d, [])
     | (Cons(_) | ListLit(_), _) => DoesNotMatch
     | (Ap(_, _), _) => DoesNotMatch
     }
@@ -865,17 +855,8 @@ module Exp = {
     | InvalidOperation(_) => Indet
     }
   and matches_cast_Cons =
-      //dp1: DHPat.t,
-      //dp2: DHPat.t,
       (dp: DHPat.t, d: DHExp.t, elt_casts: list((HTyp.t, HTyp.t)))
       : match_result =>
-    // case [1, 2]
-    // | dp1::dp2 -> _
-    // | [x, y] ->
-    //   x + y + 1
-    // | [dp1, dp2, ...(so on)] -> _
-    // | dp -> _
-    // end
     switch (d) {
     | ListLit(_, []) => DoesNotMatch
     | ListLit(ty, [dhd, ...dtl] as ds) =>
