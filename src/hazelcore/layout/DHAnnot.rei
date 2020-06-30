@@ -10,4 +10,5 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | InvalidOpDecoration;
+  | InvalidOpDecoration
+  | String;

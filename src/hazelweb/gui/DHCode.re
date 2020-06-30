@@ -50,6 +50,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(InvalidOpDecoration, l) => [
         Node.span([Attr.classes(["InvalidOpDecoration"])], go(l)),
       ]
+    | Annot(String, l) => [Node.span([Attr.classes(["String"])], go(l))]
     };
   Node.div([Attr.classes(["code", "DHCode"])], go(l));
 };
