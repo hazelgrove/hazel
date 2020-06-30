@@ -274,16 +274,6 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           "Move to next / previous hole",
           [keyboard_button(Tab), keyboard_button(ShiftTab)],
         ),
-        combo(
-          Alt_LeftBracket,
-          simple("Go to the definition of the variable"),
-        ),
-        combo(
-          Alt_RightBracket,
-          simple("Go to the first usage of the variable being defined"),
-        ),
-        combo(Alt_N, simple("Go to the next usage of the variable")),
-        combo(Alt_P, simple("Go to the previous usage of the variable")),
       ],
     ),
     section(
@@ -321,6 +311,16 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           Action_common.Construct(SLet),
         ),
         combo(Colon, simple("Type ascription")),
+        combo(
+          Alt_LeftBracket,
+          simple("Go to the definition of the variable"),
+        ),
+        combo(
+          Alt_RightBracket,
+          simple("Go to the first usage of the variable being defined"),
+        ),
+        combo(Alt_N, simple("Go to the next usage of the variable")),
+        combo(Alt_P, simple("Go to the previous usage of the variable")),
       ],
     ),
     section(
