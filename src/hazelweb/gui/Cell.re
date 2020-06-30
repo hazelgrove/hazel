@@ -73,25 +73,29 @@ let view = (~inject, model: Model.t) => {
       let memoize_doc = model.memoize_doc;
       let code_view =
         if (Model.is_cell_focused(model)) {
-          let (_, ((row, col), _)) =
-            Program.get_cursor_map_z(
-              ~measure_program_get_doc,
-              ~measure_layoutOfDoc_layout_of_doc,
-              ~memoize_doc,
-              program,
-            );
+          /*
+           let (_, ((row, col), _)) =
+             Program.get_cursor_map_z(
+               ~measure_program_get_doc,
+               ~measure_layoutOfDoc_layout_of_doc,
+               ~memoize_doc,
+               program,
+             );
+           */
           UHCode.view(
             ~model,
             ~inject,
             ~font_metrics=model.font_metrics,
-            ~caret_pos=Some((row, col)),
+            ~decorations=Program.get_decorations(program),
+            // ~caret_pos=Some((row, col)),
           );
         } else {
           UHCode.view(
             ~model,
             ~inject,
             ~font_metrics=model.font_metrics,
-            ~caret_pos=None,
+            ~decorations=Program.get_decorations(program),
+            // ~caret_pos=None,
           );
         };
       let prevent_stop_inject = a =>
