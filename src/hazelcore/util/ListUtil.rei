@@ -57,12 +57,18 @@ let elem_before: ('a, list('a)) => option('a);
 
 let elem_after: ('a, list('a)) => option('a);
 
+// (i, [x_0, x_1, ..., x_n]) => ([x_0, x_{i-1}], [x_i, ..., x_n])
 let split_by_i: (int, list('a)) => (list('a), list('a));
 
+// (k, [x_0, x_1, ..., x_n]) => [x_k, ..., x_n]
 let rm_first_k: (int, list('a)) => list('a);
 
+/* remove first element in the list that satisfies the predicate if exist,
+   or return the original list if not. */
 let rm_one_or_zero_i: (~i: int=?, 'a => bool, list('a)) => (list('a), int);
 
+/* split a int list by the value of element
+   ([2, 3, 1, 4], 1) => ([2, 3], [4]) */
 let split_at: (list('a), 'a) => (list('a), list('a));
 
 let partition_i: ((int, 'a) => bool, list('a)) => (list('a), list('a));
