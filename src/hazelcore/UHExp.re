@@ -21,6 +21,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
+  | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -171,6 +172,12 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
+let new_InvalidText =
+    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (InvalidText(u, t), u_gen);
+};
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -220,6 +227,7 @@ and get_err_status_opseq = opseq =>
 and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
+  | InvalidText(_, _) => NotInHole
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -246,6 +254,7 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
+  | InvalidText(_, _) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -281,6 +290,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
+  | InvalidText(_, _)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -341,6 +351,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
 let associate = (seq: seq) => {
@@ -385,6 +396,7 @@ and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
 and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   switch (operand) {
   | EmptyHole(_) => false
+  | InvalidText(_, _) => false
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true

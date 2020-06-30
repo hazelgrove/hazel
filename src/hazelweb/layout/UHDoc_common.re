@@ -145,6 +145,8 @@ let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =
   );
 let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
+let annot_Invalid = (~sort: TermSort.t): (t => t) =>
+  Doc.annot(UHAnnot.mk_Term(~sort, ~shape=TermShape.Invalid, ()));
 
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
@@ -426,6 +428,9 @@ let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
 
 let mk_Wild = (~err: ErrStatus.t): t =>
   Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
+
+let mk_InvalidText = (~sort: TermSort.t, t: string): t =>
+  mk_text(t) |> annot_Invalid(~sort);
 
 let mk_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>

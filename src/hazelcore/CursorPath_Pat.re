@@ -29,11 +29,12 @@ and follow_operand =
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
-    | Var(_, _, _)
-    | IntLit(_, _)
-    | FloatLit(_, _)
-    | BoolLit(_, _)
-    | StringLit(_, _)
+    | InvalidText(_)
+    | Var(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_)
+    | StringLit(_)
     | ListNil(_) => None
     | Parenthesized(body) =>
       switch (x) {
@@ -90,6 +91,7 @@ and of_steps_operand =
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
+    | InvalidText(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -131,7 +133,7 @@ and of_steps_operator =
   | [_, ..._] => None
   };
 
-let hole_desc = (u: MetaVar.t): CursorPath_common.hole_desc => PatHole(u);
+let hole_sort = (u: MetaVar.t): CursorPath_common.hole_sort => PatHole(u);
 
 let rec holes =
         (
@@ -143,7 +145,7 @@ let rec holes =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
-       ~hole_desc,
+       ~hole_sort,
        ~is_space=Operators_Pat.is_Space,
        ~rev_steps,
        p,
@@ -156,7 +158,11 @@ and holes_operand =
     )
     : CursorPath_common.hole_list =>
   switch (operand) {
-  | EmptyHole(u)
+  | EmptyHole(u) => [
+      {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true},
+      ...hs,
+    ]
+  | InvalidText(u, _)
   | Wild(InHole(_, u))
   | Var(InHole(_, u), _, _)
   | Var(_, InVarHole(_, u), _)
@@ -164,7 +170,10 @@ and holes_operand =
   | FloatLit(InHole(_, u), _)
   | BoolLit(InHole(_, u), _)
   | StringLit(InHole(_, u), _)
-  | ListNil(InHole(_, u)) => [(PatHole(u), rev_steps |> List.rev), ...hs]
+  | ListNil(InHole(_, u)) => [
+      {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
+      ...hs,
+    ]
   | Var(NotInHole, NotInVarHole, _)
   | Wild(NotInHole)
   | IntLit(NotInHole, _)
@@ -177,7 +186,10 @@ and holes_operand =
     let body_holes = hs |> holes(body, [0, ...rev_steps]);
     switch (err) {
     | NotInHole => body_holes
-    | InHole(_, u) => [(PatHole(u), rev_steps |> List.rev), ...body_holes]
+    | InHole(_, u) => [
+        {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
+        ...body_holes,
+      ]
     };
   };
 
@@ -191,7 +203,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_desc,
+    ~hole_sort,
     ~is_space=Operators_Pat.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZPat.erase_zopseq,
@@ -204,7 +216,22 @@ and holes_zoperand =
   | CursorP(OnOp(_), _) => CursorPath_common.no_holes
   | CursorP(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
+      ~hole_selected=
+        Some({
+          sort: PatHole(u),
+          steps: List.rev(rev_steps),
+          is_empty: true,
+        }),
+      (),
+    )
+  | CursorP(_, InvalidText(u, _)) =>
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some({
+          sort: PatHole(u),
+          steps: List.rev(rev_steps),
+          is_empty: false,
+        }),
       (),
     )
   | CursorP(_, Var(err, verr, _)) =>
@@ -213,7 +240,12 @@ and holes_zoperand =
     | (InHole(_, u), _)
     | (_, InVarHole(_, u)) =>
       CursorPath_common.mk_zholes(
-        ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
+        ~hole_selected=
+          Some({
+            sort: PatHole(u),
+            steps: List.rev(rev_steps),
+            is_empty: false,
+          }),
         (),
       )
     }
@@ -227,7 +259,12 @@ and holes_zoperand =
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
-        ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
+        ~hole_selected=
+          Some({
+            sort: PatHole(u),
+            steps: List.rev(rev_steps),
+            is_empty: false,
+          }),
         (),
       )
     }
@@ -240,11 +277,15 @@ and holes_zoperand =
     };
   | CursorP(OnDelim(k, _), Inj(err, _, body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
-    let hole_selected =
+    let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some((CursorPath_common.PatHole(u), rev_steps |> List.rev))
+        Some({
+          sort: PatHole(u),
+          steps: List.rev(rev_steps),
+          is_empty: false,
+        })
       };
     switch (k) {
     | 0 =>
@@ -268,7 +309,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...zbody_holes,
         holes_before: [
-          (PatHole(u), rev_steps |> List.rev),
+          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true},
           ...zbody_holes.holes_before,
         ],
       }
