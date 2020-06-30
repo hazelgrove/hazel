@@ -204,14 +204,17 @@ let mk_svg =
     | None => failwith("acyclic path")
     | Some(next) =>
       linked_edge_eq(next, start)
-        ? [cmd_of_linked_edge(start)]
-        : [cmd_of_linked_edge(next), ...build_path(next)]
+        ? [] : [cmd_of_linked_edge(next), ...build_path(next)]
     };
   };
-  let path = build_path(start);
+  let path = [cmd_of_linked_edge(start), ...build_path(start)];
 
   // TODO refine estimate
   let buffer = Buffer.create(List.length(path) * 20);
+  Buffer.add_string(
+    buffer,
+    Printf.sprintf("M %f %f", start.src.x, start.src.y),
+  );
   path
   |> List.map(
        fun
