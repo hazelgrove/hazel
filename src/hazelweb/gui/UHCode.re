@@ -31,6 +31,7 @@ let sort_clss: TermSort.t => list(cls) =
 let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
+  | Invalid => ["Invalid"]
   | Case({err}) => ["Case", ...clss_of_case_err(err)]
   | Var({err, verr, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]

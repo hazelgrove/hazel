@@ -194,6 +194,18 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
 
+    | InvalidText(_, inv_str) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("invalid text: "), code_view(inv_str)],
+          )
+        );
+      } else {
+        code_view(inv_str);
+      }
+
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
         if (Var.is_case(var_str) || Var.is_let(var_str)) {
@@ -348,6 +360,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
     | Wild(_) => indicate_words_view("wild card")
+    | InvalidText(_, inv_str) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("invalid text: "), code_view(inv_str)],
+          )
+        );
+      } else {
+        code_view(inv_str);
+      }
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
         Vdom.(
