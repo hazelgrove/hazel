@@ -84,7 +84,7 @@ let append_hbox = (boxes1: list(t('annot)), boxes2: list(t('annot))) => {
 let mk = (l: Pretty.Layout.t('annot)): t('annot) => {
   let mk = (boxes: list(list(t(_)))) =>
     VBox(List.map(row => HBox(row), boxes));
-  let rec go = (l: Pretty.Layout.t(_)) =>
+  let rec go = (l: Pretty.Layout.t(_)) => {
     switch (l) {
     | Linebreak => [[], []]
     | Text(s) => [[Text(s)]]
@@ -95,5 +95,6 @@ let mk = (l: Pretty.Layout.t('annot)): t('annot) => {
       let (first, trailing) = ListUtil.split_first(go(l2));
       leading @ [append_hbox(last, first), ...trailing];
     };
+  };
   mk(go(l));
 };

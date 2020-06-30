@@ -41,7 +41,7 @@ module MeasuredLayout = {
 
   // flattens away Linebreak and Cat nodes
   let flatten = (m: t): list(list(t)) => {
-    let rec go = (~tail: list(list(t)), m: t): list(list(t)) =>
+    let rec go = (~tail: list(list(t)), m: t): list(list(t)) => {
       switch (m.layout) {
       | Text(_)
       | Align(_)
@@ -53,6 +53,7 @@ module MeasuredLayout = {
       | Linebreak => [[], ...tail]
       | Cat(m1, m2) => go(~tail=go(~tail, m2), m1)
       };
+    };
     go(~tail=[], m);
   };
 
@@ -511,43 +512,41 @@ let view =
     () => {
       open Vdom;
 
-      let rec go: UHBox.t => list(Node.t) =
-        fun
+      let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
+        switch (box) {
         | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
         | HBox(boxes) => List.concat(List.map(go, boxes))
-        | VBox(boxes) => {
-            let vs =
-              boxes
-              |> List.map(go)
-              |> List.flatten
-              |> ListUtil.join(Node.br([]));
-            [Node.div([Attr.style(Css_gen.display(`Inline_block))], vs)];
-          }
-        | Annot(annot, box) => {
-            let vs = go(box);
-            switch (annot) {
-            | Token({shape, _}) =>
-              let clss =
-                switch (shape) {
-                | Text => ["code-text"]
-                | Op => ["code-op"]
-                | Delim(_) => ["code-delim"]
-                };
-              [Node.span([Attr.classes(clss)], vs)];
-            | HoleLabel({len}) =>
-              let width = Css_gen.width(`Ch(float_of_int(len)));
-              [
-                Node.span(
-                  [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-                  [Node.span([Attr.classes(["HoleNumber"])], vs)],
-                ),
-              ];
-            | UserNewline => [
-                Node.span([Attr.classes(["UserNewline"])], vs),
-              ]
-            | _ => vs
-            };
+        | VBox(boxes) =>
+          let vs =
+            boxes
+            |> List.map(go)
+            |> List.flatten
+            |> ListUtil.join(Node.br([]));
+          [Node.div([Attr.style(Css_gen.display(`Inline_block))], vs)];
+        | Annot(annot, box) =>
+          let vs = go(box);
+          switch (annot) {
+          | Token({shape, _}) =>
+            let clss =
+              switch (shape) {
+              | Text => ["code-text"]
+              | Op => ["code-op"]
+              | Delim(_) => ["code-delim"]
+              };
+            [Node.span([Attr.classes(clss)], vs)];
+          | HoleLabel({len}) =>
+            let width = Css_gen.width(`Ch(float_of_int(len)));
+            [
+              Node.span(
+                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+                [Node.span([Attr.classes(["HoleNumber"])], vs)],
+              ),
+            ];
+          | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+          | _ => vs
           };
+        };
+      };
 
       let code_text = go(Box.mk(l));
       let decorations = decoration_views(~font_metrics, decorations, l);
