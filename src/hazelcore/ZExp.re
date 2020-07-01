@@ -55,7 +55,11 @@ and is_opseq_zline =
   | LetLineZE(_, _, zdef) => zdef |> is_opseq
 and is_opseq_zopseq =
   fun
-  | ZOpSeq(_, ZOperand(_, _)) => None
+  | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
+    switch (prefix) {
+    | Seq.A(Space, _) => Some(zseq)
+    | _ => None
+    }
   | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
 
 let rec find_zoperand = (ze: t): option(zoperand) =>

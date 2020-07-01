@@ -1099,7 +1099,6 @@ and syn_perform_opseq =
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
-    print_endline("Action1107");
     let new_zseq = delete_operator(surround);
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
@@ -2178,6 +2177,18 @@ and syn_perform_operand =
             SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
           );
         }
+      | Some(ZOperand(zoperand, (prefix, suffix))) =>
+        // operator == Space
+        let e =
+          ZExp.SubscriptZE1(
+            NotInHole,
+            ZExp.ZBlock.wrap(zoperand),
+            body2,
+            body3,
+          );
+        let new_zopseq = ZExp.mk_ZOpSeq(ZOperand(e, (prefix, suffix)));
+        let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
+        Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       | _ =>
         let new_ze =
           ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
