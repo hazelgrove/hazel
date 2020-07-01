@@ -442,16 +442,24 @@ and syn_cursor_info_skel =
         | Some((_, InVarHole(Keyword(k), _))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some((NotInHole, NotInVarHole)) =>
-          switch (
-            Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
-          ) {
-          | None => None
-          | Some(ty) =>
-            HTyp.matched_arrow(ty)
-            |> OptUtil.map(((ty1, ty2)) =>
-                 mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-               )
-          }
+          let operand_nih =
+            zoperand
+            |> ZExp.erase_zoperand
+            |> UHExp.set_err_status_operand(NotInHole);
+          switch (operand_nih) {
+          | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
+          | _ =>
+            switch (
+              Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
+            ) {
+            | None => None
+            | Some(ty) =>
+              HTyp.matched_arrow(ty)
+              |> OptUtil.map(((ty1, ty2)) =>
+                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+                 )
+            }
+          };
         };
       } else {
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
@@ -501,6 +509,8 @@ and syn_cursor_info_zoperand =
     : option(CursorInfo_common.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
+  | CursorE(_, InvalidText(_)) =>
+    Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
@@ -593,7 +603,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | ApPaletteZ(_, _, _, zpsi) =>
-    let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
+    let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
   };
 }
@@ -809,6 +819,8 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
     | Var(_, InVarHole(Free, _), _) =>
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
+    | InvalidText(_) =>
+      Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)

@@ -1,3 +1,7 @@
+/**
+ * All cardstacks along with current cardstack,
+ * current cardstack contains current `Program`
+ */
 [@deriving sexp]
 type t = ZList.t(Cardstack.t, Cardstack.t);
 
