@@ -46,7 +46,7 @@ let has_inline_OpenChild =
   contains(
     fun
     | Step(_)
-    | DelimGroup
+    | Tessera
     | LetLine => Skip
     | OpenChild({is_inline: true}) => Return()
     | _ => Stop,
@@ -56,7 +56,7 @@ let has_para_OpenChild =
   contains(
     fun
     | Step(_)
-    | DelimGroup
+    | Tessera
     | LetLine => Skip
     | OpenChild({is_inline: false}) => Return()
     | _ => Stop,
@@ -141,7 +141,7 @@ let rec follow_steps_and_decorate =
            |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
-         | DelimGroup
+         | Tessera
          | LetLine
          | Term(_) => Skip
          | _ => Stop
@@ -185,7 +185,7 @@ let find_and_decorate_caret =
                       }),
                     ),
                )
-             | DelimGroup => Skip
+             | Tessera => Skip
              | _ => Stop
              }
            )
@@ -203,7 +203,7 @@ let find_and_decorate_caret =
                     ),
                )
              | Term(_)
-             | DelimGroup
+             | Tessera
              | LetLine => Skip
              | _ => Stop
              }
@@ -250,7 +250,7 @@ let rec find_and_decorate_Term =
            found_term_if(op_index == next_step, term_data)
          | OpenChild(_)
          | ClosedChild(_)
-         | DelimGroup
+         | Tessera
          | LetLine
          | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
          | _ => Stop

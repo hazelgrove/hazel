@@ -107,7 +107,7 @@ let annot_Padding = (d: t): t =>
   | Text("") => d
   | _ => Doc.annot(UHAnnot.Padding, d)
   };
-let annot_DelimGroup: t => t = Doc.annot(UHAnnot.DelimGroup);
+let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_OpenChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_OpenChild(~is_inline, ()));
 let annot_ClosedChild = (~is_inline: bool): (t => t) =>
@@ -250,7 +250,7 @@ let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
   StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
 
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
-  Delim.empty_hole_doc(hole_lbl) |> annot_DelimGroup |> annot_Operand(~sort);
+  Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Wild = (~err: ErrStatus.t): t =>
   Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
@@ -272,15 +272,15 @@ let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
-  let open_group = Delim.open_Parenthesized() |> annot_DelimGroup;
-  let close_group = Delim.close_Parenthesized() |> annot_DelimGroup;
+  let open_group = Delim.open_Parenthesized() |> annot_Tessera;
+  let close_group = Delim.close_Parenthesized() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort);
 };
 
 let mk_List = (body: formatted_child): t => {
-  let open_group = Delim.open_List() |> annot_DelimGroup;
-  let close_group = Delim.close_List() |> annot_DelimGroup;
+  let open_group = Delim.open_List() |> annot_Tessera;
+  let close_group = Delim.close_List() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort=Typ);
 };
@@ -293,8 +293,8 @@ let mk_Inj =
       body: formatted_child,
     )
     : t => {
-  let open_group = Delim.open_Inj(inj_side) |> annot_DelimGroup;
-  let close_group = Delim.close_Inj() |> annot_DelimGroup;
+  let open_group = Delim.open_Inj(inj_side) |> annot_Tessera;
+  let close_group = Delim.close_Inj() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort, ~err);
 };
@@ -323,17 +323,17 @@ let mk_Lam =
           open_delim,
         ]);
       };
-    doc |> annot_DelimGroup;
+    doc |> annot_Tessera;
   };
-  let close_group = Delim.close_Lam() |> annot_DelimGroup;
+  let close_group = Delim.close_Lam() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~sort=Exp, ~err);
 };
 
 let mk_Case =
     (~err: CaseErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
-  let open_group = Delim.open_Case() |> annot_DelimGroup;
-  let close_group = Delim.close_Case() |> annot_DelimGroup;
+  let open_group = Delim.open_Case() |> annot_Tessera;
+  let close_group = Delim.close_Case() |> annot_Tessera;
   Doc.(
     vseps(
       [
@@ -357,7 +357,7 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
       p |> pad_closed_child(~inline_padding=(space_, space_)),
       Delim.arrow_Rule(),
     ])
-    |> annot_DelimGroup;
+    |> annot_Tessera;
   Doc.hcats([
     delim_group,
     clause |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
@@ -389,9 +389,9 @@ let mk_LetLine =
           eq_delim,
         ]);
       };
-    doc |> annot_DelimGroup;
+    doc |> annot_Tessera;
   };
-  let close_group = Delim.in_LetLine() |> annot_DelimGroup;
+  let close_group = Delim.in_LetLine() |> annot_Tessera;
   Doc.hcats([
     open_group,
     def |> pad_open_child(~inline_padding=(space_, space_)),
@@ -425,7 +425,7 @@ let rec mk_BinOp =
     mk_operand(~enforce_inline, operand) |> annot_Step(n);
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-    let op_doc = mk_operator(op) |> annot_DelimGroup;
+    let op_doc = mk_operator(op) |> annot_Tessera;
     let skel1_doc = go(skel1);
     let skel2_doc = go(skel2);
     Doc.hcats([
@@ -476,7 +476,7 @@ let mk_NTuple =
              let comma_index =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
              let comma_doc =
-               mk_op(",") |> annot_Step(comma_index) |> annot_DelimGroup;
+               mk_op(",") |> annot_Step(comma_index) |> annot_Tessera;
              let doc =
                Doc.hcats([
                  tuple,

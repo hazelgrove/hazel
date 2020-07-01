@@ -805,7 +805,7 @@ h1 {
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
 .code.presentation .LetLine,
-.code.presentation .DelimGroup {
+.code.presentation .Tessera {
   display: inline-block;
 }
 .code.presentation .Term.NTuple,
@@ -1042,14 +1042,14 @@ h1 {
   all: unset;
 }
 
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:first-child {
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .Tessera:first-child {
   border-radius: 0 var(--code-radius) 0 0;
 }
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:last-child {
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .Tessera:last-child {
   border-radius: var(--code-radius) var(--code-radius) 0 0;
 }
 
-.Cursor.Term.Rule.has-Para-OpenChild > .DelimGroup {
+.Cursor.Term.Rule.has-Para-OpenChild > .Tessera {
   border-radius: 0 var(--code-radius) var(--code-radius) 0;
 }
 
@@ -1098,7 +1098,7 @@ h1 {
   stroke-dasharray: 3 2;
 }
 
-.Cursor .DelimGroup {
+.Cursor .Tessera {
   /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
@@ -1110,19 +1110,19 @@ h1 {
   left: calc(-1 * var(--code-shadow-thickness));
   */
 }
-.Cursor.Term.has-Inline-OpenChild .DelimGroup {
+.Cursor.Term.has-Inline-OpenChild .Tessera {
   border-radius: var(--code-radius);
 }
-.Cursor.Term.has-Para-OpenChild .DelimGroup {
+.Cursor.Term.has-Para-OpenChild .Tessera {
   border-radius: 0 var(--code-radius) var(--code-radius) 0;
 }
-.Cursor.Term.Case .DelimGroup {
+.Cursor.Term.Case .Tessera {
   border-radius: 0 var(--code-radius) var(--code-radius) 0;
 }
-.Cursor.Term.Rule .DelimGroup {
+.Cursor.Term.Rule .Tessera {
   border-radius: var(--code-radius);
 }
-.Cursor .Term .DelimGroup {
+.Cursor .Term .Tessera {
   background-color: var(--default-code-bg-color);
   box-shadow: none;
   z-index: auto;
@@ -1133,16 +1133,16 @@ h1 {
   */
 }
 
-.Cursor.Exp .DelimGroup {
+.Cursor.Exp .Tessera {
   --bg-color: var(--exp-bg-color);
 
   --shadow-color: var(--exp-shadow-color);
 }
-.Cursor.Pat .DelimGroup {
+.Cursor.Pat .Tessera {
   --bg-color: var(--pat-bg-color);
   --shadow-color: var(--pat-shadow-color);
 }
-.Cursor.Typ .DelimGroup {
+.Cursor.Typ .Tessera {
   --bg-color: var(--typ-bg-color);
   --shadow-color: var(--typ-shadow-color);
 }
