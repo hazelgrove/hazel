@@ -27,15 +27,8 @@ type measurements = {
 };
 
 type t = {
-  /**
-   * all cardstacks along with current cardstack,
-   * current cardstack contains current Program
-   */
   cardstacks: ZCardstacks.t,
   cell_width: int,
-  /**
-   * the instance path to the selected hole instance
-   */
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   compute_results,
@@ -91,7 +84,7 @@ let next_card: t => t;
 
 let perform_edit_action: (Action_common.t, t) => t;
 
-let move_via_key: (JSUtil.MoveKey.t, t) => t;
+let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: ((CursorMap.Row.t, CursorMap.Col.t), t) => t;
 
 /**

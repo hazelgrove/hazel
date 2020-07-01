@@ -31,6 +31,7 @@ let sort_clss: TermSort.t => list(cls) =
 let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
+  | Invalid => ["Invalid"]
   | Case({err}) => ["Case", ...clss_of_case_err(err)]
   | Var({err, verr, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
@@ -67,7 +68,7 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
 let view =
     (
       ~model: Model.t,
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~caret_pos: option((int, int)),
       l: UHLayout.t,
@@ -191,7 +192,7 @@ let view =
                 ),
               ),
             );
-            inject(Update.Action.MoveAction(Click(row_col)));
+            inject(ModelAction.MoveAction(Click(row_col)));
           }),
         ],
         children,
