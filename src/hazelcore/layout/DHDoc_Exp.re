@@ -30,6 +30,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   switch (d) {
   | BoundVar(_)
   | FreeVar(_)
+  | InvalidText(_)
   | Keyword(_)
   | BoolLit(_)
   | IntLit(_)
@@ -178,6 +179,8 @@ let rec mk =
       | Keyword(u, i, _sigma, k) => DHDoc_common.mk_Keyword(u, i, k)
       | FreeVar(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+      | InvalidText(u, i, _sigma, t) =>
+        DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)

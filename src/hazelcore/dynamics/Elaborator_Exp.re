@@ -8,6 +8,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       d2;
     }
   | FreeVar(_) => d2
+  | InvalidText(_) => d2
   | Keyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -134,6 +135,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (NonEmptyHole(_, _, _, _), _) => Indet
   | (Wild, _) => Matches(Environment.empty)
   | (Keyword(_, _, _), _) => DoesNotMatch
+  | (InvalidText(_), _) => Indet
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
@@ -142,6 +144,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FailedCast(_, _, _)) => Indet
   | (_, InvalidOperation(_)) => Indet
   | (_, FreeVar(_, _, _, _)) => Indet
+  | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
   | (_, FixF(_, _, _)) => DoesNotMatch
   | (_, Lam(_, _, _)) => DoesNotMatch
@@ -274,6 +277,7 @@ and matches_cast_Inj =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
+  | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
@@ -333,6 +337,7 @@ and matches_cast_Pair =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
+  | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
@@ -390,6 +395,7 @@ and matches_cast_Cons =
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
+  | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
@@ -743,6 +749,13 @@ and syn_elab_operand =
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
+    let ty = HTyp.Hole;
+    let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+    Elaborates(d, ty, delta);
+  | InvalidText(u, t) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let d = DHExp.InvalidText(u, 0, sigma, t);
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
@@ -1238,6 +1251,12 @@ and ana_elab_operand =
     | None => DoesNotElaborate
     | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
     }
+  | InvalidText(u, t) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let d = DHExp.InvalidText(u, 0, sigma, t);
+    let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+    Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
@@ -1296,6 +1315,7 @@ let rec renumber_result_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
+  | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -1393,6 +1413,7 @@ let rec renumber_sigmas_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
+  | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

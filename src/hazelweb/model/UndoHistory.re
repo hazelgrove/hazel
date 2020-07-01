@@ -1,69 +1,16 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type cursor_term = CursorInfo_common.cursor_term;
-
-[@deriving sexp]
-type start_from_insertion = bool;
-[@deriving sexp]
-type delete_group =
-  | Term(cursor_term, start_from_insertion)
-  /* cursor_term is insufficient for space, empty line and type annotation deletion,
-     so we add the following three constructors */
-  | Space
-  | EmptyLine
-  | TypeAnn;
-
-[@deriving sexp]
-type var_group =
-  | Insert(cursor_term)
-  | Edit({
-      start_from: cursor_term,
-      end_with: cursor_term,
-    });
-
-[@deriving sexp]
-type swap_group =
-  | Up
-  | Down
-  | Left
-  | Right;
-
-[@deriving sexp]
-type action_group =
-  | VarGroup(var_group)
-  | DeleteEdit(delete_group)
-  | ConstructEdit(Action_common.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
-     so an extra type CaseRule is added for construction */
-  | CaseRule
-  | SwapEdit(swap_group)
-  | Init;
-
-[@deriving sexp]
-type cursor_term_info = {
-  cursor_term_before: cursor_term,
-  cursor_term_after: cursor_term,
-  zexp_before: ZExp.t,
-  zexp_after: ZExp.t,
-  prev_is_empty_line: bool,
-  next_is_empty_line: bool,
-};
-
-[@deriving sexp]
-type timestamp = float;
-
-[@deriving sexp]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
   cardstacks_after_action: ZCardstacks.t,
   /* cardstacks_after_move is initially the same as cardstacks_after_action.
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
-  cursor_term_info,
+  cursor_term_info: UndoHistoryCore.cursor_term_info,
   previous_action: Action_common.t,
-  action_group,
-  timestamp,
+  action_group: UndoHistoryCore.action_group,
+  timestamp: UndoHistoryCore.timestamp,
 };
 
 [@deriving sexp]
@@ -118,19 +65,6 @@ let get_cardstacks = (history: t, ~is_after_move: bool): ZCardstacks.t => {
   };
 };
 
-let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
-  switch (cursor_term) {
-  | Exp(cursor_pos, _)
-  | Pat(cursor_pos, _)
-  | Typ(cursor_pos, _)
-  | ExpOp(cursor_pos, _)
-  | PatOp(cursor_pos, _)
-  | TypOp(cursor_pos, _)
-  | Line(cursor_pos, _)
-  | Rule(cursor_pos, _) => cursor_pos
-  };
-};
-
 let push_history_entry =
     (
       ~prev_group: undo_history_group,
@@ -165,126 +99,21 @@ let caret_jump =
   prev_step != new_step;
 };
 
-/* return true if new action_group can be grouped with the previous action_group */
-let group_action_group =
-    (action_group_prev: action_group, action_group_next: action_group): bool =>
-  switch (action_group_prev, action_group_next) {
-  | (CaseRule, CaseRule) => true
-  | (CaseRule, _) => false
-  | (VarGroup(_), VarGroup(_)) => true
-  | (VarGroup(_), DeleteEdit(delete_group)) =>
-    switch (delete_group) {
-    | Term(_, _) => true
-    | Space
-    | EmptyLine
-    | TypeAnn => false
-    }
-  | (VarGroup(_), ConstructEdit(construct_edit)) =>
-    switch (construct_edit) {
-    | SLet
-    | SCase => true
-    | _ => false
-    }
-  | (VarGroup(_), _) => false
-  /* "insert" and "insert and delete" should be grouped together */
-  | (DeleteEdit(Term(_, true)), VarGroup(Insert(_))) => true
-  | (DeleteEdit(_), _)
-  | (ConstructEdit(_), _)
-  | (SwapEdit(_), _)
-  | (Init, _) => false
-  };
-
 /* return true if new entry can be grouped into the previous group */
 let group_entry =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_action_group: action_group,
+      ~new_action_group: UndoHistoryCore.action_group,
     )
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  group_action_group(prev_entry.action_group, new_action_group)
+  UndoHistoryCore.group_action_group(
+    prev_entry.action_group,
+    new_action_group,
+  )
   && !caret_jump(prev_group, new_cardstacks_before);
 };
-
-type comp_len_typ =
-  | MaxLen
-  | MinLen
-  | Len(int);
-
-let comp_len_lt =
-    (cursor_len_prev: comp_len_typ, cursor_len_next: comp_len_typ): bool => {
-  switch (cursor_len_prev, cursor_len_next) {
-  | (MaxLen, MaxLen) => false
-  | (_, MaxLen) => true
-  | (MinLen, _) => true
-  | (_, MinLen) => false
-  | (MaxLen, _) => false
-  | (Len(len1), Len(len2)) => len1 <= len2
-  };
-};
-
-let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
-  switch (cursor_term) {
-  | Exp(_, operand) =>
-    switch (operand) {
-    | EmptyHole(_) => MinLen
-    | Var(_, _, var) => Len(Var.length(var))
-    | IntLit(_, num)
-    | FloatLit(_, num) => Len(String.length(num))
-    | BoolLit(_, _)
-    | ListNil(_)
-    | Lam(_, _, _, _)
-    | Inj(_, _, _)
-    | Case(_, _, _)
-    | Parenthesized(_) => MaxLen
-    | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
-    }
-  | Pat(_, operand) =>
-    switch (operand) {
-    | EmptyHole(_) => MinLen
-    | Wild(_) => Len(1)
-    | Var(_, _, var) => Len(Var.length(var))
-    | IntLit(_, num)
-    | FloatLit(_, num) => Len(String.length(num))
-    | BoolLit(_, _)
-    | ListNil(_)
-    | Parenthesized(_)
-    | Inj(_, _, _) => MaxLen
-    }
-  | Typ(_, operand) =>
-    switch (operand) {
-    | Hole => MinLen
-    | Unit
-    | Int
-    | Float
-    | Bool
-    | Parenthesized(_)
-    | List(_) => MaxLen
-    }
-  | ExpOp(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Rule(_, _) => MaxLen
-  | Line(_, line) =>
-    switch (line) {
-    | EmptyLine => MinLen
-    | LetLine(_, _, _)
-    | ExpLine(_) => MaxLen
-    }
-  };
-};
-let comp_len_larger =
-    (cursor_term_prev: cursor_term, cursor_term_next: cursor_term)
-    : cursor_term =>
-  if (comp_len_lt(
-        cursor_term_len(cursor_term_prev),
-        cursor_term_len(cursor_term_next),
-      )) {
-    cursor_term_next;
-  } else {
-    cursor_term_prev;
-  };
 
 let get_initial_entry_in_group =
     (undo_history_group: undo_history_group): option(undo_history_entry) => {
@@ -294,34 +123,13 @@ let get_initial_entry_in_group =
   };
 };
 
-let is_var_insert = (action_group): bool => {
-  switch (action_group) {
-  | VarGroup(var_group) =>
-    switch (var_group) {
-    | Insert(_) => true
-    | Edit(_) => false
-    }
-  | _ => false
-  };
-};
-
-let is_var_group = (action_group): bool => {
-  switch (action_group) {
-  | VarGroup(var_group) =>
-    switch (var_group) {
-    | Insert(_) => false
-    | Edit(_) => true
-    }
-  | _ => false
-  };
-};
 let get_delete_action_group =
     (
       prev_group: undo_history_group,
       new_cardstacks_before: ZCardstacks.t,
-      new_cursor_term_info: cursor_term_info,
+      new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : action_group =>
+    : UndoHistoryCore.action_group =>
   if (group_entry(
         ~prev_group,
         ~new_cardstacks_before,
@@ -329,7 +137,7 @@ let get_delete_action_group =
           DeleteEdit(Term(new_cursor_term_info.cursor_term_before, true)),
       )) {
     let prev_entry = ZList.prj_z(prev_group.group_entries);
-    if (is_var_group(prev_entry.action_group)) {
+    if (UndoHistoryCore.is_var_group(prev_entry.action_group)) {
       /* if delete group start from var edition, the deleted term is the initial term in this group */
       switch (get_initial_entry_in_group(prev_group)) {
       | None =>
@@ -339,11 +147,15 @@ let get_delete_action_group =
           Term(initial_entry.cursor_term_info.cursor_term_before, false),
         )
       };
-    } else if (is_var_insert(prev_entry.action_group)) {
+    } else if (UndoHistoryCore.is_var_insert(prev_entry.action_group)) {
+      let cursor_term_len_larger = UndoHistoryCore.cursor_term_len_larger;
       /* if delete group start from var insertion, the deleted term is the longest term in this group */
       let rec max_len_term =
-              (ls: list(undo_history_entry), cursor_term: cursor_term)
-              : cursor_term => {
+              (
+                ls: list(undo_history_entry),
+                cursor_term: UndoHistoryCore.cursor_term,
+              )
+              : UndoHistoryCore.cursor_term => {
         switch (ls) {
         | [] => cursor_term
         | [elt] =>
@@ -357,15 +169,15 @@ let get_delete_action_group =
             | (IntLit(_, _), IntLit(_, _))
             | (FloatLit(_, _), FloatLit(_, _))
             | (BoolLit(_, _), BoolLit(_, _)) =>
-              comp_len_larger(
+              cursor_term_len_larger(
                 cursor_term,
-                comp_len_larger(
+                cursor_term_len_larger(
                   elt.cursor_term_info.cursor_term_after,
                   elt.cursor_term_info.cursor_term_before,
                 ),
               )
             | _ =>
-              comp_len_larger(
+              cursor_term_len_larger(
                 cursor_term,
                 elt.cursor_term_info.cursor_term_after,
               )
@@ -376,28 +188,28 @@ let get_delete_action_group =
             | (IntLit(_, _), IntLit(_, _))
             | (FloatLit(_, _), FloatLit(_, _))
             | (BoolLit(_, _), BoolLit(_, _)) =>
-              comp_len_larger(
+              cursor_term_len_larger(
                 cursor_term,
-                comp_len_larger(
+                cursor_term_len_larger(
                   elt.cursor_term_info.cursor_term_after,
                   elt.cursor_term_info.cursor_term_before,
                 ),
               )
             | _ =>
-              comp_len_larger(
+              cursor_term_len_larger(
                 cursor_term,
                 elt.cursor_term_info.cursor_term_after,
               )
             }
           | _ =>
-            comp_len_larger(
+            cursor_term_len_larger(
               cursor_term,
               elt.cursor_term_info.cursor_term_after,
             )
           }
         | [head, ...tail] =>
           let larger_term =
-            comp_len_larger(
+            cursor_term_len_larger(
               cursor_term,
               head.cursor_term_info.cursor_term_after,
             );
@@ -422,33 +234,14 @@ let get_delete_action_group =
   } else {
     DeleteEdit(Term(new_cursor_term_info.cursor_term_before, false));
   };
-let has_typ_ann = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | Exp(_, exp) =>
-    switch (exp) {
-    | Lam(_, _, _, _) => true
-    | _ => false
-    }
-  | Line(_, line_content) =>
-    switch (line_content) {
-    | LetLine(_, _, _) => true
-    | _ => false
-    }
-  | _ => false
-  };
-};
 
-let is_move_action = (cursor_term_info: cursor_term_info): bool => {
-  ZExp.erase(cursor_term_info.zexp_before)
-  == ZExp.erase(cursor_term_info.zexp_after);
-};
 let delete_group =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : option(action_group) =>
+    : option(UndoHistoryCore.action_group) =>
   if (CursorInfo_common.is_empty_line(new_cursor_term_info.cursor_term_before)) {
     Some(DeleteEdit(EmptyLine));
   } else if (CursorInfo_common.is_empty_line(
@@ -469,7 +262,7 @@ let delete_group =
     /* the action group is editing the term */
     let prev_entry = ZList.prj_z(prev_group.group_entries);
     if (!caret_jump(prev_group, new_cardstacks_before)
-        && is_var_insert(prev_entry.action_group)) {
+        && UndoHistoryCore.is_var_insert(prev_entry.action_group)) {
       Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)));
     } else {
       let initial_term =
@@ -503,8 +296,11 @@ let delete_group =
     };
   };
 let delim_edge_handle =
-    (~new_cursor_term_info: cursor_term_info, ~adjacent_is_empty_line: bool)
-    : option(action_group) =>
+    (
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
+      ~adjacent_is_empty_line: bool,
+    )
+    : option(UndoHistoryCore.action_group) =>
   if (adjacent_is_empty_line) {
     /* delete adjacent empty line */
     Some(DeleteEdit(EmptyLine));
@@ -521,10 +317,11 @@ let delete =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : option(action_group) => {
-  let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
+    : option(UndoHistoryCore.action_group) => {
+  let cursor_pos =
+    UndoHistoryCore.get_cursor_pos(new_cursor_term_info.cursor_term_before);
 
   switch (cursor_pos) {
   | OnText(_) =>
@@ -546,7 +343,10 @@ let delete =
   | OnDelim(pos, side) =>
     switch (side) {
     | Before =>
-      if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
+      if (pos == 1
+          && UndoHistoryCore.has_typ_ann(
+               new_cursor_term_info.cursor_term_before,
+             )) {
         /* num==1 is the position of ':' in an expression */
         Some(
           DeleteEdit(TypeAnn),
@@ -589,10 +389,11 @@ let backspace =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
     )
-    : option(action_group) => {
-  let cursor_pos = get_cursor_pos(new_cursor_term_info.cursor_term_before);
+    : option(UndoHistoryCore.action_group) => {
+  let cursor_pos =
+    UndoHistoryCore.get_cursor_pos(new_cursor_term_info.cursor_term_before);
   switch (cursor_pos) {
   | OnText(_) =>
     if (CursorInfo_Exp.caret_is_before_zoperand(
@@ -618,7 +419,10 @@ let backspace =
         ~adjacent_is_empty_line=new_cursor_term_info.prev_is_empty_line,
       )
     | After =>
-      if (pos == 1 && has_typ_ann(new_cursor_term_info.cursor_term_before)) {
+      if (pos == 1
+          && UndoHistoryCore.has_typ_ann(
+               new_cursor_term_info.cursor_term_before,
+             )) {
         /* num==1 is the position of ':' in an expression */
         Some(
           DeleteEdit(TypeAnn),
@@ -656,11 +460,11 @@ let get_new_action_group =
     (
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
-      ~new_cursor_term_info: cursor_term_info,
+      ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
       ~action: Action_common.t,
     )
-    : option(action_group) =>
-  if (is_move_action(new_cursor_term_info)) {
+    : option(UndoHistoryCore.action_group) =>
+  if (UndoHistoryCore.is_move_action(new_cursor_term_info)) {
     None;
         /* It's a caret movement */
   } else {
@@ -713,7 +517,7 @@ let get_new_action_group =
           | None =>
             Some(VarGroup(Insert(new_cursor_term_info.cursor_term_after)))
           | Some(initial_entry) =>
-            if (is_var_insert(initial_entry.action_group)) {
+            if (UndoHistoryCore.is_var_insert(initial_entry.action_group)) {
               Some(
                 VarGroup(Insert(new_cursor_term_info.cursor_term_after)),
               );
@@ -774,7 +578,9 @@ let get_new_action_group =
               switch (k) {
               | Let =>
                 switch (
-                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
                 ) {
                 | OnText(pos) =>
                   if (pos == 3) {
@@ -791,7 +597,9 @@ let get_new_action_group =
 
               | Case =>
                 switch (
-                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
                 ) {
                 | OnText(pos) =>
                   if (pos == 4) {
@@ -845,12 +653,12 @@ let get_new_action_group =
       failwith("ApPalette is not implemented in undo_history")
     };
   };
-let get_cursor_info =
+let get_cursor_term_info =
     (
       ~new_cardstacks_after: ZCardstacks.t,
       ~new_cardstacks_before: ZCardstacks.t,
     )
-    : cursor_term_info => {
+    : UndoHistoryCore.cursor_term_info => {
   let zexp_before =
     new_cardstacks_before |> ZCardstacks.get_program |> Program.get_zexp;
   let (prev_is_empty_line, next_is_empty_line) =
@@ -884,7 +692,7 @@ let push_edit_state =
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
-    get_cursor_info(~new_cardstacks_before, ~new_cardstacks_after);
+    get_cursor_term_info(~new_cardstacks_before, ~new_cardstacks_after);
   let new_action_group =
     get_new_action_group(
       ~prev_group,

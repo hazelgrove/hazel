@@ -26,6 +26,8 @@ type typed =
       )
   // cursor is on a free variable
   | AnaFree(HTyp.t)
+  // cursor is on invalid text
+  | AnaInvalid(HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   // none of the above and didn't go through subsumption
@@ -55,6 +57,10 @@ type typed =
   // cursor is on a case with inconsistent branch types
   // in the function position of an ap
   | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath_common.steps)
+  // cursor is on invalid text in the fuction position of an ap
+  | SynInvalidArrow(HTyp.t)
+  // cursor is on invalid text
+  | SynInvalid
   // none of the above, cursor is on a free variable
   | SynFree
   // cursor is on a keyword
@@ -87,6 +93,8 @@ type typed =
         // expected type
         HTyp.t,
       )
+  // cursor is on invalid text
+  | PatAnaInvalid(HTyp.t)
   // cursor is on a keyword
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
   // none of the above and didn't go through subsumption
