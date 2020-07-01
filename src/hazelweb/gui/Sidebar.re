@@ -10,7 +10,6 @@ let mk_sidebar =
       tab_opened_icon: Vdom.Node.t,
       tab_closed_icon: Vdom.Node.t,
       slidable_body_id: string,
-      body_padding_id: string,
       body_id: string,
       sidebar_open: bool,
       ~on_toggle: Js.t(Dom_html.mouseEvent) => Vdom.Event.t,
@@ -37,7 +36,6 @@ let mk_sidebar =
               [
                 Node.div(
                   [
-                    Attr.id(body_padding_id),
                     Attr.classes(
                       ["sidebar-body-padding"]
                       @ (
@@ -86,7 +84,6 @@ let left = (~inject, model: Model.t, left_panels) => {
     left_side_bar_icon_opened,
     Icons.question_mark_circle,
     "slidable-left-bar-body",
-    "left-bar-body-padding",
     "left-bar-body",
     model.left_sidebar_open,
     ~on_toggle=_ =>
@@ -102,7 +99,6 @@ let right = (~inject, model: Model.t, right_panels) => {
     Icons.right_arrow(["sidebar-tab-icon"]),
     Icons.left_arrow(["sidebar-tab-icon"]),
     "slidable-right-bar-body",
-    "right-bar-body-padding",
     "right-bar-body",
     model.right_sidebar_open,
     ~on_toggle=_ =>
