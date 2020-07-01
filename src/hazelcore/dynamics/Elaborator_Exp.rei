@@ -66,8 +66,8 @@ let syn_elab_skel:
   (
     Contexts.t,
     Delta.t,
-    OpSeq.skel(UHExp.operator),
-    OpSeq.seq(UHExp.operand, UHExp.operator)
+    OpSeq.skel(UHExp.binop),
+    OpSeq.seq(UHExp.operand, UHExp.binop)
   ) =>
   Let_syntax.t;
 

@@ -6,7 +6,7 @@ module BinBoolOp = {
     | And
     | Or;
 
-  let of_op = (op: UHExp.operator): option(t) =>
+  let of_op = (op: UHExp.binop): option(t) =>
     switch (op) {
     | And => Some(And)
     | Or => Some(Or)
@@ -29,7 +29,7 @@ module BinBoolOp = {
     | Comma => None
     };
 
-  let to_op = (op: t): UHExp.operator =>
+  let to_op = (op: t): UHExp.binop =>
     switch (op) {
     | And => And
     | Or => Or
@@ -47,7 +47,7 @@ module BinIntOp = {
     | GreaterThan
     | Equals;
 
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+  let of_op = (op: UHExp.binop): option((t, HTyp.t)) =>
     switch (op) {
     | Minus => Some((Minus, Int))
     | Plus => Some((Plus, Int))
@@ -70,7 +70,7 @@ module BinIntOp = {
     | Comma => None
     };
 
-  let to_op = (bio: t): UHExp.operator =>
+  let to_op = (bio: t): UHExp.binop =>
     switch (bio) {
     | Minus => Minus
     | Plus => Plus
@@ -86,15 +86,15 @@ module UnIntOp = {
   [@deriving sexp]
   type t =
     | Minus;
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
-    switch (op) {
-    | Minus => Some((Minus, Int))
-    | _ => None
-    };
-  let to_op = (bio: t): UHExp.operator =>
-    switch (bio) {
-    | Minus => Minus
-    };
+  // let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
+  //   switch (op) {
+  //   | Minus => Some((Minus, Int))
+  //   | _ => None
+  //   };
+  // let to_op = (bio: t): UHExp.unop =>
+  //   switch (bio) {
+  //   | Minus => Minus
+  //   };
 };
 
 module BinFloatOp = {
@@ -108,7 +108,7 @@ module BinFloatOp = {
     | FGreaterThan
     | FEquals;
 
-  let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
+  let of_op = (op: UHExp.binop): option((t, HTyp.t)) =>
     switch (op) {
     | FPlus => Some((FPlus, Float))
     | FMinus => Some((FMinus, Float))
@@ -131,7 +131,7 @@ module BinFloatOp = {
     | Comma => None
     };
 
-  let to_op = (bfo: t): UHExp.operator =>
+  let to_op = (bfo: t): UHExp.binop =>
     switch (bfo) {
     | FPlus => FPlus
     | FMinus => FMinus

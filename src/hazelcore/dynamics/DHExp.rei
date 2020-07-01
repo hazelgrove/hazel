@@ -4,9 +4,9 @@ module BinBoolOp: {
     | And
     | Or;
 
-  let of_op: UHExp.operator => option(t);
+  let of_op: UHExp.binop => option(t);
 
-  let to_op: t => UHExp.operator;
+  let to_op: t => UHExp.binop;
 };
 
 module BinIntOp: {
@@ -20,9 +20,9 @@ module BinIntOp: {
     | GreaterThan
     | Equals;
 
-  let of_op: UHExp.operator => option((t, HTyp.t));
+  let of_op: UHExp.binop => option((t, HTyp.t));
 
-  let to_op: t => UHExp.operator;
+  let to_op: t => UHExp.binop;
 };
 
 module BinFloatOp: {
@@ -36,9 +36,9 @@ module BinFloatOp: {
     | FGreaterThan
     | FEquals;
 
-  let of_op: UHExp.operator => option((t, HTyp.t));
+  let of_op: UHExp.binop => option((t, HTyp.t));
 
-  let to_op: t => UHExp.operator;
+  let to_op: t => UHExp.binop;
 };
 
 [@deriving sexp]
