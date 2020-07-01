@@ -157,7 +157,6 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
-  /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
