@@ -15,7 +15,7 @@ let extend = (ctx, xa) => {
   [xa, ...List.remove_assoc(x, ctx)];
 };
 
-let union = (@);
+let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
 
 let lookup = (ctx, x) => List.assoc_opt(x, ctx);
 
