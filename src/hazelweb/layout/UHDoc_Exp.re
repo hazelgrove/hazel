@@ -127,7 +127,7 @@ and mk_line =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ann =
             ann
-            |> OptUtil.map(ann =>
+            |> Option.map(ann =>
                  UHDoc_Typ.mk_child(
                    ~memoize,
                    ~enforce_inline,
@@ -177,7 +177,7 @@ and mk_operand =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ann =
             ann
-            |> OptUtil.map(ann =>
+            |> Option.map(ann =>
                  UHDoc_Typ.mk_child(
                    ~memoize,
                    ~enforce_inline,
