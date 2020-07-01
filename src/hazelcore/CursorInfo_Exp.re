@@ -160,7 +160,7 @@ and get_outer_zrules_from_zrule =
 
 let rec cursor_on_outer_expr:
   ZExp.zoperand =>
-  option((ErrStatus.t, VarErrStatus.t, option(CaseErrStatus.t))) =
+  option((ErrStatus.t, VarErrStatus.t, option(list(HTyp.t)))) =
   fun
   | CursorE(_, operand) => {
       let err = operand |> UHExp.get_err_status_operand;
@@ -172,8 +172,7 @@ let rec cursor_on_outer_expr:
       /* Only pull out the case error status if it is the special form */
       let cerr =
         switch (operand) {
-        | Case(InconsistentBranches(types, u), _, _) =>
-          Some(CaseErrStatus.InconsistentBranches(types, u))
+        | Case(InconsistentBranches(types, _), _, _) => Some(types)
         | _ => None
         };
       Some((err, verr, cerr));
@@ -449,9 +448,8 @@ and syn_cursor_info_skel =
           Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some((_, InVarHole(Keyword(k), _), _)) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
-        | Some((_, _, Some(InconsistentBranches(rule_types, _)))) =>
+        | Some((_, _, Some(rule_types))) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
-        | Some((_, _, Some(StandardErrStatus(_)))) => None // This should be handled at a higher level...
         | Some((NotInHole, NotInVarHole, None)) =>
           let operand_nih =
             zoperand
