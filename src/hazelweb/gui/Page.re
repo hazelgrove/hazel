@@ -216,7 +216,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["main-area"])],
             [
-              Sidebar.left(~inject, model, () =>
+              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
                 [ActionPanel.view(~inject, model)]
               ),
               Node.div(
@@ -283,7 +283,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   ),
                 ],
               ),
-              Sidebar.right(~inject, model, () =>
+              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
                   CursorInspector.view(~inject, model),
                   ContextInspector.view(~inject, model),
