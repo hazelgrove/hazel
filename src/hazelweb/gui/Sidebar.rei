@@ -3,7 +3,7 @@ open Virtual_dom;
 let left:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    Model.t,
+    ~is_open: bool,
     unit => list(Vdom.Node.t)
   ) =>
   Vdom.Node.t;
@@ -11,7 +11,7 @@ let left:
 let right:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    Model.t,
+    ~is_open: bool,
     unit => list(Vdom.Node.t)
   ) =>
   Vdom.Node.t;
