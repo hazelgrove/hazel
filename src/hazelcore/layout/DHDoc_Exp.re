@@ -46,7 +46,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Let(_)
   | FixF(_)
   | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max /* TODO: is this right */
+  | InconsistentBranches(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
