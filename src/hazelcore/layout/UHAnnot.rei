@@ -25,7 +25,7 @@ type t =
   | UserNewline
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
-  | DelimGroup
+  | Tessera
   | EmptyLine
   | LetLine
   | Step(int)

@@ -190,7 +190,7 @@ module Dec = {
                  |> ListUtil.map_with_accumulator(
                       ((row, col) as rc, word: MeasuredLayout.t) => {
                         switch (word) {
-                        | {layout: Annot(DelimGroup, m), _} =>
+                        | {layout: Annot(Tessera, m), _} =>
                           // get outline rects
                           rects(~row, ~col, m)
                         | {layout: Annot(OpenChild(_), m), _} =>
@@ -239,7 +239,7 @@ module Dec = {
                     ((row, col) as rc, word: MeasuredLayout.t) => {
                       let vs =
                         switch (word) {
-                        | {layout: Annot(DelimGroup, m), _} =>
+                        | {layout: Annot(Tessera, m), _} =>
                           MeasuredLayout.flatten(m)
                           |> ListUtil.map_with_accumulator(
                                ((row, col), line: list(MeasuredLayout.t)) => {
