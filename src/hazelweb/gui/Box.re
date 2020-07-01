@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t('annot) =
   | Text(string)
   | HBox(list(t('annot)))
@@ -76,9 +79,10 @@ let rec append_box =
   };
 
 let append_hbox = (boxes1: list(t('annot)), boxes2: list(t('annot))) => {
-  let (leading, last) = ListUtil.split_last(boxes1);
-  let (first, trailing) = ListUtil.split_first(boxes2);
-  leading @ [append_box(last, first), ...trailing];
+  switch (ListUtil.split_last_opt(boxes1)) {
+  | None => boxes2
+  | Some((leading, last)) => leading @ [append_box(last, HBox(boxes2))]
+  };
 };
 
 let mk = (l: Pretty.Layout.t('annot)): t('annot) => {

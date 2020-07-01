@@ -515,7 +515,9 @@ let view =
       let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
         switch (box) {
         | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | HBox(boxes) => List.concat(List.map(go, boxes))
+        | HBox(boxes) =>
+          let vs = boxes |> List.map(go) |> List.flatten;
+          [Node.span([], vs)];
         | VBox(boxes) =>
           let vs =
             boxes
