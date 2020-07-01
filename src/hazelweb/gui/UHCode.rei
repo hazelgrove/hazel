@@ -5,7 +5,7 @@ open Virtual_dom;
  */
 let view:
   (
-    ~model: Model.t,
+    ~measure: bool,
     ~inject: ModelAction.t => Vdom.Event.t,
     ~font_metrics: FontMetrics.t,
     ~caret_pos: option((int, int)),

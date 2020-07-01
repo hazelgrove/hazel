@@ -182,12 +182,9 @@ html, body {
   overflow: hidden;
 }
 
-#collapsible-right-bar {
-}
-
 .sidebar {
   width: auto;
-  height: 200%; /* TODO: change back to 100% */
+  height: 100%; /* TODO: change back to 100% */
   direction: ltr; /* reset text direction */
   background-color: tan;
   display: grid;
@@ -262,14 +259,6 @@ html, body {
   flex-shrink: 0;
   transition: width 0.3s ease;
   height: 100%;
-}
-
-#left-bar-body-padding {
-
-}
-
-#right-bar-body-padding {
-
 }
 
 .sidebar-body-padding-expanded {
@@ -1528,7 +1517,7 @@ h1 {
 .history-entry {
   border: 1px outset #ffffff;
   width: 100%;
-  display: grid; 
+  display: grid;
   padding: 5px;
   position: relative;
 }
@@ -1549,7 +1538,7 @@ h1 {
   margin-right:10px;
   font-size: 11px;
   padding:5px;
-  font-weight: bolder; 
+  font-weight: bolder;
   float: left;
 }
 .history-type-tag-typ{
