@@ -1,5 +1,7 @@
 module Js = Js_of_ocaml.Js;
 module Exn = Base.Exn;
+module Dom_html = Js_of_ocaml.Dom_html;
+module Vdom = Virtual_dom.Vdom;
 
 Logger.init_log();
 
@@ -31,7 +33,17 @@ let () = {
         print_endline(message);
 
         let err_box = JSUtil.force_get_elem_by_id("error-message");
-        err_box##.setAttribute(Js.string("visible"), Js.string("true"), ());
+        err_box##.classList##add(Js.string("visible"));
+        /*let dom =
+            Vdom.Node.to_dom(
+              Vdom.Node.body(
+                [],
+                [Vdom.Node.h2([], [Vdom.Node.text("Error!")])],
+              ),
+            );
+          let current_body =
+            Dom_html.document##.body##replaceChild(err_box, dom);
+          ();*/
       },
     );
 
