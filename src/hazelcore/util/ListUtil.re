@@ -34,7 +34,7 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
   | ([_, ..._], []) => None
   | ([], []) => Some([])
   | ([x, ...xs], [y, ...ys]) =>
-    opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys])
+    opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
   };
 
 let for_all2_opt =
@@ -124,7 +124,7 @@ let filteri = (pred, xs) =>
   |> List.filter(((i, x)) => pred(i, x))
   |> List.map(((_, x)) => x);
 
-let any = (xs, f) => xs |> List.find_opt(f) |> OptUtil.test;
+let any = (xs, f) => Option.is_some(List.find_opt(f, xs));
 
 let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
 
