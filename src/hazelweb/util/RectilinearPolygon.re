@@ -1,6 +1,7 @@
 open Sexplib.Std;
 module Vdom = Virtual_dom.Vdom;
 
+[@deriving sexp]
 type cmd =
   | Dx(float)
   | Dy(float);
@@ -213,7 +214,7 @@ let mk_svg =
   let buffer = Buffer.create(List.length(path) * 20);
   Buffer.add_string(
     buffer,
-    Printf.sprintf("M %f %f", start.src.x, start.src.y),
+    Printf.sprintf("M %f %f ", start.src.x, start.src.y),
   );
   path
   |> List.map(
@@ -254,8 +255,8 @@ let mk_svg =
            ),
          );
        | (Dy(dy), Dx(dx)) =>
-         let rx_min = min(rx, dx);
-         let ry_min = min(ry, dy);
+         let rx_min = min(rx, Float.abs(dx));
+         let ry_min = min(ry, Float.abs(dy));
          let (rx, ry) =
            ry_min *. rx >= rx_min *. ry
              ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
@@ -271,7 +272,7 @@ let mk_svg =
            FloatUtil.to_string_zero(Float.copy_sign(rx, dx)),
            FloatUtil.to_string_zero(Float.copy_sign(ry, dy)),
            FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dx) -. rx, dy),
+             Float.copy_sign(Float.abs(dx) -. rx, dx),
            ),
          );
        }
