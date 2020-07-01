@@ -105,12 +105,17 @@ html, body {
   justify-content: flex-start;
 }
 
-.error {
+.error-message {
+  visibility: hidden;
   position: sticky;
   bottom: 0;
   width: 100%;
   height: 100px;
   background-color: red;
+}
+
+.error-message .visible {
+  visibility: visible;
 }
 
 .closebtn {
