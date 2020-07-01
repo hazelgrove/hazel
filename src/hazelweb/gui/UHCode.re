@@ -515,15 +515,13 @@ let view =
       let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
         switch (box) {
         | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | HBox(boxes) =>
-          let vs = boxes |> List.map(go) |> List.flatten;
-          [Node.span([], vs)];
+        | HBox(boxes) => boxes |> List.map(go) |> List.flatten
         | VBox(boxes) =>
           let vs =
             boxes
             |> List.map(go)
-            |> List.flatten
-            |> ListUtil.join(Node.br([]));
+            |> ListUtil.join([Node.br([])])
+            |> List.flatten;
           [Node.div([Attr.style(Css_gen.display(`Inline_block))], vs)];
         | Annot(annot, box) =>
           let vs = go(box);
