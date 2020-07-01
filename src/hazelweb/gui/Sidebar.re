@@ -76,7 +76,7 @@ let left_side_bar_icon_opened =
       ],
     )
   );
-let left = (~inject, model: Model.t, left_panels) => {
+let left = (~inject, ~is_open: bool, left_panels) => {
   mk_sidebar(
     left_panels,
     "collapsible-left-bar",
@@ -85,13 +85,13 @@ let left = (~inject, model: Model.t, left_panels) => {
     Icons.question_mark_circle,
     "slidable-left-bar-body",
     "left-bar-body",
-    model.left_sidebar_open,
+    is_open,
     ~on_toggle=_ =>
     inject(ModelAction.ToggleLeftSidebar)
   );
 };
 
-let right = (~inject, model: Model.t, right_panels) => {
+let right = (~inject, ~is_open: bool, right_panels) => {
   mk_sidebar(
     right_panels,
     "collapsible-right-bar",
@@ -100,7 +100,7 @@ let right = (~inject, model: Model.t, right_panels) => {
     Icons.left_arrow(["sidebar-tab-icon"]),
     "slidable-right-bar-body",
     "right-bar-body",
-    model.right_sidebar_open,
+    is_open,
     ~on_toggle=_ =>
     inject(ModelAction.ToggleRightSidebar)
   );
