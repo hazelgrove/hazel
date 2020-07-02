@@ -46,6 +46,7 @@ type t = {
    * to realize preview when scrolling.
    */
   mouse_position: ref(MousePosition.t),
+  show_expanded_cursor_inspector: bool,
 };
 
 let cardstack_info: list(CardstackInfo.t);

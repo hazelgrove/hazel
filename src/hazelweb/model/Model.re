@@ -31,6 +31,7 @@ type t = {
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
+  show_expanded_cursor_inspector: bool,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -119,6 +120,7 @@ let init = (): t => {
       },
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
+    show_expanded_cursor_inspector: false,
   };
 };
 

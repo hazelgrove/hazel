@@ -78,7 +78,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | ToggleCursorInspectorView =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -317,6 +318,11 @@ let apply_action =
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
+      | ToggleCursorInspectorView => {
+          ...model,
+          show_expanded_cursor_inspector:
+            !model.show_expanded_cursor_inspector,
+        }
       };
     },
   );

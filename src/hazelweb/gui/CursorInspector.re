@@ -72,6 +72,35 @@ let view =
       )
     );
 
+  let summary_bar = (show_expanded_cursor_inspector: bool) => {
+    let arrow =
+      if (show_expanded_cursor_inspector) {
+        Icons.down_arrow([]);
+      } else {
+        Icons.left_arrow([]);
+      };
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar"])],
+        [
+          Node.text("This is a concise message:D"),
+          Node.div(
+            [
+              Attr.on_click(_ =>
+                Vdom.Event.Many([
+                  Event.Prevent_default,
+                  Event.Stop_propagation,
+                  inject(ModelAction.ToggleCursorInspectorView),
+                ])
+              ),
+            ],
+            [arrow],
+          ),
+        ],
+      )
+    );
+  };
+
   let expected_indicator = (title_text, type_div) =>
     Vdom.(
       Node.div(
@@ -372,13 +401,20 @@ let view =
         Css_gen.top(`Px(int_of_float(y))),
       ),
     );
+  let summary_bar = summary_bar(model.show_expanded_cursor_inspector);
+  let content =
+    if (model.show_expanded_cursor_inspector) {
+      [summary_bar, ind1, ind2];
+    } else {
+      [summary_bar];
+    };
   Vdom.(
     Node.div(
       [Attr.classes(["cursor-inspector-outer"]), pos_attr],
       [
         Node.div(
           [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
-          [ind1, ind2],
+          content,
         ),
       ],
     )
