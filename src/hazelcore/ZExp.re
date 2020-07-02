@@ -83,6 +83,9 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
 let valid_cursors_binop: UHExp.binop => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
+let valid_cursors_unop: UHExp.unop => list(CursorPosition.t) =
+  fun
+  | _ => [OnOp(Before), OnOp(After)];
 let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   fun
   /* outer nodes - delimiter */
@@ -121,6 +124,8 @@ let is_valid_cursor_operand =
 let is_valid_cursor_binop =
     (cursor: CursorPosition.t, binop: UHExp.binop): bool =>
   valid_cursors_binop(binop) |> List.mem(cursor);
+let is_valid_cursor_unop = (cursor: CursorPosition.t, unop: UHExp.unop): bool =>
+  valid_cursors_unop(unop) |> List.mem(cursor);
 let is_valid_cursor_rule = (cursor: CursorPosition.t, rule: UHExp.rule): bool =>
   valid_cursors_rule(rule) |> List.mem(cursor);
 
@@ -322,6 +327,8 @@ let place_before_binop = (op: UHExp.binop): option(zbinop) =>
   | Space => None
   | _ => Some((OnOp(Before), op))
   };
+let place_before_unop = (op: UHExp.unop): option(zunop) =>
+  Some((OnOp(Before), op));
 
 let rec place_after = (e: UHExp.t): t => e |> place_after_block
 and place_after_block = (block: UHExp.block): zblock =>
@@ -366,6 +373,9 @@ let place_after_unop = (op: UHExp.unop): option(zunop) =>
 let place_cursor_binop =
     (cursor: CursorPosition.t, binop: UHExp.binop): option(zbinop) =>
   is_valid_cursor_binop(cursor, binop) ? Some((cursor, binop)) : None;
+let place_cursor_unop =
+    (cursor: CursorPosition.t, unop: UHExp.unop): option(zunop) =>
+  is_valid_cursor_unop(cursor, unop) ? Some((cursor, unop)) : None;
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) =>
   is_valid_cursor_operand(cursor, operand)

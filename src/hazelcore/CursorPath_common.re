@@ -95,7 +95,7 @@ let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
 let follow_opseq_ =
     (
       ~follow_operand: (t, 'operand) => option('zoperand),
-      ~follow_operator: (t, 'operator) => option('zoperator),
+      ~follow_binop: (t, 'operator) => option('zoperator),
       (steps, cursor): t,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
     )
@@ -116,7 +116,7 @@ let follow_opseq_ =
          )
     | (_, Some((operator, surround))) =>
       operator
-      |> follow_operator((xs, cursor))
+      |> follow_binop((xs, cursor))
       |> OptUtil.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
@@ -126,7 +126,7 @@ let follow_opseq_ =
 let of_steps_opseq_ =
     (
       ~of_steps_operand: (steps, ~side: Side.t, 'operand) => option(t),
-      ~of_steps_operator: (steps, ~side: Side.t, 'operator) => option(t),
+      ~of_steps_binop: (steps, ~side: Side.t, 'operator) => option(t),
       steps: steps,
       ~side: Side.t,
       OpSeq(_, seq): OpSeq.t('operand, 'operator),
@@ -145,7 +145,7 @@ let of_steps_opseq_ =
       path |> OptUtil.map(path => cons'(x, path));
     | (_, Some((operator, _))) =>
       operator
-      |> of_steps_operator(xs, ~side)
+      |> of_steps_binop(xs, ~side)
       |> OptUtil.map(path => cons'(x, path))
     }
   };
