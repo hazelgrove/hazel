@@ -179,45 +179,6 @@ let get_layout =
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
 
-let get_cursor_map_z =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) => {
-  let path = program |> get_path;
-  // TODO figure out how to consolidate decoration
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> decorate_caret(path)
-  |> CursorMap.mk
-  |> (
-    fun
-    | (_, None) => failwith(__LOC__ ++ ": no cursor found")
-    | (map, Some(z)) => (map, z)
-  );
-};
-
-let get_cursor_map =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) =>
-  program
-  |> get_cursor_map_z(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> fst;
-
 let move_via_click =
     (
       ~measure_program_get_doc: bool,
