@@ -84,7 +84,7 @@ let next_card: t => t;
 let perform_edit_action: (Action_common.t, t) => t;
 
 let move_via_key: (JSUtil.MoveKey.t, t) => t;
-let move_via_click: ((CursorMap.Row.t, CursorMap.Col.t), t) => t;
+let move_via_click: (CaretPosition.t, t) => t;
 
 /**
  * See `Program.move_to_case_branch`

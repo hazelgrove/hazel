@@ -73,7 +73,7 @@ let move_via_click:
     ~measure_program_get_doc: bool,
     ~measure_layoutOfDoc_layout_of_doc: bool,
     ~memoize_doc: bool,
-    (CursorMap.Row.t, CursorMap.Col.t),
+    CaretPosition.t,
     t
   ) =>
   (t, Action_common.t);

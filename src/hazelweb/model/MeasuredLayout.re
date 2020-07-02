@@ -24,50 +24,17 @@ let height = (m: t) =>
 let width = (m: t) =>
   m.metrics |> List.map(box => box.width) |> List.fold_left(max, 0);
 
-module Position = {
-  type m = t;
-  type t = {
-    row: int,
-    col: int,
-  };
-  let compare = (pos1, pos2) =>
-    if (pos1.row < pos2.row) {
-      (-1);
-    } else if (pos1.row > pos2.row) {
-      1;
-    } else {
-      Int.compare(pos1.col, pos2.col);
+let next_position = ({row, col}: CaretPosition.t, m: t): CaretPosition.t => {
+  let (leading, last) = ListUtil.split_last(m.metrics);
+  let total_height =
+    leading |> List.map(box => box.height) |> List.fold_left((+), last.height);
+  let updated_row = row + total_height - 1;
+  let updated_col =
+    switch (leading) {
+    | [] => col + last.width
+    | [_, ..._] => last.width
     };
-
-  let prev = (m: m, {row, col}: t): t => {
-    let (first, trailing) = ListUtil.split_first(m.metrics);
-    let total_height =
-      trailing
-      |> List.map(box => box.height)
-      |> List.fold_left((+), first.height);
-    let updated_row = row - total_height + 1;
-    let updated_col =
-      switch (trailing) {
-      | [] => col - first.width
-      | [_, ..._] => - first.width
-      };
-    {row: updated_row, col: updated_col};
-  };
-
-  let next = ({row, col}: t, m: m): t => {
-    let (leading, last) = ListUtil.split_last(m.metrics);
-    let total_height =
-      leading
-      |> List.map(box => box.height)
-      |> List.fold_left((+), last.height);
-    let updated_row = row + total_height - 1;
-    let updated_col =
-      switch (leading) {
-      | [] => col + last.width
-      | [_, ..._] => last.width
-      };
-    {row: updated_row, col: updated_col};
-  };
+  {row: updated_row, col: updated_col};
 };
 
 // flattens away Linebreak and Cat nodes
@@ -233,12 +200,18 @@ let arbitrate =
  * `from.col`, paired with the position of the found path.
  */
 let prev_path_in_row =
-    (from: Position.t, m: t): option((CursorPath_common.rev_t, Position.t)) => {
+    (from: CaretPosition.t, m: t)
+    : option((CursorPath_common.rev_t, CaretPosition.t)) => {
   let rec go =
-          (rev_steps: CursorPath_common.rev_steps, start: Position.t, m: t)
-          : option((CursorPath_common.rev_t, Position.t)) => {
-    let end_ = Position.next(start, m);
-    if (Position.compare(from, start) < 0 || Position.compare(from, end_) > 0) {
+          (
+            rev_steps: CursorPath_common.rev_steps,
+            start: CaretPosition.t,
+            m: t,
+          )
+          : option((CursorPath_common.rev_t, CaretPosition.t)) => {
+    let end_ = next_position(start, m);
+    if (CaretPosition.compare(from, start) < 0
+        || CaretPosition.compare(from, end_) > 0) {
       None;
     } else {
       switch (m.layout) {
@@ -265,8 +238,8 @@ let prev_path_in_row =
         }
       | Align(m) => go(rev_steps, start, m)
       | Cat(m1, m2) =>
-        let mid = Position.next(start, m);
-        if (Position.compare(from, mid) <= 0) {
+        let mid = next_position(start, m);
+        if (CaretPosition.compare(from, mid) <= 0) {
           go(rev_steps, start, m1);
         } else {
           switch (go(rev_steps, mid, m2)) {
@@ -283,7 +256,7 @@ let prev_path_in_row =
             let rev_path =
               switch (last_path_in_last_row(rev_steps, m1)) {
               | Some((rev_path1, 0))
-                  when Position.compare(prev_pos, mid) == 0 =>
+                  when CaretPosition.compare(prev_pos, mid) == 0 =>
                 arbitrate(rev_path1, rev_path2)
               | _ => rev_path2
               };
@@ -302,12 +275,18 @@ let prev_path_in_row =
  * `from.col`, paired with the position of the found path.
  */
 let next_path_in_row =
-    (from: Position.t, m: t): option((CursorPath_common.rev_t, Position.t)) => {
+    (from: CaretPosition.t, m: t)
+    : option((CursorPath_common.rev_t, CaretPosition.t)) => {
   let rec go =
-          (rev_steps: CursorPath_common.rev_steps, start: Position.t, m: t)
-          : option((CursorPath_common.rev_t, Position.t)) => {
-    let end_ = Position.next(start, m);
-    if (Position.compare(from, start) < 0 || Position.compare(from, end_) > 0) {
+          (
+            rev_steps: CursorPath_common.rev_steps,
+            start: CaretPosition.t,
+            m: t,
+          )
+          : option((CursorPath_common.rev_t, CaretPosition.t)) => {
+    let end_ = next_position(start, m);
+    if (CaretPosition.compare(from, start) < 0
+        || CaretPosition.compare(from, end_) > 0) {
       None;
     } else {
       switch (m.layout) {
@@ -334,8 +313,8 @@ let next_path_in_row =
         }
       | Align(m) => go(rev_steps, start, m)
       | Cat(m1, m2) =>
-        let mid = Position.next(start, m);
-        if (Position.compare(from, mid) >= 0) {
+        let mid = next_position(start, m);
+        if (CaretPosition.compare(from, mid) >= 0) {
           go(rev_steps, mid, m2);
         } else {
           switch (go(rev_steps, start, m1)) {
@@ -352,7 +331,7 @@ let next_path_in_row =
             let rev_path =
               switch (first_path_in_first_row(rev_steps, m2)) {
               | Some((rev_path2, 0))
-                  when Position.compare(next_pos, mid) == 0 =>
+                  when CaretPosition.compare(next_pos, mid) == 0 =>
                 arbitrate(rev_path1, rev_path2)
               | _ => rev_path1
               };
@@ -366,11 +345,11 @@ let next_path_in_row =
 };
 
 let nearest_path_within_row =
-    (target: Position.t, m: t): option(CursorPath_common.rev_t) => {
-  let rec go = (rev_steps, start: Position.t, m) => {
-    let end_ = Position.next(start, m);
-    if (Position.compare(target, start) < 0
-        || Position.compare(target, end_) > 0) {
+    (target: CaretPosition.t, m: t): option(CursorPath_common.rev_t) => {
+  let rec go = (rev_steps, start: CaretPosition.t, m) => {
+    let end_ = next_position(start, m);
+    if (CaretPosition.compare(target, start) < 0
+        || CaretPosition.compare(target, end_) > 0) {
       None;
     } else {
       switch (m.layout) {
@@ -394,7 +373,7 @@ let nearest_path_within_row =
         | _ => go(rev_steps, start, m)
         }
       | Cat(m1, m2) =>
-        let mid = Position.next(start, m);
+        let mid = next_position(start, m);
         if (target.row < mid.row) {
           go(rev_steps, start, m1);
         } else if (target.row > mid.row) {
