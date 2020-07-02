@@ -179,56 +179,6 @@ let get_layout =
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
 
-let decorate_caret = (path, l) =>
-  l
-  |> UHLayout.find_and_decorate_caret(~path)
-  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find caret"));
-let decorate_cursor = (steps, l) =>
-  l
-  |> UHLayout.find_and_decorate_cursor(~steps)
-  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
-let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
-  switch (ci.uses) {
-  | None => l
-  | Some(uses) =>
-    uses
-    |> List.fold_left(
-         (l: UHLayout.t, use) =>
-           l
-           |> UHLayout.find_and_decorate_var_use(~steps=use)
-           |> OptUtil.get(() => {
-                failwith(
-                  __LOC__
-                  ++ ": could not find var use"
-                  ++ Sexplib.Sexp.to_string(
-                       CursorPath_common.sexp_of_steps(use),
-                     ),
-                )
-              }),
-         l,
-       )
-  };
-
-let get_decorated_layout =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) => {
-  let (steps, _) as path = program |> get_path;
-  let ci = program |> get_cursor_info;
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> decorate_caret(path)
-  |> decorate_cursor(steps)
-  |> decorate_var_uses(ci);
-};
-
 let get_cursor_map_z =
     (
       ~measure_program_get_doc: bool,

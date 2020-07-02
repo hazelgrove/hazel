@@ -99,18 +99,6 @@ let get_layout:
     t
   ) =>
   UHLayout.t;
-/**
- * Returns a `UHLayout.t` that has been decorated with the caret,
- * current term, and variable uses. (Will be refactored away.)
- */
-let get_decorated_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHLayout.t;
 
 let get_cursor_map:
   (
