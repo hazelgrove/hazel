@@ -272,7 +272,7 @@ html, body {
   width: 28px;
 }
 
-.question-mark-circle {
+.circle-icon {
   color: #fff;
   background-color:#000;
   width:14px;
@@ -322,6 +322,15 @@ html, body {
   margin-top: calc(var(--code-line-height) * 1em);
   width: max-content;
   cursor: default;
+}
+
+.type-info-summary {
+  display: flex;
+}
+
+.ci-arrow {
+  color: grey;
+  cursor: pointer;
 }
 
 .cursor-OK.cursor-inspector {

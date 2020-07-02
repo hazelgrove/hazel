@@ -72,18 +72,20 @@ let view =
       )
     );
 
-  let summary_bar = (show_expanded_cursor_inspector: bool) => {
+  let summary_bar = (show_expanded_cursor_inspector: bool, is_err: bool) => {
     let arrow =
       if (show_expanded_cursor_inspector) {
-        Icons.down_arrow([]);
+        Icons.down_arrow(["ci-arrow"]);
       } else {
-        Icons.left_arrow([]);
+        Icons.left_arrow(["ci-arrow"]);
       };
+    let err_icon = if (is_err) {Icons.x_circle} else {Icons.check_circle};
     Vdom.(
       Node.div(
-        [Attr.classes(["infobar"])],
+        [Attr.classes(["title-bar", "type-info-summary"])],
         [
           Node.text("This is a concise message:D"),
+          err_icon,
           Node.div(
             [
               Attr.on_click(_ =>
@@ -387,11 +389,11 @@ let view =
 
   let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
-  let cls_of_err_state_b =
+  let (cls_of_err_state_b, is_err) =
     switch (err_state_b) {
-    | TypeInconsistency => "cursor-TypeInconsistency"
-    | BindingError => "cursor-BindingError"
-    | OK => "cursor-OK"
+    | TypeInconsistency => ("cursor-TypeInconsistency", true)
+    | BindingError => ("cursor-BindingError", true)
+    | OK => ("cursor-OK", false)
     };
   let (x, y) = loc;
   let pos_attr =
@@ -401,7 +403,7 @@ let view =
         Css_gen.top(`Px(int_of_float(y))),
       ),
     );
-  let summary_bar = summary_bar(model.show_expanded_cursor_inspector);
+  let summary_bar = summary_bar(model.show_expanded_cursor_inspector, is_err);
   let content =
     if (model.show_expanded_cursor_inspector) {
       [summary_bar, ind1, ind2];
