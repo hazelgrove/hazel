@@ -18,11 +18,15 @@ type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
 };
+[@deriving sexp]
+type group_id = int;
+[@deriving sexp]
+type elt_id = int;
 
 [@deriving sexp]
 type id = {
-  group_id: int,
-  elt_id: int,
+  group_id,
+  elt_id,
 };
 
 [@deriving sexp]
