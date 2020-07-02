@@ -9,8 +9,7 @@ type move_input =
 
 [@deriving sexp]
 type shift_history_info = {
-  group_id: int,
-  elt_id: int,
+  id: UndoHistory.id,
   call_by_mouseenter: bool,
 };
 [@deriving sexp]

@@ -585,24 +585,24 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let get_status_class =
-      (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
+      (~cur_id: UndoHistory.id, ~id: UndoHistory.id)
       : list(string) =>
-    if (cur_group_id > group_id
-        || cur_group_id == group_id
-        && cur_elt_id > elt_id) {
+    if (cur_id.group_id > id.group_id
+        || cur_id.group_id == id.group_id
+        && cur_id.elt_id > id.elt_id) {
       ["the-suc-history"];
-    } else if (cur_group_id < group_id
-               || cur_group_id == group_id
-               && cur_elt_id < elt_id) {
+    } else if (cur_id.group_id < id.group_id
+               || cur_id.group_id == id.group_id
+               && cur_id.elt_id < id.elt_id) {
       ["the-prev-history"];
     } else {
       ["the-cur-history"];
     };
 
-  let is_latest_selected_entry =
-      (~cur_group_id: int, ~cur_elt_id: int, ~group_id: int, ~elt_id: int)
+  let is_current_entry =
+    (~cur_id: UndoHistory.id, ~id: UndoHistory.id)
       : bool => {
-    cur_group_id == group_id && cur_elt_id == elt_id;
+    cur_id.group_id == id.group_id && cur_id.elt_id == id.elt_id;
   };
 
   let history_title_entry_view =
@@ -610,23 +610,18 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ~undo_history: UndoHistory.t,
         ~is_expanded: bool,
         ~has_hidden_part: bool,
-        group_id: int,
-        elt_id: int,
+        id: UndoHistory.id,
         undo_history_entry: undo_history_entry,
       ) => {
     let status_class =
       get_status_class(
-        ~cur_group_id=undo_history.cur_group_id,
-        ~cur_elt_id=undo_history.cur_elt_id,
-        ~group_id,
-        ~elt_id,
+        ~cur_id=undo_history.cur_id,
+        ~id,
       );
     let is_current_entry =
-      is_latest_selected_entry(
-        ~cur_group_id=undo_history.cur_group_id,
-        ~cur_elt_id=undo_history.cur_elt_id,
-        ~group_id,
-        ~elt_id,
+      is_current_entry(
+        ~cur_id=undo_history.cur_id,
+        ~id,
       );
     /* making the entry show preview effect when scrolling
        is realized by getting topmost element under the mouse.
@@ -640,8 +635,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             if (is_current_entry) {
               [
                 Attr.id("cur-selected-entry"),
-                Attr.create("group_id", string_of_int(group_id)),
-                Attr.create("elt_id", string_of_int(elt_id)),
+                Attr.create("group_id", string_of_int(id.group_id)),
+                Attr.create("elt_id", string_of_int(id.elt_id)),
                 Attr.classes(["history-entry"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
@@ -785,7 +780,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ~elt_id,
       );
     let is_current_entry =
-      is_latest_selected_entry(
+      is_current_entry(
         ~cur_group_id=undo_history.cur_group_id,
         ~cur_elt_id=undo_history.cur_elt_id,
         ~group_id,
