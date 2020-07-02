@@ -8,7 +8,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type move_input =
   | Key(JSUtil.MoveKey.t)
-  | Click((CursorMap.Row.t, CursorMap.Col.t));
+  | Click(CaretPosition.t);
 
 module Action = {
   [@deriving sexp]
