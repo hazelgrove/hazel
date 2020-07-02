@@ -173,6 +173,7 @@ let group_action_group =
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
     | SLet
+    | SAbbrev
     | SCase => true
     | _ => false
     }
@@ -261,6 +262,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     switch (line) {
     | EmptyLine => MinLen
     | LetLine(_, _, _)
+    | AbbrevLine(_)
     | ExpLine(_) => MaxLen
     }
   };
@@ -677,6 +679,7 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
+      | SAbbrev
       | SCase => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
@@ -770,6 +773,20 @@ let get_new_action_group =
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
 
+              | Abbrev =>
+                switch (
+                  get_cursor_pos(new_cursor_term_info.cursor_term_before)
+                ) {
+                | OnText(pos) =>
+                  if (pos == String.length("abbrev")) {
+                    Some(ConstructEdit(SAbbrev));
+                  } else {
+                    Some(ConstructEdit(SOp(SSpace)));
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
+
               | Case =>
                 switch (
                   get_cursor_pos(new_cursor_term_info.cursor_term_before)
@@ -793,6 +810,8 @@ let get_new_action_group =
                 let (left_var, _) = Var.split(index, var);
                 if (Var.is_let(left_var)) {
                   Some(ConstructEdit(SLet));
+                } else if (Var.is_abbrev(left_var)) {
+                  Some(ConstructEdit(SAbbrev));
                 } else if (Var.is_case(left_var)) {
                   Some(ConstructEdit(SCase));
                 } else {

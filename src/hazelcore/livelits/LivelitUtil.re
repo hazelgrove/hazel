@@ -87,17 +87,45 @@ let check_livelit =
          Contexts.livelit_ctx(ctx),
          get_livelit_name_from_data(data),
        )
-       |> OptUtil.and_then((livelit_defn: LivelitDefinition.t) => {
+       |> OptUtil.and_then(
+            ((livelit_defn: LivelitDefinition.t, closed_args)) => {
             let args = List.rev(rev_args);
-            let param_tys = livelit_defn.param_tys;
+            let param_tys =
+              livelit_defn.param_tys
+              |> ListUtil.drop(List.length(closed_args));
             let num_params = List.length(param_tys);
             let num_args = List.length(args);
             if (permit_insufficient_args
                 && num_args < num_params
                 || num_args == num_params) {
-              Some((data, livelit_defn, param_tys, args));
+              Some((data, livelit_defn, closed_args, param_tys, args));
             } else {
               None;
             };
           })
      );
+
+let abbrev_args_to_opseq =
+    (
+      abbrev_err_status: AbbrevErrStatus.t,
+      lln: LivelitName.t,
+      args: list(UHExp.operand),
+    )
+    : UHExp.opseq => {
+  let (err_status: ErrStatus.t, var_err_status: VarErrStatus.t) =
+    switch (abbrev_err_status) {
+    | NotInAbbrevHole => (NotInHole, NotInVarHole)
+    | InAbbrevHole(Free, u) => (NotInHole, InVarHole(Free, u))
+    | InAbbrevHole(ExtraneousArgs, u) => (
+        InHole(TypeInconsistent(None), u),
+        NotInVarHole,
+      )
+    };
+  switch (args) {
+  | [] => OpSeq.wrap(UHExp.Var(err_status, var_err_status, lln))
+  | [arg1, ...rest] =>
+    let rest' = rest |> List.map(arg => (Operators.Exp.Space, arg));
+    let seq = Seq.mk(arg1, rest');
+    UHExp.mk_OpSeq(seq);
+  };
+};

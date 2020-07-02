@@ -140,6 +140,7 @@ and get_zoperand_from_zexp = (zexp: ZExp.t): option(zoperand) => {
 and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
+  | AbbrevLineZL(_, _, zopseq)
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _, _) => get_zoperand_from_zpat(zpat)
   | LetLineZA(_, ztyp, _) => get_zoperand_from_ztyp(ztyp)
@@ -262,6 +263,8 @@ and get_outer_zrules_from_zline =
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _) => outer_zrules
   | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | AbbrevLineZL(_, _, zopseq) =>
+    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -337,6 +340,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     switch (line) {
     | EmptyLine => true
     | LetLine(_, _, _)
+    | AbbrevLine(_)
     | ExpLine(_) => false
     }
   | Rule(_, _) => false
@@ -356,6 +360,7 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | LetLineZP(zpat, _, _) => extract_cursor_pat_term(zpat)
   | LetLineZA(_, ztyp, _) => extract_cursor_type_term(ztyp)
   | LetLineZE(_, _, zexp) => extract_cursor_exp_term(zexp)
+  | AbbrevLineZL(_, _, zopseq) => extract_from_zexp_opseq(zopseq)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -445,7 +450,8 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | CursorL(_, _)
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => true
+      | LetLineZE(_, _, _)
+      | AbbrevLineZL(_, _, _) => true
       }
     | Some((_, _)) => false
     };
@@ -460,7 +466,8 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | CursorL(_, _)
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => false
+      | LetLineZE(_, _, _)
+      | AbbrevLineZL(_, _, _) => false
       }
     | _ => false
     };
@@ -1087,6 +1094,9 @@ module Exp = {
         ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
         |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci));
       }
+    | AbbrevLineZL(_, _, zopseq) =>
+      syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)
+      |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci))
     }
   and syn_cursor_info_zopseq =
       (
@@ -1231,10 +1241,10 @@ module Exp = {
       | BinOp(_, Space, skel1, skel2) =>
         let livelit_check = LivelitUtil.check_livelit(ctx, seq, skel);
         switch (livelit_check) {
-        | Some((ApLivelitData(_), _, param_tys, args)) =>
-          let (_, param_tys) = List.split(param_tys);
+        | Some((ApLivelitData(_), _, _, reqd_param_tys, args)) =>
+          let (_, reqd_param_tys) = List.split(reqd_param_tys);
           let arg_results =
-            List.combine(args, param_tys)
+            List.combine(args, reqd_param_tys)
             |> List.filter_map(((arg, param_ty)) =>
                  if (ZOpSeq.skel_contains_cursor(arg, zseq)) {
                    ana_cursor_info_skel(~steps, ctx, arg, zseq, param_ty);
@@ -1395,7 +1405,8 @@ module Exp = {
         | CursorL(_)
         | LetLineZP(_)
         | LetLineZA(_)
-        | LetLineZE(_) => None
+        | LetLineZE(_)
+        | AbbrevLineZL(_) => None
         | ExpLineZ(zopseq) =>
           ana_cursor_info_zopseq(
             ~steps=steps @ [List.length(prefix)],

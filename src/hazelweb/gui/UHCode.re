@@ -134,6 +134,9 @@ let view =
         | Annot(LetLine, l) => [
             Node.span([Attr.classes(["LetLine"])], go(l)),
           ]
+        | Annot(AbbrevLine, l) => [
+            Node.span([Attr.classes(["LetLine"])], go(l)),
+          ]
 
         | Annot(Padding, l) => [
             Node.span([Attr.classes(["Padding"])], go(l)),

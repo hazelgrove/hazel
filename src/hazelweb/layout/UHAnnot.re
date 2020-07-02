@@ -24,6 +24,7 @@ type t =
   | DelimGroup
   | EmptyLine
   | LetLine
+  | AbbrevLine
   | Step(int)
   | Term(term_data)
   | LivelitView({

@@ -17,6 +17,12 @@ and block = list(line)
 and line =
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), t)
+  | AbbrevLine(
+      LivelitName.t,
+      AbbrevErrStatus.t,
+      LivelitName.t,
+      list(operand),
+    )
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -110,12 +116,14 @@ module Line = {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
     | ExpLine(_)
     | EmptyLine
+    | AbbrevLine(_)
     | LetLine(_) => line
     };
 
   let get_opseq =
     fun
     | EmptyLine
+    | AbbrevLine(_)
     | LetLine(_, _, _) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -333,6 +341,9 @@ let mk_OpSeq = OpSeq.mk(~associate);
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
   | EmptyLine => true
+  | AbbrevLine(_, NotInAbbrevHole, _, args) =>
+    args |> List.for_all(arg => is_complete_operand(arg, check_type_holes))
+  | AbbrevLine(_) => false
   | LetLine(pat, option_ty, body) =>
     if (check_type_holes) {
       switch (option_ty) {

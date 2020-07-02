@@ -9,6 +9,7 @@ and zline =
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
   | LetLineZE(UHPat.t, option(UHTyp.t), t)
+  | AbbrevLineZL(LivelitName.t, AbbrevErrStatus.t, zopseq)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
@@ -55,6 +56,7 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _))) => true
   | LetLineZE(_)
+  | AbbrevLineZL(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
@@ -66,6 +68,11 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
+  | AbbrevLine(lln_new, _, _, _) =>
+    CursorPosition.delim_cursors_k(0)
+    @ (lln_new |> LivelitName.length |> CursorPosition.text_cursors)
+    @ CursorPosition.delim_cursors_k(1)
+    @ CursorPosition.delim_cursors_k(2)
   | LetLine(_, ann, _) =>
     let ann_cursors =
       switch (ann) {
@@ -129,7 +136,8 @@ module ZLine = {
     | CursorL(_)
     | LetLineZP(_)
     | LetLineZA(_)
-    | LetLineZE(_) => failwith("force_get_zopseq: expected ExpLineZ")
+    | LetLineZE(_)
+    | AbbrevLineZL(_) => failwith("force_get_zopseq: expected ExpLineZ")
     | ExpLineZ(zopseq) => zopseq;
 };
 
@@ -148,12 +156,14 @@ and is_before_zblock = ((prefix, zline, _): zblock): bool =>
 and is_before_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
+  | CursorL(cursor, LetLine(_, _, _))
+  | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_before_zopseq(zopseq)
   | LetLineZP(_)
   | LetLineZA(_)
-  | LetLineZE(_) => false
+  | LetLineZE(_)
+  | AbbrevLineZL(_) => false
   }
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
@@ -196,12 +206,14 @@ and is_after_zblock = ((_, zline, suffix): zblock): bool =>
 and is_after_zline =
   fun
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
+  | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(2, After)
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
-  | LetLineZE(_, _, _) => false
+  | LetLineZE(_, _, _)
+  | AbbrevLineZL(_) => false
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -245,12 +257,14 @@ and is_outer_zblock = ((_, zline, suffix): zblock): bool =>
 and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
+  | CursorL(_, AbbrevLine(_))
   | CursorL(_, LetLine(_, _, _)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
   | LetLineZP(_)
   | LetLineZA(_)
-  | LetLineZE(_) => false
+  | LetLineZE(_)
+  | AbbrevLineZL(_) => false
   }
 and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
 and is_outer_zoperand =
@@ -289,7 +303,8 @@ and place_before_block =
 and place_before_line =
   fun
   | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
+  | LetLine(_, _, _) as line
+  | AbbrevLine(_) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
@@ -325,6 +340,7 @@ and place_after_block = (block: UHExp.block): zblock =>
 and place_after_line =
   fun
   | EmptyLine => CursorL(OnText(0), EmptyLine)
+  | AbbrevLine(_) as line => CursorL(OnDelim(2, After), line)
   | LetLine(_) as line => CursorL(OnDelim(3, After), line)
   | ExpLine(e) => ExpLineZ(place_after_opseq(e))
 and place_after_opseq = opseq =>
@@ -370,6 +386,7 @@ let place_cursor_line =
     // encoded in steps, not CursorPosition.t
     None
   | EmptyLine
+  | AbbrevLine(_)
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
@@ -385,6 +402,7 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | LetLineZP(_)
   | LetLineZA(_)
   | LetLineZE(_)
+  | AbbrevLineZL(_)
   | CursorL(_) => zli
   };
 let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
@@ -404,6 +422,22 @@ and erase_zline =
   fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
+  | AbbrevLineZL(lln_new, err_status, zopseq) => {
+      let OpSeq(_, seq) = erase_zopseq(zopseq);
+      switch (Seq.operands(seq)) {
+      | [Var(_, _, lln_old), ...args] =>
+        AbbrevLine(lln_new, err_status, lln_old, args)
+      | _ =>
+        failwith(
+          "Unexpected form for AbbrevLine zopseq: "
+          ++ (
+            seq
+            |> Seq.sexp_of_t(UHExp.sexp_of_operand, UHExp.sexp_of_operator)
+            |> Sexplib.Sexp.to_string
+          ),
+        )
+      };
+    }
   | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
   | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
   | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
@@ -436,6 +470,31 @@ and erase_zrule =
   | RuleZE(p, zclause) => Rule(p, erase(zclause));
 
 let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
+
+let _AbbrevLineZL_of_AbbrevLine =
+    (~place_before, lln_new, err_status, lln_old, args) => {
+  let zopseq =
+    LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
+    |> (place_before ? place_before_opseq : place_after_opseq);
+  AbbrevLineZL(lln_new, err_status, zopseq);
+};
+
+let _AbbrevLine_of_AbbrevLineZL = (lln_new, err_status, zopseq) => {
+  let OpSeq.OpSeq(_, seq) = erase_zopseq(zopseq);
+  switch (Seq.operands(seq)) {
+  | [UHExp.Var(_, _, lln_old), ...args] =>
+    UHExp.AbbrevLine(lln_new, err_status, lln_old, args)
+  | _ =>
+    failwith(
+      "Unexpected form for AbbrevLine zopseq: "
+      ++ (
+        seq
+        |> Seq.sexp_of_t(UHExp.sexp_of_operand, UHExp.sexp_of_operator)
+        |> Sexplib.Sexp.to_string
+      ),
+    )
+  };
+};
 
 let mk_ZOpSeq =
   ZOpSeq.mk(~associate=UHExp.associate, ~erase_zoperand, ~erase_zoperator);
@@ -603,10 +662,28 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_zline(zline) => None
   | CursorL(OnOp(_), _) => None
-  | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
   | CursorL(OnDelim(_), EmptyLine | ExpLine(_)) => None
+  | CursorL(OnText(j), AbbrevLine(_) as abl) =>
+    Some(CursorL(j == 0 ? OnDelim(0, After) : OnText(j - 1), abl))
+  | CursorL(
+      OnDelim(k, Before),
+      AbbrevLine(lln_new, err_status, lln_old, args) as abl,
+    ) =>
+    if (k == 1) {
+      Some(CursorL(OnText(LivelitName.length(lln_new) - 1), abl));
+    } else {
+      /* k == 2 */ Some(
+        _AbbrevLineZL_of_AbbrevLine(
+          ~place_before=false,
+          lln_new,
+          err_status,
+          lln_old,
+          args,
+        ),
+      );
+    }
   | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
     // k == 1 || k == 2 || k == 3
     switch (k == 1, k == 2, ann) {
@@ -616,6 +693,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(LetLineZA(p, ZTyp.place_after(ann), def))
     | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
     }
+  | CursorL(OnText(_), _) => None
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
     | None => None
@@ -644,6 +722,12 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | None =>
       Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase(zdef))))
     }
+  | AbbrevLineZL(lln_new, err_status, zopseq) =>
+    let abl = _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, zopseq);
+    switch (zopseq |> move_cursor_left_zopseq) {
+    | None => Some(CursorL(OnDelim(1, After), abl))
+    | Some(zopseq) => Some(AbbrevLineZL(lln_new, err_status, zopseq))
+    };
   }
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
@@ -821,10 +905,34 @@ and move_cursor_right_zline =
   fun
   | z when is_after_zline(z) => None
   | CursorL(OnOp(_), _) => None
-  | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
+  | CursorL(OnText(j), AbbrevLine(lln_new, _, _, _) as abl) =>
+    Some(
+      CursorL(
+        j >= LivelitName.length(lln_new)
+          ? OnDelim(1, Before) : OnText(j + 1),
+        abl,
+      ),
+    )
+  | CursorL(
+      OnDelim(k, After),
+      AbbrevLine(lln_new, err_status, lln_old, args) as abl,
+    ) =>
+    if (k == 0) {
+      Some(CursorL(OnText(0), abl));
+    } else {
+      /* k == 1 */ Some(
+        _AbbrevLineZL_of_AbbrevLine(
+          ~place_before=true,
+          lln_new,
+          err_status,
+          lln_old,
+          args,
+        ),
+      );
+    }
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
     switch (k, ann) {
     | (0, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
@@ -835,6 +943,7 @@ and move_cursor_right_zline =
     | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
     | (_three, _) => None
     }
+  | CursorL(OnText(_), _) => None
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
     | None => None
@@ -873,6 +982,13 @@ and move_cursor_right_zline =
     | Some(zdef) => Some(LetLineZE(p, ann, zdef))
     | None =>
       Some(CursorL(OnDelim(3, Before), LetLine(p, ann, erase(zdef))))
+    }
+  | AbbrevLineZL(lln_new, err_status, zopseq) => {
+      let abl = _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, zopseq);
+      switch (zopseq |> move_cursor_right_zopseq) {
+      | None => Some(CursorL(OnDelim(2, Before), abl))
+      | Some(zopseq) => Some(AbbrevLineZL(lln_new, err_status, zopseq))
+      };
     }
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
@@ -1049,6 +1165,7 @@ and _cursor_inst_zline =
   | LetLineZP(_)
   | LetLineZA(_) => []
   | LetLineZE(_, _, ze) => cursor_through_insts(ze)
+  | AbbrevLineZL(_, _, zopseq) => _cursor_inst_zopseq(zopseq)
 and _cursor_inst_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => []

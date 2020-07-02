@@ -5,8 +5,8 @@ open Sexplib.Std;
 
 module Pat = {
   module ExpandResult = {
-    type t =
-      | Expands(DHPat.t, HTyp.t, Contexts.t, Delta.t)
+    type t('a) =
+      | Expands(DHPat.t, HTyp.t, Contexts.t'('a), Delta.t)
       | DoesNotExpand;
 
     let to_option =
@@ -19,7 +19,12 @@ module Pat = {
       | None => DoesNotExpand
       | Some((pat, ty, ctx, delta)) => Expands(pat, ty, ctx, delta);
 
-    let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
+    let bind =
+        (
+          x: t('a),
+          ~f: ((DHPat.t, HTyp.t, Contexts.t'('a), Delta.t)) => t('a),
+        )
+        : t('a) =>
       switch (x) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
@@ -29,15 +34,21 @@ module Pat = {
   module Let_syntax = ExpandResult;
 
   let rec syn_expand =
-          (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): ExpandResult.t =>
+          (ctx: Contexts.t'('a), delta: Delta.t, p: UHPat.t)
+          : ExpandResult.t('a) =>
     syn_expand_opseq(ctx, delta, p)
   and syn_expand_opseq =
-      (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
-      : ExpandResult.t =>
+      (ctx: Contexts.t'('a), delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
+      : ExpandResult.t('a) =>
     syn_expand_skel(ctx, delta, skel, seq)
   and syn_expand_skel =
-      (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel, seq: UHPat.seq)
-      : ExpandResult.t =>
+      (
+        ctx: Contexts.t'('a),
+        delta: Delta.t,
+        skel: UHPat.skel,
+        seq: UHPat.seq,
+      )
+      : ExpandResult.t('a) =>
     switch (skel) {
     | Placeholder(n) =>
       syn_expand_operand(ctx, delta, seq |> Seq.nth_operand(n))
@@ -107,8 +118,8 @@ module Pat = {
       }
     }
   and syn_expand_operand =
-      (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand)
-      : ExpandResult.t =>
+      (ctx: Contexts.t'('a), delta: Delta.t, operand: UHPat.operand)
+      : ExpandResult.t('a) =>
     switch (operand) {
     | Wild(InHole(TypeInconsistent(_) as reason, u))
     | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
@@ -174,24 +185,24 @@ module Pat = {
       }
     }
   and ana_expand =
-      (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
-      : ExpandResult.t =>
+      (ctx: Contexts.t'('a), delta: Delta.t, p: UHPat.t, ty: HTyp.t)
+      : ExpandResult.t('a) =>
     ana_expand_opseq(ctx, delta, p, ty)
   and ana_expand_opseq =
       (
-        ctx: Contexts.t,
+        ctx: Contexts.t'('a),
         delta: Delta.t,
         OpSeq(skel, seq) as opseq: UHPat.opseq,
         ty: HTyp.t,
       )
-      : ExpandResult.t => {
+      : ExpandResult.t('a) => {
     // handle n-tuples
     switch (Statics.Pat.tuple_zip(skel, ty)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
            (
-             acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+             acc: option((list(DHPat.t), Contexts.t'('a), Delta.t)),
              (skel: UHPat.skel, ty: HTyp.t),
            ) =>
              switch (acc) {
@@ -219,7 +230,7 @@ module Pat = {
         |> UHPat.get_tuple_elements
         |> List.fold_left(
              (
-               acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+               acc: option((list(DHPat.t), Contexts.t'('a), Delta.t)),
                skel: UHPat.skel,
              ) =>
                switch (acc) {
@@ -269,13 +280,13 @@ module Pat = {
   }
   and ana_expand_skel =
       (
-        ctx: Contexts.t,
+        ctx: Contexts.t'('a),
         delta: Delta.t,
         skel: UHPat.skel,
         seq: UHPat.seq,
         ty: HTyp.t,
       )
-      : ExpandResult.t =>
+      : ExpandResult.t('a) =>
     switch (skel) {
     | BinOp(_, Comma, _, _)
     | BinOp(InHole(WrongLength, _), _, _, _) =>
@@ -324,8 +335,13 @@ module Pat = {
       }
     }
   and ana_expand_operand =
-      (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
-      : ExpandResult.t =>
+      (
+        ctx: Contexts.t'('a),
+        delta: Delta.t,
+        operand: UHPat.operand,
+        ty: HTyp.t,
+      )
+      : ExpandResult.t('a) =>
     switch (operand) {
     | Wild(InHole(TypeInconsistent(_) as reason, u))
     | Var(InHole(TypeInconsistent(_) as reason, u), _, _)
@@ -604,7 +620,7 @@ module Exp = {
          });
     let var_ctx = VarCtx.of_list(splice_ctx_list @ param_tys);
     let livelit_ctx = LivelitCtx.empty;
-    let ctx: Contexts.t = (var_ctx, livelit_ctx);
+    let ctx: Contexts.t'((DHExp.t, HTyp.t)) = (var_ctx, livelit_ctx);
 
     ctx;
   };
@@ -908,7 +924,11 @@ module Exp = {
     };
 
   type expand_result_lines =
-    | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+    | LinesExpand(
+        DHExp.t => DHExp.t,
+        Contexts.t'((DHExp.t, HTyp.t)),
+        Delta.t,
+      )
     | LinesDoNotExpand;
 
   module ExpandResult = {
@@ -935,6 +955,16 @@ module Exp = {
 
   module Let_syntax = ExpandResult;
 
+  let map_livelit_ctx = (f: 'a => 'b, ctx: Contexts.t'('a)): Contexts.t'('b) => {
+    let (gamma, livelit_ctx) = ctx;
+    let livelit_ctx =
+      livelit_ctx
+      |> VarMap.map(((_, (defn, closed))) =>
+           (defn, closed |> List.map(((s, c)) => (s, f(c))))
+         );
+    (gamma, livelit_ctx);
+  };
+
   let id_env = (ctx: VarCtx.t): Environment.t =>
     VarMap.map(
       xt => {
@@ -945,11 +975,21 @@ module Exp = {
     );
 
   let rec syn_expand =
-          (~livelit_holes=false, ctx: Contexts.t, delta: Delta.t, e: UHExp.t)
+          (
+            ~livelit_holes=false,
+            ctx: Contexts.t'((DHExp.t, HTyp.t)),
+            delta: Delta.t,
+            e: UHExp.t,
+          )
           : ExpandResult.t =>
     syn_expand_block(~livelit_holes, ctx, delta, e)
   and syn_expand_block =
-      (~livelit_holes, ctx: Contexts.t, delta: Delta.t, block: UHExp.block)
+      (
+        ~livelit_holes,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
+        delta: Delta.t,
+        block: UHExp.block,
+      )
       : ExpandResult.t =>
     switch (block |> UHExp.Block.split_conclusion) {
     | None => ExpandResult.DoesNotExpand
@@ -966,7 +1006,7 @@ module Exp = {
   and syn_expand_lines =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         lines: list(UHExp.line),
       )
@@ -985,7 +1025,12 @@ module Exp = {
       }
     }
   and syn_expand_line =
-      (~livelit_holes, ctx: Contexts.t, delta: Delta.t, line: UHExp.line)
+      (
+        ~livelit_holes,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
+        delta: Delta.t,
+        line: UHExp.line,
+      )
       : expand_result_lines =>
     switch (line) {
     | ExpLine(e1) =>
@@ -1035,11 +1080,58 @@ module Exp = {
           }
         }
       }
+    | AbbrevLine(lln_new, err_status, lln_old, args) =>
+      let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
+      switch (err_status) {
+      | InAbbrevHole(Free, _) => ret(ctx, delta)
+      | InAbbrevHole(ExtraneousArgs, _)
+      | NotInAbbrevHole =>
+        let (gamma, livelit_ctx) = ctx;
+        let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
+        switch (old_data_opt) {
+        | None => LinesDoNotExpand
+        | Some((old_defn, old_closed_args)) =>
+          let base_param_tys = old_defn.param_tys;
+          let reqd_param_tys =
+            base_param_tys |> ListUtil.drop(List.length(old_closed_args));
+          let args = args |> ListUtil.take(List.length(reqd_param_tys));
+          let adjusted_param_tys =
+            reqd_param_tys |> ListUtil.take(List.length(args));
+          let delta_expanded_args_opt =
+            adjusted_param_tys
+            |> List.map(((_, ty)) => ty)
+            |> List.combine(args)
+            |> ListUtil.map_with_accumulator_opt(
+                 (delta, (arg, ty)) =>
+                   switch (
+                     ana_expand_operand(~livelit_holes, ctx, delta, arg, ty)
+                   ) {
+                   | ExpandResult.DoesNotExpand => None
+                   | Expands(darg, _, delta) => Some((delta, (darg, ty)))
+                   },
+                 delta,
+               );
+          switch (delta_expanded_args_opt) {
+          | None => LinesDoNotExpand
+          | Some((delta, dargs)) =>
+            let dargs =
+              dargs
+              |> List.combine(adjusted_param_tys |> List.map(((s, _)) => s));
+            let livelit_ctx =
+              LivelitCtx.extend(
+                livelit_ctx,
+                (lln_new, (old_defn, old_closed_args @ dargs)),
+              );
+            let ctx = (gamma, livelit_ctx);
+            ret(ctx, delta);
+          };
+        };
+      };
     }
   and syn_expand_opseq =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         OpSeq(skel, seq): UHExp.opseq,
       )
@@ -1048,7 +1140,7 @@ module Exp = {
   and syn_expand_skel =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         skel: UHExp.skel,
         seq: UHExp.seq,
@@ -1089,7 +1181,8 @@ module Exp = {
       | Some((
           ApLivelitData(llu, lln, model, splice_info),
           livelit_defn,
-          param_tys,
+          closed_dargs,
+          reqd_param_tys,
           args,
         )) =>
         let args_opt =
@@ -1117,12 +1210,14 @@ module Exp = {
             model,
             splice_info,
             livelit_defn,
-            param_tys,
+            closed_dargs,
+            reqd_param_tys,
             args,
           )
         };
       | _ =>
-        switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
+        let ctx' = ctx |> map_livelit_ctx(((_, ty)) => ty);
+        switch (Statics.Exp.syn_skel(ctx', skel1, seq)) {
         | None => ExpandResult.DoesNotExpand
         | Some(ty1) =>
           switch (HTyp.matched_arrow(ty1)) {
@@ -1153,7 +1248,7 @@ module Exp = {
               }
             };
           }
-        }
+        };
       };
     | BinOp(NotInHole, Comma, _, _) =>
       switch (UHExp.get_tuple_elements(skel)) {
@@ -1266,7 +1361,7 @@ module Exp = {
   and syn_expand_operand =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         operand: UHExp.operand,
       )
@@ -1440,9 +1535,10 @@ module Exp = {
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => DoesNotExpand
-      | Some(livelit_defn) =>
-        let param_tys = livelit_defn.param_tys;
-        switch (err_status, param_tys) {
+      | Some((livelit_defn, closed_dargs)) =>
+        let reqd_param_tys =
+          livelit_defn.param_tys |> ListUtil.drop(List.length(closed_dargs));
+        switch (err_status, reqd_param_tys) {
         | (NotInHole, [_, ..._])
         | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
           DoesNotExpand
@@ -1456,7 +1552,8 @@ module Exp = {
             serialized_model,
             si,
             livelit_defn,
-            param_tys,
+            closed_dargs,
+            reqd_param_tys,
             [],
           )
         };
@@ -1472,13 +1569,20 @@ module Exp = {
         serialized_model,
         si,
         livelit_defn,
-        param_tys,
+        closed_dargs,
+        reqd_param_tys,
         args,
       ) => {
+    let all_param_tys = livelit_defn.param_tys;
+    let closed_dargs =
+      all_param_tys
+      |> ListUtil.take(closed_dargs |> List.length)
+      |> List.combine(closed_dargs)
+      |> List.map((((s, (darg, _)), (_, ty))) => (s, ty, darg));
     let expansion_ty = livelit_defn.expansion_ty;
     let expand = livelit_defn.expand;
     let proto_expansion = expand(serialized_model);
-    let proto_elaboration_ctx = to_ctx(si, param_tys);
+    let proto_elaboration_ctx = to_ctx(si, all_param_tys);
     let proto_elaboration_result =
       ana_expand(
         ~livelit_holes,
@@ -1502,7 +1606,7 @@ module Exp = {
         };
       // expand the args
       let dargs_opt =
-        params_args(param_tys, args)
+        params_args(reqd_param_tys, args)
         |> ListUtil.map_with_accumulator_opt(
              (delta, ((name, ty), arg_opt)) =>
                switch (arg_opt) {
@@ -1549,17 +1653,24 @@ module Exp = {
             switch (dargs_opt') {
             | Some(((), dargs')) when !livelit_holes =>
               // subst each splice and arg into the elab
-              wrap_proto_expansion(proto_elaboration, sim, dargs')
+              wrap_proto_expansion(
+                proto_elaboration,
+                sim,
+                closed_dargs @ dargs',
+              )
             | _ =>
               let gamma = Contexts.gamma(ctx);
               let sigma = id_env(gamma);
+              let closed_dargs =
+                closed_dargs
+                |> List.map(((s, ty, darg)) => (s, ty, Some(darg)));
               DHExp.LivelitHole(
                 llu,
                 0,
                 sigma,
                 lln,
                 si,
-                dargs,
+                closed_dargs @ dargs,
                 proto_elaboration,
               );
             };
@@ -1570,13 +1681,14 @@ module Exp = {
   }
   and syn_expand_rules =
       (
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         rules: list(UHExp.rule),
         pat_ty: HTyp.t,
       )
-      : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
-    switch (Statics.Exp.syn_rules(ctx, rules, pat_ty)) {
+      : option((list(DHExp.rule), HTyp.t, Delta.t)) => {
+    let ctx' = ctx |> map_livelit_ctx(((_, ty)) => ty);
+    switch (Statics.Exp.syn_rules(ctx', rules, pat_ty)) {
     | None => None
     | Some(glb) =>
       let expanded_rule_info =
@@ -1599,10 +1711,11 @@ module Exp = {
       | None => None
       | Some((drs, delta)) => Some((drs, glb, delta))
       };
-    }
+    };
+  }
   and syn_expand_rule =
       (
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         r: UHExp.rule,
         pat_ty: HTyp.t,
@@ -1646,7 +1759,7 @@ module Exp = {
   and ana_expand =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         e: UHExp.t,
         ty: HTyp.t,
@@ -1656,7 +1769,7 @@ module Exp = {
   and ana_expand_block =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         block: UHExp.block,
         ty: HTyp.t,
@@ -1677,7 +1790,7 @@ module Exp = {
   and ana_expand_opseq =
       (
         ~livelit_holes: bool,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         OpSeq(skel, seq) as opseq: UHExp.opseq,
         ty: HTyp.t,
@@ -1786,7 +1899,7 @@ module Exp = {
   and ana_expand_skel =
       (
         ~livelit_holes: bool,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         skel: UHExp.skel,
         seq: UHExp.seq,
@@ -1865,7 +1978,7 @@ module Exp = {
   and ana_expand_operand =
       (
         ~livelit_holes,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         operand: UHExp.operand,
         ty: HTyp.t,
@@ -2023,7 +2136,7 @@ module Exp = {
   and ana_expand_rules =
       (
         ~livelit_holes: bool,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         rules: list(UHExp.rule),
         pat_ty: HTyp.t,
@@ -2057,7 +2170,7 @@ module Exp = {
   and ana_expand_rule =
       (
         ~livelit_holes: bool,
-        ctx: Contexts.t,
+        ctx: Contexts.t'((DHExp.t, HTyp.t)),
         delta: Delta.t,
         r: UHExp.rule,
         pat_ty: HTyp.t,

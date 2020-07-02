@@ -834,6 +834,7 @@ module Exp = {
     | LetLineZP(zp, _, _) => cons'(0, Pat.of_z(zp))
     | LetLineZA(_, zann, _) => cons'(1, Typ.of_z(zann))
     | LetLineZE(_, _, zdef) => cons'(2, of_z(zdef))
+    | AbbrevLineZL(_, _, zopseq) => cons'(1, of_zopseq(zopseq))
     | ExpLineZ(zopseq) => of_zopseq(zopseq)
     }
   and of_zopseq = (zopseq: ZExp.zopseq): t =>
@@ -891,7 +892,7 @@ module Exp = {
     | (_, ExpLine(opseq)) =>
       follow_opseq(path, opseq)
       |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
-    | ([], EmptyLine | LetLine(_, _, _)) =>
+    | ([], EmptyLine | LetLine(_) | AbbrevLine(_)) =>
       line |> ZExp.place_cursor_line(cursor)
     | ([_, ..._], EmptyLine) => None
     | ([x, ...xs], LetLine(p, ann, def)) =>
@@ -913,6 +914,18 @@ module Exp = {
         |> follow((xs, cursor))
         |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
       | _ => None
+      }
+    | ([x, ...xs], AbbrevLine(lln_new, err_status, lln_old, args)) =>
+      if (x == 0) {
+        let opseq =
+          LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args);
+        opseq
+        |> follow_opseq((xs, cursor))
+        |> OptUtil.map(zopseq =>
+             ZExp.AbbrevLineZL(lln_new, err_status, zopseq)
+           );
+      } else {
+        None;
       }
     }
   and follow_opseq = (path: t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
@@ -1057,7 +1070,7 @@ module Exp = {
       (steps: steps, ~side: Side.t, line: UHExp.line): option(t) =>
     switch (steps, line) {
     | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-    | ([], EmptyLine | LetLine(_, _, _)) =>
+    | ([], EmptyLine | LetLine(_) | AbbrevLine(_)) =>
       let place_cursor =
         switch (side) {
         | Before => ZExp.place_before_line
@@ -1080,6 +1093,14 @@ module Exp = {
       | 2 =>
         def |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
       | _ => None
+      }
+    | ([x, ...xs], AbbrevLine(_, err_status, lln_old, args)) =>
+      if (x == 0) {
+        let opseq =
+          LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args);
+        opseq |> of_steps_opseq(xs, ~side) |> OptUtil.map(cons'(0));
+      } else {
+        None;
       }
     }
   and of_steps_opseq =
@@ -1224,6 +1245,16 @@ module Exp = {
         }
       )
       |> Pat.holes(p, [0, ...rev_steps])
+    | AbbrevLine(_, err_status, lln_old, args) =>
+      let opseq = LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args);
+      hs
+      |> holes_opseq(
+           ~holes_operand,
+           ~hole_desc,
+           ~is_space=Operators.Exp.is_Space,
+           ~rev_steps,
+           opseq,
+         );
     | ExpLine(opseq) =>
       hs
       |> holes_opseq(
@@ -1352,6 +1383,22 @@ module Exp = {
         mk_zholes(~holes_before=holes_p @ holes_ann @ holes_def, ())
       | _ => no_holes
       };
+    | CursorL(cursor, AbbrevLine(_, err_status, lln_old, args)) =>
+      let opseq = LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args);
+      let holes_args =
+        holes_opseq(
+          ~holes_operand,
+          ~hole_desc,
+          ~is_space=Operators.Exp.is_Space,
+          ~rev_steps=[0, ...rev_steps],
+          opseq,
+          [],
+        );
+      switch (cursor) {
+      | OnDelim(0 | 1, _) => mk_zholes(~holes_after=holes_args, ())
+      | OnDelim(2, _) => mk_zholes(~holes_before=holes_args, ())
+      | _ => no_holes
+      };
     | ExpLineZ(zopseq) => holes_zopseq(zopseq, rev_steps)
     | LetLineZP(zp, ann, body) =>
       let {holes_before, hole_selected, holes_after} =
@@ -1394,6 +1441,7 @@ module Exp = {
         ~holes_after,
         (),
       );
+    | AbbrevLineZL(_, _, zopseq) => holes_zopseq(zopseq, rev_steps)
     }
   and holes_zopseq = (zopseq: ZExp.zopseq, rev_steps: rev_steps): zhole_list =>
     holes_zopseq_(

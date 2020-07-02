@@ -108,6 +108,10 @@ module Delim = {
   let colon_LetLine = () => mk(~index=1, ":");
   let eq_LetLine = () => mk(~index=2, "=");
   let in_LetLine = () => mk(~index=3, "in");
+
+  let abbrev_AbbrevLine = () => mk(~index=0, "abbrev");
+  let eq_AbbrevLine = () => mk(~index=1, "=");
+  let in_AbbrevLine = () => mk(~index=2, "in");
 };
 
 let annot_Indent = Doc.annot(UHAnnot.Indent);
@@ -423,6 +427,26 @@ let mk_LetLine =
   Doc.hcats([
     open_group,
     def |> pad_open_child(~inline_padding=(space_, space_)),
+    close_group,
+  ]);
+};
+
+let mk_AbbrevLine = (lln_new: LivelitName.t, args_opseq: formatted_child): t => {
+  let open_group = {
+    let abbrev_delim = Delim.abbrev_AbbrevLine();
+    let eq_delim = Delim.eq_AbbrevLine();
+    let lln_new_doc =
+      Doc.hcats([
+        abbrev_delim,
+        mk_Var(~sort=Exp, ~err=NotInHole, ~verr=NotInVarHole, lln_new),
+        eq_delim,
+      ]);
+    lln_new_doc |> annot_DelimGroup;
+  };
+  let close_group = Delim.in_AbbrevLine() |> annot_DelimGroup;
+  Doc.hcats([
+    open_group,
+    args_opseq |> pad_open_child(~inline_padding=(space_, space_)),
     close_group,
   ]);
 };
@@ -814,6 +838,12 @@ module Exp = {
             |> Doc.annot(UHAnnot.EmptyLine)
           | ExpLine(opseq) =>
             Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
+          | AbbrevLine(lln_new, err_status, lln_old, args) =>
+            let args =
+              LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
+              |> UHExp.Block.wrap'
+              |> mk_child(~memoize, ~enforce_inline, ~child_step=0);
+            mk_AbbrevLine(lln_new, args) |> Doc.annot(UHAnnot.AbbrevLine);
           | LetLine(p, ann, def) =>
             let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let ann =
@@ -945,6 +975,70 @@ module Exp = {
     };
   };
 
+  let llu_to_orig = (e: UHExp.t): MetaVarMap.t(LivelitName.t) => {
+    let rec go_block = (~rslt, ~lln_map, block: UHExp.block) => {
+      let (rslt, _) =
+        block
+        |> List.fold_left(
+             ((rslt, lln_map), line) => go_line(~rslt, ~lln_map, line),
+             (rslt, lln_map),
+           );
+      rslt;
+    }
+    and go_line = (~rslt, ~lln_map, line: UHExp.line) =>
+      switch (line) {
+      | EmptyLine => (rslt, lln_map)
+      | ExpLine(opseq) => (go_opseq(~rslt, ~lln_map, opseq), lln_map)
+      | AbbrevLine(new_lln, _, old_lln, args) =>
+        let rslt =
+          args
+          |> List.fold_left(
+               (rslt, operand) => go_operand(~rslt, ~lln_map, operand),
+               rslt,
+             );
+        let orig_lln =
+          MetaVarMap.lookup(lln_map, old_lln)
+          |> OptUtil.get_default(~default=old_lln);
+        let lln_map =
+          MetaVarMap.insert_or_update(lln_map, (new_lln, orig_lln));
+        (rslt, lln_map);
+      | LetLine(_, _, def) => (go_block(~rslt, ~lln_map, def), lln_map)
+      }
+    and go_opseq = (~rslt, ~lln_map, OpSeq(_, seq): UHExp.opseq) =>
+      Seq.operands(seq)
+      |> List.fold_left(
+           (rslt, operand) => go_operand(~rslt, ~lln_map, operand),
+           rslt,
+         )
+    and go_operand = (~rslt, ~lln_map, operand: UHExp.operand) =>
+      switch (operand) {
+      | EmptyHole(_)
+      | Var(_)
+      | IntLit(_)
+      | FloatLit(_)
+      | BoolLit(_)
+      | ListNil(_)
+      | FreeLivelit(_) => rslt
+      | ApLivelit(llu, _, lln, _, _) =>
+        let orig_lln =
+          MetaVarMap.lookup(lln_map, lln)
+          |> OptUtil.get_default(~default=lln);
+        MetaVarMap.extend_unique(rslt, (llu, orig_lln));
+      | Lam(_, _, _, e)
+      | Inj(_, _, e)
+      | Parenthesized(e) => go_block(~rslt, ~lln_map, e)
+      | Case(_, scrut, rules) =>
+        let rslt = go_block(~rslt, ~lln_map, scrut);
+        rules
+        |> List.fold_left(
+             (rslt, UHExp.Rule(_, e)) => go_block(~rslt, ~lln_map, e),
+             rslt,
+           );
+      };
+
+    go_block(~rslt=MetaVarMap.empty, ~lln_map=MetaVarMap.empty, e);
+  };
+
   let mk_splices = (e: UHExp.t): splices => {
     let rec mk_block = (~splices, block: UHExp.block): splices =>
       block
@@ -953,6 +1047,12 @@ module Exp = {
       switch (line) {
       | EmptyLine => splices
       | ExpLine(opseq) => mk_opseq(~splices, opseq)
+      | AbbrevLine(_, _, _, args) =>
+        args
+        |> List.fold_left(
+             (splices, operand) => mk_operand(~splices, operand),
+             splices,
+           )
       | LetLine(_, _, def) => mk_block(~splices, def)
       }
     and mk_opseq = (~splices, OpSeq(_, seq): UHExp.opseq): splices =>

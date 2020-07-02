@@ -786,8 +786,8 @@ module Exp = {
 
   /* returns recursive ctx + name of recursively defined var */
   let ctx_for_let' =
-      (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
-      : (Contexts.t, option(Var.t)) =>
+      (ctx: Contexts.t'('a), p: UHPat.t, ty: HTyp.t, e: UHExp.t)
+      : (Contexts.t'('a), option(Var.t)) =>
     switch (p, e) {
     | (
         OpSeq(_, S(Var(_, NotInVarHole, x), E)),
@@ -801,7 +801,7 @@ module Exp = {
     };
 
   let ctx_for_let =
-      (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t => {
+      (ctx: Contexts.t'('a), p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t => {
     let (ctx, _) = ctx_for_let'(ctx, p, ty, e);
     ctx;
   };
@@ -852,6 +852,56 @@ module Exp = {
         | Some(ty) => Pat.ana(ctx, p, ty)
         }
       }
+    | AbbrevLine(lln_new, err_status, lln_old, args) =>
+      let (gamma, livelit_ctx) = ctx;
+      let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
+      let args_ana = tys =>
+        List.combine(args, tys)
+        |> List.for_all(((arg, ty)) =>
+             ana(ctx, UHExp.Block.wrap(arg), ty) |> OptUtil.test
+           );
+      switch (old_data_opt, err_status) {
+      | (None, InAbbrevHole(Free, _)) =>
+        args_ana(args |> List.map(_ => HTyp.Hole)) ? Some(ctx) : None
+      | (
+          Some((old_defn, old_closed_param_tys)),
+          (NotInAbbrevHole | InAbbrevHole(ExtraneousArgs, _)) as err_status,
+        ) =>
+        let all_param_tys = old_defn.param_tys;
+        let reqd_param_tys =
+          all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
+        let num_args = List.length(args);
+        let num_args_diff = num_args - List.length(reqd_param_tys);
+        let padded_reqd_param_tys =
+          num_args_diff > 0
+            ? reqd_param_tys @ List.init(num_args_diff, _ => ("", HTyp.Hole))
+            : reqd_param_tys |> ListUtil.take(num_args);
+        let adjusted_reqd_param_tys =
+          num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
+        if (!args_ana(padded_reqd_param_tys |> List.map(((_, ty)) => ty))) {
+          None;
+        } else {
+          let wrong_num_extra_args =
+            switch (err_status) {
+            | InAbbrevHole(ExtraneousArgs, _) => num_args_diff < 1
+            | _ => num_args_diff > 0
+            };
+          if (wrong_num_extra_args) {
+            None;
+          } else {
+            let livelit_ctx =
+              LivelitCtx.extend(
+                livelit_ctx,
+                (
+                  lln_new,
+                  (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
+                ),
+              );
+            Some((gamma, livelit_ctx));
+          };
+        };
+      | _ => None
+      };
     }
   and syn_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -901,19 +951,26 @@ module Exp = {
       | Some((
           ApLivelitData(_, _, model, splice_info),
           livelit_defn,
-          param_tys,
+          closed_tys,
+          reqd_param_tys,
           args,
         )) =>
-        let (_, param_tys') = List.split(param_tys);
+        let (_, reqd_param_tys') = List.split(reqd_param_tys);
         let all_args_ana =
           List.for_all2(
             (ty_n, skel_n) =>
               ana_skel(ctx, skel_n, seq, ty_n) |> OptUtil.test,
-            param_tys',
+            reqd_param_tys',
             args,
           );
         if (all_args_ana) {
-          syn_ApLivelit(ctx, livelit_defn, model, splice_info, param_tys);
+          syn_ApLivelit(
+            ctx,
+            livelit_defn,
+            model,
+            splice_info,
+            closed_tys @ reqd_param_tys,
+          );
         } else {
           None;
         };
@@ -1034,15 +1091,23 @@ module Exp = {
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
       | None => None
-      | Some(livelit_defn) =>
-        let param_tys = livelit_defn.param_tys;
-        switch (err_status, param_tys) {
+      | Some((livelit_defn, closed_tys)) =>
+        let all_param_tys = livelit_defn.param_tys;
+        let reqd_param_tys =
+          all_param_tys |> ListUtil.drop(List.length(closed_tys));
+        switch (err_status, reqd_param_tys) {
         | (NotInHole, [_, ..._])
         | (InHole(TypeInconsistent(Some(InsufficientParams)), _), []) =>
           None
         | _ =>
           let rslt =
-            syn_ApLivelit(ctx, livelit_defn, serialized_model, si, param_tys);
+            syn_ApLivelit(
+              ctx,
+              livelit_defn,
+              serialized_model,
+              si,
+              all_param_tys,
+            );
           err_status == NotInHole ? rslt : rslt |> OptUtil.map(_ => HTyp.Hole);
         };
       };
@@ -1079,9 +1144,11 @@ module Exp = {
     };
   }
   and syn_ApLivelit =
-      (ctx, livelit_defn, serialized_model, splice_info, param_tys)
+      (ctx, livelit_defn, serialized_model, splice_info, all_param_tys)
       : option(HTyp.t) =>
-    switch (ana_splice_map_and_params(ctx, splice_info.splice_map, param_tys)) {
+    switch (
+      ana_splice_map_and_params(ctx, splice_info.splice_map, all_param_tys)
+    ) {
     | None => None
     | Some(splice_ctx) =>
       let expansion_ty = livelit_defn.expansion_ty;
@@ -1340,13 +1407,13 @@ module Exp = {
       | BinOp(NotInHole, Space, skel1, skel2) =>
         let livelit_ap_check = LivelitUtil.check_livelit(ctx, seq, skel);
         switch (livelit_ap_check) {
-        | Some((_, _, param_tys, _)) =>
-          let (_, param_tys) = List.split(param_tys);
+        | Some((_, _, _, reqd_param_tys, _)) =>
+          let (_, reqd_param_tys) = List.split(reqd_param_tys);
           let param_offset = n - Skel.leftmost_tm_index(skel);
           if (param_offset == 0) {
             Some(Syn);
           } else {
-            Some(Ana(List.nth(param_tys, param_offset - 1)));
+            Some(Ana(List.nth(reqd_param_tys, param_offset - 1)));
           };
         | None =>
           switch (syn_skel(ctx, skel1, seq)) {
@@ -1571,6 +1638,70 @@ module Exp = {
           Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
         (LetLine(p, ann, def), ctx, u_gen);
       }
+    | AbbrevLine(lln_new, _, lln_old, args) =>
+      let (gamma, livelit_ctx) = ctx;
+      let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
+      let ana_fix_args = (u_gen, tys) =>
+        List.combine(args, tys)
+        |> ListUtil.map_with_accumulator(
+             (u_gen, (arg, ty)) => {
+               let (arg, u_gen) =
+                 ana_fix_holes_operand(
+                   ctx,
+                   u_gen,
+                   ~renumber_empty_holes,
+                   arg,
+                   ty,
+                 );
+               (u_gen, arg);
+             },
+             u_gen,
+           );
+      switch (old_data_opt) {
+      | None =>
+        let (u_gen, args) =
+          ana_fix_args(u_gen, args |> List.map(_ => HTyp.Hole));
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+        (
+          AbbrevLine(lln_new, InAbbrevHole(Free, u), lln_old, args),
+          ctx,
+          u_gen,
+        );
+      | Some((old_defn, old_closed_param_tys)) =>
+        let all_param_tys = old_defn.param_tys;
+        let reqd_param_tys =
+          all_param_tys |> ListUtil.drop(List.length(old_closed_param_tys));
+        let num_args = List.length(args);
+        let num_args_diff = num_args - List.length(reqd_param_tys);
+        let padded_reqd_param_tys =
+          num_args_diff > 0
+            ? reqd_param_tys @ List.init(num_args_diff, _ => ("", HTyp.Hole))
+            : reqd_param_tys |> ListUtil.take(num_args);
+        let adjusted_reqd_param_tys =
+          num_args_diff > 0 ? reqd_param_tys : padded_reqd_param_tys;
+        let (u_gen, err_status: AbbrevErrStatus.t) =
+          if (num_args_diff > 0) {
+            let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+            (u_gen, InAbbrevHole(ExtraneousArgs, u));
+          } else {
+            (u_gen, NotInAbbrevHole);
+          };
+        let (u_gen, args) =
+          padded_reqd_param_tys
+          |> List.map(((_, ty)) => ty)
+          |> ana_fix_args(u_gen);
+        let livelit_ctx =
+          LivelitCtx.extend(
+            livelit_ctx,
+            (
+              lln_new,
+              (old_defn, old_closed_param_tys @ adjusted_reqd_param_tys),
+            ),
+          );
+        let ctx = (gamma, livelit_ctx);
+        let fixed_line = UHExp.AbbrevLine(lln_new, err_status, lln_old, args);
+        (fixed_line, ctx, u_gen);
+      };
     }
   and syn_fix_holes_opseq =
       (
@@ -1710,8 +1841,8 @@ module Exp = {
           skel,
         );
       switch (livelit_check) {
-      | Some((data, livelit_defn, param_tys, args)) =>
-        let (_, param_tys) = List.split(param_tys);
+      | Some((data, livelit_defn, _, reqd_param_tys, args)) =>
+        let (_, reqd_param_tys) = List.split(reqd_param_tys);
         let (fixed_ll, fixed_ty, u_gen) =
           switch (data) {
           | ApLivelitData(llu, lln, model, splice_info) =>
@@ -1751,7 +1882,7 @@ module Exp = {
               ((seq, u_gen), new_arg);
             },
             (seq, u_gen),
-            List.combine(param_tys, args),
+            List.combine(reqd_param_tys, args),
           );
         let livelitN = Skel.leftmost_tm_index(skel);
         let seq = seq |> Seq.update_nth_operand(livelitN, fixed_ll);
@@ -1910,8 +2041,9 @@ module Exp = {
       | None =>
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (FreeLivelit(u, lln), Hole, u_gen);
-      | Some(livelit_defn) =>
-        let put_in_hole = List.length(livelit_defn.param_tys) != 0;
+      | Some((livelit_defn, closed_tys)) =>
+        let put_in_hole =
+          List.length(livelit_defn.param_tys) != List.length(closed_tys);
         syn_fix_holes_ApLivelit(
           ctx,
           u_gen,
@@ -1928,8 +2060,9 @@ module Exp = {
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None => (e, Hole, u_gen)
-      | Some(livelit_defn) =>
-        let put_in_hole = List.length(livelit_defn.param_tys) != 0;
+      | Some((livelit_defn, closed_tys)) =>
+        let put_in_hole =
+          List.length(livelit_defn.param_tys) != List.length(closed_tys);
         syn_fix_holes_FreeLivelit(
           ctx,
           u_gen,

@@ -48,6 +48,7 @@ let has_inline_OpenChild =
     fun
     | Step(_)
     | DelimGroup
+    | AbbrevLine
     | LetLine => Skip
     | OpenChild({is_inline: true}) => Return()
     | _ => Stop,
@@ -58,6 +59,7 @@ let has_para_OpenChild =
     fun
     | Step(_)
     | DelimGroup
+    | AbbrevLine
     | LetLine => Skip
     | OpenChild({is_inline: false}) => Return()
     | _ => Stop,
@@ -160,6 +162,7 @@ let follow_steps_and_decorate =
            | ClosedChild(_)
            | DelimGroup
            | LetLine
+           | AbbrevLine
            | Term(_) => Skip
            | _ => Stop
            }
@@ -223,6 +226,7 @@ let find_and_decorate_caret =
                )
              | Term(_)
              | DelimGroup
+             | AbbrevLine
              | LetLine => Skip
              | _ => Stop
              }
@@ -285,6 +289,7 @@ let find_and_decorate_Term =
            | ClosedChild(_)
            | DelimGroup
            | LetLine
+           | AbbrevLine
            | Term({
                shape:
                  LivelitExpression | ApLivelit | Operand(_) | Case(_) | Rule,

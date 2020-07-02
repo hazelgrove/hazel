@@ -99,6 +99,16 @@ let rec drop = (n: int, xs: list('a)) =>
     xs;
   };
 
+let rec take = (n: int, xs: list('a)) =>
+  if (n > 0) {
+    switch (xs) {
+    | [] => []
+    | [hd, ...tl] => [hd, ...take(n - 1, tl)]
+    };
+  } else {
+    [];
+  };
+
 let rec drop_first = (x: 'a, xs: list('a)) =>
   switch (xs) {
   | [] => []

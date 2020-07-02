@@ -27,6 +27,7 @@ type shape =
   | SListNil
   | SInj(InjSide.t)
   | SLet
+  | SAbbrev
   | SLine
   | SCase
   | SOp(operator_shape);
@@ -62,6 +63,7 @@ let shape_to_string = (shape: shape): string => {
     | R => "right injection"
     }
   | SLet => "let binding"
+  | SAbbrev => "livelit abbreviation"
   | SLine => "new line"
   | SCase => "case expression"
   | SOp(operator_shape) =>
@@ -209,7 +211,9 @@ module Typ = {
     /* Invalid actions at the type level */
     | (
         PerformLivelitAction(_) |
-        Construct(SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
+        Construct(
+          SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
+        ) |
         SwapUp |
         SwapDown,
         _,
@@ -322,7 +326,9 @@ module Typ = {
     /* Invalid actions at the type level */
     | (
         PerformLivelitAction(_) |
-        Construct(SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase) |
+        Construct(
+          SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
+        ) |
         SwapUp |
         SwapDown,
         _,
@@ -1284,7 +1290,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(SList | SAsc | SLet | SLine | SLam | SCase) |
+        Construct(SList | SAsc | SLet | SAbbrev | SLine | SLam | SCase) |
         PerformLivelitAction(_) |
         SwapUp |
         SwapDown,
@@ -1690,7 +1696,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(SList | SAsc | SLet | SLine | SLam | SCase) |
+        Construct(SList | SAsc | SLet | SAbbrev | SLine | SLam | SCase) |
         PerformLivelitAction(_) |
         SwapUp |
         SwapDown,
@@ -2031,6 +2037,7 @@ module Exp = {
   let keyword_action = (kw: ExpandingKeyword.t): t =>
     switch (kw) {
     | Let => Construct(SLet)
+    | Abbrev => Construct(SAbbrev)
     | Case => Construct(SCase)
     };
 
@@ -2177,6 +2184,8 @@ module Exp = {
     SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
   let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
     SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+  let mk_SynExpandsToAbbrev = (~u_gen, ~prefix=[], ~suffix=[], ~arg, ()) =>
+    SynExpands({kw: Abbrev, u_gen, prefix, suffix, subject: arg});
   let wrap_in_SynDone: Outcome.t(syn_done) => Outcome.t(syn_success) =
     fun
     | (Failed | CursorEscaped(_)) as err => err
@@ -2190,6 +2199,8 @@ module Exp = {
     AnaExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
   let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
     AnaExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+  let mk_AnaExpandsToAbbrev = (~u_gen, ~prefix=[], ~suffix=[], ~arg, ()) =>
+    AnaExpands({kw: Abbrev, u_gen, prefix, suffix, subject: arg});
   let wrap_in_AnaDone: Outcome.t(ana_done) => Outcome.t(ana_success) =
     fun
     | (Failed | CursorEscaped(_)) as err => err
@@ -2367,6 +2378,7 @@ module Exp = {
       Succeeded(
         switch (kw) {
         | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
+        | Abbrev => mk_SynExpandsToAbbrev(~u_gen, ~arg=subject, ())
         | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
         },
       );
@@ -2409,6 +2421,7 @@ module Exp = {
       Succeeded(
         switch (kw) {
         | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
+        | Abbrev => mk_AnaExpandsToAbbrev(~u_gen, ~arg=subject, ())
         | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
         },
       );
@@ -2569,6 +2582,20 @@ module Exp = {
       let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
       let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
       Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+    | Succeeded(SynExpands({kw: Abbrev, prefix, subject, suffix, u_gen})) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
+      let zlet =
+        ZExp.CursorL(
+          OnDelim(0, Before),
+          UHExp.AbbrevLine(
+            "$",
+            InAbbrevHole(Free, u),
+            "$",
+            [UHExp.Parenthesized(subject)],
+          ),
+        );
+      let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
     };
   }
   and syn_perform_block =
@@ -2642,7 +2669,11 @@ module Exp = {
     | SwapUp when ZExp.line_can_be_swapped(zline) =>
       switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
       | (None, _, _) => Failed
-      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+      | (
+          Some((_, AbbrevLine(_) | LetLine(_))),
+          ExpLine(OpSeq(_, S(EmptyHole(_), E))),
+          [],
+        ) =>
         Failed
       /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
       | (Some((rest, EmptyLine)), _, []) =>
@@ -2664,7 +2695,11 @@ module Exp = {
       switch (suffix, zline) {
       | ([], _) => Failed
       /* avoid swap down for the Let line if it is second to last */
-      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
+      | (
+          [_],
+          LetLineZP(_) | LetLineZA(_) | AbbrevLineZL(_) |
+          CursorL(_, AbbrevLine(_) | LetLine(_)),
+        ) =>
         Failed
       /* handle corner case when the second to last line is an EmptyLine */
       | ([last], CursorL(_, EmptyLine)) =>
@@ -2760,7 +2795,7 @@ module Exp = {
     | (
         _,
         CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
-        CursorL(OnText(_) | OnOp(_), LetLine(_)) |
+        CursorL(OnText(_) | OnOp(_), AbbrevLine(_) | LetLine(_)) |
         CursorL(_, ExpLine(_)),
       ) =>
       Failed
@@ -2847,6 +2882,34 @@ module Exp = {
         fix_and_mk_result(u_gen, new_ze);
       }
 
+    | (
+        Backspace,
+        CursorL(
+          OnDelim(k, After),
+          AbbrevLine(lln_new, err_status, lln_old, args),
+        ),
+      ) =>
+      if (k == 1) {
+        let lln_new_len = String.length(lln_new);
+        let new_lln_new =
+          lln_new_len == 0 ? "" : String.sub(lln_new, 0, lln_new_len - 1);
+        let new_zblock = (
+          [],
+          ZExp.CursorL(
+            OnText(String.length(new_lln_new)),
+            UHExp.AbbrevLine(new_lln_new, err_status, lln_old, args),
+          ),
+          [],
+        );
+        fix_and_mk_result(u_gen, new_zblock);
+      } else {
+        let new_zblock =
+          LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
+          |> UHExp.Block.wrap'
+          |> ZExp.place_after;
+        fix_and_mk_result(u_gen, new_zblock);
+      }
+
     /* Construction */
 
     | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
@@ -2890,7 +2953,11 @@ module Exp = {
     | (Construct(_) | PerformLivelitAction(_), CursorL(_)) => Failed
 
     /* Invalid swap actions */
-    | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
+    | (
+        SwapUp | SwapDown,
+        CursorL(_) | AbbrevLineZL(_) | LetLineZP(_) | LetLineZA(_),
+      ) =>
+      Failed
     | (SwapLeft, CursorL(_))
     | (SwapRight, CursorL(_)) => Failed
 
@@ -2979,6 +3046,17 @@ module Exp = {
           Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
         }
       };
+
+    | (_, AbbrevLineZL(lln_new, err_status, zopseq)) =>
+      switch (ana_perform_opseq(ctx, a, (zopseq, u_gen), HTyp.Hole)) {
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded(AnaDone((([], new_zline, []), u_gen))) =>
+        let new_zopseq = ZExp.ZLine.force_get_zopseq(new_zline);
+        let new_zabbrev = ZExp.AbbrevLineZL(lln_new, err_status, new_zopseq);
+        Succeeded(LineDone((([], new_zabbrev, []), ctx, u_gen)));
+      | _ => Failed
+      }
+
     | (Init, _) => failwith("Init action should not be performed.")
     };
   }
@@ -3501,6 +3579,14 @@ module Exp = {
           (),
         ),
       )
+    | (Construct(SAbbrev), CursorE(_, operand)) =>
+      Succeeded(
+        mk_SynExpandsToAbbrev(
+          ~u_gen,
+          ~arg=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+          (),
+        ),
+      )
 
     | (Construct(SAsc), LamZP(err, zp, None, body)) =>
       let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
@@ -3620,7 +3706,7 @@ module Exp = {
       let (_, livelit_ctx) = ctx;
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None => Failed
-      | Some(livelit_defn) =>
+      | Some((livelit_defn, _)) =>
         let update_cmd =
           livelit_defn.update(serialized_model, serialized_action);
         let (serialized_model, splice_info, u_gen) =
@@ -4193,6 +4279,21 @@ module Exp = {
       let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
       let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
       Succeeded(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
+    | Succeeded(AnaExpands({kw: Abbrev, prefix, subject, suffix, u_gen})) =>
+      let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+      let zabbrev =
+        ZExp.CursorL(
+          OnDelim(0, After),
+          UHExp.AbbrevLine(
+            "$",
+            InAbbrevHole(Free, u),
+            "$",
+            [UHExp.Parenthesized(subject)],
+          ),
+        );
+      let new_zblock =
+        (prefix, zabbrev, suffix) |> ZExp.prune_empty_hole_lines;
+      Succeeded(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
     }
   and ana_perform_block =
       (
@@ -4266,7 +4367,11 @@ module Exp = {
     | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
       switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
       | (None, _, _) => Failed
-      | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+      | (
+          Some((_, AbbrevLine(_) | LetLine(_))),
+          ExpLine(OpSeq(_, S(EmptyHole(_), E))),
+          [],
+        ) =>
         Failed
       /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
       | (Some((rest, EmptyLine)), _, []) =>
@@ -4288,7 +4393,11 @@ module Exp = {
       switch (suffix, zline) {
       | ([], _) => Failed
       /* avoid swap down for the Let line if it is second to last */
-      | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) =>
+      | (
+          [_],
+          LetLineZP(_) | LetLineZA(_) | AbbrevLineZL(_) |
+          CursorL(_, AbbrevLine(_) | LetLine(_)),
+        ) =>
         Failed
       /* handle corner case when the second to last line is an EmptyLine */
       | ([last], CursorL(_, EmptyLine)) =>
@@ -4317,7 +4426,8 @@ module Exp = {
           | CursorL(_)
           | LetLineZP(_)
           | LetLineZA(_)
-          | LetLineZE(_) => Failed
+          | LetLineZE(_)
+          | AbbrevLineZL(_) => Failed
           | ExpLineZ(zopseq) =>
             switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
             | Failed => Failed
@@ -4916,6 +5026,10 @@ module Exp = {
       Succeeded(
         mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
       )
+    | (Construct(SAbbrev), CursorE(_, operand)) =>
+      Succeeded(
+        mk_AnaExpandsToAbbrev(~u_gen, ~arg=UHExp.Block.wrap(operand), ()),
+      )
 
     // TODO consider relaxing guards and
     // merging with regular op construction
@@ -5093,7 +5207,7 @@ module Exp = {
       let (_, livelit_ctx) = ctx;
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None => Failed
-      | Some(livelit_defn) =>
+      | Some((livelit_defn, _)) =>
         let update_cmd =
           livelit_defn.update(serialized_model, serialized_action);
         let (serialized_model, splice_info, u_gen) =
