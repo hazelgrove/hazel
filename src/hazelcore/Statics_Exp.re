@@ -371,11 +371,6 @@ and ana_operand =
     | None => None
     | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
     };
-  | Case(InconsistentBranches(_, _), _, _) =>
-    switch (syn_operand(ctx, operand)) {
-    | None => None
-    | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
-    }
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -386,6 +381,7 @@ and ana_operand =
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+  | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
