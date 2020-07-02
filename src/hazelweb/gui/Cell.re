@@ -89,7 +89,9 @@ let view = (~inject, model: Model.t) => {
 
           let code_view =
             UHCode.view(
-              ~model,
+              ~measure=
+                model.measurements.measurements
+                && model.measurements.uhcode_view,
               ~inject,
               ~font_metrics=model.font_metrics,
               ~caret_pos=Some((caret_row, caret_col)),
@@ -100,7 +102,9 @@ let view = (~inject, model: Model.t) => {
         } else {
           (
             UHCode.view(
-              ~model,
+              ~measure=
+                model.measurements.measurements
+                && model.measurements.uhcode_view,
               ~inject,
               ~font_metrics=model.font_metrics,
               ~caret_pos=None,
