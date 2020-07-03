@@ -179,24 +179,81 @@ let get_layout =
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
 
+let get_measured_layout =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    )
+    : MeasuredLayout.t => {
+  program
+  |> get_layout(
+       ~measure_program_get_doc,
+       ~measure_layoutOfDoc_layout_of_doc,
+       ~memoize_doc,
+     )
+  |> MeasuredLayout.mk;
+};
+
+let get_box =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    )
+    : UHBox.t => {
+  program
+  |> get_layout(
+       ~measure_program_get_doc,
+       ~measure_layoutOfDoc_layout_of_doc,
+       ~memoize_doc,
+     )
+  |> Box.mk;
+};
+
+let get_caret_position =
+    (
+      ~measure_program_get_doc: bool,
+      ~measure_layoutOfDoc_layout_of_doc: bool,
+      ~memoize_doc: bool,
+      program,
+    )
+    : CaretPosition.t => {
+  let m =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let path = get_path(program);
+  MeasuredLayout.caret_position_of_path(path, m)
+  |> OptUtil.get(() => failwith("could not find caret"));
+};
+
 let move_via_click =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      row_col,
+      target: CaretPosition.t,
       program,
     )
     : (t, Action_common.t) => {
-  let (_, rev_path) =
-    program
-    |> get_cursor_map(
-         ~measure_program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc,
-         ~memoize_doc,
-       )
-    |> CursorMap.find_nearest_within_row(row_col);
-  let path = CursorPath_common.rev(rev_path);
+  let m =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let path =
+    MeasuredLayout.nearest_path_within_row(target, m)
+    |> OptUtil.get(() => failwith("row with no caret positions"))
+    |> fst
+    |> CursorPath_common.rev;
   let new_program =
     program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
   (new_program, MoveTo(path));
@@ -211,37 +268,64 @@ let move_via_key =
       program,
     )
     : (t, Action_common.t) => {
-  let (cmap, ((row, col), _) as z) =
-    program
-    |> get_cursor_map_z(
-         ~measure_program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc,
-         ~memoize_doc,
-       );
+  let caret_position =
+    get_caret_position(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let m =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
   let (from_col, put_col_on_start) =
     switch (program.start_col_of_vertical_movement) {
-    | None => (col, put_start_col(col))
+    | None =>
+      let col = caret_position.col;
+      (col, put_start_col(col));
     | Some(col) => (col, (p => p))
     };
   let (new_z, update_start_col) =
     switch (move_key) {
-    | ArrowUp => (
-        cmap |> CursorMap.move_up((row, from_col)),
+    | ArrowUp =>
+      let up_target =
+        CaretPosition.{row: caret_position.row - 1, col: from_col};
+      (
+        MeasuredLayout.nearest_path_within_row(up_target, m),
         put_col_on_start,
-      )
-    | ArrowDown => (
-        cmap |> CursorMap.move_down((row, from_col)),
+      );
+    | ArrowDown =>
+      let down_target =
+        CaretPosition.{row: caret_position.row + 1, col: from_col};
+      (
+        MeasuredLayout.nearest_path_within_row(down_target, m),
         put_col_on_start,
+      );
+    | ArrowLeft => (
+        MeasuredLayout.prev_path_within_row(caret_position, m),
+        clear_start_col,
       )
-    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
-    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
-    | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
-    | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
+    | ArrowRight => (
+        MeasuredLayout.next_path_within_row(caret_position, m),
+        clear_start_col,
+      )
+    | Home => (
+        MeasuredLayout.first_path_in_row(caret_position.row, m),
+        clear_start_col,
+      )
+    | End => (
+        MeasuredLayout.last_path_in_row(caret_position.row, m),
+        clear_start_col,
+      )
     };
 
   switch (new_z) {
   | None => raise(CursorEscaped)
-  | Some((_, rev_path)) =>
+  | Some((rev_path, _)) =>
     let path = CursorPath_common.rev(rev_path);
     let new_program =
       program |> update_start_col |> perform_edit_action(MoveTo(path));
