@@ -190,6 +190,7 @@ let find_and_decorate_caret =
                     ),
                )
              | EmptyLine
+             | AbbrevLine
              | Term(_) => Skip
              | _ => Stop
              }

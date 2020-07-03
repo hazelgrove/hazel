@@ -425,17 +425,13 @@ and erase_zline =
   | AbbrevLineZL(lln_new, err_status, zopseq) => {
       let OpSeq(_, seq) = erase_zopseq(zopseq);
       switch (Seq.operands(seq)) {
-      | [Var(_, _, lln_old), ...args] =>
+      | [
+          ApLivelit(_, _, lln_old, _, _) | FreeLivelit(_, lln_old) |
+          Var(_, _, lln_old),
+          ...args,
+        ] =>
         AbbrevLine(lln_new, err_status, lln_old, args)
-      | _ =>
-        failwith(
-          "Unexpected form for AbbrevLine zopseq: "
-          ++ (
-            seq
-            |> Seq.sexp_of_t(UHExp.sexp_of_operand, UHExp.sexp_of_operator)
-            |> Sexplib.Sexp.to_string
-          ),
-        )
+      | args => AbbrevLine(lln_new, err_status, "$", args)
       };
     }
   | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
@@ -672,7 +668,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       AbbrevLine(lln_new, err_status, lln_old, args) as abl,
     ) =>
     if (k == 1) {
-      Some(CursorL(OnText(LivelitName.length(lln_new) - 1), abl));
+      Some(CursorL(OnText(LivelitName.length(lln_new)), abl));
     } else {
       /* k == 2 */ Some(
         _AbbrevLineZL_of_AbbrevLine(

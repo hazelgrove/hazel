@@ -435,12 +435,7 @@ let mk_AbbrevLine = (lln_new: LivelitName.t, args_opseq: formatted_child): t => 
   let open_group = {
     let abbrev_delim = Delim.abbrev_AbbrevLine();
     let eq_delim = Delim.eq_AbbrevLine();
-    let lln_new_doc =
-      Doc.hcats([
-        abbrev_delim,
-        mk_Var(~sort=Exp, ~err=NotInHole, ~verr=NotInVarHole, lln_new),
-        eq_delim,
-      ]);
+    let lln_new_doc = Doc.hseps([abbrev_delim, mk_text(lln_new), eq_delim]);
     lln_new_doc |> annot_DelimGroup;
   };
   let close_group = Delim.in_AbbrevLine() |> annot_DelimGroup;
@@ -839,11 +834,16 @@ module Exp = {
           | ExpLine(opseq) =>
             Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
           | AbbrevLine(lln_new, err_status, lln_old, args) =>
-            let args =
+            let formattable = (~enforce_inline) =>
               LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
-              |> UHExp.Block.wrap'
-              |> mk_child(~memoize, ~enforce_inline, ~child_step=0);
-            mk_AbbrevLine(lln_new, args) |> Doc.annot(UHAnnot.AbbrevLine);
+              |> Lazy.force(mk_opseq, ~memoize, ~enforce_inline)
+              |> annot_Step(0);
+            let formatted =
+              enforce_inline
+                ? EnforcedInline(formattable(~enforce_inline=true))
+                : Unformatted(formattable);
+            mk_AbbrevLine(lln_new, formatted)
+            |> Doc.annot(UHAnnot.AbbrevLine);
           | LetLine(p, ann, def) =>
             let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let ann =

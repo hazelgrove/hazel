@@ -121,11 +121,8 @@ let abbrev_args_to_opseq =
         NotInVarHole,
       )
     };
-  switch (args) {
-  | [] => OpSeq.wrap(UHExp.Var(err_status, var_err_status, lln))
-  | [arg1, ...rest] =>
-    let rest' = rest |> List.map(arg => (Operators.Exp.Space, arg));
-    let seq = Seq.mk(arg1, rest');
-    UHExp.mk_OpSeq(seq);
-  };
+  let lln_operand = UHExp.Var(err_status, var_err_status, lln);
+  let args' = args |> List.map(arg => (Operators.Exp.Space, arg));
+  let seq = Seq.mk(lln_operand, args');
+  UHExp.mk_OpSeq(seq);
 };

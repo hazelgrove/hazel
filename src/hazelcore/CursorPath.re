@@ -834,7 +834,7 @@ module Exp = {
     | LetLineZP(zp, _, _) => cons'(0, Pat.of_z(zp))
     | LetLineZA(_, zann, _) => cons'(1, Typ.of_z(zann))
     | LetLineZE(_, _, zdef) => cons'(2, of_z(zdef))
-    | AbbrevLineZL(_, _, zopseq) => cons'(1, of_zopseq(zopseq))
+    | AbbrevLineZL(_, _, zopseq) => cons'(0, of_zopseq(zopseq))
     | ExpLineZ(zopseq) => of_zopseq(zopseq)
     }
   and of_zopseq = (zopseq: ZExp.zopseq): t =>
