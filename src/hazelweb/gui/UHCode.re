@@ -191,8 +191,8 @@ module Dec = {
       (
         ~corner_radius=3.0, // px
         ~font_metrics: FontMetrics.t,
-        ~row: int,
-        ~col: int,
+        // TODO document
+        ~origin: CaretPosition.t,
         ~offset: int,
         // ~shape: TermShape.t,
         ~subject: MeasuredLayout.t,
@@ -231,13 +231,16 @@ module Dec = {
     Vdom.(
       Node.div(
         [
-          Attr.classes([Printf.sprintf("%s-container", cls)]),
+          Attr.classes([
+            "decoration-container",
+            Printf.sprintf("%s-container", cls),
+          ]),
           Attr.create(
             "style",
             Printf.sprintf(
               "top: %flh;left: %fch;",
-              Float.of_int(row) -. 0.5,
-              Float.of_int(col) -. 0.5,
+              Float.of_int(origin.row) -. 0.5,
+              Float.of_int(origin.col) -. 0.5,
             ),
           ),
         ],
@@ -329,13 +332,12 @@ let decoration_views =
           (
             ~tl: list(Vdom.Node.t),
             ~indent: int,
-            ~row: int,
-            ~col: int,
+            ~start: CaretPosition.t,
             ds: Decorations.t,
             m: MeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
-    let go' = go(~indent, ~row, ~col);
+    let go' = go(~indent, ~start);
     switch (m.layout) {
     | Linebreak
     | Text(_) => tl
@@ -345,21 +347,22 @@ let decoration_views =
           m1.metrics
           |> List.map((box: MeasuredLayout.box) => box.height)
           |> List.fold_left((+), 0);
-        row + height1 - 1;
+        start.row + height1 - 1;
       };
       let mid_col = {
-        let (leading, MeasuredLayout.{width, _}) =
+        let (leading, MeasuredLayout.{width: last_width, _}) =
           ListUtil.split_last(m1.metrics);
         let offset =
           switch (leading) {
-          | [] => col
+          | [] => start.col
           | [_, ..._] => indent
           };
-        offset + width;
+        offset + last_width;
       };
-      let mid_tl = go(~tl, ~indent, ~row=mid_row, ~col=mid_col, ds, m2);
+      let mid_tl =
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, ds, m2);
       go'(~tl=mid_tl, ds, m1);
-    | Align(m) => go(~tl, ~indent=col, ~row, ~col, ds, m)
+    | Align(m) => go(~tl, ~indent=start.col, ~start, ds, m)
     | Annot(annot, m) =>
       switch (annot) {
       | Step(step) =>
@@ -371,9 +374,8 @@ let decoration_views =
           |> List.map(
                Dec.view(
                  ~font_metrics,
-                 ~row,
-                 ~col=indent,
-                 ~offset=col - indent,
+                 ~origin={row: start.row, col: indent},
+                 ~offset=start.col - indent,
                  // ~shape,
                  ~subject=m,
                ),
@@ -383,7 +385,7 @@ let decoration_views =
       }
     };
   };
-  go(~tl=[], ~indent=0, ~row=0, ~col=0, ds, MeasuredLayout.mk(l));
+  go(~tl=[], ~indent=0, ~start={row: 0, col: 0}, ds, MeasuredLayout.mk(l));
 };
 
 module KeyCombo = JSUtil.KeyCombo;
