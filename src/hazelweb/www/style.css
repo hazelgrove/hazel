@@ -821,6 +821,14 @@ h1 {
   z-index: var(--err-hole-z);
 }
 
+#code-root {
+  position: relative;
+}
+
+#code-root .decoration-container {
+  position: absolute;
+}
+
 .DHCode .Align {
   display: inline-block;
 }

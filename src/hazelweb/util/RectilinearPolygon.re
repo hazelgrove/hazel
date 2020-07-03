@@ -202,7 +202,7 @@ let mk_svg =
   let start = List.hd(vertical_contour_edges);
   let rec build_path = (edge: linked_edge): list(cmd) => {
     switch (edge.next) {
-    | None => failwith("acyclic path")
+    | None => failwith("expected single cycle")
     | Some(next) =>
       linked_edge_eq(next, start)
         ? [] : [cmd_of_linked_edge(next), ...build_path(next)]
@@ -214,7 +214,11 @@ let mk_svg =
   let buffer = Buffer.create(List.length(path) * 20);
   Buffer.add_string(
     buffer,
-    Printf.sprintf("M %f %f ", start.src.x, start.src.y),
+    Printf.sprintf(
+      "M %f %f ",
+      (start.src.x +. start.dst.x) *. 0.5,
+      (start.src.y +. start.dst.x) *. 0.5,
+    ),
   );
   path
   |> List.map(
