@@ -5,24 +5,26 @@ module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
 
 module Dec = {
+  type rects = list(RectilinearPolygon.rect);
+
   let rects =
-      (~row: int, ~col: int, m: MeasuredLayout.t)
-      : ((int, int), list(RectilinearPolygon.rect)) =>
+      (start: CaretPosition.t, m: MeasuredLayout.t)
+      : (CaretPosition.t, list(RectilinearPolygon.rect)) =>
     m.metrics
     |> ListUtil.map_with_accumulator(
-         ((row, col), box: MeasuredLayout.box) =>
+         (start: CaretPosition.t, box: MeasuredLayout.box) =>
            (
-             (row + box.height - 1, 0),
+             {row: start.row + box.height - 1, col: 0},
              RectilinearPolygon.{
                min: {
-                 x: Float.of_int(col),
-                 y: Float.of_int(row),
+                 x: Float.of_int(start.col),
+                 y: Float.of_int(start.row),
                },
                width: Float.of_int(box.width),
                height: Float.of_int(box.height),
              },
            ),
-         (row, col),
+         start,
        );
 
   let err_hole_view =
@@ -33,27 +35,108 @@ module Dec = {
       )
       : Vdom.Node.t =>
     subject
-    |> rects(~row=0, ~col=offset)
+    |> rects({row: 0, col: offset})
     |> snd
     |> RectilinearPolygon.mk_svg(
          ~corner_radii,
          ~attrs=[Vdom.Attr.classes(["code-err-hole"])],
        );
 
-  let closed_child_view =
-      (
-        ~corner_radii: (float, float),
-        ~offset: int,
-        subject: MeasuredLayout.t,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects(~row=0, ~col=offset)
-    |> snd
-    |> RectilinearPolygon.mk_svg(
-         ~corner_radii,
-         ~attrs=[Vdom.Attr.classes(["code-closed-child"])],
-       );
+  let tessera_rects =
+      (start: CaretPosition.t, m: MeasuredLayout.t)
+      : (CaretPosition.t, (rects, list(rects))) => {
+    let (end_, highlighted_rs) = rects(start, m);
+    let closed_child_rss =
+      m
+      |> MeasuredLayout.flatten
+      |> ListUtil.map_with_accumulator(
+           (line_start, line: list(MeasuredLayout.t)) => {
+             line
+             |> ListUtil.map_with_accumulator(
+                  (word_start, word: MeasuredLayout.t) => {
+                    switch (word) {
+                    | {layout: Annot(ClosedChild(_), m), _} =>
+                      let (word_end, rs) = rects(word_start, m);
+                      (word_end, rs);
+                    | _ => (
+                        MeasuredLayout.next_position(word_start, word),
+                        [],
+                      )
+                    }
+                  },
+                  line_start,
+                )
+             |> (
+               fun
+               | (line_end, rss) => (
+                   line_end,
+                   List.filter(rs => !ListUtil.is_empty(rs), rss),
+                 )
+             )
+           },
+           start,
+         )
+      |> snd
+      |> List.flatten;
+    (end_, (highlighted_rs, closed_child_rss));
+  };
+
+  let inline_open_child_rects =
+      (start: CaretPosition.t, m: MeasuredLayout.t): rects => {
+    // TODO relax assumption
+    assert(MeasuredLayout.height(m) == 1);
+    // make singleton skinny rect along bottom
+    [
+      RectilinearPolygon.{
+        min: {
+          x: Float.of_int(start.col),
+          y: Float.of_int(start.row) +. 1. -. 0.1,
+        },
+        height: 0.1, // TODO
+        width: Float.of_int(MeasuredLayout.width(m)),
+      },
+    ];
+  };
+
+  let block_open_child_rects =
+      (start: CaretPosition.t, m: MeasuredLayout.t): rects => {
+    [
+      // make singleton skinny rect
+      RectilinearPolygon.{
+        min: {
+          x: Float.of_int(start.col),
+          y: Float.of_int(start.row),
+        },
+        height: Float.of_int(MeasuredLayout.height(m)),
+        width: 0.1 // TODO
+      },
+    ];
+  };
+
+  let current_term_line_rects =
+      (start: CaretPosition.t, line: list(MeasuredLayout.t))
+      : (CaretPosition.t, (rects, list(rects))) => {
+    let (end_, zipped) =
+      line
+      |> ListUtil.map_with_accumulator(
+           (word_start, word: MeasuredLayout.t) =>
+             switch (word) {
+             | {layout: Annot(Tessera, m), _} =>
+               tessera_rects(word_start, m)
+             | {layout: Annot(OpenChild(_), m), _} =>
+               let highlighted_rs = inline_open_child_rects(start, m);
+               let word_end = MeasuredLayout.next_position(word_start, m);
+               (word_end, (highlighted_rs, []));
+             | _ =>
+               failwith(
+                 "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
+               )
+             },
+           start,
+         );
+    let (highlighted_rs, closed_child_rss) = List.split(zipped);
+    (end_, (List.flatten(highlighted_rs), List.flatten(closed_child_rss)));
+  };
 
   let current_term_view =
       (
@@ -63,141 +146,45 @@ module Dec = {
         subject: MeasuredLayout.t,
       )
       : Vdom.Node.t => {
-    let flattened = MeasuredLayout.flatten(subject);
-    let highlighted =
-      flattened
+    let (highlighted_rs, closed_child_rss) =
+      subject
+      |> MeasuredLayout.flatten
       |> ListUtil.map_with_accumulator(
-           ((row, col) as rc, line: list(MeasuredLayout.t)) =>
+           (line_start, line: list(MeasuredLayout.t)) => {
              switch (line) {
              | [{layout: Annot(OpenChild(_), m), _}] =>
-               // make singleton skinny rect
-               let height =
-                 m.metrics
-                 |> List.map((box: MeasuredLayout.box) => box.height)
-                 |> List.fold_left((+), 0);
-               let rects = [
-                 RectilinearPolygon.{
-                   min: {
-                     x: Float.of_int(col),
-                     y: Float.of_int(row),
-                   },
-                   height: Float.of_int(height),
-                   width: 0.1,
-                 },
-               ];
-               let next_rc = MeasuredLayout.update_position(rc, m);
-               (next_rc, rects);
-             | _ =>
-               let (next_rc, rects) =
-                 line
-                 |> ListUtil.map_with_accumulator(
-                      ((row, col) as rc, word: MeasuredLayout.t) => {
-                        switch (word) {
-                        | {layout: Annot(Tessera, m), _} =>
-                          // get outline rects
-                          rects(~row, ~col, m)
-                        | {layout: Annot(OpenChild(_), m), _} =>
-                          // make singleton skinny rect
-                          let height =
-                            m.metrics
-                            |> List.map((box: MeasuredLayout.box) =>
-                                 box.height
-                               )
-                            |> List.fold_left((+), 0);
-                          let rects = [
-                            RectilinearPolygon.{
-                              min: {
-                                x: Float.of_int(col),
-                                y: Float.of_int(row),
-                              },
-                              height: Float.of_int(height),
-                              width: 0.1,
-                            },
-                          ];
-                          let next_rc = MeasuredLayout.update_position(rc, m);
-                          (next_rc, rects);
-                        | _ => failwith("unexpected flattened child of term")
-                        }
-                      },
-                      (row, col),
-                    );
-               (next_rc, List.flatten(rects));
-             },
-           (0, offset),
-         )
-      |> snd
-      |> List.flatten
-      |> RectilinearPolygon.mk_svg(
-           ~corner_radii,
-           ~attrs=Vdom.[Attr.classes(["code-current-term"])],
-         );
-
-    let closed_children =
-      flattened
-      |> ListUtil.map_with_accumulator(
-           ((row, col), line: list(MeasuredLayout.t)) => {
-             let (next_rc, vs) =
-               line
-               |> ListUtil.map_with_accumulator(
-                    ((row, col) as rc, word: MeasuredLayout.t) => {
-                      let vs =
-                        switch (word) {
-                        | {layout: Annot(Tessera, m), _} =>
-                          MeasuredLayout.flatten(m)
-                          |> ListUtil.map_with_accumulator(
-                               ((row, col), line: list(MeasuredLayout.t)) => {
-                                 let (next_rc, vs) =
-                                   line
-                                   |> ListUtil.map_with_accumulator(
-                                        (
-                                          (_, col) as rc,
-                                          word: MeasuredLayout.t,
-                                        ) => {
-                                          let vs =
-                                            switch (word) {
-                                            | {
-                                                layout:
-                                                  Annot(ClosedChild(_), m),
-                                                _,
-                                              } => [
-                                                closed_child_view(
-                                                  ~corner_radii,
-                                                  ~offset=col,
-                                                  m,
-                                                ),
-                                              ]
-                                            | _ => []
-                                            };
-                                          let next_rc =
-                                            MeasuredLayout.update_position(
-                                              rc,
-                                              m,
-                                            );
-                                          (next_rc, vs);
-                                        },
-                                        (row, col),
-                                      );
-                                 (next_rc, List.flatten(vs));
-                               },
-                               (row, col),
-                             )
-                          |> snd
-                          |> List.flatten
-                        | _ => []
-                        };
-                      let next_rc = MeasuredLayout.update_position(rc, word);
-                      (next_rc, vs);
-                    },
-                    (row, col),
-                  );
-             (next_rc, List.flatten(vs));
+               let highlighted_rs = block_open_child_rects(line_start, m);
+               let line_end = MeasuredLayout.next_position(line_start, m);
+               (line_end, (highlighted_rs, []));
+             | _ => current_term_line_rects(line_start, line)
+             }
            },
-           (0, offset),
+           {row: 0, col: offset},
          )
-      |> snd
-      |> List.flatten;
-
-    Vdom.(Node.create_svg("g", [], [highlighted, ...closed_children]));
+      |> (
+        fun
+        | (_, zipped) => {
+            let (highlighted_rs, closed_child_rss) = List.split(zipped);
+            (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+          }
+      );
+    let highlighted_view =
+      RectilinearPolygon.mk_svg(
+        ~corner_radii,
+        ~attrs=Vdom.[Attr.classes(["code-current-term"])],
+        highlighted_rs,
+      );
+    let closed_child_views =
+      closed_child_rss
+      |> List.map(
+           RectilinearPolygon.mk_svg(
+             ~corner_radii,
+             ~attrs=[Vdom.Attr.classes(["code-closed-child"])],
+           ),
+         );
+    Vdom.(
+      Node.create_svg("g", [], [highlighted_view, ...closed_child_views])
+    );
   };
 
   let view =
@@ -480,17 +467,22 @@ let view =
               float_of_int(evt##.clientX),
               float_of_int(evt##.clientY),
             );
-            let row_col = (
-              Float.to_int(
-                (target_y -. container_rect##.top) /. font_metrics.row_height,
-              ),
-              Float.to_int(
-                Float.round(
-                  (target_x -. container_rect##.left) /. font_metrics.col_width,
-                ),
-              ),
-            );
-            inject(Update.Action.MoveAction(Click(row_col)));
+            let caret_pos =
+              CaretPosition.{
+                row:
+                  Float.to_int(
+                    (target_y -. container_rect##.top)
+                    /. font_metrics.row_height,
+                  ),
+                col:
+                  Float.to_int(
+                    Float.round(
+                      (target_x -. container_rect##.left)
+                      /. font_metrics.col_width,
+                    ),
+                  ),
+              };
+            inject(Update.Action.MoveAction(Click(caret_pos)));
           }),
         ],
         [Node.span([Attr.classes(["code"])], code_text), ...decorations],
