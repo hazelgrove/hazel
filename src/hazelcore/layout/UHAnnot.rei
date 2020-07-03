@@ -10,17 +10,19 @@ type token_shape =
   | Text
   | Op
   | Delim(DelimIndex.t);
+[@deriving sexp]
+type token_data = {
+  shape: token_shape,
+  len: int,
+  has_cursor: option(int),
+};
 
 [@deriving sexp]
 type t =
   | Indent
   | Padding
   | HoleLabel({len: int})
-  | Token({
-      shape: token_shape,
-      len: int,
-      has_cursor: option(int),
-    })
+  | Token(token_data)
   | SpaceOp
   | UserNewline
   | OpenChild({is_inline: bool})
