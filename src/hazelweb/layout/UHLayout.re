@@ -189,6 +189,7 @@ let find_and_decorate_caret =
                       UHAnnot.Token({...token_data, has_cursor: Some(j)}),
                     ),
                )
+             | DelimGroup
              | EmptyLine
              | AbbrevLine
              | Term(_) => Skip
