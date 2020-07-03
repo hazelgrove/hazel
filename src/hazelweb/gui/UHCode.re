@@ -202,14 +202,13 @@ module Dec = {
       subject.metrics
       |> List.map((box: MeasuredLayout.box) => box.height)
       |> List.fold_left((+), 0);
-    let buffered_height =
-      Float.of_int(num_rows + 1) *. font_metrics.row_height;
+    let buffered_height = Float.of_int(num_rows) *. font_metrics.row_height;
 
     let num_cols =
       subject.metrics
       |> List.map((box: MeasuredLayout.box) => box.width)
       |> List.fold_left(max, 0);
-    let buffered_width = Float.of_int(num_cols + 1) *. font_metrics.col_width;
+    let buffered_width = Float.of_int(num_cols) *. font_metrics.col_width;
 
     let corner_radii = (
       corner_radius /. font_metrics.col_width,
@@ -238,9 +237,9 @@ module Dec = {
           Attr.create(
             "style",
             Printf.sprintf(
-              "top: %flh;left: %fch;",
-              Float.of_int(origin.row) -. 0.5,
-              Float.of_int(origin.col) -. 0.5,
+              "top: %fpx;left: %fpx;",
+              Float.of_int(origin.row) *. font_metrics.row_height,
+              Float.of_int(origin.col) *. font_metrics.col_width,
             ),
           ),
         ],
@@ -251,7 +250,7 @@ module Dec = {
               Attr.classes([cls]),
               Attr.create(
                 "viewBox",
-                Printf.sprintf("-0.5 -0.5 %d %d", num_cols + 1, num_rows + 1),
+                Printf.sprintf("0 0 %d %d", num_cols, num_rows),
               ),
               Attr.create("width", Printf.sprintf("%fpx", buffered_width)),
               Attr.create("height", Printf.sprintf("%fpx", buffered_height)),
