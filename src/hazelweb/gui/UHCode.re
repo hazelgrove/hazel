@@ -386,19 +386,88 @@ let decoration_views =
   go(~tl=[], ~indent=0, ~row=0, ~col=0, ds, MeasuredLayout.mk(l));
 };
 
+module KeyCombo = JSUtil.KeyCombo;
+module MoveKey = JSUtil.MoveKey;
+
+let key_handlers =
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
+    : list(Vdom.Attr.t) => {
+  open Vdom;
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  [
+    Attr.on_keypress(_ => Event.Prevent_default),
+    Attr.on_keydown(evt => {
+      switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+      | Some(move_key) =>
+        prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
+      | None =>
+        switch (KeyCombo.of_evt(evt)) {
+        | Some(Ctrl_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(Update.Action.Undo);
+          }
+        | Some(Meta_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(Update.Action.Undo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(Ctrl_Shift_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(Update.Action.Redo);
+          }
+        | Some(Meta_Shift_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(Update.Action.Redo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(kc) =>
+          prevent_stop_inject(
+            Update.Action.EditAction(KeyComboAction.get(cursor_info, kc)),
+          )
+        | None =>
+          switch (KeyCombo.of_evt(evt)) {
+          | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
+          | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
+          | Some(kc) =>
+            prevent_stop_inject(
+              Update.Action.EditAction(KeyComboAction.get(cursor_info, kc)),
+            )
+          | None =>
+            switch (JSUtil.is_single_key(evt)) {
+            | None => Event.Ignore
+            | Some(single_key) =>
+              prevent_stop_inject(
+                Update.Action.EditAction(
+                  Construct(SChar(JSUtil.single_key_string(single_key))),
+                ),
+              )
+            }
+          }
+        }
+      }
+    }),
+  ];
+};
+
 let view =
     (
-      ~model: Model.t,
       ~inject: Update.Action.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      // ~caret_pos: option((int, int)),
-      ~decorations: Decorations.t,
-      l: UHLayout.t,
+      ~is_mac: bool,
+      ~measure: bool,
+      program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    model.measurements.measurements && model.measurements.uhcode_view,
+    measure,
     () => {
       open Vdom;
 
@@ -438,8 +507,26 @@ let view =
         };
       };
 
+      let l =
+        Program.get_layout(
+          ~measure_program_get_doc=false,
+          ~measure_layoutOfDoc_layout_of_doc=false,
+          ~memoize_doc=false,
+          program,
+        );
       let code_text = go(Box.mk(l));
-      let decorations = decoration_views(~font_metrics, decorations, l);
+
+      let ds = Program.get_decorations(program);
+      let decorations = decoration_views(~font_metrics, ds, l);
+
+      let key_handlers =
+        program.is_focused
+          ? key_handlers(
+              ~inject,
+              ~is_mac,
+              ~cursor_info=Program.get_cursor_info(program),
+            )
+          : [];
 
       /*
        let children =
@@ -484,6 +571,11 @@ let view =
               };
             inject(Update.Action.MoveAction(Click(caret_pos)));
           }),
+          // necessary to make cell focusable
+          Attr.create("tabindex", "0"),
+          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+          ...key_handlers,
         ],
         [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
