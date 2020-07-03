@@ -353,6 +353,7 @@ let view =
 
   let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
+  // this determines the color
   let cls_of_err_state_b =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"
