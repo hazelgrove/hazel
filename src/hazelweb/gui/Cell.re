@@ -7,6 +7,7 @@ module Sexp = Sexplib.Sexp;
 open ViewUtil;
 open Sexplib.Std;
 
+/** maps key combos to actions contextually, depending on cursor info */
 let kc_actions:
   Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
   [
@@ -67,31 +68,31 @@ let view = (~inject, model: Model.t) => {
         model.measurements.measurements
         && model.measurements.layoutOfDoc_layout_of_doc;
       let memoize_doc = model.memoize_doc;
-      let code_view =
-        if (Model.is_cell_focused(model)) {
-          let (_, ((row, col), _)) =
-            Program.get_cursor_map_z(
-              ~measure_program_get_doc,
-              ~measure_layoutOfDoc_layout_of_doc,
-              ~memoize_doc,
-              program,
-            );
-          UHCode.view(
-            ~measure=
-              model.measurements.measurements && model.measurements.uhcode_view,
-            ~inject,
-            ~font_metrics=model.font_metrics,
-            ~caret_pos=Some((row, col)),
-          );
-        } else {
-          UHCode.view(
-            ~measure=
-              model.measurements.measurements && model.measurements.uhcode_view,
-            ~inject,
-            ~font_metrics=model.font_metrics,
-            ~caret_pos=None,
-          );
-        };
+      let code_view = {
+        let caret_pos =
+          if (Model.is_cell_focused(model)) {
+            let (_, ((row, col), _)) =
+              Program.get_cursor_map_z(
+                ~measure_program_get_doc,
+                ~measure_layoutOfDoc_layout_of_doc,
+                ~memoize_doc,
+                program,
+              );
+            Some((row, col));
+          } else {
+            None;
+          };
+
+        UHCode.view(
+          ~measure=
+            model.measurements.measurements && model.measurements.uhcode_view,
+          ~inject,
+          ~font_metrics=model.font_metrics,
+          ~caret_pos,
+        );
+      };
+
+      /* browser API to prevent event propagation up the DOM */
       let prevent_stop_inject = a =>
         Event.Many([
           Event.Prevent_default,
@@ -232,6 +233,7 @@ let view = (~inject, model: Model.t) => {
           ...key_handlers,
         ],
         [
+          /* font-specimen used to gather font metrics for caret positioning and other things */
           Node.div([Attr.id("font-specimen")], [Node.text("X")]),
           Node.div([Attr.id("code-container")], [code_view]),
         ],

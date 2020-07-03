@@ -175,28 +175,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ],
           );
         };
-      /*
-       let e = program |> Program.get_uhexp;
-       let doc =
-         lazy(
-           Lazy.force(
-             UHDoc_Exp.mk,
-             ~memoize=model.memoize_doc /*TODO:memoize*/,
-             ~enforce_inline=false,
-             e,
-           )
-         );
-       let layout =
-         lazy(
-           switch (
-             Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
-           ) {
-           | None => Pretty.Layout.Text("layout FAILED") // TODO
-           | Some(l) => l
-           }
-         );
-       let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
-       */
       Node.div(
         [Attr.id("root")],
         [
@@ -231,18 +209,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           Node.div(
                             [Attr.classes(["card-caption"])],
                             [card.info.caption],
-                            /* [
-                                 Node.text("Hazel is an experiment in "),
-                                 Node.strong(
-                                   [],
-                                   [Node.text("live functional programming")],
-                                 ),
-                                 Node.text(" with "),
-                                 Node.strong([], [Node.text("typed holes")]),
-                                 Node.text(
-                                   ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                                 ),
-                               ], */
                           ),
                           Cell.view(~inject, model),
                           cell_status,
@@ -271,13 +237,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           ),
                         ],
                         [],
-                        /*
-                         if (!model.show_presentation) {
-                           [];
-                         } else {
-                           [JSUtil.vdom_of_box(Lazy.force(box))];
-                         },
-                         */
                       ),
                     ],
                   ),

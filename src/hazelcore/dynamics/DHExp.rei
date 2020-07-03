@@ -86,7 +86,6 @@ type t =
   | Pair(t, t)
   | Triv
   | Subscript(t, t, t)
-  /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
