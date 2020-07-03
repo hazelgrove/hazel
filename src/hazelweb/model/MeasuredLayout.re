@@ -172,12 +172,17 @@ let find_path =
 };
 
 /**
- * `first_path_in_first_row(rev_steps, m)` returns the first path encountered
- * during left-to-right traversal of the first row of `m`, paired with
- * the found path's position relative to the start of `m`.
+ * `first_path_in_row(~rev_steps, ~start, row, m)` returns the first path
+ * encountered during left-to-right traversal of row `row` of `m`, paired
+ * with the found path's position.
  */
-let first_path_in_first_row =
-    (rev_steps, start: CaretPosition.t, m: t)
+let first_path_in_row =
+    (
+      ~rev_steps: CursorPath_common.rev_steps=[],
+      ~start: CaretPosition.t={row: 0, col: 0},
+      row: int,
+      m: t,
+    )
     : option((CursorPath_common.rev_t, CaretPosition.t)) =>
   m
   |> find_path(
@@ -195,22 +200,28 @@ let first_path_in_first_row =
            Some(((cursor, rev_steps), start));
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) =>
-           switch (go(rev_steps, start, m1)) {
-           | Some(result) => Some(result)
-           | None =>
-             let mid = next_position(start, m);
-             mid.row == start.row ? go(rev_steps, mid, m2) : None;
-           },
+         (go, rev_steps, start, m1, m2) => {
+           let mid = next_position(start, m);
+           if (row < mid.row) {
+             go(rev_steps, start, m1);
+           } else if (row > mid.row) {
+             go(rev_steps, mid, m2);
+           } else {
+             switch (go(rev_steps, start, m1)) {
+             | Some(result) => Some(result)
+             | None => go(rev_steps, mid, m2)
+             };
+           };
+         },
      );
 
 /**
- * `last_path_in_last_row(m)` returns the first path encountered
- * during right-to-left traversal of the last row of `m`, paired with
- * the found path's position relative to the start of `m`.
+ * `last_path_in_row(m)` returns the first path encountered
+ * during right-to-left traversal of row `row` of `m`, paired
+ * with the found path's position.
  */
-let last_path_in_last_row =
-    (rev_steps, start: CaretPosition.t, m: t)
+let last_path_in_row =
+    (~rev_steps=[], ~start: CaretPosition.t={row: 0, col: 0}, row: int, m: t)
     : option((CursorPath_common.rev_t, CaretPosition.t)) =>
   m
   |> find_path(
@@ -228,14 +239,19 @@ let last_path_in_last_row =
            Some(((cursor, rev_steps), {...start, col: start.col + len}));
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) =>
-           switch (go(rev_steps, start, m2)) {
-           | Some(result) => Some(result)
-           | None =>
-             let mid = next_position(start, m1);
-             let end_ = next_position(mid, m2);
-             mid.row == end_.row ? go(rev_steps, start, m1) : None;
-           },
+         (go, rev_steps, start, m1, m2) => {
+           let mid = next_position(start, m);
+           if (row < mid.row) {
+             go(rev_steps, start, m1);
+           } else if (row > mid.row) {
+             go(rev_steps, mid, m2);
+           } else {
+             switch (go(rev_steps, mid, m2)) {
+             | Some(result) => Some(result)
+             | None => go(rev_steps, start, m1)
+             };
+           };
+         },
      );
 
 let arbitrate =
@@ -265,11 +281,11 @@ let arbitrate =
 };
 
 /**
- * `prev_path_in_row(from, m) returns the next encountered path in a
+ * `prev_path_within_row(from, m) returns the next encountered path in a
  * right-to-left traversal of row `from.row` starting at (but not including)
- * `from.col`, paired with the position of the found path.
+ * `from.col`. Returned path is paired with its position.
  */
-let prev_path_in_row =
+let prev_path_within_row =
     (from: CaretPosition.t, m: t)
     : option((CursorPath_common.rev_t, CaretPosition.t)) =>
   m
@@ -300,11 +316,11 @@ let prev_path_in_row =
              switch (go(rev_steps, mid, m2)) {
              | None =>
                mid.row == end_.row
-                 ? last_path_in_last_row(rev_steps, start, m1) : None
+                 ? last_path_in_row(~rev_steps, ~start, mid.row, m1) : None
              | Some((rev_path2, pos2)) =>
                if (CaretPosition.compare(pos2, mid) == 0) {
                  let rev_path =
-                   switch (last_path_in_last_row(rev_steps, start, m1)) {
+                   switch (last_path_in_row(~rev_steps, ~start, mid.row, m1)) {
                    | Some((rev_path1, pos1))
                        when CaretPosition.compare(pos1, mid) == 0 =>
                      arbitrate(rev_path1, rev_path2)
@@ -320,11 +336,11 @@ let prev_path_in_row =
      );
 
 /**
- * `next_path_in_row(from, m) returns the next encountered path in a
+ * `next_path_within_row(from, m) returns the next encountered path in a
  * left-to-right traversal of row `from.row` starting at (but not including)
- * `from.col`, paired with the position of the found path.
+ * `from.col`. Returned path is paired with its position.
  */
-let next_path_in_row =
+let next_path_within_row =
     (from: CaretPosition.t, m: t)
     : option((CursorPath_common.rev_t, CaretPosition.t)) =>
   m
@@ -354,11 +370,14 @@ let next_path_in_row =
              switch (go(rev_steps, start, m1)) {
              | None =>
                mid.row == start.row
-                 ? first_path_in_first_row(rev_steps, mid, m2) : None
+                 ? first_path_in_row(~rev_steps, ~start=mid, mid.row, m2)
+                 : None
              | Some((rev_path1, pos1)) =>
                if (CaretPosition.compare(pos1, mid) == 0) {
                  let rev_path =
-                   switch (first_path_in_first_row(rev_steps, mid, m2)) {
+                   switch (
+                     first_path_in_row(~rev_steps, ~start=mid, mid.row, m2)
+                   ) {
                    | Some((rev_path2, pos2))
                        when CaretPosition.compare(pos2, mid) == 0 =>
                      arbitrate(rev_path1, rev_path2)
@@ -373,8 +392,9 @@ let next_path_in_row =
          },
      );
 
-let nearest_path_in_row =
-    (target: CaretPosition.t, m: t): option(CursorPath_common.rev_t) =>
+let nearest_path_within_row =
+    (target: CaretPosition.t, m: t)
+    : option((CursorPath_common.rev_t, CaretPosition.t)) =>
   m
   |> find_path(
        ~token=
@@ -382,13 +402,14 @@ let nearest_path_in_row =
            let UHAnnot.{shape, len, _} = token_data;
            let from_start = target.col - start.col;
            let is_left = from_start + from_start <= len;
-           let cursor: CursorPosition.t =
+           let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Text => OnText(from_start)
-             | Op => OnOp(is_left ? Before : After)
-             | Delim(k) => OnDelim(k, is_left ? Before : After)
+             | Text => (OnText(from_start), from_start)
+             | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
+             | Delim(k) =>
+               is_left ? (OnDelim(k, Before), 0) : (OnDelim(k, After), len)
              };
-           Some((cursor, rev_steps));
+           Some(((cursor, rev_steps), {...start, col: start.col + offset}));
          },
        ~cat=
          (go, rev_steps, start, m1, m2) => {
@@ -400,35 +421,34 @@ let nearest_path_in_row =
            } else if (target.col < mid.col) {
              switch (go(rev_steps, start, m1)) {
              | Some(rev_path) => Some(rev_path)
-             | None =>
-               first_path_in_first_row(rev_steps, mid, m2) |> Option.map(fst)
+             | None => first_path_in_row(~rev_steps, ~start=mid, mid.row, m2)
              };
            } else if (target.col > mid.col) {
              switch (go(rev_steps, mid, m2)) {
              | Some(rev_path) => Some(rev_path)
-             | None =>
-               last_path_in_last_row(rev_steps, start, m1) |> Option.map(fst)
+             | None => last_path_in_row(~rev_steps, ~start, mid.row, m1)
              };
            } else {
              // Target is between m1 and m2.
              // Check both sides for path and arbitrate if needed.
              switch (
-               last_path_in_last_row(rev_steps, start, m1),
-               first_path_in_first_row(rev_steps, mid, m2),
+               last_path_in_row(~rev_steps, ~start, mid.row, m1),
+               first_path_in_row(~rev_steps, ~start=mid, mid.row, m2),
              ) {
              | (None, None) => None
-             | (Some((rev_path, _)), None)
-             | (None, Some((rev_path, _))) => Some(rev_path)
+             | (Some((rev_path, pos)), None)
+             | (None, Some((rev_path, pos))) => Some((rev_path, pos))
              | (Some((rev_path1, pos1)), Some((rev_path2, pos2))) =>
                let offset1 = mid.col - pos1.col;
                let offset2 = pos2.col - mid.col;
                if (offset1 < offset2) {
-                 Some(rev_path2);
+                 Some((rev_path1, pos1));
                } else if (offset1 > offset2) {
-                 Some(rev_path1);
+                 Some((rev_path2, pos2));
                } else {
                  offset1 == 0
-                   ? Some(arbitrate(rev_path1, rev_path2)) : Some(rev_path1);
+                   ? Some((arbitrate(rev_path1, rev_path2), mid))
+                   : Some((rev_path1, pos1));
                };
              };
            };
