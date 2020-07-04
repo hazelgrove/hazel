@@ -68,11 +68,16 @@ let get_decorations = (program: t): Decorations.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let err_holes =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath_common.{sort, is_empty, steps}) =>
+    |> List.filter_map((CursorPath_common.{sort, steps}) =>
          switch (sort) {
          | TypHole => None
-         | PatHole(_)
-         | ExpHole(_) => is_empty ? None : Some(steps)
+         | PatHole(_, shape)
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty
+           | VarErr => None
+           | TypeErr => Some(steps)
+           }
          }
        );
   {current_term, err_holes};
