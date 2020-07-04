@@ -14,20 +14,8 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
   | NonEmptyHole(_) => failwith("Exp: Non-Empty Hole")
   // used for variables that are keywords in Hazel, like "let" and "case"
   | Keyword(_) => failwith("Exp: Incomplete Program (Keyword)")
-  | FreeVar(_, _, map, x) =>
-    //lookup the expression represented by x
-    let map_e = VarMap.lookup(map, x);
-    switch (map_e) {
-    | None => failwith("Exp: FreeVar Not Found")
-    | Some(e) =>
-      let ocaml_e = extract(~ctx, ~de=e);
-      //add a parenthesize to avoid any possible order priority
-      (
-        // "(" ++ x ++ " : " ++ Typ.extract(~t=snd(ocaml_e)) ++ ")",
-        x, //we don't want annotate it everywhere
-        snd(ocaml_e),
-      );
-    };
+  // an expression with a free variable cannot be extracted to OCaml because free variables cause type errors in OCaml
+  | FreeVar(_, _, _, _) => failwith("Exp: FreeVar is not allowed")
   | BoundVar(x) =>
     //directly lookup type in environment
     let typ = VarCtx.lookup(Contexts.gamma(ctx), x);
@@ -49,18 +37,27 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
       let ctx' = Contexts.extend_gamma(ctx, (x, snd(ocaml_de1)));
       let ocaml_de2 = extract(~ctx=ctx', ~de=de2);
       // use the "let .. = ..;;" format
-      // if it's a recursive function, we skip to directly evaluating the FixF (de1)
-      // because the recursive function should be declared by "rec" only in ocaml
+      // if it's a recursive function, it's format of let ... = fix ..., we change it to "let rec"
+      //, because the recursive function should be declared by "rec" only in ocaml
       switch (de1) {
       | FixF(_, _, _) => (
-          fst(ocaml_de1) ++ fst(ocaml_de2),
+          "let rec "
+          ++ ocaml_dp
+          ++ " : "
+          ++ OCamlExtraction_Typ.extract(~t=snd(ocaml_de1))
+          ++ " = "
+          ++ fst(ocaml_de1)
+          ++ ";;\n"
+          ++ fst(ocaml_de2),
           snd(ocaml_de2),
+          // fst(ocaml_de1) ++ fst(ocaml_de2),
+          // snd(ocaml_de2),
         )
       | _ => (
           "let "
           ++ ocaml_dp
           ++ " : "
-          ++ OCamlExtraction_Typ.extract(~t=snd(ocaml_de2))
+          ++ OCamlExtraction_Typ.extract(~t=snd(ocaml_de1))
           ++ " = "
           ++ fst(ocaml_de1)
           ++ ";;\n"
@@ -72,15 +69,19 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
     }
   | FixF(x, ht, de) =>
     //it's the case of fixpoint/ recursive functions
-    //let rec f: ... = fun x -> f ... (is reasonable)
-    let ocaml_ht = OCamlExtraction_Typ.extract(~t=ht);
+    //Hazel programs will only ever result in internal expressions containing let ... = fix ...
+    //let rec f: some type = fun x -> f ... (is reasonable)
+    // x should be already inserted into context
+
+    //let ocaml_ht = OCamlExtraction_Typ.extract(~t=ht);
     let ctx' = Contexts.extend_gamma(ctx, (x, ht));
     let ocaml_de = extract(~ctx=ctx', ~de);
-    // here ht should equal snd(ocaml_de)
     (
-      "let rec " ++ x ++ " : " ++ ocaml_ht ++ " = " ++ fst(ocaml_de) ++ ";;\n",
+      // "let rec " ++ x ++ " : " ++ ocaml_ht ++ " = " ++ fst(ocaml_de) ++ ";;\n",
+      fst(ocaml_de),
       ht,
     );
+
   | Lam(dp, ht, de) =>
     //Htyp.t is the ground type of pattern
     switch (dp) {
@@ -109,7 +110,7 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
     | Arrow(t1, t2) =>
       // Hole -> some type should be ok
       if (t1 == snd(ocaml_de2) || t1 == Hole) {
-        (fst(ocaml_de1) ++ " " ++ fst(ocaml_de2), t2);
+        ("(" ++ fst(ocaml_de1) ++ " " ++ fst(ocaml_de2) ++ ")", t2);
       } else {
         failwith("Exp: Apply, type inconsistent");
       }
@@ -184,9 +185,9 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
     let ocaml_d1 = extract(~ctx, ~de=d1);
     let ocaml_d2 = extract(~ctx, ~de=d2);
     switch (snd(ocaml_d2)) {
-    //can't determine type
+    //FIXME: will ever happen? test!
     | Hole => (
-        fst(ocaml_d1) ++ "::" ++ fst(ocaml_d2),
+        "(" ++ fst(ocaml_d1) ++ "::" ++ fst(ocaml_d2) ++ ")",
         List(snd(ocaml_d1)),
       )
     //d2 is already a list
@@ -226,6 +227,7 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
     | Case(de, rules, _) =>
       let ocaml_de = extract(~ctx, ~de);
       let ocaml_rules = rules_extract(~ctx, ~rules, ~pat_t=snd(ocaml_de));
+      //FIXME: Do we really need to indicate the type?
       let str =
         "((match ("
         ++ fst(ocaml_de)
@@ -264,54 +266,7 @@ and rule_extract = (~ctx: Contexts.t, ~rule: DHExp.rule, ~pat_t: HTyp.t): t =>
     let ocaml_dp = OCamlExtraction_Pat.extract(~dp);
     //we seems don't allow constructors as pattern
     //we should add the patterns into the context
-    let rec update_ctx = (dp: DHPat.t, ctx: Contexts.t): Contexts.t =>
-      switch (dp) {
-      | Var(x) => Contexts.extend_gamma(ctx, (x, pat_t))
-      | Inj(_, p) => update_ctx(p, ctx)
-      | Cons(p1, p2) =>
-        switch (pat_t) {
-        | List(t) =>
-          // only add variable into context
-          let ctx1 =
-            switch (p1) {
-            | Var(x) => Contexts.extend_gamma(ctx, (x, t))
-            | _ => ctx
-            };
-          switch (p2) {
-          | Var(y) => Contexts.extend_gamma(ctx1, (y, List(t)))
-          | _ => ctx1
-          };
-        | _ => failwith("Exp: Case wrong rule pattern, list")
-        }
-      //TODO: rewrite it more beautiful
-      | Pair(p1, p2) =>
-        switch (pat_t) {
-        | Prod([h, t]) =>
-          let ctx1 =
-            switch (p1) {
-            | Var(x) => Contexts.extend_gamma(ctx, (x, h))
-            | _ => ctx
-            };
-          switch (p2) {
-          | Var(y) => Contexts.extend_gamma(ctx1, (y, t))
-          | _ => ctx1
-          };
-        | Prod([h, m, ...t]) =>
-          let ctx1 =
-            switch (p1) {
-            | Var(x) => Contexts.extend_gamma(ctx, (x, h))
-            | _ => ctx
-            };
-          switch (p2) {
-          | Var(y) => Contexts.extend_gamma(ctx1, (y, Prod([m, ...t])))
-          | _ => ctx1
-          };
-        | _ => failwith("Exp: Case wrong rule pattern, pair")
-        }
-      | Ap(_, _) => failwith("Exp: Case rule error, apply")
-      | _ => ctx
-      };
-    let ctx' = update_ctx(dp, ctx);
+    let ctx' = OCamlExtraction_Pat.update_pattern(dp, pat_t, ctx);
     let ocaml_de = extract(~ctx=ctx', ~de);
     ("\t| " ++ ocaml_dp ++ " -> " ++ fst(ocaml_de), snd(ocaml_de));
   };
