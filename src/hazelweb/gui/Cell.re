@@ -7,6 +7,7 @@ module Sexp = Sexplib.Sexp;
 open ViewUtil;
 open Sexplib.Std;
 
+/** maps key combos to actions contextually, depending on cursor info */
 let kc_actions:
   Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
   [
@@ -71,47 +72,45 @@ let view = (~inject, model: Model.t) => {
         model.measurements.measurements
         && model.measurements.layoutOfDoc_layout_of_doc;
       let memoize_doc = model.memoize_doc;
-      let (code_view, ci_opt) =
-        if (Model.is_cell_focused(model)) {
-          let (cmap, ((caret_row, caret_col), _)) =
-            Program.get_cursor_map_z(
-              ~measure_program_get_doc,
-              ~measure_layoutOfDoc_layout_of_doc,
-              ~memoize_doc,
-              program,
-            );
-          let (cursor_row, cursor_col) =
-            CursorMap.find_beginning_of_token((caret_row, caret_col), cmap);
-          let cursor_x =
-            float_of_int(cursor_col) *. model.font_metrics.col_width;
-          let cursor_y =
-            float_of_int(cursor_row) *. model.font_metrics.row_height;
 
-          let code_view =
-            UHCode.view(
-              ~measure=
-                model.measurements.measurements
-                && model.measurements.uhcode_view,
-              ~inject,
-              ~font_metrics=model.font_metrics,
-              ~caret_pos=Some((caret_row, caret_col)),
-            );
-          let ci =
-            CursorInspector.view(~inject, model, (cursor_x, cursor_y));
-          (code_view, Some(ci));
-        } else {
-          (
-            UHCode.view(
-              ~measure=
-                model.measurements.measurements
-                && model.measurements.uhcode_view,
-              ~inject,
-              ~font_metrics=model.font_metrics,
-              ~caret_pos=None,
-            ),
-            None,
-          );
-        };
+      let (code_view, ci_opt) = {
+        let (caret_pos, ci_opt) =
+          if (Model.is_cell_focused(model)) {
+            let (cmap, (caret_pos, _)) =
+              Program.get_cursor_map_z(
+                ~measure_program_get_doc,
+                ~measure_layoutOfDoc_layout_of_doc,
+                ~memoize_doc,
+                program,
+              );
+
+            let (cursor_row, cursor_col) =
+              CursorMap.find_beginning_of_token(caret_pos, cmap);
+            let cursor_x =
+              float_of_int(cursor_col) *. model.font_metrics.col_width;
+            let cursor_y =
+              float_of_int(cursor_row) *. model.font_metrics.row_height;
+            let ci =
+              CursorInspector.view(~inject, model, (cursor_x, cursor_y));
+
+            (Some(caret_pos), Some(ci));
+          } else {
+            (None, None);
+          };
+
+        (
+          UHCode.view(
+            ~measure=
+              model.measurements.measurements && model.measurements.uhcode_view,
+            ~inject,
+            ~font_metrics=model.font_metrics,
+            ~caret_pos,
+          ),
+          ci_opt,
+        );
+      };
+
+      /* browser API to prevent event propagation up the DOM */
       let prevent_stop_inject = a =>
         Event.Many([
           Event.Prevent_default,
@@ -230,6 +229,7 @@ let view = (~inject, model: Model.t) => {
           ...key_handlers,
         ],
         [
+          /* font-specimen used to gather font metrics for caret positioning and other things */
           Node.div([Attr.id("font-specimen")], [Node.text("X")]),
           Node.div([Attr.id("code-container")], child_view),
         ],
