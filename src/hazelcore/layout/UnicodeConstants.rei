@@ -4,6 +4,7 @@ let castArrowSym: string;
 let typeN: string;
 let typeB: string;
 let user_newline: string;
+let inconsistent: string;
 let left_triangle: string;
 let right_triangle: string;
 let down_triangle: string;

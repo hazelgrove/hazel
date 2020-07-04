@@ -1,9 +1,126 @@
 module Vdom = Virtual_dom.Vdom;
+open Sexplib;
 
 type err_state_b =
   | TypeInconsistency
   | BindingError
   | OK;
+
+let rec advanced_summary = (typed: CursorInfo_common.typed) => {
+  print_endline(Sexp.to_string(CursorInfo_common.sexp_of_typed(typed)));
+  switch (typed) {
+  | Analyzed(ty)
+  | AnaAnnotatedLambda(ty, _)
+  | AnaSubsumed(ty, _)
+  | Synthesized(ty)
+  | PatAnalyzed(ty)
+  | PatAnaSubsumed(ty, _)
+  | PatSynthesized(ty) => [Vdom.Node.text(":"), HTypCode.view(ty)]
+  | AnaTypeInconsistent(expected_ty, got_ty)
+  | SynErrorArrow(expected_ty, got_ty)
+  | PatAnaTypeInconsistent(expected_ty, got_ty) => [
+      Vdom.Node.text(":"),
+      HTypCode.view(got_ty),
+      Vdom.Node.text(UnicodeConstants.inconsistent),
+      HTypCode.view(expected_ty),
+    ]
+  | AnaWrongLength(expected_len, got_len, _expected_ty)
+  | PatAnaWrongLength(expected_len, got_len, _expected_ty) => [
+      Vdom.Node.text("Tuple of Length " ++ string_of_int(got_len)),
+      Vdom.Node.text(UnicodeConstants.inconsistent),
+      Vdom.Node.text("Length " ++ string_of_int(expected_len)),
+    ]
+  | AnaInvalid(_)
+  | SynInvalid
+  | SynInvalidArrow(_)
+  | PatAnaInvalid(_) => [Vdom.Node.text("Invalid Text")]
+  | AnaFree(_)
+  | SynFree
+  | SynFreeArrow(_) => [Vdom.Node.text("Free Variable")]
+  | AnaKeyword(_, _)
+  | SynKeyword(_)
+  | SynKeywordArrow(_)
+  | PatAnaKeyword(_, _)
+  | PatSynKeyword(_) => [Vdom.Node.text("Reserved Keyword")]
+  | SynMatchingArrow(syn_ty, _) => [
+      HTypCode.view(syn_ty),
+      Vdom.Node.text(" Does Not Have a Function Type"),
+    ]
+  | SynBranchClause(join, typed, _) =>
+    switch (join, typed) {
+    | (JoinTy(ty), Synthesized(got_ty)) =>
+      if (HTyp.consistent(ty, got_ty)) {
+        [Vdom.Node.text(":"), HTypCode.view(ty)];
+      } else {
+        [
+          Vdom.Node.text(":"),
+          HTypCode.view(got_ty),
+          Vdom.Node.text(UnicodeConstants.inconsistent),
+          HTypCode.view(ty),
+        ];
+      }
+    | (InconsistentBranchTys(_), _) => [
+        Vdom.Node.text("Inconsistent Branch Types"),
+      ]
+    | _ => advanced_summary(typed)
+    }
+  | SynInconsistentBranches(_)
+  | SynInconsistentBranchesArrow(_) => [
+      Vdom.Node.text("Inconsistent Branch Types"),
+    ]
+  | OnType => [] /* TODO: Hannah maybe should use an option to not creat unnecessary elements*/
+  | OnLine => [Vdom.Node.text("Line")]
+  | OnRule => [Vdom.Node.text("Rule")]
+  };
+};
+
+let summary_bar =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      err_state_b: err_state_b,
+      ci: CursorInfo_common.t,
+      show_expanded_cursor_inspector: bool,
+    ) => {
+  let arrow =
+    if (show_expanded_cursor_inspector) {
+      Icons.down_arrow(["ci-arrow"]);
+    } else {
+      Icons.left_arrow(["ci-arrow"]);
+    };
+  let err_icon =
+    switch (err_state_b) {
+    | TypeInconsistency
+    | BindingError => Icons.x_circle
+    | OK => Icons.check_circle
+    };
+  let tag_type = TermTag.get_cursor_term_tag_typ(ci.cursor_term);
+  let term_tag = TermTag.term_tag_view(tag_type, []);
+  Vdom.(
+    Node.div(
+      [Attr.classes(["type-info-summary"])],
+      [
+        term_tag,
+        Vdom.Node.div(
+          [Vdom.Attr.classes(["type-info-summary"])],
+          advanced_summary(ci.typed),
+        ),
+        err_icon,
+        Node.div(
+          [
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                Event.Prevent_default,
+                Event.Stop_propagation,
+                inject(ModelAction.ToggleCursorInspectorView),
+              ])
+            ),
+          ],
+          [arrow],
+        ),
+      ],
+    )
+  );
+};
 
 let view =
     (
@@ -71,37 +188,6 @@ let view =
         [Node.text(msg)],
       )
     );
-
-  let summary_bar = (show_expanded_cursor_inspector: bool, is_err: bool) => {
-    let arrow =
-      if (show_expanded_cursor_inspector) {
-        Icons.down_arrow(["ci-arrow"]);
-      } else {
-        Icons.left_arrow(["ci-arrow"]);
-      };
-    let err_icon = if (is_err) {Icons.x_circle} else {Icons.check_circle};
-    Vdom.(
-      Node.div(
-        [Attr.classes(["title-bar", "type-info-summary"])],
-        [
-          Node.text("This is a concise message:D"),
-          err_icon,
-          Node.div(
-            [
-              Attr.on_click(_ =>
-                Vdom.Event.Many([
-                  Event.Prevent_default,
-                  Event.Stop_propagation,
-                  inject(ModelAction.ToggleCursorInspectorView),
-                ])
-              ),
-            ],
-            [arrow],
-          ),
-        ],
-      )
-    );
-  };
 
   let expected_indicator = (title_text, type_div) =>
     Vdom.(
@@ -389,11 +475,11 @@ let view =
 
   let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
-  let (cls_of_err_state_b, is_err) =
+  let cls_of_err_state_b =
     switch (err_state_b) {
-    | TypeInconsistency => ("cursor-TypeInconsistency", true)
-    | BindingError => ("cursor-BindingError", true)
-    | OK => ("cursor-OK", false)
+    | TypeInconsistency => "cursor-TypeInconsistency"
+    | BindingError => "cursor-BindingError"
+    | OK => "cursor-OK"
     };
   let (x, y) = loc;
   let pos_attr =
@@ -403,12 +489,18 @@ let view =
         Css_gen.top(`Px(int_of_float(y))),
       ),
     );
-  let summary_bar = summary_bar(model.show_expanded_cursor_inspector, is_err);
+  let summary =
+    summary_bar(
+      ~inject,
+      err_state_b,
+      ci,
+      model.show_expanded_cursor_inspector,
+    );
   let content =
     if (model.show_expanded_cursor_inspector) {
-      [summary_bar, ind1, ind2];
+      [summary, ind1, ind2];
     } else {
-      [summary_bar];
+      [summary];
     };
   Vdom.(
     Node.div(

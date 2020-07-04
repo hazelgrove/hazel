@@ -326,6 +326,10 @@ html, body {
 
 .type-info-summary {
   display: flex;
+  align-items: center;
+  color: white;
+  background-color: var(--title-bar-color);
+  padding: 5px;
 }
 
 .ci-arrow {
@@ -362,6 +366,23 @@ html, body {
 }
 
 .cursor-Keyword .titlebar {
+	background-color: #ce5f00;
+}
+
+/* TODO: Hannah maybe refactor these colors (if don't change them) */
+.cursor-OK .type-info-summary {
+  background-color: var(--title-bar-color);
+}
+
+.cursor-TypeInconsistency .type-info-summary {
+  background-color: #8e0000;
+}
+
+.cursor-BindingError .type-info-summary {
+  background-color: #ce5f00;
+}
+
+.cursor-Keyword .type-info-summary {
 	background-color: #ce5f00;
 }
 
@@ -1512,27 +1533,9 @@ h1 {
 }
 
 .history-type-tag{
-  display: inline;
-  margin-right:10px;
-  padding:5px;
   float: left;
-}
-
-.term-tag {
-  border-radius: 10%;
-  color: black;
-  font-size: 11px;
-  font-weight: bolder;
-}
-
-.term-tag-typ{
-  background-color:rgb(233, 221, 253);
-}
-.term-tag-pat{
-  background-color:#baf1fe;
-}
-.term-tag-exp{
-  background-color:rgb(197, 253, 197);
+  margin-right:10px;
+  display: inline;
 }
 
 .the-prev-history {
@@ -1660,4 +1663,23 @@ h1 {
 }
 .panel-code-font{
   font-family: var(--code-font-family);
+}
+
+/* term tags */
+.term-tag {
+  padding:5px;
+  border-radius: 10%;
+  color: black;
+  font-size: 11px;
+  font-weight: bolder;
+}
+
+.term-tag-typ{
+  background-color:rgb(233, 221, 253);
+}
+.term-tag-pat{
+  background-color:#baf1fe;
+}
+.term-tag-exp{
+  background-color:rgb(197, 253, 197);
 }
