@@ -15,7 +15,8 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
   | Synthesized(ty)
   | PatAnalyzed(ty)
   | PatAnaSubsumed(ty, _)
-  | PatSynthesized(ty) => [Vdom.Node.text(":"), HTypCode.view(ty)]
+  | PatSynthesized(ty)
+  | SynMatchingArrow(_, ty) => [Vdom.Node.text(":"), HTypCode.view(ty)]
   | AnaTypeInconsistent(expected_ty, got_ty)
   | SynErrorArrow(expected_ty, got_ty)
   | PatAnaTypeInconsistent(expected_ty, got_ty) => [
@@ -26,9 +27,9 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
     ]
   | AnaWrongLength(expected_len, got_len, _expected_ty)
   | PatAnaWrongLength(expected_len, got_len, _expected_ty) => [
-      Vdom.Node.text("Tuple of Length " ++ string_of_int(got_len)),
+      Vdom.Node.text(string_of_int(got_len) ++ "-tuple"),
       Vdom.Node.text(UnicodeConstants.inconsistent),
-      Vdom.Node.text("Length " ++ string_of_int(expected_len)),
+      Vdom.Node.text(string_of_int(expected_len) ++ "-tuple"),
     ]
   | AnaInvalid(_)
   | SynInvalid
@@ -42,10 +43,6 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
   | SynKeywordArrow(_)
   | PatAnaKeyword(_, _)
   | PatSynKeyword(_) => [Vdom.Node.text("Reserved Keyword")]
-  | SynMatchingArrow(syn_ty, _) => [
-      HTypCode.view(syn_ty),
-      Vdom.Node.text(" Does Not Have a Function Type"),
-    ]
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
