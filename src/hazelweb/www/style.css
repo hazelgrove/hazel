@@ -1513,21 +1513,25 @@ h1 {
 
 .history-type-tag{
   display: inline;
-  border-radius: 10%;
-  color: black;
   margin-right:10px;
-  font-size: 11px;
   padding:5px;
-  font-weight: bolder;
   float: left;
 }
-.history-type-tag-typ{
+
+.term-tag {
+  border-radius: 10%;
+  color: black;
+  font-size: 11px;
+  font-weight: bolder;
+}
+
+.term-tag-typ{
   background-color:rgb(233, 221, 253);
 }
-.history-type-tag-pat{
+.term-tag-pat{
   background-color:#baf1fe;
 }
-.history-type-tag-exp{
+.term-tag-exp{
   background-color:rgb(197, 253, 197);
 }
 
