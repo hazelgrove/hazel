@@ -1103,7 +1103,8 @@ h1 {
 
 .code-err-hole {
   stroke: red;
-  stroke-dasharray: 3 2;
+  stroke-dasharray: 0.3 0.2;
+  stroke-width: 0.1;
 }
 
 .Cursor .Tessera {
