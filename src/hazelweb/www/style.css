@@ -326,7 +326,7 @@ html, body {
 
 .type-info-summary {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   color: white;
   background-color: var(--title-bar-color);
   padding: 5px;
