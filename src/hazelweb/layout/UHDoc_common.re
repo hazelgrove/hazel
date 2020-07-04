@@ -235,12 +235,14 @@ let pad_left_delimited_child =
   };
 };
 
-let mk_Unit = (): t => Delim.mk(~index=0, "()") |> annot_Operand(~sort=Typ);
+let mk_Unit = (): t =>
+  Delim.mk(~index=0, "()") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (): t =>
-  Delim.mk(~index=0, "Bool") |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, "Bool") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
-let mk_Int = (): t => Delim.mk(~index=0, "Int") |> annot_Operand(~sort=Typ);
+let mk_Int = (): t =>
+  Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Float = (): t =>
   Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
@@ -253,7 +255,7 @@ let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Wild = (~err: ErrStatus.t): t =>
-  Delim.mk(~index=0, "_") |> annot_Operand(~sort=Pat, ~err);
+  Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort=Pat, ~err);
 
 let mk_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
@@ -263,13 +265,13 @@ let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
   mk_text(n) |> annot_Operand(~sort, ~err);
 
 let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
-  mk_text(f) |> annot_Operand(~sort, ~err);
+  mk_text(f) |> annot_Tessera |> annot_Operand(~sort, ~err);
 
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
-  mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
+  mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort, ~err);
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
-  Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);
+  Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort, ~err);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;

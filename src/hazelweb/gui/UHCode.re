@@ -205,9 +205,9 @@ module Dec = {
     let buffered_height = Float.of_int(num_rows) *. font_metrics.row_height;
 
     let num_cols =
-      subject.metrics
+      List.tl(subject.metrics)
       |> List.map((box: MeasuredLayout.box) => box.width)
-      |> List.fold_left(max, 0);
+      |> List.fold_left(max, offset + List.hd(subject.metrics).width);
     let buffered_width = Float.of_int(num_cols) *. font_metrics.col_width;
 
     let corner_radii = (
@@ -237,7 +237,7 @@ module Dec = {
           Attr.create(
             "style",
             Printf.sprintf(
-              "top: %fpx;left: %fpx;",
+              "top: %fpx; left: %fpx;",
               Float.of_int(origin.row) *. font_metrics.row_height,
               Float.of_int(origin.col) *. font_metrics.col_width,
             ),
