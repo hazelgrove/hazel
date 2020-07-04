@@ -217,7 +217,7 @@ let mk_svg =
     Printf.sprintf(
       "M %f %f ",
       (start.src.x +. start.dst.x) *. 0.5,
-      (start.src.y +. start.dst.x) *. 0.5,
+      (start.src.y +. start.dst.y) *. 0.5,
     ),
   );
   path
