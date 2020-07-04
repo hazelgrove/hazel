@@ -23,15 +23,26 @@ let take_step = (step: int, decorations: t): t => {
   {err_holes, current_term};
 };
 
-let current = (decorations: t): list(Decoration.t) => {
+let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
+  let is_current = steps =>
+    switch (term_shape) {
+    | SubBlock({hd_index, _}) => steps == [hd_index]
+    | NTuple({comma_indices, _}) =>
+      List.exists(n => steps == [n], comma_indices)
+    | BinOp({op_index, _}) => steps == [op_index]
+    | Operand(_)
+    | Case(_)
+    | Rule
+    | Var(_) => steps == []
+    };
   let err_holes =
     decorations.err_holes
-    |> List.find_opt((==)([]))
+    |> List.find_opt(is_current)
     |> Option.map(_ => Decoration.ErrHole)
     |> Option.to_list;
   let current_term =
     switch (decorations.current_term) {
-    | Some(([], cursor)) => [Decoration.CurrentTerm(cursor)]
+    | Some((steps, _)) when is_current(steps) => [Decoration.CurrentTerm]
     | _ => []
     };
   List.concat([err_holes, current_term]);
