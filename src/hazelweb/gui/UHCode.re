@@ -218,13 +218,13 @@ module Dec = {
     let v =
       switch (d) {
       | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
-      | CurrentTerm(_) => current_term_view(~corner_radii, ~offset, subject)
+      | CurrentTerm => current_term_view(~corner_radii, ~offset, subject)
       };
 
     let cls =
       switch (d) {
       | ErrHole => "err-hole"
-      | CurrentTerm(_) => "current-term"
+      | CurrentTerm => "current-term"
       };
 
     Vdom.(
@@ -367,9 +367,9 @@ let decoration_views =
       | Step(step) =>
         let stepped = Decorations.take_step(step, ds);
         Decorations.is_empty(stepped) ? tl : go'(~tl, stepped, m);
-      | Term(_) =>
+      | Term({shape, _}) =>
         let current_vs =
-          Decorations.current(ds)
+          Decorations.current(shape, ds)
           |> List.map(
                Dec.view(
                  ~font_metrics,
@@ -518,6 +518,7 @@ let view =
       let code_text = go(Box.mk(l));
 
       let ds = Program.get_decorations(program);
+      print_endline(Sexplib.Sexp.to_string_hum(Decorations.sexp_of_t(ds)));
       let decorations = decoration_views(~font_metrics, ds, l);
 
       let key_handlers =
