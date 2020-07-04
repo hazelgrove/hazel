@@ -2795,10 +2795,23 @@ module Exp = {
     | (
         _,
         CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
-        CursorL(OnText(_) | OnOp(_), AbbrevLine(_) | LetLine(_)) |
+        CursorL(OnText(_) | OnOp(_), LetLine(_)) |
+        CursorL(OnOp(_), AbbrevLine(_)) |
         CursorL(_, ExpLine(_)),
       ) =>
       Failed
+    | (
+        Construct(SChar(s)),
+        CursorL(OnText(j), AbbrevLine(lln_new, err_status, lln_old, args)),
+      ) =>
+      let lln_new = lln_new |> StringUtil.insert(j, s);
+      let new_ze =
+        ZExp.CursorL(
+          OnText(j + String.length(s)),
+          AbbrevLine(lln_new, err_status, lln_old, args),
+        );
+      fix_and_mk_result(u_gen, ([], new_ze, []));
+    | (_, CursorL(OnText(_), AbbrevLine(_))) => Failed
     | (_, CursorL(cursor, line))
         when !ZExp.is_valid_cursor_line(cursor, line) =>
       Failed

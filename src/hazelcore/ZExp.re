@@ -422,18 +422,8 @@ and erase_zline =
   fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
-  | AbbrevLineZL(lln_new, err_status, zopseq) => {
-      let OpSeq(_, seq) = erase_zopseq(zopseq);
-      switch (Seq.operands(seq)) {
-      | [
-          ApLivelit(_, _, lln_old, _, _) | FreeLivelit(_, lln_old) |
-          Var(_, _, lln_old),
-          ...args,
-        ] =>
-        AbbrevLine(lln_new, err_status, lln_old, args)
-      | args => AbbrevLine(lln_new, err_status, "$", args)
-      };
-    }
+  | AbbrevLineZL(lln_new, err_status, zopseq) =>
+    _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, zopseq)
   | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
   | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
   | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
@@ -463,34 +453,28 @@ and erase_zrule =
   fun
   | CursorR(_, rule) => rule
   | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
-  | RuleZE(p, zclause) => Rule(p, erase(zclause));
-
-let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
-
-let _AbbrevLineZL_of_AbbrevLine =
+  | RuleZE(p, zclause) => Rule(p, erase(zclause))
+and _AbbrevLineZL_of_AbbrevLine =
     (~place_before, lln_new, err_status, lln_old, args) => {
   let zopseq =
     LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
     |> (place_before ? place_before_opseq : place_after_opseq);
   AbbrevLineZL(lln_new, err_status, zopseq);
-};
-
-let _AbbrevLine_of_AbbrevLineZL = (lln_new, err_status, zopseq) => {
-  let OpSeq.OpSeq(_, seq) = erase_zopseq(zopseq);
+}
+and _AbbrevLine_of_AbbrevLineZL = (lln_new, err_status, zopseq) => {
+  let OpSeq(_, seq) = erase_zopseq(zopseq);
   switch (Seq.operands(seq)) {
-  | [UHExp.Var(_, _, lln_old), ...args] =>
-    UHExp.AbbrevLine(lln_new, err_status, lln_old, args)
-  | _ =>
-    failwith(
-      "Unexpected form for AbbrevLine zopseq: "
-      ++ (
-        seq
-        |> Seq.sexp_of_t(UHExp.sexp_of_operand, UHExp.sexp_of_operator)
-        |> Sexplib.Sexp.to_string
-      ),
-    )
+  | [
+      ApLivelit(_, _, lln_old, _, _) | FreeLivelit(_, lln_old) |
+      Var(_, _, lln_old),
+      ...args,
+    ] =>
+    AbbrevLine(lln_new, err_status, lln_old, args)
+  | args => AbbrevLine(lln_new, err_status, "$", args)
   };
 };
+
+let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
 let mk_ZOpSeq =
   ZOpSeq.mk(~associate=UHExp.associate, ~erase_zoperand, ~erase_zoperator);
