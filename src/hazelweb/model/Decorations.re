@@ -42,7 +42,9 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
     |> Option.to_list;
   let current_term =
     switch (decorations.current_term) {
-    | Some((steps, _)) when is_current(steps) => [Decoration.CurrentTerm]
+    | Some((steps, _)) when is_current(steps) => [
+        Decoration.CurrentTerm(term_shape),
+      ]
     | _ => []
     };
   List.concat([err_holes, current_term]);

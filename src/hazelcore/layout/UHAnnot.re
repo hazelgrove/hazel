@@ -27,7 +27,10 @@ type t =
   | Token(token_data)
   | SpaceOp
   | UserNewline
-  | OpenChild({is_inline: bool})
+  | OpenChild({
+      is_inline: bool,
+      is_enclosed: bool,
+    })
   | ClosedChild({is_inline: bool})
   | Tessera
   | EmptyLine
@@ -41,7 +44,7 @@ let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});
-let mk_OpenChild = (~is_inline: bool, ()) =>
-  OpenChild({is_inline: is_inline});
+let mk_OpenChild = (~is_enclosed=true, ~is_inline: bool, ()) =>
+  OpenChild({is_inline, is_enclosed});
 let mk_ClosedChild = (~is_inline: bool, ()) =>
   ClosedChild({is_inline: is_inline});
