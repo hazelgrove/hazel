@@ -225,7 +225,7 @@ let mk_svg =
        prev.next = Some(h);
      });
 
-  let start = List.hd(vertical_contour_edges);
+  let start = List.hd(merged_vertical_contour_edges);
   let rec build_path = (edge: linked_edge): list(cmd) => {
     switch (edge.next) {
     | None => failwith("expected single cycle")
