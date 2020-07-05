@@ -45,6 +45,10 @@
   --inline-border-z: 3;
   --child-z: 4;
   --caret-z: 5;
+
+  --current-term-z: 0;
+  --err-hole-zz: 1;
+  --code-text-z: 2;
 }
 
 /* general */
@@ -829,8 +833,21 @@ h1 {
   position: relative;
 }
 
+#code-root .code {
+  z-index: var(--code-text-z);
+}
 #code-root .decoration-container {
   position: absolute;
+}
+#code-root .err-hole-container {
+  z-index: var(--err-hole-zz);
+}
+#code-root .current-term-container {
+  z-index: var(--current-term-z);
+}
+
+#code-root .current-term {
+  fill: var(--exp-bg-color);
 }
 
 .DHCode .Align {
