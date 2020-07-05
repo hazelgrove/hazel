@@ -8,23 +8,36 @@ module Dec = {
   type rects = list(RectilinearPolygon.rect);
 
   let rects =
-      (~indent=0, start: CaretPosition.t, m: MeasuredLayout.t)
+      (~vtrim=0.0, ~indent=0, start: CaretPosition.t, m: MeasuredLayout.t)
       : (CaretPosition.t, list(RectilinearPolygon.rect)) => {
-    let mk_rect = (start: CaretPosition.t, box: MeasuredLayout.box) =>
+    let mk_rect =
+        (
+          ~is_first=false,
+          ~is_last=false,
+          start: CaretPosition.t,
+          box: MeasuredLayout.box,
+        ) =>
       RectilinearPolygon.{
         min: {
           x: Float.of_int(start.col),
-          y: Float.of_int(start.row),
+          y: Float.of_int(start.row) +. (is_first ? vtrim : 0.0),
         },
         width: Float.of_int(box.width),
-        height: Float.of_int(box.height),
+        height:
+          Float.of_int(box.height)
+          -. (is_first ? vtrim : 0.0)
+          -. (is_last ? vtrim : 0.0),
       };
     let (leading, last) = ListUtil.split_last(m.metrics);
     let (last_start, leading_rects) =
       leading
+      |> List.mapi((i, box) => (i, box))
       |> ListUtil.map_with_accumulator(
-           (start: CaretPosition.t, box: MeasuredLayout.box) =>
-             ({row: start.row + box.height, col: 0}, mk_rect(start, box)),
+           (start: CaretPosition.t, (i, box: MeasuredLayout.box)) =>
+             (
+               {row: start.row + box.height, col: 0},
+               mk_rect(~is_first=i == 0, start, box),
+             ),
            start,
          );
     let end_: CaretPosition.t = {
@@ -38,7 +51,8 @@ module Dec = {
           }
         ),
     };
-    let last_rect = mk_rect(last_start, last);
+    let last_rect =
+      mk_rect(~is_first=leading == [], ~is_last=true, last_start, last);
     (end_, leading_rects @ [last_rect]);
   };
 
@@ -71,7 +85,7 @@ module Dec = {
                   (word_start, word: MeasuredLayout.t) => {
                     switch (word) {
                     | {layout: Annot(ClosedChild(_), m), _} =>
-                      let (word_end, rs) = rects(word_start, m);
+                      let (word_end, rs) = rects(~vtrim=0.1, word_start, m);
                       (word_end, rs);
                     | _ => (
                         MeasuredLayout.next_position(
