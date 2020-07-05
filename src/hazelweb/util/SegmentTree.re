@@ -117,7 +117,7 @@ let contribution = ((a: float, b: float), tree: t): list((float, float)) => {
     let (a', b') = node.interval;
     switch (node.status) {
     | Full => stack
-    | Empty when a <= a' && b' <= b' =>
+    | Empty when a <= a' && b' <= b =>
       // merge continuous segments
       switch (stack) {
       | [(a'', b''), ...rest] when a' == b'' => [(a'', b'), ...rest]
