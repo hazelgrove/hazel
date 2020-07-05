@@ -58,7 +58,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   | Or => BoolLit(b1 || b2)
   };
 
-let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
+let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t =>
   switch (op) {
   | Minus => IntLit(n1 - n2)
   | Plus => IntLit(n1 + n2)
@@ -68,10 +68,9 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   | GreaterThan => BoolLit(n1 > n2)
   | Equals => BoolLit(n1 == n2)
   };
-};
 
 let eval_bin_float_op =
-    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
+    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t =>
   switch (op) {
   | FPlus => FloatLit(f1 +. f2)
   | FMinus => FloatLit(f1 -. f2)
@@ -81,7 +80,6 @@ let eval_bin_float_op =
   | FGreaterThan => BoolLit(f1 > f2)
   | FEquals => BoolLit(f1 == f2)
   };
-};
 
 let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
   switch (op) {

@@ -269,7 +269,7 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : option(Statics_common.type_mode) => {
+    : option(Statics_common.type_mode) =>
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
@@ -282,8 +282,7 @@ and ana_nth_type_mode =
            && n <= Skel.rightmost_tm_index(skel)
          );
     ana_nth_type_mode'(ctx, n, nskel, seq, nty);
-  };
-}
+  }
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
     : option(Statics_common.type_mode) => {
@@ -470,7 +469,7 @@ and ana_fix_holes_opseq =
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : (UHPat.opseq, Contexts.t, MetaVarGen.t) => {
+    : (UHPat.opseq, Contexts.t, MetaVarGen.t) =>
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -559,8 +558,7 @@ and ana_fix_holes_opseq =
         u_gen,
       );
     }
-  };
-}
+  }
 and ana_fix_holes_skel =
     (
       ctx: Contexts.t,
