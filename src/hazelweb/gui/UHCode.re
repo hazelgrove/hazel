@@ -142,7 +142,7 @@ module Dec = {
           y: Float.of_int(start.row),
         },
         height: Float.of_int(MeasuredLayout.height(m)),
-        width: 0.1 // TODO
+        width: 0.25 // TODO
       },
     ];
   };
@@ -320,7 +320,7 @@ module Dec = {
 
   let view =
       (
-        ~corner_radius=3.0, // px
+        ~corner_radius=2.5, // px
         ~font_metrics: FontMetrics.t,
         // TODO document
         ~origin: CaretPosition.t,
