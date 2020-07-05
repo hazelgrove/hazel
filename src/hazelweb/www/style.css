@@ -832,6 +832,9 @@ h1 {
 #code-root {
   position: relative;
 }
+#code-root:focus {
+  outline: none;
+}
 
 #code-root .code {
   z-index: var(--code-text-z);
