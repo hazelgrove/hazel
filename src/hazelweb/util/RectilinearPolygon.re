@@ -162,30 +162,60 @@ let mk_svg =
     |> snd
     |> List.flatten;
 
-  let merged_vertical_contour_edges =
-    vertical_contour_edges
-    |> List.sort((v1, v2) =>
-         if (v1.src.x < v2.src.x) {
-           (-1);
-         } else if (v1.src.x > v2.src.x) {
-           1;
-         } else {
-           Float.compare(v2.src.y, v1.src.y);
-         }
-       )
-    |> List.fold_left(
-         (stack, v) =>
-           switch (stack) {
-           | [] => [v]
-           | [hd, ...tl] as stack =>
-             if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
-               [{...hd, dst: v.dst}, ...tl];
-             } else {
-               [v, ...stack];
-             }
-           },
-         [],
-       );
+  // TODO figure out if there's a cleaner + more efficient method for this pass
+  let merged_vertical_contour_edges = {
+    let (left_edges, right_edges) =
+      List.partition(edge => edge.src.y > edge.dst.y, vertical_contour_edges);
+    let merged_left_edges =
+      left_edges
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             (-1) * Float.compare(v1.src.y, v2.src.y);
+           }
+         )
+      |> List.fold_left(
+           (stack, v) =>
+             switch (stack) {
+             | [] => [v]
+             | [hd, ...tl] as stack =>
+               if (v.src.x == hd.dst.x && v.src.y >= hd.dst.y) {
+                 [{...hd, dst: v.dst}, ...tl];
+               } else {
+                 [v, ...stack];
+               }
+             },
+           [],
+         );
+    let merged_right_edges =
+      right_edges
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             Float.compare(v1.src.y, v2.src.y);
+           }
+         )
+      |> List.fold_left(
+           (stack, v) =>
+             switch (stack) {
+             | [] => [v]
+             | [hd, ...tl] as stack =>
+               if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
+                 [{...hd, dst: v.dst}, ...tl];
+               } else {
+                 [v, ...stack];
+               }
+             },
+           [],
+         );
+    merged_left_edges @ merged_right_edges;
+  };
 
   merged_vertical_contour_edges
   |> List.map(v => [(false, v), (true, v)])
