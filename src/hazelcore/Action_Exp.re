@@ -605,7 +605,7 @@ let rec syn_perform =
           a: Action_common.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
-        : ActionOutcome.t(syn_done) => {
+        : ActionOutcome.t(syn_done) =>
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
@@ -620,8 +620,7 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  };
-}
+  }
 and syn_perform_block =
     (
       ctx: Contexts.t,
@@ -1364,7 +1363,7 @@ and syn_perform_operand =
       a: Action_common.t,
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
-    : ActionOutcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1378,8 +1377,8 @@ and syn_perform_operand =
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
-        ApPalette(_) |
-        Subscript(_),
+        Subscript(_) |
+        ApPalette(_),
       ) |
       CursorE(OnOp(_), StringLit(_)),
     ) =>
@@ -1510,32 +1509,32 @@ and syn_perform_operand =
 
   | (
       Backspace,
-      CursorE(OnDelim(k, After), Subscript(_, body1, body2, body3)),
+      CursorE(OnDelim(k, After), Subscript(_, target, start_, end_)),
     ) =>
     let option_op1 =
-      switch (UHExp.find_operand(body1)) {
+      switch (UHExp.find_operand(target)) {
       | Some(op1) =>
-        UHExp.Block.wrap(op1) == body1
-          ? Some(op1) : Some(Parenthesized(body1))
+        UHExp.Block.wrap(op1) == target
+          ? Some(op1) : Some(Parenthesized(target))
       | _ => None
       };
     let option_op2 =
-      switch (UHExp.find_operand(body2)) {
+      switch (UHExp.find_operand(start_)) {
       | Some(op2) =>
-        UHExp.Block.wrap(op2) == body2
-          ? Some(op2) : Some(Parenthesized(body2))
+        UHExp.Block.wrap(op2) == start_
+          ? Some(op2) : Some(Parenthesized(start_))
       | _ => None
       };
     let option_op3 =
-      switch (UHExp.find_operand(body3)) {
+      switch (UHExp.find_operand(end_)) {
       | Some(op3) =>
-        UHExp.Block.wrap(op3) == body3
-          ? Some(op3) : Some(Parenthesized(body3))
+        UHExp.Block.wrap(op3) == end_
+          ? Some(op3) : Some(Parenthesized(end_))
       | _ => None
       };
     switch (option_op2, option_op3) {
     | (Some(EmptyHole(_)), Some(EmptyHole(_))) =>
-      let new_ze = body1 |> ZExp.place_after;
+      let new_ze = target |> ZExp.place_after;
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Some(EmptyHole(_)), _) =>
       switch (k) {
@@ -2066,24 +2065,6 @@ and syn_perform_operand =
       };
     | _ => Failed /* should never happen */
     }
-  | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
-  /* TODO let (next_lbl, z_nat_map) = z_hole_data;
-     let (rest_map, z_data) = z_nat_map;
-     let (cell_lbl, cell_data) = z_data;
-     let (cell_ty, cell_ze) = cell_data;
-     switch (ana_perform_operand(ctx, a, (cell_ze, u_gen), cell_ty)) {
-     | Failed => Failed
-          | Succeeded((cell_ze', u_gen')) =>
-       let z_hole_data' = (
-         next_lbl,
-         (rest_map, (cell_lbl, (cell_ty, cell_ze'))),
-       );
-       Succeeded((
-         ApPaletteZ(NotInHole, name, serialized_model, z_hole_data'),
-         ty,
-         u_gen',
-       ));
-     }; */
   | (_, CaseZE(_, zscrut, rules)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zscrut))) {
     | None => Failed
@@ -2149,8 +2130,8 @@ and syn_perform_operand =
       }
     }
 
-  | (_, SubscriptZE1(_, zbody1, body2, body3)) =>
-    switch (ana_perform(ctx, a, (zbody1, u_gen), String)) {
+  | (_, SubscriptZE1(_, ztarget, start_, end_)) =>
+    switch (ana_perform(ctx, a, (ztarget, u_gen), String)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2158,8 +2139,8 @@ and syn_perform_operand =
         Action_common.escape(side),
         (zoperand, ty, u_gen),
       )
-    | Succeeded((zbody1, u_gen)) =>
-      switch (ZExp.is_opseq(zbody1)) {
+    | Succeeded((ztarget, u_gen)) =>
+      switch (ZExp.is_opseq(ztarget)) {
       | Some(ZOperator(zoperator, (prefix, suffix))) =>
         switch (suffix) {
         | S(operand, affix) =>
@@ -2167,8 +2148,8 @@ and syn_perform_operand =
             UHExp.Subscript(
               NotInHole,
               UHExp.Block.wrap(operand),
-              body2,
-              body3,
+              start_,
+              end_,
             );
           let new_zopseq =
             ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
@@ -2183,20 +2164,20 @@ and syn_perform_operand =
           ZExp.SubscriptZE1(
             NotInHole,
             ZExp.ZBlock.wrap(zoperand),
-            body2,
-            body3,
+            start_,
+            end_,
           );
         let new_zopseq = ZExp.mk_ZOpSeq(ZOperand(e, (prefix, suffix)));
         let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       | _ =>
         let new_ze =
-          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
+          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, ztarget, start_, end_));
         Succeeded(SynDone((new_ze, ty, u_gen)));
       }
     }
-  | (_, SubscriptZE2(_, body1, zbody2, body3)) =>
-    switch (ana_perform(ctx, a, (zbody2, u_gen), Int)) {
+  | (_, SubscriptZE2(_, target, zstart_, end_)) =>
+    switch (ana_perform(ctx, a, (zstart_, u_gen), Int)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2204,13 +2185,13 @@ and syn_perform_operand =
         Action_common.escape(side),
         (zoperand, ty, u_gen),
       )
-    | Succeeded((zbody2, u_gen)) =>
+    | Succeeded((zstart_, u_gen)) =>
       let new_ze =
-        ZExp.ZBlock.wrap(SubscriptZE2(NotInHole, body1, zbody2, body3));
+        ZExp.ZBlock.wrap(SubscriptZE2(NotInHole, target, zstart_, end_));
       Succeeded(SynDone((new_ze, ty, u_gen)));
     }
-  | (_, SubscriptZE3(_, body1, body2, zbody3)) =>
-    switch (ana_perform(ctx, a, (zbody3, u_gen), Int)) {
+  | (_, SubscriptZE3(_, target, start_, zend_)) =>
+    switch (ana_perform(ctx, a, (zend_, u_gen), Int)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2218,16 +2199,33 @@ and syn_perform_operand =
         Action_common.escape(side),
         (zoperand, ty, u_gen),
       )
-    | Succeeded((zbody3, u_gen)) =>
+    | Succeeded((zend_, u_gen)) =>
       let new_ze =
-        ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, body1, body2, zbody3));
+        ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, target, start_, zend_));
       Succeeded(SynDone((new_ze, ty, u_gen)));
     }
+  | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
+  /* TODO let (next_lbl, z_nat_map) = z_hole_data;
+     let (rest_map, z_data) = z_nat_map;
+     let (cell_lbl, cell_data) = z_data;
+     let (cell_ty, cell_ze) = cell_data;
+     switch (ana_perform_operand(ctx, a, (cell_ze, u_gen), cell_ty)) {
+     | Failed => Failed
+          | Succeeded((cell_ze', u_gen')) =>
+       let z_hole_data' = (
+         next_lbl,
+         (rest_map, (cell_lbl, (cell_ty, cell_ze'))),
+       );
+       Succeeded((
+         ApPaletteZ(NotInHole, name, serialized_model, z_hole_data'),
+         ty,
+         u_gen',
+       ));
+     }; */
   | (Construct(SLeftBracket), _) => Failed
 
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 and syn_perform_rules =
     (
       ctx: Contexts.t,
@@ -3098,8 +3096,8 @@ and ana_perform_operand =
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
-        ApPalette(_) |
-        Subscript(_),
+        Subscript(_) |
+        ApPalette(_),
       ) |
       CursorE(OnOp(_), StringLit(_)),
     ) =>
@@ -3316,33 +3314,33 @@ and ana_perform_operand =
 
   | (
       Backspace,
-      CursorE(OnDelim(k, After), Subscript(_, body1, body2, body3)),
+      CursorE(OnDelim(k, After), Subscript(_, target, start_, end_)),
     ) =>
     let option_op1 =
-      switch (UHExp.find_operand(body1)) {
+      switch (UHExp.find_operand(target)) {
       | Some(op1) =>
-        UHExp.Block.wrap(op1) == body1
-          ? Some(op1) : Some(Parenthesized(body1))
+        UHExp.Block.wrap(op1) == target
+          ? Some(op1) : Some(Parenthesized(target))
       | _ => None
       };
     let option_op2 =
-      switch (UHExp.find_operand(body2)) {
+      switch (UHExp.find_operand(start_)) {
       | Some(op2) =>
-        UHExp.Block.wrap(op2) == body2
-          ? Some(op2) : Some(Parenthesized(body2))
+        UHExp.Block.wrap(op2) == start_
+          ? Some(op2) : Some(Parenthesized(start_))
       | _ => None
       };
     let option_op3 =
-      switch (UHExp.find_operand(body3)) {
+      switch (UHExp.find_operand(end_)) {
       | Some(op3) =>
-        UHExp.Block.wrap(op3) == body3
-          ? Some(op3) : Some(Parenthesized(body3))
+        UHExp.Block.wrap(op3) == end_
+          ? Some(op3) : Some(Parenthesized(end_))
       | _ => None
       };
     switch (option_op2, option_op3) {
     | (Some(EmptyHole(_)), _)
     | (_, Some(EmptyHole(_))) =>
-      let new_ze = body1 |> ZExp.place_after;
+      let new_ze = target |> ZExp.place_after;
       Succeeded(AnaDone((new_ze, u_gen)));
     | (_, _) =>
       switch (k) {
@@ -3355,7 +3353,7 @@ and ana_perform_operand =
               ZOperand(ze, (E, A(Space, S(op2, A(Space, S(op3, E)))))),
             );
           let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
-          /* let new_ze = body1 |> ZExp.place_after; */
+          /* let new_ze = target |> ZExp.place_after; */
           Succeeded(
             AnaDone(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, String)),
           );
@@ -3823,8 +3821,8 @@ and ana_perform_operand =
       }
     }
 
-  | (_, SubscriptZE1(_, zbody1, body2, body3)) =>
-    switch (ana_perform(ctx, a, (zbody1, u_gen), String)) {
+  | (_, SubscriptZE1(_, ztarget, start_, end_)) =>
+    switch (ana_perform(ctx, a, (ztarget, u_gen), String)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -3833,8 +3831,8 @@ and ana_perform_operand =
         (zoperand, u_gen),
         ty,
       )
-    | Succeeded((zbody1, u_gen)) =>
-      switch (ZExp.is_opseq(zbody1)) {
+    | Succeeded((ztarget, u_gen)) =>
+      switch (ZExp.is_opseq(ztarget)) {
       | Some(ZOperator(zoperator, (prefix, suffix))) =>
         switch (suffix) {
         | S(operand, affix) =>
@@ -3842,8 +3840,8 @@ and ana_perform_operand =
             UHExp.Subscript(
               NotInHole,
               UHExp.Block.wrap(operand),
-              body2,
-              body3,
+              start_,
+              end_,
             );
           let new_zopseq =
             ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
@@ -3854,12 +3852,12 @@ and ana_perform_operand =
         }
       | _ =>
         let new_ze =
-          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, zbody1, body2, body3));
+          ZExp.ZBlock.wrap(SubscriptZE1(NotInHole, ztarget, start_, end_));
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }
-  | (_, SubscriptZE2(_, body1, zbody2, body3)) =>
-    switch (ana_perform(ctx, a, (zbody2, u_gen), Int)) {
+  | (_, SubscriptZE2(_, target, zstart_, end_)) =>
+    switch (ana_perform(ctx, a, (zstart_, u_gen), Int)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -3868,13 +3866,13 @@ and ana_perform_operand =
         (zoperand, u_gen),
         ty,
       )
-    | Succeeded((zbody2, u_gen)) =>
+    | Succeeded((zstart_, u_gen)) =>
       let new_ze =
-        ZExp.ZBlock.wrap(SubscriptZE2(NotInHole, body1, zbody2, body3));
+        ZExp.ZBlock.wrap(SubscriptZE2(NotInHole, target, zstart_, end_));
       Succeeded(AnaDone((new_ze, u_gen)));
     }
-  | (_, SubscriptZE3(_, body1, body2, zbody3)) =>
-    switch (ana_perform(ctx, a, (zbody3, u_gen), Int)) {
+  | (_, SubscriptZE3(_, target, start_, zend_)) =>
+    switch (ana_perform(ctx, a, (zend_, u_gen), Int)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -3883,9 +3881,9 @@ and ana_perform_operand =
         (zoperand, u_gen),
         ty,
       )
-    | Succeeded((zbody3, u_gen)) =>
+    | Succeeded((zend_, u_gen)) =>
       let new_ze =
-        ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, body1, body2, zbody3));
+        ZExp.ZBlock.wrap(SubscriptZE3(NotInHole, target, start_, zend_));
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   /* Subsumption */

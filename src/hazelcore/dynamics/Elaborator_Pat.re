@@ -185,7 +185,7 @@ and ana_elab_opseq =
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t => {
+    : ElaborationResult.t =>
   // handle n-tuples
   switch (Statics_Pat.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -263,8 +263,7 @@ and ana_elab_opseq =
         }
       };
     }
-  };
-}
+  }
 and ana_elab_skel =
     (
       ctx: Contexts.t,

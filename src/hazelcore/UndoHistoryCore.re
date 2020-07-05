@@ -54,7 +54,7 @@ type cursor_term_info = {
 [@deriving sexp]
 type timestamp = float;
 
-let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
+let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t =>
   switch (cursor_term) {
   | Exp(cursor_pos, _)
   | Pat(cursor_pos, _)
@@ -65,9 +65,8 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | Line(cursor_pos, _)
   | Rule(cursor_pos, _) => cursor_pos
   };
-};
 
-let is_var_insert = (action_group): bool => {
+let is_var_insert = (action_group): bool =>
   switch (action_group) {
   | VarGroup(var_group) =>
     switch (var_group) {
@@ -76,9 +75,8 @@ let is_var_insert = (action_group): bool => {
     }
   | _ => false
   };
-};
 
-let is_var_group = (action_group): bool => {
+let is_var_group = (action_group): bool =>
   switch (action_group) {
   | VarGroup(var_group) =>
     switch (var_group) {
@@ -87,7 +85,6 @@ let is_var_group = (action_group): bool => {
     }
   | _ => false
   };
-};
 
 /* return true if new action_group can be grouped with the previous action_group */
 let group_action_group =
@@ -126,7 +123,7 @@ type comp_len_typ =
   | Len(int);
 
 let comp_len_lt =
-    (cursor_len_prev: comp_len_typ, cursor_len_next: comp_len_typ): bool => {
+    (cursor_len_prev: comp_len_typ, cursor_len_next: comp_len_typ): bool =>
   switch (cursor_len_prev, cursor_len_next) {
   | (MaxLen, MaxLen) => false
   | (_, MaxLen) => true
@@ -135,9 +132,8 @@ let comp_len_lt =
   | (MaxLen, _) => false
   | (Len(len1), Len(len2)) => len1 <= len2
   };
-};
 
-let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
+let cursor_term_len = (cursor_term: cursor_term): comp_len_typ =>
   switch (cursor_term) {
   | Exp(_, operand) =>
     switch (operand) {
@@ -192,7 +188,6 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | ExpLine(_) => MaxLen
     }
   };
-};
 
 let cursor_term_len_larger =
     (cursor_term_prev: cursor_term, cursor_term_next: cursor_term)
@@ -206,7 +201,7 @@ let cursor_term_len_larger =
     cursor_term_prev;
   };
 
-let has_typ_ann = (cursor_term: cursor_term): bool => {
+let has_typ_ann = (cursor_term: cursor_term): bool =>
   switch (cursor_term) {
   | Exp(_, exp) =>
     switch (exp) {
@@ -220,9 +215,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
     }
   | _ => false
   };
-};
 
-let is_move_action = (cursor_term_info: cursor_term_info): bool => {
+let is_move_action = (cursor_term_info: cursor_term_info): bool =>
   ZExp.erase(cursor_term_info.zexp_before)
   == ZExp.erase(cursor_term_info.zexp_after);
-};

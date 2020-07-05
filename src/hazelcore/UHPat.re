@@ -191,20 +191,18 @@ let associate = (seq: seq) => {
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let rec is_complete_skel = (sk: skel, sq: seq): bool => {
+let rec is_complete_skel = (sk: skel, sq: seq): bool =>
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
   | BinOp(InHole(_), _, _, _) => false
   | BinOp(NotInHole, _, skel1, skel2) =>
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
-  };
-}
-and is_complete = (p: t): bool => {
+  }
+and is_complete = (p: t): bool =>
   switch (p) {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
-  };
-}
-and is_complete_operand = (operand: 'operand): bool => {
+  }
+and is_complete_operand = (operand: 'operand): bool =>
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
@@ -227,4 +225,3 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };
-};

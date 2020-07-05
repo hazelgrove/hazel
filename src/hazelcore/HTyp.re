@@ -195,7 +195,7 @@ let rec join = (j, ty1, ty2) =>
   | (List(_), _) => None
   };
 
-let join_all = (j: join, types: list(t)): option(t) => {
+let join_all = (j: join, types: list(t)): option(t) =>
   switch (types) {
   | [] => None
   | [hd] => Some(hd)
@@ -214,4 +214,3 @@ let join_all = (j: join, types: list(t)): option(t) => {
       );
     }
   };
-};

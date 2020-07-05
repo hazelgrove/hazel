@@ -199,14 +199,13 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Subscript(err, body1, body2, body3) =>
-          let body1 =
-            mk_child(~memoize, ~enforce_inline, ~child_step=0, body1);
-          let body2 =
-            mk_child(~memoize, ~enforce_inline, ~child_step=1, body2);
-          let body3 =
-            mk_child(~memoize, ~enforce_inline, ~child_step=2, body3);
-          UHDoc_common.mk_Subscript(~err, body1, body2, body3);
+        | Subscript(err, target, start_, end_) =>
+          let target =
+            mk_child(~memoize, ~enforce_inline, ~child_step=0, target);
+          let start_ =
+            mk_child(~memoize, ~enforce_inline, ~child_step=1, start_);
+          let end_ = mk_child(~memoize, ~enforce_inline, ~child_step=2, end_);
+          UHDoc_common.mk_Subscript(~err, target, start_, end_);
         | Case(err, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();

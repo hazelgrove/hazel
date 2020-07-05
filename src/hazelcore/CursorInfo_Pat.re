@@ -1,31 +1,27 @@
 type cursor_term = CursorInfo_common.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
+let rec extract_cursor_term = (zpat: ZPat.t): cursor_term =>
   switch (zpat) {
   | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq)
-  };
-}
-and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+  }
+and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term =>
   switch (zseq) {
   | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
   | ZOperator(zpat_operator, _) =>
     let (cursor_pos, uop) = zpat_operator;
     PatOp(cursor_pos, uop);
-  };
-}
-and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
+  }
+and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term =>
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_term(zpat)
   };
-};
 
-let rec get_zoperand_from_zpat = (zpat: ZPat.t): option(zoperand) => {
-  get_zoperand_from_zpat_opseq(zpat);
-}
-and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) => {
+let rec get_zoperand_from_zpat = (zpat: ZPat.t): option(zoperand) =>
+  get_zoperand_from_zpat_opseq(zpat)
+and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) =>
   switch (zopseq) {
   | ZOpSeq(_, zseq) =>
     switch (zseq) {
@@ -33,16 +29,15 @@ and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) => {
       get_zoperand_from_zpat_operand(zpat_operand)
     | ZOperator(_, _) => None
     }
-  };
-}
+  }
 and get_zoperand_from_zpat_operand =
-    (zoperand: ZPat.zoperand): option(zoperand) => {
+    (zoperand: ZPat.zoperand): option(zoperand) =>
   switch (zoperand) {
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
   };
-};
+
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
@@ -250,9 +245,8 @@ and syn_cursor_info_zoperand =
   }
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
-  ana_cursor_info_zopseq(~steps, ctx, zp, ty);
-}
+    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
+  ana_cursor_info_zopseq(~steps, ctx, zp, ty)
 and ana_cursor_info_zopseq =
     (
       ~steps: CursorPath_common.steps,

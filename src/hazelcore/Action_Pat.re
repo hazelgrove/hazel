@@ -549,7 +549,7 @@ and syn_perform_operand =
       a: Action_common.t,
       zoperand: ZPat.zoperand,
     )
-    : ActionOutcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -856,8 +856,7 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  };
-}
+  }
 and ana_perform =
     (
       ctx: Contexts.t,

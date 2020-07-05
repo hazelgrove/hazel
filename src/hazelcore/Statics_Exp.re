@@ -38,7 +38,7 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
     }
   }
 and syn_lines =
-    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
+    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) =>
   lines
   |> List.fold_left(
        (opt_ctx: option(Contexts.t), line: UHExp.line) =>
@@ -47,8 +47,7 @@ and syn_lines =
          | Some(ctx) => syn_line(ctx, line)
          },
        Some(ctx),
-     );
-}
+     )
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
   | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
@@ -153,8 +152,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Subscript(InHole(TypeInconsistent, _), _, _, _) =>
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
   | Var(InHole(WrongLength, _), _, _)
@@ -166,8 +165,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Subscript(InHole(WrongLength, _), _, _, _) => None
+  | Subscript(InHole(WrongLength, _), _, _, _)
+  | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     switch (syn(ctx, scrut)) {
     | None => None
@@ -198,6 +197,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(NotInHole, _) => Some(Bool)
   | StringLit(NotInHole, _) => Some(String)
   | ListNil(NotInHole) => Some(List(Hole))
+  | Parenthesized(body) => syn(ctx, body)
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -226,6 +226,15 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | None => None
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
     }
+  | Subscript(NotInHole, target, start_, end_) =>
+    switch (syn(ctx, target)) {
+    | None => None
+    | Some(_) =>
+      switch (ana(ctx, start_, Int), ana(ctx, end_, Int)) {
+      | (Some(_), Some(_)) => Some(String)
+      | (_, _) => None
+      }
+    }
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -243,16 +252,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         };
       }
     };
-  | Parenthesized(body) => syn(ctx, body)
-  | Subscript(NotInHole, body1, body2, body3) =>
-    switch (syn(ctx, body1)) {
-    | None => None
-    | Some(_) =>
-      switch (ana(ctx, body2, Int), ana(ctx, body3, Int)) {
-      | (Some(_), Some(_)) => Some(String)
-      | (_, _) => None
-      }
-    }
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -387,8 +386,8 @@ and ana_operand =
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Subscript(InHole(TypeInconsistent, _), _, _, _) =>
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -403,8 +402,8 @@ and ana_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Subscript(InHole(WrongLength, _), _, _, _) =>
+  | Subscript(InHole(WrongLength, _), _, _, _)
+  | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
@@ -428,6 +427,7 @@ and ana_operand =
         None;
       }
     };
+  | Parenthesized(body) => ana(ctx, body, ty)
   | Lam(NotInHole, p, ann, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -460,6 +460,11 @@ and ana_operand =
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
     }
+  | Subscript(NotInHole, _, _, _) =>
+    switch (syn_operand(ctx, operand)) {
+    | None => None
+    | Some(_) => Some()
+    }
   | ApPalette(NotInHole, _, _, _) =>
     switch (syn_operand(ctx, operand)) {
     | None => None
@@ -469,12 +474,6 @@ and ana_operand =
       } else {
         None;
       }
-    }
-  | Parenthesized(body) => ana(ctx, body, ty)
-  | Subscript(NotInHole, _, _, _) =>
-    switch (syn_operand(ctx, operand)) {
-    | None => None
-    | Some(_) => Some()
     }
   }
 and ana_rules =
@@ -595,7 +594,7 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : option(Statics_common.type_mode) => {
+    : option(Statics_common.type_mode) =>
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
@@ -608,8 +607,7 @@ and ana_nth_type_mode =
            && n <= Skel.rightmost_tm_index(skel)
          );
     ana_nth_type_mode'(ctx, n, nskel, seq, nty);
-  };
-}
+  }
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(Statics_common.type_mode) => {
@@ -1035,6 +1033,14 @@ and syn_fix_holes_operand =
         u_gen,
       )
     };
+  | Subscript(_, target, start_, end_) =>
+    let (target, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, target, String);
+    let (start_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, start_, Int);
+    let (end_, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, end_, Int);
+    (Subscript(NotInHole, target, start_, end_), String, u_gen);
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1055,14 +1061,6 @@ and syn_fix_holes_operand =
         u_gen,
       );
     };
-  | Subscript(_, body1, body2, body3) =>
-    let (body1, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body1, String);
-    let (body2, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body2, Int);
-    let (body3, u_gen) =
-      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body3, Int);
-    (Subscript(NotInHole, body1, body2, body3), String, u_gen);
   };
 }
 and syn_fix_holes_rules =
@@ -1206,7 +1204,7 @@ and ana_fix_holes_opseq =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : (UHExp.opseq, MetaVarGen.t) => {
+    : (UHExp.opseq, MetaVarGen.t) =>
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -1285,8 +1283,7 @@ and ana_fix_holes_opseq =
         );
       (opseq |> UHExp.set_err_status_opseq(InHole(WrongLength, u)), u_gen);
     }
-  };
-}
+  }
 and ana_fix_holes_skel =
     (
       ctx: Contexts.t,
@@ -1507,7 +1504,7 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
-  | ApPalette(_, _, _, _) =>
+  | Subscript(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
@@ -1519,7 +1516,7 @@ and ana_fix_holes_operand =
         u_gen,
       );
     };
-  | Subscript(_, _, _, _) =>
+  | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {

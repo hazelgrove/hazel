@@ -764,8 +764,8 @@ and syn_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _)
+  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -785,8 +785,8 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Subscript(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Subscript(InHole(WrongLength, _), _, _, _)
+  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -914,14 +914,14 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | Subscript(NotInHole, body1, body2, body3) =>
-    switch (syn_elab(ctx, delta, body1)) {
+  | Subscript(NotInHole, target, start_, end_) =>
+    switch (syn_elab(ctx, delta, target)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      switch (syn_elab(ctx, delta, body2)) {
+      switch (syn_elab(ctx, delta, start_)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        switch (syn_elab(ctx, delta, body3)) {
+        switch (syn_elab(ctx, delta, end_)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d3, ty3, delta) =>
           let dc1 = DHExp.cast(d1, ty1, String);
@@ -1039,7 +1039,7 @@ and ana_elab_opseq =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t => {
+    : ElaborationResult.t =>
   // handle n-tuples
   switch (Statics_Exp.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -1130,8 +1130,7 @@ and ana_elab_opseq =
         }
       };
     }
-  };
-}
+  }
 and ana_elab_skel =
     (
       ctx: Contexts.t,
@@ -1140,7 +1139,7 @@ and ana_elab_skel =
       seq: UHExp.seq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t => {
+    : ElaborationResult.t =>
   switch (skel) {
   | BinOp(_, Comma, _, _)
   | BinOp(InHole(WrongLength, _), _, _, _) =>
@@ -1204,11 +1203,10 @@ and ana_elab_skel =
         DoesNotElaborate;
       }
     }
-  };
-}
+  }
 and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
-    : ElaborationResult.t => {
+    : ElaborationResult.t =>
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -1220,8 +1218,8 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _)
+  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1250,8 +1248,9 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
-  | Subscript(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Subscript(InHole(WrongLength, _), _, _, _)
+  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1350,12 +1349,11 @@ and ana_elab_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | StringLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
-  | ApPalette(NotInHole, _, _, _)
-  | Subscript(NotInHole, _, _, _) =>
+  | Subscript(NotInHole, _, _, _)
+  | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
-  };
-}
+  }
 and ana_elab_rules =
     (
       ctx: Contexts.t,

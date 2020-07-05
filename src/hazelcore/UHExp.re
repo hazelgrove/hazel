@@ -90,8 +90,8 @@ let case =
   Case(err, scrut, rules);
 
 let subscript =
-    (~err: ErrStatus.t=NotInHole, body1: t, body2: t, body3: t): operand =>
-  Subscript(err, body1, body2, body3);
+    (~err: ErrStatus.t=NotInHole, target: t, start_: t, end_: t): operand =>
+  Subscript(err, target, start_, end_);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
@@ -229,9 +229,9 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | ApPalette(err, _, _, _)
-  | Subscript(err, _, _, _) => err
-  | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
+  | Subscript(err, _, _, _)
+  | ApPalette(err, _, _, _) => err
+  | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -256,9 +256,10 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
-  | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Subscript(_, body1, body2, body3) => Subscript(err, body1, body2, body3)
+  | Subscript(_, target, start_, end_) =>
+    Subscript(err, target, start_, end_)
+  | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   };
 
 let is_inconsistent = operand =>
@@ -292,8 +293,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Subscript(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | Subscript(InHole(TypeInconsistent, _), _, _, _)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -309,8 +310,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _)
+  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -354,7 +355,7 @@ let associate = (seq: seq) => {
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
+let rec is_complete_line = (l: line, check_type_holes: bool): bool =>
   switch (l) {
   | EmptyLine => true
   | LetLine(pat, option_ty, body) =>
@@ -371,21 +372,17 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
-  };
-}
-and is_complete_block = (b: block, check_type_holes: bool): bool => {
-  b |> List.for_all(l => is_complete_line(l, check_type_holes));
-}
-and is_complete_rule = (rule: rule, check_type_holes: bool): bool => {
+  }
+and is_complete_block = (b: block, check_type_holes: bool): bool =>
+  b |> List.for_all(l => is_complete_line(l, check_type_holes))
+and is_complete_rule = (rule: rule, check_type_holes: bool): bool =>
   switch (rule) {
   | Rule(pat, body) =>
     UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-  };
-}
-and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
-  rules |> List.for_all(l => is_complete_rule(l, check_type_holes));
-}
-and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
+  }
+and is_complete_rules = (rules: rules, check_type_holes: bool): bool =>
+  rules |> List.for_all(l => is_complete_rule(l, check_type_holes))
+and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool =>
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
@@ -423,15 +420,13 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
+  | Subscript(InHole(_), _, _, _) => false
+  | Subscript(NotInHole, target, start_, end_) =>
+    is_complete(target, check_type_holes)
+    && is_complete(start_, check_type_holes)
+    && is_complete(end_, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Subscript(InHole(_), _, _, _) => false
-  | Subscript(NotInHole, body1, body2, body3) =>
-    is_complete(body1, check_type_holes)
-    && is_complete(body2, check_type_holes)
-    && is_complete(body3, check_type_holes)
-  };
-}
-and is_complete = (exp: t, check_type_holes: bool): bool => {
+  }
+and is_complete = (exp: t, check_type_holes: bool): bool =>
   is_complete_block(exp, check_type_holes);
-};
