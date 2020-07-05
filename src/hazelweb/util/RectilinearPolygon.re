@@ -168,7 +168,34 @@ let mk_svg =
     |> snd
     |> List.flatten;
 
-  vertical_contour_edges
+  let merged_vertical_contour_edges =
+    vertical_contour_edges
+    |> List.sort((v1, v2) =>
+         if (v1.src.x < v2.src.x) {
+           (-1);
+         } else if (v1.src.x > v2.src.x) {
+           1;
+         } else {
+           Float.compare(v2.src.y, v1.src.y);
+         }
+       )
+    |> List.fold_left(
+         (stack, v) =>
+           switch (stack) {
+           | [] => [v]
+           | [hd, ...tl] as stack =>
+             if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
+               print_endline("wtf");
+               [{...hd, dst: v.dst}, ...tl];
+             } else {
+               [v, ...stack];
+             }
+           },
+         [],
+       )
+    |> List.rev;
+
+  merged_vertical_contour_edges
   |> List.map(v => [(false, v), (true, v)])
   |> List.flatten
   |> List.sort(((is_src1, v1), (is_src2, v2)) => {
