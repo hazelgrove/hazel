@@ -124,19 +124,26 @@ let mk_svg =
     |> List.map(({min, height, _}) => [min.y, min.y +. height])
     |> List.flatten;
 
+  print_endline("sorted_vertical_sides");
+  sorted_vertical_sides
+  |> List.iter(side =>
+       print_endline(Sexplib.Sexp.to_string(sexp_of_linked_edge(side)))
+     );
+
   let vertical_contour_edges =
     sorted_vertical_sides
     |> ListUtil.map_with_accumulator(
          (tree, v) => {
+           let x = v.src.x;
            let ys = (v.src.y, v.dst.y);
            let mk_contour_edge = ((y_src, y_dst)) => {
              {
                src: {
-                 x: v.src.x,
+                 x,
                  y: y_src,
                },
                dst: {
-                 x: v.src.x,
+                 x,
                  y: y_dst,
                },
                next: None,
