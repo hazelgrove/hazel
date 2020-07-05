@@ -9,23 +9,31 @@ module Dec = {
 
   let rects =
       (start: CaretPosition.t, m: MeasuredLayout.t)
-      : (CaretPosition.t, list(RectilinearPolygon.rect)) =>
-    m.metrics
-    |> ListUtil.map_with_accumulator(
-         (start: CaretPosition.t, box: MeasuredLayout.box) =>
-           (
-             {row: start.row + box.height, col: 0},
-             RectilinearPolygon.{
-               min: {
-                 x: Float.of_int(start.col),
-                 y: Float.of_int(start.row),
-               },
-               width: Float.of_int(box.width),
-               height: Float.of_int(box.height),
-             },
-           ),
-         start,
-       );
+      : (CaretPosition.t, list(RectilinearPolygon.rect)) => {
+    let mk_rect = (start: CaretPosition.t, box: MeasuredLayout.box) =>
+      RectilinearPolygon.{
+        min: {
+          x: Float.of_int(start.col),
+          y: Float.of_int(start.row),
+        },
+        width: Float.of_int(box.width),
+        height: Float.of_int(box.height),
+      };
+    let (leading, last) = ListUtil.split_last(m.metrics);
+    let (last_start, leading_rects) =
+      leading
+      |> ListUtil.map_with_accumulator(
+           (start: CaretPosition.t, box: MeasuredLayout.box) =>
+             ({row: start.row + box.height, col: 0}, mk_rect(start, box)),
+           start,
+         );
+    let end_: CaretPosition.t = {
+      row: last_start.row + last.height - 1,
+      col: last.width,
+    };
+    let last_rect = mk_rect(last_start, last);
+    (end_, leading_rects @ [last_rect]);
+  };
 
   let err_hole_view =
       (
