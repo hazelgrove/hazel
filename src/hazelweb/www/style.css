@@ -821,6 +821,10 @@ h1 {
   z-index: var(--err-hole-z);
 }
 
+.code-closed-child {
+  fill: white;
+}
+
 #code-root {
   position: relative;
 }
