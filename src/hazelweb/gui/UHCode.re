@@ -14,7 +14,7 @@ module Dec = {
     |> ListUtil.map_with_accumulator(
          (start: CaretPosition.t, box: MeasuredLayout.box) =>
            (
-             {row: start.row + box.height - 1, col: 0},
+             {row: start.row + box.height, col: 0},
              RectilinearPolygon.{
                min: {
                  x: Float.of_int(start.col),
