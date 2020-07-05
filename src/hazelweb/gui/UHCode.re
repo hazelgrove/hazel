@@ -136,12 +136,12 @@ module Dec = {
     let (_, zipped) =
       line
       |> ListUtil.map_with_accumulator(
-           (word_start, word: MeasuredLayout.t) =>
+           (word_start, word: MeasuredLayout.t) => {
              switch (word) {
              | {layout: Annot(Tessera, m), _} =>
                tessera_rects(word_start, m)
              | {layout: Annot(OpenChild(_), m), _} =>
-               let highlighted_rs = inline_open_child_rects(start, m);
+               let highlighted_rs = inline_open_child_rects(word_start, m);
                let word_end =
                  MeasuredLayout.next_position(~indent=0, word_start, m);
                (word_end, (highlighted_rs, []));
@@ -149,7 +149,8 @@ module Dec = {
                failwith(
                  "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
                )
-             },
+             }
+           },
            start,
          );
     let (highlighted_rs, closed_child_rss) = List.split(zipped);
