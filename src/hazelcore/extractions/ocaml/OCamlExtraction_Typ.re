@@ -12,6 +12,7 @@ let rec extract = (~t: HTyp.t): t =>
     "(" ++ extract(~t=t1) ++ " -> " ++ extract(~t=t2) ++ ")"
   // use Polymorphic Variants to encode sum, i.e. 'Left of t1, 'Right of t2, and easier for injection
   // the type is "[< `Left of t1 | `Right of t2]", < means no more than
+  // so the expression should be `Left e1, `Right e2 to match this design
   | Sum(t1, t2) =>
     "[< "
     ++ "`Left of "

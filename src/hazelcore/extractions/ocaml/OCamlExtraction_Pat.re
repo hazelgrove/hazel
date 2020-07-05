@@ -11,8 +11,13 @@ let rec extract = (~dp: DHPat.t): t => {
   | FloatLit(f) => string_of_float(f)
   | BoolLit(b) => string_of_bool(b)
   // As the type design, we encode it to be "|`Left l | `Right r"
-  // But I doubt we'll actually have a sum type...
-  | Inj(_side, t) => extract(~dp=t)
+  // injection in pattern is used in pattern matching, injL matches the left side of type
+  // Here we don't consider type... so it's easy
+  | Inj(side, t) =>
+    switch (side) {
+    | L => "(`Left " ++ extract(~dp=t) ++ ")"
+    | R => "(`Right " ++ extract(~dp=t) ++ ")"
+    }
   | ListNil => "[]"
   | Cons(dp1, dp2) =>
     //:: has very low priority in OCaml, so we currently don't need to parenthesize two elements
@@ -36,7 +41,18 @@ let rec update_pattern =
   | Keyword(_) => failwith("Exp: Case wrong pattern")
   | Ap(_, _) => failwith("Exp: Case rule error, apply")
   | Var(x) => Contexts.extend_gamma(ctx, (x, pat_t))
-  | Inj(_, p) => update_pattern(p, pat_t, ctx) //FIXME: fix inj logic
+  | Inj(side, p) =>
+    // we should ensure that it's a sum type expected
+    // FIXME: does we really need L,R to be neither Hole type?
+    switch (pat_t) {
+    | Sum(tl, tr) =>
+      switch (side) {
+      | L => update_pattern(p, tl, ctx)
+      | R => update_pattern(p, tr, ctx)
+      }
+    | _ =>
+      failwith("Pat: Injection pattern should have sum type where expected")
+    }
   | Cons(p1, p2) =>
     switch (pat_t) {
     | List(t) =>

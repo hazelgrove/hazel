@@ -203,15 +203,13 @@ let rec extract = (~ctx: Contexts.t, ~de: DHExp.t): t =>
     | _ => failwith("Exp: Cons")
     };
   | Inj(t, side, de) =>
-    //ocaml don't have injection
+    // t is the type of another side, for example int | bool, side = L, then t = bool
+    // FIXME: do we really need to restrict t can't be Hole? It means we should explicitly declear the both side of sum type, i.e., let x : Int | Bool = ...
+    // injection is the introductory of sum type in hazel, as designed in Typ, we pack them as `Left and `Right constructor
     let ocaml_exp = extract(~ctx, ~de);
-    switch (t) {
-    | Sum(l, r) =>
-      switch (side) {
-      | L => (fst(ocaml_exp), l)
-      | R => (fst(ocaml_exp), r)
-      }
-    | _ => failwith("Exp: Injection")
+    switch (side) {
+    | L => ("(`Left " ++ fst(ocaml_exp) ++ ")", Sum(snd(ocaml_exp), t))
+    | R => ("(`Right " ++ fst(ocaml_exp) ++ ")", Sum(t, snd(ocaml_exp)))
     };
   | Pair(d1, d2) =>
     let ocaml_d1 = extract(~ctx, ~de=d1);
