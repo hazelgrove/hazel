@@ -124,12 +124,6 @@ let mk_svg =
     |> List.map(({min, height, _}) => [min.y, min.y +. height])
     |> List.flatten;
 
-  print_endline("sorted_vertical_sides");
-  sorted_vertical_sides
-  |> List.iter(side =>
-       print_endline(Sexplib.Sexp.to_string(sexp_of_linked_edge(side)))
-     );
-
   let vertical_contour_edges =
     sorted_vertical_sides
     |> ListUtil.map_with_accumulator(
@@ -185,15 +179,13 @@ let mk_svg =
            | [] => [v]
            | [hd, ...tl] as stack =>
              if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
-               print_endline("wtf");
                [{...hd, dst: v.dst}, ...tl];
              } else {
                [v, ...stack];
              }
            },
          [],
-       )
-    |> List.rev;
+       );
 
   merged_vertical_contour_edges
   |> List.map(v => [(false, v), (true, v)])
