@@ -8,7 +8,7 @@ module Dec = {
   type rects = list(RectilinearPolygon.rect);
 
   let rects =
-      (start: CaretPosition.t, m: MeasuredLayout.t)
+      (~indent=0, start: CaretPosition.t, m: MeasuredLayout.t)
       : (CaretPosition.t, list(RectilinearPolygon.rect)) => {
     let mk_rect = (start: CaretPosition.t, box: MeasuredLayout.box) =>
       RectilinearPolygon.{
@@ -29,7 +29,14 @@ module Dec = {
          );
     let end_: CaretPosition.t = {
       row: last_start.row + last.height - 1,
-      col: last.width,
+      col:
+        last.width
+        + (
+          switch (leading) {
+          | [] => start.col
+          | [_, ..._] => indent
+          }
+        ),
     };
     let last_rect = mk_rect(last_start, last);
     (end_, leading_rects @ [last_rect]);
