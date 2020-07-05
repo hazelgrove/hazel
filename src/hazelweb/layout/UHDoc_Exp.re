@@ -54,9 +54,10 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
-let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
+let annot_SubBlock =
+    (~hd: UHExp.line, ~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
   Doc.annot(
-    UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
+    UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd, hd_index}), ()),
   );
 
 let rec mk =
@@ -86,25 +87,37 @@ and mk_block =
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
-    block
-    |> List.mapi((i, line) =>
-         Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
-         |> UHDoc_common.annot_Step(offset + i)
-       )
-    |> ListUtil.split_last_opt
-    |> (
-      fun
-      | None => failwith(__LOC__ ++ ": empty block")
-      | Some((leading, concluding)) =>
-        ListUtil.fold_right_i(
-          ((i, hd_doc), tl_doc) =>
-            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
-          leading,
-          concluding
-          |> annot_SubBlock(
-               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
-             ),
-        )
+    let (leading, (last, last_doc)) =
+      block
+      |> List.mapi((i, line) =>
+           (
+             line,
+             Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+             |> UHDoc_common.annot_Step(offset + i),
+           )
+         )
+      |> ListUtil.split_last;
+
+    ListUtil.fold_right_i(
+      ((i, (hd, hd_doc)), tl_doc) =>
+        annot_SubBlock(
+          ~hd,
+          ~hd_index=offset + i,
+          Doc.vsep(
+            hd_doc,
+            UHDoc_common.annot_OpenChild(
+              ~is_enclosed=true,
+              ~is_inline=false,
+              tl_doc,
+            ),
+          ),
+        ),
+      leading,
+      annot_SubBlock(
+        ~hd=last,
+        ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
+        last_doc,
+      ),
     );
   }
 and mk_line =

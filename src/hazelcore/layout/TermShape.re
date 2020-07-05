@@ -18,7 +18,11 @@ type t =
       comma_indices: list(int),
       err: ErrStatus.t,
     })
-  | SubBlock({hd_index: int});
+  | SubBlock({
+      // TODO fix this hack when we have proper tiles
+      hd: UHExp.line,
+      hd_index: int,
+    });
 
 let mk_Var =
     (

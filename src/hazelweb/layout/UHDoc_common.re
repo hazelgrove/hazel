@@ -108,8 +108,8 @@ let annot_Padding = (d: t): t =>
   | _ => Doc.annot(UHAnnot.Padding, d)
   };
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
-let annot_OpenChild = (~is_inline: bool): (t => t) =>
-  Doc.annot(UHAnnot.mk_OpenChild(~is_inline, ()));
+let annot_OpenChild = (~is_enclosed=true, ~is_inline: bool): (t => t) =>
+  Doc.annot(UHAnnot.mk_OpenChild(~is_enclosed, ~is_inline, ()));
 let annot_ClosedChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
@@ -176,7 +176,8 @@ let pad_child =
     : t => {
   open Doc;
   // TODO review child annotation and simplify if possible
-  let annot_child = is_open ? annot_OpenChild : annot_ClosedChild;
+  let annot_child =
+    is_open ? annot_OpenChild(~is_enclosed=true) : annot_ClosedChild;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
     let lpadding = left == empty_ ? [] : [left |> annot_Padding];
@@ -212,7 +213,9 @@ let pad_closed_child: (~inline_padding: (t, t)=?, formatted_child) => t =
 let pad_left_delimited_child =
     (~is_open: bool, ~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
-  let annot_child = is_open ? annot_OpenChild : annot_ClosedChild;
+  let annot_child =
+    // TODO is_enclosed flag is not right
+    is_open ? annot_OpenChild(~is_enclosed=true) : annot_ClosedChild;
   let inline_choice = child_doc => {
     let lpadding =
       inline_padding == empty_ ? [] : [inline_padding |> annot_Padding];
@@ -337,17 +340,16 @@ let mk_Case =
   let open_group = Delim.open_Case() |> annot_Tessera;
   let close_group = Delim.close_Case() |> annot_Tessera;
   Doc.(
-    vseps(
-      [
-        hcats([
-          open_group,
-          scrut
-          |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
-        ]),
-        ...rules,
-      ]
-      @ [close_group],
-    )
+    vseps([
+      hcats([
+        open_group,
+        scrut
+        |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
+      ]),
+      // TODO undo open child hack when fixing case indicator
+      annot_OpenChild(~is_inline=false, vseps(rules)),
+      close_group,
+    ])
   )
   |> annot_Case(~err);
 };

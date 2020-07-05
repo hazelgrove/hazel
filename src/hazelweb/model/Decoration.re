@@ -1,4 +1,4 @@
 [@deriving sexp]
 type t =
   | ErrHole
-  | CurrentTerm;
+  | CurrentTerm(TermShape.t);

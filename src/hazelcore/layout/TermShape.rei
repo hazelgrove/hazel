@@ -16,7 +16,10 @@ type t =
       comma_indices: list(int),
       err: ErrStatus.t,
     })
-  | SubBlock({hd_index: int});
+  | SubBlock({
+      hd: UHExp.line,
+      hd_index: int,
+    });
 
 let mk_Var:
   (~err: ErrStatus.t=?, ~verr: VarErrStatus.t=?, ~show_use: bool=?, unit) => t;

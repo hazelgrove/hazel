@@ -24,16 +24,19 @@ let height = (m: t) =>
 let width = (m: t) =>
   m.metrics |> List.map(box => box.width) |> List.fold_left(max, 0);
 
-let next_position = ({row, col}: CaretPosition.t, m: t): CaretPosition.t => {
-  let (leading, last) = ListUtil.split_last(m.metrics);
-  let total_height =
-    leading |> List.map(box => box.height) |> List.fold_left((+), last.height);
-  let updated_row = row + total_height - 1;
-  let updated_col =
-    switch (leading) {
-    | [] => col + last.width
-    | [_, ..._] => last.width
-    };
+let next_position =
+    (~indent: int, {row, col}: CaretPosition.t, m: t): CaretPosition.t => {
+  let updated_row = row + height(m) - 1;
+  let updated_col = {
+    let (leading, last) = ListUtil.split_last(m.metrics);
+    last.width
+    + (
+      switch (leading) {
+      | [] => col
+      | [_, ..._] => indent
+      }
+    );
+  };
   {row: updated_row, col: updated_col};
 };
 
@@ -53,6 +56,14 @@ let flatten = (m: t): list(list(t)) => {
     };
   };
   go(~tail=[], m);
+};
+
+// peels off top level annotations then flattens
+let rec peel_and_flatten = (m: t): list(list(t)) => {
+  switch (m.layout) {
+  | Annot(_annot, m) => peel_and_flatten(m)
+  | _ => flatten(m)
+  };
 };
 
 let table: WeakMap.t(UHLayout.t, t) = WeakMap.mk();
@@ -100,15 +111,15 @@ let rec mk = (l: UHLayout.t): t => {
 
 let caret_position_of_path =
     ((steps, cursor): CursorPath_common.t, m: t): option(CaretPosition.t) => {
-  let rec go = (steps, start: CaretPosition.t, m) =>
+  let rec go = (steps, indent: int, start: CaretPosition.t, m) =>
     switch (m.layout) {
     | Linebreak
     | Text(_) => None
-    | Align(m) => go(steps, start, m)
+    | Align(m) => go(steps, start.col, start, m)
     | Annot(annot, m) =>
       switch (steps, annot) {
       | ([step, ...steps], Step(step')) =>
-        step == step' ? go(steps, start, m) : None
+        step == step' ? go(steps, indent, start, m) : None
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
         | (OnText(j), Text) => Some({...start, col: start.col + j})
@@ -123,31 +134,38 @@ let caret_position_of_path =
           )
         | _ => None
         }
-      | _ => go(steps, start, m)
+      | _ => go(steps, indent, start, m)
       }
     | Cat(m1, m2) =>
-      switch (go(steps, start, m1)) {
+      switch (go(steps, indent, start, m1)) {
       | Some(pos) => Some(pos)
       | None =>
-        let mid = next_position(start, m1);
-        go(steps, mid, m2);
+        let mid = next_position(~indent, start, m1);
+        go(steps, indent, mid, m2);
       }
     };
-  go(steps, {row: 0, col: 0}, m);
+  go(steps, 0, {row: 0, col: 0}, m);
 };
 
 let find_path =
     (
       ~rev_steps: CursorPath_common.rev_steps=[],
       ~start: CaretPosition.t={row: 0, col: 0},
+      ~indent: int=0,
       ~token:
-         (CursorPath_common.rev_steps, CaretPosition.t, UHAnnot.token_data) =>
+         (
+           ~rev_steps: CursorPath_common.rev_steps,
+           ~start: CaretPosition.t,
+           UHAnnot.token_data
+         ) =>
          option('a),
       ~cat:
          (
-           (CursorPath_common.rev_steps, CaretPosition.t, t) => option('a),
-           CursorPath_common.rev_steps,
-           CaretPosition.t,
+           ~go: (CaretPosition.t, t) => option('a),
+           ~rev_steps: CursorPath_common.rev_steps,
+           ~start: CaretPosition.t,
+           ~mid: CaretPosition.t,
+           ~end_: CaretPosition.t,
            t,
            t
          ) =>
@@ -155,30 +173,42 @@ let find_path =
       m: t,
     )
     : option('a) => {
-  let rec go = (rev_steps, start, m) =>
+  let rec go = (rev_steps, indent, start: CaretPosition.t, m) =>
     switch (m.layout) {
     | Linebreak
     | Text(_) => None
-    | Align(m) => go(rev_steps, start, m)
-    | Cat(m1, m2) => cat(go, rev_steps, start, m1, m2)
+    | Align(m) => go(rev_steps, start.col, start, m)
+    | Cat(m1, m2) =>
+      let mid = next_position(~indent, start, m1);
+      let end_ = next_position(~indent, mid, m2);
+      cat(
+        ~go=go(rev_steps, indent),
+        ~rev_steps,
+        ~start,
+        ~mid,
+        ~end_,
+        m1,
+        m2,
+      );
     | Annot(annot, m) =>
       switch (annot) {
-      | Step(step) => go([step, ...rev_steps], start, m)
-      | Token(token_data) => token(rev_steps, start, token_data)
-      | _ => go(rev_steps, start, m)
+      | Step(step) => go([step, ...rev_steps], indent, start, m)
+      | Token(token_data) => token(~rev_steps, ~start, token_data)
+      | _ => go(rev_steps, indent, start, m)
       }
     };
-  go(rev_steps, start, m);
+  go(rev_steps, indent, start, m);
 };
 
 /**
- * `first_path_in_row(~rev_steps, ~start, row, m)` returns the first path
- * encountered during left-to-right traversal of row `row` of `m`, paired
- * with the found path's position.
+ * `first_path_in_row(row, m)` returns the first path encountered
+ * during left-to-right traversal of row `row` of `m`, paired with
+ * the found path's position.
  */
 let first_path_in_row =
     (
       ~rev_steps: CursorPath_common.rev_steps=[],
+      ~indent=0,
       ~start: CaretPosition.t={row: 0, col: 0},
       row: int,
       m: t,
@@ -187,9 +217,10 @@ let first_path_in_row =
   m
   |> find_path(
        ~rev_steps,
+       ~indent,
        ~start,
        ~token=
-         (rev_steps, start, token_data) => {
+         (~rev_steps, ~start, token_data) => {
            let UHAnnot.{shape, _} = token_data;
            let cursor: CursorPosition.t =
              switch (shape) {
@@ -200,19 +231,17 @@ let first_path_in_row =
            Some(((cursor, rev_steps), start));
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) => {
-           let mid = next_position(start, m);
+         (~go, ~rev_steps as _, ~start, ~mid, ~end_ as _, m1, m2) =>
            if (row < mid.row) {
-             go(rev_steps, start, m1);
+             go(start, m1);
            } else if (row > mid.row) {
-             go(rev_steps, mid, m2);
+             go(mid, m2);
            } else {
-             switch (go(rev_steps, start, m1)) {
+             switch (go(start, m1)) {
              | Some(result) => Some(result)
-             | None => go(rev_steps, mid, m2)
+             | None => go(mid, m2)
              };
-           };
-         },
+           },
      );
 
 /**
@@ -228,7 +257,7 @@ let last_path_in_row =
        ~rev_steps,
        ~start,
        ~token=
-         (rev_steps, start, token_data) => {
+         (~rev_steps, ~start, token_data) => {
            let UHAnnot.{shape, len, _} = token_data;
            let cursor: CursorPosition.t =
              switch (shape) {
@@ -239,19 +268,17 @@ let last_path_in_row =
            Some(((cursor, rev_steps), {...start, col: start.col + len}));
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) => {
-           let mid = next_position(start, m);
+         (~go, ~rev_steps as _, ~start, ~mid, ~end_ as _, m1, m2) =>
            if (row < mid.row) {
-             go(rev_steps, start, m1);
+             go(start, m1);
            } else if (row > mid.row) {
-             go(rev_steps, mid, m2);
+             go(mid, m2);
            } else {
-             switch (go(rev_steps, mid, m2)) {
+             switch (go(mid, m2)) {
              | Some(result) => Some(result)
-             | None => go(rev_steps, start, m1)
+             | None => go(start, m1)
              };
-           };
-         },
+           },
      );
 
 let arbitrate =
@@ -291,7 +318,7 @@ let prev_path_within_row =
   m
   |> find_path(
        ~token=
-         (rev_steps, start, token_data) => {
+         (~rev_steps, ~start, token_data) => {
            let UHAnnot.{shape, len, _} = token_data;
            let from_start = from.col - start.col;
            if (from_start >= len) {
@@ -307,13 +334,11 @@ let prev_path_within_row =
            };
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) => {
-           let mid = next_position(start, m1);
-           let end_ = next_position(mid, m2);
+         (~go, ~rev_steps, ~start, ~mid, ~end_, m1, m2) =>
            if (CaretPosition.compare(from, mid) <= 0) {
-             go(rev_steps, start, m1);
+             go(start, m1);
            } else {
-             switch (go(rev_steps, mid, m2)) {
+             switch (go(mid, m2)) {
              | None =>
                mid.row == end_.row
                  ? last_path_in_row(~rev_steps, ~start, mid.row, m1) : None
@@ -331,8 +356,7 @@ let prev_path_within_row =
                  Some((rev_path2, pos2));
                }
              };
-           };
-         },
+           },
      );
 
 /**
@@ -346,7 +370,7 @@ let next_path_within_row =
   m
   |> find_path(
        ~token=
-         (rev_steps, start, token_data) => {
+         (~rev_steps, ~start, token_data) => {
            let UHAnnot.{shape, len, _} = token_data;
            let from_start = from.col - start.col;
            if (from_start >= len) {
@@ -362,12 +386,11 @@ let next_path_within_row =
            };
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) => {
-           let mid = next_position(start, m1);
+         (~go, ~rev_steps, ~start, ~mid, ~end_ as _, m1, m2) =>
            if (CaretPosition.compare(from, mid) >= 0) {
-             go(rev_steps, mid, m2);
+             go(mid, m2);
            } else {
-             switch (go(rev_steps, start, m1)) {
+             switch (go(start, m1)) {
              | None =>
                mid.row == start.row
                  ? first_path_in_row(~rev_steps, ~start=mid, mid.row, m2)
@@ -388,8 +411,7 @@ let next_path_within_row =
                  Some((rev_path1, pos1));
                }
              };
-           };
-         },
+           },
      );
 
 let nearest_path_within_row =
@@ -398,7 +420,7 @@ let nearest_path_within_row =
   m
   |> find_path(
        ~token=
-         (rev_steps, start, token_data) => {
+         (~rev_steps, ~start, token_data) => {
            let UHAnnot.{shape, len, _} = token_data;
            let from_start = target.col - start.col;
            let is_left = from_start + from_start <= len;
@@ -412,19 +434,18 @@ let nearest_path_within_row =
            Some(((cursor, rev_steps), {...start, col: start.col + offset}));
          },
        ~cat=
-         (go, rev_steps, start, m1, m2) => {
-           let mid = next_position(start, m);
+         (~go, ~rev_steps, ~start, ~mid, ~end_ as _, m1, m2) =>
            if (target.row < mid.row) {
-             go(rev_steps, start, m1);
+             go(start, m1);
            } else if (target.row > mid.row) {
-             go(rev_steps, mid, m2);
+             go(mid, m2);
            } else if (target.col < mid.col) {
-             switch (go(rev_steps, start, m1)) {
+             switch (go(start, m1)) {
              | Some(rev_path) => Some(rev_path)
              | None => first_path_in_row(~rev_steps, ~start=mid, mid.row, m2)
              };
            } else if (target.col > mid.col) {
-             switch (go(rev_steps, mid, m2)) {
+             switch (go(mid, m2)) {
              | Some(rev_path) => Some(rev_path)
              | None => last_path_in_row(~rev_steps, ~start, mid.row, m1)
              };
@@ -451,6 +472,5 @@ let nearest_path_within_row =
                    : Some((rev_path1, pos1));
                };
              };
-           };
-         },
+           },
      );

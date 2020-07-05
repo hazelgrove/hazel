@@ -59,7 +59,11 @@ module Dec = {
                       let (word_end, rs) = rects(word_start, m);
                       (word_end, rs);
                     | _ => (
-                        MeasuredLayout.next_position(word_start, word),
+                        MeasuredLayout.next_position(
+                          ~indent=0,
+                          word_start,
+                          word,
+                        ),
                         [],
                       )
                     }
@@ -99,12 +103,13 @@ module Dec = {
   };
 
   let block_open_child_rects =
-      (start: CaretPosition.t, m: MeasuredLayout.t): rects => {
+      (~overflow_left, start: CaretPosition.t, m: MeasuredLayout.t): rects => {
+    let overflow_left = overflow_left ? 0.1 : 0.0;
     [
       // make singleton skinny rect
       RectilinearPolygon.{
         min: {
-          x: Float.of_int(start.col),
+          x: Float.of_int(start.col) -. overflow_left,
           y: Float.of_int(start.row),
         },
         height: Float.of_int(MeasuredLayout.height(m)),
@@ -113,10 +118,14 @@ module Dec = {
     ];
   };
 
-  let current_term_line_rects =
-      (start: CaretPosition.t, line: list(MeasuredLayout.t))
-      : (CaretPosition.t, (rects, list(rects))) => {
-    let (end_, zipped) =
+  let line_rects =
+      (
+        ~overflow_left: bool,
+        start: CaretPosition.t,
+        line: list(MeasuredLayout.t),
+      )
+      : (rects, list(rects)) => {
+    let (_, zipped) =
       line
       |> ListUtil.map_with_accumulator(
            (word_start, word: MeasuredLayout.t) =>
@@ -125,7 +134,8 @@ module Dec = {
                tessera_rects(word_start, m)
              | {layout: Annot(OpenChild(_), m), _} =>
                let highlighted_rs = inline_open_child_rects(start, m);
-               let word_end = MeasuredLayout.next_position(word_start, m);
+               let word_end =
+                 MeasuredLayout.next_position(~indent=0, word_start, m);
                (word_end, (highlighted_rs, []));
              | _ =>
                failwith(
@@ -135,39 +145,119 @@ module Dec = {
            start,
          );
     let (highlighted_rs, closed_child_rss) = List.split(zipped);
-    (end_, (List.flatten(highlighted_rs), List.flatten(closed_child_rss)));
+    let highlighted_rs =
+      if (overflow_left) {
+        let height =
+          line |> List.map(MeasuredLayout.height) |> List.fold_left(max, 0);
+        [
+          RectilinearPolygon.{
+            min: {
+              x: Float.of_int(start.col) -. 0.1,
+              y: Float.of_int(start.row),
+            },
+            height: Float.of_int(height),
+            width: 0.1,
+          },
+          ...List.flatten(highlighted_rs),
+        ];
+      } else {
+        List.flatten(highlighted_rs);
+      };
+    (highlighted_rs, List.flatten(closed_child_rss));
+  };
+
+  let lines_rects =
+      (
+        ~overflow_left: bool,
+        start: CaretPosition.t,
+        lines: list(list(MeasuredLayout.t)),
+      )
+      : (rects, list(rects)) => {
+    lines
+    |> ListUtil.map_with_accumulator(
+         (line_start, line: list(MeasuredLayout.t)) => {
+           let rss =
+             switch (line) {
+             | [{layout: Annot(OpenChild(_), m), _}] =>
+               let highlighted_rs =
+                 block_open_child_rects(~overflow_left, line_start, m);
+               (highlighted_rs, []);
+             | _ => line_rects(~overflow_left, line_start, line)
+             };
+           ({row: line_start.row + 1, col: 0}, rss);
+         },
+         start,
+       )
+    |> (
+      fun
+      | (_, zipped) => {
+          let (highlighted_rs, closed_child_rss) = List.split(zipped);
+          (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+        }
+    );
+  };
+
+  let subblock_rects =
+      (~offset: int, subject: MeasuredLayout.t): (rects, list(rects)) => {
+    subject
+    |> MeasuredLayout.flatten
+    |> ListUtil.map_with_accumulator(
+         (line_start, line: list(MeasuredLayout.t)) => {
+           let rss =
+             switch (line) {
+             | [{layout: Annot(Step(_), m), _}] =>
+               lines_rects(
+                 ~overflow_left=true,
+                 line_start,
+                 MeasuredLayout.peel_and_flatten(m),
+               )
+             | [{layout: Annot(OpenChild(_), m), _}] =>
+               let highlighted_rs =
+                 block_open_child_rects(~overflow_left=true, line_start, m);
+               (highlighted_rs, []);
+             | _ =>
+               failwith(
+                 "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
+               )
+             };
+           ({row: line_start.row + 1, col: 0}, rss);
+         },
+         {row: 0, col: offset},
+       )
+    |> (
+      fun
+      | (_, zipped) => {
+          let (highlighted_rs, closed_child_rss) = List.split(zipped);
+          (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+        }
+    );
   };
 
   let current_term_view =
       (
         ~corner_radii: (float, float),
         ~offset: int,
-        // ~shape: TermShape.t,
+        ~shape: TermShape.t,
         subject: MeasuredLayout.t,
       )
       : Vdom.Node.t => {
     let (highlighted_rs, closed_child_rss) =
-      subject
-      |> MeasuredLayout.flatten
-      |> ListUtil.map_with_accumulator(
-           (line_start, line: list(MeasuredLayout.t)) => {
-             switch (line) {
-             | [{layout: Annot(OpenChild(_), m), _}] =>
-               let highlighted_rs = block_open_child_rects(line_start, m);
-               let line_end = MeasuredLayout.next_position(line_start, m);
-               (line_end, (highlighted_rs, []));
-             | _ => current_term_line_rects(line_start, line)
-             }
-           },
-           {row: 0, col: offset},
-         )
-      |> (
-        fun
-        | (_, zipped) => {
-            let (highlighted_rs, closed_child_rss) = List.split(zipped);
-            (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
-          }
-      );
+      switch (shape) {
+      | SubBlock(_) =>
+        // special case for now
+        subblock_rects(~offset, subject)
+      | Rule
+      | Case(_)
+      | Var(_)
+      | Operand(_)
+      | BinOp(_)
+      | NTuple(_) =>
+        lines_rects(
+          ~overflow_left=false,
+          {row: 0, col: offset},
+          MeasuredLayout.flatten(subject),
+        )
+      };
     let highlighted_view =
       RectilinearPolygon.mk_svg(
         ~corner_radii,
@@ -218,13 +308,14 @@ module Dec = {
     let v =
       switch (d) {
       | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
-      | CurrentTerm => current_term_view(~corner_radii, ~offset, subject)
+      | CurrentTerm(shape) =>
+        current_term_view(~corner_radii, ~offset, ~shape, subject)
       };
 
     let cls =
       switch (d) {
       | ErrHole => "err-hole"
-      | CurrentTerm => "current-term"
+      | CurrentTerm(_) => "current-term"
       };
 
     Vdom.(
@@ -518,7 +609,6 @@ let view =
       let code_text = go(Box.mk(l));
 
       let ds = Program.get_decorations(program);
-      print_endline(Sexplib.Sexp.to_string_hum(Decorations.sexp_of_t(ds)));
       let decorations = decoration_views(~font_metrics, ds, l);
 
       let key_handlers =
