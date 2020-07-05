@@ -139,8 +139,8 @@ module Dec = {
         start: CaretPosition.t,
         line: list(MeasuredLayout.t),
       )
-      : (rects, list(rects)) => {
-    let (_, zipped) =
+      : (CaretPosition.t, (rects, list(rects))) => {
+    let (end_, zipped) =
       line
       |> ListUtil.map_with_accumulator(
            (word_start, word: MeasuredLayout.t) => {
@@ -179,7 +179,7 @@ module Dec = {
       } else {
         List.flatten(highlighted_rs);
       };
-    (highlighted_rs, List.flatten(closed_child_rss));
+    (end_, (highlighted_rs, List.flatten(closed_child_rss)));
   };
 
   let lines_rects =
@@ -188,38 +188,44 @@ module Dec = {
         start: CaretPosition.t,
         lines: list(list(MeasuredLayout.t)),
       )
-      : (rects, list(rects)) => {
+      : (CaretPosition.t, (rects, list(rects))) => {
     lines
     |> ListUtil.map_with_accumulator(
          (line_start, line: list(MeasuredLayout.t)) => {
-           let rss =
+           let (line_end, rss) =
              switch (line) {
              | [{layout: Annot(OpenChild(_), m), _}] =>
                let highlighted_rs =
                  block_open_child_rects(~overflow_left, line_start, m);
-               (highlighted_rs, []);
+               let line_end =
+                 MeasuredLayout.next_position(~indent=0, line_start, m);
+               (line_end, (highlighted_rs, []));
              | _ => line_rects(~overflow_left, line_start, line)
              };
-           ({row: line_start.row + 1, col: 0}, rss);
+           ({row: line_end.row + 1, col: 0}, rss);
          },
          start,
        )
     |> (
       fun
-      | (_, zipped) => {
+      | (end_, zipped) => {
           let (highlighted_rs, closed_child_rss) = List.split(zipped);
-          (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+          (
+            {...end_, row: end_.row - 1},
+            (List.flatten(highlighted_rs), List.flatten(closed_child_rss)),
+          );
         }
     );
   };
 
   let subblock_rects =
-      (~offset: int, subject: MeasuredLayout.t): (rects, list(rects)) => {
+      (~offset: int, subject: MeasuredLayout.t)
+      : (CaretPosition.t, (rects, list(rects))) => {
     subject
     |> MeasuredLayout.flatten
     |> ListUtil.map_with_accumulator(
          (line_start, line: list(MeasuredLayout.t)) => {
-           let rss =
+           let (line_end, rss) =
              switch (line) {
              | [{layout: Annot(Step(_), m), _}] =>
                lines_rects(
@@ -230,21 +236,26 @@ module Dec = {
              | [{layout: Annot(OpenChild(_), m), _}] =>
                let highlighted_rs =
                  block_open_child_rects(~overflow_left=true, line_start, m);
-               (highlighted_rs, []);
+               let line_end =
+                 MeasuredLayout.next_position(~indent=0, line_start, m);
+               (line_end, (highlighted_rs, []));
              | _ =>
                failwith(
                  "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
                )
              };
-           ({row: line_start.row + 1, col: 0}, rss);
+           ({row: line_end.row + 1, col: 0}, rss);
          },
          {row: 0, col: offset},
        )
     |> (
       fun
-      | (_, zipped) => {
+      | (end_, zipped) => {
           let (highlighted_rs, closed_child_rss) = List.split(zipped);
-          (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+          (
+            {...end_, row: end_.row - 1},
+            (List.flatten(highlighted_rs), List.flatten(closed_child_rss)),
+          );
         }
     );
   };
@@ -257,7 +268,7 @@ module Dec = {
         subject: MeasuredLayout.t,
       )
       : Vdom.Node.t => {
-    let (highlighted_rs, closed_child_rss) =
+    let (_, (highlighted_rs, closed_child_rss)) =
       switch (shape) {
       | SubBlock(_) =>
         // special case for now
