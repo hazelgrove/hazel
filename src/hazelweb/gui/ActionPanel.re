@@ -395,7 +395,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           ],
           Action_common.Construct(SChar("S")),
         ),
-        operator_list(~on_type=false, "Operators", [Caret]),
+        operator_list(~on_type=false, "String concatenation", [Caret]),
         combo_and_cursor(
           ~on_type=false,
           LeftBracket,
