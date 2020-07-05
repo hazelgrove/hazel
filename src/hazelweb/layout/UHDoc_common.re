@@ -572,19 +572,19 @@ let mk_Case =
 let mk_Subscript =
     (
       ~err: ErrStatus.t,
-      body1: formatted_child,
-      body2: formatted_child,
-      body3: formatted_child,
+      target: formatted_child,
+      start_: formatted_child,
+      end_: formatted_child,
     )
     : t => {
   let open_subscript = Delim.open_Subscript() |> annot_DelimGroup;
   let close_subscript = Delim.close_Subscript() |> annot_DelimGroup;
   Doc.hcats([
-    body1 |> pad_open_child,
+    target |> pad_open_child,
     open_subscript,
-    body2 |> pad_open_child,
+    start_ |> pad_open_child,
     Delim.colon_Subscript() |> annot_DelimGroup,
-    body3 |> pad_open_child,
+    end_ |> pad_open_child,
     close_subscript,
   ])
   |> annot_Operand(~sort=Exp, ~err);

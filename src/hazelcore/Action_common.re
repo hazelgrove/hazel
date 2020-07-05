@@ -52,7 +52,7 @@ type t =
   | SwapDown
   | Init;
 
-let shape_to_string = (shape: shape): string => {
+let shape_to_string = (shape: shape): string =>
   switch (shape) {
   | SList => "list type"
   | SQuote => "new string"
@@ -90,7 +90,6 @@ let shape_to_string = (shape: shape): string => {
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };
-};
 
 let escape: Side.t => t =
   fun

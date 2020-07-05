@@ -350,8 +350,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     | Subscript(_, _, _, _) => indicate_words_view("substring")
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
 
