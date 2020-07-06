@@ -158,22 +158,27 @@ and get_outer_zrules_from_zrule =
   };
 };
 
-let rec cursor_on_outer_expr:
-  ZExp.zoperand => option((ErrStatus.t, VarErrStatus.t)) =
+type err_status_result =
+  | StandardErr(ErrStatus.t)
+  | VarErr(VarErrStatus.HoleReason.t)
+  | InconsistentBranchesErr(list(HTyp.t));
+
+let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
   | CursorE(_, operand) => {
-      let err = operand |> UHExp.get_err_status_operand;
-      let verr =
+      let err_status =
         switch (operand) {
-        | Var(_, verr, _) => verr
-        | _ => NotInVarHole
+        | Var(_, InVarHole(reason, _), _) => VarErr(reason)
+        | Case(InconsistentBranches(types, _), _, _) =>
+          InconsistentBranchesErr(types)
+        | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
-      Some((err, verr));
+      Some(err_status);
     }
   | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       switch (skel, zseq) {
-      | (BinOp(err, _, _, _), _) => Some((err, NotInVarHole))
+      | (BinOp(err, _, _, _), _) => Some(StandardErr(err))
       | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand)
       | _ => None
       };
@@ -429,19 +434,20 @@ and syn_cursor_info_skel =
           CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
         switch (cursor_on_outer_expr(zoperand)) {
         | None => syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
-        | Some((InHole(WrongLength, _), _)) => None
-        | Some((InHole(TypeInconsistent, _), _)) =>
+        | Some(StandardErr(InHole(WrongLength, _))) => None
+        | Some(StandardErr(InHole(TypeInconsistent, _))) =>
           let operand_nih =
             zoperand
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           Statics_Exp.syn_operand(ctx, operand_nih)
           |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
-        | Some((_, InVarHole(Free, _))) =>
-          Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
-        | Some((_, InVarHole(Keyword(k), _))) =>
+        | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
+        | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
-        | Some((NotInHole, NotInVarHole)) =>
+        | Some(InconsistentBranchesErr(rule_types)) =>
+          Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
+        | Some(StandardErr(NotInHole)) =>
           let operand_nih =
             zoperand
             |> ZExp.erase_zoperand
