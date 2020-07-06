@@ -135,17 +135,6 @@ let mk_text = (s: string): t =>
     Doc.text(s),
   );
 
-let pad_operator =
-    (~inline_padding as (left, right): (t, t), operator: t): t => {
-  open Doc;
-  let ldoc = left == empty_ ? empty_ : left |> annot_Padding;
-  let rdoc = right == empty_ ? empty_ : right |> annot_Padding;
-  choices([
-    hcats([ldoc, operator, rdoc]),
-    hcats([linebreak(), operator, rdoc]),
-  ]);
-};
-
 let mk_op = (op_text: string): t =>
   Doc.annot(
     UHAnnot.mk_Token(~len=StringUtil.utf8_length(op_text), ~shape=Op, ()),
@@ -403,6 +392,17 @@ let mk_LetLine =
   ]);
 };
 
+let pad_operator =
+    (~inline_padding as (left, right): (t, t), operator: t): t => {
+  open Doc;
+  let ldoc = left == empty_ ? empty_ : left |> annot_Padding;
+  let rdoc = right == empty_ ? empty_ : right |> annot_Padding;
+  choices([
+    hcats([ldoc, operator, rdoc]),
+    hcats([linebreak(), operator, rdoc]),
+  ]);
+};
+
 let rec mk_BinOp =
         (
           ~sort: TermSort.t,
@@ -420,26 +420,61 @@ let rec mk_BinOp =
       ~mk_operand,
       ~mk_operator,
       ~inline_padding_of_operator,
-      ~enforce_inline,
       ~seq,
     );
   switch (skel) {
   | Placeholder(n) =>
-    let operand = seq |> Seq.nth_operand(n);
-    mk_operand(~enforce_inline, operand) |> annot_Step(n);
+    let operand = Seq.nth_operand(n, seq);
+    annot_Step(n, mk_operand(~enforce_inline, operand));
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-    let op_doc = mk_operator(op) |> annot_Tessera;
-    let skel1_doc = go(skel1);
-    let skel2_doc = go(skel2);
-    Doc.hcats([
-      skel1_doc |> annot_OpenChild(~is_inline=true),
-      op_doc
-      |> pad_operator(~inline_padding=inline_padding_of_operator(op))
-      |> annot_Step(op_index),
-      skel2_doc |> annot_OpenChild(~is_inline=true),
-    ])
-    |> Doc.annot(UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()));
+    let (lpadding, rpadding) = {
+      let (l, r) = inline_padding_of_operator(op);
+      (
+        l == empty_ ? [] : [annot_Padding(l)],
+        r == empty_ ? [] : [annot_Padding(r)],
+      );
+    };
+    let op = annot_Tessera(annot_Step(op_index, mk_operator(op)));
+    let skel1 = go(skel1);
+    let skel2 = go(skel2);
+    let inline_choice =
+      Doc.(
+        hcats([
+          annot_OpenChild(
+            ~is_inline=true,
+            hcats([skel1(~enforce_inline=true), ...lpadding]),
+          ),
+          op,
+          annot_OpenChild(
+            ~is_inline=true,
+            hcats(rpadding @ [skel2(~enforce_inline=true)]),
+          ),
+        ])
+      );
+    let multiline_choice =
+      Doc.(
+        vsep(
+          annot_OpenChild(
+            ~is_inline=false,
+            align(skel1(~enforce_inline=false)),
+          ),
+          hcat(
+            op,
+            annot_OpenChild(
+              ~is_inline=false,
+              hcats(rpadding @ [align(skel2(~enforce_inline=false))]),
+            ),
+          ),
+        )
+      );
+    let choices =
+      enforce_inline
+        ? inline_choice : Doc.choice(inline_choice, multiline_choice);
+    Doc.annot(
+      UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()),
+      choices,
+    );
   };
 };
 

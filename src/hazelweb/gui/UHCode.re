@@ -131,7 +131,7 @@ module Dec = {
     ];
   };
 
-  let block_open_child_rects =
+  let multiline_open_child_rects =
       (~overflow_left, start: CaretPosition.t, m: MeasuredLayout.t): rects => {
     let overflow_left = overflow_left ? 0.1 : 0.0;
     [
@@ -161,22 +161,37 @@ module Dec = {
              switch (word) {
              | {layout: Annot(Tessera, m), _} =>
                tessera_rects(word_start, m)
-             | {layout: Annot(OpenChild(_), m), _} =>
-               let highlighted_rs = inline_open_child_rects(word_start, m);
+             | {layout: Annot(OpenChild({is_inline, _}), m), _} =>
+               let highlighted_rs =
+                 is_inline
+                   ? inline_open_child_rects(word_start, m)
+                   : multiline_open_child_rects(
+                       ~overflow_left=true,
+                       word_start,
+                       m,
+                     );
                let word_end =
                  MeasuredLayout.next_position(~indent=0, word_start, m);
                (word_end, (highlighted_rs, []));
              | _ =>
+               switch (word) {
+               | {layout: Annot(annot, _), _} =>
+                 print_endline(
+                   Sexplib.Sexp.to_string(UHAnnot.sexp_of_t(annot)),
+                 )
+               | _ => print_endline("not annot")
+               };
                failwith(
                  "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
-               )
+               );
              }
            },
            start,
          );
     let (highlighted_rs, closed_child_rss) = List.split(zipped);
     let highlighted_rs =
-      if (overflow_left) {
+      switch (line) {
+      | [{layout: Annot(Tessera, _), _}, ..._] when overflow_left =>
         let height =
           line |> List.map(MeasuredLayout.height) |> List.fold_left(max, 0);
         [
@@ -190,8 +205,7 @@ module Dec = {
           },
           ...List.flatten(highlighted_rs),
         ];
-      } else {
-        List.flatten(highlighted_rs);
+      | _ => List.flatten(highlighted_rs)
       };
     (end_, (highlighted_rs, List.flatten(closed_child_rss)));
   };
@@ -210,7 +224,7 @@ module Dec = {
              switch (line) {
              | [{layout: Annot(OpenChild(_), m), _}] =>
                let highlighted_rs =
-                 block_open_child_rects(~overflow_left, line_start, m);
+                 multiline_open_child_rects(~overflow_left, line_start, m);
                let line_end =
                  MeasuredLayout.next_position(~indent=0, line_start, m);
                (line_end, (highlighted_rs, []));
@@ -249,7 +263,11 @@ module Dec = {
                )
              | [{layout: Annot(OpenChild(_), m), _}] =>
                let highlighted_rs =
-                 block_open_child_rects(~overflow_left=true, line_start, m);
+                 multiline_open_child_rects(
+                   ~overflow_left=true,
+                   line_start,
+                   m,
+                 );
                let line_end =
                  MeasuredLayout.next_position(~indent=0, line_start, m);
                (line_end, (highlighted_rs, []));
@@ -288,13 +306,18 @@ module Dec = {
         // special case for now
         subblock_rects(~offset, subject)
       | Rule
-      | Case(_)
       | Var(_)
-      | Operand(_)
+      | Operand(_) =>
+        lines_rects(
+          ~overflow_left=false,
+          {row: 0, col: offset},
+          MeasuredLayout.flatten(subject),
+        )
+      | Case(_)
       | BinOp(_)
       | NTuple(_) =>
         lines_rects(
-          ~overflow_left=false,
+          ~overflow_left=true,
           {row: 0, col: offset},
           MeasuredLayout.flatten(subject),
         )
@@ -614,7 +637,7 @@ let view =
             |> List.map(go)
             |> ListUtil.join([Node.br([])])
             |> List.flatten;
-          [Node.div([Attr.style(Css_gen.display(`Inline_block))], vs)];
+          [Node.div([Attr.classes(["VBox"])], vs)];
         | Annot(annot, box) =>
           let vs = go(box);
           switch (annot) {
