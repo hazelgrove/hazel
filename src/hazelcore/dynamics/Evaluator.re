@@ -72,6 +72,8 @@ let eval_bin_float_op =
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
+  | FailedAssert(d1) => Indet(d1)
+  | AssertLit(_) => BoxedValue(d)
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -88,6 +90,13 @@ let rec evaluate = (d: DHExp.t): result =>
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(AssertLit(n)) =>
+      AssertNum.print(n);
+      switch (evaluate(d2)) {
+      | BoxedValue(BoolLit(b)) =>
+        b ? BoxedValue(Triv) : Indet(FailedAssert(d2))
+      | _ => Indet(Ap(AssertLit(n), d2))
+      };
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)

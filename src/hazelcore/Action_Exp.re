@@ -316,6 +316,9 @@ let mk_syn_text =
   | BoolLit(b) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+  | AssertLit(n) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit(n)));
+    Succeeded(SynDone((ze, HTyp.Arrow(Bool, Prod([])), u_gen)));
   | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
@@ -378,6 +381,7 @@ let mk_ana_text =
   | FloatLit(_)
   | BoolLit(_)
   | Underscore
+  | AssertLit(_)
   | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
@@ -1362,7 +1366,8 @@ and syn_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_),
+        ApPalette(_) |
+        AssertLit(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1427,6 +1432,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+  | (Delete, CursorE(OnText(j), AssertLit(_, _))) =>
+    syn_delete_text(ctx, u_gen, j, "assert")
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1437,6 +1444,8 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, f)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+  | (Backspace, CursorE(OnText(j), AssertLit(_, _))) =>
+    syn_backspace_text(ctx, u_gen, j, "assert")
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -2742,7 +2751,8 @@ and ana_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_),
+        ApPalette(_) |
+        AssertLit(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -2847,6 +2857,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorE(OnText(j), AssertLit(_, _))) =>
+    ana_delete_text(ctx, u_gen, j, "assert", ty)
 
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -2858,6 +2870,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorE(OnText(j), AssertLit(_, _))) =>
+    ana_backspace_text(ctx, u_gen, j, "assert", ty)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>

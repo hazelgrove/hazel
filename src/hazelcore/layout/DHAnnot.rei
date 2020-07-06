@@ -8,6 +8,7 @@ type t =
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
   | InconsistentBranches(HoleInstance.t)
   | Invalid(HoleInstance.t)
+  | AssertionFail
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration

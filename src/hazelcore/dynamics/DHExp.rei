@@ -62,6 +62,8 @@ type t =
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
+  | AssertLit(AssertNum.t)
+  | FailedAssert(t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
