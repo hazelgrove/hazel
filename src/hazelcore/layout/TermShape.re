@@ -3,6 +3,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type t =
   | Rule
+  | Invalid
   | Case({err: CaseErrStatus.t})
   | Var({
       err: ErrStatus.t,

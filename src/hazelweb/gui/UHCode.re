@@ -2,7 +2,6 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
-open ViewUtil;
 
 module Dec = {
   type rects = list(RectilinearPolygon.rect);
@@ -327,7 +326,8 @@ module Dec = {
         subblock_rects(~offset, subject)
       | Rule
       | Var(_)
-      | Operand(_) =>
+      | Operand(_)
+      | Invalid =>
         snd(
           lines_rects(
             ~overflow_left=false,
@@ -477,65 +477,13 @@ module Dec = {
   };
 };
 
-let clss_of_err: ErrStatus.t => list(cls) =
-  fun
-  | NotInHole => []
-  | InHole(_) => ["InHole"];
-
-let clss_of_verr: VarErrStatus.t => list(cls) =
-  fun
-  | NotInVarHole => []
-  | InVarHole(_) => ["InVarHole"];
-
-let clss_of_case_err: CaseErrStatus.t => list(cls) =
-  fun
-  | StandardErrStatus(err) => clss_of_err(err)
-  | InconsistentBranches(_) => ["InconsistentBranches"];
-
-let cursor_clss = (has_cursor: bool): list(cls) =>
-  has_cursor ? ["Cursor"] : [];
-
-let sort_clss: TermSort.t => list(cls) =
-  fun
-  | Typ => ["Typ"]
-  | Pat => ["Pat"]
-  | Exp => ["Exp"];
-
-let shape_clss: TermShape.t => list(cls) =
-  fun
-  | Rule => ["Rule"]
-  | Case({err}) => ["Case", ...clss_of_case_err(err)]
-  | Var({err, verr, show_use}) =>
-    ["Operand", "Var", ...clss_of_err(err)]
-    @ clss_of_verr(verr)
-    @ (show_use ? ["show-use"] : [])
-  | Operand({err}) => ["Operand", ...clss_of_err(err)]
-  | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
-  | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
-  | SubBlock(_) => ["SubBlock"];
-
-let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
-  List.concat([
-    has_inline_OpenChild ? ["has-Inline-OpenChild"] : [],
-    has_para_OpenChild ? ["has-Para-OpenChild"] : [],
-  ]);
-
-let has_child_clss = (has_child: bool) =>
-  has_child ? ["has-child"] : ["no-children"];
-
-let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
-  let pos_attr =
-    Vdom.Attr.style(
-      Css_gen.combine(
-        Css_gen.left(`Px(int_of_float(Float.round(x)))),
-        Css_gen.top(`Px(int_of_float(Float.round(y)))),
-      ),
-    );
-  Vdom.Node.span(
-    [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-    [],
-  );
-};
+/*
+ let sort_clss: TermSort.t => list(cls) =
+   fun
+   | Typ => ["Typ"]
+   | Pat => ["Pat"]
+   | Exp => ["Exp"];
+ */
 
 let decoration_views =
     (~font_metrics: FontMetrics.t, ds: Decorations.t, l: UHLayout.t)
@@ -600,9 +548,6 @@ let decoration_views =
   go(~tl=[], ~indent=0, ~start={row: 0, col: 0}, ds, MeasuredLayout.mk(l));
 };
 
-module KeyCombo = JSUtil.KeyCombo;
-module MoveKey = JSUtil.MoveKey;
-
 let key_handlers =
     (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
     : list(Vdom.Attr.t) => {
@@ -612,20 +557,20 @@ let key_handlers =
   [
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(JSUtil.get_key(evt))) {
+      switch (MoveKey.of_key(Key.get_key(evt))) {
       | Some(move_key) =>
-        prevent_stop_inject(Update.Action.MoveAction(Key(move_key)))
+        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
-        switch (KeyCombo.of_evt(evt)) {
+        switch (HazelKeyCombos.of_evt(evt)) {
         | Some(Ctrl_Z) =>
           if (is_mac) {
             Event.Ignore;
           } else {
-            prevent_stop_inject(Update.Action.Undo);
+            prevent_stop_inject(ModelAction.Undo);
           }
         | Some(Meta_Z) =>
           if (is_mac) {
-            prevent_stop_inject(Update.Action.Undo);
+            prevent_stop_inject(ModelAction.Undo);
           } else {
             Event.Ignore;
           }
@@ -633,32 +578,32 @@ let key_handlers =
           if (is_mac) {
             Event.Ignore;
           } else {
-            prevent_stop_inject(Update.Action.Redo);
+            prevent_stop_inject(ModelAction.Redo);
           }
         | Some(Meta_Shift_Z) =>
           if (is_mac) {
-            prevent_stop_inject(Update.Action.Redo);
+            prevent_stop_inject(ModelAction.Redo);
           } else {
             Event.Ignore;
           }
         | Some(kc) =>
           prevent_stop_inject(
-            Update.Action.EditAction(KeyComboAction.get(cursor_info, kc)),
+            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
           )
         | None =>
-          switch (KeyCombo.of_evt(evt)) {
-          | Some(Ctrl_Z) => prevent_stop_inject(Update.Action.Undo)
-          | Some(Ctrl_Shift_Z) => prevent_stop_inject(Update.Action.Redo)
+          switch (HazelKeyCombos.of_evt(evt)) {
+          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
+          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
           | Some(kc) =>
             prevent_stop_inject(
-              Update.Action.EditAction(KeyComboAction.get(cursor_info, kc)),
+              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
             )
           | None =>
             switch (JSUtil.is_single_key(evt)) {
             | None => Event.Ignore
             | Some(single_key) =>
               prevent_stop_inject(
-                Update.Action.EditAction(
+                ModelAction.EditAction(
                   Construct(SChar(JSUtil.single_key_string(single_key))),
                 ),
               )
@@ -672,10 +617,10 @@ let key_handlers =
 
 let view =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~is_mac: bool,
       ~measure: bool,
+      ~is_mac: bool,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -793,12 +738,12 @@ let view =
                     ),
                   ),
               };
-            inject(Update.Action.MoveAction(Click(caret_pos)));
+            inject(ModelAction.MoveAction(Click(caret_pos)));
           }),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
         caret

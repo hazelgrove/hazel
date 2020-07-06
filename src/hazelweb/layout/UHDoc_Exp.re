@@ -22,7 +22,10 @@ let inline_padding_of_operator:
   | Or => (UHDoc_common.space_, UHDoc_common.space_)
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);
 
-let mk_EmptyHole = UHDoc_common.mk_EmptyHole(~sort=Exp);
+let mk_EmptyHole: string => UHDoc_common.t =
+  UHDoc_common.mk_EmptyHole(~sort=Exp);
+let mk_InvalidText: string => UHDoc_common.t =
+  UHDoc_common.mk_InvalidText(~sort=Exp);
 let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
@@ -176,6 +179,7 @@ and mk_operand =
       (
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
+        | InvalidText(_, t) => mk_InvalidText(t)
         | Var(err, verr, x) => mk_Var(~err, ~verr, x)
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)

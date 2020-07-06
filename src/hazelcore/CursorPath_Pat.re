@@ -29,6 +29,7 @@ and follow_operand =
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
+    | InvalidText(_)
     | Var(_)
     | IntLit(_)
     | FloatLit(_)
@@ -89,6 +90,7 @@ and of_steps_operand =
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
+    | InvalidText(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -168,6 +170,9 @@ and holes_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
+  | InvalidText(u, _) => [
+      {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
+    ]
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
@@ -198,6 +203,12 @@ and holes_zoperand =
     CursorPath_common.mk_zholes(
       ~hole_selected=
         Some({sort: PatHole(u, Empty), steps: List.rev(rev_steps)}),
+      (),
+    )
+  | CursorP(_, InvalidText(u, _)) =>
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
   | CursorP(_, Var(err, verr, _)) =>

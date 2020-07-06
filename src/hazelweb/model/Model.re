@@ -30,6 +30,7 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  mouse_position: ref(MousePosition.t),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -44,7 +45,7 @@ let init = (): t => {
   let cardstacks = ZCardstacks.mk(~width=cell_width, cardstack_info);
   let undo_history: UndoHistory.t = {
     let cursor_term_info =
-      UndoHistory.get_cursor_info(
+      UndoHistory.get_cursor_term_info(
         ~new_cardstacks_after=cardstacks,
         ~new_cardstacks_before=cardstacks,
       );
@@ -117,6 +118,7 @@ let init = (): t => {
         col_width: 1.0,
       },
     is_mac: true,
+    mouse_position: ref(MousePosition.{x: 0, y: 0}),
   };
 };
 

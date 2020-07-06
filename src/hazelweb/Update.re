@@ -1,67 +1,8 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
-module EditAction = Action_common;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-
-[@deriving sexp]
-type move_input =
-  | Key(JSUtil.MoveKey.t)
-  | Click(CaretPosition.t);
-
-module Action = {
-  [@deriving sexp]
-  type shift_history_info = {
-    group_id: int,
-    elt_id: int,
-    call_by_mouseenter: bool,
-  };
-  [@deriving sexp]
-  type group_id = int;
-  [@deriving sexp]
-  type t =
-    | EditAction(EditAction.t)
-    | MoveAction(move_input)
-    | ToggleLeftSidebar
-    | ToggleRightSidebar
-    | LoadExample(Examples.id)
-    | LoadCardstack(int)
-    | NextCard
-    | PrevCard
-    // Result computation toggles
-    | ToggleComputeResults
-    | ToggleShowCaseClauses
-    | ToggleShowFnBodies
-    | ToggleShowCasts
-    | ToggleShowUnevaluatedExpansion
-    // Time measurement toggles
-    | ToggleMeasureTimes
-    | ToggleMeasureModel_perform_edit_action
-    | ToggleMeasureProgram_get_doc
-    | ToggleMeasureLayoutOfDoc_layout_of_doc
-    | ToggleMeasureUHCode_view
-    | ToggleMeasureCell_view
-    | ToggleMeasurePage_view
-    | ToggleMeasureHazel_create
-    | ToggleMeasureUpdate_apply_action
-    //
-    | ToggleMemoizeDoc
-    | SelectHoleInstance(HoleInstance.t)
-    | SelectCaseBranch(CursorPath_common.steps, int)
-    | InvalidVar(string)
-    | FocusCell
-    | BlurCell
-    | Redo
-    | Undo
-    | ShiftHistory(shift_history_info)
-    | ShiftWhenScroll
-    | ToggleHistoryGroup(group_id)
-    | ToggleHiddenHistoryAll
-    | TogglePreviewOnHover
-    | UpdateFontMetrics(FontMetrics.t)
-    | UpdateIsMac(bool);
-};
 
 [@deriving sexp]
 type timestamp = {
@@ -75,7 +16,7 @@ type timestamp = {
 };
 
 [@deriving sexp]
-type timestamped_action = (timestamp, Action.t);
+type timestamped_action = (timestamp, ModelAction.t);
 
 let get_current_timestamp = (): timestamp => {
   let date = {
@@ -93,9 +34,12 @@ let get_current_timestamp = (): timestamp => {
   };
 };
 
-let mk_timestamped_action = (a: Action.t) => (get_current_timestamp(), a);
+let mk_timestamped_action = (a: ModelAction.t) => (
+  get_current_timestamp(),
+  a,
+);
 
-let log_action = (action: Action.t, _: State.t): unit => {
+let log_action = (action: ModelAction.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
@@ -144,7 +88,12 @@ let log_action = (action: Action.t, _: State.t): unit => {
 };
 
 let apply_action =
-    (model: Model.t, action: Action.t, state: State.t, ~schedule_action as _)
+    (
+      model: Model.t,
+      action: ModelAction.t,
+      state: State.t,
+      ~schedule_action as _,
+    )
     : Model.t => {
   if (model.measurements.measurements) {
     Printf.printf("\n== Update.apply_action times ==\n");

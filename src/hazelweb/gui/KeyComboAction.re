@@ -1,13 +1,11 @@
-module KeyCombo = JSUtil.KeyCombo;
-
-let table: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
+let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
   [
-    (KeyCombo.Backspace, _ => Action_common.Backspace),
+    (HazelKeyCombos.Backspace, _ => Action_common.Backspace),
     (Delete, _ => Action_common.Delete),
     (ShiftTab, _ => Action_common.MoveToPrevHole),
     (Tab, _ => Action_common.MoveToNextHole),
     (
-      KeyCombo.GT,
+      GT,
       fun
       | {CursorInfo_common.typed: OnType, _} =>
         Action_common.Construct(SOp(SArrow))
@@ -46,7 +44,8 @@ let table: Hashtbl.t(KeyCombo.t, CursorInfo_common.t => Action_common.t) =
   |> List.to_seq
   |> Hashtbl.of_seq;
 
-let get = (cursor_info: CursorInfo_common.t, kc: KeyCombo.t): Action_common.t => {
+let get =
+    (cursor_info: CursorInfo_common.t, kc: HazelKeyCombos.t): Action_common.t => {
   let action_of_ci = Hashtbl.find(table, kc);
   action_of_ci(cursor_info);
 };
