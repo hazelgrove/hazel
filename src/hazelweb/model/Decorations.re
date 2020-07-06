@@ -8,7 +8,9 @@ type t = {
 };
 
 let is_empty = (ds: t): bool =>
-  ListUtil.is_empty(ds.err_holes) && ds.current_term == None;
+  ListUtil.is_empty(ds.err_holes)
+  && ListUtil.is_empty(ds.var_err_holes)
+  && ds.current_term == None;
 
 let take_step = (step: int, decorations: t): t => {
   let {err_holes, var_err_holes, current_term} = decorations;
