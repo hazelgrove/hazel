@@ -42,6 +42,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(FailedCastDelim, l) => [
         Node.span([Attr.classes(["FailedCastDelim"])], go(l)),
       ]
+    | Annot(AssertionFail, l) => [
+        Node.span([Attr.classes(["AssertionFail"])], go(l)),
+      ]
     | Annot(FailedCastDecoration, l) => [
         Node.span([Attr.classes(["FailedCastDecoration"])], go(l)),
       ]

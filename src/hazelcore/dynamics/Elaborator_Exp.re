@@ -39,6 +39,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
   | BoolLit(_)
+  | AssertLit(_)
+  | FailedAssert(_)
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
@@ -286,6 +288,8 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | FailedAssert(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -347,6 +351,8 @@ and matches_cast_Pair =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
+  | FailedAssert(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
@@ -405,6 +411,8 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
+  | FailedAssert(_) => DoesNotMatch
+  | AssertLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
@@ -690,6 +698,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | AssertLit(InHole(TypeInconsistent as reason, u), _)
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -708,6 +717,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | AssertLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -752,6 +762,9 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
+  | AssertLit(NotInHole, n) =>
+    AssertNum.print(n);
+    Elaborates(AssertLit(n), HTyp.Arrow(Bool, Prod([])), delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1109,6 +1122,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
+  | AssertLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
@@ -1137,6 +1151,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
+  | AssertLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -1237,6 +1252,7 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
+  | AssertLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
@@ -1294,6 +1310,8 @@ let rec renumber_result_only =
   | BoundVar(_)
   | InvalidText(_)
   | BoolLit(_)
+  | FailedAssert(_)
+  | AssertLit(_)
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
@@ -1392,6 +1410,8 @@ let rec renumber_sigmas_only =
   | BoundVar(_)
   | InvalidText(_)
   | BoolLit(_)
+  | FailedAssert(_)
+  | AssertLit(_)
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)

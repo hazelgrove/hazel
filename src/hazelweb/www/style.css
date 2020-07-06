@@ -800,6 +800,13 @@ h1 {
   font-size: 75%;
   top: -10px;
 }
+
+.DHCode .AssertionFail{
+  color: red;
+  border: 2px dotted;
+  margin: -1px;
+}
+
 .DHCode .FailedCastDelim {
   color: red;
 }
