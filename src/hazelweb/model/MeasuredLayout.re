@@ -321,7 +321,7 @@ let prev_path_within_row =
          (~rev_steps, ~start, token_data) => {
            let UHAnnot.{shape, len, _} = token_data;
            let from_start = from.col - start.col;
-           if (from_start >= len) {
+           if (from_start <= 0) {
              None;
            } else {
              let (cursor: CursorPosition.t, offset) =
