@@ -70,7 +70,26 @@ module Dec = {
          ~corner_radii,
          ~attrs=
            Vdom.Attr.[
-             classes(["code-err-hole"]),
+             classes(["err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
+
+  let var_err_hole_view =
+      (
+        ~corner_radii: (float, float),
+        ~offset: int,
+        subject: MeasuredLayout.t,
+      )
+      : Vdom.Node.t =>
+    subject
+    |> rects({row: 0, col: offset})
+    |> snd
+    |> RectilinearPolygon.mk_svg(
+         ~corner_radii,
+         ~attrs=
+           Vdom.Attr.[
+             classes(["var-err-hole"]),
              create("vector-effect", "non-scaling-stroke"),
            ],
        );
@@ -391,6 +410,7 @@ module Dec = {
     let v =
       switch (d) {
       | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
+      | VarErrHole => var_err_hole_view(~corner_radii, ~offset, subject)
       | CurrentTerm(shape) =>
         current_term_view(~corner_radii, ~offset, ~shape, subject)
       };
@@ -398,6 +418,7 @@ module Dec = {
     let cls =
       switch (d) {
       | ErrHole => "err-hole"
+      | VarErrHole => "var-err-hole"
       | CurrentTerm(_) => "current-term"
       };
 

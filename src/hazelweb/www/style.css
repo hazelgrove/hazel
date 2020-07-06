@@ -48,6 +48,7 @@
 
   --current-term-z: 0;
   --err-hole-zz: 1;
+  --verr-hole-z: 1;
   --code-text-z: 2;
 }
 
@@ -845,6 +846,9 @@ h1 {
 #code-root .err-hole-container {
   z-index: var(--err-hole-zz);
 }
+#code-root .var-err-hole-container {
+  z-index: var(--verr-hole-z);
+}
 #code-root .current-term-container {
   z-index: var(--current-term-z);
 }
@@ -1130,8 +1134,15 @@ h1 {
   background-color: rgba(175, 175, 175, 0.3);
 }
 
-.code-err-hole {
+.err-hole {
   stroke: red;
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
+  fill: none;
+}
+
+.var-err-hole {
+  stroke: var(--verr-hole-color);
   stroke-dasharray: 3 2;
   stroke-width: 1;
   fill: none;
