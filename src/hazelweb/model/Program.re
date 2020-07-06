@@ -311,11 +311,23 @@ let move_via_key =
         put_col_on_start,
       );
     | ArrowLeft => (
-        MeasuredLayout.prev_path_within_row(caret_position, m),
+        switch (MeasuredLayout.prev_path_within_row(caret_position, m)) {
+        | Some(_) as found => found
+        | None =>
+          caret_position.row > 0
+            ? MeasuredLayout.last_path_in_row(caret_position.row - 1, m)
+            : None
+        },
         clear_start_col,
       )
     | ArrowRight => (
-        MeasuredLayout.next_path_within_row(caret_position, m),
+        switch (MeasuredLayout.next_path_within_row(caret_position, m)) {
+        | Some(_) as found => found
+        | None =>
+          caret_position.row < MeasuredLayout.height(m) - 1
+            ? MeasuredLayout.first_path_in_row(caret_position.row + 1, m)
+            : None
+        },
         clear_start_col,
       )
     | Home => (
