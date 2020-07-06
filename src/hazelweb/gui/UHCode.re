@@ -68,7 +68,11 @@ module Dec = {
     |> snd
     |> RectilinearPolygon.mk_svg(
          ~corner_radii,
-         ~attrs=[Vdom.Attr.classes(["code-err-hole"])],
+         ~attrs=
+           Vdom.Attr.[
+             classes(["code-err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
        );
 
   let tessera_rects =
