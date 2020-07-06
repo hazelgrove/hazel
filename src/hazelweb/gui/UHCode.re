@@ -262,49 +262,54 @@ module Dec = {
   };
 
   let subblock_rects =
-      (~offset: int, subject: MeasuredLayout.t)
-      : (CaretPosition.t, (rects, list(rects))) => {
-    subject
-    |> MeasuredLayout.flatten
-    |> ListUtil.map_with_accumulator(
-         (line_start, line: list(MeasuredLayout.t)) => {
-           let (line_end, rss) =
-             switch (line) {
-             | [{layout: Annot(Step(_), m), _}] =>
-               lines_rects(
-                 ~overflow_left=true,
-                 line_start,
-                 MeasuredLayout.peel_and_flatten(m),
-               )
-             | [{layout: Annot(OpenChild(_), m), _}] =>
-               let highlighted_rs =
-                 multiline_open_child_rects(
+      (~offset: int, subject: MeasuredLayout.t): (rects, list(rects)) => {
+    let flattened = MeasuredLayout.flatten(subject);
+    switch (flattened) {
+    | [
+        [{layout: Annot(Step(_), {layout: Annot(EmptyLine, _), _}), _}],
+        ..._,
+      ] =>
+      // TODO undo hack
+      ([], [])
+    | _ =>
+      flattened
+      |> ListUtil.map_with_accumulator(
+           (line_start, line: list(MeasuredLayout.t)) => {
+             let (line_end, rss) =
+               switch (line) {
+               | [{layout: Annot(Step(_), m), _}] =>
+                 lines_rects(
                    ~overflow_left=true,
                    line_start,
-                   m,
-                 );
-               let line_end =
-                 MeasuredLayout.next_position(~indent=0, line_start, m);
-               (line_end, (highlighted_rs, []));
-             | _ =>
-               failwith(
-                 "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
-               )
-             };
-           ({row: line_end.row + 1, col: 0}, rss);
-         },
-         {row: 0, col: offset},
-       )
-    |> (
-      fun
-      | (end_, zipped) => {
-          let (highlighted_rs, closed_child_rss) = List.split(zipped);
-          (
-            {...end_, row: end_.row - 1},
-            (List.flatten(highlighted_rs), List.flatten(closed_child_rss)),
-          );
-        }
-    );
+                   MeasuredLayout.peel_and_flatten(m),
+                 )
+               | [{layout: Annot(OpenChild(_), m), _}] =>
+                 let highlighted_rs =
+                   multiline_open_child_rects(
+                     ~overflow_left=true,
+                     line_start,
+                     m,
+                   );
+                 let line_end =
+                   MeasuredLayout.next_position(~indent=0, line_start, m);
+                 (line_end, (highlighted_rs, []));
+               | _ =>
+                 failwith(
+                   "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
+                 )
+               };
+             ({row: line_end.row + 1, col: 0}, rss);
+           },
+           {row: 0, col: offset},
+         )
+      |> (
+        fun
+        | (_, zipped) => {
+            let (highlighted_rs, closed_child_rss) = List.split(zipped);
+            (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+          }
+      )
+    };
   };
 
   let current_term_view =
@@ -315,7 +320,7 @@ module Dec = {
         subject: MeasuredLayout.t,
       )
       : Vdom.Node.t => {
-    let (_, (highlighted_rs, closed_child_rss)) =
+    let (highlighted_rs, closed_child_rss) =
       switch (shape) {
       | SubBlock(_) =>
         // special case for now
@@ -323,40 +328,54 @@ module Dec = {
       | Rule
       | Var(_)
       | Operand(_) =>
-        lines_rects(
-          ~overflow_left=false,
-          {row: 0, col: offset},
-          MeasuredLayout.flatten(subject),
+        snd(
+          lines_rects(
+            ~overflow_left=false,
+            {row: 0, col: offset},
+            MeasuredLayout.flatten(subject),
+          ),
         )
       | Case(_)
       | BinOp(_)
       | NTuple(_) =>
-        lines_rects(
-          ~overflow_left=true,
-          {row: 0, col: offset},
-          MeasuredLayout.flatten(subject),
+        snd(
+          lines_rects(
+            ~overflow_left=true,
+            {row: 0, col: offset},
+            MeasuredLayout.flatten(subject),
+          ),
         )
       };
-    let highlighted_view =
-      RectilinearPolygon.mk_svg(
-        ~corner_radii,
-        ~attrs=Vdom.[Attr.classes(["code-current-term"])],
-        highlighted_rs,
-      );
-    let closed_child_views =
+    let highlighted_vs =
+      ListUtil.is_empty(highlighted_rs)
+        ? []
+        : [
+          RectilinearPolygon.mk_svg(
+            ~corner_radii,
+            ~attrs=Vdom.[Attr.classes(["code-current-term"])],
+            highlighted_rs,
+          ),
+        ];
+    let closed_child_vs =
       closed_child_rss
-      |> List.map(
-           RectilinearPolygon.mk_svg(
-             ~corner_radii,
-             ~attrs=[Vdom.Attr.classes(["code-closed-child"])],
-           ),
+      |> List.filter_map(
+           fun
+           | [] => None
+           | rs =>
+             Some(
+               RectilinearPolygon.mk_svg(
+                 ~corner_radii,
+                 ~attrs=[Vdom.Attr.classes(["code-closed-child"])],
+                 rs,
+               ),
+             ),
          );
-    Vdom.(
-      Node.create_svg("g", [], [highlighted_view, ...closed_child_views])
-    );
+    Vdom.(Node.create_svg("g", [], highlighted_vs @ closed_child_vs));
   };
 
-  let caret_view = ({row, col}: CaretPosition.t): Vdom.Node.t => {
+  let caret_view =
+      (~font_metrics: FontMetrics.t, {row, col}: CaretPosition.t)
+      : Vdom.Node.t => {
     Vdom.(
       Node.span(
         [
@@ -365,9 +384,9 @@ module Dec = {
             "style",
             Printf.sprintf(
               // TODO make more robust
-              "top: calc(%d * var(--code-font-size) * var(--code-line-height)); left: calc(%dch - 1px);",
-              row,
-              col,
+              "top: %fpx; left: calc(%fpx - 1px);",
+              Float.of_int(row) *. font_metrics.row_height,
+              Float.of_int(col) *. font_metrics.col_width,
             ),
           ),
           Attr.classes(["blink"]),
@@ -742,7 +761,8 @@ let view =
          };
        */
 
-      let caret = program.is_focused ? [Dec.caret_view(caret_pos)] : [];
+      let caret =
+        program.is_focused ? [Dec.caret_view(~font_metrics, caret_pos)] : [];
 
       let id = "code-root";
       Node.div(
