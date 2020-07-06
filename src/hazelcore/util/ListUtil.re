@@ -37,6 +37,20 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
     opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys])
   };
 
+let for_all2_opt =
+    (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
+  switch (List.for_all2(f, xs, ys)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
+let map2_opt =
+    (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
+  switch (List.map2(f, xs, ys)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
 /**
  * Zips together the prefixes of two lists,
  * up to the length of the shorter list
@@ -226,3 +240,28 @@ let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
        [],
      )
   |> List.rev;
+
+// mapAccumL from Haskell
+let rec map_with_accumulator =
+        (f: ('acc, 'x) => ('acc, 'y), start: 'acc, xs: list('x))
+        : ('acc, list('y)) =>
+  switch (xs) {
+  | [] => (start, [])
+  | [x, ...xs] =>
+    let (new_acc, y) = f(start, x);
+    let (final, ys) = map_with_accumulator(f, new_acc, xs);
+    (final, [y, ...ys]);
+  };
+
+// mapAccumLM from Haskell
+let rec map_with_accumulator_opt =
+        (f: ('acc, 'x) => option(('acc, 'y)), start: 'acc, xs: list('x))
+        : option(('acc, list('y))) =>
+  switch (xs) {
+  | [] => Some((start, []))
+  | [x, ...xs] =>
+    module Let_syntax = OptUtil.Let_syntax;
+    let%bind (new_acc, y) = f(start, x);
+    let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
+    (final, [y, ...ys]);
+  };

@@ -28,3 +28,11 @@ let test = (opt: option(_)): bool =>
   | None => false
   | Some(_) => true
   };
+
+let sequence = (l: list(option('a))): option(list('a)) =>
+  List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
+
+module Let_syntax = {
+  let map = (x, ~f) => Option.map(f, x);
+  let bind = (x, ~f) => Option.bind(x, f);
+};

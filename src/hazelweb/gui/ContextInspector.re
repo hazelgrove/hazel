@@ -1,9 +1,8 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 
 exception InvalidInstance;
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   open Vdom;
 
   let static_info = ((x, ty)) =>
@@ -21,7 +20,6 @@ let view =
       ],
     );
 
-  [@warning "-27"]
   let dynamic_info = (sigma, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
@@ -44,7 +42,7 @@ let view =
                   ~inject,
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
-                  ~show_casts=model.show_casts,
+                  ~show_casts=model.compute_results.show_casts,
                   ~selected_instance=model |> Model.get_selected_hole_instance,
                   ~width=30,
                   d,
@@ -71,24 +69,24 @@ let view =
     let ctx =
       program
       |> Program.get_cursor_info
-      |> CursorInfo.get_ctx
+      |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
-      if (model.compute_results) {
+      if (model.compute_results.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_hole_instance) {
-        | None => Dynamics.Exp.id_env(ctx)
+        | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             JSUtil.log("[InvalidInstance]");
-            Dynamics.Exp.id_env(ctx);
+            Elaborator_Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Dynamics.Exp.id_env(ctx);
+        Elaborator_Exp.id_env(ctx);
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
@@ -236,25 +234,24 @@ let view =
         ],
       );
 
-    let prev_key = KeyCombo.Details.alt_PageUp;
-    let next_key = KeyCombo.Details.alt_PageDown;
+    let prev_key = KeyCombo.alt_PageUp;
+    let next_key = KeyCombo.alt_PageDown;
 
-    let prev_title =
-      "Previous instance (" ++ KeyCombo.Details.name(prev_key) ++ ")";
-    let next_title =
-      "Next instance (" ++ KeyCombo.Details.name(next_key) ++ ")";
+    let prev_title = "Previous instance (" ++ KeyCombo.name(prev_key) ++ ")";
+    let next_title = "Next instance (" ++ KeyCombo.name(next_key) ++ ")";
 
     let prev_btn =
       if (i > 0) {
+        let prev_inst = (u, i - 1);
         Node.div(
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(prev_key, ev)
-                  ? [inject(SelectHoleInstance((u, i - 1)))] : [];
+                KeyCombo.matches(prev_key, ev)
+                  ? [inject(SelectHoleInstance(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -272,15 +269,16 @@ let view =
 
     let next_btn =
       if (i < num_instances - 1) {
+        let next_inst = (u, i + 1);
         Node.div(
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleInstance(inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(next_key, ev)
-                  ? [inject(SelectHoleInstance((u, i + 1)))] : [];
+                KeyCombo.matches(next_key, ev)
+                  ? [inject(SelectHoleInstance(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -306,12 +304,12 @@ let view =
   };
 
   let path_viewer =
-    if (model.compute_results) {
+    if (model.compute_results.compute_results) {
       let program = model |> Model.get_program;
       let ctx =
         program
         |> Program.get_cursor_info
-        |> CursorInfo.get_ctx
+        |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {

@@ -1,1 +1,2 @@
-type t = {changing_cards: ref(bool)};
+type t =
+  | State;

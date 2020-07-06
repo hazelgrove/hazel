@@ -27,26 +27,16 @@ module ColMap = {
     map |> find_first_opt(c => Int.compare(c, col) > 0);
   let find_after_eq = (col, map) =>
     map |> find_first_opt(c => Int.compare(c, col) >= 0);
-
-  let _log_sexp = col_map =>
-    col_map
-    |> iter((col, rev_path) => {
-         JSUtil.log("col = " ++ Sexplib.Sexp.to_string(Col.sexp_of_t(col)));
-         JSUtil.log(
-           "rev_path = "
-           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_rev_t(rev_path)),
-         );
-       });
 };
 
-type t = RowMap.t(ColMap.t(CursorPath.rev_t));
+type t = RowMap.t(ColMap.t(CursorPath_common.rev_t));
 [@deriving sexp]
-type binding = ((Row.t, Col.t), CursorPath.rev_t);
+type binding = ((Row.t, Col.t), CursorPath_common.rev_t);
 
 let compare_overlapping_paths =
     (
-      (pos1, rev_steps1): CursorPath.rev_t,
-      (pos2, rev_steps2): CursorPath.rev_t,
+      (pos1, rev_steps1): CursorPath_common.rev_t,
+      (pos2, rev_steps2): CursorPath_common.rev_t,
     ) => {
   let n1 = List.length(rev_steps1);
   let n2 = List.length(rev_steps2);
