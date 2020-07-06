@@ -119,3 +119,12 @@ let get_box:
   UHBox.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
+
+let get_caret_position:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  CaretPosition.t;
