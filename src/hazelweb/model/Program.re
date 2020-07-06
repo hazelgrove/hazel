@@ -66,7 +66,7 @@ let get_cursor_info = (program: t) => {
 
 let get_decorations = (program: t): Decorations.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let err_holes =
+  let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath_common.{sort, steps}) =>
          switch (sort) {
@@ -74,13 +74,19 @@ let get_decorations = (program: t): Decorations.t => {
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
-           | Empty
-           | VarErr => None
-           | TypeErr => Some(steps)
+           | Empty => None
+           | VarErr
+           | TypeErr => Some((shape, steps))
            }
          }
-       );
-  {current_term, err_holes};
+       )
+    |> List.partition(
+         fun
+         | (CursorPath_common.TypeErr, _) => true
+         | (_var_err, _) => false,
+       )
+    |> TupleUtil.map2(List.map(snd));
+  {current_term, err_holes, var_err_holes};
 };
 
 exception DoesNotElaborate;
