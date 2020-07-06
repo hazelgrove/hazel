@@ -118,6 +118,7 @@ let caret_position_of_path =
     | Align(m) => go(steps, start.col, start, m)
     | Annot(annot, m) =>
       switch (steps, annot) {
+      | ([], Step(_)) => None
       | ([step, ...steps], Step(step')) =>
         step == step' ? go(steps, indent, start, m) : None
       | ([], Token({shape, len, _})) =>
