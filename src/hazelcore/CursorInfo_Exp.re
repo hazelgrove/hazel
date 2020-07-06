@@ -158,22 +158,27 @@ and get_outer_zrules_from_zrule =
   };
 };
 
-let rec cursor_on_outer_expr:
-  ZExp.zoperand => option((ErrStatus.t, VarErrStatus.t)) =
+type err_status_result =
+  | StandardErr(ErrStatus.t)
+  | VarErr(VarErrStatus.HoleReason.t)
+  | InconsistentBranchesErr(list(HTyp.t));
+
+let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
   | CursorE(_, operand) => {
-      let err = operand |> UHExp.get_err_status_operand;
-      let verr =
+      let err_status =
         switch (operand) {
-        | Var(_, verr, _) => verr
-        | _ => NotInVarHole
+        | Var(_, InVarHole(reason, _), _) => VarErr(reason)
+        | Case(InconsistentBranches(types, _), _, _) =>
+          InconsistentBranchesErr(types)
+        | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
-      Some((err, verr));
+      Some(err_status);
     }
   | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       switch (skel, zseq) {
-      | (BinOp(err, _, _, _), _) => Some((err, NotInVarHole))
+      | (BinOp(err, _, _, _), _) => Some(StandardErr(err))
       | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand)
       | _ => None
       };
@@ -429,29 +434,38 @@ and syn_cursor_info_skel =
           CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
         switch (cursor_on_outer_expr(zoperand)) {
         | None => syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
-        | Some((InHole(WrongLength, _), _)) => None
-        | Some((InHole(TypeInconsistent, _), _)) =>
+        | Some(StandardErr(InHole(WrongLength, _))) => None
+        | Some(StandardErr(InHole(TypeInconsistent, _))) =>
           let operand_nih =
             zoperand
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           Statics_Exp.syn_operand(ctx, operand_nih)
           |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
-        | Some((_, InVarHole(Free, _))) =>
-          Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
-        | Some((_, InVarHole(Keyword(k), _))) =>
+        | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
+        | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
-        | Some((NotInHole, NotInVarHole)) =>
-          switch (
-            Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
-          ) {
-          | None => None
-          | Some(ty) =>
-            HTyp.matched_arrow(ty)
-            |> OptUtil.map(((ty1, ty2)) =>
-                 mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-               )
-          }
+        | Some(InconsistentBranchesErr(rule_types)) =>
+          Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
+        | Some(StandardErr(NotInHole)) =>
+          let operand_nih =
+            zoperand
+            |> ZExp.erase_zoperand
+            |> UHExp.set_err_status_operand(NotInHole);
+          switch (operand_nih) {
+          | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
+          | _ =>
+            switch (
+              Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
+            ) {
+            | None => None
+            | Some(ty) =>
+              HTyp.matched_arrow(ty)
+              |> OptUtil.map(((ty1, ty2)) =>
+                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+                 )
+            }
+          };
         };
       } else {
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
@@ -501,6 +515,8 @@ and syn_cursor_info_zoperand =
     : option(CursorInfo_common.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
   switch (zoperand) {
+  | CursorE(_, InvalidText(_)) =>
+    Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
@@ -593,7 +609,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | ApPaletteZ(_, _, _, zpsi) =>
-    let (ty, ze) = ZNatMap.prj_z_v(zpsi.zsplice_map);
+    let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
   };
 }
@@ -809,6 +825,8 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
     | Var(_, InVarHole(Free, _), _) =>
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
+    | InvalidText(_) =>
+      Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)

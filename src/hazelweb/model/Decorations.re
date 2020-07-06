@@ -37,7 +37,8 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
     | Operand(_)
     | Case(_)
     | Rule
-    | Var(_) => steps == []
+    | Var(_)
+    | Invalid => steps == []
     };
   let err_holes =
     decorations.err_holes

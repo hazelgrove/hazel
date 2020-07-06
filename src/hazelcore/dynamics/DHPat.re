@@ -7,6 +7,7 @@ type t =
   | Wild
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
   | IntLit(int)
   | FloatLit(float)
@@ -32,6 +33,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | EmptyHole(_, _)
   | NonEmptyHole(_, _, _, _)
   | Wild
+  | InvalidText(_)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)

@@ -1,3 +1,5 @@
+/** A sidebar panel listing available actions and associated hotkeys. */
+
 let view:
-  (~inject: Update.Action.t => Virtual_dom.Vdom.Event.t, Model.t) =>
+  (~inject: ModelAction.t => Virtual_dom.Vdom.Event.t, Model.t) =>
   Virtual_dom.Vdom.Node.t;

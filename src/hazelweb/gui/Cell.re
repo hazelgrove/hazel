@@ -3,8 +3,7 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
-module KeyCombo = JSUtil.KeyCombo;
-module MoveKey = JSUtil.MoveKey;
+
 open ViewUtil;
 
 let focus = () => {
@@ -21,6 +20,7 @@ let view = (~inject, model: Model.t) => {
       Node.div(
         [Attr.id(cell_id)],
         [
+          /* font-specimen used to gather font metrics for caret positioning and other things */
           Node.div([Attr.id("font-specimen")], [Node.text("X")]),
           Node.div(
             [Attr.id("code-container")],

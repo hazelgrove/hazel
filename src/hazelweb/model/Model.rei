@@ -27,15 +27,8 @@ type measurements = {
 };
 
 type t = {
-  /**
-   * all cardstacks along with current cardstack,
-   * current cardstack contains current Program
-   */
   cardstacks: ZCardstacks.t,
   cell_width: int,
-  /**
-   * the instance path to the selected hole instance
-   */
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   compute_results,
@@ -45,6 +38,14 @@ type t = {
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
+  /**
+   * Preview on undo history entry mainly implemented by
+   * on_mouseenter/leave will not work when scrolling
+   * because mouse pointer stay still.
+   * Recording mouse_position can retrive elements under mouse
+   * to realize preview when scrolling.
+   */
+  mouse_position: ref(MousePosition.t),
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -83,7 +84,7 @@ let next_card: t => t;
 
 let perform_edit_action: (Action_common.t, t) => t;
 
-let move_via_key: (JSUtil.MoveKey.t, t) => t;
+let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (CaretPosition.t, t) => t;
 
 /**
