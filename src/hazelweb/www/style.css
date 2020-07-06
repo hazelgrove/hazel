@@ -853,6 +853,11 @@ h1 {
   fill: var(--exp-bg-color);
 }
 
+.code .VBox {
+  display: inline-block;
+  vertical-align: top;
+}
+
 .DHCode .Align {
   display: inline-block;
 }
