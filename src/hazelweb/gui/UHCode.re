@@ -174,16 +174,9 @@ module Dec = {
                  MeasuredLayout.next_position(~indent=0, word_start, m);
                (word_end, (highlighted_rs, []));
              | _ =>
-               switch (word) {
-               | {layout: Annot(annot, _), _} =>
-                 print_endline(
-                   Sexplib.Sexp.to_string(UHAnnot.sexp_of_t(annot)),
-                 )
-               | _ => print_endline("not annot")
-               };
                failwith(
                  "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
-               );
+               )
              }
            },
            start,
@@ -338,6 +331,27 @@ module Dec = {
          );
     Vdom.(
       Node.create_svg("g", [], [highlighted_view, ...closed_child_views])
+    );
+  };
+
+  let caret_view = ({row, col}: CaretPosition.t): Vdom.Node.t => {
+    Vdom.(
+      Node.span(
+        [
+          Attr.id("caret"),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              // TODO make more robust
+              "top: calc(%d * var(--code-font-size) * var(--code-line-height)); left: calc(%dch - 1px);",
+              row,
+              col,
+            ),
+          ),
+          Attr.classes(["blink"]),
+        ],
+        [],
+      )
     );
   };
 
@@ -684,6 +698,13 @@ let view =
             )
           : [];
 
+      let caret_pos =
+        Program.get_caret_position(
+          ~measure_program_get_doc=false,
+          ~measure_layoutOfDoc_layout_of_doc=false,
+          ~memoize_doc=true,
+          program,
+        );
       /*
        let children =
          switch (caret_pos) {
@@ -695,6 +716,8 @@ let view =
            [caret, ...vs];
          };
        */
+
+      let caret = program.is_focused ? [Dec.caret_view(caret_pos)] : [];
 
       let id = "code-root";
       Node.div(
@@ -733,7 +756,8 @@ let view =
           // Attr.on_blur(_ => inject(Update.Action.BlurCell)),
           ...key_handlers,
         ],
-        [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+        caret
+        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
