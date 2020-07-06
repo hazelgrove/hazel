@@ -207,9 +207,8 @@ module Dec = {
     let (highlighted_rs, closed_child_rss) = List.split(zipped);
     let highlighted_rs =
       switch (line) {
-      | [{layout: Annot(Tessera, _), _}, ..._] when overflow_left =>
-        let height =
-          line |> List.map(MeasuredLayout.height) |> List.fold_left(max, 0);
+      | [{layout: Annot(Tessera, m), _}, ..._] when overflow_left =>
+        let height = MeasuredLayout.height(m);
         [
           RectilinearPolygon.{
             min: {
