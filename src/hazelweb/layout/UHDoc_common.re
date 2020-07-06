@@ -254,7 +254,7 @@ let mk_Var =
   mk_text(x) |> annot_Tessera |> annot_Var(~sort, ~err, ~verr);
 
 let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
-  mk_text(n) |> annot_Operand(~sort, ~err);
+  mk_text(n) |> annot_Tessera |> annot_Operand(~sort, ~err);
 
 let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
   mk_text(f) |> annot_Tessera |> annot_Operand(~sort, ~err);
