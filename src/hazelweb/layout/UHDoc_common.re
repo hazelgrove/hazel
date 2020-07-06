@@ -438,15 +438,16 @@ let rec mk_BinOp =
     let op = annot_Tessera(annot_Step(op_index, mk_operator(op)));
     let skel1 = go(skel1);
     let skel2 = go(skel2);
+    let annot_unenclosed_OpenChild = annot_OpenChild(~is_enclosed=false);
     let inline_choice =
       Doc.(
         hcats([
-          annot_OpenChild(
+          annot_unenclosed_OpenChild(
             ~is_inline=true,
             hcats([skel1(~enforce_inline=true), ...lpadding]),
           ),
           op,
-          annot_OpenChild(
+          annot_unenclosed_OpenChild(
             ~is_inline=true,
             hcats(rpadding @ [skel2(~enforce_inline=true)]),
           ),
@@ -455,13 +456,14 @@ let rec mk_BinOp =
     let multiline_choice =
       Doc.(
         vsep(
-          annot_OpenChild(
+          annot_unenclosed_OpenChild(
             ~is_inline=false,
             align(skel1(~enforce_inline=false)),
           ),
           hcat(
             op,
-            annot_OpenChild(
+            // TODO need to have a choice here for multiline vs not
+            annot_unenclosed_OpenChild(
               ~is_inline=false,
               hcats(rpadding @ [align(skel2(~enforce_inline=false))]),
             ),
@@ -495,41 +497,77 @@ let mk_NTuple =
       ~mk_operand,
       ~mk_operator,
       ~inline_padding_of_operator,
-      ~enforce_inline,
       ~seq,
     );
-  switch (skel |> get_tuple_elements |> ListUtil.map_zip(mk_BinOp)) {
+
+  switch (get_tuple_elements(skel)) {
   | [] => failwith(__LOC__ ++ ": found empty tuple")
-  | [(_, singleton_doc)] => singleton_doc
-  | [(_, hd_doc), ...tl] =>
+  | [singleton] => mk_BinOp(~enforce_inline, singleton)
+  | [hd, ...tl] =>
     let err =
       switch (skel) {
       | Placeholder(_) => assert(false)
       | BinOp(err, _, _, _) => err
       };
-    let (doc, comma_indices) =
+    let hd_doc = (~enforce_inline: bool) =>
+      // TODO need to relax is_inline
+      annot_OpenChild(
+        ~is_inline=enforce_inline,
+        ~is_enclosed=false,
+        mk_BinOp(~enforce_inline, hd),
+      );
+    let comma_doc = (step: int) => annot_Step(step, mk_op(","));
+    let (inline_choice, comma_indices) =
       tl
-      |> List.fold_left(
-           ((tuple, comma_indices), (elem, elem_doc)) => {
-             // TODO multi-line tuples
+      |> ListUtil.fold_left_i(
+           ((tuple, comma_indices), (i, elem)) => {
              let comma_index =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
-             let comma_doc =
-               mk_op(",") |> annot_Step(comma_index) |> annot_Tessera;
+             let elem_doc = mk_BinOp(~enforce_inline=true, elem);
              let doc =
                Doc.hcats([
                  tuple,
-                 comma_doc,
-                 space_ |> annot_Padding,
-                 elem_doc |> annot_OpenChild(~is_inline=true),
+                 annot_Tessera(comma_doc(comma_index)),
+                 annot_OpenChild(
+                   ~is_enclosed=i == List.length(tl) - 1,
+                   ~is_inline=true,
+                   Doc.hcat(annot_Padding(space_), elem_doc),
+                 ),
                ]);
              (doc, [comma_index, ...comma_indices]);
            },
-           (hd_doc |> annot_OpenChild(~is_inline=true), []),
+           (hd_doc(~enforce_inline=true), []),
          );
-    doc
-    |> Doc.annot(
-         UHAnnot.mk_Term(~sort, ~shape=NTuple({comma_indices, err}), ()),
-       );
+    let multiline_choice =
+      tl
+      |> ListUtil.fold_left_i(
+           (tuple, (i, elem)) => {
+             let comma_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=false, elem);
+             Doc.(
+               vsep(
+                 tuple,
+                 hcat(
+                   annot_Tessera(comma_doc(comma_index)),
+                   // TODO need to have a choice here for multiline vs not
+                   annot_OpenChild(
+                     ~is_enclosed=i == List.length(tl) - 1,
+                     ~is_inline=false,
+                     hcat(annot_Padding(space_), align(elem_doc)),
+                   ),
+                 ),
+               )
+             );
+           },
+           hd_doc(~enforce_inline=false),
+         );
+    let choices =
+      enforce_inline
+        ? inline_choice : Doc.choice(inline_choice, multiline_choice);
+    Doc.annot(
+      UHAnnot.mk_Term(~sort, ~shape=NTuple({comma_indices, err}), ()),
+      choices,
+    );
   };
 };
