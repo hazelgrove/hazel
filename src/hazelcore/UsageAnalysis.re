@@ -50,9 +50,12 @@ and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
       find_uses(~steps=steps @ [2], x, def),
       binds_var(x, p),
     )
-  | AbbrevLine(_, err_status, lln_old, args) => (
-      LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
-      |> find_uses_opseq(~steps=steps @ [0], x),
+  | AbbrevLine(_, _, _, args) => (
+      args
+      |> List.mapi((i, arg) =>
+           find_uses_operand(~steps=steps @ [i], x, arg)
+         )
+      |> List.concat,
       false,
     )
   }

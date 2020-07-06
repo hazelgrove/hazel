@@ -2804,7 +2804,11 @@ module Exp = {
         Construct(SChar(s)),
         CursorL(OnText(j), AbbrevLine(lln_new, err_status, lln_old, args)),
       ) =>
-      let lln_new = lln_new |> StringUtil.insert(j, s);
+      let lln_new_len = LivelitName.length(lln_new);
+      let (lln_new, lln_old) =
+        j <= lln_new_len
+          ? (lln_new |> StringUtil.insert(j, s), lln_old)
+          : (lln_new, lln_old |> StringUtil.insert(j - 1 - lln_new_len, s));
       let new_ze =
         ZExp.CursorL(
           OnText(j + String.length(s)),
@@ -2903,7 +2907,7 @@ module Exp = {
         ),
       ) =>
       if (k == 1) {
-        let lln_new_len = String.length(lln_new);
+        let lln_new_len = LivelitName.length(lln_new);
         let new_lln_new =
           lln_new_len == 0 ? "" : String.sub(lln_new, 0, lln_new_len - 1);
         let new_zblock = (
@@ -2916,9 +2920,10 @@ module Exp = {
         );
         fix_and_mk_result(u_gen, new_zblock);
       } else {
+        let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         let new_zblock =
-          LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
-          |> UHExp.Block.wrap'
+          UHExp.FreeLivelit(u, lln_new)
+          |> UHExp.Block.wrap
           |> ZExp.place_after;
         fix_and_mk_result(u_gen, new_zblock);
       }
@@ -3060,14 +3065,28 @@ module Exp = {
         }
       };
 
-    | (_, AbbrevLineZL(lln_new, err_status, zopseq)) =>
-      switch (ana_perform_opseq(ctx, a, (zopseq, u_gen), HTyp.Hole)) {
+    | (
+        _,
+        AbbrevLineZL(lln_new, err_status, lln_old, (prefix, zarg, suffix)),
+      ) =>
+      switch (ana_perform_operand(ctx, a, (zarg, u_gen), HTyp.Hole)) {
+      | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
-      | Succeeded(AnaDone((([], new_zline, []), u_gen))) =>
-        let new_zopseq = ZExp.ZLine.force_get_zopseq(new_zline);
-        let new_zabbrev = ZExp.AbbrevLineZL(lln_new, err_status, new_zopseq);
+      | Succeeded(
+          AnaDone((
+            ([], ExpLineZ(ZOpSeq(_, ZOperand(zarg, (_, _)))), []),
+            u_gen,
+          )),
+        ) =>
+        let new_zabbrev =
+          ZExp.AbbrevLineZL(
+            lln_new,
+            err_status,
+            lln_old,
+            (prefix, zarg, suffix),
+          );
         Succeeded(LineDone((([], new_zabbrev, []), ctx, u_gen)));
-      | _ => Failed
+      | Succeeded(_) => Failed
       }
 
     | (Init, _) => failwith("Init action should not be performed.")

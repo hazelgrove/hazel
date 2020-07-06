@@ -9,7 +9,12 @@ and zline =
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
   | LetLineZE(UHPat.t, option(UHTyp.t), t)
-  | AbbrevLineZL(LivelitName.t, AbbrevErrStatus.t, zopseq)
+  | AbbrevLineZL(
+      LivelitName.t,
+      AbbrevErrStatus.t,
+      LivelitName.t,
+      ZList.t(zoperand, UHExp.operand),
+    )
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
@@ -68,9 +73,11 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
-  | AbbrevLine(lln_new, _, _, _) =>
+  | AbbrevLine(lln_new, _, lln_old, _) =>
     CursorPosition.delim_cursors_k(0)
-    @ (lln_new |> LivelitName.length |> CursorPosition.text_cursors)
+    @ CursorPosition.text_cursors(
+        LivelitName.length(lln_new) + 1 + LivelitName.length(lln_old),
+      )
     @ CursorPosition.delim_cursors_k(1)
     @ CursorPosition.delim_cursors_k(2)
   | LetLine(_, ann, _) =>
@@ -422,8 +429,8 @@ and erase_zline =
   fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
-  | AbbrevLineZL(lln_new, err_status, zopseq) =>
-    _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, zopseq)
+  | AbbrevLineZL(lln_new, err_status, lln_old, zargs) =>
+    _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, lln_old, zargs)
   | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
   | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
   | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
@@ -455,24 +462,26 @@ and erase_zrule =
   | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
   | RuleZE(p, zclause) => Rule(p, erase(zclause))
 and _AbbrevLineZL_of_AbbrevLine =
-    (~place_before, lln_new, err_status, lln_old, args) => {
-  let zopseq =
-    LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
-    |> (place_before ? place_before_opseq : place_after_opseq);
-  AbbrevLineZL(lln_new, err_status, zopseq);
-}
-and _AbbrevLine_of_AbbrevLineZL = (lln_new, err_status, zopseq) => {
-  let OpSeq(_, seq) = erase_zopseq(zopseq);
-  switch (Seq.operands(seq)) {
-  | [
-      ApLivelit(_, _, lln_old, _, _) | FreeLivelit(_, lln_old) |
-      Var(_, _, lln_old),
-      ...args,
-    ] =>
-    AbbrevLine(lln_new, err_status, lln_old, args)
-  | args => AbbrevLine(lln_new, err_status, "$", args)
-  };
-};
+    (~place_before, lln_new, err_status, lln_old, args) =>
+  switch (args) {
+  | [] => failwith("Do not call this on empty args")
+  | [arg1, ...rest] =>
+    let carg =
+      place_before
+        ? arg1 : ListUtil.last(rest) |> OptUtil.get_default(~default=arg1);
+    let zarg =
+      (place_before ? place_before_operand : place_after_operand)(carg);
+    let prefix = ListUtil.take(List.length(rest), args);
+    let zargs = place_before ? ([], zarg, rest) : (prefix, zarg, []);
+    AbbrevLineZL(lln_new, err_status, lln_old, zargs);
+  }
+and _AbbrevLine_of_AbbrevLineZL = (lln_new, err_status, lln_old, zargs) =>
+  AbbrevLine(
+    lln_new,
+    err_status,
+    lln_old,
+    ZList.erase(zargs, erase_zoperand),
+  );
 
 let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
@@ -645,16 +654,35 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
   | CursorL(OnDelim(_), EmptyLine | ExpLine(_)) => None
-  | CursorL(OnText(j), AbbrevLine(_) as abl) =>
-    Some(CursorL(j == 0 ? OnDelim(0, After) : OnText(j - 1), abl))
+  | CursorL(OnText(j), AbbrevLine(lln_new, _, _, _) as abl) =>
+    let c: CursorPosition.t =
+      if (j == 0) {
+        OnDelim(0, After);
+      } else if (j == LivelitName.length(lln_new) + 1) {
+        OnDelim(1, After);
+      } else {
+        OnText(j - 1);
+      };
+    Some(CursorL(c, abl));
   | CursorL(
       OnDelim(k, Before),
       AbbrevLine(lln_new, err_status, lln_old, args) as abl,
     ) =>
     if (k == 1) {
       Some(CursorL(OnText(LivelitName.length(lln_new)), abl));
+    } else if (args == []) {
+      // k == 2, args is empty
+      Some(
+        CursorL(
+          OnText(
+            LivelitName.length(lln_new) + 1 + LivelitName.length(lln_old),
+          ),
+          abl,
+        ),
+      );
     } else {
-      /* k == 2 */ Some(
+      // k == 2, args is non-empty
+      Some(
         _AbbrevLineZL_of_AbbrevLine(
           ~place_before=false,
           lln_new,
@@ -702,11 +730,39 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | None =>
       Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase(zdef))))
     }
-  | AbbrevLineZL(lln_new, err_status, zopseq) =>
-    let abl = _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, zopseq);
-    switch (zopseq |> move_cursor_left_zopseq) {
-    | None => Some(CursorL(OnDelim(1, After), abl))
-    | Some(zopseq) => Some(AbbrevLineZL(lln_new, err_status, zopseq))
+  | AbbrevLineZL(lln_new, err_status, lln_old, (p, zarg, s) as zargs) =>
+    let new_zarg_opt = move_cursor_left_zoperand(zarg);
+    switch (new_zarg_opt) {
+    | Some(new_zarg) =>
+      Some(AbbrevLineZL(lln_new, err_status, lln_old, (p, new_zarg, s)))
+    | None =>
+      let prefix_last_opt = ListUtil.last(p);
+      switch (prefix_last_opt) {
+      | None =>
+        // p == []
+        let abl =
+          _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, lln_old, zargs);
+        Some(
+          CursorL(
+            OnText(
+              LivelitName.length(lln_new) + 1 + LivelitName.length(lln_old),
+            ),
+            abl,
+          ),
+        );
+      | Some(prefix_last) =>
+        let new_prefix = p |> ListUtil.take(List.length(p) - 1);
+        let new_zarg = place_after_operand(prefix_last);
+        let new_suffix = [erase_zoperand(zarg), ...s];
+        Some(
+          AbbrevLineZL(
+            lln_new,
+            err_status,
+            lln_old,
+            (new_prefix, new_zarg, new_suffix),
+          ),
+        );
+      };
     };
   }
 and move_cursor_left_zopseq = zopseq =>
@@ -888,29 +944,37 @@ and move_cursor_right_zline =
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
-  | CursorL(OnText(j), AbbrevLine(lln_new, _, _, _) as abl) =>
-    Some(
-      CursorL(
-        j >= LivelitName.length(lln_new)
-          ? OnDelim(1, Before) : OnText(j + 1),
-        abl,
-      ),
-    )
-  | CursorL(
-      OnDelim(k, After),
-      AbbrevLine(lln_new, err_status, lln_old, args) as abl,
-    ) =>
+  | CursorL(OnText(j), AbbrevLine(lln_new, err_status, lln_old, args) as abl) => {
+      let ret = c => Some(CursorL(c, abl));
+      if (j == LivelitName.length(lln_new)) {
+        CursorPosition.OnDelim(1, Before) |> ret;
+      } else if (j == LivelitName.length(lln_new)
+                 + 1
+                 + LivelitName.length(lln_old)) {
+        switch (args) {
+        | [] => CursorPosition.OnDelim(2, Before) |> ret
+        | _ =>
+          Some(
+            _AbbrevLineZL_of_AbbrevLine(
+              ~place_before=true,
+              lln_new,
+              err_status,
+              lln_old,
+              args,
+            ),
+          )
+        };
+      } else {
+        CursorPosition.OnText(j + 1) |> ret;
+      };
+    }
+  | CursorL(OnDelim(k, After), AbbrevLine(lln_new, _, _, _) as abl) =>
     if (k == 0) {
       Some(CursorL(OnText(0), abl));
     } else {
-      /* k == 1 */ Some(
-        _AbbrevLineZL_of_AbbrevLine(
-          ~place_before=true,
-          lln_new,
-          err_status,
-          lln_old,
-          args,
-        ),
+      // k == 1
+      Some(
+        CursorL(OnText(LivelitName.length(lln_new) + 1), abl),
       );
     }
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
@@ -963,11 +1027,29 @@ and move_cursor_right_zline =
     | None =>
       Some(CursorL(OnDelim(3, Before), LetLine(p, ann, erase(zdef))))
     }
-  | AbbrevLineZL(lln_new, err_status, zopseq) => {
-      let abl = _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, zopseq);
-      switch (zopseq |> move_cursor_right_zopseq) {
-      | None => Some(CursorL(OnDelim(2, Before), abl))
-      | Some(zopseq) => Some(AbbrevLineZL(lln_new, err_status, zopseq))
+  | AbbrevLineZL(lln_new, err_status, lln_old, (p, zarg, s) as zargs) => {
+      let new_zarg_opt = move_cursor_right_zoperand(zarg);
+      switch (new_zarg_opt) {
+      | Some(new_zarg) =>
+        Some(AbbrevLineZL(lln_new, err_status, lln_old, (p, new_zarg, s)))
+      | None =>
+        switch (s) {
+        | [] =>
+          let abl =
+            _AbbrevLine_of_AbbrevLineZL(lln_new, err_status, lln_old, zargs);
+          Some(CursorL(OnDelim(2, Before), abl));
+        | [suffix_first, ...new_suffix] =>
+          let new_prefix = p @ [erase_zoperand(zarg)];
+          let new_zarg = place_before_operand(suffix_first);
+          Some(
+            AbbrevLineZL(
+              lln_new,
+              err_status,
+              lln_old,
+              (new_prefix, new_zarg, new_suffix),
+            ),
+          );
+        }
       };
     }
 and move_cursor_right_zopseq = zopseq =>
@@ -1145,7 +1227,7 @@ and _cursor_inst_zline =
   | LetLineZP(_)
   | LetLineZA(_) => []
   | LetLineZE(_, _, ze) => cursor_through_insts(ze)
-  | AbbrevLineZL(_, _, zopseq) => _cursor_inst_zopseq(zopseq)
+  | AbbrevLineZL(_, _, _, (_, zarg, _)) => _cursor_inst_zoperand(zarg)
 and _cursor_inst_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => []

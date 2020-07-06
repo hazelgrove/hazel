@@ -141,7 +141,7 @@ let mk = ((l, splice_ls): UHLayout.with_splices): (with_splices, option(z)) => {
         | Some(j) =>
           let pos: CursorPosition.t =
             switch (shape) {
-            | Text => OnText(j)
+            | Text(start_index) => OnText(start_index + j)
             | Op => OnOp(j == 0 ? Before : After)
             | Delim(k) => OnDelim(k, j == 0 ? Before : After)
             };
@@ -149,7 +149,10 @@ let mk = ((l, splice_ls): UHLayout.with_splices): (with_splices, option(z)) => {
         };
         let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
           switch (shape) {
-          | Text => (OnText(0), OnText(len))
+          | Text(start_index) => (
+              OnText(start_index),
+              OnText(start_index + len),
+            )
           | Op => (OnOp(Before), OnOp(After))
           | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))
           };
@@ -244,7 +247,7 @@ let move_down = ((row, col), cmap): option(binding) =>
 let move_left =
     (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_before_within_row((row, col))) {
-  | (OnText(j), _) when j > 0 =>
+  | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j > j' =>
     Some(((row, col - 1), (OnText(j - 1), rev_steps)))
   | (_, Some(z)) => Some(z)
   | (_, None) => row == 0 ? None : Some(cmap |> end_of_row(row - 1))
@@ -253,8 +256,7 @@ let move_left =
 let move_right =
     (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_after_within_row((row, col))) {
-  | (OnText(j), Some((_, (CursorPosition.OnText(_), rev_steps_after))))
-      when rev_steps === rev_steps_after || rev_steps == rev_steps_after =>
+  | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j < j' =>
     Some(((row, col + 1), (OnText(j + 1), rev_steps)))
   | (_, Some(z)) => Some(z)
   | (_, None) =>

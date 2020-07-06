@@ -140,7 +140,8 @@ and get_zoperand_from_zexp = (zexp: ZExp.t): option(zoperand) => {
 and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
-  | AbbrevLineZL(_, _, zopseq)
+  | AbbrevLineZL(_, _, _, (_, zarg, _)) =>
+    get_zoperand_from_zexp_operand(zarg)
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _, _) => get_zoperand_from_zpat(zpat)
   | LetLineZA(_, ztyp, _) => get_zoperand_from_ztyp(ztyp)
@@ -263,8 +264,8 @@ and get_outer_zrules_from_zline =
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _) => outer_zrules
   | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
-  | AbbrevLineZL(_, _, zopseq) =>
-    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
+  | AbbrevLineZL(_, _, _, (_, zarg, _)) =>
+    get_outer_zrules_from_zexp_operand(zarg, outer_zrules)
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -360,7 +361,7 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | LetLineZP(zpat, _, _) => extract_cursor_pat_term(zpat)
   | LetLineZA(_, ztyp, _) => extract_cursor_type_term(ztyp)
   | LetLineZE(_, _, zexp) => extract_cursor_exp_term(zexp)
-  | AbbrevLineZL(_, _, zopseq) => extract_from_zexp_opseq(zopseq)
+  | AbbrevLineZL(_, _, _, (_, zarg, _)) => extract_from_zexp_operand(zarg)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -451,7 +452,7 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
       | LetLineZE(_, _, _)
-      | AbbrevLineZL(_, _, _) => true
+      | AbbrevLineZL(_) => true
       }
     | Some((_, _)) => false
     };
@@ -467,7 +468,7 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
       | LetLineZE(_, _, _)
-      | AbbrevLineZL(_, _, _) => false
+      | AbbrevLineZL(_) => false
       }
     | _ => false
     };
@@ -1094,8 +1095,8 @@ module Exp = {
         ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
         |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci));
       }
-    | AbbrevLineZL(_, _, zopseq) =>
-      syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)
+    | AbbrevLineZL(_, _, _, (p, zarg, _)) =>
+      syn_cursor_info_zoperand(~steps=steps @ [List.length(p)], ctx, zarg)
       |> OptUtil.map(ci => CursorNotOnDeferredVarPat(ci))
     }
   and syn_cursor_info_zopseq =
@@ -1153,6 +1154,32 @@ module Exp = {
            )
       };
     } else {
+      let check_livelit_first = backup => {
+        let livelit_check = LivelitUtil.check_livelit(ctx, seq, skel);
+        switch (livelit_check) {
+        | Some((ApLivelitData(_), _, _, reqd_param_tys, args)) =>
+          let (_, reqd_param_tys) = List.split(reqd_param_tys);
+          let arg_results =
+            List.combine(args, reqd_param_tys)
+            |> List.filter_map(((arg, param_ty)) =>
+                 if (ZOpSeq.skel_contains_cursor(arg, zseq)) {
+                   ana_cursor_info_skel(~steps, ctx, arg, zseq, param_ty);
+                 } else {
+                   None;
+                 }
+               );
+          switch (arg_results) {
+          | [result] => Some(result)
+          | [_, _, ..._] => None
+          | [] =>
+            Statics.Exp.syn_skel(ctx, skel, seq)
+            |> OptUtil.map(ty =>
+                 mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
+               )
+          };
+        | _ => backup()
+        };
+      };
       // recurse toward cursor
       switch (skel) {
       | Placeholder(_) => None
@@ -1187,81 +1214,61 @@ module Exp = {
         | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, Bool)
         }
       | BinOp(_, Space, Placeholder(n) as skel1, skel2) =>
-        if (ZOpSeq.skel_contains_cursor(skel1, zseq)) {
-          let zoperand =
-            switch (zseq) {
-            | ZOperator(_) => assert(false)
-            | ZOperand(zoperand, _) => zoperand
+        check_livelit_first(() =>
+          if (ZOpSeq.skel_contains_cursor(skel1, zseq)) {
+            let zoperand =
+              switch (zseq) {
+              | ZOperator(_) => assert(false)
+              | ZOperand(zoperand, _) => zoperand
+              };
+            let mk = typed => mk(typed, ctx, extract_from_zexp_zseq(zseq));
+            switch (cursor_on_outer_expr(zoperand)) {
+            | None =>
+              syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
+            | Some((InHole(WrongLength, _), _)) => None
+            | Some((InHole(TypeInconsistent(None), _), _)) =>
+              let operand_nih =
+                zoperand
+                |> ZExp.erase_zoperand
+                |> UHExp.set_err_status_operand(NotInHole);
+              Statics.Exp.syn_operand(ctx, operand_nih)
+              |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
+            | Some((
+                InHole(TypeInconsistent(Some(InsufficientParams)), _),
+                _,
+              )) =>
+              Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))
+              |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)))
+            | Some((_, InVarHole(Free, _))) =>
+              Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
+            | Some((_, InVarHole(Keyword(k), _))) =>
+              Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
+            | Some((NotInHole, NotInVarHole)) =>
+              switch (
+                Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
+              ) {
+              | None => None
+              | Some(ty) =>
+                HTyp.matched_arrow(ty)
+                |> OptUtil.map(((ty1, ty2)) =>
+                     mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+                   )
+              }
             };
-          let mk = typed => mk(typed, ctx, extract_from_zexp_zseq(zseq));
-          switch (cursor_on_outer_expr(zoperand)) {
-          | None =>
-            syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
-          | Some((InHole(WrongLength, _), _)) => None
-          | Some((InHole(TypeInconsistent(None), _), _)) =>
-            let operand_nih =
-              zoperand
-              |> ZExp.erase_zoperand
-              |> UHExp.set_err_status_operand(NotInHole);
-            Statics.Exp.syn_operand(ctx, operand_nih)
-            |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
-          | Some((
-              InHole(TypeInconsistent(Some(InsufficientParams)), _),
-              _,
-            )) =>
-            Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))
-            |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)))
-          | Some((_, InVarHole(Free, _))) =>
-            Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
-          | Some((_, InVarHole(Keyword(k), _))) =>
-            Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
-          | Some((NotInHole, NotInVarHole)) =>
-            switch (
-              Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
-            ) {
+          } else {
+            switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
             | None => None
             | Some(ty) =>
-              HTyp.matched_arrow(ty)
-              |> OptUtil.map(((ty1, ty2)) =>
-                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-                 )
-            }
-          };
-        } else {
-          switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
-          | None => None
-          | Some(ty) =>
-            switch (HTyp.matched_arrow(ty)) {
-            | None => None
-            | Some((ty1, _)) =>
-              ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
-            }
-          };
-        }
+              switch (HTyp.matched_arrow(ty)) {
+              | None => None
+              | Some((ty1, _)) =>
+                ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
+              }
+            };
+          }
+        )
       | BinOp(_, Space, skel1, skel2) =>
-        let livelit_check = LivelitUtil.check_livelit(ctx, seq, skel);
-        switch (livelit_check) {
-        | Some((ApLivelitData(_), _, _, reqd_param_tys, args)) =>
-          let (_, reqd_param_tys) = List.split(reqd_param_tys);
-          let arg_results =
-            List.combine(args, reqd_param_tys)
-            |> List.filter_map(((arg, param_ty)) =>
-                 if (ZOpSeq.skel_contains_cursor(arg, zseq)) {
-                   ana_cursor_info_skel(~steps, ctx, arg, zseq, param_ty);
-                 } else {
-                   None;
-                 }
-               );
-          switch (arg_results) {
-          | [result] => Some(result)
-          | [_, _, ..._] => None
-          | [] =>
-            Statics.Exp.syn_skel(ctx, skel, seq)
-            |> OptUtil.map(ty =>
-                 mk(Synthesized(ty), ctx, extract_from_zexp_zseq(zseq))
-               )
-          };
-        | _ =>
+        check_livelit_first(() =>
           switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
           | Some(_) as result => result
           | None =>
@@ -1275,7 +1282,7 @@ module Exp = {
               }
             }
           }
-        };
+        )
       | BinOp(_, Cons, skel1, skel2) =>
         switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
         | Some(_) as result => result

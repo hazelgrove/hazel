@@ -146,9 +146,13 @@ let annot_LivelitExpression =
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
-let mk_text = (s: string): t =>
+let mk_text = (~start_index=0, s: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(~shape=Text, ~len=StringUtil.utf8_length(s), ()),
+    UHAnnot.mk_Token(
+      ~shape=Text(start_index),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
     Doc.text(s),
   );
 
@@ -431,19 +435,38 @@ let mk_LetLine =
   ]);
 };
 
-let mk_AbbrevLine = (lln_new: LivelitName.t, args_opseq: formatted_child): t => {
+let mk_AbbrevLine =
+    (
+      lln_new: LivelitName.t,
+      lln_old: LivelitName.t,
+      args: list(formatted_child),
+    )
+    : t => {
   let open_group = {
     let abbrev_delim = Delim.abbrev_AbbrevLine();
     let eq_delim = Delim.eq_AbbrevLine();
     let lln_new_doc = Doc.hseps([abbrev_delim, mk_text(lln_new), eq_delim]);
     lln_new_doc |> annot_DelimGroup;
   };
+  let inline_choice = {
+    let args =
+      args
+      |> List.map(
+           fun
+           | UserNewline(_) => Doc.fail()
+           | EnforcedInline(arg) => arg
+           | Unformatted(arg) => arg(~enforce_inline=true),
+         );
+    Doc.(hcats([space_, ...args] @ [space_]));
+  };
+  let old_ll_group =
+    Doc.hseps([
+      mk_text(~start_index=LivelitName.length(lln_new) + 1, lln_old),
+      inline_choice,
+    ])
+    |> annot_DelimGroup;
   let close_group = Delim.in_AbbrevLine() |> annot_DelimGroup;
-  Doc.hcats([
-    open_group,
-    args_opseq |> pad_open_child(~inline_padding=(space_, space_)),
-    close_group,
-  ]);
+  Doc.hseps([open_group, old_ll_group, close_group]);
 };
 
 let rec mk_BinOp =
@@ -829,20 +852,25 @@ module Exp = {
           switch (line) {
           | EmptyLine =>
             empty_
-            |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+            |> Doc.annot(UHAnnot.mk_Token(~shape=Text(0), ~len=0, ()))
             |> Doc.annot(UHAnnot.EmptyLine)
           | ExpLine(opseq) =>
             Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
-          | AbbrevLine(lln_new, err_status, lln_old, args) =>
-            let formattable = (~enforce_inline) =>
-              LivelitUtil.abbrev_args_to_opseq(err_status, lln_old, args)
-              |> Lazy.force(mk_opseq, ~memoize, ~enforce_inline)
-              |> annot_Step(0);
-            let formatted =
-              enforce_inline
-                ? EnforcedInline(formattable(~enforce_inline=true))
-                : Unformatted(formattable);
-            mk_AbbrevLine(lln_new, formatted)
+          | AbbrevLine(lln_new, _, lln_old, args) =>
+            let formattable = (i, arg, ~enforce_inline) =>
+              arg
+              |> Lazy.force(mk_operand, ~memoize, ~enforce_inline)
+              |> annot_Step(i);
+            let formatteds =
+              args
+              |> List.mapi((i, arg) =>
+                   enforce_inline
+                     ? EnforcedInline(
+                         formattable(i, arg, ~enforce_inline=true),
+                       )
+                     : Unformatted(formattable(i, arg))
+                 );
+            mk_AbbrevLine(lln_new, lln_old, formatteds)
             |> Doc.annot(UHAnnot.AbbrevLine);
           | LetLine(p, ann, def) =>
             let p = Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);

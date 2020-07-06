@@ -104,25 +104,3 @@ let check_livelit =
             };
           })
      );
-
-let abbrev_args_to_opseq =
-    (
-      abbrev_err_status: AbbrevErrStatus.t,
-      lln: LivelitName.t,
-      args: list(UHExp.operand),
-    )
-    : UHExp.opseq => {
-  let (err_status: ErrStatus.t, var_err_status: VarErrStatus.t) =
-    switch (abbrev_err_status) {
-    | NotInAbbrevHole => (NotInHole, NotInVarHole)
-    | InAbbrevHole(Free, u) => (NotInHole, InVarHole(Free, u))
-    | InAbbrevHole(ExtraneousArgs, u) => (
-        InHole(TypeInconsistent(None), u),
-        NotInVarHole,
-      )
-    };
-  let lln_operand = UHExp.Var(err_status, var_err_status, lln);
-  let args' = args |> List.map(arg => (Operators.Exp.Space, arg));
-  let seq = Seq.mk(lln_operand, args');
-  UHExp.mk_OpSeq(seq);
-};

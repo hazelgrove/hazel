@@ -3,7 +3,7 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type token_shape =
-  | Text
+  | Text(int)
   | Op
   | Delim(DelimIndex.t);
 
