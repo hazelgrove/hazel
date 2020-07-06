@@ -5,7 +5,8 @@ type err_state_b =
   | BindingError
   | OK;
 
-let view = (model: Model.t): Vdom.Node.t => {
+let view =
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(
@@ -27,6 +28,36 @@ let view = (model: Model.t): Vdom.Node.t => {
         ],
       )
     );
+  let inconsistent_branches_ty_bar =
+      (branch_types, path_to_case, skipped_index) =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+        List.mapi(
+          (index, ty) => {
+            let shifted_index =
+              switch (skipped_index) {
+              | None => index
+              | Some(skipped_index) =>
+                if (index >= skipped_index) {
+                  index + 1;
+                } else {
+                  index;
+                }
+              };
+            Node.span(
+              [
+                Attr.on_click(_ => {
+                  inject(SelectCaseBranch(path_to_case, shifted_index))
+                }),
+              ],
+              [HTypCode.view(ty)],
+            );
+          },
+          branch_types,
+        ),
+      )
+    );
 
   let special_msg_bar = (msg: string) =>
     Vdom.(
@@ -45,10 +76,13 @@ let view = (model: Model.t): Vdom.Node.t => {
     );
   let expected_ty_title = "Expecting an expression of type";
   let expected_ty_title_pat = "Expecting a pattern of type";
+  let expected_ty_title_consistent = "Expecting an expression consistent with type";
   let expected_ty_indicator = ty =>
     expected_indicator(expected_ty_title, typebar(ty));
   let expected_ty_indicator_pat = ty =>
     expected_indicator(expected_ty_title_pat, typebar(ty));
+  let expected_ty_indicator_consistent = ty =>
+    expected_indicator(expected_ty_title_consistent, typebar(ty));
   let expected_msg_indicator = msg =>
     expected_indicator("Expecting an expression of ", special_msg_bar(msg));
   let expected_msg_indicator_pat = msg =>
@@ -61,6 +95,16 @@ let view = (model: Model.t): Vdom.Node.t => {
     expected_indicator("Expecting ", special_msg_bar("a line item"));
   let expected_a_rule_indicator =
     expected_indicator("Expecting ", special_msg_bar("a case rule"));
+  let expected_inconsistent_branches_indicator =
+      (branch_types, path_to_case, skipped_index) =>
+    expected_indicator(
+      "No consistent expected type",
+      inconsistent_branches_ty_bar(
+        branch_types,
+        path_to_case,
+        Some(skipped_index),
+      ),
+    );
 
   let got_indicator = (title_text, type_div) =>
     Vdom.(
@@ -79,9 +123,17 @@ let view = (model: Model.t): Vdom.Node.t => {
       "Got inconsistent type ▶ assumed ",
       matched_ty_bar(got_ty, matched_ty),
     );
+  let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
+    got_indicator(
+      "Got inconsistent branch types",
+      inconsistent_branches_ty_bar(branch_types, path_to_case, None),
+    );
 
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
+
+  let got_invalid_indicator =
+    got_indicator("Got invalid text", typebar(HTyp.Hole));
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
@@ -94,8 +146,8 @@ let view = (model: Model.t): Vdom.Node.t => {
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let (ind1, ind2, err_state_b) =
-    switch (ci.typed) {
+  let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
+    switch (typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
@@ -125,6 +177,10 @@ let view = (model: Model.t): Vdom.Node.t => {
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
+    | AnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
@@ -144,6 +200,10 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
+    | SynInvalid =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -176,6 +236,14 @@ let view = (model: Model.t): Vdom.Node.t => {
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
+    | SynInvalidArrow(matched_ty) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_indicator(
+          "Got invalid text ▶ matched to",
+          matched_ty_bar(HTyp.Hole, matched_ty),
+        );
+      (ind1, ind2, BindingError);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -184,6 +252,39 @@ let view = (model: Model.t): Vdom.Node.t => {
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
+    | SynBranchClause(join, typed, branch_index) =>
+      let (ind1, ind2, err_state_b) = get_indicator_info(typed);
+      let ind1 =
+        switch (join) {
+        | NoBranches => ind1
+        | InconsistentBranchTys(rule_types, path_to_case) =>
+          expected_inconsistent_branches_indicator(
+            rule_types,
+            path_to_case,
+            branch_index,
+          )
+        | JoinTy(ty) => expected_ty_indicator_consistent(ty)
+        };
+      let (ind2, err_state_b) =
+        switch (join, typed) {
+        | (JoinTy(ty), Synthesized(got_ty)) =>
+          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
+          | (true, false) => (got_consistent_indicator(got_ty), OK)
+          | (false, _) => (
+              got_inconsistent_indicator(got_ty),
+              TypeInconsistency,
+            )
+          }
+        | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
+        | _ => (ind2, err_state_b)
+        };
+      (ind1, ind2, err_state_b);
+    | SynInconsistentBranches(rule_types, path_to_case) =>
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        got_inconsistent_branches_indicator(rule_types, path_to_case);
+      (ind1, ind2, TypeInconsistency);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
@@ -210,6 +311,10 @@ let view = (model: Model.t): Vdom.Node.t => {
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
+    | PatAnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
@@ -240,6 +345,8 @@ let view = (model: Model.t): Vdom.Node.t => {
       let ind2 = got_a_rule_indicator;
       (ind1, ind2, OK);
     };
+
+  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
   let cls_of_err_state_b =
     switch (err_state_b) {
