@@ -242,7 +242,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | (Hole, Ground) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
+        | Cast(d1'', ty'', Hole | TyVarHole(_)) =>
           if (HTyp.eq(ty'', ty')) {
             BoxedValue(d1'');
           } else {
