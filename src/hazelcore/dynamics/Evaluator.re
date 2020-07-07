@@ -226,6 +226,7 @@ let rec evaluate = (d: DHExp.t): result =>
     }
   | FreeVar(_) => Indet(d)
   | Keyword(_) => Indet(d)
+  | InvalidText(_) => Indet(d)
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)

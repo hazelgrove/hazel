@@ -1,5 +1,4 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 
 let action_panel = (children: list(Vdom.Node.t)): Vdom.Node.t => {
   open Vdom;
@@ -65,7 +64,7 @@ let mono_text = content => {
 let action_button =
     (
       is_action_allowed: Action_common.t => bool,
-      inject: Update.Action.t => Vdom.Event.t,
+      inject: ModelAction.t => Vdom.Event.t,
       a: Action_common.t,
       lbl: list(Vdom.Node.t),
       key_combo,
@@ -79,11 +78,11 @@ let action_button =
             ? ["action-panel-entry", "action-enabled"]
             : ["action-panel-entry", "action-disabled"],
         ),
-        Attr.on_click(_ => inject(Update.Action.EditAction(a))),
+        Attr.on_click(_ => inject(ModelAction.EditAction(a))),
         Attr.on_keydown(evt =>
-          if (KeyCombo.Details.matches(key_combo, evt)) {
+          if (KeyCombo.matches(key_combo, evt)) {
             Event.Many([
-              inject(Update.Action.EditAction(a)),
+              inject(ModelAction.EditAction(a)),
               Event.Prevent_default,
             ]);
           } else {
@@ -95,7 +94,7 @@ let action_button =
         Node.div([Attr.classes(["action-label"])], lbl),
         Node.div(
           [Attr.classes(["keyboard-shortcut"])],
-          [Node.text(KeyCombo.Details.name(key_combo))],
+          [Node.text(KeyCombo.name(key_combo))],
         ),
       ],
     )
@@ -128,12 +127,12 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
             ? ["keyboard-shortcut", "action-enabled"]
             : ["keyboard-shortcut", "action-disabled"],
         ),
-        Attr.on_click(_ => inject(Update.Action.EditAction(action))),
+        Attr.on_click(_ => inject(ModelAction.EditAction(action))),
         Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
         Attr.on_keydown(evt =>
-          if (KeyCombo.Details.matches(combo, evt)) {
+          if (KeyCombo.matches(combo, evt)) {
             Event.Many([
-              inject(Update.Action.EditAction(action)),
+              inject(ModelAction.EditAction(action)),
               Event.Prevent_default,
             ]);
           } else {
@@ -141,7 +140,7 @@ let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
           }
         ),
       ],
-      [Node.text(KeyCombo.Details.name(combo))],
+      [Node.text(KeyCombo.name(combo))],
     )
   );
 };
@@ -151,8 +150,8 @@ let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
 let action_list =
     (
       is_action_allowed: Action_common.t => bool,
-      inject: Update.Action.t => Vdom.Event.t,
-      actions: list((KeyCombo.Details.t, Action_common.t)),
+      inject: ModelAction.t => Vdom.Event.t,
+      actions: list((KeyCombo.t, Action_common.t)),
       label: string,
     ) => {
   let item = ((combo, action)) => {
@@ -193,7 +192,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       inject,
       action,
       description,
-      KeyCombo.get_details(combo),
+      HazelKeyCombos.get_details(combo),
     );
   };
 
@@ -226,7 +225,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       List.map(
         combo => {
           let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
-          (KeyCombo.get_details(combo), action);
+          (HazelKeyCombos.get_details(combo), action);
         },
         combos,
       );
@@ -236,7 +235,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let keyboard_button = combo => {
     let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
-    let combo = KeyCombo.get_details(combo);
+    let combo = HazelKeyCombos.get_details(combo);
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
 
@@ -266,7 +265,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     spaced_line([label, elems]);
   };
 
-  KeyCombo.[
+  HazelKeyCombos.[
     section(
       "Movement",
       [
@@ -439,7 +438,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   ];
 };
 
-let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let edit_state = Model.get_edit_state(model);
   let cursor_info = Model.get_cursor_info(model);
 
@@ -468,8 +467,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 type ack_checkin =
   | Added;
 
-[@warning "-32"]
-let check_actions = (a: Action_common.t) =>
+let _check_actions = (a: Action_common.t) =>
   switch (a) {
   /* Used */
   | Backspace => Added

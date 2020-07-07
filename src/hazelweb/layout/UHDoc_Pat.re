@@ -7,6 +7,8 @@ let inline_padding_of_operator:
 
 let mk_EmptyHole: string => UHDoc_common.t =
   UHDoc_common.mk_EmptyHole(~sort=Pat);
+let mk_InvalidText: string => UHDoc_common.t =
+  UHDoc_common.mk_InvalidText(~sort=Pat);
 let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_IntLit(~sort=Pat);
 let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
@@ -70,6 +72,7 @@ and mk_operand =
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
         | Wild(err) => UHDoc_common.mk_Wild(~err)
+        | InvalidText(_, t) => mk_InvalidText(t)
         | Var(err, verr, x) => mk_Var(~err, ~verr, x)
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)

@@ -8,7 +8,7 @@ type tag_typ =
   | Pat
   | Typ;
 
-let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
   let rec list_map_helper_func = (func_to_list, base, lst) => {
     switch (lst) {
@@ -40,6 +40,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (exp) {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
+
+    | InvalidText(_, inv_str) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("invalid text: "), code_view(inv_str)],
+          )
+        );
+      } else {
+        code_view(inv_str);
+      }
 
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
@@ -121,6 +133,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
     | Wild(_) => indicate_words_view("wild card")
+    | InvalidText(_, inv_str) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("invalid text: "), code_view(inv_str)],
+          )
+        );
+      } else {
+        code_view(inv_str);
+      }
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
         Vdom.(
@@ -470,7 +493,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Vdom.Event.Many([
                   Event.Prevent_default,
                   Event.Stop_propagation,
-                  inject(Update.Action.ToggleHistoryGroup(group_id)),
+                  inject(ModelAction.ToggleHistoryGroup(group_id)),
                   inject(FocusCell),
                 ])
               ),
@@ -487,7 +510,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Vdom.Event.Many([
                   Event.Prevent_default,
                   Event.Stop_propagation,
-                  inject(Update.Action.ToggleHistoryGroup(group_id)),
+                  inject(ModelAction.ToggleHistoryGroup(group_id)),
                   inject(FocusCell),
                 ])
               ),
@@ -629,7 +652,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
-                      Update.Action.ShiftHistory({
+                      ModelAction.ShiftHistory({
                         group_id,
                         elt_id,
                         call_by_mouseenter: false,
@@ -642,7 +665,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id,
                           elt_id,
                           call_by_mouseenter: true,
@@ -658,7 +681,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id: undo_history.hover_recover_group_id,
                           elt_id: undo_history.hover_recover_elt_id,
                           call_by_mouseenter: false,
@@ -679,7 +702,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
-                      Update.Action.ShiftHistory({
+                      ModelAction.ShiftHistory({
                         group_id,
                         elt_id,
                         call_by_mouseenter: false,
@@ -692,7 +715,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id,
                           elt_id,
                           call_by_mouseenter: true,
@@ -708,7 +731,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id: undo_history.hover_recover_group_id,
                           elt_id: undo_history.hover_recover_elt_id,
                           call_by_mouseenter: false,
@@ -792,7 +815,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
-                      Update.Action.ShiftHistory({
+                      ModelAction.ShiftHistory({
                         group_id,
                         elt_id,
                         call_by_mouseenter: false,
@@ -805,7 +828,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id,
                           elt_id,
                           call_by_mouseenter: true,
@@ -821,7 +844,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id: undo_history.hover_recover_group_id,
                           elt_id: undo_history.hover_recover_elt_id,
                           call_by_mouseenter: false,
@@ -842,7 +865,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
-                      Update.Action.ShiftHistory({
+                      ModelAction.ShiftHistory({
                         group_id,
                         elt_id,
                         call_by_mouseenter: false,
@@ -855,7 +878,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id,
                           elt_id,
                           call_by_mouseenter: true,
@@ -871,7 +894,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   if (undo_history.preview_on_hover) {
                     Vdom.Event.Many([
                       inject(
-                        Update.Action.ShiftHistory({
+                        ModelAction.ShiftHistory({
                           group_id: undo_history.hover_recover_group_id,
                           elt_id: undo_history.hover_recover_elt_id,
                           call_by_mouseenter: false,
@@ -977,20 +1000,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["history-button"]),
             Attr.disabled,
             Attr.on_click(_ =>
-              Vdom.Event.Many([
-                inject(Update.Action.Undo),
-                inject(FocusCell),
-              ])
+              Vdom.Event.Many([inject(ModelAction.Undo), inject(FocusCell)])
             ),
             Attr.create("title", title),
           ]
           : [
             Attr.classes(["history-button"]),
             Attr.on_click(_ =>
-              Vdom.Event.Many([
-                inject(Update.Action.Undo),
-                inject(FocusCell),
-              ])
+              Vdom.Event.Many([inject(ModelAction.Undo), inject(FocusCell)])
             ),
             Attr.create("title", title),
           ],
@@ -1009,20 +1026,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["history-button"]),
             Attr.disabled,
             Attr.on_click(_ =>
-              Vdom.Event.Many([
-                inject(Update.Action.Redo),
-                inject(FocusCell),
-              ])
+              Vdom.Event.Many([inject(ModelAction.Redo), inject(FocusCell)])
             ),
             Attr.create("title", title),
           ]
           : [
             Attr.classes(["history-button"]),
             Attr.on_click(_ =>
-              Vdom.Event.Many([
-                inject(Update.Action.Redo),
-                inject(FocusCell),
-              ])
+              Vdom.Event.Many([inject(ModelAction.Redo), inject(FocusCell)])
             ),
             Attr.create("title", title),
           ],
@@ -1039,7 +1050,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
             Attr.on_click(_ =>
               Vdom.Event.Many([
-                inject(Update.Action.ToggleHiddenHistoryAll),
+                inject(ModelAction.ToggleHiddenHistoryAll),
                 inject(FocusCell),
               ])
             ),
@@ -1055,7 +1066,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["history-button", "all-history-tab-icon-wrapper"]),
             Attr.on_click(_ =>
               Vdom.Event.Many([
-                inject(Update.Action.ToggleHiddenHistoryAll),
+                inject(ModelAction.ToggleHiddenHistoryAll),
                 inject(FocusCell),
               ])
             ),
@@ -1088,8 +1099,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  let get_elt_id_under_mouse = _: option((int, int)) => {
-    let elt: Js.t(Dom_html.divElement) = JSUtil.unsafe_get_elt_under_mouse();
+  /* return option((group_id, elt_id)) */
+  let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
+    let elt: Js.t(Dom_html.divElement) =
+      JSUtil.element_from_point(model.mouse_position^);
     switch (
       JSUtil.get_attr("group_id", elt),
       JSUtil.get_attr("elt_id", elt),
@@ -1115,18 +1128,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               Attr.classes(["panel-body", "context-inspector-body"]),
               Attr.id("history-body"),
               Attr.on_mousemove(evt => {
-                JSUtil.update_mouse_position(evt);
+                /* update mouse position */
+                model.mouse_position := JSUtil.get_mouse_position(evt);
                 Vdom.Event.Many([inject(FocusCell)]);
               }),
               Attr.on("scroll", _ => {
                 /* on_mouseenter/on_mouseleave will not be fired when scrolling,
                    so we get the history entry under the mouse
                    and shift to this entry manually  */
-                switch (get_elt_id_under_mouse()) {
+                switch (get_elt_id_under_mouse(model)) {
                 | Some((group_id, elt_id)) =>
                   Vdom.Event.Many([
                     inject(
-                      Update.Action.ShiftHistory({
+                      ModelAction.ShiftHistory({
                         group_id,
                         elt_id,
                         call_by_mouseenter: true,

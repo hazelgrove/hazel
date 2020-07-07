@@ -6,7 +6,7 @@ type err_state_b =
   | OK;
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(
@@ -133,6 +133,10 @@ let view =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
   let got_free_tyvar_indicator =
     got_indicator("Got a free type variable", typebar(HTyp.Hole));
+
+  let got_invalid_indicator =
+    got_indicator("Got invalid text", typebar(HTyp.Hole));
+
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
@@ -175,6 +179,10 @@ let view =
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
+    | AnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
@@ -194,6 +202,10 @@ let view =
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
+    | SynInvalid =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -223,6 +235,14 @@ let view =
       let ind2 =
         got_indicator(
           "Got a keyword ▶ matched to",
+          matched_ty_bar(HTyp.Hole, matched_ty),
+        );
+      (ind1, ind2, BindingError);
+    | SynInvalidArrow(matched_ty) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_indicator(
+          "Got invalid text ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
@@ -267,6 +287,11 @@ let view =
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
       (ind1, ind2, TypeInconsistency);
+    | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_inconsistent_branches_indicator(rule_types, path_to_case);
+      (ind1, ind2, TypeInconsistency);
     | TypKeyword(_keyword) =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_keyword_indicator;
@@ -301,6 +326,10 @@ let view =
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
+    | PatAnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      (ind1, ind2, BindingError);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
@@ -334,6 +363,7 @@ let view =
 
   let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
+  // this determines the color
   let cls_of_err_state_b =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"
