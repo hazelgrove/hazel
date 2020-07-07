@@ -767,10 +767,9 @@ module Exp = {
 
   let livelit_handler = (~enforce_inline, go, seq, skel) =>
     switch (LivelitUtil.check_livelit_skel(seq, skel)) {
-    | Some((ApLivelitData(llu, llname, model, _), _)) =>
-      // TODO(livelit definitions): thread ctx
+    | Some((ApLivelitData(llu, base_llname, llname, model, _), _)) =>
       let ctx = Livelits.initial_livelit_view_ctx;
-      switch (VarMap.lookup(ctx, llname)) {
+      switch (VarMap.lookup(ctx, base_llname)) {
       | None => assert(false)
       | Some((_, serialized_view_shape_fn)) =>
         let shape = serialized_view_shape_fn(model);
@@ -785,7 +784,14 @@ module Exp = {
             };
           let hd_step = Skel.leftmost_tm_index(skel);
           Doc.annot(
-            UHAnnot.LivelitView({llu, llname, shape, model, hd_step}),
+            UHAnnot.LivelitView({
+              llu,
+              base_llname,
+              llname,
+              shape,
+              model,
+              hd_step,
+            }),
             spaceholder,
           );
         };
@@ -951,7 +957,7 @@ module Exp = {
               mk_Case(~err, scrut, rules);
             }
           | FreeLivelit(_, lln) => mk_FreeLivelit(lln)
-          | ApLivelit(_, _, lln, _, _) => mk_ApLivelit(lln)
+          | ApLivelit(_, _, _, lln, _, _) => mk_ApLivelit(lln)
           }: t
         )
       )
@@ -1003,70 +1009,6 @@ module Exp = {
     };
   };
 
-  let llu_to_orig = (e: UHExp.t): MetaVarMap.t(LivelitName.t) => {
-    let rec go_block = (~rslt, ~lln_map, block: UHExp.block) => {
-      let (rslt, _) =
-        block
-        |> List.fold_left(
-             ((rslt, lln_map), line) => go_line(~rslt, ~lln_map, line),
-             (rslt, lln_map),
-           );
-      rslt;
-    }
-    and go_line = (~rslt, ~lln_map, line: UHExp.line) =>
-      switch (line) {
-      | EmptyLine => (rslt, lln_map)
-      | ExpLine(opseq) => (go_opseq(~rslt, ~lln_map, opseq), lln_map)
-      | AbbrevLine(new_lln, _, old_lln, args) =>
-        let rslt =
-          args
-          |> List.fold_left(
-               (rslt, operand) => go_operand(~rslt, ~lln_map, operand),
-               rslt,
-             );
-        let orig_lln =
-          MetaVarMap.lookup(lln_map, old_lln)
-          |> OptUtil.get_default(~default=old_lln);
-        let lln_map =
-          MetaVarMap.insert_or_update(lln_map, (new_lln, orig_lln));
-        (rslt, lln_map);
-      | LetLine(_, _, def) => (go_block(~rslt, ~lln_map, def), lln_map)
-      }
-    and go_opseq = (~rslt, ~lln_map, OpSeq(_, seq): UHExp.opseq) =>
-      Seq.operands(seq)
-      |> List.fold_left(
-           (rslt, operand) => go_operand(~rslt, ~lln_map, operand),
-           rslt,
-         )
-    and go_operand = (~rslt, ~lln_map, operand: UHExp.operand) =>
-      switch (operand) {
-      | EmptyHole(_)
-      | Var(_)
-      | IntLit(_)
-      | FloatLit(_)
-      | BoolLit(_)
-      | ListNil(_)
-      | FreeLivelit(_) => rslt
-      | ApLivelit(llu, _, lln, _, _) =>
-        let orig_lln =
-          MetaVarMap.lookup(lln_map, lln)
-          |> OptUtil.get_default(~default=lln);
-        MetaVarMap.extend_unique(rslt, (llu, orig_lln));
-      | Lam(_, _, _, e)
-      | Inj(_, _, e)
-      | Parenthesized(e) => go_block(~rslt, ~lln_map, e)
-      | Case(_, scrut, rules) =>
-        let rslt = go_block(~rslt, ~lln_map, scrut);
-        rules
-        |> List.fold_left(
-             (rslt, UHExp.Rule(_, e)) => go_block(~rslt, ~lln_map, e),
-             rslt,
-           );
-      };
-
-    go_block(~rslt=MetaVarMap.empty, ~lln_map=MetaVarMap.empty, e);
-  };
-
   let mk_splices = (e: UHExp.t): splices => {
     let rec mk_block = (~splices, block: UHExp.block): splices =>
       block
@@ -1098,7 +1040,7 @@ module Exp = {
       | BoolLit(_)
       | ListNil(_)
       | FreeLivelit(_) => splices
-      | ApLivelit(llu, _, _, _, splice_info) =>
+      | ApLivelit(llu, _, _, _, _, splice_info) =>
         let ap_splices =
           splice_info.splice_map
           |> NatMap.to_list

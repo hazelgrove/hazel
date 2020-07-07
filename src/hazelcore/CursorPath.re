@@ -853,7 +853,7 @@ module Exp = {
       let prefix_len = List.length(ZList.prj_prefix(zrules));
       let zrule = ZList.prj_z(zrules);
       cons'(prefix_len + 1, of_zrule(zrule));
-    | ApLivelitZ(_, _, _, _, zpsi) =>
+    | ApLivelitZ(_, _, _, _, _, zpsi) =>
       let zhole_map = zpsi.zsplice_map;
       let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
       cons'(n, of_z(ze));
@@ -1002,7 +1002,7 @@ module Exp = {
             |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules))
           }
         }
-      | ApLivelit(llu, err, name, serialized_model, splice_info) =>
+      | ApLivelit(llu, err, base_name, name, serialized_model, splice_info) =>
         switch (
           ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
             switch (follow((xs, cursor), e)) {
@@ -1013,7 +1013,16 @@ module Exp = {
         ) {
         | None => None
         | Some(zsplice_info) =>
-          Some(ApLivelitZ(llu, err, name, serialized_model, zsplice_info))
+          Some(
+            ApLivelitZ(
+              llu,
+              err,
+              base_name,
+              name,
+              serialized_model,
+              zsplice_info,
+            ),
+          )
         }
       }
     }
@@ -1187,7 +1196,7 @@ module Exp = {
             |> OptUtil.map(path => cons'(x, path));
           }
         }
-      | ApLivelit(_, _, _, _, splice_info) =>
+      | ApLivelit(_, _, _, _, _, splice_info) =>
         switch (NatMap.lookup(splice_info.splice_map, x)) {
         | None => None
         | Some((_, e)) =>
@@ -1293,7 +1302,7 @@ module Exp = {
          )
       |> holes(scrut, [0, ...rev_steps])
       |> holes_case_err(err, rev_steps)
-    | ApLivelit(llu, err, _, _, psi) =>
+    | ApLivelit(llu, err, _, _, _, psi) =>
       let splice_map = psi.splice_map;
       let splice_order = psi.splice_order;
       let updated =
@@ -1574,7 +1583,7 @@ module Exp = {
     | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
       /* invalid cursor position */
       no_holes
-    | CursorE(_, ApLivelit(_, _, _, _, _) as e1) => {
+    | CursorE(_, ApLivelit(_) as e1) => {
         holes_before: [],
         hole_selected: None,
         holes_after: holes_operand(e1, rev_steps, []),
@@ -1708,7 +1717,7 @@ module Exp = {
         hole_selected,
         holes_after: holes_after @ holes_suffix,
       };
-    | ApLivelitZ(_, _, _, _, zsi) =>
+    | ApLivelitZ(_, _, _, _, _, zsi) =>
       let zsplice_map = zsi.zsplice_map;
       let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =

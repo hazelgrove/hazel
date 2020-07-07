@@ -168,7 +168,7 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
-  | ApLivelitZ(_, _, _, _, zsplice_info) =>
+  | ApLivelitZ(_, _, _, _, _, zsplice_info) =>
     get_zoperand_from_zexp(ZSpliceInfo.prj_ze(zsplice_info))
   };
 }
@@ -292,7 +292,7 @@ and get_outer_zrules_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
-  | ApLivelitZ(_, _, _, _, zsplice_info) =>
+  | ApLivelitZ(_, _, _, _, _, zsplice_info) =>
     get_outer_zrules_from_zexp(
       ZSpliceInfo.prj_ze(zsplice_info),
       outer_zrules,
@@ -374,7 +374,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_exp_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
-  | ApLivelitZ(_, _, _, _, zsplice_info) =>
+  | ApLivelitZ(_, _, _, _, _, zsplice_info) =>
     extract_cursor_exp_term(ZSpliceInfo.prj_ze(zsplice_info))
   };
 }
@@ -1387,7 +1387,7 @@ module Exp = {
           )
         };
       }
-    | ApLivelitZ(_, _, _, _, zsi) =>
+    | ApLivelitZ(_, _, _, _, _, zsi) =>
       let (n, (ty, zblock)) = ZNatMap.prj_z_kv(zsi.zsplice_map);
       ana_cursor_info(~steps=steps @ [n], ctx, zblock, ty);
     };
@@ -1603,7 +1603,7 @@ module Exp = {
       | Lam(InHole(TypeInconsistent(_), _), _, _, _)
       | Inj(InHole(TypeInconsistent(_), _), _, _)
       | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
-      | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _) =>
+      | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _, _) =>
         let operand' =
           zoperand
           |> ZExp.erase_zoperand
@@ -1625,7 +1625,7 @@ module Exp = {
           _,
           _,
         )
-      | ApLivelit(_, InHole(WrongLength, _), _, _, _) => None
+      | ApLivelit(_, InHole(WrongLength, _), _, _, _, _) => None
       /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
@@ -1635,6 +1635,7 @@ module Exp = {
       | ApLivelit(
           _,
           NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+          _,
           _,
           _,
           _,
@@ -1689,7 +1690,7 @@ module Exp = {
         _,
         _,
       )
-    | ApLivelitZ(_, InHole(WrongLength, _), _, _, _) => None
+    | ApLivelitZ(_, InHole(WrongLength, _), _, _, _, _) => None
     | LamZP(InHole(TypeInconsistent(_), _), _, _, _)
     | LamZA(InHole(TypeInconsistent(_), _), _, _, _)
     | LamZE(InHole(TypeInconsistent(_), _), _, _, _)

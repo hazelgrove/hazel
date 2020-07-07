@@ -29,6 +29,7 @@ type t =
   | Term(term_data)
   | LivelitView({
       llu: MetaVar.t,
+      base_llname: LivelitName.t,
       llname: LivelitName.t,
       shape: Livelits.LivelitView.shape,
       model: SerializedModel.t,

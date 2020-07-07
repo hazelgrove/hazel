@@ -184,12 +184,14 @@ let view =
             ),
           ]
 
-        | Annot(LivelitView({llu, llname, shape, model: m, _}), _) => {
+        | Annot(LivelitView({llu, base_llname, shape, model: m, _}), _) => {
             // TODO(livelit definitions): thread ctx
             let ctx = Livelits.initial_livelit_view_ctx;
             let (llview, _) =
-              VarMap.lookup(ctx, llname)
-              |> OptUtil.get(() => failwith("undefined livelit " ++ llname));
+              VarMap.lookup(ctx, base_llname)
+              |> OptUtil.get(() =>
+                   failwith("undefined livelit " ++ base_llname)
+                 );
 
             let trigger = serialized_action =>
               inject(Update.Action.LivelitAction(llu, serialized_action));

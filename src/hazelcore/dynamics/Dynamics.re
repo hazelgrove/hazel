@@ -1179,7 +1179,7 @@ module Exp = {
         );
       switch (livelit_ap_check) {
       | Some((
-          ApLivelitData(llu, lln, model, splice_info),
+          ApLivelitData(llu, _, lln, model, splice_info),
           livelit_defn,
           closed_dargs,
           reqd_param_tys,
@@ -1380,7 +1380,7 @@ module Exp = {
         _,
         _,
       )
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(~livelit_holes, ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1402,7 +1402,7 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-    | ApLivelit(_, InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _, _) => DoesNotExpand
     | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
@@ -1528,6 +1528,7 @@ module Exp = {
     | ApLivelit(
         llu,
         (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
+        _,
         name,
         serialized_model,
         si,
@@ -1998,7 +1999,7 @@ module Exp = {
         _,
         _,
       )
-    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent(None) as reason, u), _, _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(~livelit_holes, ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -2022,7 +2023,7 @@ module Exp = {
         _,
         _,
       )
-    | ApLivelit(_, InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -2126,6 +2127,7 @@ module Exp = {
     | ApLivelit(
         _,
         NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        _,
         _,
         _,
         _,

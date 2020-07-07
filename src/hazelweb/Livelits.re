@@ -46,6 +46,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   /* generate livelit definition for Semantics */
   let livelit_defn =
     LivelitDefinition.{
+      name: L.name,
       expansion_ty: L.expansion_ty,
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
@@ -102,6 +103,11 @@ module LivelitContexts = {
       ) => {
     if (!LivelitName.is_valid(name)) {
       failwith("Invalid livelit name " ++ name);
+    };
+    if (name != def.name) {
+      failwith(
+        "Livelit name " ++ name ++ " differs from def name " ++ def.name,
+      );
     };
     let (param_names, _) = List.split(def.param_tys);
     let rec contains_dupl =

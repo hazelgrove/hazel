@@ -949,7 +949,7 @@ module Exp = {
       let livelit_ap_check = LivelitUtil.check_livelit(ctx, seq, skel);
       switch (livelit_ap_check) {
       | Some((
-          ApLivelitData(_, _, model, splice_info),
+          ApLivelitData(_, _, _, model, splice_info),
           livelit_defn,
           closed_tys,
           reqd_param_tys,
@@ -1011,7 +1011,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent(_), _), _, _, _)
     | Inj(InHole(TypeInconsistent(_), _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
@@ -1021,7 +1021,7 @@ module Exp = {
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
-    | ApLivelit(_, InHole(WrongLength, _), _, _, _)
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
     | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
       switch (syn(ctx, scrut)) {
@@ -1084,6 +1084,7 @@ module Exp = {
     | ApLivelit(
         _,
         (NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _)) as err_status,
+        _,
         name,
         serialized_model,
         si,
@@ -1272,7 +1273,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent(_), _), _, _, _)
     | Inj(InHole(TypeInconsistent(_), _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
-    | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _) =>
+    | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
@@ -1291,7 +1292,7 @@ module Exp = {
         _,
         _,
       )
-    | ApLivelit(_, InHole(WrongLength, _), _, _, _) =>
+    | ApLivelit(_, InHole(WrongLength, _), _, _, _, _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */
     | ListNil(NotInHole) =>
@@ -1303,13 +1304,14 @@ module Exp = {
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ApLivelit(_, NotInHole, _, _, _)
+    | ApLivelit(_, NotInHole, _, _, _, _)
     | FreeLivelit(_, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       ana_subsume_operand(ctx, operand', ty);
     | ApLivelit(
         _,
         InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        _,
         _,
         _,
         _,
@@ -1845,7 +1847,7 @@ module Exp = {
         let (_, reqd_param_tys) = List.split(reqd_param_tys);
         let (fixed_ll, fixed_ty, u_gen) =
           switch (data) {
-          | ApLivelitData(llu, lln, model, splice_info) =>
+          | ApLivelitData(llu, _, lln, model, splice_info) =>
             syn_fix_holes_ApLivelit(
               ctx,
               u_gen,
@@ -2035,7 +2037,7 @@ module Exp = {
           u_gen,
         )
       };
-    | ApLivelit(llu, _, lln, model, splice_info) =>
+    | ApLivelit(llu, _, _, lln, model, splice_info) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
@@ -2171,6 +2173,7 @@ module Exp = {
   and syn_fix_holes_livelit =
       (~put_in_hole, u_gen, livelit_defn, llu, lln, model, splice_info) => {
     let expansion_ty = livelit_defn.expansion_ty;
+    let base_lln = livelit_defn.name;
     let (typ, err_status, u_gen) =
       if (put_in_hole) {
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
@@ -2182,7 +2185,11 @@ module Exp = {
       } else {
         (expansion_ty, NotInHole, u_gen);
       };
-    (UHExp.ApLivelit(llu, err_status, lln, model, splice_info), typ, u_gen);
+    (
+      UHExp.ApLivelit(llu, err_status, base_lln, lln, model, splice_info),
+      typ,
+      u_gen,
+    );
   }
   and ana_fix_holes_rules =
       (
@@ -2495,6 +2502,7 @@ module Exp = {
         _,
         _,
         _,
+        _,
       ) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -2511,7 +2519,7 @@ module Exp = {
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ApLivelit(_, _, _, _, _)
+    | ApLivelit(_)
     | FreeLivelit(_, _) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);

@@ -29,6 +29,7 @@ and zoperand =
       MetaVar.t,
       ErrStatus.t,
       LivelitName.t,
+      LivelitName.t,
       SerializedModel.t,
       ZSpliceInfo.t(UHExp.t, t),
     )
@@ -119,7 +120,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
-  | ApLivelit(_, _, name, _, _) =>
+  | ApLivelit(_, _, _, name, _, _) =>
     CursorPosition.text_cursors(LivelitName.length(name))
   | FreeLivelit(_, name) =>
     CursorPosition.text_cursors(LivelitName.length(name));
@@ -185,8 +186,7 @@ and is_before_zoperand =
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
-  | CursorE(cursor, ApLivelit(_, _, _, _, _) | FreeLivelit(_, _)) =>
-    cursor == OnText(0)
+  | CursorE(cursor, ApLivelit(_) | FreeLivelit(_, _)) => cursor == OnText(0)
   | ParenthesizedZ(_)
   | LamZP(_)
   | LamZA(_)
@@ -194,7 +194,7 @@ and is_before_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApLivelitZ(_, _, _, _, _) => false;
+  | ApLivelitZ(_) => false;
 let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true
@@ -235,7 +235,7 @@ and is_after_zoperand =
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
-  | CursorE(cursor, ApLivelit(_, _, name, _, _) | FreeLivelit(_, name)) =>
+  | CursorE(cursor, ApLivelit(_, _, _, name, _, _) | FreeLivelit(_, name)) =>
     cursor == OnText(LivelitName.length(name))
   | ParenthesizedZ(_) => false
   | LamZP(_)
@@ -244,7 +244,7 @@ and is_after_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApLivelitZ(_, _, _, _, _) => false;
+  | ApLivelitZ(_) => false;
 
 let is_after_zrule =
   fun
@@ -327,7 +327,7 @@ and place_before_operand = operand =>
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
-  | ApLivelit(_, _, _, _, _)
+  | ApLivelit(_)
   | FreeLivelit(_, _) => CursorE(OnText(0), operand)
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
@@ -365,7 +365,7 @@ and place_after_operand = operand =>
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
-  | ApLivelit(_, _, llname, _, _)
+  | ApLivelit(_, _, _, llname, _, _)
   | FreeLivelit(_, llname) =>
     CursorE(OnText(LivelitName.length(llname)), operand)
   };
@@ -449,9 +449,9 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
-  | ApLivelitZ(llu, err, palette_name, serialized_model, zpsi) => {
+  | ApLivelitZ(llu, err, base_name, palette_name, serialized_model, zpsi) => {
       let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
-      ApLivelit(llu, err, palette_name, serialized_model, psi);
+      ApLivelit(llu, err, base_name, palette_name, serialized_model, psi);
     }
 and erase_zrules =
   fun
@@ -527,8 +527,8 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
-  | ApLivelitZ(llu, _, name, model, psi) =>
-    ApLivelitZ(llu, err, name, model, psi)
+  | ApLivelitZ(llu, _, base_name, name, model, psi) =>
+    ApLivelitZ(llu, err, base_name, name, model, psi)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -565,7 +565,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | InjZ(InHole(TypeInconsistent(_), _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
-  | ApLivelitZ(_, InHole(TypeInconsistent(_), _), _, _, _) => (
+  | ApLivelitZ(_, InHole(TypeInconsistent(_), _), _, _, _, _) => (
       zoperand,
       u_gen,
     )
@@ -586,7 +586,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       _,
       _,
     )
-  | ApLivelitZ(_, NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApLivelitZ(_, NotInHole | InHole(WrongLength, _), _, _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent(None), u));
@@ -615,7 +615,7 @@ let rec cursor_on_outer_expr =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApLivelitZ(_, _, _, _, _) => None
+  | ApLivelitZ(_) => None
   };
 
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
@@ -873,12 +873,12 @@ and move_cursor_left_zoperand =
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
-  | ApLivelitZ(llu, err, name, model, zsi) => {
+  | ApLivelitZ(llu, err, base_name, name, model, zsi) => {
       let (ty, ze) = ZSpliceInfo.prj_z(zsi);
       switch (move_cursor_left(ze)) {
       | Some(ze) =>
         let zsi = ZSpliceInfo.update_z(zsi, (ty, ze));
-        Some(ApLivelitZ(llu, err, name, model, zsi));
+        Some(ApLivelitZ(llu, err, base_name, name, model, zsi));
       | None => None
       };
     }
@@ -1169,12 +1169,12 @@ and move_cursor_right_zoperand =
         ),
       )
     }
-  | ApLivelitZ(llu, err, name, model, zsi) => {
+  | ApLivelitZ(llu, err, base_name, name, model, zsi) => {
       let (ty, ze) = ZSpliceInfo.prj_z(zsi);
       switch (move_cursor_left(ze)) {
       | Some(ze) =>
         let zsi = ZSpliceInfo.update_z(zsi, (ty, ze));
-        Some(ApLivelitZ(llu, err, name, model, zsi));
+        Some(ApLivelitZ(llu, err, base_name, name, model, zsi));
       | None => None
       };
     }
@@ -1235,7 +1235,7 @@ and _cursor_inst_zopseq =
 and _cursor_inst_zoperand =
   fun
   | CursorE(_, EmptyHole(u)) => [(TaggedNodeInstance.Hole, u)]
-  | CursorE(_, ApLivelit(llu, _, _, _, _)) => [
+  | CursorE(_, ApLivelit(llu, _, _, _, _, _)) => [
       (TaggedNodeInstance.Livelit, llu),
     ]
   | CursorE(_)
@@ -1245,7 +1245,7 @@ and _cursor_inst_zoperand =
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_through_insts(ze)
-  | ApLivelitZ(llu, _, _, _, zsplice_info) => [
+  | ApLivelitZ(llu, _, _, _, _, zsplice_info) => [
       (TaggedNodeInstance.Livelit, llu),
       ...cursor_through_insts(ZSpliceInfo.prj_ze(zsplice_info)),
     ]

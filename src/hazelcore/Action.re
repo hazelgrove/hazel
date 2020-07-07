@@ -3509,7 +3509,7 @@ module Exp = {
         Delete,
         CursorE(
           OnText(j),
-          FreeLivelit(_, lln) | ApLivelit(_, _, lln, _, _),
+          FreeLivelit(_, lln) | ApLivelit(_, _, _, lln, _, _),
         ),
       ) =>
       syn_delete_text(ctx, u_gen, j, lln)
@@ -3523,7 +3523,7 @@ module Exp = {
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
     | (Backspace, CursorE(OnText(j), FreeLivelit(_, lln)))
-    | (Backspace, CursorE(OnText(j), ApLivelit(_, _, lln, _, _))) =>
+    | (Backspace, CursorE(OnText(j), ApLivelit(_, _, _, lln, _, _))) =>
       syn_backspace_text(ctx, u_gen, j, lln)
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
@@ -3732,7 +3732,7 @@ module Exp = {
         PerformLivelitAction(serialized_action),
         CursorE(
           cpos,
-          ApLivelit(llu, err, lln, serialized_model, splice_info),
+          ApLivelit(llu, err, base_lln, lln, serialized_model, splice_info),
         ),
       ) =>
       let (_, livelit_ctx) = ctx;
@@ -3758,7 +3758,14 @@ module Exp = {
             ZBlock.wrap(
               CursorE(
                 cpos,
-                ApLivelit(llu, err, lln, serialized_model, splice_info),
+                ApLivelit(
+                  llu,
+                  err,
+                  base_lln,
+                  lln,
+                  serialized_model,
+                  splice_info,
+                ),
               ),
             )
           );
@@ -3913,14 +3920,15 @@ module Exp = {
         | _ => Failed /* should never happen */
         }
       )
-    | (_, ApLivelitZ(llu, err, name, serialized_model, zsi)) =>
+    | (_, ApLivelitZ(llu, err, base_name, name, serialized_model, zsi)) =>
       let (ty, zblock) = ZSpliceInfo.prj_z(zsi);
       switch (ana_perform(ctx, a, (zblock, u_gen), ty)) {
       | Failed => Failed
       | CursorEscaped(_) => Failed /* TODO we need a better protocol for this */
       | Succeeded((zblock, u_gen)) =>
         let zsi = ZSpliceInfo.update_z(zsi, (ty, zblock));
-        let ze = ZExp.ApLivelitZ(llu, err, name, serialized_model, zsi);
+        let ze =
+          ZExp.ApLivelitZ(llu, err, base_name, name, serialized_model, zsi);
         Succeeded(SynDone((ZExp.ZBlock.wrap(ze), ty, u_gen)));
       };
     | (_, CaseZE(_, zscrut, rules)) =>
@@ -4964,7 +4972,7 @@ module Exp = {
         Delete,
         CursorE(
           OnText(j),
-          FreeLivelit(_, lln) | ApLivelit(_, _, lln, _, _),
+          FreeLivelit(_, lln) | ApLivelit(_, _, _, lln, _, _),
         ),
       ) =>
       ana_delete_text(ctx, u_gen, j, lln, ty)
@@ -4981,7 +4989,7 @@ module Exp = {
         Backspace,
         CursorE(
           OnText(j),
-          FreeLivelit(_, lln) | ApLivelit(_, _, lln, _, _),
+          FreeLivelit(_, lln) | ApLivelit(_, _, _, lln, _, _),
         ),
       ) =>
       ana_backspace_text(ctx, u_gen, j, lln, ty)
@@ -5233,7 +5241,7 @@ module Exp = {
         PerformLivelitAction(serialized_action),
         CursorE(
           cpos,
-          ApLivelit(llu, err, lln, serialized_model, splice_info),
+          ApLivelit(llu, err, base_lln, lln, serialized_model, splice_info),
         ),
       ) =>
       let (_, livelit_ctx) = ctx;
@@ -5258,7 +5266,14 @@ module Exp = {
             ZBlock.wrap(
               CursorE(
                 cpos,
-                ApLivelit(llu, err, lln, serialized_model, splice_info),
+                ApLivelit(
+                  llu,
+                  err,
+                  base_lln,
+                  lln,
+                  serialized_model,
+                  splice_info,
+                ),
               ),
             )
           );
@@ -5406,7 +5421,7 @@ module Exp = {
 
     /* Subsumption */
     | (PerformLivelitAction(_) | Construct(SListNil), _)
-    | (_, ApLivelitZ(_, _, _, _, _)) =>
+    | (_, ApLivelitZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     /* Invalid actions at the expression level */
     | (Init, _) => failwith("Init action should not be performed.")

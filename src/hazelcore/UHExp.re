@@ -40,6 +40,7 @@ and operand =
       MetaVar.t,
       ErrStatus.t,
       LivelitName.t,
+      LivelitName.t,
       SerializedModel.t,
       splice_info,
     )
@@ -217,7 +218,7 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | ApLivelit(_, err, _, _, _) => err
+  | ApLivelit(_, err, _, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
   | FreeLivelit(_, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
@@ -242,7 +243,8 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
-  | ApLivelit(u, _, name, model, si) => ApLivelit(u, err, name, model, si)
+  | ApLivelit(u, _, base_name, name, model, si) =>
+    ApLivelit(u, err, base_name, name, model, si)
   | FreeLivelit(_, _) => operand
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -276,7 +278,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent(_), _), _, _, _)
   | Inj(InHole(TypeInconsistent(_), _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
-  | ApLivelit(_, InHole(TypeInconsistent(_), _), _, _, _)
+  | ApLivelit(_, InHole(TypeInconsistent(_), _), _, _, _, _)
   | FreeLivelit(_) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -292,7 +294,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
-  | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent(None), u));
@@ -398,8 +400,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     is_complete(body, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | FreeLivelit(_) => false
-  | ApLivelit(_, InHole(_), _, _, _) => false
-  | ApLivelit(_, NotInHole, _, _, splice_info) =>
+  | ApLivelit(_, InHole(_), _, _, _, _) => false
+  | ApLivelit(_, NotInHole, _, _, _, splice_info) =>
     splice_info.splice_map
     |> NatMap.to_list
     |> List.for_all(((_, (_, e))) => is_complete(e, check_type_holes))
