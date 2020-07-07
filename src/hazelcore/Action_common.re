@@ -110,7 +110,7 @@ let syn_insert_text_ =
 let ana_insert_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Contexts.t, MetaVarGen.t, int, string, 'a) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
@@ -146,7 +146,7 @@ let syn_backspace_text_ =
 let ana_backspace_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Contexts.t, MetaVarGen.t, int, string, 'a) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
@@ -181,7 +181,7 @@ let syn_delete_text_ =
 let ana_delete_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Contexts.t, MetaVarGen.t, int, string, 'a) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,

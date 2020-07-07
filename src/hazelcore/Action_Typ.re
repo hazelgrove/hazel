@@ -26,11 +26,10 @@ let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
 
 type syn_success = (ZTyp.t, Kind.t, MetaVarGen.t);
 type ana_success = (ZTyp.t, MetaVarGen.t);
-module Outcome = Action_common.Outcome;
 
 let mk_syn_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t)
-    : Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
   switch (Statics_Typ.syn(ctx, hty)) {
   | None => Failed
@@ -39,7 +38,7 @@ let mk_syn_result =
 };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zty: ZTyp.t, k: Kind.t)
-    : Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) => {
   let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
   if (Statics_Typ.ana(ctx, hty, k)) {
     Succeeded((zty, u_gen));
@@ -71,7 +70,7 @@ let construct_operator =
 
 let rec syn_move =
         (a: Action_common.t, (zty: ZTyp.t, k: Kind.t, u_gen: MetaVarGen.t))
-        : Outcome.t(syn_success) =>
+        : ActionOutcome.t(syn_success) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
@@ -103,13 +102,13 @@ let rec syn_move =
   | MoveLeft =>
     zty
     |> ZTyp.move_cursor_left
-    |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), z =>
          Succeeded((z, k, u_gen))
        )
   | MoveRight =>
     zty
     |> ZTyp.move_cursor_right
-    |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), z =>
          Succeeded((z, k, u_gen))
        )
   | Construct(_)
@@ -130,7 +129,7 @@ let rec syn_move =
 
 let rec ana_move =
         (a: Action_common.t, (zty: ZTyp.t, u_gen: MetaVarGen.t), k: Kind.t)
-        : Outcome.t(ana_success) =>
+        : ActionOutcome.t(ana_success) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_Typ.follow(path, zty |> ZTyp.erase)) {
@@ -162,13 +161,13 @@ let rec ana_move =
   | MoveLeft =>
     zty
     |> ZTyp.move_cursor_left
-    |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), z =>
          Succeeded((z, u_gen))
        )
   | MoveRight =>
     zty
     |> ZTyp.move_cursor_right
-    |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
+    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), z =>
          Succeeded((z, u_gen))
        )
   | Construct(_)
@@ -189,7 +188,7 @@ let rec ana_move =
 
 let mk_syn_text =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-    : Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_text(text)) {
   | None =>
@@ -262,7 +261,7 @@ let mk_ana_text =
       text: string,
       k: Kind.t,
     )
-    : Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_text(text)) {
   | None =>
@@ -335,7 +334,7 @@ let syn_split_text =
       sop: Action_common.operator_shape,
       text: string,
     )
-    : Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TyTextShape.of_text(l),
@@ -372,7 +371,7 @@ let ana_split_text =
       sop: Action_common.operator_shape,
       text: string,
     )
-    : Outcome.t(ana_success) => {
+    : ActionOutcome.t(ana_success) => {
   let (l, r) = text |> StringUtil.split_string(caret_index);
   switch (
     TyTextShape.of_text(l),
@@ -399,7 +398,7 @@ let rec syn_perform =
           a: Action_common.t,
           (zty: ZTyp.t, k: Kind.t, u_gen: MetaVarGen.t),
         )
-        : Outcome.t(syn_success) =>
+        : ActionOutcome.t(syn_success) =>
   syn_perform_opseq(ctx, a, (zty, k, u_gen))
 and syn_perform_opseq =
     (
@@ -411,7 +410,7 @@ and syn_perform_opseq =
         u_gen: MetaVarGen.t,
       ),
     )
-    : Outcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid actions at type level */
   | (
@@ -541,7 +540,7 @@ and syn_perform_operand =
       a: Action_common.t,
       (zoperand: ZTyp.zoperand, k: Kind.t, u_gen: MetaVarGen.t),
     )
-    : Outcome.t(syn_success) => {
+    : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid actions at type level */
   | (
@@ -712,7 +711,7 @@ and ana_perform =
       (zty, u_gen): (ZTyp.t, MetaVarGen.t),
       k: Kind.t,
     )
-    : Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   ana_perform_opseq(ctx, a, (zty, u_gen), k)
 and ana_perform_opseq =
     (
@@ -721,7 +720,7 @@ and ana_perform_opseq =
       (ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq, u_gen: MetaVarGen.t),
       k: Kind.t,
     )
-    : Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (a, zseq) {
   /* Invalid actions at type level */
   | (
@@ -867,7 +866,7 @@ and ana_perform_operand =
       (zoperand, u_gen): (ZTyp.zoperand, MetaVarGen.t),
       k: Kind.t,
     )
-    : Outcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid actions at type level */
   | (

@@ -27,7 +27,7 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
   | Float
   | Arrow(Hole, Hole)
   | Sum(Hole, Hole)
-  | List(Hole)
+  | List(Hole) => Ground
   | TyVar(_, _) => failwith("Unimplemented")
   | Prod(tys) =>
     if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
