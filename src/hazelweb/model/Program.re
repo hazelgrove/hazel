@@ -175,7 +175,7 @@ let decorate_cursor = (steps, l) =>
 let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
   switch (ci.typed) {
   | AnaTypeInconsistent(_, _, Some((_, var_def, _, other_uses)))
-  | Analyzed(_, Some((_, var_def, _, other_uses)))
+  | AnaSubsumed(_, _, Some((_, var_def, _, other_uses)))
   | SynErrorArrow(_, _, Some((_, var_def, _, other_uses)))
   | SynMatchingArrow(_, _, Some((_, var_def, _, other_uses)))
   | Synthesized(_, Some((_, var_def, _, other_uses)))

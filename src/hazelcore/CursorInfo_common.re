@@ -43,9 +43,9 @@ type typed =
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   // none of the above and didn't go through subsumption
-  | Analyzed(HTyp.t, varexp)
+  | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
+  | AnaSubsumed(HTyp.t, HTyp.t, varexp)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type

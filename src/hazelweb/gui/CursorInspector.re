@@ -231,29 +231,36 @@ let view =
       "Got a variable",
       var_exp_bar(index_of_cur_use + 1, num_of_other_uses + 1),
     );
+  let got_no_var =
+    got_indicator(
+      "Doesn't got",
+      special_msg_bar("a variable or a variable pattern"),
+    );
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
     switch (typed) {
-    | Analyzed(ty, None) =>
+    | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK, NoWarn);
-    | Analyzed(ty, Some((_, _, use_index, other_uses))) =>
-      let ind1 = expected_ty_indicator(ty);
-      let ind2 = got_var_indicator(use_index, List.length(other_uses));
-      (ind1, ind2, OK, NoWarn);
+      (ind1, ind2, None, OK, NoWarn);
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK, NoWarn);
-    | AnaTypeInconsistent(expected_ty, got_ty, _) =>
+      (ind1, ind2, None, OK, NoWarn);
+    | AnaTypeInconsistent(expected_ty, got_ty, varexp) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency, NoWarn);
+      let ind3 =
+        OptUtil.map(
+          ((_, _, use_index, other_uses)) =>
+            got_var_indicator(use_index, List.length(other_uses)),
+          varexp,
+        );
+      (ind1, ind2, ind3, TypeInconsistency, NoWarn);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -267,43 +274,61 @@ let view =
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency, NoWarn);
+      (ind1, ind2, None, TypeInconsistency, NoWarn);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError, NoWarn);
-    | AnaSubsumed(expected_ty, got_ty) =>
+      (ind1, ind2, None, BindingError, NoWarn);
+    | AnaSubsumed(expected_ty, got_ty, varexp) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK, NoWarn);
+      let ind3 =
+        OptUtil.map(
+          ((_, _, use_index, other_uses)) =>
+            got_var_indicator(use_index, List.length(other_uses)),
+          varexp,
+        );
+      (ind1, ind2, ind3, OK, NoWarn);
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | Synthesized(ty, None) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK, NoWarn);
-    | Synthesized(_ty, Some((_, _, use_index, other_uses))) =>
+      (ind1, ind2, None, OK, NoWarn);
+    | Synthesized(ty, varexp) =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_var_indicator(use_index, List.length(other_uses));
-      (ind1, ind2, OK, NoWarn);
+      let ind2 = got_ty_indicator(ty);
+      let ind3 =
+        OptUtil.map(
+          ((_, _, use_index, other_uses)) =>
+            got_var_indicator(use_index, List.length(other_uses)),
+          varexp,
+        );
+      (ind1, ind2, ind3, OK, NoWarn);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError, NoWarn);
-    | SynErrorArrow(expected_ty, got_ty, _varexp) =>
+      (ind1, ind2, None, BindingError, NoWarn);
+    | SynErrorArrow(expected_ty, got_ty, varexp) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency, NoWarn);
-    | SynMatchingArrow(syn_ty, matched_ty, _varexp) =>
+      let ind3 =
+        OptUtil.map(
+          ((_, _, use_index, other_uses)) =>
+            got_var_indicator(use_index, List.length(other_uses)),
+          varexp,
+        );
+      (ind1, ind2, ind3, TypeInconsistency, NoWarn);
+    | SynMatchingArrow(syn_ty, matched_ty, varexp) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         switch (syn_ty) {
@@ -314,7 +339,13 @@ let view =
           )
         | _ => got_indicator("Got", typebar(syn_ty))
         };
-      (ind1, ind2, OK, NoWarn);
+      let ind3 =
+        OptUtil.map(
+          ((_, _, use_index, other_uses)) =>
+            got_var_indicator(use_index, List.length(other_uses)),
+          varexp,
+        );
+      (ind1, ind2, ind3, OK, NoWarn);
     | SynKeywordArrow(matched_ty, _k) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -322,7 +353,7 @@ let view =
           "Got a keyword ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -330,9 +361,10 @@ let view =
           "Got a free variable ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
+    // TODO: varexp
     | SynBranchClause(join, typed, branch_index) =>
-      let (ind1, ind2, err_state_b, _) = get_indicator_info(typed);
+      let (ind1, ind2, ind3, err_state_b, _) = get_indicator_info(typed);
       let ind1 =
         switch (join) {
         | NoBranches => ind1
@@ -358,31 +390,35 @@ let view =
         | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
         | _ => (ind2, err_state_b)
         };
-      (ind1, ind2, err_state_b, NoWarn);
+      (ind1, ind2, ind3, err_state_b, NoWarn);
     | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
-      (ind1, ind2, TypeInconsistency, NoWarn);
+      (ind1, ind2, None, TypeInconsistency, NoWarn);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
-      (ind1, ind2, OK, NoWarn);
+      (ind1, ind2, None, OK, NoWarn);
     | PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK, NoWarn);
+      (ind1, ind2, None, OK, NoWarn);
     | PatAnaVar(ty, _, shadow, var_warn, uses, rec_uses) =>
       let ind1 = expected_ty_indicator_pat(ty);
-      let ind2 =
-        got_var_pat_indicator(
-          shadow,
-          List.length(uses) - List.length(rec_uses),
-          List.length(rec_uses),
+      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
+      let ind3 =
+        Some(
+          got_var_pat_indicator(
+            shadow,
+            List.length(uses) - List.length(rec_uses),
+            List.length(rec_uses),
+          ),
         );
       (
         ind1,
         ind2,
+        ind3,
         OK,
         switch (var_warn) {
         | NoWarning => NoWarn
@@ -392,7 +428,7 @@ let view =
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, TypeInconsistency, NoWarn);
+      (ind1, ind2, None, TypeInconsistency, NoWarn);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -406,37 +442,41 @@ let view =
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency, NoWarn);
+      (ind1, ind2, None, TypeInconsistency, NoWarn);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK, NoWarn);
+      (ind1, ind2, None, OK, NoWarn);
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | PatAnaDuplicate(expected_ty, _var) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_duplicate_indicator;
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK, NoWarn);
-    | PatSynVar(_, _, shadow, var_warn, uses, rec_uses) =>
+      (ind1, ind2, None, OK, NoWarn);
+    | PatSynVar(ty, _, shadow, var_warn, uses, rec_uses) =>
       let ind1 = expected_any_indicator_pat;
-      let ind2 =
-        got_var_pat_indicator(
-          shadow,
-          List.length(uses) - List.length(rec_uses),
-          List.length(rec_uses),
+      let ind2 = got_ty_indicator(ty);
+      let ind3 =
+        Some(
+          got_var_pat_indicator(
+            shadow,
+            List.length(uses) - List.length(rec_uses),
+            List.length(rec_uses),
+          ),
         );
       (
         ind1,
         ind2,
+        ind3,
         OK,
         switch (var_warn) {
         | NoWarning => NoWarn
@@ -446,24 +486,25 @@ let view =
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | PatSynDuplicate(_var) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_duplicate_indicator;
-      (ind1, ind2, BindingError, NoWarn);
+      (ind1, ind2, None, BindingError, NoWarn);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
-      (ind1, ind2, OK, NoWarn);
+      (ind1, ind2, None, OK, NoWarn);
     | OnRule =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK, NoWarn);
+      (ind1, ind2, None, OK, NoWarn);
     };
 
-  let (ind1, ind2, err_state_b, warn_state_b) = get_indicator_info(ci.typed);
+  let (ind1, ind2, ind3_opt, err_state_b, warn_state_b) =
+    get_indicator_info(ci.typed);
 
   let cls_of_err_state_b =
     switch (err_state_b) {
@@ -491,7 +532,13 @@ let view =
               cls_of_warn_state_b,
             ]),
           ],
-          [ind1, ind2],
+          [ind1, ind2]
+          @ (
+            switch (ind3_opt) {
+            | Some(ind3) => [ind3]
+            | None => [got_no_var]
+            }
+          ),
         ),
       ],
     )

@@ -950,7 +950,7 @@ and ana_cursor_info_zopseq =
     | NotInHole =>
       Some(
         CursorNotOnDeferred(
-          CursorInfo_common.mk(Analyzed(ty, None), ctx, cursor_term),
+          CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term),
         ),
       )
     | InHole(WrongLength, _) =>
@@ -1029,7 +1029,7 @@ and ana_cursor_info_skel =
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
         |> OptUtil.map(_ =>
              CursorInfo_common.CursorNotOnDeferred(
-               CursorInfo_common.mk(Analyzed(ty, None), ctx, cursor_term),
+               CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term),
              )
            )
       | InHole(WrongLength, _) =>
@@ -1175,13 +1175,17 @@ and ana_cursor_info_zoperand =
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
       (ctx |> Contexts.gamma |> VarCtx.lookup)(x)
-      |> OptUtil.map(((ty, binding_steps)) => {
+      |> OptUtil.map(((ty', binding_steps)) => {
            CursorInfo_common.CursorOnDeferredVarExp(
              uses => {
                let (other_uses, i_cur) =
                  ListUtil.rm_one_or_zero_i(use => use == steps, uses);
                CursorInfo_common.mk(
-                 Analyzed(ty, Some((x, binding_steps, i_cur, other_uses))),
+                 AnaSubsumed(
+                   ty,
+                   ty',
+                   Some((x, binding_steps, i_cur, other_uses)),
+                 ),
                  ctx,
                  cursor_term,
                );
@@ -1200,7 +1204,11 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         Some(
           CursorNotOnDeferred(
-            CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term),
+            CursorInfo_common.mk(
+              AnaSubsumed(ty, ty', None),
+              ctx,
+              cursor_term,
+            ),
           ),
         )
       }
@@ -1209,14 +1217,14 @@ and ana_cursor_info_zoperand =
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(
         CursorNotOnDeferred(
-          CursorInfo_common.mk(Analyzed(ty, None), ctx, cursor_term),
+          CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term),
         ),
       )
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
       |> OptUtil.map(_ =>
            CursorInfo_common.CursorNotOnDeferred(
-             CursorInfo_common.mk(Analyzed(ty, None), ctx, cursor_term),
+             CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term),
            )
          )
     | Lam(NotInHole, _, ann, _) =>
@@ -1227,7 +1235,7 @@ and ana_cursor_info_zoperand =
         | None =>
           Some(
             CursorNotOnDeferred(
-              CursorInfo_common.mk(Analyzed(ty, None), ctx, cursor_term),
+              CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term),
             ),
           )
         | Some(ann) =>

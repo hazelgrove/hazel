@@ -629,7 +629,7 @@ let syn_go_to =
     | GoToDefinition =>
       switch (ci.typed) {
       | AnaTypeInconsistent(_, _, Some((_, binding_steps, _, _)))
-      | Analyzed(_, Some((_, binding_steps, _, _)))
+      | AnaSubsumed(_, _, Some((_, binding_steps, _, _)))
       | SynErrorArrow(_, _, Some((_, binding_steps, _, _)))
       | SynMatchingArrow(_, _, Some((_, binding_steps, _, _)))
       | Synthesized(_, Some((_, binding_steps, _, _)))
@@ -653,13 +653,13 @@ let syn_go_to =
     | GoToPrevUsage =>
       switch (ci.typed) {
       | AnaTypeInconsistent(_, _, Some((_, _, _, [])))
-      | Analyzed(_, Some((_, _, _, [])))
+      | AnaSubsumed(_, _, Some((_, _, _, [])))
       | SynErrorArrow(_, _, Some((_, _, _, [])))
       | SynMatchingArrow(_, _, Some((_, _, _, [])))
       | Synthesized(_, Some((_, _, _, [])))
       | SynBranchClause(_, Synthesized(_, Some((_, _, _, []))), _) => Failed
       | AnaTypeInconsistent(_, _, Some((_, _, i_cur, other_uses)))
-      | Analyzed(_, Some((_, _, i_cur, other_uses)))
+      | AnaSubsumed(_, _, Some((_, _, i_cur, other_uses)))
       | SynErrorArrow(_, _, Some((_, _, i_cur, other_uses)))
       | SynMatchingArrow(_, _, Some((_, _, i_cur, other_uses)))
       | Synthesized(_, Some((_, _, i_cur, other_uses)))
