@@ -2,4 +2,5 @@
 type t =
   | ErrHole
   | VarErrHole
-  | CurrentTerm(TermShape.t);
+  | CurrentTerm(TermShape.t)
+  | LivelitExpression;

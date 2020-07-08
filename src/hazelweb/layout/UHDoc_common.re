@@ -141,8 +141,7 @@ let annot_Invalid = (~sort: TermSort.t): (t => t) =>
 
 let annot_FreeLivelit =
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=TermShape.FreeLivelit, ()));
-let annot_LivelitExpression =
-  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=TermShape.ApLivelit, ()));
+let annot_LivelitExpression = Doc.annot(UHAnnot.LivelitExpression);
 
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
@@ -509,6 +508,7 @@ let rec mk_BinOp =
     | None => failwith("livelit " ++ base_llname ++ " not found")
     | Some((_, shape_fn)) =>
       let shape = shape_fn(model);
+      let hd_step = Skel.leftmost_tm_index(skel);
       let llexp = annot_LivelitExpression(go(~enforce_inline, skel));
       let annot_LivelitView =
         Doc.annot(
@@ -518,7 +518,7 @@ let rec mk_BinOp =
             llname,
             shape,
             model,
-            hd_step: Skel.leftmost_tm_index(skel),
+            hd_step,
           }),
         );
       switch (shape) {

@@ -5,26 +5,29 @@ type t = {
   err_holes: list(CursorPath_common.steps),
   var_err_holes: list(CursorPath_common.steps),
   current_term: option(CursorPath_common.t),
+  livelits: list(CursorPath_common.steps),
 };
 
 let is_empty = (ds: t): bool =>
   ListUtil.is_empty(ds.err_holes)
   && ListUtil.is_empty(ds.var_err_holes)
+  && ListUtil.is_empty(ds.livelits)
   && ds.current_term == None;
 
 let take_step = (step: int, decorations: t): t => {
-  let {err_holes, var_err_holes, current_term} = decorations;
+  let {err_holes, var_err_holes, current_term, livelits} = decorations;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
     | _ => None;
   let err_holes = err_holes |> List.filter_map(remove_step);
   let var_err_holes = var_err_holes |> List.filter_map(remove_step);
+  let livelits = livelits |> List.filter_map(remove_step);
   let current_term =
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, current_term};
+  {err_holes, var_err_holes, current_term, livelits};
 };
 
 let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
@@ -41,7 +44,6 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
     | Invalid
     | FreeLivelit
     | ApLivelit => steps == []
-    | LivelitExpression => false
     };
   let err_holes =
     decorations.err_holes

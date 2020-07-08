@@ -13,7 +13,6 @@ type t =
   | Operand({err: ErrStatus.t})
   | FreeLivelit
   | ApLivelit
-  | LivelitExpression
   | BinOp({
       op_index: int,
       err: ErrStatus.t,

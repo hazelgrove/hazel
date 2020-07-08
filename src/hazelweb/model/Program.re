@@ -72,29 +72,35 @@ let get_cursor_info = (program: t) => {
 
 let get_decorations = (program: t): Decorations.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let (err_holes, var_err_holes) =
-    CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+  let holes = CursorPath_Exp.holes(get_uhexp(program), [], []);
+  let err_holes =
+    holes
+    |> List.filter_map((CursorPath_common.{steps, sort}) =>
          switch (sort) {
-         | LivelitHole(_)
-         | ApLivelit(_)
-         | TypHole => None
-         | PatHole(_, shape)
-         | ExpHole(_, shape) =>
-           switch (shape) {
-           | Empty => None
-           | VarErr
-           | TypeErr => Some((shape, steps))
-           }
+         | PatHole(_, TypeErr)
+         | ExpHole(_, TypeErr) => Some(steps)
+         | _ => None
          }
-       )
-    |> List.partition(
-         fun
-         | (CursorPath_common.TypeErr, _) => true
-         | (_var_err, _) => false,
-       )
-    |> TupleUtil.map2(List.map(snd));
-  {current_term, err_holes, var_err_holes};
+       );
+  let var_err_holes =
+    holes
+    |> List.filter_map((CursorPath_common.{steps, sort}) =>
+         switch (sort) {
+         | PatHole(_, VarErr)
+         | ExpHole(_, VarErr)
+         | LivelitHole(_) => Some(steps)
+         | _ => None
+         }
+       );
+  let livelits =
+    holes
+    |> List.filter_map((CursorPath_common.{steps, sort}) =>
+         switch (sort) {
+         | ApLivelit(_) => Some(steps)
+         | _ => None
+         }
+       );
+  {current_term, err_holes, var_err_holes, livelits};
 };
 
 exception DoesNotElaborate;
