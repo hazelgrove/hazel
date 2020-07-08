@@ -391,12 +391,12 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
 };
 
 let mk_FreeLivelit = (lln: LivelitName.t): t =>
-  annot_FreeLivelit(mk_text(lln));
+  annot_FreeLivelit(annot_Tessera(mk_text(lln)));
 
 let mk_ApLivelit = (llname: LivelitName.t): t => {
   Doc.annot(
     UHAnnot.mk_Term(~sort=Exp, ~shape=ApLivelit, ()),
-    mk_text(llname),
+    annot_Tessera(mk_text(llname)),
   );
 };
 
