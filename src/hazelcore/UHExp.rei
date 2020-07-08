@@ -24,13 +24,11 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
-  | Subscript(ErrStatus.t, t, t, t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -62,13 +60,9 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
-let stringlit: (~err: ErrStatus.t=?, string) => operand;
-
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
-
-let subscript: (~err: ErrStatus.t=?, t, t, t) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
@@ -110,18 +104,6 @@ let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
 let is_EmptyHole: operand => bool;
 
 let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
-
-let find_operand: t => option(operand);
-
-let find_operand_block: block => option(operand);
-
-let find_operand_line: line => option(operand);
-
-let find_operand_opseq: opseq => option(operand);
-
-let find_operand_operator: operator => option(operand);
-
-let find_operand_operand: operand => option(operand);
 
 /* put e in the specified hole */
 let get_err_status: t => ErrStatus.t;

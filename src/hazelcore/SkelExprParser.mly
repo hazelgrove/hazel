@@ -25,13 +25,12 @@
 %token FMINUS
 %token FTIMES
 %token FDIVIDE
-%token CARET
 %token SPACEOP
 %token EOF
 
 %right COMMA
-%right OR
-%right AND
+%left OR
+%left AND
 %left LT
 %left GT
 %left EQ
@@ -47,7 +46,6 @@
 %left FMINUS
 %left FTIMES
 %left FDIVIDE
-%right CARET
 %left SPACEOP
 
 %start <Operators_Exp.t Skel.t> skel_expr
@@ -122,11 +120,6 @@ expr:
     Skel.BinOp(
       NotInHole,
       Operators_Exp.FMinus,
-      e1, e2) }
-  | e1 = expr; CARET; e2 = expr {
-    Skel.BinOp(
-      NotInHole,
-      Operators_Exp.Caret,
       e1, e2) }
   | e1 = expr; AND; e2 = expr {
     Skel.BinOp(

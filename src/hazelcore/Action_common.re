@@ -15,14 +15,11 @@ type operator_shape =
   | SVBar
   | SCons
   | SAnd
-  | SOr
-  | SCaret;
+  | SOr;
 
 [@deriving sexp]
 type shape =
   | SList
-  | SLeftBracket
-  | SQuote
   | SParenthesized
   | SChar(string)
   | SAsc
@@ -52,11 +49,9 @@ type t =
   | SwapDown
   | Init;
 
-let shape_to_string = (shape: shape): string =>
+let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
-  | SQuote => "new string"
-  | SLeftBracket => "new list"
   | SParenthesized => "parentheses"
   | SChar(str) => str
   | SAsc => "type annotation"
@@ -86,10 +81,10 @@ let shape_to_string = (shape: shape): string =>
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
-    | SCaret => "^"
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };
+};
 
 let escape: Side.t => t =
   fun

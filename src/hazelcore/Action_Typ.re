@@ -8,7 +8,6 @@ let operator_of_shape =
   | SPlus
   | STimes
   | SDivide
-  | SCaret
   | SAnd
   | SOr
   | SLessThan
@@ -266,10 +265,7 @@ and perform_operand =
   | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-  | (
-      Backspace,
-      CursorT(OnDelim(_, After), Unit | Int | Float | Bool | String),
-    ) =>
+  | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
   /* ( _ )<|  ==>  _| */
@@ -300,18 +296,10 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
   | (Construct(SChar("B")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
-  | (Construct(SChar("S")), CursorT(_, Hole)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
-
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
-
-  | (Construct(SLeftBracket), CursorT(_)) => Failed
-
-  | (Construct(SQuote), CursorT(_)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
