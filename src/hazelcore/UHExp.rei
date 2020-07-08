@@ -111,11 +111,11 @@ let is_EmptyHole: operand => bool;
 
 let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
 
-let find_operand: t => option(operand);
+let find_operand: (MetaVarGen.t, t) => option(operand);
 
-let find_operand_block: block => option(operand);
+let find_operand_block: (MetaVarGen.t, block) => option(operand);
 
-let find_operand_line: line => option(operand);
+let find_operand_line: (MetaVarGen.t, line) => option(operand);
 
 let find_operand_opseq: opseq => option(operand);
 

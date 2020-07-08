@@ -37,7 +37,7 @@ let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) =
   {...history, disable_auto_scrolling};
 };
 
-let disable_redo = (undo_history: t): bool => 
+let disable_redo = (undo_history: t): bool =>
   /* if there is no entry after current entry,
      then history is at the latest entry. redo should be disabled */
   List.length(ZList.prj_prefix(undo_history.groups)) == 0

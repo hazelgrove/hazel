@@ -1512,21 +1512,21 @@ and syn_perform_operand =
       CursorE(OnDelim(k, After), Subscript(_, target, start_, end_)),
     ) =>
     let option_op1 =
-      switch (UHExp.find_operand(target)) {
+      switch (UHExp.find_operand(u_gen, target)) {
       | Some(op1) =>
         UHExp.Block.wrap(op1) == target
           ? Some(op1) : Some(Parenthesized(target))
       | _ => None
       };
     let option_op2 =
-      switch (UHExp.find_operand(start_)) {
+      switch (UHExp.find_operand(u_gen, start_)) {
       | Some(op2) =>
         UHExp.Block.wrap(op2) == start_
           ? Some(op2) : Some(Parenthesized(start_))
       | _ => None
       };
     let option_op3 =
-      switch (UHExp.find_operand(end_)) {
+      switch (UHExp.find_operand(u_gen, end_)) {
       | Some(op3) =>
         UHExp.Block.wrap(op3) == end_
           ? Some(op3) : Some(Parenthesized(end_))
@@ -3317,21 +3317,21 @@ and ana_perform_operand =
       CursorE(OnDelim(k, After), Subscript(_, target, start_, end_)),
     ) =>
     let option_op1 =
-      switch (UHExp.find_operand(target)) {
+      switch (UHExp.find_operand(u_gen, target)) {
       | Some(op1) =>
         UHExp.Block.wrap(op1) == target
           ? Some(op1) : Some(Parenthesized(target))
       | _ => None
       };
     let option_op2 =
-      switch (UHExp.find_operand(start_)) {
+      switch (UHExp.find_operand(u_gen, start_)) {
       | Some(op2) =>
         UHExp.Block.wrap(op2) == start_
           ? Some(op2) : Some(Parenthesized(start_))
       | _ => None
       };
     let option_op3 =
-      switch (UHExp.find_operand(end_)) {
+      switch (UHExp.find_operand(u_gen, end_)) {
       | Some(op3) =>
         UHExp.Block.wrap(op3) == end_
           ? Some(op3) : Some(Parenthesized(end_))

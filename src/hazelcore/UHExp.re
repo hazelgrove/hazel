@@ -188,17 +188,18 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
-let rec find_operand = (e: t): option(operand) => e |> find_operand_block
-and find_operand_block = block =>
-  List.nth(block, List.length(block) - 1) |> find_operand_line
-and find_operand_line =
-  fun
-  | EmptyLine => {
-      let (hole, _) = new_EmptyHole(0);
-      Some(hole);
-    }
-  | LetLine(_, _, def) => def |> find_operand
+let rec find_operand = (u_gen: MetaVarGen.t, e: t): option(operand) =>
+  e |> find_operand_block(u_gen)
+and find_operand_block = (u_gen, block) =>
+  List.nth(block, List.length(block) - 1) |> find_operand_line(u_gen)
+and find_operand_line = (u_gen, line) =>
+  switch (line) {
+  | EmptyLine =>
+    let (hole, _) = new_EmptyHole(u_gen);
+    Some(hole);
+  | LetLine(_, _, def) => def |> find_operand(u_gen)
   | ExpLine(opseq) => opseq |> find_operand_opseq
+  }
 and find_operand_opseq =
   fun
   | OpSeq(_, S(operand, _)) => Some(operand)
