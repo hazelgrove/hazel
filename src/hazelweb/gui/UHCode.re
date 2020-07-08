@@ -408,6 +408,7 @@ module Dec = {
             "height",
             string_of_int(MeasuredLayout.height(subject)),
           ),
+          Attr.create("style", "fill: lightblue;"),
         ],
         [],
       )

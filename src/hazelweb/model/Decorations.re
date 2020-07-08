@@ -5,6 +5,7 @@ type t = {
   err_holes: list(CursorPath_common.steps),
   var_err_holes: list(CursorPath_common.steps),
   current_term: option(CursorPath_common.t),
+  // TODO rename to livelit_expressions
   livelits: list(CursorPath_common.steps),
 };
 
@@ -55,6 +56,17 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
     |> List.find_opt(is_current)
     |> Option.map(_ => Decoration.VarErrHole)
     |> Option.to_list;
+  let livelits =
+    decorations.livelits
+    |> List.find_opt(steps =>
+         switch (term_shape) {
+         | BinOp({op_index, _}) => steps == [op_index]
+         | ApLivelit => steps == []
+         | _ => false
+         }
+       )
+    |> Option.map(_ => Decoration.LivelitExpression)
+    |> Option.to_list;
   let current_term =
     switch (decorations.current_term) {
     | Some((steps, _)) when is_current(steps) => [
@@ -62,5 +74,5 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
       ]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, current_term]);
+  List.concat([err_holes, var_err_holes, livelits, current_term]);
 };
