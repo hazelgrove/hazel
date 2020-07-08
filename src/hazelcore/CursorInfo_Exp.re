@@ -931,9 +931,15 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
+    | ApLivelit(_, NotInHole, _, _, _, _) =>
+      switch (Statics_Exp.syn_operand(ctx, e)) {
+      | None => None
+      | Some(ty') =>
+        Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+      }
     | ApLivelit(
         _,
-        NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        InHole(TypeInconsistent(Some(InsufficientParams)), _),
         _,
         _,
         _,
@@ -942,8 +948,15 @@ and ana_cursor_info_zoperand =
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
-        Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+        Some(
+          CursorInfo_common.mk(
+            AnaInsufficientLivelitArgs(ty, ty'),
+            ctx,
+            cursor_term,
+          ),
+        )
       }
+
     | FreeLivelit(_, _) =>
       Some(CursorInfo_common.mk(AnaFreeLivelit(ty), ctx, cursor_term))
     | ListNil(NotInHole)

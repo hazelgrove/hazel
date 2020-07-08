@@ -518,7 +518,7 @@ module LiveMatrixLivelit = MatrixLivelitFunctor(LiveMatrixLivelitInfo);
 module GradeCutoffLivelit: LIVELIT = {
   let name = "$grade_cutoffs";
   let expansion_ty = HTyp.(Prod([Int, Int, Int, Int]));
-  let param_tys = [];
+  let param_tys = [("data", HTyp.(List(Int)))];
 
   [@deriving sexp]
   type letter_grade =
@@ -534,7 +534,6 @@ module GradeCutoffLivelit: LIVELIT = {
     c: int,
     d: int,
     selected_grade: option(letter_grade),
-    dataID: SpliceName.t,
   };
 
   [@deriving sexp]
@@ -546,11 +545,7 @@ module GradeCutoffLivelit: LIVELIT = {
   type trigger = action => Vdom.Event.t;
 
   let init_model =
-    SpliceGenCmd.(
-      bind(new_splice(HTyp.(List(Int))), dataID =>
-        return({a: 90, b: 80, c: 70, d: 60, selected_grade: None, dataID})
-      )
-    );
+    SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selected_grade: None});
 
   let update = ({selected_grade, _} as m, a) => {
     // also deselects
@@ -774,14 +769,24 @@ module GradeCutoffLivelit: LIVELIT = {
 
   let view =
       (
-        {a, b, c, d, selected_grade, dataID},
+        {a, b, c, d, selected_grade},
         trig,
-        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
+        {dargs, _}: LivelitView.splice_and_param_getters,
       ) => {
-    let data_opt = dhcode(dataID);
+    let data_opt =
+      switch (dargs) {
+      | None
+      | Some([(_, None)]) => None
+      | Some([(_, Some((d, _)))]) => Some(d)
+      | Some(l) =>
+        failwith(
+          "Invalid grade_cutoffs params: "
+          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+        )
+      };
     let grades_svgs_invalids_opt =
       data_opt
-      |> OptUtil.map(((d, _)) =>
+      |> OptUtil.map(d =>
            dhexp_to_grades_invalids([], 0, d) |> grades_invalids_to_svgs
          );
     let (grades_svgs, data_err_msg) =
@@ -805,10 +810,6 @@ module GradeCutoffLivelit: LIVELIT = {
       Node.div(
         [Attr.classes(["grade-cutoffs-livelit"])],
         [
-          Node.div(
-            [Attr.classes(["data-splice"])],
-            [Node.text("data = "), uhcode(dataID)],
-          ),
           Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
           Node.div(
             [Attr.classes(["grade-display"])],

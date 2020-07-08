@@ -28,6 +28,8 @@ type typed =
   | AnaFree(HTyp.t)
   // cursor is on a free livelit
   | AnaFreeLivelit(HTyp.t)
+  // cursor is on an ApLivelit that is followed by too few args
+  | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
   // cursor is on invalid text
   | AnaInvalid(HTyp.t)
   // cursor is on a keyword
@@ -37,6 +39,8 @@ type typed =
   // none of the above and went through subsumption
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic position */
+  // cursor is on an ApLivelit, that is followed by too few args
+  | SynErrorInsufficientLivelitArgs(HTyp.t)
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
   // with a matched arrow type
