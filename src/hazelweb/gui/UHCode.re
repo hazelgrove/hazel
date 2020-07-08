@@ -540,7 +540,44 @@ let on_mousedown =
   ]);
 };
 
-let decoration_views =
+let rec code_text_view = (box: UHBox.t): list(Vdom.Node.t) => {
+  Vdom.(
+    switch (box) {
+    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+    | HBox(boxes) => boxes |> List.map(code_text_view) |> List.flatten
+    | VBox(boxes) =>
+      let vs =
+        boxes
+        |> List.map(code_text_view)
+        |> ListUtil.join([Node.br([])])
+        |> List.flatten;
+      [Node.div([Attr.classes(["VBox"])], vs)];
+    | Annot(annot, box) =>
+      let vs = code_text_view(box);
+      switch (annot) {
+      | Token({shape, _}) =>
+        let clss =
+          switch (shape) {
+          | Text(_) => ["code-text"]
+          | Op => ["code-op"]
+          | Delim(_) => ["code-delim"]
+          };
+        [Node.span([Attr.classes(clss)], vs)];
+      | HoleLabel({len}) =>
+        let width = Css_gen.width(`Ch(float_of_int(len)));
+        [
+          Node.span(
+            [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+            [Node.span([Attr.classes(["HoleNumber"])], vs)],
+          ),
+        ];
+      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+      | _ => vs
+      };
+    }
+  );
+}
+and decoration_views =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
@@ -550,7 +587,7 @@ let decoration_views =
       ~selected_instances,
       ~llii,
       ds: Decorations.t,
-      (m, splice_ms): MeasuredLayout.with_splices,
+      (l, splice_ls): UHLayout.with_splices,
     )
     : list(Vdom.Node.t) => {
   let rec go =
@@ -558,14 +595,16 @@ let decoration_views =
             ~indent: int=0,
             ~start: CaretPosition.t={row: 0, col: 0},
             ds: Decorations.t,
-            m: MeasuredLayout.t,
+            l: UHLayout.t,
           )
           : list(Vdom.Node.t) => {
     let go' = go(~indent, ~start);
-    switch (m.layout) {
+    switch (l) {
     | Linebreak
     | Text(_) => []
-    | Cat(m1, m2) =>
+    | Cat(l1, l2) =>
+      // fast because memoized
+      let m1 = MeasuredLayout.mk(l1);
       let mid_row = {
         let height1 =
           m1.metrics
@@ -583,15 +622,15 @@ let decoration_views =
           };
         offset + last_width;
       };
-      let ds1 = go'(ds, m1);
-      let ds2 = go(~indent, ~start={row: mid_row, col: mid_col}, ds, m2);
+      let ds1 = go'(ds, l1);
+      let ds2 = go(~indent, ~start={row: mid_row, col: mid_col}, ds, l2);
       ds1 @ ds2;
-    | Align(m) => go(~indent=start.col, ~start, ds, m)
-    | Annot(annot, m) =>
+    | Align(l) => go(~indent=start.col, ~start, ds, l)
+    | Annot(annot, l) =>
       switch (annot) {
       | Step(step) =>
         let stepped = Decorations.take_step(step, ds);
-        Decorations.is_empty(stepped) ? [] : go'(stepped, m);
+        Decorations.is_empty(stepped) ? [] : go'(stepped, l);
       | Term({shape, _}) =>
         let current_ds =
           Decorations.current(shape, ds)
@@ -601,10 +640,10 @@ let decoration_views =
                  ~origin={row: start.row, col: indent},
                  ~offset=start.col - indent,
                  // ~shape,
-                 ~subject=m,
+                 ~subject=MeasuredLayout.mk(l),
                ),
              );
-        current_ds @ go'(ds, m);
+        current_ds @ go'(ds, l);
       | LivelitView({llu, base_llname, shape, model: m, _}) =>
         // TODO(livelit definitions): thread ctx
         let ctx = Livelits.initial_livelit_view_ctx;
@@ -617,8 +656,8 @@ let decoration_views =
         let livelit_view = llview(m, trigger);
         let vs = {
           let uhcode = splice_name => {
-            let splice_m =
-              splice_ms |> SpliceMap.get_splice(llu, splice_name);
+            let splice_l =
+              splice_ls |> SpliceMap.get_splice(llu, splice_name);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
             let caret =
               switch (current_splice) {
@@ -630,8 +669,9 @@ let decoration_views =
               };
             let splice_ds = {
               let stepped = Decorations.take_step(splice_name, ds);
-              Decorations.is_empty(stepped) ? [] : go(stepped, splice_m);
+              Decorations.is_empty(stepped) ? [] : go(stepped, splice_l);
             };
+            let splice_code = code_text_view(Box.mk(splice_l));
             Vdom.(
               Node.div(
                 [
@@ -646,7 +686,7 @@ let decoration_views =
                     ),
                   ),
                 ],
-                caret @ splice_ds,
+                caret @ splice_ds @ splice_code,
               )
             );
           };
@@ -743,7 +783,7 @@ let decoration_views =
           ),
         ];
 
-      | _ => go'(ds, m)
+      | _ => go'(ds, l)
       }
     };
   };
@@ -753,7 +793,7 @@ let decoration_views =
     | None when is_focused => [Dec.caret_view(~font_metrics, caret_pos)]
     | _ => []
     };
-  let root_ds = go(ds, m);
+  let root_ds = go(ds, l);
   root_caret @ root_ds;
 };
 
@@ -841,50 +881,14 @@ let view =
     () => {
       open Vdom;
 
-      let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
-        switch (box) {
-        | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | HBox(boxes) => boxes |> List.map(go) |> List.flatten
-        | VBox(boxes) =>
-          let vs =
-            boxes
-            |> List.map(go)
-            |> ListUtil.join([Node.br([])])
-            |> List.flatten;
-          [Node.div([Attr.classes(["VBox"])], vs)];
-        | Annot(annot, box) =>
-          let vs = go(box);
-          switch (annot) {
-          | Token({shape, _}) =>
-            let clss =
-              switch (shape) {
-              | Text(_) => ["code-text"]
-              | Op => ["code-op"]
-              | Delim(_) => ["code-delim"]
-              };
-            [Node.span([Attr.classes(clss)], vs)];
-          | HoleLabel({len}) =>
-            let width = Css_gen.width(`Ch(float_of_int(len)));
-            [
-              Node.span(
-                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-                [Node.span([Attr.classes(["HoleNumber"])], vs)],
-              ),
-            ];
-          | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-          | _ => vs
-          };
-        };
-      };
-
-      let (l, _) =
+      let (l, splice_ls) =
         Program.get_layout(
           ~measure_program_get_doc=false,
           ~measure_layoutOfDoc_layout_of_doc=false,
           ~memoize_doc=true,
           program,
         );
-      let code_text = go(Box.mk(l));
+      let code_text = code_text_view(Box.mk(l));
 
       let (caret_pos, current_splice) =
         Program.get_caret_position(
@@ -905,12 +909,7 @@ let view =
           ~selected_instances,
           ~llii,
           ds,
-          Program.get_measured_layout(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          ),
+          (l, splice_ls),
         );
 
       let key_handlers =
