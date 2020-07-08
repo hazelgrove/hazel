@@ -37,7 +37,7 @@ let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) =
   {...history, disable_auto_scrolling};
 };
 
-let disable_redo = (undo_history: t): bool => {
+let disable_redo = (undo_history: t): bool => 
   /* if there is no entry after current entry,
      then history is at the latest entry. redo should be disabled */
   List.length(ZList.prj_prefix(undo_history.groups)) == 0
@@ -45,7 +45,7 @@ let disable_redo = (undo_history: t): bool => {
        ZList.prj_prefix(ZList.prj_z(undo_history.groups).group_entries),
      )
   == 0;
-};
+
 let disable_undo = (undo_history: t): bool => {
   /* if there is no entry before current entry,
      then history is at the initial entry, undo should be disabled */
