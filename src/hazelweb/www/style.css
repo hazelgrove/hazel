@@ -59,11 +59,11 @@
   --color-picker-z: 7;
 
   --livelit-exp-z: 0;
-  --livelit-view-z: 0;
   --current-term-z: 1;
   --err-hole-zz: 2;
   --verr-hole-z: 2;
   --code-text-z: 3;
+  --livelit-view-z: 4;
 }
 
 /* general */
