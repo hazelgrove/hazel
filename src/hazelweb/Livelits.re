@@ -478,7 +478,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
 
   let view_shape = ((_, matrix)) => {
     let num_rows = List.length(matrix);
-    LivelitView.MultiLine(num_rows + 2 + (I.is_live ? 1 : 0));
+    LivelitView.MultiLine(3 * num_rows + 2 + (I.is_live ? 1 : 0));
   };
 
   let expand = ((_, m)) => {
