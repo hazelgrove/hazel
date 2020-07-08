@@ -1,18 +1,3 @@
-let rec builtin_subst =
-        (li: list(DHExp.t), d1: DHExp.t, x: Var.t): list(DHExp.t) =>
-  switch (li) {
-  | [a, ...asa] =>
-    switch (a) {
-    | BoundVar(s) =>
-      if (Var.eq(x, s)) {
-        [d1, ...asa];
-      } else {
-        [a, ...builtin_subst(asa, d1, x)];
-      }
-    | _ => [a, ...builtin_subst(asa, d1, x)]
-    }
-  | [] => []
-  };
 /* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
@@ -23,8 +8,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       d2;
     }
   | FreeVar(_) => d2
-  | ApBuiltin(z, y) => ApBuiltin(z, builtin_subst(y, d1, x))
-  | FailedAssert(_)
   | InvalidText(_) => d2
   | Keyword(_) => d2
   | Let(dp, d3, d4) =>
@@ -55,15 +38,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
-  | Subscript(d3, d4, d5) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    let d5 = subst_var(d1, x, d5);
-    Subscript(d3, d4, d5);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | StringLit(_)
   | ListNil(_)
   | Triv => d2
   | Cons(d3, d4) =>
@@ -82,10 +59,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
-  | BinStrOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinStrOp(op, d3, d4);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -176,9 +149,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FixF(_, _, _)) => DoesNotMatch
   | (_, Lam(_, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => Indet
-  | (_, Subscript(_, _, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
-  | (_, BinStrOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
@@ -209,15 +180,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
-  | (StringLit(n1), StringLit(n2)) =>
-    if (n1 == n2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (StringLit(_), Cast(d, String, Hole)) => matches(dp, d)
-  | (StringLit(_), Cast(d, Hole, String)) => matches(dp, d)
-  | (StringLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
@@ -314,24 +276,19 @@ and matches_cast_Inj =
   | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | ApBuiltin(_, _) => DoesNotMatch
-  | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Subscript(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinStrOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
@@ -379,24 +336,19 @@ and matches_cast_Pair =
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | ApBuiltin(_, _) => DoesNotMatch
-  | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Subscript(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinStrOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
@@ -442,24 +394,19 @@ and matches_cast_Cons =
   | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | ApBuiltin(_, _) => DoesNotMatch
-  | FailedAssert(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
-  | Subscript(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinStrOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
@@ -473,8 +420,8 @@ and matches_cast_Cons =
   };
 
 type elab_result_lines =
-  | LinesElaboration(DHExp.t => DHExp.t, Contexts.t, Delta.t)
-  | LinesDoNotElaborate;
+  | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesDoNotExpand;
 
 module ElaborationResult = {
   type t =
@@ -518,8 +465,8 @@ and syn_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotElaborate => DoesNotElaborate
-    | LinesElaboration(prelude, ctx, delta) =>
+    | LinesDoNotExpand => DoesNotElaborate
+    | LinesExpand(prelude, ctx, delta) =>
       switch (syn_elab_opseq(ctx, delta, conclusion)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -530,15 +477,15 @@ and syn_elab_lines =
     (ctx: Contexts.t, delta: Delta.t, lines: list(UHExp.line))
     : elab_result_lines =>
   switch (lines) {
-  | [] => LinesElaboration(d => d, ctx, delta)
+  | [] => LinesExpand(d => d, ctx, delta)
   | [line, ...lines] =>
     switch (syn_elab_line(ctx, delta, line)) {
-    | LinesDoNotElaborate => LinesDoNotElaborate
-    | LinesElaboration(prelude_line, ctx, delta) =>
+    | LinesDoNotExpand => LinesDoNotExpand
+    | LinesExpand(prelude_line, ctx, delta) =>
       switch (syn_elab_lines(ctx, delta, lines)) {
-      | LinesDoNotElaborate => LinesDoNotElaborate
-      | LinesElaboration(prelude_lines, ctx, delta) =>
-        LinesElaboration(d => prelude_line(prelude_lines(d)), ctx, delta)
+      | LinesDoNotExpand => LinesDoNotExpand
+      | LinesExpand(prelude_lines, ctx, delta) =>
+        LinesExpand(d => prelude_line(prelude_lines(d)), ctx, delta)
       }
     }
   }
@@ -547,12 +494,12 @@ and syn_elab_line =
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
-    | DoesNotElaborate => LinesDoNotElaborate
+    | DoesNotElaborate => LinesDoNotExpand
     | Elaborates(d1, _, delta) =>
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
-      LinesElaboration(prelude, ctx, delta);
+      LinesExpand(prelude, ctx, delta);
     }
-  | EmptyLine => LinesElaboration(d => d, ctx, delta)
+  | EmptyLine => LinesExpand(d => d, ctx, delta)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
@@ -560,7 +507,7 @@ and syn_elab_line =
       let (ctx1, is_recursive_fn) =
         Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
-      | DoesNotElaborate => LinesDoNotElaborate
+      | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1', delta) =>
         let d1 =
           switch (is_recursive_fn) {
@@ -574,21 +521,21 @@ and syn_elab_line =
           };
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotElaborate
+        | DoesNotElaborate => LinesDoNotExpand
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesElaboration(prelude, ctx, delta);
+          LinesExpand(prelude, ctx, delta);
         };
       };
     | None =>
       switch (syn_elab(ctx, delta, def)) {
-      | DoesNotElaborate => LinesDoNotElaborate
+      | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1, delta) =>
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotElaborate
+        | DoesNotElaborate => LinesDoNotExpand
         | Elaborates(dp, _, ctx, delta) =>
           let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesElaboration(prelude, ctx, delta);
+          LinesExpand(prelude, ctx, delta);
         }
       }
     }
@@ -715,23 +662,6 @@ and syn_elab_skel =
         };
       }
     }
-  | BinOp(NotInHole, Caret as op, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, String)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty1, delta) =>
-      switch (ana_elab_skel(ctx, delta, skel2, seq, String)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, ty1, String);
-        let dc2 = DHExp.cast(d2, ty2, String);
-        switch (DHExp.BinStrOp.of_op(op)) {
-        | None => DoesNotElaborate
-        | Some((op, ty)) =>
-          let d = DHExp.BinStrOp(op, dc1, dc2);
-          Elaborates(d, ty, delta);
-        };
-      }
-    }
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -759,12 +689,10 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -780,12 +708,10 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | Subscript(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -818,9 +744,7 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    }
-
-  /* not in hole */
+    } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -837,15 +761,9 @@ and syn_elab_operand =
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
-    | (Some(ty'), Some(ty)) =>
-      if (HTyp.is_Arrow(ty') == false) {
-        Elaborates(BoundVar(x), ty', delta);
-      } else {
-        Elaborates(BoundVar(x), ty, delta);
-      }
-    | (Some(ty), _) => Elaborates(BoundVar(x), ty, delta)
-    | (None, _) => DoesNotElaborate
+    switch (VarMap.lookup(gamma, x)) {
+    | Some(ty) => Elaborates(BoundVar(x), ty, delta)
+    | None => DoesNotElaborate
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
@@ -858,7 +776,6 @@ and syn_elab_operand =
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);
-  // }
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, delta)
@@ -870,7 +787,6 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
-  | StringLit(NotInHole, s) => Elaborates(StringLit(s), String, delta)
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
@@ -914,28 +830,8 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | Subscript(NotInHole, target, start_, end_) =>
-    switch (syn_elab(ctx, delta, target)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty1, delta) =>
-      switch (syn_elab(ctx, delta, start_)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d2, ty2, delta) =>
-        switch (syn_elab(ctx, delta, end_)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d3, ty3, delta) =>
-          let dc1 = DHExp.cast(d1, ty1, String);
-          let dc2 = DHExp.cast(d2, ty2, Int);
-          let dc3 = DHExp.cast(d3, ty3, Int);
-          let d = DHExp.Subscript(dc1, dc2, dc3);
-          Elaborates(d, String, delta);
-        }
-      }
-    }
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-    DoesNotElaborate
-  /* TODO fix me */
-  /* let (_, palette_ctx) = ctx in
+    DoesNotElaborate /* let (_, palette_ctx) = ctx in
      begin match (VarMap.lookup palette_ctx name) with
      | Some palette_defn ->
        let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
@@ -952,14 +848,14 @@ and syn_elab_operand =
                let (htyp, hexp) = typ_exp in
                let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
                let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators.Exp.Space (UHExp.Parenthesized hexp_ann) in
+               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
                let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
                UHExp.Tm NotInHole ap
              )
              expansion in
        ana_elab_exp ctx bound_expansion expansion_ty
      | None -> DoesNotElaborate
-     end */
+     end */ /* TODO fix me */
   }
 and syn_elab_rules =
     (
@@ -1024,8 +920,8 @@ and ana_elab_block =
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotElaborate => DoesNotElaborate
-    | LinesElaboration(prelude, ctx, delta) =>
+    | LinesDoNotExpand => DoesNotElaborate
+    | LinesExpand(prelude, ctx, delta) =>
       switch (ana_elab_opseq(ctx, delta, conclusion, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
@@ -1039,7 +935,7 @@ and ana_elab_opseq =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
   // handle n-tuples
   switch (Statics_Exp.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -1130,7 +1026,8 @@ and ana_elab_opseq =
         }
       };
     }
-  }
+  };
+}
 and ana_elab_skel =
     (
       ctx: Contexts.t,
@@ -1189,7 +1086,6 @@ and ana_elab_skel =
       FEquals |
       And |
       Or |
-      Caret |
       Space,
       _,
       _,
@@ -1213,12 +1109,10 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | StringLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | Subscript(InHole(TypeInconsistent as reason, u), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -1243,14 +1137,11 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | StringLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | Subscript(InHole(WrongLength, _), _, _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
-  /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1267,7 +1158,6 @@ and ana_elab_operand =
       | Keyword(k) => Keyword(u, 0, sigma, k)
       };
     Elaborates(d, ty, delta);
-  // }
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
   | Lam(NotInHole, p, ann, body) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -1348,8 +1238,6 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | StringLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
-  | Subscript(NotInHole, _, _, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
@@ -1404,13 +1292,10 @@ let rec renumber_result_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
-  | ApBuiltin(_, _)
-  | FailedAssert(_)
   | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
@@ -1427,11 +1312,6 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Ap(d1, d2), hii);
-  | Subscript(d1, d2, d3) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    let (d3, hii) = renumber_result_only(path, hii, d3);
-    (Subscript(d1, d2, d3), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1444,10 +1324,6 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | BinStrOp(op, d1, d2) =>
-    let (d1, hii) = renumber_result_only(path, hii, d1);
-    let (d2, hii) = renumber_result_only(path, hii, d2);
-    (BinStrOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1514,13 +1390,10 @@ let rec renumber_sigmas_only =
         : (DHExp.t, HoleInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
-  | ApBuiltin(_, _)
-  | FailedAssert(_)
   | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
@@ -1537,11 +1410,6 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Ap(d1, d2), hii);
-  | Subscript(d1, d2, d3) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
-    (Subscript(d1, d2, d3), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1554,10 +1422,6 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | BinStrOp(op, d1, d2) =>
-    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (BinStrOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);

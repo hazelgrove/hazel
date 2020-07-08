@@ -18,8 +18,7 @@ type t =
   | Comma
   | Cons
   | And
-  | Or
-  | Caret;
+  | Or;
 
 let to_string =
   fun
@@ -41,8 +40,7 @@ let to_string =
   | Comma => ","
   | Cons => "::"
   | And => "&&"
-  | Or => "||"
-  | Caret => "^";
+  | Or => "||";
 
 let to_parse_string = op =>
   switch (op) {
