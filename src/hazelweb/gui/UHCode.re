@@ -759,8 +759,9 @@ and decoration_views =
             Vdom.Attr.create(
               "style",
               Printf.sprintf(
-                "max-width: %dch; top: %fpx; left: %fpx;",
+                "max-width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
                 width,
+                font_metrics.row_height,
                 top,
                 left,
               ),

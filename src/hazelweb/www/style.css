@@ -58,6 +58,7 @@
   --color-picker-modal-overlay-z: 6;
   --color-picker-z: 7;
 
+  --livelit-exp-z: 0;
   --livelit-view-z: 0;
   --current-term-z: 1;
   --err-hole-zz: 2;
@@ -928,6 +929,9 @@ h1 {
 #code-root .current-term-container {
   z-index: var(--current-term-z);
 }
+#code-root .livelit-exp-container {
+  z-index: var(--livelit-exp-z);
+}
 
 #code-root .current-term {
   fill: var(--exp-bg-color);
@@ -948,6 +952,7 @@ h1 {
   position: absolute;
   border-radius: 0;
   border: 2px solid lightblue;
+  box-sizing: border-box;
 }
 .LivelitView.Inline {
   display: inline-block;
@@ -1638,10 +1643,10 @@ h1 {
   background-color: white;
   padding: 10px;
   border: 2px solid #CCC;
-  /* -webkit-box-sizing: border-box; 
-  -moz-box-sizing: border-box;   
-  box-sizing: border-box;  */    
-  white-space: pre; 
+  /* -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;  */
+  white-space: pre;
   overflow-x: auto;
 }
 #cell:focus {
