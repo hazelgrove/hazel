@@ -644,7 +644,7 @@ and syn_cursor_info_zoperand =
   | SubscriptZE2(_, _, zstart_, _) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zstart_, Int)
   | SubscriptZE3(_, _, _, zend_) =>
-    ana_cursor_info(~steps=steps @ [1], ctx, zend_, Int)
+    ana_cursor_info(~steps=steps @ [2], ctx, zend_, Int)
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
