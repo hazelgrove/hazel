@@ -1,7 +1,6 @@
 module Js = Js_of_ocaml.Js;
 module Exn = Base.Exn;
 module Dom_html = Js_of_ocaml.Dom_html;
-module Dom = Js_of_ocaml.Dom;
 module Vdom = Virtual_dom.Vdom;
 
 Logger.init_log();
