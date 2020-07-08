@@ -149,7 +149,8 @@ let caret_position_of_path =
       switch (steps, annot) {
       | ([step, ...steps], Step(step')) =>
         step == step' ? go(~splice?, ~indent, ~start, steps, m) : None
-      | ([splice_name, ...steps], LivelitView({llu, _})) =>
+      | ([step, splice_name, ...steps], LivelitView({llu, hd_step, _}))
+          when step == hd_step =>
         let splice_m = SpliceMap.get_splice(llu, splice_name, splice_ms);
         go(~splice=(llu, splice_name), steps, splice_m);
       | ([], Step(_) | LivelitView(_)) => None
