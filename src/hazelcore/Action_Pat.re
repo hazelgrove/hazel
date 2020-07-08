@@ -9,7 +9,6 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SPlus
   | STimes
   | SDivide
-  | SCaret
   | SLessThan
   | SGreaterThan
   | SEquals
@@ -549,7 +548,7 @@ and syn_perform_operand =
       a: Action_common.t,
       zoperand: ZPat.zoperand,
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -568,9 +567,10 @@ and syn_perform_operand =
   | (_, CursorP(cursor, operand))
       when !ZPat.is_valid_cursor_operand(cursor, operand) =>
     Failed
+
   /* Invalid actions */
   | (
-      Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase | SList) |
+      Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
@@ -610,10 +610,7 @@ and syn_perform_operand =
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
     syn_perform(ctx, u_gen, Backspace, new_zp);
 
-  | (
-      Backspace,
-      CursorP(OnDelim(_, After), ListNil(_) | Wild(_) | StringLit(_)),
-    ) =>
+  | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
@@ -628,18 +625,6 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
-  | (Delete, CursorP(OnText(j), StringLit(_, s))) =>
-    if (j == String.length(s)) {
-      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-      let zp = ZOpSeq.wrap(zhole);
-      Succeeded((zp, Hole, ctx, u_gen));
-    } else {
-      let new_text = s |> StringUtil.delete(j);
-      let text_cursor = CursorPosition.OnText(j);
-      let zp =
-        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-      Succeeded((zp, HTyp.String, ctx, u_gen));
-    }
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
@@ -651,18 +636,6 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, f)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
-  | (Backspace, CursorP(OnText(j), StringLit(_, s))) =>
-    if (j == 0) {
-      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-      let zp = ZOpSeq.wrap(zhole);
-      Succeeded((zp, Hole, ctx, u_gen));
-    } else {
-      let new_text = s |> StringUtil.backspace(j);
-      let text_cursor = CursorPosition.OnText(j - 1);
-      let zp =
-        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-      Succeeded((zp, HTyp.String, ctx, u_gen));
-    }
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -716,17 +689,7 @@ and syn_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
-  | (Construct(SOp(sop)), CursorP(OnText(j), StringLit(_, s)))
-      when
-        !ZPat.is_before_zoperand(zoperand)
-        && !ZPat.is_after_zoperand(zoperand) =>
-    syn_split_text(ctx, u_gen, j, sop, s)
-  | (Construct(SChar("\n")), CursorP(OnText(j), StringLit(_, s))) =>
-    let text_cursor = CursorPosition.OnText(j + 1);
-    let new_text = StringUtil.insert(j, "\n", s);
-    let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-    Succeeded((zp, HTyp.String, ctx, u_gen));
+
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -746,55 +709,12 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), f)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
-  | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, s2))) =>
-    let text_cursor = CursorPosition.OnText(j + String.length(s));
-    let new_text = StringUtil.insert(j, s, s2);
-    let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-    Succeeded((zp, HTyp.String, ctx, u_gen));
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
-  | (Construct(SLeftBracket), CursorP(OnDelim(_, Before), EmptyHole(_))) =>
-    let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Hole), ctx, u_gen));
-  | (Construct(SLeftBracket), CursorP(_, _)) => Failed
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
-
-  | (Construct(SQuote), CursorP(OnDelim(_, side), StringLit(_, s))) =>
-    let index =
-      switch (side) {
-      | Before => 0
-      | After => 1
-      };
-    let text_cursor = CursorPosition.OnText(index + 1);
-    let new_text = StringUtil.insert(index, "\"", s);
-    let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-    Succeeded((zp, HTyp.String, ctx, u_gen));
-  | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
-    let text_cursor = CursorPosition.OnText(0);
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit("")));
-    Succeeded((zp, HTyp.String, ctx, u_gen));
-  | (
-      Construct(SQuote),
-      CursorP(
-        OnDelim(_, _),
-        Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_, _, _),
-      ),
-    )
-  | (
-      Construct(SQuote),
-      CursorP(
-        OnText(_),
-        InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
-        BoolLit(_, _) |
-        StringLit(_, _),
-      ),
-    ) =>
-    Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
     mk_syn_result(
@@ -856,7 +776,8 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform =
     (
       ctx: Contexts.t,
@@ -1071,7 +992,7 @@ and ana_perform_operand =
 
   /* Invalid actions */
   | (
-      Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase | SList) |
+      Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
@@ -1137,10 +1058,7 @@ and ana_perform_operand =
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
     ana_perform(ctx, u_gen, Backspace, new_zp, ty);
 
-  | (
-      Backspace,
-      CursorP(OnDelim(_, After), Wild(_) | ListNil(_) | StringLit(_)),
-    ) =>
+  | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListNil(_))) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, ctx, u_gen));
@@ -1155,23 +1073,6 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
-  | (Delete, CursorP(OnText(j), StringLit(_, s))) =>
-    if (j == String.length(s)) {
-      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-      let zp = ZOpSeq.wrap(zhole);
-      Succeeded((zp, ctx, u_gen));
-    } else {
-      let new_text = s |> StringUtil.delete(j);
-      let text_cursor = CursorPosition.OnText(j);
-      let zp =
-        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-      if (HTyp.consistent(ty, HTyp.String)) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-        Succeeded((zp, ctx, u_gen));
-      };
-    }
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -1183,23 +1084,6 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
-  | (Backspace, CursorP(OnText(j), StringLit(_, s))) =>
-    if (j == 0) {
-      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
-      let zp = ZOpSeq.wrap(zhole);
-      Succeeded((zp, ctx, u_gen));
-    } else {
-      let new_text = s |> StringUtil.backspace(j);
-      let text_cursor = CursorPosition.OnText(j - 1);
-      let zp =
-        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-      if (HTyp.consistent(ty, HTyp.String)) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-        Succeeded((zp, ctx, u_gen));
-      };
-    }
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -1259,22 +1143,7 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
-  | (Construct(SOp(sop)), CursorP(OnText(j), StringLit(_, s)))
-      when
-        !ZPat.is_before_zoperand(zoperand)
-        && !ZPat.is_after_zoperand(zoperand) =>
-    ana_split_text(ctx, u_gen, j, sop, s, ty)
-  | (Construct(SChar("\n")), CursorP(OnText(j), StringLit(_, s))) =>
-    let text_cursor = CursorPosition.OnText(j + 1);
-    let new_text = StringUtil.insert(j, "\n", s);
-    let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-    if (HTyp.consistent(ty, HTyp.String)) {
-      Succeeded((zp, ctx, u_gen));
-    } else {
-      let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-      Succeeded((zp, ctx, u_gen));
-    };
+
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1294,17 +1163,6 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
-  | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, s2))) =>
-    let text_cursor = CursorPosition.OnText(j + String.length(s));
-    let new_text = StringUtil.insert(j, s, s2);
-    let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-    if (HTyp.consistent(ty, HTyp.String)) {
-      Succeeded((zp, ctx, u_gen));
-    } else {
-      let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-      Succeeded((zp, ctx, u_gen));
-    };
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
@@ -1315,49 +1173,6 @@ and ana_perform_operand =
   | (Construct(SParenthesized), CursorP(_)) =>
     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
     mk_ana_result(ctx, u_gen, new_zp, ty);
-
-  | (Construct(SQuote), CursorP(OnDelim(_, side), StringLit(_, s))) =>
-    let index =
-      switch (side) {
-      | Before => 0
-      | After => 1
-      };
-    let text_cursor = CursorPosition.OnText(index + 1);
-    let new_text = StringUtil.insert(index, "\"", s);
-    let zp =
-      ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
-    if (HTyp.consistent(ty, HTyp.String)) {
-      Succeeded((zp, ctx, u_gen));
-    } else {
-      let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-      Succeeded((zp, ctx, u_gen));
-    };
-  | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
-    let text_cursor = CursorPosition.OnText(0);
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit("")));
-    if (HTyp.consistent(ty, HTyp.String)) {
-      Succeeded((zp, ctx, u_gen));
-    } else {
-      let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-      Succeeded((zp, ctx, u_gen));
-    };
-  | (
-      Construct(SQuote),
-      CursorP(
-        OnDelim(_, _),
-        Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_, _, _),
-      ),
-    )
-  | (
-      Construct(SQuote),
-      CursorP(
-        OnText(_),
-        InvalidText(_, _) | Var(_, _, _) | IntLit(_, _) | FloatLit(_, _) |
-        BoolLit(_, _) |
-        StringLit(_, _),
-      ),
-    ) =>
-    Failed
 
   | (Construct(SInj(side)), CursorP(_)) =>
     switch (HTyp.matched_sum(ty)) {
@@ -1435,18 +1250,6 @@ and ana_perform_operand =
     }
 
   /* Subsumption */
-  | (Construct(SLeftBracket), CursorP(_)) =>
-    switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
-        Succeeded((zp, ctx, u_gen));
-      }
-    }
-
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err

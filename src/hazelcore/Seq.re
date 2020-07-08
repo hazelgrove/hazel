@@ -189,7 +189,7 @@ type operator_surround('operand, 'operator) = (
 
 let rec opt_split_nth_operand =
         (n: int, seq: t('operand, 'operator))
-        : option(('operand, operand_surround('operand, 'operator))) =>
+        : option(('operand, operand_surround('operand, 'operator))) => {
   switch (n, seq) {
   | (_, _) when n < 0 => None
   | (0, S(hd, tl)) => Some((hd, (E, tl)))
@@ -201,6 +201,7 @@ let rec opt_split_nth_operand =
          (found, (affix_affix(prefix, A(op, S(hd, E))), suffix))
        )
   };
+};
 let split_nth_operand =
     (n: int, seq: t('operand, 'operator))
     : ('operand, operand_surround('operand, 'operator)) =>

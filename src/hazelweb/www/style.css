@@ -191,7 +191,7 @@ html, body {
 
 .sidebar {
   width: auto;
-  height: 100%; /* TODO: change back to 100% */
+  height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
   display: grid;
@@ -325,10 +325,6 @@ html, body {
   outline: 1px solid #8e0000;
 }
 
-.cursor-InvalidEscape.cursor-inspector {
-  outline: 1px solid #8e0000;
-}
-
 .cursor-BindingError.cursor-inspector {
   outline: 1px solid #ce5f00;
 }
@@ -342,10 +338,6 @@ html, body {
 }
 
 .cursor-TypeInconsistency .title-bar {
-  background-color: #8e0000;
-}
-
-.cursor-InvalidEscape .title-bar {
   background-color: #8e0000;
 }
 
@@ -375,24 +367,11 @@ html, body {
   min-height: 38px;
 }
 
-.code-bar {
-  font-family: var(--code-font-family);
-  font-size: 12pt;
-  display: flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 5px;
-}
-
 .cursor-OK .typebar, .cursor-OK .infobar {
   background-color: #FEFEEA;
 }
 
 .cursor-TypeInconsistency .typebar, .cursor-TypeInconsistency .infobar {
-  background-color: #ffe0e0;
-}
-
-.cursor-InvalidEscape .typebar, .cursor-InvalidEscape .infobar {
   background-color: #ffe0e0;
 }
 
@@ -772,9 +751,6 @@ h1 {
   padding-left: 25px;
   padding-bottom: 5px;
   background-color: #EEE;
-  width: 910px;
-  white-space: pre;
-  overflow-x: auto;
 }
 
 .type-indicator {
@@ -818,7 +794,7 @@ h1 {
 }
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
-.DHCode .InvalidOpDecoration {
+.DHCode .DivideByZero {
   display: inline-block;
   position: relative;
   font-size: 75%;
@@ -833,11 +809,9 @@ h1 {
 .DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.2);
 }
-.DHCode .InvalidOpDecoration {
+
+.DHCode .DivideByZero {
   background-color: rgba(255, 0, 0, 0.2);
-}
-.DHCode .String {
-  color: #1d5a5a;
 }
 
 .code {
@@ -848,18 +822,6 @@ h1 {
 }
 .code.presentation * {
   position: relative;
-}
-.code.presentation .ValidSeq {
-  color: #409fa0;
-}
-.code.presentation .InvalidSeq {
-  --err-hole-color: red;
-  color: red;
-  border: 1px dotted var(--err-hole-color);
-  margin: -1px;
-}
-.code.presentation .String {
-  color: #1d5a5a;
 }
 .code.presentation .Term.Rule,
 .code.presentation .Term.Invalid,
@@ -1272,16 +1234,11 @@ h1 {
 
 #cell {
   position: relative;
-  width: 910px;
+  width: auto;
   margin-top: 20px;
   background-color: white;
   padding: 10px;
   border: 2px solid #CCC;
-  /* -webkit-box-sizing: border-box; 
-  -moz-box-sizing: border-box;   
-  box-sizing: border-box;  */    
-  white-space: pre; 
-  overflow-x: auto;
 }
 #cell:focus {
   outline: 0px;
@@ -1570,22 +1527,7 @@ h1 {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }
-.string {
-  color: #1d5a5a;
-}
-.valid-seq {
-  color: #409fa0;
-}
-.invalid-seq {
-  --err-hole-color: red;
-  color: red;
-  border: 1px dotted var(--err-hole-color);
-  margin: -1px;
-}
-.ellipses {
-  color: gray;
-  background-color: lightgoldenrodyellow;
-}
+
 .timestamp-txt{
   float: right;
   text-align: center;

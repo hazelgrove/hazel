@@ -121,15 +121,11 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Token({shape: Text({start_index}), len, _} as token_data)
-                 when start_index <= j && j <= start_index + len =>
+             | Token({shape: Text, _} as token_data) =>
                Return(
                  l
                  |> Layout.annot(
-                      UHAnnot.Token({
-                        ...token_data,
-                        has_cursor: Some(j - start_index),
-                      }),
+                      UHAnnot.Token({...token_data, has_cursor: Some(j)}),
                     ),
                )
              | EmptyLine
