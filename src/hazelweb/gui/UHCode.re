@@ -741,8 +741,8 @@ let decoration_views =
 
   let root_caret =
     switch (current_splice) {
-    | Some(_) => []
-    | None => [Dec.caret_view(~font_metrics, caret_pos)]
+    | None when is_focused => [Dec.caret_view(~font_metrics, caret_pos)]
+    | _ => []
     };
   let root_ds = go(ds, m);
   root_caret @ root_ds;
