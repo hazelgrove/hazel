@@ -644,7 +644,7 @@ and decoration_views =
                ),
              );
         current_ds @ go'(ds, l);
-      | LivelitView({llu, base_llname, shape, model: m, _}) =>
+      | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
         // TODO(livelit definitions): thread ctx
         let ctx = Livelits.initial_livelit_view_ctx;
         let (llview, _) =
@@ -668,7 +668,10 @@ and decoration_views =
               | _ => []
               };
             let splice_ds = {
-              let stepped = Decorations.take_step(splice_name, ds);
+              let stepped =
+                ds
+                |> Decorations.take_step(hd_step)
+                |> Decorations.take_step(splice_name);
               Decorations.is_empty(stepped) ? [] : go(stepped, splice_l);
             };
             let splice_code = code_text_view(Box.mk(splice_l));
