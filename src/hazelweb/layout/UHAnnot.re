@@ -37,7 +37,6 @@ type t =
   | AbbrevLine
   | Step(int)
   | Term(term_data)
-  | LivelitExpression
   | LivelitView({
       llu: MetaVar.t,
       base_llname: LivelitName.t,

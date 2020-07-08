@@ -45,6 +45,7 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
     | Invalid
     | FreeLivelit
     | ApLivelit => steps == []
+    | LivelitExpression(_) => false
     };
   let err_holes =
     decorations.err_holes
@@ -60,8 +61,8 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
     decorations.livelits
     |> List.find_opt(steps =>
          switch (term_shape) {
-         | BinOp({op_index, _}) => steps == [op_index]
-         | ApLivelit => steps == []
+         | LivelitExpression({hd_index}) => steps == [hd_index]
+         // | ApLivelit => steps == []
          | _ => false
          }
        )

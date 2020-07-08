@@ -73,6 +73,7 @@ let livelit_handler = (~enforce_inline, go, seq, skel) =>
     | None => assert(false)
     | Some((_, serialized_view_shape_fn)) =>
       let shape = serialized_view_shape_fn(model);
+      let hd_step = Skel.leftmost_tm_index(skel);
       let llview_doc = {
         let spaceholder =
           switch (shape) {
@@ -82,7 +83,6 @@ let livelit_handler = (~enforce_inline, go, seq, skel) =>
               ? Doc.fail()
               : Doc.hcats(ListUtil.replicate(height, Doc.linebreak()))
           };
-        let hd_step = Skel.leftmost_tm_index(skel);
         Doc.annot(
           UHAnnot.LivelitView({
             llu,
@@ -97,7 +97,7 @@ let livelit_handler = (~enforce_inline, go, seq, skel) =>
       };
       Some(
         Doc.hcats([
-          UHDoc_common.annot_LivelitExpression(go(skel)),
+          UHDoc_common.annot_LivelitExpression(~hd_index=hd_step, go(skel)),
           llview_doc,
         ]),
       );

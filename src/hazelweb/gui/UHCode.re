@@ -347,6 +347,7 @@ module Dec = {
             MeasuredLayout.flatten(subject),
           ),
         )
+      | LivelitExpression(_) => ([], [])
       };
     let highlighted_vs =
       ListUtil.is_empty(highlighted_rs)
