@@ -1,6 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 
 type err_state_b =
+  | InsufficientLivelitArgs
   | TypeInconsistency
   | BindingError
   | OK;
@@ -144,6 +145,12 @@ let view =
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
+  let got_insufficient_livelit_args_indicator = got_ty =>
+    got_indicator(
+      "This livelit requires additional arguments",
+      typebar(got_ty),
+    );
+
   let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
@@ -184,6 +191,10 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_livelit_indicator;
       (ind1, ind2, BindingError);
+    | AnaInsufficientLivelitArgs(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+      (ind1, ind2, InsufficientLivelitArgs);
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
@@ -215,6 +226,11 @@ let view =
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
       (ind1, ind2, TypeInconsistency);
+    | SynErrorInsufficientLivelitArgs(got_ty) =>
+      let ind1 =
+        expected_msg_indicator("livelit name followed by sufficient args");
+      let ind2 = got_insufficient_livelit_args_indicator(got_ty);
+      (ind1, ind2, InsufficientLivelitArgs);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -337,6 +353,7 @@ let view =
 
   let cls_of_err_state_b =
     switch (err_state_b) {
+    | InsufficientLivelitArgs
     | TypeInconsistency => "cursor-TypeInconsistency"
     | BindingError => "cursor-BindingError"
     | OK => "cursor-OK"

@@ -29,6 +29,8 @@ type typed =
   /* cursor is on a free variable in analytic position */
   | AnaFreeLivelit(HTyp.t)
   /* cursor is on a free livelit in analytic position */
+  // cursor is on an ApLivelit that is followed by too few args
+  | AnaInsufficientLivelitArgs(HTyp.t, HTyp.t)
   // cursor is on a keyword
   | AnaKeyword(HTyp.t, ExpandingKeyword.t)
   // none of the above and didn't go through subsumption
@@ -46,6 +48,8 @@ type typed =
         // got
         HTyp.t,
       )
+  // cursor is on an ApLivelit, that is followed by too few args
+  | SynErrorInsufficientLivelitArgs(HTyp.t)
   // cursor is on the function position of an ap,
   // and that expression does synthesize a type
   // with a matched arrow type
@@ -1238,7 +1242,7 @@ module Exp = {
                 _,
               )) =>
               Statics.Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))
-              |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)))
+              |> OptUtil.map(ty => mk(SynErrorInsufficientLivelitArgs(ty)))
             | Some((_, InVarHole(Free, _))) =>
               Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
             | Some((_, InVarHole(Keyword(k), _))) =>
@@ -1632,9 +1636,14 @@ module Exp = {
       | IntLit(NotInHole, _)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
+      | ApLivelit(_, NotInHole, _, _, _, _) =>
+        switch (Statics.Exp.syn_operand(ctx, e)) {
+        | None => None
+        | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+        }
       | ApLivelit(
           _,
-          NotInHole | InHole(TypeInconsistent(Some(InsufficientParams)), _),
+          InHole(TypeInconsistent(Some(InsufficientParams)), _),
           _,
           _,
           _,
@@ -1642,7 +1651,8 @@ module Exp = {
         ) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
         | None => None
-        | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+        | Some(ty') =>
+          Some(mk(AnaInsufficientLivelitArgs(ty, ty'), ctx, cursor_term))
         }
       | FreeLivelit(_, _) => Some(mk(AnaFreeLivelit(ty), ctx, cursor_term))
       | ListNil(NotInHole)
