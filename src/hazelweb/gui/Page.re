@@ -1,12 +1,12 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 
-let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
+let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
   Vdom.(
     Node.select(
       [
         Attr.on_change((_, example_id) =>
-          inject(Update.Action.LoadExample(example_id))
+          inject(ModelAction.LoadExample(example_id))
         ),
       ],
       [
@@ -43,7 +43,7 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
 
 let cardstacks_select =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
       cardstacks: list(CardstackInfo.t),
     ) => {
   let cardstack_options =
@@ -63,7 +63,7 @@ let cardstacks_select =
     Node.select(
       [
         Attr.on_change((_, example_idx) =>
-          inject(Update.Action.LoadCardstack(int_of_string(example_idx)))
+          inject(ModelAction.LoadCardstack(int_of_string(example_idx)))
         ),
       ],
       cardstack_options,
@@ -78,7 +78,7 @@ let prev_card_button = (~inject, model: Model.t) => {
     Node.button(
       [
         Attr.id("cardstack-prev-button"),
-        Attr.on_click(_ => inject(Update.Action.PrevCard)),
+        Attr.on_click(_ => inject(ModelAction.PrevCard)),
         ...show_prev,
       ],
       [Node.text("Previous")],
@@ -93,7 +93,7 @@ let next_card_button = (~inject, model: Model.t) => {
     Node.button(
       [
         Attr.id("cardstack-next-button"),
-        Attr.on_click(_ => inject(Update.Action.NextCard)),
+        Attr.on_click(_ => inject(ModelAction.NextCard)),
         ...show_next,
       ],
       [Node.text("Next")],
@@ -117,7 +117,7 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
-let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   TimeUtil.measure_time(
     "Page.view",
     model.measurements.measurements && model.measurements.page_view,
@@ -146,7 +146,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         [Attr.classes(["htype-view"])],
                         [
                           {
-                            let (_, ty, _) = program |> Program.get_edit_state;
+                            let (_, ty, _) = program.edit_state;
                             HTypCode.view(ty);
                           },
                         ],
@@ -175,28 +175,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             ],
           );
         };
-      /*
-       let e = program |> Program.get_uhexp;
-       let doc =
-         lazy(
-           Lazy.force(
-             UHDoc.Exp.mk,
-             ~memoize=model.memoize_doc /*TODO:memoize*/,
-             ~enforce_inline=false,
-             e,
-           )
-         );
-       let layout =
-         lazy(
-           switch (
-             Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
-           ) {
-           | None => Pretty.Layout.Text("layout FAILED") // TODO
-           | Some(l) => l
-           }
-         );
-       let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
-       */
       Node.div(
         [Attr.id("root")],
         [
@@ -216,13 +194,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["main-area"])],
             [
-              /*
-               Sidebar.left(
-                 ~inject,
-                 model,
-                 [ActionPanel.view(~inject, model)] //the_history_panel,
-               ),
-               */
+              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
+                [ActionPanel.view(~inject, model)]
+              ),
               Node.div(
                 [Attr.classes(["flex-wrapper"])],
                 [
@@ -235,18 +209,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           Node.div(
                             [Attr.classes(["card-caption"])],
                             [card.info.caption],
-                            /* [
-                                 Node.text("Hazel is an experiment in "),
-                                 Node.strong(
-                                   [],
-                                   [Node.text("live functional programming")],
-                                 ),
-                                 Node.text(" with "),
-                                 Node.strong([], [Node.text("typed holes")]),
-                                 Node.text(
-                                   ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                                 ),
-                               ], */
                           ),
                           Cell.view(~inject, model),
                           cell_status,
@@ -275,26 +237,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                           ),
                         ],
                         [],
-                        /*
-                         if (!model.show_presentation) {
-                           [];
-                         } else {
-                           [JSUtil.vdom_of_box(Lazy.force(box))];
-                         },
-                         */
                       ),
                     ],
                   ),
                 ],
               ),
-              Sidebar.right(
-                ~inject,
-                model,
+              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
-                  CursorInspector.view(model),
+                  CursorInspector.view(~inject, model),
                   ContextInspector.view(~inject, model),
+                  UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
-                ],
+                ]
               ),
             ],
           ),
