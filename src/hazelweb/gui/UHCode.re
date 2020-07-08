@@ -82,7 +82,16 @@ let view =
 
       let rec go: UHLayout.t => _ =
         fun
-        | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+        | Text(s) => [Node.text(s)]
+        | Annot(ValidSeq, l) => [
+            Node.span([Attr.classes(["ValidSeq"])], go(l)),
+          ]
+        | Annot(InvalidSeq, l) => [
+            Node.span([Attr.classes(["InvalidSeq"])], go(l)),
+          ]
+        | Annot(String, l) => [
+            Node.span([Attr.classes(["String"])], go(l)),
+          ]
         | Linebreak => [Node.br([])]
         | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
         | Cat(l1, l2) => go(l1) @ go(l2)
@@ -92,7 +101,7 @@ let view =
         | Annot(Token({shape, _}), l) => {
             let clss =
               switch (shape) {
-              | Text => ["code-text"]
+              | Text(_) => ["code-text"]
               | Op => ["code-op"]
               | Delim(_) => ["code-delim"]
               };

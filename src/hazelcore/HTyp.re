@@ -7,6 +7,7 @@ type t =
   | Int
   | Float
   | Bool
+  | String
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list(t))
@@ -22,6 +23,11 @@ let is_Prod =
   | Prod(_) => true
   | _ => false;
 
+let is_Arrow =
+  fun
+  | Arrow(_) => true
+  | _ => false;
+
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
@@ -31,6 +37,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
+  | String
   | Hole
   | Prod([])
   | List(_) => precedence_const
@@ -55,6 +62,8 @@ let rec consistent = (x, y) =>
   | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
+  | (String, String) => true
+  | (String, _) => false
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
@@ -134,6 +143,7 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
+  | String => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
@@ -157,6 +167,8 @@ let rec join = (j, ty1, ty2) =>
   | (Float, _) => None
   | (Bool, Bool) => Some(ty1)
   | (Bool, _) => None
+  | (String, String) => Some(ty1)
+  | (String, _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
@@ -183,7 +195,7 @@ let rec join = (j, ty1, ty2) =>
   | (List(_), _) => None
   };
 
-let join_all = (j: join, types: list(t)): option(t) => {
+let join_all = (j: join, types: list(t)): option(t) =>
   switch (types) {
   | [] => None
   | [hd] => Some(hd)
@@ -202,4 +214,3 @@ let join_all = (j: join, types: list(t)): option(t) => {
       );
     }
   };
-};

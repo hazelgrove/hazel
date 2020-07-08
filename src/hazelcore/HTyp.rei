@@ -5,6 +5,7 @@ type t =
   | Int
   | Float
   | Bool
+  | String
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list(t))
@@ -15,6 +16,8 @@ type join =
   | LUB;
 
 let is_Prod: t => bool;
+
+let is_Arrow: t => bool;
 
 let precedence_Prod: int;
 let precedence_Arrow: int;

@@ -17,6 +17,7 @@ rule read =
   | "-." { FMINUS }
   | "*." { FTIMES }
   | "/." { FDIVIDE }
+  | "^" { CARET }
   | "_" { SPACEOP }
   | "," { COMMA }
   | "::" { CONS }

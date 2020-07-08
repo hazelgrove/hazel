@@ -25,6 +25,10 @@ let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   | FLessThan => DHDoc_common.precedence_LessThan
   | FGreaterThan => DHDoc_common.precedence_GreaterThan
   };
+let precedence_bin_str_op = (bso: DHExp.BinStrOp.t) =>
+  switch (bso) {
+  | Caret => DHDoc_common.precedence_Caret
+  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
@@ -34,7 +38,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Keyword(_)
   | BoolLit(_)
   | IntLit(_)
+  | ApBuiltin(_, _)
+  | FailedAssert(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListNil(_)
   | Inj(_)
   | EmptyHole(_)
@@ -48,9 +55,11 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
+  | Subscript(_) => DHDoc_common.precedence_Subscript
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
+  | BinStrOp(op, _, _) => precedence_bin_str_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
@@ -89,6 +98,13 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc_common.t =>
     | FLessThan => "<."
     | FGreaterThan => ">."
     | FEquals => "==."
+    },
+  );
+
+let mk_bin_str_op = (op: DHExp.BinStrOp.t): DHDoc_common.t =>
+  Doc.text(
+    switch (op) {
+    | Caret => "^"
     },
   );
 
@@ -182,10 +198,12 @@ let rec mk =
       | InvalidText(u, i, _sigma, t) =>
         DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
+      | ApBuiltin(x, _) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | ListNil(_) => DHDoc_common.Delim.list_nil
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
@@ -197,6 +215,15 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | Subscript(s, n1, n2) =>
+        hcats([
+          mk_cast(go(~enforce_inline=false, s)),
+          Doc.text("["),
+          mk_cast(go(~enforce_inline=false, n1)),
+          Doc.text(":"),
+          mk_cast(go(~enforce_inline=false, n2)),
+          Doc.text("]"),
+        ])
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
@@ -207,6 +234,11 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
+      | BinStrOp(op, d1, d2) =>
+        // TODO assumes all bin str ops are left associative
+        let (doc1, doc2) =
+          mk_left_associative_operands(precedence_bin_str_op(op), d1, d2);
+        hseps([mk_cast(doc1), mk_bin_str_op(op), mk_cast(doc2)]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
@@ -261,33 +293,16 @@ let rec mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        switch (err) {
-        | DivideByZero =>
-          let (d_doc, _) = go'(d);
-          let decoration =
-            Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.DivideByZero);
-          hcats([d_doc, decoration]);
-        }
-      /*
-       let (d_doc, d_cast) as dcast_doc = go'(d);
-       let cast_decoration =
-         hcats([
-           DHDoc_common.Delim.open_FailedCast,
-           hseps([
-             DHDoc_Typ.mk(~enforce_inline=true, ty1),
-             DHDoc_common.Delim.arrow_FailedCast,
-             DHDoc_Typ.mk(~enforce_inline=true, ty2),
-           ]),
-           DHDoc_common.Delim.close_FailedCast,
-         ])
-         |> annot(DHAnnot.FailedCastDecoration);
-       switch (d_cast) {
-       | Some(ty1') when HTyp.eq(ty1, ty1') =>
-         hcats([d_doc, cast_decoration])
-       | _ => hcats([mk_cast(dcast_doc), cast_decoration])
-       };
-       */
+        let (d_doc, _) = go'(d);
+        let decoration =
+          Doc.text(InvalidOperationError.err_msg(err))
+          |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
+      | FailedAssert(x) =>
+        let (d_doc, _) = go'(x);
+        let decoration =
+          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
       | Lam(dp, ty, dbody) =>
         if (show_fn_bodies) {
           let body_doc = (~enforce_inline) =>

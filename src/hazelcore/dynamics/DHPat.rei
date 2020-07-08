@@ -10,6 +10,7 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
+  | StringLit(string)
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)

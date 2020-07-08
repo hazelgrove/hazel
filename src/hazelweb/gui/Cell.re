@@ -31,18 +31,14 @@ let kc_actions:
     (Backslash, _ => Action_common.Construct(SLam)),
     (Plus, _ => Action_common.Construct(SOp(SPlus))),
     (Minus, _ => Action_common.Construct(SOp(SMinus))),
+    (Caret, _ => Action_common.Construct(SOp(SCaret))),
     (Asterisk, _ => Action_common.Construct(SOp(STimes))),
     (Slash, _ => Action_common.Construct(SOp(SDivide))),
     (LT, _ => Action_common.Construct(SOp(SLessThan))),
     (Space, _ => Action_common.Construct(SOp(SSpace))),
     (Comma, _ => Action_common.Construct(SOp(SComma))),
-    (
-      LeftBracket,
-      fun
-      | {CursorInfo_common.typed: OnType, _} =>
-        Action_common.Construct(SList)
-      | _ => Action_common.Construct(SListNil),
-    ),
+    (LeftBracket, _ => Action_common.Construct(SLeftBracket)),
+    (LeftQuotation, _ => Action_common.Construct(SQuote)),
     (Semicolon, _ => Action_common.Construct(SOp(SCons))),
     (Alt_L, _ => Action_common.Construct(SInj(L))),
     (Alt_R, _ => Action_common.Construct(SInj(R))),
@@ -112,46 +108,73 @@ let view = (~inject, model: Model.t) => {
               | Some(move_key) =>
                 prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
               | None =>
-                switch (HazelKeyCombos.of_evt(evt)) {
-                | Some(Ctrl_Z) =>
-                  if (model.is_mac) {
-                    Event.Ignore;
-                  } else {
-                    prevent_stop_inject(ModelAction.Undo);
-                  }
-                | Some(Meta_Z) =>
-                  if (model.is_mac) {
-                    prevent_stop_inject(ModelAction.Undo);
-                  } else {
-                    Event.Ignore;
-                  }
-                | Some(Ctrl_Shift_Z) =>
-                  if (model.is_mac) {
-                    Event.Ignore;
-                  } else {
-                    prevent_stop_inject(ModelAction.Redo);
-                  }
-                | Some(Meta_Shift_Z) =>
-                  if (model.is_mac) {
-                    prevent_stop_inject(ModelAction.Redo);
-                  } else {
-                    Event.Ignore;
-                  }
-                | Some(kc) =>
+                let s = Key.get_key(evt);
+                switch (
+                  s,
+                  CursorInfo_common.is_text_cursor(
+                    program |> Program.get_zexp,
+                  ),
+                ) {
+                | (
+                    "~" | "`" | "!" | "@" | "#" | "$" | "%" | "^" | "&" | "*" |
+                    "(" |
+                    ")" |
+                    "-" |
+                    "_" |
+                    "=" |
+                    "+" |
+                    "{" |
+                    "}" |
+                    "[" |
+                    "]" |
+                    ":" |
+                    ";" |
+                    "\"" |
+                    "'" |
+                    "<" |
+                    ">" |
+                    "," |
+                    "." |
+                    "?" |
+                    "/" |
+                    "|" |
+                    "\\" |
+                    " ",
+                    true,
+                  ) =>
                   prevent_stop_inject(
-                    ModelAction.EditAction(
-                      Hashtbl.find(
-                        kc_actions,
-                        kc,
-                        program |> Program.get_cursor_info,
-                      ),
-                    ),
+                    ModelAction.EditAction(Construct(SChar(s))),
                   )
-                | None =>
+                | ("Enter", true) =>
+                  prevent_stop_inject(
+                    ModelAction.EditAction(Construct(SChar("\n"))),
+                  )
+                | (_, _) =>
                   switch (HazelKeyCombos.of_evt(evt)) {
-                  | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
+                  | Some(Ctrl_Z) =>
+                    if (model.is_mac) {
+                      Event.Ignore;
+                    } else {
+                      prevent_stop_inject(ModelAction.Undo);
+                    }
+                  | Some(Meta_Z) =>
+                    if (model.is_mac) {
+                      prevent_stop_inject(ModelAction.Undo);
+                    } else {
+                      Event.Ignore;
+                    }
                   | Some(Ctrl_Shift_Z) =>
-                    prevent_stop_inject(ModelAction.Redo)
+                    if (model.is_mac) {
+                      Event.Ignore;
+                    } else {
+                      prevent_stop_inject(ModelAction.Redo);
+                    }
+                  | Some(Meta_Shift_Z) =>
+                    if (model.is_mac) {
+                      prevent_stop_inject(ModelAction.Redo);
+                    } else {
+                      Event.Ignore;
+                    }
                   | Some(kc) =>
                     prevent_stop_inject(
                       ModelAction.EditAction(
@@ -175,7 +198,7 @@ let view = (~inject, model: Model.t) => {
                       )
                     }
                   }
-                }
+                };
               }
             }),
           ];

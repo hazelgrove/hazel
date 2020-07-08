@@ -32,8 +32,8 @@ let matches_cast_Cons:
   (DHPat.t, DHPat.t, DHExp.t, list((HTyp.t, HTyp.t))) => match_result;
 
 type elab_result_lines =
-  | LinesExpand(DHExp.t => DHExp.t, Contexts.t, Delta.t)
-  | LinesDoNotExpand;
+  | LinesElaboration(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesDoNotElaborate;
 
 module ElaborationResult: {
   type t =
