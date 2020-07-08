@@ -524,7 +524,7 @@ let rec mk_BinOp =
       switch (shape) {
       | Inline(width) =>
         let spaceholder = Doc.text(StringUtil.replicat(width, Unicode.nbsp));
-        Doc.hsep(llexp, annot_LivelitView(spaceholder));
+        Doc.hcat(llexp, annot_LivelitView(spaceholder));
       | MultiLine(height) =>
         if (enforce_inline) {
           Doc.fail();
