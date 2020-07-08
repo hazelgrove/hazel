@@ -9,6 +9,7 @@ let user_newline = "↵"; // U+21B5 "Downwards arrow with corner leftwards"
 
 let left_triangle = "◀"; // U+25C0 "Black left-pointing triangle"
 let right_triangle = "▶"; // U+25B6 "Black right-pointing triangle"
+let up_triangle = "\xE2\x96\xB2"; // U+25BC "Black up-pointing triangle"
 let down_triangle = "▼"; // U+25BC "Black down-pointing triangle"
 let undo = "⮌"; // U+2B8C "Anticlockwise Triangle-Headed Right U-Shaped Arrow"
 // NOTE: Using string escapes to avoid invisible unicode characters in source code

@@ -6,6 +6,7 @@ let typeB: string;
 let user_newline: string;
 let left_triangle: string;
 let right_triangle: string;
+let up_triangle: string;
 let down_triangle: string;
 let undo: string;
 let nbsp: string;
