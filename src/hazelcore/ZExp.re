@@ -90,7 +90,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  | AssertLit(_, _) => CursorPosition.text_cursors(6)
+  | AssertLit(_) => CursorPosition.text_cursors(6)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =

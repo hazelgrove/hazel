@@ -34,7 +34,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Keyword(_)
   | BoolLit(_)
   | FailedAssert(_)
-  | AssertLit(_)
+  | AssertLit
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
@@ -186,7 +186,7 @@ let rec mk =
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-      | AssertLit(_) => text("assert")
+      | AssertLit => text("assert")
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil

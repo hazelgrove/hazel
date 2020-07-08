@@ -149,7 +149,7 @@ type t =
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)
-  | AssertLit(AssertNum.t)
+  | AssertLit
   | FailedAssert(t)
   | FloatLit(float)
   | BinBoolOp(BinBoolOp.t, t, t)
@@ -199,7 +199,7 @@ let constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   | FailedAssert(_) => "FailedAssert"
-  | AssertLit(_) => "AssertLit"
+  | AssertLit => "AssertLit"
   };
 
 let rec mk_tuple: list(t) => t =

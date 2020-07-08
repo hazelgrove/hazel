@@ -6,7 +6,7 @@ type t =
   | IntLit(string)
   | FloatLit(string)
   | BoolLit(bool)
-  | AssertLit(AssertNum.t)
+  | AssertLit
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
   | InvalidTextShape(string);
@@ -45,7 +45,7 @@ let of_text = (text: string): t =>
   | (_, Some(_), _, _, _) => FloatLit(text)
   | (_, _, Some(b), _, _) => BoolLit(b)
   | (_, _, _, Some(k), _) => ExpandingKeyword(k)
-  | (_, _, _, _, true) => AssertLit(AssertNum.generate()) //need to look up for the most recent unique id of assert
+  | (_, _, _, _, true) => AssertLit //need to look up for the most recent unique id of assert
   | (None, None, None, None, _) =>
     if (text |> String.equal("_")) {
       Underscore;
