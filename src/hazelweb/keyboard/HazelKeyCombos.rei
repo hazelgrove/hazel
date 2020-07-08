@@ -19,12 +19,14 @@ type t =
   | Plus
   | Minus
   | Asterisk
+  | Caret
   | Slash
   | LT
   | Space
   | Comma
   | Dollar
   | LeftBracket
+  | LeftQuotation
   | Semicolon
   | Alt_L
   | Alt_R

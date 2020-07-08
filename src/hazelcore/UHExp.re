@@ -24,11 +24,13 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
+  | Subscript(ErrStatus.t, t, t, t)
   | ApLivelit(
       MetaVar.t,
       ErrStatus.t,
@@ -83,6 +85,9 @@ let floatlit' = (~err: ErrStatus.t=NotInHole, f: float): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
+let stringlit = (~err: ErrStatus.t=NotInHole, s: string): operand =>
+  StringLit(err, s);
+
 let lam =
     (
       ~err: ErrStatus.t=NotInHole,
@@ -102,6 +107,10 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
+let subscript =
+    (~err: ErrStatus.t=NotInHole, target: t, start_: t, end_: t): operand =>
+  Subscript(err, target, start_, end_);
+
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
 module Line = {
@@ -118,7 +127,7 @@ module Line = {
     fun
     | EmptyLine
     | AbbrevLine(_)
-    | LetLine(_, _, _) => None
+    | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
     line
@@ -199,6 +208,25 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
+let rec find_operand = (e: t): option(operand) => e |> find_operand_block
+and find_operand_block = block =>
+  List.nth(block, List.length(block) - 1) |> find_operand_line
+and find_operand_line =
+  fun
+  | EmptyLine
+  | AbbrevLine(_) => None
+  | LetLine(_, _, def) => def |> find_operand
+  | ExpLine(opseq) => opseq |> find_operand_opseq
+and find_operand_opseq =
+  fun
+  | OpSeq(_, S(operand, _)) => Some(operand)
+and find_operand_operator =
+  fun
+  | _ => None
+and find_operand_operand =
+  fun
+  | e => Some(e);
+
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
   let (_, conclusion) = block |> Block.force_split_conclusion;
@@ -214,10 +242,12 @@ and get_err_status_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
+  | StringLit(err, _)
   | ListNil(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | Subscript(err, _, _, _)
   | ApLivelit(_, err, _, _, _, _) => err
   | FreeLivelit(_, _) => NotInHole
   | Case(InconsistentBranches(_), _, _) => NotInHole
@@ -240,6 +270,7 @@ and set_err_status_operand = (err, operand) =>
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
+  | StringLit(_, s) => StringLit(err, s)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
@@ -248,6 +279,8 @@ and set_err_status_operand = (err, operand) =>
     ApLivelit(u, err, base_name, name, model, si)
   | FreeLivelit(_, _) => operand
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | Subscript(_, target, start_, end_) =>
+    Subscript(err, target, start_, end_)
   };
 
 let is_inconsistent = operand =>
@@ -276,10 +309,12 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | IntLit(InHole(TypeInconsistent(_), _), _)
   | FloatLit(InHole(TypeInconsistent(_), _), _)
   | BoolLit(InHole(TypeInconsistent(_), _), _)
+  | StringLit(InHole(TypeInconsistent(_), _), _)
   | ListNil(InHole(TypeInconsistent(_), _))
   | Lam(InHole(TypeInconsistent(_), _), _, _, _)
   | Inj(InHole(TypeInconsistent(_), _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
+  | Subscript(InHole(TypeInconsistent(_), _), _, _, _)
   | ApLivelit(_, InHole(TypeInconsistent(_), _), _, _, _, _)
   | FreeLivelit(_) => (operand, u_gen)
   /* not in hole */
@@ -287,6 +322,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | StringLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
@@ -296,6 +332,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
+  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let operand =
@@ -343,7 +380,7 @@ let associate = (seq: seq) => {
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
+let rec is_complete_line = (l: line, check_type_holes: bool): bool =>
   switch (l) {
   | EmptyLine => true
   | AbbrevLine(_, NotInAbbrevHole, _, args) =>
@@ -363,21 +400,17 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
-  };
-}
-and is_complete_block = (b: block, check_type_holes: bool): bool => {
-  b |> List.for_all(l => is_complete_line(l, check_type_holes));
-}
-and is_complete_rule = (rule: rule, check_type_holes: bool): bool => {
+  }
+and is_complete_block = (b: block, check_type_holes: bool): bool =>
+  b |> List.for_all(l => is_complete_line(l, check_type_holes))
+and is_complete_rule = (rule: rule, check_type_holes: bool): bool =>
   switch (rule) {
   | Rule(pat, body) =>
     UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-  };
-}
-and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
-  rules |> List.for_all(l => is_complete_rule(l, check_type_holes));
-}
-and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
+  }
+and is_complete_rules = (rules: rules, check_type_holes: bool): bool =>
+  rules |> List.for_all(l => is_complete_rule(l, check_type_holes))
+and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool =>
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
@@ -390,6 +423,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
+  | StringLit(InHole(_), _) => false
+  | StringLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Lam(InHole(_), _, _, _) => false
@@ -413,14 +448,17 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
+  | Subscript(InHole(_), _, _, _) => false
+  | Subscript(NotInHole, target, start_, end_) =>
+    is_complete(target, check_type_holes)
+    && is_complete(start_, check_type_holes)
+    && is_complete(end_, check_type_holes)
   | FreeLivelit(_) => false
   | ApLivelit(_, InHole(_), _, _, _, _) => false
   | ApLivelit(_, NotInHole, _, _, _, splice_info) =>
     splice_info.splice_map
     |> IntMap.bindings
     |> List.for_all(((_, (_, e))) => is_complete(e, check_type_holes))
-  };
-}
-and is_complete = (exp: t, check_type_holes: bool): bool => {
+  }
+and is_complete = (exp: t, check_type_holes: bool): bool =>
   is_complete_block(exp, check_type_holes);
-};

@@ -73,6 +73,16 @@ module Delim = {
       Doc.text(delim_text),
     );
 
+  let mk_quotation = (~index: int, delim_text: string): t =>
+    Doc.annot(
+      UHAnnot.mk_Token(
+        ~len=StringUtil.utf8_length(delim_text),
+        ~shape=Delim(index),
+        (),
+      ),
+      Doc.annot(UHAnnot.String, Doc.text(delim_text)),
+    );
+
   let empty_hole_doc = (hole_lbl: string): t => {
     let len = hole_lbl |> StringUtil.utf8_length;
     Doc.text(hole_lbl)
@@ -80,8 +90,14 @@ module Delim = {
     |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
   };
 
+  let open_StringLit = (): t => mk_quotation(~index=0, "\"");
+  let close_StringLit = (): t => mk_quotation(~index=1, "\"");
   let open_List = (): t => mk(~index=0, "[");
   let close_List = (): t => mk(~index=1, "]");
+
+  let open_Subscript = (): t => mk(~index=0, "[");
+  let colon_Subscript = (): t => mk(~index=1, ":");
+  let close_Subscript = (): t => mk(~index=2, "]");
 
   let open_Parenthesized = (): t => mk(~index=0, "(");
   let close_Parenthesized = (): t => mk(~index=1, ")");
@@ -118,6 +134,10 @@ let annot_Padding = (d: t): t =>
   | Text("") => d
   | _ => Doc.annot(UHAnnot.Padding, d)
   };
+let annot_ValidSeq = (s: string): t =>
+  Doc.annot(UHAnnot.ValidSeq, Doc.text(s));
+let annot_InvalidSeq = (s: string): t =>
+  Doc.annot(UHAnnot.InvalidSeq, Doc.text(s));
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_OpenChild = (~is_enclosed=true, ~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_OpenChild(~is_enclosed, ~is_inline, ()));
@@ -153,15 +173,160 @@ let annot_LivelitExpression = (~hd_index) =>
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
-let mk_text = (~start_index=0, s: string): t =>
+let mk_text = (~start_index=0, s: string): t => {
   Doc.annot(
     UHAnnot.mk_Token(
-      ~shape=Text(start_index),
+      ~shape=Text({start_index: start_index}),
       ~len=StringUtil.utf8_length(s),
       (),
     ),
     Doc.text(s),
   );
+};
+
+let mk_text_str = (~start_index=0, s: string): t => {
+  Doc.annot(
+    UHAnnot.mk_Token(
+      ~shape=Text({start_index: start_index}),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
+    Doc.annot(UHAnnot.String, Doc.text(s)),
+  );
+};
+
+let rec mk_text_string_rec = (~start_index=0, s: string): t =>
+  if (List.length(String.split_on_char('\\', s)) <= 1) {
+    mk_text_str(~start_index, s);
+  } else if (StringUtil.is_empty(s)) {
+    mk_text_str(~start_index, "");
+  } else if (String.length(s) == 1) {
+    if (s == "\\") {
+      annot_InvalidSeq(s);
+    } else {
+      mk_text_str(~start_index, s);
+    };
+  } else {
+    switch (String.sub(s, 0, 1)) {
+    | "\\" =>
+      switch (String.sub(s, 1, 1)) {
+      | "b"
+      | "t"
+      | "r"
+      | "n"
+      | " "
+      | "\\"
+      | "\""
+      | "\'" =>
+        Doc.hcat(
+          annot_ValidSeq(String.sub(s, 0, 2)),
+          mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+        )
+      | "o" =>
+        if (String.length(s) >= 5) {
+          let ch1 = s.[2];
+          let ch2 = s.[3];
+          let ch3 = s.[4];
+          if ((ch1 >= '0' && ch1 <= '7')
+              && (ch2 >= '0' && ch2 <= '7')
+              && ch3 >= '0'
+              && ch3 <= '7') {
+            if (ch1 <= '3') {
+              Doc.hcat(
+                annot_ValidSeq(String.sub(s, 0, 5)),
+                mk_text_string_rec(String.sub(s, 5, String.length(s) - 5)),
+              );
+            } else {
+              Doc.hcat(
+                annot_InvalidSeq(String.sub(s, 0, 5)),
+                mk_text_string_rec(String.sub(s, 5, String.length(s) - 5)),
+              );
+            };
+          } else {
+            Doc.hcat(
+              annot_InvalidSeq(String.sub(s, 0, 2)),
+              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+            );
+          };
+        } else {
+          Doc.hcat(
+            annot_InvalidSeq(String.sub(s, 0, 2)),
+            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+          );
+        }
+      | "x" =>
+        if (String.length(s) >= 4) {
+          let ch1 = Char.lowercase_ascii(s.[2]);
+          let ch2 = Char.lowercase_ascii(s.[3]);
+          if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+              && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
+            Doc.hcat(
+              annot_ValidSeq(String.sub(s, 0, 4)),
+              mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
+            );
+          } else {
+            Doc.hcat(
+              annot_InvalidSeq(String.sub(s, 0, 2)),
+              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+            );
+          };
+        } else {
+          Doc.hcat(
+            annot_InvalidSeq(String.sub(s, 0, 2)),
+            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+          );
+        }
+      | _ =>
+        let ch1 = s.[1];
+        if (String.length(s) >= 4) {
+          let ch2 = s.[2];
+          let ch3 = s.[3];
+          if ((ch1 >= '0' && ch1 <= '9')
+              && (ch2 >= '0' && ch2 <= '9')
+              && ch3 >= '0'
+              && ch3 <= '9') {
+            if (int_of_string(String.sub(s, 1, 3)) < 256) {
+              Doc.hcat(
+                annot_ValidSeq(String.sub(s, 0, 4)),
+                mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
+              );
+            } else {
+              Doc.hcat(
+                annot_InvalidSeq(String.sub(s, 0, 4)),
+                mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
+              );
+            };
+          } else {
+            Doc.hcat(
+              annot_InvalidSeq(String.sub(s, 0, 2)),
+              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+            );
+          };
+        } else {
+          Doc.hcat(
+            annot_InvalidSeq(String.sub(s, 0, 2)),
+            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
+          );
+        };
+      }
+    | _ =>
+      Doc.hcat(
+        mk_text_str(~start_index, String.sub(s, 0, 1)),
+        mk_text_string_rec(String.sub(s, 1, String.length(s) - 1)),
+      )
+    };
+  };
+
+let mk_text_string = (~start_index=0, s: string): t => {
+  Doc.annot(
+    UHAnnot.mk_Token(
+      ~shape=Text({start_index: start_index}),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
+    mk_text_string_rec(~start_index, s),
+  );
+};
 
 let mk_op = (op_text: string): t =>
   Doc.annot(
@@ -271,6 +436,9 @@ let mk_Bool = (): t =>
 let mk_Int = (): t =>
   Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
+let mk_String = (): t =>
+  Delim.mk(~index=0, "String") |> annot_Tessera |> annot_Operand(~sort=Typ);
+
 let mk_Float = (): t =>
   Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
 
@@ -299,6 +467,36 @@ let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
 
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort, ~err);
+
+let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
+  let line_docs =
+    s
+    |> String.split_on_char('\n')
+    |> ListUtil.map_with_accumulator(
+         ((start_index, line_no), line) =>
+           // TODO undo manual align once we have inlined Align rendering properly
+           (
+             (start_index + StringUtil.utf8_length(line) + 1, line_no + 1),
+             if (line_no == 0) {
+               mk_text_string(~start_index, line);
+             } else {
+               Doc.hcats([
+                 annot_Padding(space_),
+                 mk_text_string(~start_index, line),
+               ]);
+             },
+           ),
+         (0, 0),
+       )
+    |> snd
+    |> ListUtil.join(Doc.linebreak());
+  Doc.(
+    hcats(
+      [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
+    )
+  )
+  |> annot_Operand(~sort, ~err);
+};
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort, ~err);
@@ -339,10 +537,22 @@ let mk_Lam =
       body: formatted_child,
     )
     : t => {
+  // \x.{ x + 1 }
+
+  // \x.{
+  //   x + 1
+  // }
+
+  // \
+  //   x
+  // .{
+  //   x + 1
+  // }
   let open_group = {
-    let lam_delim = Delim.sym_Lam();
-    let open_delim = Delim.open_Lam();
+    let lam_delim = Delim.sym_Lam(); // \
+    let open_delim = Delim.open_Lam(); // .{
     let doc =
+      // x
       switch (ann) {
       | None => Doc.hcats([lam_delim, p |> pad_closed_child, open_delim])
       | Some(ann) =>
@@ -379,6 +589,27 @@ let mk_Case =
     ])
   )
   |> annot_Case(~err);
+};
+
+let mk_Subscript =
+    (
+      ~err: ErrStatus.t,
+      target: formatted_child,
+      start_: formatted_child,
+      end_: formatted_child,
+    )
+    : t => {
+  let open_subscript = Delim.open_Subscript() |> annot_Tessera;
+  let close_subscript = Delim.close_Subscript() |> annot_Tessera;
+  Doc.hcats([
+    target |> pad_open_child,
+    open_subscript,
+    start_ |> pad_open_child,
+    Delim.colon_Subscript() |> annot_Tessera,
+    end_ |> pad_open_child,
+    close_subscript,
+  ])
+  |> annot_Operand(~sort=Exp, ~err);
 };
 
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {

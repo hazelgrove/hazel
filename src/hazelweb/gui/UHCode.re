@@ -574,6 +574,9 @@ let rec code_text_view = (box: UHBox.t): list(Vdom.Node.t) => {
           ),
         ];
       | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+      | ValidSeq => [Node.span([Attr.classes(["ValidSeq"])], vs)]
+      | InvalidSeq => [Node.span([Attr.classes(["InvalidSeq"])], vs)]
+      | String => [Node.span([Attr.classes(["String"])], vs)]
       | _ => vs
       };
     }
@@ -805,7 +808,12 @@ and decoration_views =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
+    (
+      ~inject,
+      ~is_mac: bool,
+      ~cursor_info: CursorInfo_common.t,
+      ~is_text_cursor: bool,
+    )
     : list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
@@ -817,55 +825,90 @@ let key_handlers =
       | Some(move_key) =>
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(Ctrl_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Undo);
-          }
-        | Some(Meta_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Undo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Shift_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Redo);
-          }
-        | Some(Meta_Shift_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Redo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(kc) =>
+        let s = Key.get_key(evt);
+        switch (s, is_text_cursor) {
+        | (
+            "~" | "`" | "!" | "@" | "#" | "$" | "%" | "^" | "&" | "*" | "(" |
+            ")" |
+            "-" |
+            "_" |
+            "=" |
+            "+" |
+            "{" |
+            "}" |
+            "[" |
+            "]" |
+            ":" |
+            ";" |
+            "\"" |
+            "'" |
+            "<" |
+            ">" |
+            "," |
+            "." |
+            "?" |
+            "/" |
+            "|" |
+            "\\" |
+            " ",
+            true,
+          ) =>
+          prevent_stop_inject(ModelAction.EditAction(Construct(SChar(s))))
+        | ("Enter", true) =>
           prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+            ModelAction.EditAction(Construct(SChar("\n"))),
           )
-        | None =>
+        | (_, _) =>
           switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
-          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
+          | Some(Ctrl_Z) =>
+            if (is_mac) {
+              Event.Ignore;
+            } else {
+              prevent_stop_inject(ModelAction.Undo);
+            }
+          | Some(Meta_Z) =>
+            if (is_mac) {
+              prevent_stop_inject(ModelAction.Undo);
+            } else {
+              Event.Ignore;
+            }
+          | Some(Ctrl_Shift_Z) =>
+            if (is_mac) {
+              Event.Ignore;
+            } else {
+              prevent_stop_inject(ModelAction.Redo);
+            }
+          | Some(Meta_Shift_Z) =>
+            if (is_mac) {
+              prevent_stop_inject(ModelAction.Redo);
+            } else {
+              Event.Ignore;
+            }
           | Some(kc) =>
             prevent_stop_inject(
               ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
             )
           | None =>
-            switch (JSUtil.is_single_key(evt)) {
-            | None => Event.Ignore
-            | Some(single_key) =>
+            switch (HazelKeyCombos.of_evt(evt)) {
+            | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
+            | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
+            | Some(kc) =>
               prevent_stop_inject(
-                ModelAction.EditAction(
-                  Construct(SChar(JSUtil.single_key_string(single_key))),
-                ),
+                ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
               )
+            | None =>
+              switch (JSUtil.is_single_key(evt)) {
+              | None => Event.Ignore
+              | Some(single_key) =>
+                prevent_stop_inject(
+                  ModelAction.EditAction(
+                    Construct(SChar(JSUtil.single_key_string(single_key))),
+                  ),
+                )
+              }
             }
           }
-        }
+        };
       }
     }),
   ];
@@ -925,6 +968,8 @@ let view =
               ~inject,
               ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
+              ~is_text_cursor=
+                CursorInfo_common.is_text_cursor(Program.get_zexp(program)),
             )
           : [];
 

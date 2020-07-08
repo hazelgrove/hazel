@@ -1,31 +1,27 @@
 type cursor_term = CursorInfo_common.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
-let rec extract_cursor_term = (zpat: ZPat.t): cursor_term => {
+let rec extract_cursor_term = (zpat: ZPat.t): cursor_term =>
   switch (zpat) {
   | ZOpSeq(_, zseq) => extract_cursor_pat_zseq(zseq)
-  };
-}
-and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term => {
+  }
+and extract_cursor_pat_zseq = (zseq: ZSeq.t(_, _, _, _)): cursor_term =>
   switch (zseq) {
   | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
   | ZOperator(zpat_operator, _) =>
     let (cursor_pos, uop) = zpat_operator;
     PatOp(cursor_pos, uop);
-  };
-}
-and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
+  }
+and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term =>
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_term(zpat)
   };
-};
 
-let rec get_zoperand_from_zpat = (zpat: ZPat.t): option(zoperand) => {
-  get_zoperand_from_zpat_opseq(zpat);
-}
-and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) => {
+let rec get_zoperand_from_zpat = (zpat: ZPat.t): option(zoperand) =>
+  get_zoperand_from_zpat_opseq(zpat)
+and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) =>
   switch (zopseq) {
   | ZOpSeq(_, zseq) =>
     switch (zseq) {
@@ -33,16 +29,15 @@ and get_zoperand_from_zpat_opseq = (zopseq: ZPat.zopseq): option(zoperand) => {
       get_zoperand_from_zpat_operand(zpat_operand)
     | ZOperator(_, _) => None
     }
-  };
-}
+  }
 and get_zoperand_from_zpat_operand =
-    (zoperand: ZPat.zoperand): option(zoperand) => {
+    (zoperand: ZPat.zoperand): option(zoperand) =>
   switch (zoperand) {
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
   };
-};
+
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
@@ -81,7 +76,7 @@ and syn_cursor_info_zopseq =
     |> OptUtil.map(((rev_tys, _)) =>
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
-             PatSynthesized(Prod(rev_tys |> List.rev)),
+             PatSynthesized(Prod(rev_tys |> List.rev), ""),
              ctx,
              extract_cursor_pat_zseq(zseq),
            ),
@@ -137,7 +132,7 @@ and syn_cursor_info_skel =
       |> OptUtil.map(((ty, _)) =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
-               PatSynthesized(ty),
+               PatSynthesized(ty, ""),
                ctx,
                extract_cursor_pat_zseq(zseq),
              ),
@@ -184,7 +179,7 @@ and syn_cursor_info_zoperand =
   switch (zoperand) {
   | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
     Some(
-      CursorNotOnDeferredVarPat(
+      CursorInfo_common.CursorNotOnDeferredVarPat(
         CursorInfo_common.mk(
           PatSynKeyword(k),
           ctx,
@@ -199,7 +194,7 @@ and syn_cursor_info_zoperand =
            uses =>
              CursorInfo_common.mk(
                ~uses,
-               PatSynthesized(ty),
+               PatSynthesized(ty, ""),
                ctx,
                extract_from_zpat_operand(zoperand),
              ),
@@ -207,24 +202,51 @@ and syn_cursor_info_zoperand =
          )
        )
   | CursorP(_, p) =>
-    Statics_Pat.syn_operand(ctx, p)
-    |> OptUtil.map(((ty, _)) =>
-         CursorInfo_common.CursorNotOnDeferredVarPat(
-           CursorInfo_common.mk(
-             PatSynthesized(ty),
-             ctx,
-             extract_from_zpat_operand(zoperand),
-           ),
+    switch (zoperand) {
+    | CursorP(OnText(j), StringLit(_, s)) =>
+      switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+      | None =>
+        Statics_Pat.syn_operand(ctx, p)
+        |> OptUtil.map(((ty, _)) =>
+             CursorInfo_common.CursorNotOnDeferredVarPat(
+               CursorInfo_common.mk(
+                 PatSynthesized(ty, ""),
+                 ctx,
+                 extract_from_zpat_operand(zoperand),
+               ),
+             )
+           )
+      | Some(s) =>
+        Statics_Pat.syn_operand(ctx, p)
+        |> OptUtil.map(((ty, _)) =>
+             CursorInfo_common.CursorNotOnDeferredVarPat(
+               CursorInfo_common.mk(
+                 PatSynthesized(ty, s),
+                 ctx,
+                 extract_from_zpat_operand(zoperand),
+               ),
+             )
+           )
+      }
+    | _ =>
+      Statics_Pat.syn_operand(ctx, p)
+      |> OptUtil.map(((ty, _)) =>
+           CursorInfo_common.CursorNotOnDeferredVarPat(
+             CursorInfo_common.mk(
+               PatSynthesized(ty, ""),
+               ctx,
+               extract_from_zpat_operand(zoperand),
+             ),
+           )
          )
-       )
+    }
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   }
 and ana_cursor_info =
     (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
-    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) => {
-  ana_cursor_info_zopseq(~steps, ctx, zp, ty);
-}
+    : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
+  ana_cursor_info_zopseq(~steps, ctx, zp, ty)
 and ana_cursor_info_zopseq =
     (
       ~steps: CursorPath_common.steps,
@@ -248,7 +270,7 @@ and ana_cursor_info_zopseq =
     switch (err) {
     | NotInHole =>
       Some(
-        CursorNotOnDeferredVarPat(
+        CursorInfo_common.CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
             PatAnalyzed(ty),
             ctx,
@@ -260,7 +282,7 @@ and ana_cursor_info_zopseq =
       let expected_length = List.length(HTyp.get_prod_elements(ty));
       let got_length = List.length(UHPat.get_tuple_elements(skel));
       Some(
-        CursorNotOnDeferredVarPat(
+        CursorInfo_common.CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
             PatAnaWrongLength(expected_length, got_length, ty),
             ctx,
@@ -274,7 +296,7 @@ and ana_cursor_info_zopseq =
       |> Option.map(((ty', _)) =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
-               PatAnaTypeInconsistent(ty, ty'),
+               PatAnaTypeInconsistent(ty, ty', ""),
                ctx,
                extract_cursor_pat_zseq(zseq),
              ),
@@ -361,7 +383,7 @@ and ana_cursor_info_skel =
         |> Option.map(((ty', _)) =>
              CursorInfo_common.CursorNotOnDeferredVarPat(
                CursorInfo_common.mk(
-                 PatAnaTypeInconsistent(ty, ty'),
+                 PatAnaTypeInconsistent(ty, ty', ""),
                  ctx,
                  extract_cursor_pat_zseq(zseq),
                ),
@@ -421,7 +443,11 @@ and ana_cursor_info_zoperand =
     | EmptyHole(_) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Hole), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Hole, ""),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | Wild(InHole(TypeInconsistent(_), _))
@@ -429,27 +455,55 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(TypeInconsistent(_), _), _)
     | FloatLit(InHole(TypeInconsistent(_), _), _)
     | BoolLit(InHole(TypeInconsistent(_), _), _)
+    | StringLit(InHole(TypeInconsistent(_), _), _)
     | ListNil(InHole(TypeInconsistent(_), _))
     | Inj(InHole(TypeInconsistent(_), _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
       | Some((ty', _)) =>
-        Some(
-          CursorNotOnDeferredVarPat(
-            CursorInfo_common.mk(
-              PatAnaTypeInconsistent(ty, ty'),
-              ctx,
-              cursor_term,
+        switch (zoperand) {
+        | CursorP(OnText(j), StringLit(_, s)) =>
+          switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+          | None =>
+            Some(
+              CursorNotOnDeferredVarPat(
+                CursorInfo_common.mk(
+                  PatAnaTypeInconsistent(ty, ty', ""),
+                  ctx,
+                  cursor_term,
+                ),
+              ),
+            )
+          | Some(s) =>
+            Some(
+              CursorNotOnDeferredVarPat(
+                CursorInfo_common.mk(
+                  PatAnaTypeInconsistent(ty, ty', s),
+                  ctx,
+                  cursor_term,
+                ),
+              ),
+            )
+          }
+        | _ =>
+          Some(
+            CursorNotOnDeferredVarPat(
+              CursorInfo_common.mk(
+                PatAnaTypeInconsistent(ty, ty', ""),
+                ctx,
+                cursor_term,
+              ),
             ),
-          ),
-        )
+          )
+        }
       };
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
+    | StringLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
@@ -483,21 +537,69 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Int, ""),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | FloatLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Float, ""),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
     | BoolLit(NotInHole, _) =>
       Some(
         CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Bool, ""),
+            ctx,
+            cursor_term,
+          ),
         ),
       )
+    | StringLit(NotInHole, _) =>
+      switch (zoperand) {
+      | CursorP(OnText(j), StringLit(_, s)) =>
+        switch (CursorInfo_common.is_invalid_escape_sequence(j, s)) {
+        | None =>
+          Some(
+            CursorNotOnDeferredVarPat(
+              CursorInfo_common.mk(
+                PatAnaSubsumed(ty, String, ""),
+                ctx,
+                cursor_term,
+              ),
+            ),
+          )
+        | Some(s) =>
+          Some(
+            CursorNotOnDeferredVarPat(
+              CursorInfo_common.mk(
+                PatAnaSubsumed(ty, String, s),
+                ctx,
+                cursor_term,
+              ),
+            ),
+          )
+        }
+      | _ =>
+        Some(
+          CursorNotOnDeferredVarPat(
+            CursorInfo_common.mk(
+              PatAnaSubsumed(ty, String, ""),
+              ctx,
+              cursor_term,
+            ),
+          ),
+        )
+      }
     | Inj(NotInHole, _, _) =>
       Some(
         CursorNotOnDeferredVarPat(

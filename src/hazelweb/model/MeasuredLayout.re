@@ -156,7 +156,7 @@ let caret_position_of_path =
       | ([], Step(_) | LivelitView(_)) => None
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
-        | (OnText(j), Text(start_index)) =>
+        | (OnText(j), Text({start_index})) =>
           Some(({...start, col: start.col + (j - start_index)}, splice))
         | (OnOp(Before), Op) => Some((start, splice))
         | (OnOp(After), Op) =>
@@ -262,7 +262,7 @@ let first_path_in_row =
            let UHAnnot.{shape, _} = token_data;
            let cursor: CursorPosition.t =
              switch (shape) {
-             | Text(start_j) => OnText(start_j)
+             | Text({start_index}) => OnText(start_index)
              | Op => OnOp(Before)
              | Delim(k) => OnDelim(k, Before)
              };
@@ -299,7 +299,7 @@ let last_path_in_row =
            let UHAnnot.{shape, len, _} = token_data;
            let cursor: CursorPosition.t =
              switch (shape) {
-             | Text(start_index) => OnText(start_index + len)
+             | Text({start_index}) => OnText(start_index + len)
              | Op => OnOp(After)
              | Delim(k) => OnDelim(k, After)
              };
@@ -364,7 +364,7 @@ let prev_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text(start_index) => (
+               | Text({start_index}) => (
                    OnText(start_index + from_start - 1),
                    1,
                  )
@@ -419,7 +419,7 @@ let next_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text(start_index) => (
+               | Text({start_index}) => (
                    OnText(start_index + from_start + 1),
                    1,
                  )
@@ -470,7 +470,7 @@ let nearest_path_within_row =
            let is_left = from_start + from_start <= len;
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Text(start_index) => (
+             | Text({start_index}) => (
                  OnText(start_index + from_start),
                  from_start,
                )

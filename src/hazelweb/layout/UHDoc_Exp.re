@@ -19,7 +19,8 @@ let inline_padding_of_operator:
   | FGreaterThan
   | FEquals
   | And
-  | Or => (UHDoc_common.space_, UHDoc_common.space_)
+  | Or
+  | Caret => (UHDoc_common.space_, UHDoc_common.space_)
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);
 
 let mk_EmptyHole: string => UHDoc_common.t =
@@ -32,6 +33,8 @@ let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc_common.t =
   UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_StringLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
+  UHDoc_common.mk_StringLit(~sort=Exp);
 let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc_common.t =
   UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var:
@@ -179,7 +182,9 @@ and mk_line =
         switch (line) {
         | EmptyLine =>
           UHDoc_common.empty_
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text(0), ~len=0, ()))
+          |> Doc.annot(
+               UHAnnot.mk_Token(~shape=Text({start_index: 0}), ~len=0, ()),
+             )
           |> Doc.annot(UHAnnot.EmptyLine)
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
@@ -248,6 +253,7 @@ and mk_operand =
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)
         | BoolLit(err, b) => mk_BoolLit(~err, b)
+        | StringLit(err, s) => mk_StringLit(~err, s)
         | ListNil(err) => mk_ListNil(~err, ())
         | Lam(err, p, ann, body) =>
           let p =
@@ -270,6 +276,13 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
+        | Subscript(err, target, start_, end_) =>
+          let target =
+            mk_child(~memoize, ~enforce_inline, ~child_step=0, target);
+          let start_ =
+            mk_child(~memoize, ~enforce_inline, ~child_step=1, start_);
+          let end_ = mk_child(~memoize, ~enforce_inline, ~child_step=2, end_);
+          UHDoc_common.mk_Subscript(~err, target, start_, end_);
         | Case(err, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();
@@ -367,6 +380,7 @@ let mk_splices = (e: UHExp.t): UHDoc_common.splices => {
     | IntLit(_)
     | FloatLit(_)
     | BoolLit(_)
+    | StringLit(_)
     | ListNil(_)
     | FreeLivelit(_) => splices
     | ApLivelit(llu, _, _, _, _, splice_info) =>
@@ -405,6 +419,10 @@ let mk_splices = (e: UHExp.t): UHDoc_common.splices => {
            (splices, UHExp.Rule(_, e)) => mk_block(~splices, e),
            splices,
          );
+    | Subscript(_, e1, e2, e3) =>
+      let splices = mk_block(~splices, e1);
+      let splices = mk_block(~splices, e2);
+      mk_block(~splices, e3);
     };
 
   mk_block(~splices=SpliceMap.empty, e);

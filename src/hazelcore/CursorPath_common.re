@@ -30,9 +30,10 @@ let rev = ((cursor, rev_steps): rev_t): t => (
   cursor,
 );
 
-let cons' = (step: int, (steps, cursor): t): t => {
-  ([step, ...steps], cursor);
-};
+let cons' = (step: int, (steps, cursor): t): t => (
+  [step, ...steps],
+  cursor,
+);
 
 let of_zopseq_ =
     (
@@ -87,7 +88,7 @@ let mk_zholes =
 };
 let no_holes = mk_zholes();
 
-let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
+let prev_hole_steps = (zhole_list: zhole_list): option(steps) =>
   switch (
     List.rev(zhole_list.holes_before),
     List.rev(zhole_list.holes_after),
@@ -96,15 +97,13 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   | ([{steps, _}, ..._], _) => Some(steps)
   | ([], [{steps, _}, ..._]) => Some(steps)
   };
-};
 
-let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
+let next_hole_steps = (zhole_list: zhole_list): option(steps) =>
   switch (zhole_list.holes_before, zhole_list.holes_after) {
   | ([], []) => None
   | (_, [{steps, _}, ..._]) => Some(steps)
   | ([{steps, _}, ..._], _) => Some(steps)
   };
-};
 
 let follow_opseq_ =
     (

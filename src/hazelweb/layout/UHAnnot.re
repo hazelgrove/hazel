@@ -8,7 +8,7 @@ type term_data = {
 };
 [@deriving sexp]
 type token_shape =
-  | Text(CharIndex.t)
+  | Text({start_index: CharIndex.t})
   | Op
   | Delim(DelimIndex.t);
 [@deriving sexp]
@@ -44,7 +44,10 @@ type t =
       shape: Livelits.LivelitView.shape,
       model: SerializedModel.t,
       hd_step: int,
-    });
+    })
+  | ValidSeq
+  | InvalidSeq
+  | String;
 
 let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
   Token({has_cursor, len, shape});

@@ -19,12 +19,14 @@ type t =
   | Plus
   | Minus
   | Asterisk
+  | Caret
   | Slash
   | LT
   | Space
   | Comma
   | Dollar
   | LeftBracket
+  | LeftQuotation
   | Semicolon
   | Alt_L
   | Alt_R
@@ -58,12 +60,14 @@ let get_details =
   | Plus => KeyCombo.plus
   | Minus => KeyCombo.minus
   | Asterisk => KeyCombo.asterisk
+  | Caret => KeyCombo.caret
   | Slash => KeyCombo.slash
   | LT => KeyCombo.lt
   | Space => KeyCombo.space
   | Comma => KeyCombo.comma
   | Dollar => KeyCombo.dollar
   | LeftBracket => KeyCombo.left_bracket
+  | LeftQuotation => KeyCombo.left_quotation
   | Semicolon => KeyCombo.semicolon
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
@@ -121,6 +125,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Minus);
   } else if (evt_matches(KeyCombo.asterisk)) {
     Some(Asterisk);
+  } else if (evt_matches(KeyCombo.caret)) {
+    Some(Caret);
   } else if (evt_matches(KeyCombo.slash)) {
     Some(Slash);
   } else if (evt_matches(KeyCombo.lt)) {
@@ -133,6 +139,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Dollar);
   } else if (evt_matches(KeyCombo.left_bracket)) {
     Some(LeftBracket);
+  } else if (evt_matches(KeyCombo.left_quotation)) {
+    Some(LeftQuotation);
   } else if (evt_matches(KeyCombo.semicolon)) {
     Some(Semicolon);
   } else if (evt_matches(KeyCombo.alt_L)) {

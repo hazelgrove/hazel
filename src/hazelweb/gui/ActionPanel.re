@@ -380,6 +380,29 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       ],
     ),
     section(
+      "Strings",
+      [
+        info([
+          text("Enter string literals directly e.g. "),
+          mono_text("\"abc\""),
+        ]),
+        info_action(
+          [
+            text("Type "),
+            mono_text("\"S\""),
+            text(" to insert a String type"),
+          ],
+          Action_common.Construct(SChar("S")),
+        ),
+        operator_list(~on_type=false, "String concatenation", [Caret]),
+        combo_and_cursor(
+          ~on_type=false,
+          LeftBracket,
+          [text("Insert "), mono_text("subscript")],
+        ),
+      ],
+    ),
+    section(
       "Lists",
       [
         combo_and_cursor(
@@ -487,10 +510,13 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SOp(STimes)) => Added
   | Construct(SOp(SDivide)) => Added
   | Construct(SOp(SLessThan)) => Added
+  | Construct(SOp(SCaret)) => Added
   | Construct(SOp(SSpace)) => Added
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added
   | Construct(SListNil) => Added
+  | Construct(SQuote) => Added
+  | Construct(SLeftBracket) => Added
   | Construct(SOp(SCons)) => Added
   | Construct(SInj(L)) => Added
   | Construct(SInj(R)) => Added

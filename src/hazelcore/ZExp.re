@@ -25,6 +25,9 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
+  | SubscriptZE1(ErrStatus.t, t, UHExp.t, UHExp.t)
+  | SubscriptZE2(ErrStatus.t, UHExp.t, t, UHExp.t)
+  | SubscriptZE3(ErrStatus.t, UHExp.t, UHExp.t, t)
   | ApLivelitZ(
       MetaVar.t,
       ErrStatus.t,
@@ -43,6 +46,53 @@ and zrule =
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
+
+let rec is_opseq =
+        (ze: t): option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  ze |> is_opseq_zblock
+and is_opseq_zblock =
+    ((_, zline, _): zblock)
+    : option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
+  zline |> is_opseq_zline
+and is_opseq_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => zopseq |> is_opseq_zopseq
+  | LetLineZP(_)
+  | LetLineZA(_)
+  | AbbrevLineZL(_) => None
+  | LetLineZE(_, _, zdef) => zdef |> is_opseq
+and is_opseq_zopseq =
+  fun
+  | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
+    switch (prefix) {
+    | Seq.A(Space, _) => Some(zseq)
+    | _ => None
+    }
+  | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
+
+let rec find_zoperand = (ze: t): option(zoperand) =>
+  ze |> find_zoperand_zblock
+and find_zoperand_zblock = ((_, zline, _): zblock): option(zoperand) =>
+  zline |> find_zoperand_zline
+and find_zoperand_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => zopseq |> find_zoperand_zopseq
+  | LetLineZP(_)
+  | LetLineZA(_)
+  | AbbrevLineZL(_) => None
+  | LetLineZE(_, _, zdef) => zdef |> find_zoperand
+and find_zoperand_zopseq =
+  fun
+  | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> find_zoperand_zoperand
+  | ZOpSeq(_, ZOperator(_)) => None
+and find_zoperand_zoperator =
+  fun
+  | _ => None
+and find_zoperand_zoperand =
+  fun
+  | zoperand => Some(zoperand);
 
 let prune_type_annotation: zoperand => zoperand =
   fun
@@ -63,12 +113,20 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _))) => true
   | LetLineZE(_)
   | AbbrevLineZL(_)
-  | ExpLineZ(ZOpSeq(_, ZOperand(LamZE(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(ApLivelitZ(_), _))) => false
+  | ExpLineZ(
+      ZOpSeq(
+        _,
+        ZOperand(
+          LamZE(_) | InjZ(_) | CaseZE(_) | CaseZR(_) | ParenthesizedZ(_) |
+          SubscriptZE1(_) |
+          SubscriptZE2(_) |
+          SubscriptZE3(_) |
+          ApLivelitZ(_),
+          _,
+        ),
+      ),
+    ) =>
+    false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
@@ -106,6 +164,11 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
+  | StringLit(_, s) =>
+    List.append(
+      CursorPosition.delim_cursors(2),
+      CursorPosition.text_cursors(String.length(s)),
+    )
   /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =
@@ -121,6 +184,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
+  | Subscript(_) => CursorPosition.delim_cursors(3)
   | ApLivelit(_, _, _, name, _, _) =>
     CursorPosition.text_cursors(LivelitName.length(name))
   | FreeLivelit(_, name) =>
@@ -165,7 +229,7 @@ and is_before_zblock = ((prefix, zline, _): zblock): bool =>
 and is_before_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_, _, _))
+  | CursorL(cursor, LetLine(_))
   | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_before_zopseq(zopseq)
@@ -184,11 +248,14 @@ and is_before_zoperand =
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
+  | CursorE(cursor, StringLit(_))
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, ApLivelit(_) | FreeLivelit(_, _)) => cursor == OnText(0)
+  | CursorE(_, Subscript(_)) => false
+  | SubscriptZE1(_, e, _, _) => is_before(e)
   | ParenthesizedZ(_)
   | LamZP(_)
   | LamZA(_)
@@ -196,6 +263,8 @@ and is_before_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_)
   | ApLivelitZ(_) => false;
 let is_before_zrule =
   fun
@@ -216,10 +285,10 @@ and is_after_zline =
   fun
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(2, After)
-  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
-  | LetLineZP(_, _, _)
+  | LetLineZP(_)
   | LetLineZA(_, _, _)
   | LetLineZE(_, _, _)
   | AbbrevLineZL(_) => false
@@ -239,6 +308,8 @@ and is_after_zoperand =
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
+  | CursorE(cursor, StringLit(_)) => cursor == OnDelim(1, After)
+  | CursorE(cursor, Subscript(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, ApLivelit(_, _, _, name, _, _) | FreeLivelit(_, name)) =>
     cursor == OnText(LivelitName.length(name))
   | ParenthesizedZ(_) => false
@@ -248,6 +319,9 @@ and is_after_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_)
   | ApLivelitZ(_) => false;
 
 let is_after_zrule =
@@ -287,10 +361,12 @@ and is_outer_zoperand =
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
+  | CursorE(_, StringLit(_))
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_))
+  | CursorE(_, Subscript(_))
   | CursorE(_, FreeLivelit(_))
   | CursorE(_, ApLivelit(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
@@ -300,6 +376,9 @@ and is_outer_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_)
   | ApLivelitZ(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
@@ -323,7 +402,8 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | ListNil(_) => CursorE(OnDelim(0, Before), operand)
+  | ListNil(_)
+  | StringLit(_) => CursorE(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
@@ -333,6 +413,8 @@ and place_before_operand = operand =>
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
+  | Subscript(err, target, start_, end_) =>
+    SubscriptZE1(err, place_before(target), start_, end_)
   | ApLivelit(_)
   | FreeLivelit(_, _) => CursorE(OnText(0), operand)
   };
@@ -368,10 +450,12 @@ and place_after_operand = operand =>
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
+  | StringLit(_) => CursorE(OnDelim(1, After), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
+  | Subscript(_) => CursorE(OnDelim(2, After), operand)
   | ApLivelit(_, _, _, llname, _, _)
   | FreeLivelit(_, llname) =>
     CursorE(OnText(LivelitName.length(llname)), operand)
@@ -456,6 +540,12 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
+  | SubscriptZE1(err, ztarget, start_, end_) =>
+    Subscript(err, erase(ztarget), start_, end_)
+  | SubscriptZE2(err, target, zstart_, end_) =>
+    Subscript(err, target, erase(zstart_), end_)
+  | SubscriptZE3(err, target, start_, zend_) =>
+    Subscript(err, target, start_, erase(zend_))
   | ApLivelitZ(llu, err, base_name, palette_name, serialized_model, zpsi) => {
       let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
       ApLivelit(llu, err, base_name, palette_name, serialized_model, psi);
@@ -533,6 +623,12 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
+  | SubscriptZE1(_, ztarget, start_, end_) =>
+    SubscriptZE1(err, ztarget, start_, end_)
+  | SubscriptZE2(_, target, zstart_, end_) =>
+    SubscriptZE2(err, target, zstart_, end_)
+  | SubscriptZE3(_, target, start_, zend_) =>
+    SubscriptZE3(err, target, start_, zend_)
   | ApLivelitZ(llu, _, base_name, name, model, psi) =>
     ApLivelitZ(llu, err, base_name, name, model, psi)
   };
@@ -571,6 +667,9 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | InjZ(InHole(TypeInconsistent(_), _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
+  | SubscriptZE1(InHole(TypeInconsistent(_), _), _, _, _)
+  | SubscriptZE2(InHole(TypeInconsistent(_), _), _, _, _)
+  | SubscriptZE3(InHole(TypeInconsistent(_), _), _, _, _)
   | ApLivelitZ(_, InHole(TypeInconsistent(_), _), _, _, _, _) => (
       zoperand,
       u_gen,
@@ -592,6 +691,9 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       _,
       _,
     )
+  | SubscriptZE1(NotInHole | InHole(WrongLength, _), _, _, _)
+  | SubscriptZE2(NotInHole | InHole(WrongLength, _), _, _, _)
+  | SubscriptZE3(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApLivelitZ(_, NotInHole | InHole(WrongLength, _), _, _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let zoperand =
@@ -621,6 +723,9 @@ let rec cursor_on_outer_expr =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | SubscriptZE1(_)
+  | SubscriptZE2(_)
+  | SubscriptZE3(_)
   | ApLivelitZ(_) => None
   };
 
@@ -636,6 +741,7 @@ let is_inconsistent = zoperand =>
 
 let rec move_cursor_left = (ze: t): option(t) =>
   ze |> move_cursor_left_zblock
+
 and move_cursor_left_zblock =
   fun
   | (prefix, zline, suffix) =>
@@ -789,15 +895,20 @@ and move_cursor_left_zoperator =
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
+
   | CursorE(OnOp(_), _) => None
+
+  | CursorE(OnText(0), StringLit(_) as operand) =>
+    Some(CursorE(OnDelim(0, After), operand))
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
+
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
-  | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
-    // _k == 1
+  | CursorE(OnDelim(_one, Before), StringLit(_, s) as operand) =>
+    Some(CursorE(OnText(String.length(s)), operand))
+  | CursorE(OnDelim(_one, Before), Parenthesized(body)) =>
     Some(ParenthesizedZ(place_after(body)))
-  | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
-    // _k == 1
+  | CursorE(OnDelim(_one, Before), Inj(err, side, body)) =>
     Some(InjZ(err, side, place_after(body)))
   | CursorE(OnDelim(k, Before), Lam(err, arg, ann, body)) =>
     // k == 1 || k == 2 || k == 3
@@ -823,6 +934,14 @@ and move_cursor_left_zoperand =
           (List.rev(rev_prefix), place_after_rule(last_rule), []),
         ),
       )
+    }
+  | CursorE(OnDelim(k, Before), Subscript(err, target, start_, end_)) =>
+    if (k == 0) {
+      Some(SubscriptZE1(err, place_after(target), start_, end_));
+    } else if (k == 1) {
+      Some(SubscriptZE2(err, target, place_after(start_), end_));
+    } else {
+      Some(SubscriptZE3(err, target, start_, place_after(end_)));
     }
   | CursorE(
       OnDelim(_),
@@ -879,6 +998,33 @@ and move_cursor_left_zoperand =
     switch (zrules |> move_cursor_left_zrules) {
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
+    }
+  | SubscriptZE1(err, ztarget, start_, end_) =>
+    switch (move_cursor_left(ztarget)) {
+    | Some(ztarget) => Some(SubscriptZE1(err, ztarget, start_, end_))
+    | None => None
+    }
+  | SubscriptZE2(err, target, zstart_, end_) =>
+    switch (move_cursor_left(zstart_)) {
+    | Some(zstart_) => Some(SubscriptZE2(err, target, zstart_, end_))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(0, After),
+          Subscript(err, target, erase(zstart_), end_),
+        ),
+      )
+    }
+  | SubscriptZE3(err, target, start_, zend_) =>
+    switch (move_cursor_left(zend_)) {
+    | Some(zend_) => Some(SubscriptZE3(err, target, start_, zend_))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(1, After),
+          Subscript(err, target, start_, erase(zend_)),
+        ),
+      )
     }
   | ApLivelitZ(llu, err, base_name, name, model, zsi) => {
       let (ty, ze) = ZSpliceInfo.prj_z(zsi);
@@ -1077,15 +1223,21 @@ and move_cursor_right_zoperator =
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
+
   | CursorE(OnOp(_), _) => None
+
+  | CursorE(OnText(j), StringLit(_, s) as operand)
+      when j == String.length(s) =>
+    Some(CursorE(OnDelim(1, Before), operand))
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
+
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
-  | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
-    // _k == 0
+  | CursorE(OnDelim(_zero, After), StringLit(_) as operand) =>
+    Some(CursorE(OnText(0), operand))
+  | CursorE(OnDelim(_zero, After), Parenthesized(body)) =>
     Some(ParenthesizedZ(place_before(body)))
-  | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
-    // _k == 0
+  | CursorE(OnDelim(_zero, After), Inj(err, side, body)) =>
     Some(InjZ(err, side, place_before(body)))
   | CursorE(OnDelim(k, After), Lam(err, arg, ann, body)) =>
     // k == 0 || k == 1 || k == 2
@@ -1101,6 +1253,10 @@ and move_cursor_right_zoperand =
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
+  | CursorE(OnDelim(k, After), Subscript(err, target, start_, end_)) =>
+    k == 0
+      ? Some(SubscriptZE2(err, target, place_before(start_), end_))
+      : Some(SubscriptZE3(err, target, start_, place_before(end_)))
   | CursorE(
       OnDelim(_),
       InvalidText(_) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
@@ -1174,6 +1330,39 @@ and move_cursor_right_zoperand =
         CursorE(
           OnDelim(1, Before),
           Case(err, scrut, zrules |> erase_zrules),
+        ),
+      )
+    }
+  | SubscriptZE1(err, ztarget, start_, end_) =>
+    switch (move_cursor_right(ztarget)) {
+    | Some(ztarget) => Some(SubscriptZE1(err, ztarget, start_, end_))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(0, Before),
+          Subscript(err, erase(ztarget), start_, end_),
+        ),
+      )
+    }
+  | SubscriptZE2(err, target, zstart_, end_) =>
+    switch (move_cursor_right(zstart_)) {
+    | Some(zstart_) => Some(SubscriptZE2(err, target, zstart_, end_))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(1, Before),
+          Subscript(err, target, erase(zstart_), end_),
+        ),
+      )
+    }
+  | SubscriptZE3(err, target, start_, zend_) =>
+    switch (move_cursor_right(zend_)) {
+    | Some(zend_) => Some(SubscriptZE3(err, target, start_, zend_))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(2, Before),
+          Subscript(err, target, start_, erase(zend_)),
         ),
       )
     }
@@ -1252,7 +1441,10 @@ and _cursor_inst_zoperand =
   | LamZE(_, _, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
-  | CaseZE(_, ze, _) => cursor_through_insts(ze)
+  | CaseZE(_, ze, _)
+  | SubscriptZE1(_, ze, _, _)
+  | SubscriptZE2(_, _, ze, _)
+  | SubscriptZE3(_, _, _, ze) => cursor_through_insts(ze)
   | ApLivelitZ(llu, _, _, _, _, zsplice_info) => [
       (TaggedNodeInstance.Livelit, llu),
       ...cursor_through_insts(ZSpliceInfo.prj_ze(zsplice_info)),

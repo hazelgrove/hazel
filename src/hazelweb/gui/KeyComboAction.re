@@ -25,6 +25,8 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
     (LT, _ => Action_common.Construct(SOp(SLessThan))),
     (Space, _ => Action_common.Construct(SOp(SSpace))),
     (Comma, _ => Action_common.Construct(SOp(SComma))),
+    (LeftBracket, _ => Action_common.Construct(SLeftBracket)),
+    (LeftQuotation, _ => Action_common.Construct(SQuote)),
     (Dollar, _ => Action_common.Construct(SChar("$"))),
     (
       LeftBracket,

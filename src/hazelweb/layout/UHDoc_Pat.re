@@ -15,6 +15,8 @@ let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_FloatLit(~sort=Pat);
 let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc_common.t =
   UHDoc_common.mk_BoolLit(~sort=Pat);
+let mk_StringLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
+  UHDoc_common.mk_StringLit(~sort=Pat);
 let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc_common.t =
   UHDoc_common.mk_ListNil(~sort=Pat);
 let mk_Var:
@@ -81,6 +83,7 @@ and mk_operand =
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)
         | BoolLit(err, b) => mk_BoolLit(~err, b)
+        | StringLit(err, s) => mk_StringLit(~err, s)
         | ListNil(err) => mk_ListNil(~err, ())
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);

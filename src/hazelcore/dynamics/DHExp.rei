@@ -41,6 +41,16 @@ module BinFloatOp: {
   let to_op: t => UHExp.operator;
 };
 
+module BinStrOp: {
+  [@deriving sexp]
+  type t =
+    | Caret;
+
+  let of_op: UHExp.operator => option((t, HTyp.t));
+
+  let to_op: t => UHExp.operator;
+};
+
 [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
@@ -64,9 +74,13 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | ApBuiltin(string, list(t))
+  | FailedAssert(t)
+  | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | BinStrOp(BinStrOp.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -81,6 +95,7 @@ type t =
       t,
     )
   | Triv
+  | Subscript(t, t, t)
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
