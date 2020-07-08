@@ -1,18 +1,10 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type operator = Operators.Exp.t;
+type operator = Operators_Exp.t;
 
-// TODO
-// type t =
-// /* laid out vertically */
-// | V(block)
-// /* laid out horizontally */
-// | H(opseq)
 [@deriving sexp]
 type t = block
-// TODO
-// block = (bool /* user newline */, list(line))
 and block = list(line)
 and line =
   | EmptyLine
@@ -27,6 +19,7 @@ and line =
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
+  | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
@@ -39,6 +32,7 @@ and operand =
   | ApLivelit(
       MetaVar.t,
       ErrStatus.t,
+      LivelitName.t,
       LivelitName.t,
       SerializedModel.t,
       splice_info,
@@ -144,13 +138,13 @@ module Block = {
   let num_lines: block => int = List.length;
 
   let prune_empty_hole_lines = (block: block): block =>
-    switch (block |> ListUtil.split_last) {
+    switch (block |> ListUtil.split_last_opt) {
     | None => block
     | Some((leading, last)) => (leading |> Lines.prune_empty_holes) @ [last]
     };
 
   let split_conclusion = (block: block): option((list(line), opseq)) =>
-    switch (block |> ListUtil.split_last) {
+    switch (block |> ListUtil.split_last_opt) {
     | None => None
     | Some((leading, last)) =>
       switch (last |> Line.get_opseq) {
@@ -181,6 +175,12 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
+let new_InvalidText =
+    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+  (InvalidText(u, t), u_gen);
+};
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
@@ -209,6 +209,7 @@ and get_err_status_opseq = opseq =>
 and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
+  | InvalidText(_, _) => NotInHole
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -217,9 +218,9 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | ApLivelit(_, err, _, _, _) => err
-  | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
+  | ApLivelit(_, err, _, _, _, _) => err
   | FreeLivelit(_, _) => NotInHole
+  | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -234,6 +235,7 @@ and set_err_status_opseq = (err, opseq) =>
 and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
+  | InvalidText(_, _) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -242,7 +244,8 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
-  | ApLivelit(u, _, name, model, si) => ApLivelit(u, err, name, model, si)
+  | ApLivelit(u, _, base_name, name, model, si) =>
+    ApLivelit(u, err, base_name, name, model, si)
   | FreeLivelit(_, _) => operand
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -268,6 +271,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
+  | InvalidText(_, _)
   | Var(InHole(TypeInconsistent(_), _), _, _)
   | IntLit(InHole(TypeInconsistent(_), _), _)
   | FloatLit(InHole(TypeInconsistent(_), _), _)
@@ -276,7 +280,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent(_), _), _, _, _)
   | Inj(InHole(TypeInconsistent(_), _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent(_), _)), _, _)
-  | ApLivelit(_, InHole(TypeInconsistent(_), _), _, _, _)
+  | ApLivelit(_, InHole(TypeInconsistent(_), _), _, _, _, _)
   | FreeLivelit(_) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -292,7 +296,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
-  | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApLivelit(_, NotInHole | InHole(WrongLength, _), _, _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent(None), u));
@@ -328,10 +332,11 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
 let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators.Exp.to_parse_string);
+  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };
@@ -363,9 +368,19 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
 and is_complete_block = (b: block, check_type_holes: bool): bool => {
   b |> List.for_all(l => is_complete_line(l, check_type_holes));
 }
+and is_complete_rule = (rule: rule, check_type_holes: bool): bool => {
+  switch (rule) {
+  | Rule(pat, body) =>
+    UHPat.is_complete(pat) && is_complete(body, check_type_holes)
+  };
+}
+and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
+  rules |> List.for_all(l => is_complete_rule(l, check_type_holes));
+}
 and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   switch (operand) {
   | EmptyHole(_) => false
+  | InvalidText(_, _) => false
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
@@ -394,14 +409,15 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
-  | Case(StandardErrStatus(NotInHole), body, _) =>
+  | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
+    && is_complete_rules(rules, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | FreeLivelit(_) => false
-  | ApLivelit(_, InHole(_), _, _, _) => false
-  | ApLivelit(_, NotInHole, _, _, splice_info) =>
+  | ApLivelit(_, InHole(_), _, _, _, _) => false
+  | ApLivelit(_, NotInHole, _, _, _, splice_info) =>
     splice_info.splice_map
-    |> NatMap.to_list
+    |> IntMap.bindings
     |> List.for_all(((_, (_, e))) => is_complete(e, check_type_holes))
   };
 }

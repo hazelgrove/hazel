@@ -3,7 +3,7 @@ type t = (
   DHExp.t,
   HoleInstanceInfo.t,
   LivelitInstanceInfo.t,
-  Dynamics.Evaluator.result,
+  Evaluator.result,
 );
 
 let get_dhexp = ((d, _, _, _): t) => d;

@@ -46,6 +46,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   /* generate livelit definition for Semantics */
   let livelit_defn =
     LivelitDefinition.{
+      name: L.name,
       expansion_ty: L.expansion_ty,
       param_tys: L.param_tys,
       init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
@@ -102,6 +103,11 @@ module LivelitContexts = {
       ) => {
     if (!LivelitName.is_valid(name)) {
       failwith("Invalid livelit name " ++ name);
+    };
+    if (name != def.name) {
+      failwith(
+        "Livelit name " ++ name ++ " differs from def name " ++ def.name,
+      );
     };
     let (param_names, _) = List.split(def.param_tys);
     let rec contains_dupl =
@@ -175,7 +181,7 @@ module PairLivelit: LIVELIT = {
     let pair_seq =
       Seq.mk(
         _to_uhvar(leftID),
-        [(Operators.Exp.Comma, _to_uhvar(rightID))],
+        [(Operators_Exp.Comma, _to_uhvar(rightID))],
       );
     UHExp.Block.wrap'(UHExp.mk_OpSeq(pair_seq));
   };
@@ -481,8 +487,8 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
       | [fst, ...rest] => {
           let rest' =
-            (rest |> List.map(item => (Operators.Exp.Cons, item)))
-            @ [(Operators.Exp.Cons, UHExp.ListNil(NotInHole))];
+            (rest |> List.map(item => (Operators_Exp.Cons, item)))
+            @ [(Operators_Exp.Cons, UHExp.ListNil(NotInHole))];
           let seq = Seq.mk(fst, rest');
           UHExp.Block.wrap'(UHExp.mk_OpSeq(seq));
         };
@@ -877,9 +883,9 @@ module GradeCutoffLivelit: LIVELIT = {
         Seq.mk(
           intlit'(a),
           [
-            (Operators.Exp.Comma, intlit'(b)),
-            (Operators.Exp.Comma, intlit'(c)),
-            (Operators.Exp.Comma, intlit'(d)),
+            (Operators_Exp.Comma, intlit'(b)),
+            (Operators_Exp.Comma, intlit'(c)),
+            (Operators_Exp.Comma, intlit'(d)),
           ],
         )
       );
@@ -1279,9 +1285,9 @@ module ColorLivelit: LIVELIT = {
       Seq.mk(
         _to_uhvar(r),
         [
-          (Operators.Exp.Comma, _to_uhvar(g)),
-          (Operators.Exp.Comma, _to_uhvar(b)),
-          (Operators.Exp.Comma, _to_uhvar(a)),
+          (Operators_Exp.Comma, _to_uhvar(g)),
+          (Operators_Exp.Comma, _to_uhvar(b)),
+          (Operators_Exp.Comma, _to_uhvar(a)),
         ],
       );
     UHExp.Block.wrap'(UHExp.mk_OpSeq(four_tuple));
@@ -1320,7 +1326,7 @@ module GradientLivelit: LIVELIT = {
     let init_uhexp_gen = u_gen => {
       let (u, u_gen) = MetaVarGen.next_livelit(u_gen);
       let (e, _, u_gen) =
-        Statics.Exp.syn_fix_holes(
+        Statics_Exp.syn_fix_holes(
           color_ctx,
           u_gen,
           UHExp.Block.wrap(FreeLivelit(u, "$color")),
@@ -1375,7 +1381,7 @@ module GradientLivelit: LIVELIT = {
     let pat_opseq = (hd, tl) => UHPat.mk_OpSeq(Seq.mk(hd, tl));
     let exp_opseq = (hd, tl) => UHExp.mk_OpSeq(Seq.mk(hd, tl));
     let typ_triple = (x1, x2, x3) =>
-      typ_opseq(x1, [(Operators.Typ.Prod, x2), (Operators.Typ.Prod, x3)]);
+      typ_opseq(x1, [(Operators_Typ.Prod, x2), (Operators_Typ.Prod, x3)]);
     let pat_triple = (x1, x2, x3) =>
       UHPat.(pat_opseq(var(x1), [(Comma, var(x2)), (Comma, var(x3))]));
     let scalar =
@@ -1415,7 +1421,7 @@ module GradientLivelit: LIVELIT = {
               Parenthesized(typ_triple(Float, Float, Float)),
               [
                 (
-                  Operators.Typ.Prod,
+                  Operators_Typ.Prod,
                   Parenthesized(typ_triple(Float, Float, Float)),
                 ),
               ],

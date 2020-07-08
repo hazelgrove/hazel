@@ -3,23 +3,24 @@ open Sexplib.Std;
 module Memo = Core_kernel.Memo;
 
 [@deriving sexp]
+type current_splice = option((MetaVar.t, SpliceName.t));
+
+[@deriving sexp]
 type t = {
-  edit_state: Statics.edit_state,
+  edit_state: Statics_common.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
 };
 
-let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
+let mk =
+    (~width: int, ~is_focused=false, edit_state: Statics_common.edit_state): t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,
   is_focused,
 };
 
-let get_width = program => program.width;
-
-let get_start_col = program => program.start_col_of_vertical_movement;
 let put_start_col = (start_col, program) => {
   ...program,
   start_col_of_vertical_movement: Some(start_col),
@@ -29,30 +30,27 @@ let clear_start_col = program => {
   start_col_of_vertical_movement: None,
 };
 
-let is_focused = program => program.is_focused;
-
 let focus = program => {...program, is_focused: true};
 let blur = program => {...program, is_focused: false};
 
-let get_edit_state = program => program.edit_state;
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
 let get_zexp = program => {
-  let (ze, _, _) = program |> get_edit_state;
+  let (ze, _, _) = program.edit_state;
   ze;
 };
 
 let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
 let get_uhexp = program => program |> get_zexp |> erase;
 
-let get_path = program => program |> get_zexp |> CursorPath.Exp.of_z;
+let get_path = program => program |> get_zexp |> CursorPath_Exp.of_z;
 let get_steps = program => {
   let (steps, _) = program |> get_path;
   steps;
 };
 
 let get_u_gen = program => {
-  let (_, _, u_gen) = program |> get_edit_state;
+  let (_, _, u_gen) = program.edit_state;
   u_gen;
 };
 
@@ -60,7 +58,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo.Exp.syn_cursor_info((
+    CursorInfo_Exp.syn_cursor_info((
       VarCtx.empty,
       Livelits.initial_livelit_ctx,
     )),
@@ -72,11 +70,38 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
-exception DoesNotExpand;
+let get_decorations = (program: t): Decorations.t => {
+  let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let (err_holes, var_err_holes) =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+         switch (sort) {
+         | LivelitHole(_)
+         | ApLivelit(_)
+         | TypHole => None
+         | PatHole(_, shape)
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | VarErr
+           | TypeErr => Some((shape, steps))
+           }
+         }
+       )
+    |> List.partition(
+         fun
+         | (CursorPath_common.TypeErr, _) => true
+         | (_var_err, _) => false,
+       )
+    |> TupleUtil.map2(List.map(snd));
+  {current_term, err_holes, var_err_holes};
+};
+
+exception DoesNotElaborate;
 let expand = (~livelit_holes=false) =>
   Memo.general(
     ~cache_size_bound=1000,
-    Dynamics.Exp.syn_expand(
+    Elaborator_Exp.syn_elab(
       ~livelit_holes,
       (VarCtx.empty, Livelits.initial_livelit_ctx),
       Delta.empty,
@@ -84,15 +109,15 @@ let expand = (~livelit_holes=false) =>
   );
 let get_expansion = (~livelit_holes=false, program: t): DHExp.t =>
   switch (program |> get_uhexp |> expand(~livelit_holes)) {
-  | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) => d
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
   };
 
 exception InvalidInput;
 let evaluate = (~eval_livelit_holes=false) => {
   Memo.general(
     ~cache_size_bound=1000,
-    Dynamics.Evaluator.evaluate(~eval_livelit_holes),
+    Evaluator.evaluate(~eval_livelit_holes),
   );
 };
 
@@ -127,7 +152,7 @@ let fill_and_resume_llii =
               );
          let sim =
            SpliceInfo.splice_map(si)
-           |> NatMap.map(((typ, d_opt)) =>
+           |> IntMap.map(((typ, d_opt)) =>
                 (
                   typ,
                   d_opt
@@ -152,7 +177,7 @@ let fill_and_resume_llii =
 
 let get_result = (program: t): Result.t => {
   let renumber =
-    Dynamics.Exp.renumber(
+    Elaborator_Exp.renumber(
       [],
       HoleInstanceInfo.empty,
       LivelitInstanceInfo.empty,
@@ -169,17 +194,17 @@ let get_result = (program: t): Result.t => {
     };
   switch (program |> get_expansion(~livelit_holes=false) |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) => ret(d, d' => Dynamics.Evaluator.BoxedValue(d'))
-  | Indet(d) => ret(d, d' => Dynamics.Evaluator.Indet(d'))
+  | BoxedValue(d) => ret(d, d' => Evaluator.BoxedValue(d'))
+  | Indet(d) => ret(d, d' => Evaluator.Indet(d'))
   };
 };
 
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
-  let edit_state = program |> get_edit_state;
+  let edit_state = program.edit_state;
   switch (
-    Action.Exp.syn_perform(
+    Action_Exp.syn_perform(
       (VarCtx.empty, Livelits.initial_livelit_ctx),
       a,
       edit_state,
@@ -201,13 +226,13 @@ let perform_edit_action = (a, program) => {
 
 exception NodeNotFound;
 let move_to_node = (kind, u, program) => {
-  let (ze, _, _) = program |> get_edit_state;
-  let holes = CursorPath.Exp.holes(ZExp.erase(ze), [], []);
-  switch (CursorPath.steps_to_hole(holes, kind, u)) {
+  let (ze, _, _) = program.edit_state;
+  let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
+  switch (CursorPath_common.steps_to_hole(holes, kind, u)) {
   | None => raise(NodeNotFound)
   | Some(hole_steps) =>
     let e = ZExp.erase(ze);
-    switch (CursorPath.Exp.of_steps(hole_steps, e)) {
+    switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(NodeNotFound)
     | Some(hole_path) => program |> perform_edit_action(MoveTo(hole_path))
     };
@@ -215,7 +240,7 @@ let move_to_node = (kind, u, program) => {
 };
 
 let move_to_case_branch =
-    (steps_to_case, branch_index, program): (t, Action.t) => {
+    (steps_to_case, branch_index, program): (t, Action_common.t) => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
   let new_program =
     perform_edit_action(
@@ -229,9 +254,9 @@ let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
   let e = get_uhexp(program);
   let doc =
     TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () =>
-      Lazy.force(UHDoc.Exp.mk, ~memoize=memoize_doc, ~enforce_inline=false, e)
+      Lazy.force(UHDoc_Exp.mk, ~memoize=memoize_doc, ~enforce_inline=false, e)
     );
-  let splice_docs = UHDoc.Exp.mk_splices(e);
+  let splice_docs = UHDoc_Exp.mk_splices(e);
   (doc, splice_docs);
 };
 
@@ -251,7 +276,7 @@ let get_layout =
       ~memoize_doc: bool,
       program,
     ) => {
-  let width = program |> get_width;
+  let width = program.width;
   let (doc, splice_docs) =
     program |> get_doc(~measure_program_get_doc, ~memoize_doc);
   let layout =
@@ -266,13 +291,13 @@ let get_layout =
          ~linebreak=MetaVarMap.empty,
          ~text=_ => MetaVarMap.empty,
          ~align=ls => ls,
-         ~cat=(@),
+         ~cat=MetaVarMap.union((_, _, _) => None),
          ~annot=
            (pos, annot, ls) =>
              switch (annot) {
              | LivelitView({llu, _}) =>
                let ap_splice_layouts =
-                 MetaVarMap.lookup(splice_docs, llu)
+                 MetaVarMap.find_opt(llu, splice_docs)
                  |> OptUtil.get(() =>
                       failwith(
                         "no doc for livelit ap " ++ string_of_int(llu),
@@ -294,130 +319,116 @@ let get_layout =
                  (_, ap_splice_layout, ls) => {
                    let inner_splice_layouts =
                      splice_layouts(ap_splice_layout);
-                   MetaVarMap.union(ls, inner_splice_layouts);
+                   MetaVarMap.union(
+                     (_, _, _) => None,
+                     ls,
+                     inner_splice_layouts,
+                   );
                  },
                  ap_splice_layouts,
-                 MetaVarMap.extend_unique(ls, (llu, ap_splice_layouts)),
+                 MetaVarMap.add(llu, ap_splice_layouts, ls),
                );
              | _ => ls
              },
        );
   (layout, splice_layouts(layout));
 };
-
-let decorate_caret = (path, l) =>
-  l
-  |> UHLayout.find_and_decorate_caret(~path)
-  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find caret"));
-let decorate_cursor = (steps, l) =>
-  l
-  |> UHLayout.find_and_decorate_cursor(~steps)
-  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
-let decorate_var_uses = (ci: CursorInfo.t, l) =>
-  switch (ci.uses) {
-  | None => l
-  | Some(uses) =>
-    uses
-    |> List.fold_left(
-         (l, use) =>
-           l
-           |> UHLayout.find_and_decorate_var_use(~steps=use)
-           |> OptUtil.get(() => {
-                failwith(
-                  __LOC__
-                  ++ ": could not find var use"
-                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
-                )
-              }),
-         l,
-       )
-  };
-
-let get_decorated_layout =
+let get_measured_layout =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
       program,
-    ) => {
-  let (steps, _) as path = program |> get_path;
-  let ci = program |> get_cursor_info;
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> decorate_caret(path)
-  |> decorate_cursor(steps)
-  |> decorate_var_uses(ci);
+    )
+    : MeasuredLayout.with_splices => {
+  let (l, splice_ls) =
+    program
+    |> get_layout(
+         ~measure_program_get_doc,
+         ~measure_layoutOfDoc_layout_of_doc,
+         ~memoize_doc,
+       );
+  let m = MeasuredLayout.mk(l);
+  let splice_ms =
+    splice_ls |> SpliceMap.map(SpliceMap.ApMap.map(MeasuredLayout.mk));
+  (m, splice_ms);
 };
 
-let get_cursor_map_z =
+let get_box =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
       program,
-    ) => {
-  let path = program |> get_path;
-  // TODO figure out how to consolidate decoration
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> decorate_caret(path)
-  |> CursorMap.mk
-  |> (
-    fun
-    | (_, None) => failwith(__LOC__ ++ ": no cursor found")
-    | (map, Some(z)) => (map, z)
-  );
+    )
+    : UHBox.with_splices => {
+  let (l, splice_ls) =
+    program
+    |> get_layout(
+         ~measure_program_get_doc,
+         ~measure_layoutOfDoc_layout_of_doc,
+         ~memoize_doc,
+       );
+  let box = Box.mk(l);
+  let splice_boxes = splice_ls |> SpliceMap.map(SpliceMap.ApMap.map(Box.mk));
+  (box, splice_boxes);
 };
 
-let get_cursor_map =
+let get_caret_position =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
       program,
-    ) =>
-  program
-  |> get_cursor_map_z(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> fst;
+    )
+    : (CaretPosition.t, current_splice) => {
+  let m_with_splices =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let path = get_path(program);
+  MeasuredLayout.caret_position_of_path(path, m_with_splices)
+  |> OptUtil.get(() => failwith("could not find caret"));
+};
 
 let move_via_click =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      opt_splice,
-      row_col,
+      current_splice,
+      target: CaretPosition.t,
       program,
     )
-    : (t, Action.t) => {
-  let cmap = {
-    let (cmap, splice_cmaps) =
-      program
-      |> get_cursor_map(
-           ~measure_program_get_doc,
-           ~measure_layoutOfDoc_layout_of_doc,
-           ~memoize_doc,
-         );
-    switch (opt_splice) {
-    | None => cmap
+    : (t, Action_common.t) => {
+  let (path_prefix, m) = {
+    let (m, splice_ms) =
+      get_measured_layout(
+        ~measure_program_get_doc,
+        ~measure_layoutOfDoc_layout_of_doc,
+        ~memoize_doc,
+        program,
+      );
+    switch (current_splice) {
+    | None => ([], m)
     | Some((u, splice_name)) =>
-      splice_cmaps |> SpliceMap.get_splice(u, splice_name)
+      let holes = CursorPath_Exp.holes(get_uhexp(program), [], []);
+      (
+        CursorPath_common.steps_to_hole(holes, Livelit, u)
+        |> OptUtil.get(() => raise(NodeNotFound)),
+        SpliceMap.get_splice(u, splice_name, splice_ms),
+      );
     };
   };
-  let (_, rev_path) = cmap |> CursorMap.find_nearest_within_row(row_col);
-  let path = CursorPath.rev(rev_path);
+  let path_suffix =
+    MeasuredLayout.nearest_path_within_row(target, m)
+    |> OptUtil.get(() => failwith("row with no caret positions"))
+    |> fst
+    |> CursorPath_common.rev;
+  let path = CursorPath_common.append(path_prefix, path_suffix);
   let new_program =
     program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
   (new_program, MoveTo(path));
@@ -428,52 +439,95 @@ let move_via_key =
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      move_key: JSUtil.MoveKey.t,
+      move_key: MoveKey.t,
       program,
     )
-    : (t, Action.t) => {
-  let (cmap, z) = {
-    let ((cmap, splice_cmaps), (opt_splice, z)) =
-      program
-      |> get_cursor_map_z(
-           ~measure_program_get_doc,
-           ~measure_layoutOfDoc_layout_of_doc,
-           ~memoize_doc,
-         );
-    switch (opt_splice) {
-    | None => (cmap, z)
+    : (t, Action_common.t) => {
+  let (caret_position, current_splice) =
+    get_caret_position(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let (path_prefix, m) = {
+    let (m, splice_ms) =
+      get_measured_layout(
+        ~measure_program_get_doc,
+        ~measure_layoutOfDoc_layout_of_doc,
+        ~memoize_doc,
+        program,
+      );
+    switch (current_splice) {
+    | None => ([], m)
     | Some((u, splice_name)) => (
-        splice_cmaps |> SpliceMap.get_splice(u, splice_name),
-        z,
+        CursorPath_common.steps_to_hole(
+          CursorPath_Exp.holes(get_uhexp(program), [], []),
+          Livelit,
+          u,
+        )
+        |> OptUtil.get(() => raise(NodeNotFound)),
+        SpliceMap.get_splice(u, splice_name, splice_ms),
       )
     };
   };
-  let ((row, col), _) = z;
   let (from_col, put_col_on_start) =
-    switch (program |> get_start_col) {
-    | None => (col, put_start_col(col))
+    switch (program.start_col_of_vertical_movement) {
+    | None =>
+      let col = caret_position.col;
+      (col, put_start_col(col));
     | Some(col) => (col, (p => p))
     };
   let (new_z, update_start_col) =
     switch (move_key) {
-    | ArrowUp => (
-        cmap |> CursorMap.move_up((row, from_col)),
+    | ArrowUp =>
+      let up_target =
+        CaretPosition.{row: caret_position.row - 1, col: from_col};
+      (
+        MeasuredLayout.nearest_path_within_row(up_target, m),
         put_col_on_start,
-      )
-    | ArrowDown => (
-        cmap |> CursorMap.move_down((row, from_col)),
+      );
+    | ArrowDown =>
+      let down_target =
+        CaretPosition.{row: caret_position.row + 1, col: from_col};
+      (
+        MeasuredLayout.nearest_path_within_row(down_target, m),
         put_col_on_start,
+      );
+    | ArrowLeft => (
+        switch (MeasuredLayout.prev_path_within_row(caret_position, m)) {
+        | Some(_) as found => found
+        | None =>
+          caret_position.row > 0
+            ? MeasuredLayout.last_path_in_row(caret_position.row - 1, m)
+            : None
+        },
+        clear_start_col,
       )
-    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
-    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
-    | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
-    | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
+    | ArrowRight => (
+        switch (MeasuredLayout.next_path_within_row(caret_position, m)) {
+        | Some(_) as found => found
+        | None =>
+          caret_position.row < MeasuredLayout.height(m) - 1
+            ? MeasuredLayout.first_path_in_row(caret_position.row + 1, m)
+            : None
+        },
+        clear_start_col,
+      )
+    | Home => (
+        MeasuredLayout.first_path_in_row(caret_position.row, m),
+        clear_start_col,
+      )
+    | End => (
+        MeasuredLayout.last_path_in_row(caret_position.row, m),
+        clear_start_col,
+      )
     };
 
   switch (new_z) {
   | None => raise(CursorEscaped)
-  | Some((_, rev_path)) =>
-    let path = CursorPath.rev(rev_path);
+  | Some((rev_path, _)) =>
+    let path = CursorPath_common.(append(path_prefix, rev(rev_path)));
     let new_program =
       program |> update_start_col |> perform_edit_action(MoveTo(path));
     (new_program, MoveTo(path));

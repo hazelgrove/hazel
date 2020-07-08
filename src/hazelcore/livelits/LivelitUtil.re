@@ -3,6 +3,7 @@ type llctordata =
   | ApLivelitData(
       MetaVar.t,
       LivelitName.t,
+      LivelitName.t,
       SerializedModel.t,
       UHExp.splice_info,
     );
@@ -10,7 +11,7 @@ type llctordata =
 let get_livelit_name_from_data =
   fun
   | FreeLivelitData(_, lln)
-  | ApLivelitData(_, lln, _, _) => lln;
+  | ApLivelitData(_, _, lln, _, _) => lln;
 
 let rec check_livelit_skel =
         (
@@ -22,22 +23,23 @@ let rec check_livelit_skel =
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (seq |> Seq.nth_operand(n)) {
-    | UHExp.ApLivelit(llu, NotInHole, lln, model, splice_info) =>
-      Some((ApLivelitData(llu, lln, model, splice_info), []))
+    | UHExp.ApLivelit(llu, NotInHole, base_lln, lln, model, splice_info) =>
+      Some((ApLivelitData(llu, base_lln, lln, model, splice_info), []))
     | UHExp.ApLivelit(
         llu,
         InHole(TypeInconsistent(Some(InsufficientParams)), _),
+        base_lln,
         lln,
         model,
         splice_info,
       )
         when permit_insufficient_params_hole =>
-      Some((ApLivelitData(llu, lln, model, splice_info), []))
+      Some((ApLivelitData(llu, base_lln, lln, model, splice_info), []))
     | UHExp.FreeLivelit(llu, lln) when permit_free_livelit =>
       Some((FreeLivelitData(llu, lln), []))
     | _ => None
     }
-  | Skel.BinOp(NotInHole, Operators.Exp.Space, skel1, skel2) =>
+  | Skel.BinOp(NotInHole, Operators_Exp.Space, skel1, skel2) =>
     check_livelit_skel(
       ~permit_free_livelit,
       ~permit_insufficient_params_hole,

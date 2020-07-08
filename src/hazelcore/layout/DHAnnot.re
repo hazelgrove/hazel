@@ -11,6 +11,7 @@ type t =
   | VarHole(VarErrStatus.HoleReason.t, NodeInstance.t)
   | InconsistentBranches(NodeInstance.t)
   | FreeLivelit(LivelitName.t, NodeInstance.t)
+  | Invalid(NodeInstance.t)
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration

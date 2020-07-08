@@ -19,8 +19,7 @@ let new_splice =
     next,
     {
       next: next + 1,
-      splice_map:
-        NatMap.extend_unique(splice_map, (next, (htyp, init_uhexp))),
+      splice_map: IntMap.add(next, (htyp, init_uhexp), splice_map),
       splice_order: splice_order @ [next],
     },
     u_gen,
@@ -30,28 +29,29 @@ let new_splice =
 let map_splice =
     (to_map, f, {splice_map, _} as psi: esi, u_gen): out((HTyp.t, UHExp.t)) => {
   let old_ =
-    NatMap.lookup(splice_map, to_map)
+    IntMap.find_opt(to_map, splice_map)
     |> OptUtil.get(() =>
          failwith(
            Printf.sprintf("Cannot map non-existant splice %d", to_map),
          )
        );
   let (new_, u_gen) = f(old_, u_gen);
-  let new_splice_map = NatMap.insert_or_update(splice_map, (to_map, new_));
+  let new_splice_map = IntMap.add(to_map, new_, splice_map);
   (old_, {...psi, splice_map: new_splice_map}, u_gen);
 };
 
 let drop_splice =
     (to_drop, {splice_map, splice_order, _} as psi: esi, u_gen)
     : out((HTyp.t, UHExp.t)) => {
-  let (new_splice_map, dropped_exp) =
-    OptUtil.get(
-      () =>
-        failwith(
-          Printf.sprintf("Cannot delete non-existant splice %d", to_drop),
-        ),
-      NatMap.drop(splice_map, to_drop),
-    );
+  let dropped_exp =
+    splice_map
+    |> IntMap.find_opt(to_drop)
+    |> OptUtil.get(() =>
+         failwith(
+           Printf.sprintf("Cannot delete non-existant splice %d", to_drop),
+         )
+       );
+  let new_splice_map = IntMap.remove(to_drop, splice_map);
   (
     dropped_exp,
     {

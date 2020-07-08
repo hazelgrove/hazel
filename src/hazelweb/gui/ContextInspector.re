@@ -1,11 +1,13 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 
 exception InvalidInstance;
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   open Vdom;
 
+  /**
+   * Shows typing info for a context entry.
+   */
   let static_info = ((x, ty)) =>
     Node.div(
       [Attr.classes(["static-info"])],
@@ -21,6 +23,9 @@ let view =
       ],
     );
 
+  /**
+   * Shows runtime value for a context entry.
+   */
   let dynamic_info = (sigma, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
@@ -70,20 +75,20 @@ let view =
     let ctx =
       program
       |> Program.get_cursor_info
-      |> CursorInfo.get_ctx
+      |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
       if (model.compute_results.compute_results) {
         let (_, hii, llii, _) = program |> Program.get_result;
         switch (model |> Model.get_selected_instance) {
-        | None => Dynamics.Exp.id_env(ctx)
+        | None => Elaborator_Exp.id_env(ctx)
         | Some((kind, inst)) =>
           let helper = mii =>
             switch (NodeInstanceInfo.lookup(mii, inst)) {
             | None =>
               // raise(InvalidInstance)
               JSUtil.log("[InvalidInstance]");
-              Dynamics.Exp.id_env(ctx);
+              Elaborator_Exp.id_env(ctx);
             | Some((sigma, _, _)) => sigma
             };
           switch (kind) {
@@ -92,7 +97,7 @@ let view =
           };
         };
       } else {
-        Dynamics.Exp.id_env(ctx);
+        Elaborator_Exp.id_env(ctx);
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
@@ -243,13 +248,11 @@ let view =
         ],
       );
 
-    let prev_key = KeyCombo.Details.alt_PageUp;
-    let next_key = KeyCombo.Details.alt_PageDown;
+    let prev_key = KeyCombo.alt_PageUp;
+    let next_key = KeyCombo.alt_PageDown;
 
-    let prev_title =
-      "Previous instance (" ++ KeyCombo.Details.name(prev_key) ++ ")";
-    let next_title =
-      "Next instance (" ++ KeyCombo.Details.name(next_key) ++ ")";
+    let prev_title = "Previous instance (" ++ KeyCombo.name(prev_key) ++ ")";
+    let next_title = "Next instance (" ++ KeyCombo.name(next_key) ++ ")";
 
     let prev_btn =
       if (i > 0) {
@@ -261,7 +264,7 @@ let view =
             Attr.on_click(_ => inject(SelectInstance(kind, prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(prev_key, ev)
+                KeyCombo.matches(prev_key, ev)
                   ? [inject(SelectInstance(kind, prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
@@ -288,7 +291,7 @@ let view =
             Attr.on_click(_ => inject(SelectInstance(kind, next_inst))),
             Attr.on_keydown(ev => {
               let updates =
-                KeyCombo.Details.matches(next_key, ev)
+                KeyCombo.matches(next_key, ev)
                   ? [inject(SelectInstance(kind, next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
@@ -314,13 +317,16 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
+  /**
+   * Shows the `InstancePath` to the currently selected instance.
+   */
   let path_viewer =
     if (model.compute_results.compute_results) {
       let program = model |> Model.get_program;
       let ctx =
         program
         |> Program.get_cursor_info
-        |> CursorInfo.get_ctx
+        |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
       let (_, hii, llii, _) = program |> Program.get_result;
       if (VarMap.is_empty(ctx)) {

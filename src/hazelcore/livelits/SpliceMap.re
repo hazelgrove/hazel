@@ -15,15 +15,15 @@ let map = MetaVarMap.map;
 let union = MetaVarMap.union;
 
 let get_ap = (u: MetaVar.t, map: t('v)): ApMap.t('v) =>
-  switch (MetaVarMap.lookup(map, u)) {
+  switch (MetaVarMap.find_opt(u, map)) {
   | None => raise(Not_found)
   | Some(ap_map) => ap_map
   };
 let put_ap = (u: MetaVar.t, ap_map: ApMap.t('v), map: t('v)): t('v) =>
-  MetaVarMap.insert_or_update(map, (u, ap_map));
+  MetaVarMap.add(u, ap_map, map);
 
 let get_splice = (u: MetaVar.t, splice_name: SpliceName.t, map: t('v)): 'v =>
-  MetaVarMap.lookup(map, u)
+  MetaVarMap.find_opt(u, map)
   |> OptUtil.get(() => raise(Not_found))
   |> ApMap.find(splice_name);
 let put_splice =

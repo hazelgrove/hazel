@@ -151,11 +151,21 @@ let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
 
 let last = (xs: list('a)): option('a) => first(List.rev(xs));
 
-let split_last = (xs: list('a)): option((list('a), 'a)) =>
+let split_last_opt = (xs: list('a)): option((list('a), 'a)) =>
   switch (List.rev(xs)) {
   | [] => None
   | [y, ...ys] => Some((List.rev(ys), y))
   };
+let split_last = (xs: list('a)): (list('a), 'a) =>
+  OptUtil.get(() => failwith("empty list"), split_last_opt(xs));
+
+let split_first_opt = (xs: list('a)): option(('a, list('a))) =>
+  switch (xs) {
+  | [] => None
+  | [first, ...trailing] => Some((first, trailing))
+  };
+let split_first = (xs: list('a)): ('a, list('a)) =>
+  OptUtil.get(() => failwith("empty list"), split_first_opt(xs));
 
 let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
@@ -316,3 +326,52 @@ let rec map_with_accumulator_opt =
     let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
   };
+
+/*
+ let rec pairs = (xs: list('x)): list(('x, 'x)) =>
+   switch (xs) {
+   | []
+   | [_] => []
+   | [x1, x2, ...xs] => [(x1, x2), ...pairs([x2, ...xs])]
+   };
+ */
+
+/**
+ * `disjoint_pairs(xs)` returns a list of disjoint pairs
+ * of consecutive elements in `xs`. If `xs` has an odd
+ * number of elements, the last element is dropped.
+ */
+let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
+  switch (xs) {
+  | []
+  | [_] => []
+  | [x1, x2, ...xs] => [(x1, x2), ...disjoint_pairs(xs)]
+  };
+
+let rotate = (xs: list('x)): list('x) =>
+  switch (xs) {
+  | [] => []
+  | [hd, ...tl] => tl @ [hd]
+  };
+
+/*
+ let cycle_map = (g: ('x, 'x) => 'y, xs: list('x)): list('y) => {
+   let rec go = (~hd: option('x)=?, xs: list('x)): list('y) =>
+     switch (xs) {
+     | [] => []
+     | [x] =>
+       switch (hd) {
+       | Some(hd) => [g(x, hd)]
+       | None => [g(x, x)]
+       }
+     | [x1, x2, ...xs] =>
+       let hd =
+         switch (hd) {
+         | None => x1
+         | Some(hd) => hd
+         };
+       [g(x1, x2), ...go(~hd, [x2, ...xs])];
+     };
+   go(xs);
+ };
+ */

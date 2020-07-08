@@ -42,7 +42,7 @@ let labeled_checkbox =
 };
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let compute_results_checkbox =
     Vdom.(
       Node.div(

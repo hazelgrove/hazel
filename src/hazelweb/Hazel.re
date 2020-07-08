@@ -12,10 +12,14 @@ module ResizeObserver = Js_of_ocaml.ResizeObserver;
 open Incr_dom;
 
 module Model = Model;
-module Action = Update.Action;
+module Action = ModelAction;
 module State = State;
 
+// see incr_dom app_intf.ml
 let on_startup = (~schedule_action, _) => {
+  /* we need line heights + character widths for various layout computations,
+      so we created a font specimen and update font metrics whenever that
+     element resizes. */
   let _ =
     ResizeObserver.observe(
       ~node=JSUtil.force_get_elem_by_id("font-specimen"),
@@ -26,7 +30,7 @@ let on_startup = (~schedule_action, _) => {
           | [|entry|] =>
             let rect = entry##.contentRect;
             schedule_action(
-              Update.Action.UpdateFontMetrics({
+              ModelAction.UpdateFontMetrics({
                 row_height: rect##.bottom -. rect##.top,
                 col_width: rect##.right -. rect##.left,
               }),
@@ -37,6 +41,8 @@ let on_startup = (~schedule_action, _) => {
       (),
     );
 
+  /* need to know whether a Mac is being used to determine certain key
+     combinations, such as Ctrl+Z vs Cmd+Z for undo */
   let is_mac =
     Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
       Js.string("Mac"),
@@ -44,6 +50,7 @@ let on_startup = (~schedule_action, _) => {
     >= 0;
   schedule_action(UpdateIsMac(is_mac));
 
+  /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
       Cell.focus();
@@ -57,6 +64,7 @@ let on_startup = (~schedule_action, _) => {
 let restart_cursor_animation = caret_elem => {
   caret_elem##.classList##remove(Js.string("blink"));
   // necessary to trigger reflow
+  // <https://css-tricks.com/restart-css-animation/>
   let _ = caret_elem##getBoundingClientRect;
   caret_elem##.classList##add(Js.string("blink"));
 };
@@ -88,7 +96,7 @@ let create =
     (
       model: Incr.t(Model.t),
       ~old_model as _: Incr.t(Model.t),
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
     ) => {
   open Incr.Let_syntax;
   let%map model = model;
@@ -101,6 +109,7 @@ let create =
     () =>
     Component.create(
       ~apply_action=Update.apply_action(model),
+      // for things that require actual DOM manipulation post-render
       ~on_display=
         (_, ~schedule_action as _) => {
           if (!Model.get_undo_history(model).disable_auto_scrolling) {
@@ -110,6 +119,8 @@ let create =
             };
           };
           if (Model.is_cell_focused(model)) {
+            // if cell is focused in model, make sure
+            // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
             | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
             | _ => Cell.focus()

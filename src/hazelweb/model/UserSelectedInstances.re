@@ -13,10 +13,10 @@ let _get_map = ({holes, livelits}, kind: TaggedNodeInstance.kind) => {
   };
 };
 
-let lookup = (kind, u, si) => MetaVarMap.lookup(_get_map(si, kind), u);
+let find_opt = (kind, u, si) => MetaVarMap.find_opt(u, _get_map(si, kind));
 
-let insert_or_update = ((kind, inst), usi) => {
-  let map_ = MetaVarMap.insert_or_update(_get_map(usi, kind), inst);
+let add = ((kind, (u, i)), usi) => {
+  let map_ = MetaVarMap.add(u, i, _get_map(usi, kind));
   switch (kind) {
   | Hole => {...usi, holes: map_}
   | Livelit => {...usi, livelits: map_}

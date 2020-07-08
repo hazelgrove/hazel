@@ -8,6 +8,7 @@ type t =
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
+  | InvalidTextShape(string)
   | LivelitName(LivelitName.t);
 
 let is_reserved_var = s => {
@@ -39,26 +40,25 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
     };
   };
 
-let of_text = (text: string): option(t) => {
+let of_text = (text: string): t =>
   switch (
     int_of_string_opt(text),
     hazel_float_of_string_opt(text),
     bool_of_string_opt(text),
     ExpandingKeyword.mk(text),
   ) {
-  | (Some(_), _, _, _) => Some(IntLit(text))
-  | (_, Some(_), _, _) => Some(FloatLit(text))
-  | (_, _, Some(b), _) => Some(BoolLit(b))
-  | (_, _, _, Some(k)) => Some(ExpandingKeyword(k))
+  | (Some(_), _, _, _) => IntLit(text)
+  | (_, Some(_), _, _) => FloatLit(text)
+  | (_, _, Some(b), _) => BoolLit(b)
+  | (_, _, _, Some(k)) => ExpandingKeyword(k)
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
-      Some(Underscore);
+      Underscore;
     } else if (LivelitName.is_valid_free_livelit_name(text)) {
-      Some(LivelitName(text));
+      LivelitName(text);
     } else if (Var.is_valid(text) && !is_reserved_var(text)) {
-      Some(Var(text));
+      Var(text);
     } else {
-      None;
+      InvalidTextShape(text);
     }
   };
-};

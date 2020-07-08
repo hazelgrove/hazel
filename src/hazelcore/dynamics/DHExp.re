@@ -141,6 +141,7 @@ type t =
   | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
   | FreeLivelit(MetaVar.t, MetaVarInst.t, VarMap.t_(t), LivelitName.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
@@ -166,7 +167,6 @@ type t =
       t,
     )
   | Triv
-  /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
@@ -184,6 +184,7 @@ let constructor_string = (d: t): string =>
   | Keyword(_, _, _, _) => "Keyword"
   | FreeVar(_, _, _, _) => "FreeVar"
   | FreeLivelit(_, _, _, _) => "FreeLivelit"
+  | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
