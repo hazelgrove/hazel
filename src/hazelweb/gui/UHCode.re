@@ -689,7 +689,9 @@ and decoration_views =
                     ),
                   ),
                 ],
-                caret @ splice_ds @ splice_code,
+                caret
+                @ splice_ds
+                @ [Node.span([Attr.classes(["code"])], splice_code)],
               )
             );
           };
