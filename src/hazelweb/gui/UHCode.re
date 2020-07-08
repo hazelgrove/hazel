@@ -701,19 +701,28 @@ let decoration_views =
 
           [livelit_view({uhcode, dhcode, dargs})];
         };
+        let top = Float.of_int(start.row) *. font_metrics.row_height;
+        let left = Float.of_int(start.col) *. font_metrics.col_width;
         let dim_attr =
           switch (shape) {
           | Inline(width) =>
             Vdom.Attr.create(
               "style",
-              Printf.sprintf("min-width: %dch;", width),
+              Printf.sprintf(
+                "min-width: %dch; top: %fpx; left: %fpx;",
+                width,
+                top,
+                left,
+              ),
             )
           | MultiLine(height) =>
             Vdom.Attr.create(
               "style",
               Printf.sprintf(
-                "min-height: %fpx;",
+                "min-height: %fpx; top: %fpx; left: %fpx;",
                 float_of_int(height) *. font_metrics.row_height,
+                top,
+                left,
               ),
             )
           };
