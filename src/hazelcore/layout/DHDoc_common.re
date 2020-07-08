@@ -7,11 +7,13 @@ type formattable_child = (~enforce_inline: bool) => t;
 
 let precedence_const = 0;
 let precedence_Ap = 1;
+let precedence_Subscript = 1;
 let precedence_Times = 2;
 let precedence_Divide = 2;
 let precedence_Plus = 3;
 let precedence_Minus = 3;
 let precedence_Cons = 4;
+let precedence_Caret = 5;
 let precedence_Equals = 5;
 let precedence_LessThan = 5;
 let precedence_GreaterThan = 5;
@@ -57,6 +59,9 @@ module Delim = {
 
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
+
+  let open_StringLit = mk("\"");
+  let close_StringLit = mk("\"");
 
   let sym_Lam = mk(UnicodeConstants.lamSym);
   let colon_Lam = mk(":");
@@ -111,6 +116,27 @@ let mk_FloatLit = (f: float) =>
   };
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
+
+let mk_StringLit = s => {
+  let line_docs =
+    s
+    |> String.split_on_char('\n')
+    |> ListUtil.map_with_accumulator(
+         (line_no, line) =>
+           // TODO undo manual align once we have inlined Align rendering properly
+           (
+             line_no + 1,
+             line_no == 0
+               ? Doc.text(line) : Doc.hcat(Doc.space(), Doc.text(line)),
+           ),
+         0,
+       )
+    |> snd
+    |> ListUtil.join(Doc.linebreak());
+
+  Doc.hcats([Delim.open_StringLit, ...line_docs] @ [Delim.close_StringLit])
+  |> Doc.annot(DHAnnot.String);
+};
 
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);

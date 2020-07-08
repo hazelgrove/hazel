@@ -32,6 +32,159 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let indicate_words_view = (words: string) => {
     Vdom.(Node.span([], [Node.text(words)]));
   };
+  let rec string_view = (s: string) =>
+    if (StringUtil.is_empty(s)) {
+      [];
+    } else if (String.length(s) == 1) {
+      Vdom.[Node.span([Attr.classes(["string"])], [Node.text(s)])];
+    } else {
+      switch (String.sub(s, 0, 1)) {
+      | "\\" =>
+        switch (String.sub(s, 1, 1)) {
+        | "b"
+        | "t"
+        | "r"
+        | "n"
+        | "\\"
+        | "\""
+        | "\'" =>
+          Vdom.[
+            Node.span(
+              [Attr.classes(["valid-seq"])],
+              [Node.text(String.sub(s, 0, 2))],
+            ),
+            ...string_view(String.sub(s, 2, String.length(s) - 2)),
+          ]
+        | "o" =>
+          if (String.length(s) >= 5) {
+            let ch1 = s.[2];
+            let ch2 = s.[3];
+            let ch3 = s.[4];
+            if ((ch1 >= '0' && ch1 <= '7')
+                && (ch2 >= '0' && ch2 <= '7')
+                && ch3 >= '0'
+                && ch3 <= '7') {
+              if (ch1 <= '3') {
+                Vdom.[
+                  Node.span(
+                    [Attr.classes(["valid-seq"])],
+                    [Node.text(String.sub(s, 0, 5))],
+                  ),
+                  ...string_view(String.sub(s, 5, String.length(s) - 5)),
+                ];
+              } else {
+                Vdom.[
+                  Node.span(
+                    [Attr.classes(["invalid-seq"])],
+                    [Node.text(String.sub(s, 0, 5))],
+                  ),
+                  ...string_view(String.sub(s, 5, String.length(s) - 5)),
+                ];
+              };
+            } else {
+              Vdom.[
+                Node.span(
+                  [Attr.classes(["invalid-seq"])],
+                  [Node.text(String.sub(s, 0, 2))],
+                ),
+                ...string_view(String.sub(s, 2, String.length(s) - 2)),
+              ];
+            };
+          } else {
+            Vdom.[
+              Node.span(
+                [Attr.classes(["invalid-seq"])],
+                [Node.text(String.sub(s, 0, 2))],
+              ),
+              ...string_view(String.sub(s, 2, String.length(s) - 2)),
+            ];
+          }
+        | "x" =>
+          if (String.length(s) >= 4) {
+            let ch1 = Char.lowercase_ascii(s.[2]);
+            let ch2 = Char.lowercase_ascii(s.[3]);
+            if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
+                && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
+              Vdom.[
+                Node.span(
+                  [Attr.classes(["valid-seq"])],
+                  [Node.text(String.sub(s, 0, 4))],
+                ),
+                ...string_view(String.sub(s, 4, String.length(s) - 4)),
+              ];
+            } else {
+              Vdom.[
+                Node.span(
+                  [Attr.classes(["invalid-seq"])],
+                  [Node.text(String.sub(s, 0, 2))],
+                ),
+                ...string_view(String.sub(s, 2, String.length(s) - 2)),
+              ];
+            };
+          } else {
+            Vdom.[
+              Node.span(
+                [Attr.classes(["invalid-seq"])],
+                [Node.text(String.sub(s, 0, 2))],
+              ),
+              ...string_view(String.sub(s, 2, String.length(s) - 2)),
+            ];
+          }
+        | _ =>
+          let ch1 = s.[1];
+          if (String.length(s) >= 4) {
+            let ch2 = s.[2];
+            let ch3 = s.[3];
+            if ((ch1 >= '0' && ch1 <= '9')
+                && (ch2 >= '0' && ch2 <= '9')
+                && ch3 >= '0'
+                && ch3 <= '9') {
+              if (int_of_string(String.sub(s, 1, 3)) < 256) {
+                Vdom.[
+                  Node.span(
+                    [Attr.classes(["valid-seq"])],
+                    [Node.text(String.sub(s, 0, 4))],
+                  ),
+                  ...string_view(String.sub(s, 4, String.length(s) - 4)),
+                ];
+              } else {
+                Vdom.[
+                  Node.span(
+                    [Attr.classes(["invalid-seq"])],
+                    [Node.text(String.sub(s, 0, 4))],
+                  ),
+                  ...string_view(String.sub(s, 4, String.length(s) - 4)),
+                ];
+              };
+            } else {
+              Vdom.[
+                Node.span(
+                  [Attr.classes(["invalid-seq"])],
+                  [Node.text(String.sub(s, 0, 2))],
+                ),
+                ...string_view(String.sub(s, 2, String.length(s) - 2)),
+              ];
+            };
+          } else {
+            Vdom.[
+              Node.span(
+                [Attr.classes(["invalid-seq"])],
+                [Node.text(String.sub(s, 0, 2))],
+              ),
+              ...string_view(String.sub(s, 2, String.length(s) - 2)),
+            ];
+          };
+        }
+      | _ =>
+        Vdom.[
+          Node.span(
+            [Attr.classes(["string"])],
+            [Node.text(String.sub(s, 0, 1))],
+          ),
+          ...string_view(String.sub(s, 1, String.length(s) - 1)),
+        ]
+      };
+    };
   let exp_view = (exp: UHExp.operand, show_indicate_word: bool) => {
     switch (exp) {
     | EmptyHole(meta_var) =>
@@ -99,6 +252,79 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(num);
       }
+    | StringLit(_, str) =>
+      let str = StringUtil.escaped_enter(str);
+      let (str, flag) =
+        if (String.length(str) <= 6) {
+          (str, false);
+        } else {
+          (String.sub(str, 0, 6), true);
+        };
+
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.span(
+                [],
+                [
+                  code_keywords_view("String"),
+                  indicate_words_view(" literal "),
+                ],
+              ),
+              Node.span([Attr.classes(["string"])], [Node.text("\"")]),
+              ...string_view(str)
+                 @ (
+                   if (flag == true) {
+                     [
+                       Node.span(
+                         [Attr.classes(["ellipses"])],
+                         [Node.text("...")],
+                       ),
+                     ];
+                   } else {
+                     [Node.text("")];
+                   }
+                 )
+                 @ [
+                   Node.span(
+                     [Attr.classes(["string"])],
+                     [Node.text("\"")],
+                   ),
+                 ],
+            ],
+          )
+        );
+      } else {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.span([Attr.classes(["string"])], [Node.text("\"")]),
+              ...string_view(str)
+                 @ (
+                   if (flag == true) {
+                     [
+                       Node.span(
+                         [Attr.classes(["ellipses"])],
+                         [Node.text("...")],
+                       ),
+                     ];
+                   } else {
+                     [Node.text("")];
+                   }
+                 )
+                 @ [
+                   Node.span(
+                     [Attr.classes(["string"])],
+                     [Node.text("\"")],
+                   ),
+                 ],
+            ],
+          )
+        );
+      };
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -120,6 +346,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
+    | Subscript(_, _, _, _) => indicate_words_view("substring")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
@@ -178,6 +405,78 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(num);
       }
+    | StringLit(_, str) =>
+      let str = StringUtil.escaped_enter(str);
+      let (str, flag) =
+        if (String.length(str) <= 6) {
+          (str, false);
+        } else {
+          (String.sub(str, 0, 6), true);
+        };
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              Node.span(
+                [],
+                [
+                  code_keywords_view("String"),
+                  indicate_words_view(" literal "),
+                ],
+              ),
+              Node.span([Attr.classes(["string"])], [Node.text("\"")]),
+              ...string_view(str)
+                 @ (
+                   if (flag == true) {
+                     [
+                       Node.span(
+                         [Attr.classes(["ellipses"])],
+                         [Node.text("...")],
+                       ),
+                     ];
+                   } else {
+                     [Node.text("")];
+                   }
+                 )
+                 @ [
+                   Node.span(
+                     [Attr.classes(["string"])],
+                     [Node.text("\"")],
+                   ),
+                 ],
+            ],
+          )
+        );
+      } else {
+        Vdom.(
+          Node.span(
+            [Attr.classes(["string"])],
+            [
+              Node.span([Attr.classes(["string"])], [Node.text("\"")]),
+              ...string_view(str)
+                 @ (
+                   if (flag == true) {
+                     [
+                       Node.span(
+                         [Attr.classes(["ellipses"])],
+                         [Node.text("...")],
+                       ),
+                     ];
+                   } else {
+                     [Node.text("")];
+                   }
+                 )
+                 @ [
+                   Node.span(
+                     [Attr.classes(["string"])],
+                     [Node.text("\"")],
+                   ),
+                 ],
+            ],
+          )
+        );
+      };
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -228,6 +527,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [indicate_words_view("type: "), code_keywords_view("Float")],
+        )
+      )
+    | String =>
+      Vdom.(
+        Node.span(
+          [],
+          [indicate_words_view("type: "), code_keywords_view("String")],
         )
       )
     | Bool =>
@@ -296,7 +602,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [code_keywords_view("case"), indicate_words_view(" expression")],
         )
       )
+    | SQuote
     | SList
+    | SLeftBracket
     | SListNil
     | SLine
     | SAsc
@@ -396,6 +704,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | Subscript =>
+      Vdom.(Node.span([], [indicate_words_view("insert substring")]))
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up => indicate_words_view("swap line up")
@@ -443,6 +753,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ),
       )
     | CaseRule => Some(Exp)
+    | Subscript =>
+      Some(
+        TermTag.get_cursor_term_tag_typ(
+          undo_history_entry.cursor_term_info.cursor_term_after,
+        ),
+      )
     | SwapEdit(swap_group) =>
       switch (swap_group) {
       | Up

@@ -501,6 +501,13 @@ let get_new_action_group =
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))
+      | SLeftBracket =>
+        switch (new_cursor_term_info.cursor_term_before) {
+        | Exp(OnDelim(_, After), _)
+        | Pat(OnDelim(_, After), _) => Some(Subscript)
+        | _ => Some(ConstructEdit(shape))
+        }
+      | SQuote
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
@@ -569,7 +576,8 @@ let get_new_action_group =
         | SVBar
         | SCons
         | SAnd
-        | SOr => Some(ConstructEdit(shape))
+        | SOr
+        | SCaret => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
           | Exp(pos, uexp_operand) =>
