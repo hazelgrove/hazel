@@ -12,6 +12,7 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
+  | StringLit(string)
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)
@@ -37,6 +38,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | Triv
   | ListNil
   | Keyword(_, _, _) => false

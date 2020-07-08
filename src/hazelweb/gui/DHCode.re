@@ -5,7 +5,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
   open Vdom;
   let rec go = (l: DHLayout.t) =>
     switch (l) {
-    | Text(s) => [Node.text(s)]
+    | Text(s) =>
+      let (s, _) = StringUtil.find_and_replace("", s, "OK");
+      [Node.text(s)];
     | Cat(l1, l2) => go(l1) @ go(l2)
     | Linebreak => [Node.br([])]
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
@@ -48,9 +50,10 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(CastDecoration, l) => [
         Node.div([Attr.classes(["CastDecoration"])], go(l)),
       ]
-    | Annot(DivideByZero, l) => [
-        Node.span([Attr.classes(["DivideByZero"])], go(l)),
+    | Annot(InvalidOpDecoration, l) => [
+        Node.span([Attr.classes(["InvalidOpDecoration"])], go(l)),
       ]
+    | Annot(String, l) => [Node.span([Attr.classes(["String"])], go(l))]
     };
   Node.div([Attr.classes(["code", "DHCode"])], go(l));
 };
