@@ -132,10 +132,18 @@ let get_layout =
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      program,
-    ) => {
+      program: t,
+    )
+    : Pretty.Layout.t(UHAnnot.t) => {
   let width = program |> get_width;
+  Hashtbl.clear(UHDoc.memoize_misses);
   let doc = get_doc(~measure_program_get_doc, ~memoize_doc, program);
+  Printf.printf("misses:\n");
+  Hashtbl.iter(
+    (k, v) => {Printf.printf("  %4d: %5d\n", k, v)},
+    UHDoc.memoize_misses,
+  );
+
   TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc", measure_layoutOfDoc_layout_of_doc, () =>
     Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc)

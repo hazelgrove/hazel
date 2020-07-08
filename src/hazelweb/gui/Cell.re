@@ -62,6 +62,9 @@ let view = (~inject, model: Model.t) => {
     () => {
       open Vdom;
       let program = model |> Model.get_program;
+      let steps = Program.get_steps(program);
+      Printf.printf("steps: %d\n", List.length(steps));
+      UHDoc.Exp.fresh(0, Program.get_uhexp(program));
       let code_view =
         UHCode.view(~model, ~inject, ~font_metrics=model.font_metrics);
       let prevent_stop_inject = a =>

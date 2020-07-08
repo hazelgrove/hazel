@@ -1,3 +1,7 @@
+// Functorize and move to hazelcore/layout
+
+// Metric (as weakmap in hazelweb): left-col, first-left-col, last-right-col, right-col
+
 open Pretty;
 
 type t = Doc.t(UHAnnot.t);
@@ -7,8 +11,12 @@ type memoization_value('a) = {
   mutable inline_false: option('a),
 };
 
+/* NOTE: "string" is actually "'a" */
+let seen: WeakMap.t(string, unit) = WeakMap.mk();
+let memoize_misses: Hashtbl.t(int, int) = Hashtbl.create(0);
+
 let memoize =
-    (f: (~memoize: bool, ~enforce_inline: bool, 'k) => 'v)
+    (line: int, f: (~memoize: bool, ~enforce_inline: bool, 'k) => 'v)
     : ((~memoize: bool, ~enforce_inline: bool, 'k) => 'v) => {
   let table: WeakMap.t('k, memoization_value('v)) = WeakMap.mk();
   (~memoize: bool, ~enforce_inline: bool, k: 'k) => (
@@ -17,6 +25,14 @@ let memoize =
     } else {
       switch (WeakMap.get(table, k)) {
       | None =>
+        Hashtbl.replace(
+          memoize_misses,
+          line,
+          1
+          + Option.value(~default=0, Hashtbl.find_opt(memoize_misses, line)),
+        );
+        //memoize_misses := memoize_misses^ + 1;
+        let _ = WeakMap.set(seen, Obj.magic(k), ());
         let v = f(~memoize, ~enforce_inline, k);
         let m =
           if (enforce_inline) {
@@ -550,15 +566,50 @@ module Typ = {
       ~inline_padding_of_operator,
     );
 
+  let rec fresh = (indent: int, ty: UHTyp.t): unit => opseq_fresh(indent, ty)
+  and opseq_fresh = (indent: int, OpSeq(_, seq) as opseq: UHTyp.opseq): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(opseq)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      Printf.printf("OpSeq\n");
+      Seq.operands(seq) |> List.iter(operand_fresh(indent + 1));
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  }
+  and operand_fresh = (indent: int, op: UHTyp.operand): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(op)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      switch (op) {
+      | Hole => Printf.printf("Hole\n")
+      | Unit => Printf.printf("Unit\n")
+      | Int => Printf.printf("Int\n")
+      | Float => Printf.printf("Float\n")
+      | Bool => Printf.printf("Bool\n")
+
+      | Parenthesized(body) =>
+        Printf.printf("Parenthesized\n");
+        fresh(indent + 1, body);
+      | List(body) =>
+        Printf.printf("List\n");
+        fresh(indent + 1, body);
+      };
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  };
+
   let rec mk =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
+      memoize(__LINE__, (~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
         (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): t)
       )
     )
   and mk_opseq =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
+      memoize(
+        __LINE__, (~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
         (
           mk_NTuple(
             ~mk_operand=Lazy.force(mk_operand, ~memoize),
@@ -573,7 +624,9 @@ module Typ = {
     mk_op(Operators.Typ.to_string(op))
   and mk_operand =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
+      memoize(
+        __LINE__,
+        (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
         (
           switch (operand) {
           | Hole => mk_EmptyHole("?")
@@ -636,15 +689,58 @@ module Pat = {
       ~inline_padding_of_operator,
     );
 
+  let rec fresh = (indent: int, p: UHPat.t): unit => opseq_fresh(indent, p)
+  and opseq_fresh = (indent: int, OpSeq(_, seq) as opseq: UHPat.opseq): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(opseq)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      Printf.printf("OpSeq\n");
+      Seq.operands(seq) |> List.iter(operand_fresh(indent + 1));
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  }
+  and operand_fresh = (indent: int, op: UHPat.operand): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(op)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      switch (op) {
+      | EmptyHole(_u) => Printf.printf("EmptyHole\n")
+      | Wild(_err) => Printf.printf("Wild\n")
+      | Var(_err, _verr, x) => Printf.printf("Var %s\n", x)
+      | IntLit(_err, n) => Printf.printf("IntLit %s\n", n)
+      | FloatLit(_err, f) => Printf.printf("FloatLit %s\n", f)
+      | BoolLit(_err, _b) => Printf.printf("BoolLit\n")
+      | ListNil(_err) => Printf.printf("ListNil\n")
+
+      | Parenthesized(body) =>
+        Printf.printf("Parenthesized\n");
+        fresh(indent + 1, body);
+      | Inj(_err, _inj_side, body) =>
+        Printf.printf("Inj\n");
+        fresh(indent + 1, body);
+      };
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  };
+
+  // Externalize holes
+  // Unique ids for everyone
+  // UHDoc does hash consing
+  // Construct UHDoc both with and without error holes
+  // Store paths to non-empty holes
+
   let rec mk =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, p: UHPat.t) =>
+      memoize(__LINE__, (~memoize: bool, ~enforce_inline: bool, p: UHPat.t) =>
         (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, p): t)
       )
     )
   and mk_opseq =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHPat.opseq) =>
+      memoize(
+        __LINE__, (~memoize: bool, ~enforce_inline: bool, opseq: UHPat.opseq) =>
         (
           mk_NTuple(
             ~mk_operand=Lazy.force(mk_operand, ~memoize),
@@ -660,7 +756,9 @@ module Pat = {
       ? mk_space_op : mk_op(Operators.Pat.to_string(op))
   and mk_operand =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
+      memoize(
+        __LINE__,
+        (~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
         (
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
@@ -743,22 +841,102 @@ module Exp = {
       UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
     );
 
+  let rec fresh = (indent: int, e: UHExp.t) => block_fresh(indent, e)
+  and block_fresh = (indent: int, e: UHExp.block): unit =>
+    List.iter(line_fresh(indent), e)
+  and line_fresh = (indent: int, line: UHExp.line): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(line)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      switch (line) {
+      | EmptyLine => Printf.printf("EmptyLine\n")
+      | LetLine(p, ann, def) =>
+        Printf.printf("LetLine\n");
+        Pat.fresh(indent + 1, p);
+        ann |> Option.iter(Typ.fresh(indent + 1));
+        fresh(indent + 1, def);
+      | ExpLine(opseq) =>
+        Printf.printf("ExpLine\n");
+        opseq_fresh(indent + 1, opseq);
+      };
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  }
+  and opseq_fresh = (indent: int, OpSeq(_, seq) as opseq: UHExp.opseq): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(opseq)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      Printf.printf("OpSeq\n");
+      Seq.operands(seq) |> List.iter(operand_fresh(indent + 1));
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  }
+  and operand_fresh = (indent: int, operand: UHExp.operand): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(operand)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      switch (operand) {
+      | EmptyHole(_) => Printf.printf("EmptyHole\n")
+      | Var(_errstatus, _varerrstatus, var) => Printf.printf("Var %s\n", var)
+      | IntLit(_errstatus, s) => Printf.printf("IntLit %s\n", s)
+      | FloatLit(_errstatus, s) => Printf.printf("FloatLit %s\n", s)
+      | BoolLit(_errstatus, _bool) => Printf.printf("BoolLit\n")
+      | ListNil(_errstatus) => Printf.printf("ListNil\n")
+
+      | Lam(_errstatus, uhpat, ann, t) =>
+        Printf.printf("Lam\n");
+        Pat.fresh(indent + 1, uhpat);
+        ann |> Option.iter(Typ.fresh(indent + 1));
+        fresh(indent + 1, t);
+      | Inj(_errstatus, _injside, t) =>
+        Printf.printf("Inj\n");
+        fresh(indent + 1, t);
+      | Case(_errstatus, t, rules, ann) =>
+        Printf.printf("Case\n");
+        fresh(indent + 1, t);
+        rules |> List.iter(rule_fresh(indent + 1));
+        ann |> Option.iter(Typ.fresh(indent + 1));
+      | Parenthesized(t) =>
+        Printf.printf("Parenthesized\n");
+        fresh(indent + 1, t);
+      | ApPalette(_) => failwith(__LOC__)
+      };
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  }
+  and rule_fresh = (indent: int, Rule(p, clause) as rule: UHExp.rule): unit => {
+    let is_fresh = Option.is_none(WeakMap.get(seen, Obj.magic(rule)));
+    if (is_fresh) {
+      Printf.printf("%d:%s", indent, StringUtil.replicat(indent, " "));
+      Printf.printf("Rule\n");
+      Pat.fresh(indent + 1, p);
+      fresh(indent + 1, clause);
+    } else {
+      Printf.printf("%s...\n", StringUtil.replicat(indent, " "));
+    };
+  };
+
   let rec mk =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
+      memoize(__LINE__, (~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
         (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): t)
       )
     )
   // Two versions of `mk_block` so we can memoize them
   and mk_block_0 =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
+      memoize(
+        __LINE__, (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
         (mk_block(~offset=0, ~memoize, ~enforce_inline, block): t)
       )
     )
   and mk_block_1 =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
+      memoize(
+        __LINE__, (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
         (mk_block(~offset=1, ~memoize, ~enforce_inline, block): t)
       )
     )
@@ -791,7 +969,8 @@ module Exp = {
     }
   and mk_line =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
+      memoize(
+        __LINE__, (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
         (
           switch (line) {
           | EmptyLine =>
@@ -815,7 +994,8 @@ module Exp = {
     )
   and mk_opseq =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
+      memoize(
+        __LINE__, (~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
         (
           mk_NTuple(
             ~mk_operand=Lazy.force(mk_operand, ~memoize),
@@ -831,7 +1011,9 @@ module Exp = {
       ? mk_space_op : mk_op(Operators.Exp.to_string(op))
   and mk_operand =
     lazy(
-      memoize((~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
+      memoize(
+        __LINE__,
+        (~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
         (
           switch (operand) {
           | EmptyHole(u) => mk_EmptyHole(hole_lbl(u + 1))
@@ -896,6 +1078,7 @@ module Exp = {
   and mk_rule =
     lazy(
       memoize(
+        __LINE__,
         (
           ~memoize: bool,
           ~enforce_inline as _: bool,

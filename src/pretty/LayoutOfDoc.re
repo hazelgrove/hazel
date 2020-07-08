@@ -1,3 +1,18 @@
+/*
+
+ TODO: check memoization
+   TODO: is fix_holes doing deep changes
+   TODO: print doc diff from previous memoization
+
+ TODO: width intervals
+ TODO: wrong-but-fast implementation
+ TODO: count number of docs
+ TODO: strings are fixed
+
+ TODO: cursor map generation
+
+ */
+
 // TODO: compute actual layout size and use instead of t_of_layout
 let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
   doc => {
@@ -29,6 +44,9 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
       };
     PosMap.union(cost_union, p1, p2);
   };
+
+// Random BlockChain
+// Constant indent
 
 let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
   let g = (~width: int, ~pos: int): Doc.m'(Layout.t(unit)) => {
