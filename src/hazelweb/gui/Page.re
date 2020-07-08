@@ -239,7 +239,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         [],
                       ),
                       Node.div(
-                        [Attr.classes(["error-message"])],
+                        [Attr.id("error-message")],
                         [
                           Node.span(
                             [Attr.classes(["closebtn"])],

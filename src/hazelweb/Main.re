@@ -1,6 +1,7 @@
 module Js = Js_of_ocaml.Js;
 module Exn = Base.Exn;
 module Dom_html = Js_of_ocaml.Dom_html;
+module Dom = Js_of_ocaml.Dom;
 module Vdom = Virtual_dom.Vdom;
 
 Logger.init_log();
@@ -34,16 +35,22 @@ let () = {
 
         let err_box = JSUtil.force_get_elem_by_id("error-message");
         err_box##.classList##add(Js.string("visible"));
-        /*let dom =
-            Vdom.Node.to_dom(
-              Vdom.Node.body(
-                [],
-                [Vdom.Node.h2([], [Vdom.Node.text("Error!")])],
-              ),
-            );
-          let current_body =
-            Dom_html.document##.body##replaceChild(err_box, dom);
-          ();*/
+        /*
+         TODO: Hannah Not sure if just making visible and invisible is really the
+         best way to do this since then you will have invisible elements just hanging
+         around (but having trouble making the thing below work)
+         let dom =
+           Vdom.Node.to_dom(
+             Vdom.Node.body(
+               [],
+               [Vdom.Node.h2([], [Vdom.Node.text("Error!")])],
+             ),
+           );
+         let dom =
+           Dom.document##createElement(Js.string("some-error-message"));
+         let current_body =
+           Dom_html.document##.body##replaceChild(err_box, dom);
+         ();*/
       },
     );
 

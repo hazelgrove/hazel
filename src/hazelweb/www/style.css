@@ -105,7 +105,7 @@ html, body {
   justify-content: flex-start;
 }
 
-.error-message {
+#error-message {
   visibility: hidden;
   position: sticky;
   bottom: 0;
@@ -114,7 +114,7 @@ html, body {
   background-color: red;
 }
 
-.error-message .visible {
+#error-message.visible {
   visibility: visible;
 }
 
