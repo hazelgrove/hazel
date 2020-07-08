@@ -1647,7 +1647,7 @@ h1 {
   -moz-box-sizing: border-box;
   box-sizing: border-box;  */
   white-space: pre;
-  overflow-x: auto;
+  overflow: visible;
 }
 #cell:focus {
   outline: 0px;
