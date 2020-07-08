@@ -422,9 +422,11 @@ let move_via_click =
     | None => ([], m)
     | Some((u, splice_name)) =>
       let holes = CursorPath_Exp.holes(get_uhexp(program), [], []);
-      (
+      let steps =
         CursorPath_common.steps_to_hole(holes, Livelit, u)
-        |> OptUtil.get(() => raise(NodeNotFound)),
+        |> OptUtil.get(() => raise(NodeNotFound));
+      (
+        steps @ [splice_name],
         SpliceMap.get_splice(u, splice_name, splice_ms),
       );
     };
