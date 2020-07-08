@@ -468,15 +468,18 @@ let move_via_key =
       );
     switch (current_splice) {
     | None => ([], m)
-    | Some((u, splice_name)) => (
+    | Some((u, splice_name)) =>
+      let steps =
         CursorPath_common.steps_to_hole(
           CursorPath_Exp.holes(get_uhexp(program), [], []),
           Livelit,
           u,
         )
-        |> OptUtil.get(() => raise(NodeNotFound)),
+        |> OptUtil.get(() => raise(NodeNotFound));
+      (
+        steps @ [splice_name],
         SpliceMap.get_splice(u, splice_name, splice_ms),
-      )
+      );
     };
   };
   let (from_col, put_col_on_start) =
