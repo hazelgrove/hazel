@@ -13,5 +13,4 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | InvalidOpDecoration
-  | String;
+  | DivideByZero;

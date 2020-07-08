@@ -7,7 +7,7 @@ type term_data = {
 
 [@deriving sexp]
 type token_shape =
-  | Text({start_index: CharIndex.t})
+  | Text
   | Op
   | Delim(DelimIndex.t);
 
@@ -29,10 +29,7 @@ type t =
   | EmptyLine
   | LetLine
   | Step(int)
-  | Term(term_data)
-  | ValidSeq
-  | InvalidSeq
-  | String;
+  | Term(term_data);
 
 let mk_Token:
   (~has_cursor: option(int)=?, ~len: int, ~shape: token_shape, unit) => t;

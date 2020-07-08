@@ -39,7 +39,7 @@ let mk_timestamped_action = (a: ModelAction.t) => (
   a,
 );
 
-let log_action = (action: ModelAction.t, _: State.t): unit =>
+let log_action = (action: ModelAction.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
@@ -86,6 +86,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit =>
       ),
     )
   };
+};
 
 let apply_action =
     (

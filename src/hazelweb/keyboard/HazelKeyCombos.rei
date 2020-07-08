@@ -19,13 +19,11 @@ type t =
   | Plus
   | Minus
   | Asterisk
-  | Caret
   | Slash
   | LT
   | Space
   | Comma
   | LeftBracket
-  | LeftQuotation
   | Semicolon
   | Alt_L
   | Alt_R

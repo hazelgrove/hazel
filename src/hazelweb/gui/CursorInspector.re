@@ -4,7 +4,6 @@ open Sexplib;
 type err_state_b =
   | TypeInconsistency
   | BindingError
-  | InvalidEscape
   | OK;
 
 let rec advanced_summary = (typed: CursorInfo_common.typed) => {
@@ -12,15 +11,15 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
   switch (typed) {
   | Analyzed(ty)
   | AnaAnnotatedLambda(ty, _)
-  | AnaSubsumed(ty, _, _) /* TODO Hannah - maybe change how this has a third argument (I don't like how it is being used) */
-  | Synthesized(ty, _) /* TODO Hannah - same as above */
+  | AnaSubsumed(ty, _)
+  | Synthesized(ty)
   | PatAnalyzed(ty)
-  | PatAnaSubsumed(ty, _, _) /* TODO Hannah - same as above*/
-  | PatSynthesized(ty, _) /* TODO Hannah - same as above */
+  | PatAnaSubsumed(ty, _)
+  | PatSynthesized(ty)
   | SynMatchingArrow(_, ty) => [Vdom.Node.text(":"), HTypCode.view(ty)]
-  | AnaTypeInconsistent(expected_ty, got_ty, _) /* TODO Hannah - same as above */
-  | SynErrorArrow(expected_ty, got_ty, _) /* TODO Hannah - same as above */
-  | PatAnaTypeInconsistent(expected_ty, got_ty, _) => /* TODO Hannah - same as above */ [
+  | AnaTypeInconsistent(expected_ty, got_ty)
+  | SynErrorArrow(expected_ty, got_ty)
+  | PatAnaTypeInconsistent(expected_ty, got_ty) => [
       Vdom.Node.text(":"),
       HTypCode.view(got_ty),
       Vdom.Node.text(UnicodeConstants.inconsistent),
@@ -46,7 +45,7 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
   | PatSynKeyword(_) => [Vdom.Node.text("Reserved Keyword")]
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
-    | (JoinTy(ty), Synthesized(got_ty, _)) =>
+    | (JoinTy(ty), Synthesized(got_ty)) =>
       if (HTyp.consistent(ty, got_ty)) {
         [Vdom.Node.text(":"), HTypCode.view(ty)];
       } else {
@@ -88,7 +87,6 @@ let summary_bar =
   let err_icon =
     switch (err_state_b) {
     | TypeInconsistency
-    | InvalidEscape
     | BindingError => Icons.x_circle
     | OK => Icons.check_circle
     };
@@ -234,22 +232,6 @@ let view =
         [Panel.view_of_other_title_bar(title_text), type_div],
       )
     );
-  let got_invalid_escape = s =>
-    got_indicator(
-      "Got",
-      Vdom.(
-        Node.div(
-          [Attr.classes(["infobar"])],
-          [
-            Node.div(
-              [Attr.classes(["special-msg-bar"])],
-              [Node.text("invalid escape sequence ")],
-            ),
-            Node.div([Attr.classes(["code-bar"])], [Node.text(s)]),
-          ],
-        )
-      ),
-    );
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
@@ -296,15 +278,10 @@ let view =
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | AnaTypeInconsistent(expected_ty, got_ty, msg) =>
+    | AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      if (msg == "") {
-        let ind2 = got_inconsistent_indicator(got_ty);
-        (ind1, ind2, TypeInconsistency);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 = got_inconsistent_indicator(got_ty);
+      (ind1, ind2, TypeInconsistency);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -327,31 +304,21 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | AnaSubsumed(expected_ty, got_ty, msg) =>
+    | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      if (msg == "") {
-        let ind2 =
-          HTyp.eq(expected_ty, got_ty)
-            ? got_as_expected_ty_indicator(got_ty)
-            : got_consistent_indicator(got_ty);
-        (ind1, ind2, OK);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 =
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
+      (ind1, ind2, OK);
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | Synthesized(ty, msg) =>
+    | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
-      if (msg == "") {
-        let ind2 = got_ty_indicator(ty);
-        (ind1, ind2, OK);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 = got_ty_indicator(ty);
+      (ind1, ind2, OK);
     | SynInvalid =>
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
@@ -364,15 +331,10 @@ let view =
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | SynErrorArrow(expected_ty, got_ty, msg) =>
+    | SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
-      if (msg == "") {
-        let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-        (ind1, ind2, TypeInconsistency);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
+      (ind1, ind2, TypeInconsistency);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -424,18 +386,14 @@ let view =
         };
       let (ind2, err_state_b) =
         switch (join, typed) {
-        | (JoinTy(ty), Synthesized(got_ty, msg)) =>
-          if (msg == "") {
-            switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-            | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
-            | (true, false) => (got_consistent_indicator(got_ty), OK)
-            | (false, _) => (
-                got_inconsistent_indicator(got_ty),
-                TypeInconsistency,
-              )
-            };
-          } else {
-            (got_invalid_escape(msg), InvalidEscape);
+        | (JoinTy(ty), Synthesized(got_ty)) =>
+          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
+          | (true, false) => (got_consistent_indicator(got_ty), OK)
+          | (false, _) => (
+              got_inconsistent_indicator(got_ty),
+              TypeInconsistency,
+            )
           }
         | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
         | _ => (ind2, err_state_b)
@@ -459,15 +417,10 @@ let view =
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
-    | PatAnaTypeInconsistent(expected_ty, got_ty, msg) =>
+    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
-      if (msg == "") {
-        let ind2 = got_inconsistent_indicator(got_ty);
-        (ind1, ind2, TypeInconsistency);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 = got_inconsistent_indicator(got_ty);
+      (ind1, ind2, TypeInconsistency);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -486,31 +439,21 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_indicator;
       (ind1, ind2, BindingError);
-    | PatAnaSubsumed(expected_ty, got_ty, msg) =>
+    | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
-      if (msg == "") {
-        let ind2 =
-          HTyp.eq(expected_ty, got_ty)
-            ? got_as_expected_ty_indicator(got_ty)
-            : got_consistent_indicator(got_ty);
-        (ind1, ind2, OK);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 =
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
+      (ind1, ind2, OK);
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | PatSynthesized(ty, msg) =>
+    | PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
-      if (msg == "") {
-        let ind2 = got_ty_indicator(ty);
-        (ind1, ind2, OK);
-      } else {
-        let ind2 = got_invalid_escape(msg);
-        (ind1, ind2, InvalidEscape);
-      };
+      let ind2 = got_ty_indicator(ty);
+      (ind1, ind2, OK);
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
@@ -534,7 +477,6 @@ let view =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"
     | BindingError => "cursor-BindingError"
-    | InvalidEscape => "cursor-InvalidEscape" /* TODO: Hannah How is this displaying any different than TypeInconsistency */
     | OK => "cursor-OK"
     };
   let (x, y) = loc;

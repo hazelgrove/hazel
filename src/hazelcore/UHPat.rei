@@ -14,7 +14,6 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
@@ -35,8 +34,6 @@ let intlit: (~err: ErrStatus.t=?, string) => operand;
 
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
-let stringlit: (~err: ErrStatus.t=?, string) => operand;
-
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
 let get_tuple_elements: skel => list(skel);
@@ -49,12 +46,6 @@ let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
 let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
 
 let is_EmptyHole: operand => bool;
-
-let find_operand: t => option(operand);
-
-let find_operand_opseq: opseq => option(operand);
-
-let find_operand_operand: operand => option(operand);
 
 let get_err_status: t => ErrStatus.t;
 

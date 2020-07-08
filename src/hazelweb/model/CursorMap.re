@@ -105,7 +105,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
       | Some(j) =>
         let pos: CursorPosition.t =
           switch (shape) {
-          | Text({start_index}) => OnText(start_index + j)
+          | Text => OnText(j)
           | Op => OnOp(j == 0 ? Before : After)
           | Delim(k) => OnDelim(k, j == 0 ? Before : After)
           };
@@ -113,10 +113,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
       };
       let (pos_before, pos_after): (CursorPosition.t, CursorPosition.t) =
         switch (shape) {
-        | Text({start_index}) => (
-            OnText(start_index),
-            OnText(start_index + len),
-          )
+        | Text => (OnText(0), OnText(len))
         | Op => (OnOp(Before), OnOp(After))
         | Delim(k) => (OnDelim(k, Before), OnDelim(k, After))
         };
@@ -125,6 +122,7 @@ let mk = (l: UHLayout.t): (t, option(binding)) => {
         ColMap.singleton(col_before, (pos_before, rev_steps))
         |> ColMap.add(col_after, (pos_after, rev_steps)),
       );
+
     | Annot(_, l) => go'(l)
     };
   };
@@ -174,28 +172,23 @@ let find_nearest_within_row = ((row, col), cmap) => {
     failwith(
       "CursorMap has row with no caret positions: " ++ string_of_int(row),
     )
-  | (Some((nearest_col, rev_path)), None) => ((row, nearest_col), rev_path)
+  | (Some((nearest_col, rev_path)), None)
   | (None, Some((nearest_col, rev_path))) => ((row, nearest_col), rev_path)
   | (Some((col', rev_path)), _) when col' == col => ((row, col), rev_path)
   | (
-      Some((
-        col_before,
-        (CursorPosition.OnText(start_index), rev_steps_before),
-      )),
+      Some((col_before, (CursorPosition.OnText(_), rev_steps_before))),
       Some((_, (CursorPosition.OnText(_), rev_steps_after))),
     )
       when
         rev_steps_before === rev_steps_after
         || rev_steps_before == rev_steps_after => (
       (row, col),
-      (OnText(start_index + col - col_before), rev_steps_before),
+      (OnText(col - col_before), rev_steps_before),
     )
   | (Some((col_before, rev_path_before)), Some((col_after, rev_path_after))) =>
-    if (col - col_before <= col_after - col) {
-      ((row, col_before), rev_path_before);
-    } else {
-      ((row, col_after), rev_path_after);
-    }
+    col - col_before <= col_after - col
+      ? ((row, col_before), rev_path_before)
+      : ((row, col_after), rev_path_after)
   };
 };
 
@@ -236,34 +229,32 @@ let find_beginning_of_token = ((row, col), cmap) => {
   };
 };
 
-let move_up = ((row, col), cmap): option(binding) => {
+let move_up = ((row, col), cmap): option(binding) =>
   row <= 0 ? None : Some(cmap |> find_nearest_within_row((row - 1, col)));
-};
 
-let move_down = ((row, col), cmap): option(binding) => {
+let move_down = ((row, col), cmap): option(binding) =>
   row >= num_rows(cmap) - 1
     ? None : Some(cmap |> find_nearest_within_row((row + 1, col)));
-};
 
 let move_left =
     (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_before_within_row((row, col))) {
-  | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j > j' =>
+  | (OnText(j), _) when j > 0 =>
     Some(((row, col - 1), (OnText(j - 1), rev_steps)))
   | (_, Some(z)) => Some(z)
   | (_, None) => row == 0 ? None : Some(cmap |> end_of_row(row - 1))
   };
 
 let move_right =
-    (((row, col), (pos, rev_steps)): binding, cmap): option(binding) => {
+    (((row, col), (pos, rev_steps)): binding, cmap): option(binding) =>
   switch (pos, cmap |> find_after_within_row((row, col))) {
-  | (OnText(j), Some((_, (CursorPosition.OnText(j'), _)))) when j < j' =>
+  | (OnText(j), Some((_, (CursorPosition.OnText(_), rev_steps_after))))
+      when rev_steps === rev_steps_after || rev_steps == rev_steps_after =>
     Some(((row, col + 1), (OnText(j + 1), rev_steps)))
   | (_, Some(z)) => Some(z)
   | (_, None) =>
     row == num_rows(cmap) - 1 ? None : Some(cmap |> start_of_row(row + 1))
   };
-};
 
 let move_sol = (row, cmap): binding => cmap |> start_of_row(row);
 
