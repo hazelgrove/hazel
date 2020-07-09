@@ -1521,8 +1521,8 @@ module CheckboxLivelit: LIVELIT = {
 
 module SliderLivelit: LIVELIT = {
   let name = "$slider";
-  let expansion_ty = HTyp.Float;
-  let param_tys = [("min", HTyp.Float), ("max", HTyp.Float)];
+  let expansion_ty = HTyp.Int;
+  let param_tys = [("min", HTyp.Int), ("max", HTyp.Int)];
 
   [@deriving sexp]
   type endpoint =
@@ -1530,21 +1530,21 @@ module SliderLivelit: LIVELIT = {
     | Max;
 
   [@deriving sexp]
-  type model = option(float);
+  type model = option(int);
 
   [@deriving sexp]
   type action =
     | InvalidParams
-    | Slide(float);
+    | Slide(int);
   type trigger = action => Vdom.Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return(Some(0.));
+  let init_model = SpliceGenCmd.return(Some(0));
 
   let update = (_, a) =>
     switch (a) {
     | InvalidParams => SpliceGenCmd.return(None)
-    | Slide(f) => SpliceGenCmd.return(Some(f))
+    | Slide(n) => SpliceGenCmd.return(Some(n))
     };
 
   let view = (model, trigger: trigger, sync) => {
@@ -1619,13 +1619,7 @@ module SliderLivelit: LIVELIT = {
     };
 
     let slider =
-        (
-          ~disabled: bool,
-          ~min: float=0.0,
-          ~max: float=100.0,
-          ~value: float=50.0,
-          (),
-        ) =>
+        (~disabled: bool, ~min: int=0, ~max: int=100, ~value: int=50, ()) =>
       Node.span(
         [Attr.classes(["slider-livelit"])],
         [
@@ -1634,13 +1628,12 @@ module SliderLivelit: LIVELIT = {
             [
               Attr.classes(["slider"]),
               Attr.type_("range"),
-              Attr.create("min", FloatUtil.to_string_zero(min)),
-              Attr.create("max", FloatUtil.to_string_zero(max)),
-              Attr.create("step", "0.01"),
-              Attr.create("list", "tickmarks"),
-              Attr.value(FloatUtil.to_string_zero(value)),
+              Attr.create("min", string_of_int(min)),
+              Attr.create("max", string_of_int(max)),
+              // Attr.create("step", "0.01"),
+              Attr.value(string_of_int(value)),
               Attr.on_input((_, value_str) =>
-                trigger(Slide(float_of_string(value_str)))
+                trigger(Slide(int_of_string(value_str)))
               ),
               ...disabled ? [Attr.disabled] : [],
             ],
@@ -1651,16 +1644,15 @@ module SliderLivelit: LIVELIT = {
     ({dargs, _}: LivelitView.splice_and_param_getters) => {
       switch (dargs) {
       | Some([
-          ("min", Some((DHExp.FloatLit(min), _))),
-          ("max", Some((DHExp.FloatLit(max), _))),
+          ("min", Some((DHExp.IntLit(min), _))),
+          ("max", Some((DHExp.IntLit(max), _))),
         ])
           when min <= max =>
         let value =
           switch (model) {
-          | Some(f) when min <= f && f <= max => f
-          | Some(f) when f == 0.5 *. min +. 0.5 *. max => f
+          | Some(n) when min <= n && n <= max => n
           | _ =>
-            let new_value = 0.5 *. min +. 0.5 *. max;
+            let new_value = (min + max) / 2;
             sync(Slide(new_value));
             new_value;
           };
@@ -1679,8 +1671,8 @@ module SliderLivelit: LIVELIT = {
 
   let expand =
     fun
-    | None => UHExp.Block.wrap(UHExp.floatlit'(0.0))
-    | Some(f) => UHExp.Block.wrap(UHExp.floatlit'(f));
+    | None => UHExp.Block.wrap(UHExp.intlit'(0))
+    | Some(n) => UHExp.Block.wrap(UHExp.intlit'(n));
 };
 
 /* ----------
