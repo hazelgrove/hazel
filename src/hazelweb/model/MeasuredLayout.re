@@ -156,7 +156,8 @@ let caret_position_of_path =
       | ([], Step(_) | LivelitView(_)) => None
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
-        | (OnText(j), Text({start_index})) =>
+        | (OnText(j), Text({start_index}))
+            when start_index <= j && j <= start_index + len =>
           Some(({...start, col: start.col + (j - start_index)}, splice))
         | (OnOp(Before), Op) => Some((start, splice))
         | (OnOp(After), Op) =>
