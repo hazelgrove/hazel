@@ -399,7 +399,8 @@ module Dec = {
     );
   };
 
-  let livelit_expression_view = (subject: MeasuredLayout.t): Vdom.Node.t => {
+  let livelit_expression_view =
+      (~offset: int, subject: MeasuredLayout.t): Vdom.Node.t => {
     Vdom.(
       Node.create_svg(
         "rect",
@@ -409,6 +410,7 @@ module Dec = {
             "height",
             string_of_int(MeasuredLayout.height(subject)),
           ),
+          Attr.create("x", string_of_int(offset)),
           Attr.create("style", "fill: lightblue;"),
         ],
         [],
@@ -451,7 +453,7 @@ module Dec = {
       | VarErrHole => var_err_hole_view(~corner_radii, ~offset, subject)
       | CurrentTerm(shape) =>
         current_term_view(~corner_radii, ~offset, ~shape, subject)
-      | LivelitExpression => livelit_expression_view(subject)
+      | LivelitExpression => livelit_expression_view(~offset, subject)
       };
 
     let cls =
