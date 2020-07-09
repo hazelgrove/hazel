@@ -1,6 +1,4 @@
-//
-// Tests for the new shunting yard implementation
-// of the skel parser.
+// Test suite for the skel parser.
 let mvar = MetaVarGen.init;
 
 let%test "single operand test" = {
@@ -76,6 +74,69 @@ let%test "operator precedence test" = {
         Operators_Exp.Minus,
         Seq.S(
           IntLit(NotInHole, "2"),
+          Seq.A(
+            Operators_Exp.Plus,
+            Seq.S(
+              IntLit(NotInHole, "2"),
+              Seq.A(Operators_Exp.Times, cons_seq),
+            ),
+          ),
+        ),
+      ),
+    );
+
+  let precedence_op_skel =
+    Skel.BinOp(
+      NotInHole,
+      Operators_Exp.Cons,
+      Skel.BinOp(
+        NotInHole,
+        Operators_Exp.Plus,
+        Skel.BinOp(
+          NotInHole,
+          Operators_Exp.Minus,
+          Skel.Placeholder(0),
+          Skel.Placeholder(1),
+        ),
+        Skel.BinOp(
+          NotInHole,
+          Operators_Exp.Times,
+          Skel.Placeholder(2),
+          Skel.Placeholder(3),
+        ),
+      ),
+      Skel.BinOp(
+        NotInHole,
+        Operators_Exp.Cons,
+        Skel.Placeholder(4),
+        Skel.Placeholder(5),
+      ),
+    );
+
+  UHExp.associate(precedence_op_seq) == precedence_op_skel;
+};
+
+let%test "holey operator precedence test" = {
+  // 1 - _ + 2 * 3.2 :: 4 :: []
+  let cons_seq =
+    Seq.S(
+      UHExp.FloatLit(NotInHole, "3.2"),
+      Seq.A(
+        Operators_Exp.Cons,
+        Seq.S(
+          UHExp.IntLit(NotInHole, "4"),
+          Seq.A(Operators_Exp.Cons, Seq.S(UHExp.ListNil(NotInHole), Seq.E)),
+        ),
+      ),
+    );
+
+  let precedence_op_seq =
+    Seq.S(
+      UHExp.IntLit(NotInHole, "1"),
+      Seq.A(
+        Operators_Exp.Minus,
+        Seq.S(
+          UHExp.EmptyHole(mvar),
           Seq.A(
             Operators_Exp.Plus,
             Seq.S(
