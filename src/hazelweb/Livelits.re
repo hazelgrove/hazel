@@ -1579,7 +1579,7 @@ module SliderLivelit: LIVELIT = {
       );
     };
 
-    let tickmarks = (min: float, max: float) => {
+    let _tickmarks = (min: float, max: float) => {
       let val_of_percent = (p: int): string => {
         let p = Float.of_int(p) /. 100.0;
         Printf.sprintf("%f", (1. -. p) *. min +. p *. max);
@@ -1634,7 +1634,7 @@ module SliderLivelit: LIVELIT = {
       Node.span(
         [Attr.classes(["slider-livelit"])],
         [
-          tickmarks(min, max),
+          // tickmarks(min, max),
           Node.input(
             [
               Attr.classes(["slider"]),
