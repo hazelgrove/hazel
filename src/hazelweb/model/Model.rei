@@ -27,15 +27,8 @@ type measurements = {
 };
 
 type t = {
-  /**
-   * all cardstacks along with current cardstack,
-   * current cardstack contains current Program
-   */
   cardstacks: ZCardstacks.t,
   cell_width: int,
-  /**
-   * the instance path to the selected hole instance
-   */
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
   compute_results,
