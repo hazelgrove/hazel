@@ -1644,7 +1644,7 @@ module SliderLivelit: LIVELIT = {
               Attr.create("step", "0.01"),
               Attr.create("list", "tickmarks"),
               Attr.value(FloatUtil.to_string_zero(value)),
-              Attr.on_change((_, value_str) =>
+              Attr.on_input((_, value_str) =>
                 trigger(Slide(float_of_string(value_str)))
               ),
               ...disabled ? [Attr.disabled] : [],
