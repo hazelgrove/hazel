@@ -41,7 +41,7 @@ let cardstack_info = [
 ];
 
 let init = (): t => {
-  let cell_width = 80;
+  let cell_width = 100;
   let cardstacks = ZCardstacks.mk(~width=cell_width, cardstack_info);
   let undo_history: UndoHistory.t = {
     let cursor_term_info =
