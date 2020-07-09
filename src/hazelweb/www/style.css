@@ -47,7 +47,8 @@
 
   --matrix-cell-border-color: rgb(220, 220, 220);
 
-  --slider-livelit-height: calc(1.35em - 2px);
+  --livelit-border-thickness: 2px;
+  --slider-livelit-height: calc(1.35em - 2 * var(--livelit-border-thickness));
 
   /* necessary for hiding portions of box shadows */
   --err-hole-z: 0;
@@ -953,7 +954,7 @@ h1 {
   z-index: var(--livelit-view-z);
   position: absolute;
   border-radius: 0;
-  border: 1px solid lightblue;
+  border: var(--livelit-border-thickness) solid lightblue;
   box-sizing: border-box;
 }
 .LivelitView.Inline {
