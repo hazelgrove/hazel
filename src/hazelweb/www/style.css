@@ -47,6 +47,8 @@
 
   --matrix-cell-border-color: rgb(220, 220, 220);
 
+  --slider-livelit-height: calc(1.35em - 2px);
+
   /* necessary for hiding portions of box shadows */
   --err-hole-z: 0;
   --para-border-z: 1;
@@ -951,7 +953,7 @@ h1 {
   z-index: var(--livelit-view-z);
   position: absolute;
   border-radius: 0;
-  border: 2px solid lightblue;
+  border: 1px solid lightblue;
   box-sizing: border-box;
 }
 .LivelitView.Inline {
@@ -1066,10 +1068,9 @@ h1 {
 }
 
 .slider-livelit {
-  display: inline-grid;
-  grid-template-rows: auto;
-  grid-template-columns: auto auto auto;
-  column-gap: 3px;
+  display: inline-block;
+  height: var(--slider-livelit-height);
+  width: 200px;
 }
 
 .slider-livelit .min-input,
@@ -1091,6 +1092,94 @@ h1 {
   background-color: rgb(248, 200, 200);
   color: red;
 }
+
+input.slider[type=range]{
+  -webkit-appearance: none;
+  width: 200px;
+  height: var(--slider-livelit-height);
+}
+
+input.slider[type=range]::-webkit-slider-runnable-track {
+  width: 200px;
+  height: 2px;
+  background: #ccc;
+  border: none;
+}
+.slider-livelit::before {
+  position: absolute;
+  width: 200px;
+  height: 4px;
+  background:linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+  /*linear-gradient(to right,
+    white 0%,
+    white 10%,
+    black 10%,
+    black 11%,
+    white 11%
+    white 100%);*/
+}
+
+input.slider[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  border: none;
+  height: 16px;
+  width: 10px;
+  border-radius: 2.5px;
+  margin-top: -7px;
+
+  box-shadow: 1px 1px 0.5px #333;
+  border: 1px solid #333;
+  background: #ffffff;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+input.slider[type=range]:focus {
+  outline: none;
+}
+
+input.slider[type=range]:focus::-webkit-slider-runnable-track {
+  background: #ccc;
+}
+/*
+input.slider {
+  -webkit-appearance: none;
+  display: block;
+  height: 4px;
+  width: 100px;
+}
+
+input.slider::-moz-range-track,
+input.slider::-ms-track,
+input.slider::-webkit-slider-runnable-track {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+}
+
+input.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  border: 1px solid white;
+  height: 10px;
+  width: 5px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.8);
+  height: 100%;
+}
+
+input.slider::-webkit-slider-runnable-track,
+input.slider::-moz-range-track {
+  padding: 0 4px;
+  background: repeating-linear-gradient(to right,
+    #ccc,
+    #ccc 10%,
+    #000 10%,
+    #000 11%,
+    #ccc 11%,
+    #ccc 20%);
+}
+*/
 
 .color-livelit {
   display: inline-block;

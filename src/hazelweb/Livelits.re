@@ -1526,8 +1526,8 @@ module CheckboxLivelit: LIVELIT = {
 
 module SliderLivelit: LIVELIT = {
   let name = "$slider";
-  let expansion_ty = HTyp.Int;
-  let param_tys = [("min", HTyp.Int), ("max", HTyp.Int)];
+  let expansion_ty = HTyp.Float;
+  let param_tys = [("min", HTyp.Float), ("max", HTyp.Float)];
 
   [@deriving sexp]
   type endpoint =
@@ -1535,25 +1535,27 @@ module SliderLivelit: LIVELIT = {
     | Max;
 
   [@deriving sexp]
-  type model = int;
+  type model = option(float);
 
   [@deriving sexp]
   type action =
-    | Slide(int);
+    | InvalidParams
+    | Slide(float);
   type trigger = action => Vdom.Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return(0);
+  let init_model = SpliceGenCmd.return(Some(0.));
 
   let update = (_, a) =>
     switch (a) {
-    | Slide(n) => SpliceGenCmd.return(n)
+    | InvalidParams => SpliceGenCmd.return(None)
+    | Slide(f) => SpliceGenCmd.return(Some(f))
     };
 
-  let view = (model, trigger: trigger, _) => {
+  let view = (model, trigger: trigger, sync) => {
     open Vdom;
 
-    let endpoint_view = (cls, value) => {
+    let _endpoint_view = (cls, value) => {
       let padding = "3px";
       let val_str = string_of_int(value);
       Node.label(
@@ -1577,62 +1579,113 @@ module SliderLivelit: LIVELIT = {
       );
     };
 
-    ({dargs, _}: LivelitView.splice_and_param_getters) => {
-      let (min_valid, min_val, max_valid, max_val) =
-        switch (dargs) {
-        | None => (false, model - 1, false, model + 1)
-        | Some([("min", min'), ("max", max')]) =>
-          switch (min', max') {
-          | (Some((DHExp.IntLit(min'), _)), Some((DHExp.IntLit(max'), _))) => (
-              true,
-              min',
-              true,
-              max',
-            )
-          | (Some((DHExp.IntLit(min'), _)), _) => (
-              true,
-              min',
-              false,
-              max(min', model) + 1,
-            )
-          | (_, Some((DHExp.IntLit(max'), _))) => (
-              false,
-              min(max', model - 1),
-              true,
-              max',
-            )
-          | _ => (false, model - 1, false, model + 1)
-          }
-        | _ => failwith("Wrong $slider params")
-        };
+    let tickmarks = (min: float, max: float) => {
+      let val_of_percent = (p: int): string => {
+        let p = Float.of_int(p) /. 100.0;
+        Printf.sprintf("%f", (1. -. p) *. min +. p *. max);
+      };
+      Vdom.(
+        Node.create(
+          "datalist",
+          [Attr.id("tickmarks")],
+          [
+            Node.option(
+              [
+                Attr.create("value", val_of_percent(0)),
+                Attr.create("label", "0%"),
+              ],
+              [],
+            ),
+            Node.option([Attr.create("value", val_of_percent(10))], []),
+            Node.option([Attr.create("value", val_of_percent(20))], []),
+            Node.option([Attr.create("value", val_of_percent(30))], []),
+            Node.option([Attr.create("value", val_of_percent(40))], []),
+            Node.option(
+              [
+                Attr.create("value", val_of_percent(50)),
+                Attr.create("label", "50%"),
+              ],
+              [],
+            ),
+            Node.option([Attr.create("value", val_of_percent(60))], []),
+            Node.option([Attr.create("value", val_of_percent(70))], []),
+            Node.option([Attr.create("value", val_of_percent(80))], []),
+            Node.option([Attr.create("value", val_of_percent(90))], []),
+            Node.option(
+              [
+                Attr.create("value", val_of_percent(100)),
+                Attr.create("label", "100%"),
+              ],
+              [],
+            ),
+          ],
+        )
+      );
+    };
+
+    let slider =
+        (
+          ~disabled: bool,
+          ~min: float=0.0,
+          ~max: float=100.0,
+          ~value: float=50.0,
+          (),
+        ) =>
       Node.span(
         [Attr.classes(["slider-livelit"])],
         [
-          endpoint_view(min_valid ? "min-input" : "err", min_val),
+          tickmarks(min, max),
           Node.input(
             [
               Attr.classes(["slider"]),
               Attr.type_("range"),
-              Attr.create("min", string_of_int(min_val)),
-              Attr.create("max", string_of_int(max_val)),
-              Attr.value(string_of_int(model)),
-              Attr.on_change((_, value_str) => {
-                let new_value =
-                  max(min(int_of_string(value_str), max_val), min_val);
-                trigger(Slide(new_value));
-              }),
+              Attr.create("min", FloatUtil.to_string_zero(min)),
+              Attr.create("max", FloatUtil.to_string_zero(max)),
+              Attr.create("step", "0.01"),
+              Attr.create("list", "tickmarks"),
+              Attr.value(FloatUtil.to_string_zero(value)),
+              Attr.on_change((_, value_str) =>
+                trigger(Slide(float_of_string(value_str)))
+              ),
+              ...disabled ? [Attr.disabled] : [],
             ],
             [],
           ),
-          endpoint_view(max_valid ? "max-input" : "err", max_val),
         ],
       );
+    ({dargs, _}: LivelitView.splice_and_param_getters) => {
+      switch (dargs) {
+      | Some([
+          ("min", Some((DHExp.FloatLit(min), _))),
+          ("max", Some((DHExp.FloatLit(max), _))),
+        ])
+          when min <= max =>
+        let value =
+          switch (model) {
+          | Some(f) when min <= f && f <= max => f
+          | Some(f) when f == 0.5 *. min +. 0.5 *. max => f
+          | _ =>
+            let new_value = 0.5 *. min +. 0.5 *. max;
+            sync(Slide(new_value));
+            new_value;
+          };
+        slider(~disabled=false, ~min, ~max, ~value, ());
+      | _ =>
+        switch (model) {
+        | None => ()
+        | Some(_) => sync(InvalidParams)
+        };
+        slider(~disabled=true, ());
+      };
     };
   };
 
-  let view_shape = _ => LivelitView.Inline(20);
+  let view_shape = _ => LivelitView.Inline(24);
 
-  let expand = model => UHExp.Block.wrap(UHExp.intlit'(model));
+  let expand =
+    fun
+    | None => UHExp.Block.wrap(UHExp.floatlit'(0.0))
+    | Some(f) => UHExp.Block.wrap(UHExp.floatlit'(f));
 };
 
 /* ----------
