@@ -1,13 +1,17 @@
 module Vdom = Virtual_dom.Vdom;
-open Sexplib;
 
 type err_state_b =
   | TypeInconsistency
   | BindingError
   | OK;
 
+let inconsistent_symbol =
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["inconsistent-symbol"])],
+    [Vdom.Node.text(UnicodeConstants.inconsistent)],
+  );
+
 let rec advanced_summary = (typed: CursorInfo_common.typed) => {
-  print_endline(Sexp.to_string(CursorInfo_common.sexp_of_typed(typed)));
   switch (typed) {
   | Analyzed(ty)
   | AnaAnnotatedLambda(ty, _)
@@ -21,21 +25,26 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
   | SynErrorArrow(expected_ty, got_ty)
   | PatAnaTypeInconsistent(expected_ty, got_ty) => [
       Vdom.Node.text(":"),
-      HTypCode.view(got_ty),
-      Vdom.Node.text(UnicodeConstants.inconsistent),
       HTypCode.view(expected_ty),
+      inconsistent_symbol,
+      HTypCode.view(got_ty),
     ]
   | AnaWrongLength(expected_len, got_len, _expected_ty)
   | PatAnaWrongLength(expected_len, got_len, _expected_ty) => [
-      Vdom.Node.text(string_of_int(got_len) ++ "-tuple"),
-      Vdom.Node.text(UnicodeConstants.inconsistent),
       Vdom.Node.text(string_of_int(expected_len) ++ "-tuple"),
+      inconsistent_symbol,
+      Vdom.Node.text(string_of_int(got_len) ++ "-tuple"),
     ]
   | AnaInvalid(_)
   | SynInvalid
   | SynInvalidArrow(_)
   | PatAnaInvalid(_) => [Vdom.Node.text("Invalid Text")]
-  | AnaFree(_)
+  | AnaFree(expected_ty) => [
+      Vdom.Node.text(":"),
+      HTypCode.view(expected_ty),
+      inconsistent_symbol,
+      Vdom.Node.text("Free Variable"),
+    ]
   | SynFree
   | SynFreeArrow(_) => [Vdom.Node.text("Free Variable")]
   | AnaKeyword(_, _)
@@ -51,9 +60,9 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
       } else {
         [
           Vdom.Node.text(":"),
-          HTypCode.view(got_ty),
-          Vdom.Node.text(UnicodeConstants.inconsistent),
           HTypCode.view(ty),
+          inconsistent_symbol,
+          HTypCode.view(got_ty),
         ];
       }
     | (InconsistentBranchTys(_), _) => [

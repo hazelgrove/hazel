@@ -332,6 +332,16 @@ html, body {
   padding: 5px;
 }
 
+/* TODO Hannah if stick with this, see if can combine with circle icons somehow - maybe do some refactoring */
+.type-info-summary .inconsistent-symbol {
+  background-color:white;
+  font-size: var(--code-font-size);
+  font-weight: bold;
+  font-family: var(--code-font-family);
+  border-radius:100%;
+  text-align: center;
+}
+
 .ci-arrow {
   color: grey;
   cursor: pointer;
@@ -369,7 +379,7 @@ html, body {
 	background-color: #ce5f00;
 }
 
-/* TODO: Hannah maybe refactor these colors (if don't change them) */
+/* TODO: Hannah maybe refactor these colors (if don't change them) -- probably at least make CSS vars */
 .cursor-OK .type-info-summary {
   background-color: var(--title-bar-color);
 }
@@ -378,16 +388,16 @@ html, body {
   background-color: #8e0000;
 }
 
-.cursor-InvalidEscape .type-info-summary {
-  background-color: #8e0000;
-}
-
 .cursor-BindingError .type-info-summary {
   background-color: #ce5f00;
 }
 
-.cursor-Keyword .type-info-summary {
-	background-color: #ce5f00;
+.cursor-TypeInconsistency .type-info-summary .inconsistent-symbol {
+  color: #8e0000;
+}
+
+.cursor-BindingError .type-info-summary .inconsistent-symbol {
+  color: #ce5f00;
 }
 
 .typebar, .infobar {
