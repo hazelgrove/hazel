@@ -467,8 +467,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 type ack_checkin =
   | Added;
 
-[@warning "-32"]
-let check_actions = (a: Action_common.t) =>
+let _check_actions = (a: Action_common.t) =>
   switch (a) {
   /* Used */
   | Backspace => Added

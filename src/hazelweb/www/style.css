@@ -1,8 +1,15 @@
 @font-face {
   font-family: 'Fira Code';
   font-style: normal;
-  font-weight: 400;
-  src: local('Fira Code Regular'), local('FiraCode-Regular'), url('fonts/FiraCode-Regular.woff2') format('woff2');
+  font-weight: normal;
+  src: url('fonts/FiraCode-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: bold;
+  src: url('fonts/FiraCode-SemiBold.woff2') format('woff2');
 }
 
 :root {
@@ -182,10 +189,6 @@ html, body {
   overflow: hidden;
 }
 
-#collapsible-right-bar {
-
-}
-
 .sidebar {
   width: auto;
   height: 100%;
@@ -263,14 +266,6 @@ html, body {
   flex-shrink: 0;
   transition: width 0.3s ease;
   height: 100%;
-}
-
-#left-bar-body-padding {
-
-}
-
-#right-bar-body-padding {
-
 }
 
 .sidebar-body-padding-expanded {
@@ -823,11 +818,13 @@ h1 {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
+  font-variant-ligatures: none;
 }
 .code.presentation * {
   position: relative;
 }
 .code.presentation .Term.Rule,
+.code.presentation .Term.Invalid,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
@@ -841,6 +838,7 @@ h1 {
 }
 .code-delim {
   font-weight: bold;
+  font-variant-ligatures: normal;
 }
 
 .DHCode .Align {
@@ -951,6 +949,10 @@ h1 {
 }
 */
 
+.Invalid {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
 .InHole {
   border: 1px dashed var(--err-hole-color);
   margin: -1px;
@@ -1090,9 +1092,17 @@ h1 {
   border-radius: var(--code-radius);
 }
 
+.Cursor.Term.Exp.Invalid.no-children {
+  background-color: var(--exp-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
 .Cursor.Term.Exp.Operand.no-children {
   background-color: var(--exp-bg-color);
   box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
+.Cursor.Term.Pat.Invalid.no-children {
+  background-color: var(--pat-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
 }
 .Cursor.Term.Pat.Operand.no-children {
   background-color: var(--pat-bg-color);
@@ -1471,7 +1481,7 @@ h1 {
 .history-entry {
   border: 1px outset #ffffff;
   width: 100%;
-  display: grid; 
+  display: grid;
   padding: 5px;
   position: relative;
 }
@@ -1492,7 +1502,7 @@ h1 {
   margin-right:10px;
   font-size: 11px;
   padding:5px;
-  font-weight: bolder; 
+  font-weight: bolder;
   float: left;
 }
 .history-type-tag-typ{
