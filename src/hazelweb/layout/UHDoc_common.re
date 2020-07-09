@@ -696,13 +696,17 @@ let mk_AbbrevLine =
     Doc.(hcats([space_, ...args] @ [space_]));
   };
   let old_ll_group =
-    Doc.hseps([
-      mk_text(~start_index=LivelitName.length(lln_new) + 1, lln_old),
-      inline_choice,
+    Doc.hcats([
+      space_,
+      Doc.hseps([
+        mk_text(~start_index=LivelitName.length(lln_new) + 1, lln_old),
+        inline_choice,
+      ]),
+      space_,
     ])
-    |> annot_Tessera;
+    |> annot_OpenChild(~is_inline=true);
   let close_group = Delim.in_AbbrevLine() |> annot_Tessera;
-  Doc.hseps([open_group, old_ll_group, close_group]);
+  Doc.hcats([open_group, old_ll_group, close_group]);
 };
 
 let pad_operator =
