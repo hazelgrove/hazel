@@ -92,6 +92,15 @@ let scroll_history_panel_entry = entry_elem => {
   };
 };
 
+let livelit_sync_queue = ref([]);
+let sync_livelit = (a: ModelAction.t): unit => {
+  livelit_sync_queue := [a, ...livelit_sync_queue^];
+};
+let schedule_sync = (~schedule_action: ModelAction.t => unit): unit => {
+  List.iter(schedule_action, livelit_sync_queue^);
+  livelit_sync_queue := [];
+};
+
 let create =
     (
       model: Incr.t(Model.t),
@@ -111,7 +120,7 @@ let create =
       ~apply_action=Update.apply_action(model),
       // for things that require actual DOM manipulation post-render
       ~on_display=
-        (_, ~schedule_action as _) => {
+        (_, ~schedule_action) => {
           if (!Model.get_undo_history(model).disable_auto_scrolling) {
             switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
             | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
@@ -129,9 +138,10 @@ let create =
             restart_cursor_animation(caret_elem);
             scroll_cursor_into_view_if_needed(caret_elem);
           };
+          schedule_sync(~schedule_action);
         },
       model,
-      Page.view(~inject, model),
+      Page.view(~inject, ~sync_livelit, model),
     )
   );
 };

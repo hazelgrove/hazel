@@ -591,6 +591,7 @@ and decoration_views =
       ~caret_pos: CaretPosition.t,
       ~selected_instances,
       ~llii,
+      ~sync_livelit,
       ds: Decorations.t,
       (l, splice_ls): UHLayout.with_splices,
     )
@@ -652,13 +653,15 @@ and decoration_views =
       | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
         // TODO(livelit definitions): thread ctx
         let ctx = Livelits.initial_livelit_view_ctx;
-        let (llview, _) =
+        let (llview: Livelits.serialized_view_fn_t, _) =
           VarMap.lookup(ctx, base_llname)
           |> OptUtil.get(() => failwith("undefined livelit " ++ base_llname));
 
         let trigger = serialized_action =>
           inject(ModelAction.LivelitAction(llu, serialized_action));
-        let livelit_view = llview(m, trigger);
+        let sync = serialized_action =>
+          sync_livelit(ModelAction.LivelitAction(llu, serialized_action));
+        let livelit_view = llview(m, trigger, sync);
         let vs = {
           let uhcode = splice_name => {
             let splice_l =
@@ -923,6 +926,7 @@ let view =
       ~is_mac: bool,
       ~llii: LivelitInstanceInfo.t,
       ~selected_instances: UserSelectedInstances.t,
+      ~sync_livelit,
       program: Program.t,
     )
     : Vdom.Node.t =>
@@ -959,6 +963,7 @@ let view =
           ~caret_pos,
           ~selected_instances,
           ~llii,
+          ~sync_livelit,
           ds,
           (l, splice_ls),
         );

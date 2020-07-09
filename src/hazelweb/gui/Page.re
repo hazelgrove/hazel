@@ -101,7 +101,8 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
-let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
+let view =
+    (~inject: ModelAction.t => Vdom.Event.t, ~sync_livelit, model: Model.t) => {
   TimeUtil.measure_time(
     "Page.view",
     model.measurements.measurements && model.measurements.page_view,
@@ -193,7 +194,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             [Attr.classes(["card-caption"])],
                             [card.info.caption],
                           ),
-                          Cell.view(~inject, model),
+                          Cell.view(~inject, ~sync_livelit, model),
                           cell_status,
                           cardstack_controls(~inject, model),
                         ],

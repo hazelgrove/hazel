@@ -32,10 +32,11 @@ module type LIVELIT = {
   [@deriving sexp]
   type action;
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
-  let view: (model, trigger) => LivelitView.t;
+  let view: (model, trigger, sync) => LivelitView.t;
   let view_shape: model => LivelitView.shape;
   let expand: model => UHExp.t;
 };
@@ -62,9 +63,11 @@ module LivelitAdapter = (L: LIVELIT) => {
         L.expand(L.model_of_sexp(serialized_model)),
     };
 
-  let serialized_view_fn = (serialized_model, update_fn) =>
-    L.view(L.model_of_sexp(serialized_model), action =>
-      update_fn(L.sexp_of_action(action))
+  let serialized_view_fn = (serialized_model, trigger, sync) =>
+    L.view(
+      L.model_of_sexp(serialized_model),
+      action => trigger(L.sexp_of_action(action)),
+      action => sync(L.sexp_of_action(action)),
     );
 
   let serialized_view_shape_fn = serialized_model =>
@@ -79,8 +82,9 @@ module LivelitAdapter = (L: LIVELIT) => {
 };
 
 type trigger_serialized = SerializedAction.t => Vdom.Event.t;
+type sync_serialized = SerializedAction.t => unit;
 type serialized_view_fn_t =
-  (SerializedModel.t, trigger_serialized) => LivelitView.t;
+  (SerializedModel.t, trigger_serialized, sync_serialized) => LivelitView.t;
 type serialized_view_shape_fn_t = SerializedModel.t => LivelitView.shape;
 
 module LivelitViewCtx = {
@@ -150,6 +154,7 @@ module PairLivelit: LIVELIT = {
   [@deriving sexp]
   type action = unit;
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let init_model =
     SpliceGenCmd.bind(SpliceGenCmd.new_splice(HTyp.Hole), leftID =>
@@ -162,6 +167,7 @@ module PairLivelit: LIVELIT = {
   let view =
       (
         (leftID, rightID),
+        _,
         _,
         {uhcode, _}: LivelitView.splice_and_param_getters,
       ) =>
@@ -210,6 +216,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     | Add(dim)
     | Del(dim, int);
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let init_height = 2;
   let init_width = 2;
@@ -315,6 +322,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
       (
         (selected, m),
         trig,
+        _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
     open Vdom;
@@ -543,6 +551,7 @@ module GradeCutoffLivelit: LIVELIT = {
     | DragGrade(letter_grade, int);
 
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let init_model =
     SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selected_grade: None});
@@ -771,6 +780,7 @@ module GradeCutoffLivelit: LIVELIT = {
       (
         {a, b, c, d, selected_grade},
         trig,
+        _,
         {dargs, _}: LivelitView.splice_and_param_getters,
       ) => {
     let data_opt =
@@ -1017,6 +1027,7 @@ module ColorLivelit: LIVELIT = {
     | SelectSatVal(float, float)
     | SelectHue(int);
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let update_hsv = (hsv, model) => {
     let (r, g, b) = model.rgb;
@@ -1064,6 +1075,7 @@ module ColorLivelit: LIVELIT = {
       (
         {rgb: (r, g, b), a, hsv, is_open: _, selecting_sat_val},
         trigger,
+        _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
     open Vdom;
@@ -1330,6 +1342,7 @@ module GradientLivelit: LIVELIT = {
   type action =
     | Slide(int);
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let slider_min = 0;
   let slider_max = 100;
@@ -1360,7 +1373,7 @@ module GradientLivelit: LIVELIT = {
     };
 
   let view =
-      (model, trigger, {uhcode, _}: LivelitView.splice_and_param_getters) => {
+      (model, trigger, _, {uhcode, _}: LivelitView.splice_and_param_getters) => {
     Vdom.(
       Node.span(
         [Attr.classes(["gradient-livelit"])],
@@ -1485,11 +1498,12 @@ module CheckboxLivelit: LIVELIT = {
   type action =
     | Toggle;
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(false);
   let update = (m, Toggle) => SpliceGenCmd.return(!m);
 
-  let view = (m, trig) => {
+  let view = (m, trig, _) => {
     let checked_state = m ? [Vdom.Attr.checked] : [];
     let input_elt =
       Vdom.(
@@ -1527,6 +1541,7 @@ module SliderLivelit: LIVELIT = {
   type action =
     | Slide(int);
   type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(0);
 
@@ -1535,7 +1550,7 @@ module SliderLivelit: LIVELIT = {
     | Slide(n) => SpliceGenCmd.return(n)
     };
 
-  let view = (model, trigger: trigger) => {
+  let view = (model, trigger: trigger, _) => {
     open Vdom;
 
     let endpoint_view = (cls, value) => {

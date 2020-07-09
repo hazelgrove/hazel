@@ -11,6 +11,7 @@ let view:
     ~is_mac: bool,
     ~llii: LivelitInstanceInfo.t,
     ~selected_instances: UserSelectedInstances.t,
+    ~sync_livelit: ModelAction.t => unit,
     Program.t
   ) =>
   Vdom.Node.t;

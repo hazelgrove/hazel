@@ -10,7 +10,7 @@ let focus = () => {
   JSUtil.force_get_elem_by_id("cell")##focus;
 };
 
-let view = (~inject, model: Model.t) => {
+let view = (~inject, ~sync_livelit, model: Model.t) => {
   TimeUtil.measure_time(
     "Cell.view",
     model.measurements.measurements && model.measurements.cell_view,
@@ -35,6 +35,7 @@ let view = (~inject, model: Model.t) => {
                 ~is_mac=model.is_mac,
                 ~selected_instances=model.selected_instances,
                 ~llii,
+                ~sync_livelit,
                 program,
               ),
             ],
