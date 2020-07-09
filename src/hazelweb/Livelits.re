@@ -1062,7 +1062,7 @@ module ColorLivelit: LIVELIT = {
 
   let view =
       (
-        {rgb: (r, g, b), a, hsv, is_open, selecting_sat_val},
+        {rgb: (r, g, b), a, hsv, is_open: _, selecting_sat_val},
         trigger,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
@@ -1087,7 +1087,7 @@ module ColorLivelit: LIVELIT = {
       | _ => None
       };
 
-    let color_box = {
+    let _color_box = {
       let on_click = Attr.on_click(_ => trigger(Open));
       switch (rgba_values) {
       | None =>
@@ -1142,6 +1142,8 @@ module ColorLivelit: LIVELIT = {
     };
 
     let color_picker = {
+      let height = 135.0;
+      let width = 135.0;
       let sat_val_box =
         switch (rgba_values) {
         | None => []
@@ -1149,8 +1151,6 @@ module ColorLivelit: LIVELIT = {
           let (h, s, v) = hsv;
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
           // let (_h, s, v) = hsv_of_rgb(rgb);
-          let height = 150.0;
-          let width = 150.0;
           let px = Printf.sprintf("%f0px");
           [
             Node.div(
@@ -1223,8 +1223,26 @@ module ColorLivelit: LIVELIT = {
         );
       let (h, _, _) = hsv;
       Node.div(
-        [Attr.classes(["color-picker", is_open ? "open" : "closed"])],
         [
+          Attr.classes([
+            "color-picker",
+            "open" /*is_open ? "open" : "closed"*/,
+          ]),
+        ],
+        [
+          Node.div(
+            [Attr.classes(["rgb-picker"])],
+            [
+              splice_label("R"),
+              splice(r),
+              splice_label("G"),
+              splice(g),
+              splice_label("B"),
+              splice(b),
+              splice_label("A"),
+              splice(a),
+            ],
+          ),
           Node.div(
             [Attr.classes(["hsv-picker"])],
             sat_val_box
@@ -1242,6 +1260,10 @@ module ColorLivelit: LIVELIT = {
                       Attr.on_input((_, value_str) =>
                         trigger(SelectHue(int_of_string(value_str)))
                       ),
+                      Attr.create(
+                        "style",
+                        Printf.sprintf("width: %fpx;", height),
+                      ),
                     ],
                     [],
                   ),
@@ -1249,37 +1271,26 @@ module ColorLivelit: LIVELIT = {
               ),
             ],
           ),
-          Node.div(
-            [Attr.classes(["rgb-picker"])],
-            [
-              splice_label("R"),
-              splice(r),
-              splice_label("G"),
-              splice(g),
-              splice_label("B"),
-              splice(b),
-              splice_label("A"),
-              splice(a),
-            ],
-          ),
         ],
       );
     };
-    let modal_overlay =
-      Node.div(
-        [
-          Attr.classes(["modal-overlay", is_open ? "open" : "closed"]),
-          Attr.on_click(_ => trigger(Close)),
-        ],
-        [],
-      );
+    /*
+     let modal_overlay =
+       Node.div(
+         [
+           Attr.classes(["modal-overlay", is_open ? "open" : "closed"]),
+           Attr.on_click(_ => trigger(Close)),
+         ],
+         [],
+       );
+     */
     Node.div(
       [Attr.classes(["color-livelit"])],
-      [color_box, color_picker, modal_overlay],
+      [/*color_box,*/ color_picker] // modal_overlay],
     );
   };
 
-  let view_shape = _ => LivelitView.Inline(2);
+  let view_shape = _ => LivelitView.MultiLine(10);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =

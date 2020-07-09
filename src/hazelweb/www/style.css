@@ -1121,14 +1121,18 @@ h1 {
 }
 .color-livelit .color-picker.open {
   z-index: var(--color-picker-z);
-  position: absolute;
+  /*position: absolute;
   top: 1.2ch;
-  left: 0;
+  left: 0;*/
   background-color: white;
   border-radius: 0;
-  border: 1px solid black;
+  /*border: 1px solid black;*/
   padding: 8px;
   cursor: default;
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 8px;
+  align-items: top;
 }
 .color-livelit .modal-overlay.closed {
   display: none;
@@ -1143,12 +1147,11 @@ h1 {
   background-color: transparent;
 }
 .color-livelit .color-picker .rgb-picker {
-  margin-top: 8px;
   display: grid;
   grid-template-rows: auto auto auto;
-  grid-template-columns: 16px auto;
-  column-gap: 8px;
-  row-gap: 8px;
+  grid-template-columns: 12px auto;
+  column-gap: 4px;
+  row-gap: 4px;
   align-items: center;
 }
 .color-livelit .color-picker .rgb-picker .splice-label {
@@ -1159,7 +1162,7 @@ h1 {
 .color-livelit .color-picker .rgb-picker .splice-content {
   border: 1px solid lightgray;
   position: relative;
-  padding: 4px;
+  padding: 2px 4px;
   display: grid;
   justify-items: left;
 }
@@ -1179,7 +1182,6 @@ h1 {
   display: block;
   transform-origin: top left;
   transform: rotate(90deg) translate(0, -100%);
-  width: 150px;
   height: 20px;
   cursor: grab;
 }
