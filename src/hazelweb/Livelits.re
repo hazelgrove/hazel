@@ -906,14 +906,14 @@ module GradeCutoffLivelit: LIVELIT = {
 
 module ColorLivelit: LIVELIT = {
   let name = "$color";
-  let expansion_ty = HTyp.Prod([Float, Float, Float, Float]);
+  let expansion_ty = HTyp.Prod([Int, Int, Int, Int]);
   let param_tys = [];
 
   // https://github.com/microsoft/vscode/blob/6d4f8310a96ae2dfb7eaa8d1807774fb14b3b263/src/vs/base/common/color.ts#L197
   let hsv_of_rgb = ((r, g, b)) => {
-    let r = r /. 255.0;
-    let g = g /. 255.0;
-    let b = b /. 255.0;
+    let r = Float.of_int(r) /. 255.0;
+    let g = Float.of_int(g) /. 255.0;
+    let b = Float.of_int(b) /. 255.0;
     let cmax = max(r, max(g, b));
     let cmin = min(r, min(g, b));
     let delta = cmax -. cmin;
@@ -958,9 +958,9 @@ module ColorLivelit: LIVELIT = {
         (0.0, 0.0, 0.0);
       };
     (
-      Float.round((r +. m) *. 255.0),
-      Float.round((g +. m) *. 255.0),
-      Float.round((b +. m) *. 255.0),
+      Float.to_int(Float.round((r +. m) *. 255.0)),
+      Float.to_int(Float.round((g +. m) *. 255.0)),
+      Float.to_int(Float.round((b +. m) *. 255.0)),
     );
   };
 
@@ -973,35 +973,35 @@ module ColorLivelit: LIVELIT = {
     selecting_sat_val: bool,
   };
   let init_model = {
-    let (rval, gval, bval) as rgb_vals = (255.0, 0.0, 0.0);
+    let (rval, gval, bval) as rgb_vals = (255, 0, 0);
     let hsv = hsv_of_rgb(rgb_vals);
     SpliceGenCmd.(
       bind(
         new_splice(
           ~init_uhexp_gen=
-            u_gen => (UHExp.(Block.wrap(floatlit'(rval))), u_gen),
-          HTyp.Float,
+            u_gen => (UHExp.(Block.wrap(intlit'(rval))), u_gen),
+          HTyp.Int,
         ),
         r =>
         bind(
           new_splice(
             ~init_uhexp_gen=
-              u_gen => (UHExp.(Block.wrap(floatlit'(gval))), u_gen),
-            HTyp.Float,
+              u_gen => (UHExp.(Block.wrap(intlit'(gval))), u_gen),
+            HTyp.Int,
           ),
           g =>
           bind(
             new_splice(
               ~init_uhexp_gen=
-                u_gen => (UHExp.(Block.wrap(floatlit'(bval))), u_gen),
-              HTyp.Float,
+                u_gen => (UHExp.(Block.wrap(intlit'(bval))), u_gen),
+              HTyp.Int,
             ),
             b =>
             bind(
               new_splice(
                 ~init_uhexp_gen=
-                  u_gen => (UHExp.(Block.wrap(floatlit'(1.0))), u_gen),
-                HTyp.Float,
+                  u_gen => (UHExp.(Block.wrap(intlit'(255))), u_gen),
+                HTyp.Int,
               ),
               a =>
               return({
@@ -1035,17 +1035,17 @@ module ColorLivelit: LIVELIT = {
     SpliceGenCmd.(
       bind(
         map_splice(r, (_, u_gen) =>
-          ((HTyp.Float, UHExp.(Block.wrap(floatlit'(rval)))), u_gen)
+          ((HTyp.Int, UHExp.(Block.wrap(intlit'(rval)))), u_gen)
         ),
         _ =>
         bind(
           map_splice(g, (_, u_gen) =>
-            ((HTyp.Float, UHExp.(Block.wrap(floatlit'(gval)))), u_gen)
+            ((HTyp.Int, UHExp.(Block.wrap(intlit'(gval)))), u_gen)
           ),
           _ =>
           bind(
             map_splice(b, (_, u_gen) =>
-              ((HTyp.Float, UHExp.(Block.wrap(floatlit'(bval)))), u_gen)
+              ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
             ),
             _ =>
             return({...model, hsv})
@@ -1080,21 +1080,16 @@ module ColorLivelit: LIVELIT = {
       ) => {
     open Vdom;
 
-    let is_valid = color_value => 0.0 <= color_value && color_value < 256.0;
+    let is_valid = color_value => 0 <= color_value && color_value < 256;
     let rgba_values =
       switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
       | (
-          Some((FloatLit(r), _)),
-          Some((FloatLit(g), _)),
-          Some((FloatLit(b), _)),
-          Some((FloatLit(a), _)),
+          Some((IntLit(r), _)),
+          Some((IntLit(g), _)),
+          Some((IntLit(b), _)),
+          Some((IntLit(a), _)),
         )
-          when
-            is_valid(r)
-            && is_valid(g)
-            && is_valid(b)
-            && 0.0 <= a
-            && a <= 1.0 =>
+          when is_valid(r) && is_valid(g) && is_valid(b) && is_valid(a) =>
         Some((r, g, b, a))
       | _ => None
       };
@@ -1142,7 +1137,7 @@ module ColorLivelit: LIVELIT = {
             attr_style(
               prop_val(
                 "background-color",
-                Printf.sprintf("rgba(%f, %f, %f, %f)", r, g, b, a),
+                Printf.sprintf("rgba(%d, %d, %d, %d)", r, g, b, a),
               ),
             ),
             Attr.classes(["color-box"]),
@@ -1174,7 +1169,7 @@ module ColorLivelit: LIVELIT = {
                     prop_val("width", width |> px),
                     prop_val(
                       "background-color",
-                      Printf.sprintf("rgb(%f, %f, %f)", sat_r, sat_g, sat_b),
+                      Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
                     ),
                   ]),
                 ),
