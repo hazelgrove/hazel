@@ -1302,7 +1302,7 @@ module ColorLivelit: LIVELIT = {
     );
   };
 
-  let view_shape = _ => LivelitView.MultiLine(10);
+  let view_shape = _ => LivelitView.MultiLine(8);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =
