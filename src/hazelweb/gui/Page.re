@@ -117,6 +117,34 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
+let cell_controls = (~inject) =>
+  Vdom.(
+    Node.div(
+      [Attr.id("cardstack-controls")],
+      [
+        Node.div(
+          [Attr.id("button-centering-container")],
+          [
+            Node.button(
+              [
+                Attr.id("add-button"),
+                Attr.on_click(_ => inject(ModelAction.AddCell)),
+              ],
+              [Node.text("Add")],
+            ),
+            Node.button(
+              [
+                Attr.id("remove-button"),
+                Attr.on_click(_ => inject(ModelAction.RemoveCell)),
+              ],
+              [Node.text("Remove")],
+            ),
+          ],
+        ),
+      ],
+    )
+  );
+
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   TimeUtil.measure_time(
     "Page.view",
@@ -175,6 +203,16 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ],
           );
         };
+      let rec generate_cell = (~inject, model, cell_num) =>
+        if (cell_num == 1) {
+          [Cell.view(~inject, model), cell_status];
+        } else {
+          [Cell.view(~inject, model), cell_status]
+          @ generate_cell(~inject, model, cell_num - 1);
+        };
+
+      let cell = (~inject, model) =>
+        Node.div([], generate_cell(~inject, model, model.cell_num));
       Node.div(
         [Attr.id("root")],
         [
@@ -210,8 +248,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             [Attr.classes(["card-caption"])],
                             [card.info.caption],
                           ),
-                          Cell.view(~inject, model),
-                          cell_status,
+                          cell(~inject, model),
+                          cell_controls(~inject),
                           cardstack_controls(~inject, model),
                         ],
                       ),

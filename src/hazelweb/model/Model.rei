@@ -28,6 +28,7 @@ type measurements = {
 
 type t = {
   cardstacks: ZCardstacks.t,
+  cell_num: int,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
@@ -81,6 +82,9 @@ let get_selected_hole_instance: t => option(HoleInstance.t);
 
 let prev_card: t => t;
 let next_card: t => t;
+
+let add_cell: t => t;
+let remove_cell: t => t;
 
 let perform_edit_action: (Action_common.t, t) => t;
 

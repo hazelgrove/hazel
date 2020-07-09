@@ -25,6 +25,8 @@ type t =
   | LoadCardstack(int)
   | NextCard
   | PrevCard
+  | AddCell
+  | RemoveCell
   // Result computation toggles
   | ToggleComputeResults
   | ToggleShowCaseClauses

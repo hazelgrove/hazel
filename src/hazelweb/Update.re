@@ -50,6 +50,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | LoadCardstack(_)
   | NextCard
   | PrevCard
+  | AddCell
+  | RemoveCell
   | ToggleComputeResults
   | ToggleShowCaseClauses
   | ToggleShowFnBodies
@@ -137,6 +139,8 @@ let apply_action =
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
+      | AddCell => Model.add_cell(model)
+      | RemoveCell => Model.remove_cell(model)
       //
       | ToggleComputeResults => {
           ...model,
