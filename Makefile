@@ -1,6 +1,5 @@
 HTML_DIR=_build/default/src/hazelweb/www
 HTML_FILE=$(HTML_DIR)/index.html
-TEST_DIR=src/test
 
 all: dev
 
