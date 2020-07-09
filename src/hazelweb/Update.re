@@ -133,9 +133,13 @@ let apply_action =
       | MoveAction(Click(opt_splice, row_col)) =>
         model |> Model.move_via_click(opt_splice, row_col)
       | LivelitAction(llu, serialized_action) =>
+        let path = Program.get_path(Model.get_program(model));
         model
         |> Model.map_program(Program.move_to_node(Livelit, llu))
-        |> Model.perform_edit_action(PerformLivelitAction(serialized_action))
+        |> Model.perform_edit_action(
+             PerformLivelitAction(serialized_action),
+           )
+        |> Model.perform_edit_action(MoveTo(path));
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))
