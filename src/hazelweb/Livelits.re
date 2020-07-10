@@ -1582,6 +1582,308 @@ module SliderLivelit: LIVELIT = {
     | Some(n) => UHExp.Block.wrap(UHExp.intlit'(n));
 };
 
+module DataFrameLivelit: LIVELIT = {
+  let name = "$data_frame";
+  let expansion_ty = HTyp.(List(List(Int)));
+  let param_tys = [];
+
+  // assume nonzero height and width
+  [@deriving sexp]
+  type model = (SpliceName.t, list(list(SpliceName.t)));
+  [@deriving sexp]
+  type dim =
+    | Row
+    | Col;
+  [@deriving sexp]
+  type action =
+    | Select(SpliceName.t)
+    | Add(dim)
+    | Del(dim, int);
+  type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
+
+  let init_height = 2;
+  let init_width = 2;
+
+  let get_height = (m: list(list(SpliceName.t))): int => List.length(m);
+  let get_width = (m: list(list(SpliceName.t))): int =>
+    List.length(List.hd(m));
+
+  let init_model =
+    SpliceGenCmd.(
+      MonadsUtil.bind_count(
+        init_height,
+        bind(
+          MonadsUtil.bind_count(
+            init_width,
+            bind(new_splice(HTyp.Int)),
+            return,
+          ),
+        ),
+        grid =>
+        return((grid |> List.hd |> List.hd, grid))
+      )
+    );
+
+  let update = ((selected, m)) =>
+    fun
+    | Select(to_select) => {
+        let to_select_in_grid =
+          !(m |> List.for_all(List.for_all(s => s != to_select)));
+        if (!to_select_in_grid) {
+          JSUtil.log(
+            Printf.sprintf(
+              "Attempt to select splice name %d, which is not in the matrix",
+              to_select,
+            ),
+          );
+        };
+        SpliceGenCmd.return((to_select_in_grid ? to_select : selected, m));
+      }
+    | Add(Row) =>
+      SpliceGenCmd.(
+        MonadsUtil.bind_count(
+          get_width(m), bind(new_splice(HTyp.Int)), new_row =>
+          return((selected, m @ [new_row]))
+        )
+      )
+    | Add(Col) =>
+      SpliceGenCmd.(
+        MonadsUtil.bind_count(
+          get_height(m), bind(new_splice(HTyp.Int)), new_col =>
+          return((selected, List.map2((c, r) => r @ [c], new_col, m)))
+        )
+      )
+    | Del(dim, i) => {
+        let drop = (to_drop, ret) => {
+          let selected_in_to_drop =
+            !(to_drop |> List.for_all(s => s != selected));
+          let to_select =
+            selected_in_to_drop ? ret |> List.hd |> List.hd : selected;
+          SpliceGenCmd.(
+            MonadsUtil.bind_list(
+              to_drop,
+              d => bind(drop_splice(d)),
+              _ => return((to_select, ret)),
+            )
+          );
+        };
+        switch (dim) {
+        | Row =>
+          if (get_height(m) <= 1) {
+            SpliceGenCmd.return((selected, m));
+          } else {
+            let (before, rest) = ListUtil.split_index(m, i);
+            let (to_drop, after) = (List.hd(rest), List.tl(rest));
+            drop(to_drop, before @ after);
+          }
+        | Col =>
+          if (get_width(m) <= 1) {
+            SpliceGenCmd.return((selected, m));
+          } else {
+            let (before, rest) =
+              m |> List.map(r => ListUtil.split_index(r, i)) |> List.split;
+            let (to_drop, after) =
+              rest |> List.map(r => (List.hd(r), List.tl(r))) |> List.split;
+            drop(to_drop, List.map2((b, a) => b @ a, before, after));
+          }
+        };
+      };
+
+  let grid_area = (row_start, col_start, row_end, col_end) =>
+    prop_val(
+      "grid-area",
+      Printf.sprintf(
+        "%d / %d / %d / %d",
+        row_start,
+        col_start,
+        row_end,
+        col_end,
+      ),
+    );
+
+  let view =
+      (
+        (selected, m),
+        trig,
+        _,
+        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
+      ) => {
+    open Vdom;
+    let width = get_width(m);
+    let height = get_height(m);
+    let row_header =
+      ListUtil.range(height)
+      |> List.map(i =>
+           Node.div(
+             [
+               attr_style(grid_area(i + 3, 1, i + 4, 2)),
+               Attr.classes(["row-header"]),
+               Attr.on_click(_ => trig(Del(Row, i))),
+             ],
+             [
+               Node.span(
+                 [Attr.classes(["index"])],
+                 [
+                   Node.text(
+                     switch (i) {
+                     | 0 => "A1"
+                     | 1 => "A2"
+                     | 2 => "A3"
+                     | 3 => "A4"
+                     | 4 => "Midterm"
+                     | 5 => "Final"
+                     | _ => string_of_int(i + 1)
+                     },
+                   ),
+                 ],
+               ),
+               Node.span([Attr.classes(["delete"])], [Node.text("x")]),
+             ],
+           )
+         );
+    let col_header =
+      ListUtil.range(width)
+      |> List.map(j =>
+           Node.div(
+             [
+               attr_style(grid_area(1, j + 3, 2, j + 4)),
+               Attr.classes(["col-header"]),
+               Attr.on_click(_ => trig(Del(Col, j))),
+             ],
+             [
+               Node.span(
+                 [Attr.classes(["index"])],
+                 [Node.text(string_of_int(j + 1))],
+               ),
+               Node.span([Attr.classes(["delete"])], [Node.text("x")]),
+             ],
+           )
+         );
+    let add_row_button =
+      Node.button(
+        [
+          attr_style(grid_area(-1, 3, -2, -3)),
+          Attr.classes(["add-row", "pure-button"]),
+          Attr.on_click(_ => trig(Add(Row))),
+        ],
+        [Node.text("+")],
+      );
+    let add_col_button =
+      Node.button(
+        [
+          attr_style(grid_area(3, -2, -3, -1)),
+          Attr.classes(["add-col", "pure-button"]),
+          Attr.on_click(_ => trig(Add(Col))),
+        ],
+        [Node.text("+")],
+      );
+    let cells =
+      m
+      |> List.mapi((i, row) =>
+           row
+           |> List.mapi((j, splice) => {
+                let contents = {
+                  let cls =
+                    splice == selected
+                      ? "matrix-selected" : "matrix-unselected";
+                  let child =
+                    switch (dhcode(splice)) {
+                    | None => Node.text("Uneval'd")
+                    | Some((_, view)) => view
+                    };
+                  Node.div(
+                    [
+                      Attr.classes([cls]),
+                      Attr.on_mousedown(_ => trig(Select(splice))),
+                    ],
+                    [child],
+                  );
+                };
+                Node.div(
+                  [
+                    attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
+                    Attr.classes(["matrix-cell"]),
+                  ],
+                  [contents],
+                );
+              })
+         )
+      |> List.flatten;
+
+    let cells_border =
+      Node.div(
+        [
+          attr_style(grid_area(3, 3, -3, -3)),
+          Attr.classes(["cells-border"]),
+        ],
+        [],
+      );
+
+    let gutter_width = "0px";
+    let dim_template = dim =>
+      StringUtil.sep(
+        List.concat([
+          ["auto", gutter_width],
+          ListUtil.replicate(dim, "auto"),
+          ["4px", "auto"],
+        ]),
+      );
+
+    Node.div(
+      [Attr.classes(["matrix-livelit"])],
+      [
+        Node.div([], []),
+        Node.div([], [uhcode(selected)]),
+        Node.div(
+          [
+            Attr.classes(["grid-container"]),
+            attr_style(
+              StringUtil.cat([
+                prop_val("grid-template-columns", dim_template(width)),
+                prop_val("grid-template-rows", dim_template(height)),
+              ]),
+            ),
+          ],
+          List.concat([
+            row_header,
+            col_header,
+            [cells_border, ...cells],
+            [add_row_button, add_col_button],
+          ]),
+        ),
+      ],
+    );
+  };
+
+  let view_shape = ((_, matrix)) => {
+    let num_rows = List.length(matrix);
+    LivelitView.MultiLine(3 * num_rows + 3);
+  };
+
+  let expand = ((_, m)) => {
+    let to_uhexp_list =
+      fun
+      | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
+      | [fst, ...rest] => {
+          let rest' =
+            (rest |> List.map(item => (Operators_Exp.Cons, item)))
+            @ [(Operators_Exp.Cons, UHExp.ListNil(NotInHole))];
+          let seq = Seq.mk(fst, rest');
+          UHExp.Block.wrap'(UHExp.mk_OpSeq(seq));
+        };
+    let m' =
+      m
+      |> List.map(r =>
+           r
+           |> List.map(_to_uhvar)
+           |> to_uhexp_list
+           |> (q => UHExp.Parenthesized(q))
+         );
+    to_uhexp_list(m');
+  };
+};
+
 /* ----------
    stuff below is infrastructure
    ---------- */
@@ -1593,6 +1895,7 @@ module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
 module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
 module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
 module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
+module DataFrameLivelitAdapter = LivelitAdapter(DataFrameLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
   LivelitContexts.extend(
@@ -1603,7 +1906,10 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
             LivelitContexts.extend(
               LivelitContexts.extend(
                 LivelitContexts.extend(
-                  empty_livelit_contexts,
+                  LivelitContexts.extend(
+                    empty_livelit_contexts,
+                    DataFrameLivelitAdapter.contexts_entry,
+                  ),
                   GradeCutoffLivelitAdapter.contexts_entry,
                 ),
                 MatrixLivelitAdapter.contexts_entry,

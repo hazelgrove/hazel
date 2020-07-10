@@ -983,7 +983,7 @@ h1 {
   column-gap: 10px;
 }
 
-.matrix-livelit {
+.grid-container {
   display: grid;
 }
 
@@ -995,17 +995,19 @@ h1 {
   color: #444;
   display: grid;
   background-color: #EEE;
-  border-radius: 4px;
+  padding: 4px;
+  outline: 1px solid var(--matrix-cell-border-color);
+  /*border-radius: 4px;*/
 }
 .matrix-livelit .col-header {
-  width: 95%;
+  width: 100%;
   height: 100%;
   /*padding-top: 2px;
   padding-bottom: 2px;*/
 }
 .matrix-livelit .row-header {
   width: 100%;
-  height: 90%;
+  height: 100%;
 }
 .matrix-livelit .index,
 .matrix-livelit .delete {
@@ -1037,7 +1039,7 @@ h1 {
   height: 100%;
   width: 100%;
   min-width: 10ch;
-  outline: 1px solid var(--matrix-cell-border-color);
+  outline: 0.5px solid var(--matrix-cell-border-color);
   display: grid;
   grid-template-rows: auto;
   grid-template-columns: auto;
@@ -1061,7 +1063,6 @@ h1 {
 .matrix-livelit .add-row,
 .matrix-livelit .add-col {
   background-color: #EEE;
-  border-radius: 4px;
   font-size: 85%;
 }
 .matrix-livelit .add-row {
