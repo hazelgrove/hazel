@@ -68,7 +68,7 @@
   --livelit-view-z: 4;
 
   --slider-livelit-height: calc(1.35em - 2 * var(--livelit-border-thickness));
-  --slider-livelit-width: 160px;
+  --slider-livelit-width: 120px;
 
   --grade-cutoffs-slider-thumb-width: 30px;
   --grade-cutoffs-slider-thumb-height: 42px;
@@ -1370,11 +1370,16 @@ input.slider::-moz-range-track {
   background-color: white;
   border-radius: 0;
   /*border: 1px solid black;*/
-  padding: 8px;
+  padding: 4px;
   cursor: default;
   display: grid;
+  grid-template-rows: auto auto;
   grid-template-columns: auto auto;
+  grid-template-areas:
+    "swatch swatch"
+    "rgb hsv";
   column-gap: 8px;
+  row-gap: 8px;
   align-items: top;
 }
 .color-livelit .modal-overlay.closed {
@@ -1389,17 +1394,35 @@ input.slider::-moz-range-track {
   z-index: var(--color-picker-modal-overlay-z);
   background-color: transparent;
 }
+
+.color-livelit .color-picker .color-swatch {
+  grid-area: swatch;
+  height: 20px;
+  width: 100%;
+}
+
+.color-livelit .color-picker .color-swatch-label {
+  justify-self: center;
+  align-self: center;
+  font-family: "Gill Sans", sans-serif;
+  font-size: 8pt;
+  display: grid;
+}
+
+
 .color-livelit .color-picker .rgb-picker {
+  grid-area: rgb;
   display: grid;
   grid-template-rows: auto auto auto;
   grid-template-columns: 12px auto;
-  column-gap: 4px;
+  column-gap: 8px;
   row-gap: 4px;
   align-items: center;
+  margin-left: -4px;
 }
 .color-livelit .color-picker .rgb-picker .splice-label {
   font-size: 65%;
-  color: gray;
+  color: rgba(128, 128, 128, 0.712);
   padding: 0 4px;
 }
 .color-livelit .color-picker .rgb-picker .splice-content {
@@ -1411,6 +1434,7 @@ input.slider::-moz-range-track {
 }
 
 .color-livelit .color-picker .hsv-picker {
+  grid-area: hsv;
   display: grid;
   grid-template-rows: auto;
   grid-template-columns: auto auto;

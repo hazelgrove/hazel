@@ -931,7 +931,7 @@ module ColorLivelit: LIVELIT = {
     selecting_sat_val: bool,
   };
   let init_model = {
-    let (rval, gval, bval) as rgb_vals = (255, 0, 0);
+    let (rval, gval, bval) as rgb_vals = (173, 173, 173);
     let hsv = hsv_of_rgb(rgb_vals);
     SpliceGenCmd.(
       bind(
@@ -958,7 +958,7 @@ module ColorLivelit: LIVELIT = {
             bind(
               new_splice(
                 ~init_uhexp_gen=
-                  u_gen => (UHExp.(Block.wrap(intlit'(255))), u_gen),
+                  u_gen => (UHExp.(Block.wrap(intlit'(85))), u_gen),
                 HTyp.Int,
               ),
               a =>
@@ -1188,6 +1188,11 @@ module ColorLivelit: LIVELIT = {
           [uhcode(splice_name)],
         );
       let (h, _, _) = hsv;
+      let (rval, gval, bval, aval, aint) =
+        switch (rgba_values) {
+        | None => (0, 0, 0, 0.0, 0)
+        | Some((r, g, b, a)) => (r, g, b, Float.of_int(a) /. 255.0, a)
+        };
       Node.div(
         [
           Attr.classes([
@@ -1196,6 +1201,42 @@ module ColorLivelit: LIVELIT = {
           ]),
         ],
         [
+          Node.div(
+            [
+              Attr.classes(["color-swatch"]),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "background-color: rgba(%d, %d, %d, %f);",
+                  rval,
+                  gval,
+                  bval,
+                  aval,
+                ),
+              ),
+            ],
+            [
+              Node.div(
+                [Attr.classes(["color-swatch-label"])],
+                [
+                  Node.span(
+                    [],
+                    [
+                      Node.text(
+                        Printf.sprintf(
+                          "rgba(%d, %d, %d, %d)",
+                          rval,
+                          gval,
+                          bval,
+                          aint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
           Node.div(
             [Attr.classes(["rgb-picker"])],
             [
@@ -1256,7 +1297,7 @@ module ColorLivelit: LIVELIT = {
     );
   };
 
-  let view_shape = _ => LivelitView.MultiLine(8);
+  let view_shape = _ => LivelitView.MultiLine(10);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =
@@ -1626,7 +1667,7 @@ module SliderLivelit: LIVELIT = {
     };
   };
 
-  let view_shape = _ => LivelitView.Inline(18);
+  let view_shape = _ => LivelitView.Inline(14);
 
   let expand =
     fun
