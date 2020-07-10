@@ -780,8 +780,8 @@ module GradeCutoffLivelit: LIVELIT = {
               cutoff_slider(B, "b-slider", b),
               cutoff_slider(C, "c-slider", c),
               cutoff_slider(D, "d-slider", d),
-            ]
-            @ data_err_msg,
+              Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+            ],
           ),
         ],
       )
