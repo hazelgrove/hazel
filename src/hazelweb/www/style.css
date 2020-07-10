@@ -991,7 +991,8 @@ h1 {
 .matrix-livelit .row-header {
   place-self: center;
   vertical-align: text-bottom;
-  font-size: 65%;
+  /*font-size: 65%;*/
+  font-family: var(--code-font-family);
   color: #444;
   display: grid;
   background-color: #EEE;
@@ -1007,11 +1008,13 @@ h1 {
 }
 .matrix-livelit .row-header {
   width: 100%;
-  height: 100%;
+  height: 95%;
 }
-.matrix-livelit .index,
-.matrix-livelit .delete {
-  place-self: center;
+.matrix-livelit .row-index {
+  place-self: left;
+}
+.matrix-livelit .col-index {
+  place-self: left;
 }
 
 .matrix-livelit .col-header .index,
@@ -1056,8 +1059,19 @@ h1 {
   display: inline;
 }
 
-.matrix-livelit .matrix-selected {
-  background-color: lightgray;
+.matrix-livelit .matrix-cell {
+  position: relative;
+}
+.matrix-livelit .matrix-cell.matrix-selected::before {
+  content: '';
+  display: block;
+  position: absolute;
+  height: 93%;
+  width: 98%;
+  top: 1px;
+  left: 1px;
+  outline: 2.5px solid orange;
+  z-index: 100;
 }
 
 .matrix-livelit .add-row,

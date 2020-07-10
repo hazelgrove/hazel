@@ -1723,16 +1723,13 @@ module DataFrameLivelit: LIVELIT = {
              ],
              [
                Node.span(
-                 [Attr.classes(["index"])],
+                 [Attr.classes(["row-index"])],
                  [
                    Node.text(
                      switch (i) {
-                     | 0 => "A1"
-                     | 1 => "A2"
-                     | 2 => "A3"
-                     | 3 => "A4"
-                     | 4 => "Midterm"
-                     | 5 => "Final"
+                     | 0 => "\"Alice\""
+                     | 1 => "\"Bob\""
+                     | 2 => "\"Carol\""
                      | _ => string_of_int(i + 1)
                      },
                    ),
@@ -1753,8 +1750,20 @@ module DataFrameLivelit: LIVELIT = {
              ],
              [
                Node.span(
-                 [Attr.classes(["index"])],
-                 [Node.text(string_of_int(j + 1))],
+                 [Attr.classes(["col-index"])],
+                 [
+                   Node.text(
+                     switch (j) {
+                     | 0 => "\"A1\""
+                     | 1 => "\"A2\""
+                     | 2 => "\"A3\""
+                     | 3 => "\"A4\""
+                     | 4 => "\"Midterm\""
+                     | 5 => "\"Final\""
+                     | _ => string_of_int(j + 1)
+                     },
+                   ),
+                 ],
                ),
                Node.span([Attr.classes(["delete"])], [Node.text("x")]),
              ],
@@ -1783,27 +1792,23 @@ module DataFrameLivelit: LIVELIT = {
       |> List.mapi((i, row) =>
            row
            |> List.mapi((j, splice) => {
+                let cls =
+                  splice == selected ? "matrix-selected" : "matrix-unselected";
                 let contents = {
-                  let cls =
-                    splice == selected
-                      ? "matrix-selected" : "matrix-unselected";
                   let child =
                     switch (dhcode(splice)) {
                     | None => Node.text("Uneval'd")
                     | Some((_, view)) => view
                     };
                   Node.div(
-                    [
-                      Attr.classes([cls]),
-                      Attr.on_mousedown(_ => trig(Select(splice))),
-                    ],
+                    [Attr.on_mousedown(_ => trig(Select(splice)))],
                     [child],
                   );
                 };
                 Node.div(
                   [
                     attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
-                    Attr.classes(["matrix-cell"]),
+                    Attr.classes([cls, "matrix-cell"]),
                   ],
                   [contents],
                 );
