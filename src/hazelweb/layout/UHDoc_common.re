@@ -491,9 +491,11 @@ let mk_StringLit = (~sort: TermSort.t, ~err: ErrStatus.t, s: string): t => {
     |> snd
     |> ListUtil.join(Doc.linebreak());
   Doc.(
-    hcats(
-      [Delim.open_StringLit(), ...line_docs] @ [Delim.close_StringLit()],
-    )
+    hcats([
+      Delim.open_StringLit() |> annot_Tessera,
+      annot_OpenChild(~is_inline=true, hcats(line_docs)),
+      Delim.close_StringLit() |> annot_Tessera,
+    ])
   )
   |> annot_Operand(~sort, ~err);
 };

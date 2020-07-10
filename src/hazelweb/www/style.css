@@ -219,7 +219,7 @@ html, body {
 }
 
 .sidebar {
-  width: auto;
+  width: 300px;
   height: 100%; /* TODO: change back to 100% */
   direction: ltr; /* reset text direction */
   background-color: tan;
@@ -1491,6 +1491,37 @@ input.slider::-moz-range-track {
 }
 .color-livelit .color-picker .color-picker-splice {
   cursor: text;
+}
+
+.grayscale-livelit img.subject {
+  width: 550px;
+  filter: brightness(90%) grayscale(75%);
+}
+
+.grayscale-livelit .slider-bar {
+  display: grid;
+  grid-template-columns: 35px auto 8px 35px auto;
+  align-items: center;
+  justify-items: left;
+  margin-bottom: 8px;
+}
+.grayscale-livelit .slider-bar #grayscale-icon {
+  width: 30px; height: 15px;
+}
+.grayscale-livelit .slider-bar #brightness-icon {
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  margin-right: -8px;
+}
+
+.grayscale-livelit .slider-bar .splice-content {
+  border: 1px solid lightgray;
+  position: relative;
+  padding: 2px 4px;
+  display: grid;
+  justify-items: left;
+  width: 225px;
 }
 
 .splice {

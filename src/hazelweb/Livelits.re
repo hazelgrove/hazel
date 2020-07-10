@@ -862,6 +862,81 @@ module GradeCutoffLivelit: LIVELIT = {
   };
 };
 
+module GrayscaleLivelit: LIVELIT = {
+  let name = "$img_filter";
+  let expansion_ty = HTyp.Int;
+  let param_tys = [("url", HTyp.String)];
+
+  [@deriving sexp]
+  type model = unit;
+  [@deriving sexp]
+  type action = unit;
+  type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
+
+  let init_model = SpliceGenCmd.return();
+
+  let update = (_, _) => SpliceGenCmd.return();
+
+  let view = (_, _, _, _) =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["grayscale-livelit"])],
+        [
+          Node.div(
+            [Attr.classes(["slider-bar"])],
+            [
+              Node.create(
+                "img",
+                [
+                  Attr.id("grayscale-icon"),
+                  Attr.create(
+                    "src",
+                    "https://imageog.flaticon.com/icons/png/512/108/108931.png?size=1200x630f&pad=10,10,10,10&ext=png&bg=FFFFFFFF",
+                  ),
+                ],
+                [],
+              ),
+              Node.div(
+                [Attr.classes(["splice-content"])],
+                [Node.text("hello world")],
+              ),
+              Node.div([], []),
+              Node.create(
+                "img",
+                [
+                  Attr.id("brightness-icon"),
+                  Attr.create(
+                    "src",
+                    "https://cdn2.iconfinder.com/data/icons/ecommerce-1-4/65/18-512.png",
+                  ),
+                ],
+                [],
+              ),
+              Node.div(
+                [Attr.classes(["splice-content"])],
+                [Node.text("hello world")],
+              ),
+            ],
+          ),
+          Node.create(
+            "img",
+            [
+              Attr.classes(["subject"]),
+              Attr.create("src", "https://tinyurl.com/y8neczz3"),
+            ],
+            // https://tinyurl.com/yd2dw4ww
+            [],
+          ),
+        ],
+      )
+    );
+
+  let view_shape = _ => LivelitView.MultiLine(18);
+
+  let expand = () => UHExp.Block.wrap(UHExp.intlit'(0));
+};
+
 module ColorLivelit: LIVELIT = {
   let name = "$color";
   let expansion_ty = HTyp.Prod([Int, Int, Int, Int]);
@@ -2040,6 +2115,7 @@ module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
 module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
 module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
 module DataFrameLivelitAdapter = LivelitAdapter(DataFrameLivelit);
+module GrayscaleLivelitAdapter = LivelitAdapter(GrayscaleLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
 let (initial_livelit_ctx, initial_livelit_view_ctx) =
   LivelitContexts.extend(
@@ -2051,7 +2127,10 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
               LivelitContexts.extend(
                 LivelitContexts.extend(
                   LivelitContexts.extend(
-                    empty_livelit_contexts,
+                    LivelitContexts.extend(
+                      empty_livelit_contexts,
+                      GrayscaleLivelitAdapter.contexts_entry,
+                    ),
                     DataFrameLivelitAdapter.contexts_entry,
                   ),
                   GradeCutoffLivelitAdapter.contexts_entry,

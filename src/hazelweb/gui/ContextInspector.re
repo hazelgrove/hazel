@@ -118,8 +118,7 @@ let view =
     };
   };
 
-  let path_view_titlebar =
-    Panel.view_of_other_title_bar("Closure above observed at ");
+  let path_view_titlebar = Panel.view_of_other_title_bar("Closure");
 
   let instructional_msg = msg =>
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
@@ -203,9 +202,10 @@ let view =
     );
   };
 
+  [@warning "-26"]
   let mii_summary = (mii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
     let num_instances = NodeInstanceInfo.num_instances(mii, u);
-    let kindstr =
+    let _kindstr =
       switch (kind) {
       | Hole => "hole"
       | Livelit => "livelit application"
@@ -217,23 +217,25 @@ let view =
           Node.div(
             [],
             [
-              Node.div(
-                [Attr.classes(["mii-summary-inst"])],
-                [
-                  DHCode.view_of_instance(
-                    ~inject,
-                    ~width=30,
-                    ~selected_instance=model |> Model.get_selected_instance,
-                    inst,
-                  ),
-                ],
-              ),
-              Node.text(Printf.sprintf(" = %s ", kindstr)),
-              Node.span(
-                [Attr.classes(["hole-name-normal-txt"])],
-                [Node.text(string_of_int(u + 1))],
-              ),
-              Node.text(" instance "),
+              /*
+               Node.div(
+                 [Attr.classes(["mii-summary-inst"])],
+                 [
+                   DHCode.view_of_instance(
+                     ~inject,
+                     ~width=30,
+                     ~selected_instance=model |> Model.get_selected_instance,
+                     inst,
+                   ),
+                 ],
+               ),
+               */
+              Node.text("Closure " /*Printf.sprintf(" = %s ", kindstr)*/),
+              /*Node.span(
+                  [Attr.classes(["hole-name-normal-txt"])],
+                  [Node.text(string_of_int(u + 1))],
+                ),
+                Node.text(" instance "),*/
               Node.span(
                 [Attr.classes(["inst-number-normal-txt"])],
                 [Node.text(string_of_int(i + 1))],
