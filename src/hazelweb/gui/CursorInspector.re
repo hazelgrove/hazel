@@ -7,7 +7,10 @@ type err_state_b =
 
 let inconsistent_symbol =
   Vdom.Node.div(
-    [Vdom.Attr.classes(["inconsistent-symbol"])],
+    [
+      Vdom.Attr.classes(["inconsistent-symbol"]),
+      Vdom.Attr.create("title", "Inconsistent"),
+    ],
     [Vdom.Node.text(UnicodeConstants.inconsistent)],
   );
 
@@ -35,10 +38,15 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
       inconsistent_symbol,
       Vdom.Node.text(string_of_int(got_len) ++ "-tuple"),
     ]
-  | AnaInvalid(_)
+  | AnaInvalid(expected_ty)
+  | PatAnaInvalid(expected_ty) => [
+      Vdom.Node.text(":"),
+      HTypCode.view(expected_ty),
+      inconsistent_symbol,
+      Vdom.Node.text("Invalid Text"),
+    ]
   | SynInvalid
-  | SynInvalidArrow(_)
-  | PatAnaInvalid(_) => [Vdom.Node.text("Invalid Text")]
+  | SynInvalidArrow(_) => [Vdom.Node.text("Invalid Text")]
   | AnaFree(expected_ty) => [
       Vdom.Node.text(":"),
       HTypCode.view(expected_ty),
@@ -47,10 +55,15 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
     ]
   | SynFree
   | SynFreeArrow(_) => [Vdom.Node.text("Free Variable")]
-  | AnaKeyword(_, _)
+  | AnaKeyword(expected_ty, _)
+  | PatAnaKeyword(expected_ty, _) => [
+      Vdom.Node.text(":"),
+      HTypCode.view(expected_ty),
+      inconsistent_symbol,
+      Vdom.Node.text("Reserved Keyword"),
+    ]
   | SynKeyword(_)
   | SynKeywordArrow(_)
-  | PatAnaKeyword(_, _)
   | PatSynKeyword(_) => [Vdom.Node.text("Reserved Keyword")]
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
@@ -74,7 +87,7 @@ let rec advanced_summary = (typed: CursorInfo_common.typed) => {
   | SynInconsistentBranchesArrow(_) => [
       Vdom.Node.text("Inconsistent Branch Types"),
     ]
-  | OnType => [] /* TODO: Hannah maybe should use an option to not creat unnecessary elements*/
+  | OnType => [] /* TODO: Hannah maybe should use an option to not create unnecessary elements*/
   | OnLine => [Vdom.Node.text("Line")]
   | OnRule => [Vdom.Node.text("Rule")]
   };
@@ -100,7 +113,7 @@ let summary_bar =
     | OK => Icons.check_circle
     };
   let tag_type = TermTag.get_cursor_term_tag_typ(ci.cursor_term);
-  let term_tag = TermTag.term_tag_view(tag_type, []);
+  let term_tag = TermTag.term_tag_view(tag_type, ~show_tooltip=true, []);
   Vdom.(
     Node.div(
       [Attr.classes(["type-info-summary"])],
