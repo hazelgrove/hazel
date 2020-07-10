@@ -618,13 +618,86 @@ module GradeCutoffLivelit: LIVELIT = {
       },
     );
 
+  let grades_invalids_to_svgs = ((grades, invalid_count)) => {
+    let valid_grades =
+      grades
+      |> List.filter_map(grade =>
+           if (0 <= grade && grade <= 100) {
+             Some(
+               Vdom.(
+                 Node.create_svg(
+                   "circle",
+                   [
+                     Attr.create("cx", string_of_int(grade)),
+                     Attr.create("cy", "0"),
+                     Attr.create("r", "1"),
+                     Attr.create("fill", "orange"),
+                     Attr.create("stroke-width", "0"),
+                   ],
+                   [],
+                 )
+               ),
+             );
+           } else {
+             None;
+           }
+         );
+    (
+      valid_grades,
+      invalid_count + List.length(grades) - List.length(valid_grades),
+    );
+  };
+
+  let rec dhexp_to_grades_invalids = (rslt, invalid_count) =>
+    fun
+    | DHExp.Cons(DHExp.IntLit(g), d) =>
+      dhexp_to_grades_invalids([g, ...rslt], invalid_count, d)
+    | DHExp.Cons(_, d) =>
+      dhexp_to_grades_invalids(rslt, invalid_count + 1, d)
+    | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
+    | _ => (List.rev(rslt), invalid_count + 1);
+
   let view =
       (
         {a, b, c, d},
         trigger,
         _,
-        {dargs: _, _}: LivelitView.splice_and_param_getters,
+        {dargs, _}: LivelitView.splice_and_param_getters,
       ) => {
+    let data_opt =
+      switch (dargs) {
+      | None
+      | Some([(_, None)]) => None
+      | Some([(_, Some((d, _)))]) => Some(d)
+      | Some(l) =>
+        failwith(
+          "Invalid grade_cutoffs params: "
+          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+        )
+      };
+    let grades_svgs_invalids_opt =
+      data_opt
+      |> OptUtil.map(d =>
+           dhexp_to_grades_invalids([], 0, d) |> grades_invalids_to_svgs
+         );
+    let (grades_svgs, data_err_msg) =
+      switch (grades_svgs_invalids_opt) {
+      | None => ([], [Vdom.Node.text("Grades data was never evaluated")])
+      | Some((grades_svgs, invalid_count)) => (
+          grades_svgs,
+          invalid_count == 0
+            ? []
+            : [
+              Vdom.Node.text(
+                Printf.sprintf(
+                  "%d grades were indeterminate or out of bounds",
+                  invalid_count,
+                ),
+              ),
+            ],
+        )
+      };
+
     let cutoff_slider = (letter, cls, value) =>
       Vdom.(
         Node.input(
@@ -645,7 +718,7 @@ module GradeCutoffLivelit: LIVELIT = {
         )
       );
 
-    let percentage_line = {
+    let percentage_line = grade_points => {
       open Vdom;
       let percentage_label = (p: int) =>
         Node.create_svg(
@@ -688,7 +761,8 @@ module GradeCutoffLivelit: LIVELIT = {
                 [],
               ),
               ...percentage_labels,
-            ],
+            ]
+            @ grade_points,
           ),
         ],
       );
@@ -701,12 +775,13 @@ module GradeCutoffLivelit: LIVELIT = {
           Node.div(
             [Attr.classes(["grade-display"])],
             [
-              percentage_line,
+              percentage_line(grades_svgs),
               cutoff_slider(A, "a-slider", a),
               cutoff_slider(B, "b-slider", b),
               cutoff_slider(C, "c-slider", c),
               cutoff_slider(D, "d-slider", d),
-            ],
+            ]
+            @ data_err_msg,
           ),
         ],
       )
