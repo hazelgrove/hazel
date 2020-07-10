@@ -18,6 +18,11 @@ type measurements = {
   update_apply_action: bool,
 };
 
+type cursor_inspector = {
+  show_expanded: bool,
+  novice_mode: bool,
+};
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -31,7 +36,7 @@ type t = {
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
-  show_expanded_cursor_inspector: bool,
+  cursor_inspector,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -120,7 +125,10 @@ let init = (): t => {
       },
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
-    show_expanded_cursor_inspector: false,
+    cursor_inspector: {
+      show_expanded: false,
+      novice_mode: false,
+    },
   };
 };
 

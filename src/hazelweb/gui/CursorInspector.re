@@ -98,10 +98,10 @@ let summary_bar =
       ~inject: ModelAction.t => Vdom.Event.t,
       err_state_b: err_state_b,
       ci: CursorInfo_common.t,
-      show_expanded_cursor_inspector: bool,
+      show_expanded: bool,
     ) => {
   let arrow =
-    if (show_expanded_cursor_inspector) {
+    if (show_expanded) {
       Icons.down_arrow(["ci-arrow"]);
     } else {
       Icons.left_arrow(["ci-arrow"]);
@@ -514,10 +514,10 @@ let view =
       ~inject,
       err_state_b,
       ci,
-      model.show_expanded_cursor_inspector,
+      model.cursor_inspector.show_expanded,
     );
   let content =
-    if (model.show_expanded_cursor_inspector) {
+    if (model.cursor_inspector.show_expanded) {
       [summary, ind1, ind2];
     } else {
       [summary];

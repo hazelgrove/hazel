@@ -165,6 +165,12 @@ let view =
             ~on_change=() => inject(ToggleMemoizeDoc),
             model.memoize_doc,
           ),
+          labeled_checkbox(
+            ~id="novice_mode",
+            ~label="Novice mode",
+            ~on_change=() => inject(ToggleNoviceMode),
+            model.cursor_inspector.novice_mode,
+          ),
         ],
       )
     );

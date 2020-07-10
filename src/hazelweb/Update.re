@@ -79,7 +79,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
-  | ToggleCursorInspectorView =>
+  | ToggleCursorInspectorView
+  | ToggleNoviceMode =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -320,8 +321,17 @@ let apply_action =
       | UpdateIsMac(is_mac) => {...model, is_mac}
       | ToggleCursorInspectorView => {
           ...model,
-          show_expanded_cursor_inspector:
-            !model.show_expanded_cursor_inspector,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            show_expanded: !model.cursor_inspector.show_expanded,
+          },
+        }
+      | ToggleNoviceMode => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            novice_mode: !model.cursor_inspector.novice_mode,
+          },
         }
       };
     },

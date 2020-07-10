@@ -26,6 +26,14 @@ type measurements = {
   update_apply_action: bool,
 };
 
+/**
+ * Flags for the display of the cursor inspector
+ */
+type cursor_inspector = {
+  show_expanded: bool,
+  novice_mode: bool,
+};
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -46,7 +54,7 @@ type t = {
    * to realize preview when scrolling.
    */
   mouse_position: ref(MousePosition.t),
-  show_expanded_cursor_inspector: bool,
+  cursor_inspector,
 };
 
 let cardstack_info: list(CardstackInfo.t);
