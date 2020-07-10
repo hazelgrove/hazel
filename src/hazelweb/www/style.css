@@ -1037,6 +1037,10 @@ h1 {
 
 .matrix-livelit .cells-border {
   border: 1px solid var(--matrix-cell-border-color);
+  box-shadow: inset 0px -2px 2px 0px #888;
+}
+.matrix-livelit .cells-border::before {
+
 }
 .matrix-livelit .matrix-cell {
   height: 100%;
@@ -1054,9 +1058,16 @@ h1 {
   align-self: center;
 }
 
-.matrix-livelit .matrix-formula-bar-splice,
-.matrix-livelit .matrix-formula-bar {
-  display: inline;
+/*.matrix-livelit .matrix-formula-bar-splice,*/
+.matrix-livelit .formula-bar {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 8px;
+  border: 2px solid var(--matrix-cell-border-color);
+}
+.matrix-livelit .formula-bar-text {
+  color: orange;
+  font-weight: bold;
 }
 
 .matrix-livelit .matrix-cell {

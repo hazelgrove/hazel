@@ -1602,8 +1602,8 @@ module DataFrameLivelit: LIVELIT = {
   type trigger = action => Vdom.Event.t;
   type sync = action => unit;
 
-  let init_height = 2;
-  let init_width = 2;
+  let init_height = 3;
+  let init_width = 6;
 
   let get_height = (m: list(list(SpliceName.t))): int => List.length(m);
   let get_width = (m: list(list(SpliceName.t))): int =>
@@ -1707,7 +1707,7 @@ module DataFrameLivelit: LIVELIT = {
         (selected, m),
         trig,
         _,
-        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
+        {uhcode, dhcode: _, _}: LivelitView.splice_and_param_getters,
       ) => {
     open Vdom;
     let width = get_width(m);
@@ -1792,25 +1792,48 @@ module DataFrameLivelit: LIVELIT = {
       |> List.mapi((i, row) =>
            row
            |> List.mapi((j, splice) => {
+                let s =
+                  switch (i, j) {
+                  | (0, 0) => "93."
+                  | (0, 1) => "92."
+                  | (0, 2) => "83.5"
+                  | (0, 3) => "87.5"
+                  | (0, 4) => "95."
+                  | (0, 5) => "88."
+                  | (1, 0) => "61."
+                  | (1, 1) => "64."
+                  | (1, 2) => "98."
+                  | (1, 3) => "89.5"
+                  | (1, 4) => "70."
+                  | (1, 5) => "85."
+                  | (2, 0) => "75."
+                  | (2, 1) => "81."
+                  | (2, 2) => "73."
+                  | (2, 3) => "71."
+                  | (2, 4) => "82."
+                  | (2, 5) => "79."
+                  | _ => ""
+                  };
                 let cls =
                   splice == selected ? "matrix-selected" : "matrix-unselected";
-                let contents = {
-                  let child =
-                    switch (dhcode(splice)) {
-                    | None => Node.text("Uneval'd")
-                    | Some((_, view)) => view
-                    };
-                  Node.div(
-                    [Attr.on_mousedown(_ => trig(Select(splice)))],
-                    [child],
-                  );
-                };
+                /*let contents = {
+                    let child =
+                      switch (dhcode(splice)) {
+                      | None => Node.text("Uneval'd")
+                      | Some((_, view)) => view
+                      };
+                    Node.div(
+                      [Attr.on_mousedown(_ => trig(Select(splice)))],
+                      [child],
+                    );
+                  };*/
                 Node.div(
                   [
                     attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
                     Attr.classes([cls, "matrix-cell"]),
                   ],
-                  [contents],
+                  // [contents],
+                  [Node.div([], [Node.text(s)])],
                 );
               })
          )
@@ -1838,8 +1861,16 @@ module DataFrameLivelit: LIVELIT = {
     Node.div(
       [Attr.classes(["matrix-livelit"])],
       [
-        Node.div([], []),
-        Node.div([], [uhcode(selected)]),
+        Node.div(
+          [Attr.classes(["formula-bar"])],
+          [
+            Node.div(
+              [Attr.classes(["formula-bar-text"])],
+              [Node.text(" > ")],
+            ),
+            Node.div([], [uhcode(selected)]),
+          ],
+        ),
         Node.div(
           [
             Attr.classes(["grid-container"]),
