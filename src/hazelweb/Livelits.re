@@ -1029,6 +1029,7 @@ module ColorLivelit: LIVELIT = {
       update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
     };
 
+  [@warning "-27"]
   let view =
       (
         {rgb: (r, g, b), a, hsv, is_open: _, selecting_sat_val},
@@ -1753,6 +1754,7 @@ module DataFrameLivelit: LIVELIT = {
       ),
     );
 
+  [@warning "-27"]
   let view =
       (
         (selected, m),
@@ -1919,7 +1921,21 @@ module DataFrameLivelit: LIVELIT = {
               [Attr.classes(["formula-bar-text"])],
               [Node.text(" > ")],
             ),
-            Node.div([], [uhcode(selected)]),
+            Node.div(
+              [],
+              [
+                Node.span(
+                  [Attr.classes(["formula-bar-entry"])],
+                  [
+                    Node.text("24. +. 36. +. "),
+                    Node.span(
+                      [Attr.classes(["cursor"])],
+                      [Node.text("33.")],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
         Node.div(

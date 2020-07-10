@@ -1036,11 +1036,23 @@ h1 {
 }
 
 .matrix-livelit .cells-border {
+  position: relative;
   border: 1px solid var(--matrix-cell-border-color);
   box-shadow: inset 0px -2px 2px 0px #888;
+  z-index: 50;
 }
 .matrix-livelit .cells-border::before {
-
+  content: '';
+  display: block;
+  position: absolute;
+  top: 8px;
+  left: 98.2%;
+  background-color: #444;
+  opacity: 60%;
+  width: 8px;
+  border-radius: 4px;
+  height: 25px;
+  z-index: 100;
 }
 .matrix-livelit .matrix-cell {
   height: 100%;
@@ -1068,6 +1080,23 @@ h1 {
 .matrix-livelit .formula-bar-text {
   color: orange;
   font-weight: bold;
+}
+.matrix-livelit .formula-bar-entry .cursor {
+  background-color: var(--exp-bg-color);
+  border-radius: var(--code-radius);
+}
+.matrix-livelit .formula-bar-entry .cursor::before {
+  content: '';
+  z-index: var(--caret-z);
+  position: absolute;
+  display: inline-block;
+  font-weight: 100;
+  margin: calc(0.1 * var(--code-line-height) * 1em) 0;
+  height: calc(0.8 * var(--code-line-height) * 1em);
+  width: 2px;
+  top: -1px;
+  left: 96%;
+  background-color: red;
 }
 
 .matrix-livelit .matrix-cell {
