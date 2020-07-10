@@ -48,7 +48,6 @@
   --matrix-cell-border-color: rgb(220, 220, 220);
 
   --livelit-border-thickness: 2px;
-  --slider-livelit-height: calc(1.35em - 2 * var(--livelit-border-thickness));
 
   /* necessary for hiding portions of box shadows */
   --err-hole-z: 0;
@@ -67,6 +66,9 @@
   --verr-hole-z: 2;
   --code-text-z: 3;
   --livelit-view-z: 4;
+
+  --slider-livelit-height: calc(1.35em - 2 * var(--livelit-border-thickness));
+  --slider-livelit-width: 160px;
 
   --grade-cutoffs-slider-thumb-width: 30px;
   --grade-cutoffs-slider-thumb-height: 42px;
@@ -1222,7 +1224,7 @@ h1 {
 .slider-livelit {
   display: inline-block;
   height: var(--slider-livelit-height);
-  width: 200px;
+  width: var(--slider-livelit-width);
 }
 
 .slider-livelit .min-input,
@@ -1247,21 +1249,21 @@ h1 {
 
 input.slider[type=range]{
   -webkit-appearance: none;
-  width: 200px;
+  width: var(--slider-livelit-width);
   height: var(--slider-livelit-height);
 }
 
 input.slider[type=range]::-webkit-slider-runnable-track {
-  width: 200px;
+  width: var(--slider-livelit-width);
   height: 2px;
   background: #ccc;
   border: none;
 }
 .slider-livelit::before {
   position: absolute;
-  width: 200px;
+  width: var(--slider-livelit-width);
   height: 4px;
-  background:linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+  /*background:linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);*/
   /*linear-gradient(to right,
     white 0%,
     white 10%,

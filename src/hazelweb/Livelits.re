@@ -1626,7 +1626,7 @@ module SliderLivelit: LIVELIT = {
     };
   };
 
-  let view_shape = _ => LivelitView.Inline(24);
+  let view_shape = _ => LivelitView.Inline(18);
 
   let expand =
     fun
