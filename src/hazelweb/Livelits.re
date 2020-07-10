@@ -637,6 +637,9 @@ module GradeCutoffLivelit: LIVELIT = {
             Attr.on_input((_, value_str) =>
               trigger(UpdateCutoff(letter, int_of_string(value_str)))
             ),
+            Attr.on_change((_, value_str) =>
+              trigger(UpdateCutoff(letter, int_of_string(value_str)))
+            ),
           ],
           [],
         )
