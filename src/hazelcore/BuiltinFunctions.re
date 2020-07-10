@@ -13,6 +13,10 @@ let ctx: VarCtx.t = [
   ("trim", Arrow(String, String)),
   ("escaped", Arrow(String, String)),
   ("assert", Arrow(Bool, Prod([]))),
+  (
+    "compute_averages",
+    Arrow(List(List(Int)), Arrow(List(Float), List(Float))),
+  ),
 ];
 
 let lookup = x => VarMap.lookup(ctx, x);

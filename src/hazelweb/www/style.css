@@ -1108,6 +1108,7 @@ h1 {
   color: firebrick;
   font-family: "Gill Sans", sans-serif;
   font-size: 8pt;
+  display: none;
 }
 
 .grade-cutoffs-livelit {

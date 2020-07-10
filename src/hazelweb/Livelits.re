@@ -657,6 +657,7 @@ module GradeCutoffLivelit: LIVELIT = {
     | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
     | _ => (List.rev(rslt), invalid_count + 1);
 
+  [@warning "-27"]
   let view =
       (
         {a, b, c, d},
@@ -664,17 +665,67 @@ module GradeCutoffLivelit: LIVELIT = {
         _,
         {dargs, _}: LivelitView.splice_and_param_getters,
       ) => {
+    /*
+     let data_opt =
+       switch (dargs) {
+       | None
+       | Some([(_, None)]) => None
+       | Some([(_, Some((d, _)))]) => Some(d)
+       | Some(l) =>
+         failwith(
+           "Invalid grade_cutoffs params: "
+           ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+         )
+       };
+     */
     let data_opt =
-      switch (dargs) {
-      | None
-      | Some([(_, None)]) => None
-      | Some([(_, Some((d, _)))]) => Some(d)
-      | Some(l) =>
-        failwith(
-          "Invalid grade_cutoffs params: "
-          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
-        )
-      };
+      Some(
+        DHExp.(
+          Cons(
+            IntLit(93),
+            Cons(
+              IntLit(88),
+              Cons(
+                IntLit(75),
+                Cons(
+                  IntLit(86),
+                  Cons(
+                    IntLit(78),
+                    Cons(
+                      IntLit(82),
+                      Cons(
+                        IntLit(67),
+                        Cons(
+                          IntLit(54),
+                          Cons(
+                            IntLit(45),
+                            Cons(
+                              IntLit(71),
+                              Cons(
+                                IntLit(69),
+                                Cons(
+                                  IntLit(62),
+                                  Cons(
+                                    IntLit(97),
+                                    Cons(
+                                      IntLit(83),
+                                      Cons(IntLit(85), ListNil(Int)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        ),
+      );
     let grades_svgs_invalids_opt =
       data_opt
       |> OptUtil.map(d =>
@@ -1894,7 +1945,7 @@ module DataFrameLivelit: LIVELIT = {
 
   let view_shape = ((_, matrix)) => {
     let num_rows = List.length(matrix);
-    LivelitView.MultiLine(3 * num_rows + 3);
+    LivelitView.MultiLine(3 * num_rows + 1);
   };
 
   let expand = ((_, m)) => {

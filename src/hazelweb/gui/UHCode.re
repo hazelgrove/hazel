@@ -74,6 +74,7 @@ module Dec = {
            ],
        );
 
+  [@warning "-32"]
   let var_err_hole_view =
       (
         ~corner_radii: (float, float),
@@ -450,7 +451,7 @@ module Dec = {
     let v =
       switch (d) {
       | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
-      | VarErrHole => var_err_hole_view(~corner_radii, ~offset, subject)
+      | VarErrHole => Vdom.Node.span([], []) // var_err_hole_view(~corner_radii, ~offset, subject)
       | CurrentTerm(shape) =>
         current_term_view(~corner_radii, ~offset, ~shape, subject)
       | LivelitExpression => livelit_expression_view(~offset, subject)
