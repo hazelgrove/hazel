@@ -342,17 +342,38 @@ html, body {
   text-align: center;
 }
 
-.novice-mode .term-tag {
-  margin: 0 10px;
+.type-info-summary .circle-icon {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  font-size: 15px;
 }
 
-.novice-mode .HTypCode {
+.cursor-OK.cursor-inspector .circle-icon {
+  background-color: #5dbd38;
+}
+
+.cursor-TypeInconsistency.cursor-inspector .circle-icon {
+  background-color: #da5858;
+}
+
+.cursor-BindingError.cursor-inspector .circle-icon {
+  background-color: #f0ad32;
+}
+
+.type-info-summary .HTypCode {
   margin: 0 10px;
 }
 
 .ci-arrow {
-  color: grey;
+  color: white;
   cursor: pointer;
+}
+
+.novice-mode .term-tag {
+  margin: 0 10px;
 }
 
 .cursor-OK.cursor-inspector {

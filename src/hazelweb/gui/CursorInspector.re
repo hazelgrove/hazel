@@ -236,7 +236,7 @@ let summary_bar =
     if (show_expanded) {
       Icons.down_arrow(["ci-arrow"]);
     } else {
-      Icons.left_arrow(["ci-arrow"]);
+      Icons.right_arrow(["ci-arrow"]);
     };
   let err_icon =
     switch (err_state_b) {
@@ -255,8 +255,6 @@ let summary_bar =
     Node.div(
       [Attr.classes(["type-info-summary"])],
       [
-        summary,
-        err_icon,
         Node.div(
           [
             Attr.on_click(_ =>
@@ -269,6 +267,8 @@ let summary_bar =
           ],
           [arrow],
         ),
+        summary,
+        err_icon,
       ],
     )
   );
