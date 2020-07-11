@@ -889,6 +889,13 @@ h1 {
   fill: var(--exp-bg-color);
 }
 
+#code-root .closed-child-drop-shadow {
+  flood-color: var(--pat-bright-shadow-color);
+}
+#code-root .code-closed-child {
+  filter: url(#closed-child-drop-shadow);
+}
+
 .code .VBox {
   display: inline-block;
   vertical-align: top;

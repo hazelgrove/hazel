@@ -370,7 +370,7 @@ module Dec = {
                ),
              ),
          );
-    let filter =
+    let outer_filter =
       Vdom.(
         Node.create_svg(
           "filter",
@@ -389,8 +389,80 @@ module Dec = {
           ],
         )
       );
+    // <feOffset in="SourceGraphic" dx="60" dy="60" />
+    // <feFlood flood-color="black" flood-opacity="1" result="color"/>
+    let closed_child_filter =
+      Vdom.(
+        Node.create_svg(
+          "filter",
+          [Attr.id("closed-child-drop-shadow")],
+          [
+            Node.create_svg(
+              "feOffset",
+              [
+                Attr.create("in", "SourceAlpha"),
+                Attr.create("dx", "0.1"),
+                Attr.create("dy", "0.04"),
+                Attr.create("result", "offset-alpha"),
+              ],
+              [],
+            ),
+            Node.create_svg(
+              "feFlood",
+              [
+                Attr.create("flood-color", "rgb(117, 187, 228)"),
+                Attr.create("flood-opacity", "1"),
+                Attr.create("result", "color"),
+              ],
+              [],
+            ),
+            Node.create_svg(
+              "feComposite",
+              [
+                // Attr.classes(["closed-child-drop-shadow"]),
+                Attr.create("operator", "out"),
+                Attr.create("in", "SourceAlpha"),
+                Attr.create("in2", "offset-alpha"),
+                Attr.create("result", "shadow-shape"),
+              ],
+              [],
+            ),
+            Node.create_svg(
+              "feComposite",
+              [
+                Attr.create("operator", "in"),
+                Attr.create("in", "color"),
+                Attr.create("in2", "shadow-shape"),
+                Attr.create("result", "drop-shadow"),
+              ],
+              [],
+            ),
+            Node.create_svg(
+              "feMerge",
+              [],
+              [
+                Node.create_svg(
+                  "feMergeNode",
+                  [Attr.create("in", "SourceGraphic")],
+                  [],
+                ),
+                Node.create_svg(
+                  "feMergeNode",
+                  [Attr.create("in", "drop-shadow")],
+                  [],
+                ),
+              ],
+            ),
+          ],
+        )
+      );
     Vdom.(
-      Node.create_svg("g", [], [filter, ...highlighted_vs] @ closed_child_vs)
+      Node.create_svg(
+        "g",
+        [],
+        [outer_filter, closed_child_filter, ...highlighted_vs]
+        @ closed_child_vs,
+      )
     );
   };
 
