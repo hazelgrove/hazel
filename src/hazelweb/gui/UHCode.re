@@ -456,6 +456,7 @@ module Dec = {
           ],
         )
       );
+
     Vdom.(
       Node.create_svg(
         "g",
@@ -477,7 +478,7 @@ module Dec = {
             "style",
             Printf.sprintf(
               // TODO make more robust
-              "top: %fpx; left: calc(%fpx - 1px);",
+              "top: calc(%fpx - 1px); left: calc(%fpx - 1px);",
               Float.of_int(row) *. font_metrics.row_height,
               Float.of_int(col) *. font_metrics.col_width,
             ),
@@ -543,7 +544,7 @@ module Dec = {
           Attr.create(
             "style",
             Printf.sprintf(
-              "top: %fpx; left: %fpx;",
+              "top: calc(%fpx - 1px); left: %fpx;",
               (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height,
               (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width,
             ),
