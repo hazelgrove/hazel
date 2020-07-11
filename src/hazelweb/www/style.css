@@ -879,6 +879,12 @@ h1 {
   z-index: var(--current-term-z);
 }
 
+#code-root .current-term-drop-shadow {
+  flood-color: var(--exp-shadow-color);
+}
+#code-root .code-current-term {
+  filter: url(#outer-drop-shadow);
+}
 #code-root .current-term {
   fill: var(--exp-bg-color);
 }

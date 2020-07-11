@@ -370,7 +370,28 @@ module Dec = {
                ),
              ),
          );
-    Vdom.(Node.create_svg("g", [], highlighted_vs @ closed_child_vs));
+    let filter =
+      Vdom.(
+        Node.create_svg(
+          "filter",
+          [Attr.id("outer-drop-shadow")],
+          [
+            Node.create_svg(
+              "feDropShadow",
+              [
+                Attr.classes(["current-term-drop-shadow"]),
+                Attr.create("dx", "0.1"),
+                Attr.create("dy", "0.04"),
+                Attr.create("stdDeviation", "0"),
+              ],
+              [],
+            ),
+          ],
+        )
+      );
+    Vdom.(
+      Node.create_svg("g", [], [filter, ...highlighted_vs] @ closed_child_vs)
+    );
   };
 
   let caret_view =
