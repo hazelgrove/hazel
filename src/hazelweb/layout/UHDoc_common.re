@@ -196,10 +196,69 @@ let pad_child =
   };
 };
 
-let pad_open_child: (~inline_padding: (t, t)=?, formatted_child) => t =
-  pad_child(~is_open=true);
-let pad_closed_child: (~inline_padding: (t, t)=?, formatted_child) => t =
-  pad_child(~is_open=false);
+let pad_open_child =
+    (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
+  open Doc;
+  let annot_child = annot_OpenChild(~is_enclosed=true);
+  let inline_choice = child_doc => {
+    let (left, right) = inline_padding;
+    let lpadding = left == empty_ ? [] : [annot_Padding(left)];
+    let rpadding = right == empty_ ? [] : [annot_Padding(right)];
+    hcats([
+      hcats(List.concat([lpadding, [child_doc], rpadding]))
+      |> annot_child(~is_inline=true),
+    ]);
+  };
+  let para_choice = child_doc =>
+    child_doc |> indent_and_align |> annot_child(~is_inline=false);
+  switch (child) {
+  | EnforcedInline(child_doc) => inline_choice(child_doc)
+  | UserNewline(child_doc) =>
+    hcats([user_newline, linebreak(), para_choice(child_doc), linebreak()])
+  | Unformatted(formattable_child) =>
+    choices([
+      inline_choice(formattable_child(~enforce_inline=true)),
+      hcats([
+        linebreak(),
+        para_choice(formattable_child(~enforce_inline=false)),
+        linebreak(),
+      ]),
+    ])
+  };
+};
+
+let pad_closed_child =
+    (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
+  open Doc;
+  let inline_choice = child_doc => {
+    let (left, right) = inline_padding;
+    let lpadding = left == empty_ ? [] : [annot_Padding(left)];
+    let rpadding = right == empty_ ? [] : [annot_Padding(right)];
+    hcats(
+      List.concat([
+        lpadding,
+        [annot_ClosedChild(~is_inline=true, child_doc)],
+        rpadding,
+      ]),
+    );
+  };
+  let para_choice = child_doc =>
+    indent_and_align(annot_ClosedChild(~is_inline=false, child_doc));
+  switch (child) {
+  | EnforcedInline(child_doc) => inline_choice(child_doc)
+  | UserNewline(child_doc) =>
+    hcats([user_newline, linebreak(), para_choice(child_doc), linebreak()])
+  | Unformatted(formattable_child) =>
+    choices([
+      inline_choice(formattable_child(~enforce_inline=true)),
+      hcats([
+        linebreak(),
+        para_choice(formattable_child(~enforce_inline=false)),
+        linebreak(),
+      ]),
+    ])
+  };
+};
 
 let pad_left_delimited_child =
     (~is_open: bool, ~inline_padding: t=empty_, child: formatted_child): t => {
