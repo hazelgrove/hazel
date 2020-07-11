@@ -342,6 +342,14 @@ html, body {
   text-align: center;
 }
 
+.novice-mode .term-tag {
+  margin: 0 10px;
+}
+
+.novice-mode .HTypCode {
+  margin: 0 10px;
+}
+
 .ci-arrow {
   color: grey;
   cursor: pointer;
