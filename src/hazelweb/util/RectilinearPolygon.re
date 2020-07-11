@@ -53,6 +53,7 @@ let get_scalar =
   | Dx(f)
   | Dy(f) => f;
 
+// expects rectangles to form a single contour, otherwise result undefined
 let mk_svg =
     (
       ~attrs: list(Vdom.Attr.t),
