@@ -321,7 +321,8 @@ let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
-  | EmptyLine => true
+  | EmptyLine
+  | CommentLine(_) => true
   | LetLine(pat, option_ty, body) =>
     if (check_type_holes) {
       switch (option_ty) {

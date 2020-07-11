@@ -284,6 +284,7 @@ and is_outer_zblock = ((_, zline, suffix): zblock): bool =>
 and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
+  | CursorL(_, CommentLine(_))
   | CursorL(_, LetLine(_, _, _)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)

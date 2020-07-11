@@ -116,6 +116,11 @@ and mk_line =
       (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
       (
         switch (line) {
+        // FIXME: WIP
+        | CommentLine(_) =>
+          UHDoc_common.Delim.open_CommentLine()
+          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+          |> Doc.annot(UHAnnot.CommentLine)
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))

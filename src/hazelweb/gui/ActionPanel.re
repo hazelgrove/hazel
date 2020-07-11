@@ -482,6 +482,7 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SAsc) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
+  | Construct(SCommentLine) => Added
   | Construct(SLam) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added
