@@ -376,9 +376,8 @@ let associate = (seq: seq): skel => {
        */
       let (skels', _) = build_ast_while(skels, op_stack, _ => true);
       switch (skels') {
-        | [final_skel, ...[]] => final_skel
-        | _ => Skel.BinOp(ErrStatus.InHole),
-
+        | [final_skel, ...[]] => final_skel // In this case, 
+        | _ => Skel.Placeholder(-1) // This case will never be reached 
       }
     };
   }
