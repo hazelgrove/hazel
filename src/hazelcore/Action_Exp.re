@@ -298,28 +298,25 @@ let mk_syn_text =
     : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
-  | None =>
+  | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
     } else {
-      Failed;
+      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
     }
-  | Some(IntLit(n)) =>
+  | IntLit(n) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.intlit(n)));
     Succeeded(SynDone((ze, HTyp.Int, u_gen)));
-  | Some(FloatLit(f)) =>
+  | FloatLit(f) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.floatlit(f)));
     Succeeded(SynDone((ze, HTyp.Float, u_gen)));
-  | Some(BoolLit(b)) =>
+  | BoolLit(b) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
-  | Some(ExpandingKeyword(k)) =>
+  | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
       UHExp.var(
@@ -328,7 +325,8 @@ let mk_syn_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-  | Some((Underscore | Var(_)) as shape) =>
+  | Underscore as shape
+  | Var(_) as shape =>
     let x =
       switch (shape) {
       | Var(x) => x
@@ -358,19 +356,16 @@ let mk_ana_text =
     : ActionOutcome.t(_) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
-  | None =>
+  | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
-      let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
     } else {
-      Failed;
+      let (it, u_gen) = UHExp.new_InvalidText(u_gen, t);
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
+      Succeeded(AnaDone((ze, u_gen)));
     }
-  | Some(ExpandingKeyword(k)) =>
+  | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
       UHExp.var(
@@ -379,7 +374,11 @@ let mk_ana_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(AnaDone((ze, u_gen)));
-  | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | Underscore
+  | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -418,10 +417,8 @@ let syn_split_text =
     operator_of_shape(sop),
     TextShape.of_text(r),
   ) {
-  | (None, _, _)
-  | (_, None, _)
-  | (_, _, None) => Failed
-  | (Some(ExpandingKeyword(kw)), Some(Space), Some(rshape)) =>
+  | (_, None, _) => Failed
+  | (ExpandingKeyword(kw), Some(Space), rshape) =>
     let (subject, u_gen) = {
       let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
       (UHExp.Block.wrap(operand), u_gen);
@@ -432,7 +429,7 @@ let syn_split_text =
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
       },
     );
-  | (Some(lshape), Some(op), Some(rshape)) =>
+  | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
     let new_ze = {
@@ -460,10 +457,8 @@ let ana_split_text =
     operator_of_shape(sop),
     TextShape.of_text(r),
   ) {
-  | (None, _, _)
-  | (_, None, _)
-  | (_, _, None) => Failed
-  | (Some(ExpandingKeyword(kw)), Some(Space), Some(rshape)) =>
+  | (_, None, _) => Failed
+  | (ExpandingKeyword(kw), Some(Space), rshape) =>
     let (subject, u_gen) = {
       let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
       (UHExp.Block.wrap(operand), u_gen);
@@ -474,7 +469,7 @@ let ana_split_text =
       | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
       },
     );
-  | (Some(lshape), Some(op), Some(rshape)) =>
+  | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
     let new_ze = {
@@ -1366,7 +1361,8 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        ApPalette(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1421,6 +1417,8 @@ and syn_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(zhole);
     Succeeded(SynDone((new_ze, Hole, u_gen)));
 
+  | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
+    syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
@@ -1429,6 +1427,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+  | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
+    syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
@@ -1479,6 +1479,11 @@ and syn_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
+  | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, t)
   | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
@@ -1530,11 +1535,10 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SAsc), CursorE(_)) => Failed
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
+  | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
+    syn_insert_text(ctx, u_gen, (j, s), t)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
@@ -2737,7 +2741,8 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        ApPalette(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -2832,6 +2837,8 @@ and ana_perform_operand =
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
 
+  | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
+    ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
@@ -2841,6 +2848,8 @@ and ana_perform_operand =
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
+  | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
+    ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
@@ -2891,11 +2900,10 @@ and ana_perform_operand =
 
   /* Construction */
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
+  | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
+    ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
@@ -2917,6 +2925,11 @@ and ana_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
+  | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, t, ty)
   | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
