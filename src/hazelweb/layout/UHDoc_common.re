@@ -100,7 +100,7 @@ module Delim = {
   let eq_LetLine = (): t => mk(~index=2, "=");
   let in_LetLine = (): t => mk(~index=3, "in");
 
-  let open_CommentLine = () => mk(~index=0, "#");
+  let open_CommentLine = (): t => mk(~index=0, "#");
 };
 
 let annot_Indent: t => t = Doc.annot(UHAnnot.Indent);
