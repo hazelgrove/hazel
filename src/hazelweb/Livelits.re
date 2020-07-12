@@ -1001,13 +1001,11 @@ module ColorLivelit: LIVELIT = {
   type model = {
     rgb: (SpliceName.t, SpliceName.t, SpliceName.t),
     a: SpliceName.t,
-    hsv: (float, float, float),
     is_open: bool,
     selecting_sat_val: bool,
   };
   let init_model = {
-    let (rval, gval, bval) as rgb_vals = (255, 0, 0);
-    let hsv = hsv_of_rgb(rgb_vals);
+    let (rval, gval, bval) = (255, 0, 0);
     SpliceGenCmd.(
       bind(
         new_splice(
@@ -1040,7 +1038,6 @@ module ColorLivelit: LIVELIT = {
               return({
                 rgb: (r, g, b),
                 a,
-                hsv,
                 is_open: false,
                 selecting_sat_val: false,
               })
@@ -1081,7 +1078,7 @@ module ColorLivelit: LIVELIT = {
               ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
             ),
             _ =>
-            return({...model, hsv})
+            return(model)
           )
         )
       )
@@ -1097,17 +1094,17 @@ module ColorLivelit: LIVELIT = {
     | StopSelectingSatVal =>
       SpliceGenCmd.return({...m, selecting_sat_val: false})
     | SelectSatVal(s, v) =>
-      let (h, _, _) = m.hsv;
+      let (h, _, _) = hsv_of_rgb(m.rgb);
       update_hsv((h, s, v), m);
     | SelectHue(h) =>
-      let (_, s, v) = m.hsv;
+      let (_, s, v) = hsv_of_rgb(m.rgb);
       update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
     };
 
   [@warning "-27"]
   let view =
       (
-        {rgb: (r, g, b), a, hsv, is_open: _, selecting_sat_val},
+        {rgb: (r, g, b), a, is_open: _, selecting_sat_val},
         trigger,
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
@@ -1128,165 +1125,192 @@ module ColorLivelit: LIVELIT = {
       | _ => None
       };
 
-    let _color_box = {
-      let on_click = Attr.on_click(_ => trigger(Open));
-      switch (rgba_values) {
-      | None =>
-        Node.div(
-          [Attr.classes(["color-box"]), on_click],
-          [
-            Node.create_svg(
-              "svg",
-              [Attr.create("viewBox", "0 0 100 100")],
-              [
-                Node.create_svg(
-                  "line",
-                  [
-                    Attr.create("x1", "20"),
-                    Attr.create("y1", "20"),
-                    Attr.create("x2", "80"),
-                    Attr.create("y2", "80"),
-                    Attr.create("vector-effect", "non-scaling-stroke"),
-                  ],
-                  [],
-                ),
-                Node.create_svg(
-                  "line",
-                  [
-                    Attr.create("x1", "20"),
-                    Attr.create("y1", "80"),
-                    Attr.create("x2", "80"),
-                    Attr.create("y2", "20"),
-                    Attr.create("vector-effect", "non-scaling-stroke"),
-                  ],
-                  [],
-                ),
-              ],
-            ),
-          ],
-        )
-      | Some((r, g, b, a)) =>
-        Node.div(
-          [
-            attr_style(
-              prop_val(
-                "background-color",
-                Printf.sprintf("rgba(%d, %d, %d, %d)", r, g, b, a),
-              ),
-            ),
-            Attr.classes(["color-box"]),
-            on_click,
-          ],
-          [],
-        )
-      };
-    };
-
     let color_picker = {
       let height = 135.0;
       let width = 135.0;
-      let sat_val_box =
-        switch (rgba_values) {
-        | None => []
-        | Some(_) =>
-          let (h, s, v) = hsv;
-          let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
-          // let (_h, s, v) = hsv_of_rgb(rgb);
-          let px = Printf.sprintf("%f0px");
-          [
-            Node.div(
-              [
-                Attr.classes(["sat-val-box"]),
-                attr_style(
-                  StringUtil.cat([
-                    prop_val("height", height |> px),
-                    prop_val("width", width |> px),
-                    prop_val(
-                      "background-color",
-                      Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
-                    ),
-                  ]),
-                ),
-                Attr.on_mousemove(evt =>
-                  if (selecting_sat_val) {
-                    let (offset_x, offset_y) = {
-                      let target =
-                        Js.Opt.get(evt##.target, () => failwith("no target"));
-                      if (target |> JSUtil.elem_has_cls("sat-val-box")) {
-                        (
-                          Float.of_int(Js.Unsafe.get(evt, "offsetX")),
-                          Float.of_int(Js.Unsafe.get(evt, "offsetY")),
-                        );
-                      } else {
-                        let box = JSUtil.force_get_parent_elem(target);
-                        let rect = box##getBoundingClientRect;
-                        let client_x = Float.of_int(evt##.clientX);
-                        let client_y = Float.of_int(evt##.clientY);
-                        (client_x -. rect##.left, client_y -. rect##.top);
-                      };
-                    };
-                    trigger(
-                      SelectSatVal(
-                        max(0.0, min(offset_x /. width, 1.0)),
-                        max(0.0, min((height -. offset_y) /. height, 1.0)),
-                      ),
-                    );
-                  } else {
-                    Event.Many([]);
-                  }
-                ),
-              ],
-              [
-                Node.div(
-                  [
-                    Attr.classes(["sat-val-selector"]),
-                    attr_style(
-                      StringUtil.cat([
-                        prop_val("left", s *. width |> px),
-                        prop_val("top", height -. v *. height |> px),
-                      ]),
-                    ),
-                    Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
-                    Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
-                  ],
-                  [],
-                ),
-              ],
-            ),
-          ];
-        };
-      let splice_label = lbl =>
-        Node.label([Attr.classes(["splice-label"])], [Node.text(lbl)]);
-      let splice = splice_name =>
-        Node.div(
-          [Attr.classes(["splice-content"])],
-          [uhcode(splice_name)],
-        );
-      let (h, _, _) = hsv;
-      let (rval, gval, bval, aval, aint) =
-        switch (rgba_values) {
-        | None => (0, 0, 0, 0.0, 0)
-        | Some((r, g, b, a)) => (r, g, b, Float.of_int(a) /. 255.0, a)
-        };
-      Node.div(
-        [
-          Attr.classes([
-            "color-picker",
-            "open" /*is_open ? "open" : "closed"*/,
-          ]),
-        ],
-        [
+      let px = Printf.sprintf("%fpx");
+      let sat_val_box = {
+        let box = (bg_color, attrs, children) => {
           Node.div(
             [
-              Attr.classes(["color-swatch"]),
+              Attr.classes(["sat-val-box"]),
+              attr_style(
+                StringUtil.cat([
+                  prop_val("height", height |> px),
+                  prop_val("width", width |> px),
+                  prop_val("background-color", bg_color),
+                ]),
+              ),
+              ...attrs,
+            ],
+            children,
+          );
+        };
+        switch (rgba_values) {
+        | None =>
+          box(
+            "gray",
+            [
+              Attr.on_click(evt => {
+                let (offset_x, offset_y) = {
+                  let target =
+                    Js.Opt.get(evt##.target, () => failwith("no target"));
+                  let box = JSUtil.force_get_parent_elem(target);
+                  let rect = box##getBoundingClientRect;
+                  let client_x = Float.of_int(evt##.clientX);
+                  let client_y = Float.of_int(evt##.clientY);
+                  (client_x -. rect##.left, client_y -. rect##.top);
+                };
+                trigger(
+                  SelectSatVal(
+                    max(0.0, min(offset_x /. width, 1.0)),
+                    max(0.0, min((height -. offset_y) /. height, 1.0)),
+                  ),
+                );
+              }),
+            ],
+            [],
+          )
+        | Some((rval, gval, bval, aval)) =>
+          let (h, s, v) = hsv_of_rgb((rval, gval, bval));
+          let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+          box(
+            Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
+            [
+              Attr.on_mousemove(evt =>
+                if (selecting_sat_val) {
+                  let (offset_x, offset_y) = {
+                    let target =
+                      Js.Opt.get(evt##.target, () => failwith("no target"));
+                    if (target |> JSUtil.elem_has_cls("sat-val-box")) {
+                      (
+                        Float.of_int(Js.Unsafe.get(evt, "offsetX")),
+                        Float.of_int(Js.Unsafe.get(evt, "offsetY")),
+                      );
+                    } else {
+                      let box = JSUtil.force_get_parent_elem(target);
+                      let rect = box##getBoundingClientRect;
+                      let client_x = Float.of_int(evt##.clientX);
+                      let client_y = Float.of_int(evt##.clientY);
+                      (client_x -. rect##.left, client_y -. rect##.top);
+                    };
+                  };
+                  trigger(
+                    SelectSatVal(
+                      max(0.0, min(offset_x /. width, 1.0)),
+                      max(0.0, min((height -. offset_y) /. height, 1.0)),
+                    ),
+                  );
+                } else {
+                  Event.Many([]);
+                }
+              ),
+            ],
+            [
+              Node.div(
+                [
+                  Attr.classes(["sat-val-selector"]),
+                  attr_style(
+                    StringUtil.cat([
+                      prop_val("left", s *. width |> px),
+                      prop_val("top", height -. v *. height |> px),
+                    ]),
+                  ),
+                  Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
+                  Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
+                ],
+                [],
+              ),
+            ],
+          );
+        };
+      };
+
+      let hue_slider = {
+        let slider = attrs =>
+          Node.div(
+            [Attr.classes(["hue-slider-wrapper"])],
+            [
+              Node.input(
+                [
+                  Attr.classes(["hue-slider"]),
+                  Attr.type_("range"),
+                  Attr.create("min", "0"),
+                  Attr.create("max", "360"),
+                  Attr.on_input((_, value_str) =>
+                    trigger(SelectHue(int_of_string(value_str)))
+                  ),
+                  Attr.create(
+                    "style",
+                    // slider is rotated 90 degrees
+                    Printf.sprintf("width: %fpx;", height),
+                  ),
+                  ...attrs,
+                ],
+                [],
+              ),
+            ],
+          );
+        switch (rgba_values) {
+        | None => slider([Attr.classes(["hue-slider", "no-thumb"])])
+        | Some((r, g, b, _)) =>
+          let (h, _, _) = hsv_of_rgb((r, g, b));
+          slider([
+            Attr.classes(["hue-slider"]),
+            Attr.value(string_of_int(Float.to_int(h))),
+          ]);
+        };
+      };
+
+      let color_swatch = {
+        let swatch = (attrs, children) =>
+          Node.div([Attr.classes(["color-swatch"]), ...attrs], children);
+        switch (rgba_values) {
+        | None =>
+          swatch(
+            [],
+            [
+              Node.create_svg(
+                "svg",
+                [Attr.create("viewBox", "0 0 100 100")],
+                [
+                  Node.create_svg(
+                    "line",
+                    [
+                      Attr.create("x1", "20"),
+                      Attr.create("y1", "20"),
+                      Attr.create("x2", "80"),
+                      Attr.create("y2", "80"),
+                      Attr.create("vector-effect", "non-scaling-stroke"),
+                    ],
+                    [],
+                  ),
+                  Node.create_svg(
+                    "line",
+                    [
+                      Attr.create("x1", "20"),
+                      Attr.create("y1", "80"),
+                      Attr.create("x2", "80"),
+                      Attr.create("y2", "20"),
+                      Attr.create("vector-effect", "non-scaling-stroke"),
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+            ],
+          )
+        | Some((r, g, b, a)) =>
+          swatch(
+            [
               Attr.create(
                 "style",
                 Printf.sprintf(
                   "background-color: rgba(%d, %d, %d, %f);",
-                  rval,
-                  gval,
-                  bval,
-                  aval,
+                  r,
+                  g,
+                  b,
+                  Float.of_int(a) /. 255.0,
                 ),
               ),
             ],
@@ -1298,20 +1322,34 @@ module ColorLivelit: LIVELIT = {
                     [],
                     [
                       Node.text(
-                        Printf.sprintf(
-                          "rgba(%d, %d, %d, %d)",
-                          rval,
-                          gval,
-                          bval,
-                          aint,
-                        ),
+                        Printf.sprintf("rgba(%d, %d, %d, %d)", r, g, b, a),
                       ),
                     ],
                   ),
                 ],
               ),
             ],
-          ),
+          )
+        };
+      };
+
+      let splice_label = lbl =>
+        Node.label([Attr.classes(["splice-label"])], [Node.text(lbl)]);
+      let splice = splice_name =>
+        Node.div(
+          [Attr.classes(["splice-content"])],
+          [uhcode(splice_name)],
+        );
+      Node.div(
+        [
+          Attr.classes([
+            "color-picker",
+            // TODO clean up open closed logic
+            "open",
+          ]),
+        ],
+        [
+          color_swatch,
           Node.div(
             [Attr.classes(["rgb-picker"])],
             [
@@ -1327,31 +1365,7 @@ module ColorLivelit: LIVELIT = {
           ),
           Node.div(
             [Attr.classes(["hsv-picker"])],
-            sat_val_box
-            @ [
-              Node.div(
-                [Attr.classes(["hue-slider-wrapper"])],
-                [
-                  Node.input(
-                    [
-                      Attr.classes(["hue-slider"]),
-                      Attr.type_("range"),
-                      Attr.create("min", "0"),
-                      Attr.create("max", "360"),
-                      Attr.value(string_of_int(Float.to_int(h))),
-                      Attr.on_input((_, value_str) =>
-                        trigger(SelectHue(int_of_string(value_str)))
-                      ),
-                      Attr.create(
-                        "style",
-                        Printf.sprintf("width: %fpx;", height),
-                      ),
-                    ],
-                    [],
-                  ),
-                ],
-              ),
-            ],
+            [sat_val_box, hue_slider],
           ),
         ],
       );
