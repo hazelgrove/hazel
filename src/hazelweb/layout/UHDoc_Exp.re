@@ -116,15 +116,26 @@ and mk_line =
       (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
       (
         switch (line) {
-        // FIXME: WIP
-        | CommentLine(_) =>
-          UHDoc_common.Delim.open_CommentLine()
-          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-          |> Doc.annot(UHAnnot.CommentLine)
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
           |> Doc.annot(UHAnnot.EmptyLine)
+        | CommentLine(comment) =>
+          let comment_doc =
+            UHDoc_common.mk_text(comment)
+            |> Doc.annot(
+                 UHAnnot.mk_Token(
+                   ~shape=Text,
+                   ~len=StringUtil.utf8_length(comment),
+                   (),
+                 ),
+               );
+          Doc.hcats([
+            UHDoc_common.Delim.open_CommentLine(),
+            UHDoc_common.space_ |> UHDoc_common.annot_Padding,
+            comment_doc,
+          ])
+          |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, ann, def) =>
