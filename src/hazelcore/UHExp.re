@@ -353,7 +353,7 @@ let associate = (seq: seq): skel => {
         /**
          * Continue popping operators while the precedence of the top of the operator
          * stack has greater precedence than the current operator.
-         * 
+         *
          * Either the operator on the top of the stack is left associative and
          * has greater or equal precedence to the current operator, or the
          * operator on the top of the stack is right associative and has strictly
@@ -379,9 +379,9 @@ let associate = (seq: seq): skel => {
        */
       let (skels', _) = build_ast_while(skels, op_stack, _ => true);
       switch (skels') {
-        | [final_skel, ...[]] => final_skel // In this case, 
-        | _ => Skel.Placeholder(-1) // This case will never be reached 
-      }
+      | [final_skel] => final_skel // In this case,
+      | _ => Skel.Placeholder(-1) // This case will never be reached
+      };
     };
   }
   and build_ast_while =
