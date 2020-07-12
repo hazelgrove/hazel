@@ -1006,7 +1006,7 @@ module ColorLivelit: LIVELIT = {
     selecting_sat_val: bool,
   };
   let init_model = {
-    let (rval, gval, bval) as rgb_vals = (173, 173, 173);
+    let (rval, gval, bval) as rgb_vals = (255, 0, 0);
     let hsv = hsv_of_rgb(rgb_vals);
     SpliceGenCmd.(
       bind(
@@ -1033,7 +1033,7 @@ module ColorLivelit: LIVELIT = {
             bind(
               new_splice(
                 ~init_uhexp_gen=
-                  u_gen => (UHExp.(Block.wrap(intlit'(85))), u_gen),
+                  u_gen => (UHExp.(Block.wrap(intlit'(255))), u_gen),
                 HTyp.Int,
               ),
               a =>
