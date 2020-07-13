@@ -34,7 +34,7 @@ type syn_fixer('term, 'extra_input, 'extra_output) =
     ~extra_input: 'extra_input,
     'term
   ) =>
-  ('term, 'extra_output, MetaVarGen.t);
+  ('term, 'extra_output, MetaVarGen.t, bool);
 type ana_fixer('term, 'extra_input, 'extra_output) =
   (
     Contexts.t,
@@ -44,32 +44,24 @@ type ana_fixer('term, 'extra_input, 'extra_output) =
     'term,
     HTyp.t
   ) =>
-  ('term, 'extra_output, MetaVarGen.t);
+  ('term, 'extra_output, MetaVarGen.t, bool);
 
-// Wraps a syn_fixer to check if u_gen has changed. If it hasn't, then the value
+// Wraps a syn_fixer to check `changed` is true. If it isn't, then the value
 // didn't change and we can ensure pointer stability by returning the original
 // term.
 let stable_syn_fixer =
     (f: syn_fixer('term, 'extra_input, 'extra_output))
     : syn_fixer('term, 'extra_input, 'extra_output) =>
   (ctx, u_gen, ~renumber_empty_holes, ~extra_input, term) => {
-    let (fixed_term, extra_output, u_gen2) =
+    let (fixed_term, extra_output, u_gen, changed) =
       f(ctx, u_gen, ~renumber_empty_holes, ~extra_input, term);
-    if (u_gen2 == u_gen) {
-      (term, extra_output, u_gen2);
-    } else {
-      (fixed_term, extra_output, u_gen2);
-    };
+    (changed ? fixed_term : term, extra_output, u_gen, changed);
   };
 let stable_ana_fixer =
     (f: ana_fixer('term, 'extra_input, 'extra_output))
     : ana_fixer('term, 'extra_input, 'extra_output) =>
   (ctx, u_gen, ~renumber_empty_holes, ~extra_input, term, ty) => {
-    let (fixed_term, extra_output, u_gen2) =
+    let (fixed_term, extra_output, u_gen, changed) =
       f(ctx, u_gen, ~renumber_empty_holes, ~extra_input, term, ty);
-    if (u_gen2 == u_gen) {
-      (term, extra_output, u_gen2);
-    } else {
-      (fixed_term, extra_output, u_gen2);
-    };
+    (changed ? fixed_term : term, extra_output, u_gen, changed);
   };
