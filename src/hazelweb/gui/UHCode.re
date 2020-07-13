@@ -155,7 +155,7 @@ module Dec = {
 
   let multiline_open_child_rects =
       (~overflow_left, start: CaretPosition.t, m: MeasuredLayout.t): rects => {
-    let overflow_left = overflow_left ? 0.1 : 0.0;
+    let overflow_left = overflow_left ? 0.25 : 0.0;
     [
       // make singleton skinny rect
       RectilinearPolygon.{
@@ -211,11 +211,11 @@ module Dec = {
         [
           RectilinearPolygon.{
             min: {
-              x: Float.of_int(start.col) -. 0.1,
+              x: Float.of_int(start.col) -. 0.25,
               y: Float.of_int(start.row),
             },
             height: Float.of_int(height),
-            width: 0.1,
+            width: 0.25,
           },
           ...List.flatten(highlighted_rs),
         ];
