@@ -515,7 +515,7 @@ and holes_operand =
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
-  | UnaryOp(err, _, operand) => 
+  | UnaryOp(err, _, operand) =>
     hs |> holes_operand(operand, rev_steps) |> holes_err(err, rev_steps)
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
@@ -817,13 +817,49 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
+  | CursorE(OnDelim(_), UnaryOp(_)) =>
+    /* invalid cursor position */
+    CursorPath_common.no_holes
+  | CursorE(
+      OnText(_),
+      Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | UnaryOp(_),
+    ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-  | UnaryOpZU(err, _, operand) => TODO
-  | UnaryOpZN(err, _, zoperand) => TODO
+  | UnaryOpZU(err, _, operand) =>
+    let operand_holes = holes_operand(operand, [1, ...rev_steps], []);
+    let hole_err =
+      switch (err) {
+      | NotInHole => None
+      | InHole(_, u) =>
+        Some((CursorPath_common.ExpHole(u), rev_steps |> List.rev))
+      };
+    /* TODO */
+    CursorPath_common.mk_zholes(
+      ~holes_before=[],
+      ~hole_selected=hole_err,
+      ~holes_after=operand_holes,
+      (),
+    );
+  | UnaryOpZN(err, _, zoperand) =>
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_zoperand(zoperand, [1, ...rev_steps]);
+    let holes_err =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+        ]
+      };
+    /* TODO */
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   | LamZP(err, zp, ann, body) =>
     let holes_err =
       switch (err) {
