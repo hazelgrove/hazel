@@ -1001,7 +1001,6 @@ module ColorLivelit: LIVELIT = {
   type model = {
     rgb: (SpliceName.t, SpliceName.t, SpliceName.t),
     a: SpliceName.t,
-    is_open: bool,
     selecting_sat_val: bool,
   };
   let init_model = {
@@ -1035,12 +1034,7 @@ module ColorLivelit: LIVELIT = {
                 HTyp.Int,
               ),
               a =>
-              return({
-                rgb: (r, g, b),
-                a,
-                is_open: false,
-                selecting_sat_val: false,
-              })
+              return({rgb: (r, g, b), a, selecting_sat_val: false})
             )
           )
         )
@@ -1050,8 +1044,6 @@ module ColorLivelit: LIVELIT = {
 
   [@deriving sexp]
   type action =
-    | Open
-    | Close
     | StartSelectingSatVal
     | StopSelectingSatVal
     | SelectSatVal(float, float)
@@ -1087,8 +1079,6 @@ module ColorLivelit: LIVELIT = {
 
   let update = (m, action) =>
     switch (action) {
-    | Open => SpliceGenCmd.return({...m, is_open: true})
-    | Close => SpliceGenCmd.return({...m, is_open: false})
     | StartSelectingSatVal =>
       SpliceGenCmd.return({...m, selecting_sat_val: true})
     | StopSelectingSatVal =>
@@ -1104,7 +1094,7 @@ module ColorLivelit: LIVELIT = {
   [@warning "-27"]
   let view =
       (
-        {rgb: (r, g, b), a, is_open: _, selecting_sat_val},
+        {rgb: (r, g, b), a, selecting_sat_val},
         trigger,
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
@@ -1370,20 +1360,7 @@ module ColorLivelit: LIVELIT = {
         ],
       );
     };
-    /*
-     let modal_overlay =
-       Node.div(
-         [
-           Attr.classes(["modal-overlay", is_open ? "open" : "closed"]),
-           Attr.on_click(_ => trigger(Close)),
-         ],
-         [],
-       );
-     */
-    Node.div(
-      [Attr.classes(["color-livelit"])],
-      [/*color_box,*/ color_picker] // modal_overlay],
-    );
+    Node.div([Attr.classes(["color-livelit"])], [color_picker]);
   };
 
   let view_shape = _ => LivelitView.MultiLine(10);
