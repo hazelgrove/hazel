@@ -302,6 +302,7 @@ let current_term_view =
     (
       ~corner_radii: (float, float),
       ~offset: int,
+      ~sort: TermSort.t,
       ~shape: TermShape.t,
       subject: MeasuredLayout.t,
     )
@@ -333,13 +334,20 @@ let current_term_view =
         ),
       )
     };
+
+  let sort_cls =
+    switch (sort) {
+    | Typ => "Typ"
+    | Pat => "Pat"
+    | Exp => "Exp"
+    };
   let highlighted_vs =
     ListUtil.is_empty(highlighted_rs)
       ? []
       : [
         RectilinearPolygon.mk_svg(
           ~corner_radii,
-          ~attrs=Vdom.[Attr.classes(["code-current-term"])],
+          ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls])],
           highlighted_rs,
         ),
       ];
@@ -366,7 +374,7 @@ let current_term_view =
           Node.create_svg(
             "feDropShadow",
             [
-              Attr.classes(["current-term-drop-shadow"]),
+              Attr.classes(["current-term-drop-shadow", sort_cls]),
               Attr.create("dx", "0.1"),
               Attr.create("dy", "0.04"),
               Attr.create("stdDeviation", "0"),
@@ -507,8 +515,8 @@ let view =
     switch (d) {
     | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
     | VarErrHole => var_err_hole_view(~corner_radii, ~offset, subject)
-    | CurrentTerm(shape) =>
-      current_term_view(~corner_radii, ~offset, ~shape, subject)
+    | CurrentTerm(sort, shape) =>
+      current_term_view(~corner_radii, ~offset, ~sort, ~shape, subject)
     };
 
   let cls =
