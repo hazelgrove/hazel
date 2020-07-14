@@ -29,7 +29,10 @@ type t =
       is_inline: bool,
       is_enclosed: bool,
     })
-  | ClosedChild({is_inline: bool})
+  | ClosedChild({
+      is_inline: bool,
+      sort: TermSort.t,
+    })
   | Tessera
   | EmptyLine
   | LetLine
@@ -43,5 +46,3 @@ let mk_Term:
   (~has_cursor: bool=?, ~shape: TermShape.t, ~sort: TermSort.t, unit) => t;
 
 let mk_OpenChild: (~is_enclosed: bool=?, ~is_inline: bool, unit) => t;
-
-let mk_ClosedChild: (~is_inline: bool, unit) => t;

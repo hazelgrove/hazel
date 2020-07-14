@@ -890,12 +890,27 @@ h1 {
   fill: var(--typ-bg-color);
 }
 
+#code-root .closed-child-inset-shadow.Exp {
+  flood-color: var(--exp-shadow-color);
+}
+#code-root .closed-child-inset-shadow.Pat {
+  flood-color: var(--pat-bright-shadow-color);
+}
+#code-root .closed-child-inset-shadow.Typ {
+  flood-color: var(--typ-bright-shadow-color);
+}
 
 #code-root .closed-child-drop-shadow {
   flood-color: var(--pat-bright-shadow-color);
 }
-#code-root .code-closed-child {
-  filter: url(#closed-child-drop-shadow);
+#code-root .code-closed-child.Exp {
+  filter: url(#exp-closed-child-drop-shadow);
+}
+#code-root .code-closed-child.Pat {
+  filter: url(#pat-closed-child-drop-shadow);
+}
+#code-root .code-closed-child.Typ {
+  filter: url(#typ-closed-child-drop-shadow);
 }
 
 .code .VBox {

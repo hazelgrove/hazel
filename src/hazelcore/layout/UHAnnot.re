@@ -28,10 +28,16 @@ type t =
   | SpaceOp
   | UserNewline
   | OpenChild({
+      // TODO consider whether necessary
       is_inline: bool,
+      // TODO consider whether necessary
       is_enclosed: bool,
     })
-  | ClosedChild({is_inline: bool})
+  | ClosedChild({
+      // TODO consider whether necessary
+      is_inline: bool,
+      sort: TermSort.t,
+    })
   | Tessera
   | EmptyLine
   | LetLine
@@ -46,5 +52,3 @@ let mk_Term =
   Term({has_cursor, shape, sort});
 let mk_OpenChild = (~is_enclosed=true, ~is_inline: bool, ()) =>
   OpenChild({is_inline, is_enclosed});
-let mk_ClosedChild = (~is_inline: bool, ()) =>
-  ClosedChild({is_inline: is_inline});
