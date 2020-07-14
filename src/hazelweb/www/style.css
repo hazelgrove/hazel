@@ -45,18 +45,11 @@
   --code-shadow-thickness: 1.5px;
   --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
-  /* necessary for hiding portions of box shadows */
-  --err-hole-z: 0;
-  --para-border-z: 1;
-  --delim-group-z: 2;
-  --inline-border-z: 3;
-  --child-z: 4;
-  --caret-z: 5;
-
   --current-term-z: 0;
-  --err-hole-zz: 1;
+  --err-hole-z: 1;
   --verr-hole-z: 1;
   --code-text-z: 2;
+  --caret-z: 5;
 }
 
 /* general */
@@ -847,11 +840,6 @@ h1 {
   font-variant-ligatures: normal;
 }
 
-.code.presentation .code-err-hole {
-  position: absolute;
-  z-index: var(--err-hole-z);
-}
-
 .code-closed-child {
   fill: white;
 }
@@ -870,7 +858,7 @@ h1 {
   position: absolute;
 }
 #code-root .err-hole-container {
-  z-index: var(--err-hole-zz);
+  z-index: var(--err-hole-z);
 }
 #code-root .var-err-hole-container {
   z-index: var(--verr-hole-z);
@@ -1017,23 +1005,6 @@ h1 {
   }
 }
 
-/*
-.code {
-  box-sizing: border-box;
-}
-*/
-
-/*
-.Invalid {
-  border: 1px dashed var(--err-hole-color);
-  margin: -1px;
-}
-
-.InHole {
-  border: 1px dashed var(--err-hole-color);
-  margin: -1px;
-}
-*/
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;
@@ -1046,155 +1017,6 @@ h1 {
 .DHCode .Collapsed {
   color: #999;
 }
-
-.OpenChild.Para {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: stretch;
-}
-
-.Cursor.Term::before {
-  /* set by each term sort */
-  --bg-color: transparent;
-  --shadow-color: transparent;
-  content: "";
-  position: absolute;
-  background-color: var(--bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
-}
-.Cursor.Term.has-Inline-OpenChild.Case::before,
-.Cursor.Term.has-Para-OpenChild.Case::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  border-radius: var(--code-radius) 0 0 var(--code-radius);
-  z-index: var(--para-border-z);
-}
-.Cursor.Term.has-Inline-OpenChild::before {
-  top: calc(100% - var(--child-border-thickness));
-  left: 0;
-  height: var(--child-border-thickness);
-  width: 100%;
-  border-radius: 0 0 var(--code-radius) var(--code-radius);
-  z-index: var(--inline-border-z);
-}
-.Cursor.Term.BinOp::before,
-.Cursor.Term.NTuple::before {
-  border-radius: var(--code-radius);
-  /* TODO Fix magic number. These elements
-   * have display:inline which causes them
-   * to have smaller heights than
-   * display:inline-block. Need to figure
-   * out cleaner solution, this is stopgap
-   * in the meantime. */
-  top: calc(100% - 1px);
-}
-.Cursor.Term.has-Para-OpenChild::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  border-radius: var(--code-radius) 0 0 var(--code-radius);
-  z-index: var(--para-border-z);
-}
-.Cursor.Term.SubBlock.has-Para-OpenChild::before,
-.Cursor.Term.SubBlock.has-Inline-OpenChild::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  z-index: var(--para-border-z);
-  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
-}
-.Cursor.Term.has-Para-OpenChild.Rule::before {
-  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
-}
-.Cursor.Term.has-Inline-OpenChild.Rule::before {
-  top: calc(100% - (var(--child-border-thickness) / 2));
-  border-radius: 0 var(--code-radius) var(--code-radius) var(--code-radius);
-}
-
-.Cursor.Term.SubBlock .LetLine::before {
-  content: "";
-  position: absolute;
-  background-color: var(--exp-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
-}
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine::before {
-  top: calc(100% - (var(--child-border-thickness) / 2));
-  left: 0;
-  height: var(--child-border-thickness);
-  width: 100%;
-  border-radius: 0 0 var(--code-radius) 0;
-  z-index: var(--inline-border-z);
-}
-.Cursor.Term.SubBlock.has-Para-OpenChild .LetLine::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  border-radius: var(--code-radius) 0 0 var(--code-radius);
-  z-index: var(--para-border-z);
-}
-.Cursor.Term.SubBlock .Term .LetLine::before {
-  all: unset;
-}
-
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .Tessera:first-child {
-  border-radius: 0 var(--code-radius) 0 0;
-}
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .Tessera:last-child {
-  border-radius: var(--code-radius) var(--code-radius) 0 0;
-}
-
-.Cursor.Term.Rule.has-Para-OpenChild > .Tessera {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-
-.Cursor.Term.Exp::before {
-  --bg-color: var(--exp-bg-color);
-  --shadow-color: var(--exp-shadow-color);
-}
-.Cursor.Term.Pat::before {
-  --bg-color: var(--pat-bg-color);
-  --shadow-color: var(--pat-shadow-color);
-}
-.Cursor.Term.Typ::before {
-  --bg-color: var(--typ-bg-color);
-  --shadow-color: var(--typ-shadow-color);
-}
-
-.Term {
-  border-radius: var(--code-radius);
-}
-
-.Cursor.Term.Exp.Invalid.no-children {
-  background-color: var(--exp-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
-}
-.Cursor.Term.Exp.Operand.no-children {
-  background-color: var(--exp-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
-}
-.Cursor.Term.Pat.Invalid.no-children {
-  background-color: var(--pat-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
-}
-.Cursor.Term.Pat.Operand.no-children {
-  background-color: var(--pat-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
-}
-.Cursor.Term.Typ.Operand.no-children {
-  background-color: var(--typ-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--typ-shadow-color);
-}
-/*
-.Cursor.Term.Operand.no-children {
-  top: calc(-1 * var(--code-shadow-thickness));
-  left: calc(-1 * var(--code-shadow-thickness));
-}
-*/
 
 .Var.show-use {
   background-color: rgba(175, 175, 175, 0.3);
@@ -1212,115 +1034,6 @@ h1 {
   stroke-dasharray: 3 2;
   stroke-width: 1;
   fill: none;
-}
-
-.Cursor .Tessera {
-  /* set by each term sort */
-  --bg-color: transparent;
-  --shadow-color: transparent;
-  background-color: var(--bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
-  z-index: var(--delim-group-z);
-  /*
-  top: calc(-1 * var(--code-shadow-thickness));
-  left: calc(-1 * var(--code-shadow-thickness));
-  */
-}
-.Cursor.Term.has-Inline-OpenChild .Tessera {
-  border-radius: var(--code-radius);
-}
-.Cursor.Term.has-Para-OpenChild .Tessera {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-.Cursor.Term.Case .Tessera {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-.Cursor.Term.Rule .Tessera {
-  border-radius: var(--code-radius);
-}
-.Cursor .Term .Tessera {
-  background-color: var(--default-code-bg-color);
-  box-shadow: none;
-  z-index: auto;
-  border-radius: none;
-  /*
-  top: 0;
-  left: 0;
-  */
-}
-
-.Cursor.Exp .Tessera {
-  --bg-color: var(--exp-bg-color);
-
-  --shadow-color: var(--exp-shadow-color);
-}
-.Cursor.Pat .Tessera {
-  --bg-color: var(--pat-bg-color);
-  --shadow-color: var(--pat-shadow-color);
-}
-.Cursor.Typ .Tessera {
-  --bg-color: var(--typ-bg-color);
-  --shadow-color: var(--typ-shadow-color);
-}
-
-.Cursor.Term .Term {
-  z-index: var(--child-z);
-}
-.Cursor.Term.Exp .Term.Pat,
-.Cursor.Term.Exp .Term.Typ {
-  line-height: var(--closed-child-line-height);
-}
-.Cursor.Term .Term .Term {
-  z-index: auto;
-  line-height: var(--code-line-height);
-}
-
-.Cursor.Term.Exp .Term.Pat {
-  background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: var(--closed-child-shadow-shape) var(--pat-bright-shadow-color);
-}
-.Cursor.Term.Exp .Term .Term.Pat {
-  background-color: var(--default-code-bg-color);
-  box-shadow: none;
-}
-/*
-.Cursor.Term.Exp .Term.Pat > * {
-  top: var(--code-shadow-thickness);
-  left: var(--code-shadow-thickness);
-}
-.Cursor.Term.Exp .Term .Term.Pat > * {
-  top: 0px;
-  left: 0px;
-}
-*/
-
-.Cursor.Term.Exp .Term.Typ {
-  background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: var(--closed-child-shadow-shape) var(--typ-bright-shadow-color);
-}
-.Cursor.Term.Exp .Term .Term.Typ {
-  background-color: var(--default-code-bg-color);
-  box-shadow: none;
-}
-/*
-.Cursor.Term.Exp .Term.Typ > * {
-  top: var(--code-shadow-thickness);
-  left: var(--code-shadow-thickness);
-}
-.Cursor.Term.Exp .Term .Term.Typ > * {
-  top: 0px;
-  left: 0px;
-}
-*/
-
-.SDelim-before,
-.SDelim-after,
-.SOp-before,
-.SOp-after,
-.SEmptyHole-before,
-.SEmptyHole-after,
-.SEmptyLine {
-  padding-left: 1px;
 }
 
 #cell {
