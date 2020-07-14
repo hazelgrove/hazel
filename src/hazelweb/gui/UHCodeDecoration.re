@@ -86,6 +86,21 @@ let var_err_hole_view =
          ],
      );
 
+let var_use_view =
+    (~corner_radii: (float, float), ~offset: int, subject: MeasuredLayout.t)
+    : Vdom.Node.t =>
+  subject
+  |> rects({row: 0, col: offset})
+  |> snd
+  |> RectilinearPolygon.mk_svg(
+       ~corner_radii,
+       ~attrs=
+         Vdom.Attr.[
+           classes(["var-use"]),
+           create("vector-effect", "non-scaling-stroke"),
+         ],
+     );
+
 let tessera_rects =
     (start: CaretPosition.t, m: MeasuredLayout.t)
     : (CaretPosition.t, current_term_rects) => {
@@ -547,6 +562,7 @@ let view =
     switch (d) {
     | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
     | VarErrHole => var_err_hole_view(~corner_radii, ~offset, subject)
+    | VarUse => var_use_view(~corner_radii, ~offset, subject)
     | CurrentTerm(sort, shape) =>
       current_term_view(~corner_radii, ~offset, ~sort, ~shape, subject)
     };
@@ -555,6 +571,7 @@ let view =
     switch (d) {
     | ErrHole => "err-hole"
     | VarErrHole => "var-err-hole"
+    | VarUse => "var-use"
     | CurrentTerm(_) => "current-term"
     };
 
