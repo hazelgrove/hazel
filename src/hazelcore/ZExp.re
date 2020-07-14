@@ -184,7 +184,7 @@ and is_before_zoperand =
   | ApPaletteZ(_) => false;
 
 // The following 2 functions are specifically for CommentLines!!
-// Check if the cursor at "OnDelim(After)" in a (sub) "CommentLine"
+// Check if the cursor at "OnDelim(After)" in a "CommentLine"
 /* For example:
            # Comment1
            #| Comment2
@@ -199,7 +199,7 @@ let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
     }
   | _ => false
   };
-// Check if the cursor at the end of a (pre) "CommentLine"
+// Check if the cursor at the end of a "CommentLine"
 /* For example:
            # Comment1|
            # Comment2
