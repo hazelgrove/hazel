@@ -27,7 +27,9 @@ let take_step = (step: int, decorations: t): t => {
   {err_holes, var_err_holes, current_term};
 };
 
-let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
+let current =
+    (term_sort: TermSort.t, term_shape: TermShape.t, decorations: t)
+    : list(Decoration.t) => {
   let is_current = steps =>
     switch (term_shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
@@ -53,7 +55,7 @@ let current = (term_shape: TermShape.t, decorations: t): list(Decoration.t) => {
   let current_term =
     switch (decorations.current_term) {
     | Some((steps, _)) when is_current(steps) => [
-        Decoration.CurrentTerm(term_shape),
+        Decoration.CurrentTerm(term_sort, term_shape),
       ]
     | _ => []
     };

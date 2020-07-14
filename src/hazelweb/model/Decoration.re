@@ -2,4 +2,4 @@
 type t =
   | ErrHole
   | VarErrHole
-  | CurrentTerm(TermShape.t);
+  | CurrentTerm(TermSort.t, TermShape.t);

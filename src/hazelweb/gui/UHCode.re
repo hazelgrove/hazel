@@ -3,14 +3,6 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
-/*
- let sort_clss: TermSort.t => list(cls) =
-   fun
-   | Typ => ["Typ"]
-   | Pat => ["Pat"]
-   | Exp => ["Exp"];
- */
-
 let decoration_views =
     (~font_metrics: FontMetrics.t, ds: Decorations.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
@@ -54,9 +46,9 @@ let decoration_views =
       | Step(step) =>
         let stepped = Decorations.take_step(step, ds);
         Decorations.is_empty(stepped) ? tl : go'(~tl, stepped, m);
-      | Term({shape, _}) =>
+      | Term({shape, sort, _}) =>
         let current_vs =
-          Decorations.current(shape, ds)
+          Decorations.current(sort, shape, ds)
           |> List.map(
                UHCodeDecoration.view(
                  ~font_metrics,

@@ -879,15 +879,29 @@ h1 {
   z-index: var(--current-term-z);
 }
 
-#code-root .current-term-drop-shadow {
+#code-root .current-term-drop-shadow.Exp {
   flood-color: var(--exp-shadow-color);
 }
+#code-root .current-term-drop-shadow.Pat {
+  flood-color: var(--pat-shadow-color);
+}
+#code-root .current-term-drop-shadow.Typ {
+  flood-color: var(--typ-shadow-color);
+}
+
 #code-root .code-current-term {
   filter: url(#outer-drop-shadow);
 }
-#code-root .current-term {
+#code-root .code-current-term.Exp {
   fill: var(--exp-bg-color);
 }
+#code-root .code-current-term.Pat {
+  fill: var(--pat-bg-color);
+}
+#code-root .code-current-term.Typ {
+  fill: var(--typ-bg-color);
+}
+
 
 #code-root .closed-child-drop-shadow {
   flood-color: var(--pat-bright-shadow-color);
