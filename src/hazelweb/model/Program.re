@@ -86,7 +86,12 @@ let get_decorations = (program: t): Decorations.t => {
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
-  {current_term, err_holes, var_err_holes};
+  let var_uses =
+    switch (get_cursor_info(program)) {
+    | {uses: Some(uses), _} => uses
+    | _ => []
+    };
+  {current_term, err_holes, var_uses, var_err_holes};
 };
 
 exception DoesNotElaborate;

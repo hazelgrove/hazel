@@ -25,6 +25,7 @@
 
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
+  --var-use-color: rgba(175, 175, 175, 0.3);
 
   --default-code-bg-color: transparent;
   --caret-color: red;
@@ -46,6 +47,7 @@
   --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
   --current-term-z: 0;
+  --var-use-z: 0;
   --err-hole-z: 1;
   --verr-hole-z: 1;
   --code-text-z: 2;
@@ -863,6 +865,9 @@ h1 {
 #code-root .var-err-hole-container {
   z-index: var(--verr-hole-z);
 }
+#code-root .var-use-container {
+  z-index: var(--var-use-z);
+}
 #code-root .current-term-container {
   z-index: var(--current-term-z);
 }
@@ -1049,6 +1054,11 @@ h1 {
   stroke-dasharray: 3 2;
   stroke-width: 1;
   fill: none;
+}
+
+.var-use {
+  fill: var(--var-use-color);
+  stroke-width: 0;
 }
 
 #cell {
