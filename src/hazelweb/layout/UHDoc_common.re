@@ -158,44 +158,6 @@ type formatted_child =
   | EnforcedInline(t)
   | Unformatted((~enforce_inline: bool) => t);
 
-let pad_child =
-    (
-      ~is_open: bool,
-      ~inline_padding: (t, t)=(empty_, empty_),
-      child: formatted_child,
-    )
-    : t => {
-  open Doc;
-  // TODO review child annotation and simplify if possible
-  let annot_child =
-    is_open ? annot_OpenChild(~is_enclosed=true) : annot_ClosedChild;
-  let inline_choice = child_doc => {
-    let (left, right) = inline_padding;
-    let lpadding = left == empty_ ? [] : [left |> annot_Padding];
-    let rpadding = right == empty_ ? [] : [right |> annot_Padding];
-    hcats([
-      hcats(List.concat([lpadding, [child_doc], rpadding]))
-      |> annot_child(~is_inline=true),
-    ]);
-  };
-  let para_choice = child_doc =>
-    child_doc |> indent_and_align |> annot_child(~is_inline=false);
-  switch (child) {
-  | EnforcedInline(child_doc) => inline_choice(child_doc)
-  | UserNewline(child_doc) =>
-    hcats([user_newline, linebreak(), para_choice(child_doc), linebreak()])
-  | Unformatted(formattable_child) =>
-    choices([
-      inline_choice(formattable_child(~enforce_inline=true)),
-      hcats([
-        linebreak(),
-        para_choice(formattable_child(~enforce_inline=false)),
-        linebreak(),
-      ]),
-    ])
-  };
-};
-
 let pad_open_child =
     (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
   open Doc;
