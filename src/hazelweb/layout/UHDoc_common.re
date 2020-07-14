@@ -110,8 +110,8 @@ let annot_Padding = (d: t): t =>
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_OpenChild = (~is_enclosed=true, ~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_OpenChild(~is_enclosed, ~is_inline, ()));
-let annot_ClosedChild = (~is_inline: bool): (t => t) =>
-  Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
+let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
+  Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
 let annot_Var =
     (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t)
@@ -190,7 +190,12 @@ let pad_open_child =
 };
 
 let pad_closed_child =
-    (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
+    (
+      ~inline_padding: (t, t)=(empty_, empty_),
+      ~sort: TermSort.t,
+      child: formatted_child,
+    )
+    : t => {
   open Doc;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
@@ -199,13 +204,13 @@ let pad_closed_child =
     hcats(
       List.concat([
         lpadding,
-        [annot_ClosedChild(~is_inline=true, child_doc)],
+        [annot_ClosedChild(~is_inline=true, ~sort, child_doc)],
         rpadding,
       ]),
     );
   };
   let para_choice = child_doc =>
-    indent_and_align(annot_ClosedChild(~is_inline=false, child_doc));
+    indent_and_align(annot_ClosedChild(~is_inline=false, ~sort, child_doc));
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
@@ -223,11 +228,11 @@ let pad_closed_child =
 };
 
 let pad_left_delimited_child =
-    (~is_open: bool, ~inline_padding: t=empty_, child: formatted_child): t => {
+    (~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
   let annot_child =
     // TODO is_enclosed flag is not right
-    is_open ? annot_OpenChild(~is_enclosed=true) : annot_ClosedChild;
+    annot_OpenChild(~is_enclosed=true);
   let inline_choice = child_doc => {
     let lpadding =
       inline_padding == empty_ ? [] : [inline_padding |> annot_Padding];
@@ -332,14 +337,15 @@ let mk_Lam =
     let open_delim = Delim.open_Lam();
     let doc =
       switch (ann) {
-      | None => Doc.hcats([lam_delim, p |> pad_closed_child, open_delim])
+      | None =>
+        Doc.hcats([lam_delim, p |> pad_closed_child(~sort=Pat), open_delim])
       | Some(ann) =>
         let colon_delim = Delim.colon_Lam();
         Doc.hcats([
           lam_delim,
-          p |> pad_closed_child,
+          p |> pad_closed_child(~sort=Pat),
           colon_delim,
-          ann |> pad_closed_child,
+          ann |> pad_closed_child(~sort=Typ),
           open_delim,
         ]);
       };
@@ -358,8 +364,7 @@ let mk_Case =
     vseps([
       hcats([
         open_group,
-        scrut
-        |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
+        scrut |> pad_left_delimited_child(~inline_padding=space_),
       ]),
       // TODO undo open child hack when fixing case indicator
       annot_OpenChild(~is_inline=false, vseps(rules)),
@@ -373,13 +378,13 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   let delim_group =
     Doc.hcats([
       Delim.bar_Rule(),
-      p |> pad_closed_child(~inline_padding=(space_, space_)),
+      p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
       Delim.arrow_Rule(),
     ])
     |> annot_Tessera;
   Doc.hcats([
     delim_group,
-    clause |> pad_left_delimited_child(~is_open=true, ~inline_padding=space_),
+    clause |> pad_left_delimited_child(~inline_padding=space_),
   ])
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
 };
@@ -395,16 +400,17 @@ let mk_LetLine =
       | None =>
         Doc.hcats([
           let_delim,
-          p |> pad_closed_child(~inline_padding=(space_, space_)),
+          p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
           eq_delim,
         ])
       | Some(ann) =>
         let colon_delim = Delim.colon_LetLine();
         Doc.hcats([
           let_delim,
-          p |> pad_closed_child(~inline_padding=(space_, space_)),
+          p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
           colon_delim,
-          ann |> pad_closed_child(~inline_padding=(space_, space_)),
+          ann
+          |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Typ),
           eq_delim,
         ]);
       };

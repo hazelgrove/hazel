@@ -2,9 +2,14 @@ module Vdom = Virtual_dom.Vdom;
 
 type rects = list(RectilinearPolygon.rect);
 
+type current_term_rects = {
+  highlighted: rects,
+  closed_children: list((TermSort.t, rects)),
+};
+
 let rects =
     (~vtrim=0.0, ~indent=0, start: CaretPosition.t, m: MeasuredLayout.t)
-    : (CaretPosition.t, list(RectilinearPolygon.rect)) => {
+    : (CaretPosition.t, rects) => {
   let mk_rect =
       (
         ~is_first=false,
@@ -83,9 +88,9 @@ let var_err_hole_view =
 
 let tessera_rects =
     (start: CaretPosition.t, m: MeasuredLayout.t)
-    : (CaretPosition.t, (rects, list(rects))) => {
-  let (end_, highlighted_rs) = rects(start, m);
-  let closed_child_rss =
+    : (CaretPosition.t, current_term_rects) => {
+  let (end_, highlighted) = rects(start, m);
+  let closed_children =
     m
     |> MeasuredLayout.flatten
     |> ListUtil.map_with_accumulator(
@@ -94,16 +99,16 @@ let tessera_rects =
            |> ListUtil.map_with_accumulator(
                 (word_start, word: MeasuredLayout.t) => {
                   switch (word) {
-                  | {layout: Annot(ClosedChild(_), m), _} =>
+                  | {layout: Annot(ClosedChild({sort, _}), m), _} =>
                     let (word_end, rs) = rects(~vtrim=0.1, word_start, m);
-                    (word_end, rs);
+                    (word_end, Some((sort, rs)));
                   | _ => (
                       MeasuredLayout.next_position(
                         ~indent=0,
                         word_start,
                         word,
                       ),
-                      [],
+                      None,
                     )
                   }
                 },
@@ -113,7 +118,7 @@ let tessera_rects =
              fun
              | (line_end, rss) => (
                  line_end,
-                 List.filter(rs => !ListUtil.is_empty(rs), rss),
+                 List.filter_map(sort_rs => sort_rs, rss),
                )
            )
          },
@@ -121,7 +126,7 @@ let tessera_rects =
        )
     |> snd
     |> List.flatten;
-  (end_, (highlighted_rs, closed_child_rss));
+  (end_, {highlighted, closed_children});
 };
 
 let inline_open_child_rects =
@@ -163,15 +168,18 @@ let line_rects =
       start: CaretPosition.t,
       line: list(MeasuredLayout.t),
     )
-    : (CaretPosition.t, (rects, list(rects))) => {
+    : (CaretPosition.t, current_term_rects) => {
   let (end_, zipped) =
     line
     |> ListUtil.map_with_accumulator(
          (word_start, word: MeasuredLayout.t) => {
            switch (word) {
-           | {layout: Annot(Tessera, m), _} => tessera_rects(word_start, m)
+           | {layout: Annot(Tessera, m), _} =>
+             let (word_end, {highlighted, closed_children}) =
+               tessera_rects(word_start, m);
+             (word_end, (highlighted, closed_children));
            | {layout: Annot(OpenChild({is_inline, _}), m), _} =>
-             let highlighted_rs =
+             let highlighted =
                is_inline
                  ? inline_open_child_rects(word_start, m)
                  : multiline_open_child_rects(
@@ -181,7 +189,7 @@ let line_rects =
                    );
              let word_end =
                MeasuredLayout.next_position(~indent=0, word_start, m);
-             (word_end, (highlighted_rs, []));
+             (word_end, (highlighted, []));
            | _ =>
              failwith(
                "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
@@ -190,8 +198,8 @@ let line_rects =
          },
          start,
        );
-  let (highlighted_rs, closed_child_rss) = List.split(zipped);
-  let highlighted_rs =
+  let (highlighted, closed_children) = List.split(zipped);
+  let highlighted =
     switch (line) {
     | [{layout: Annot(Tessera, m), _}, ..._] when overflow_left =>
       let height = MeasuredLayout.height(m);
@@ -204,11 +212,11 @@ let line_rects =
           height: Float.of_int(height),
           width: 0.25,
         },
-        ...List.flatten(highlighted_rs),
+        ...List.flatten(highlighted),
       ];
-    | _ => List.flatten(highlighted_rs)
+    | _ => List.flatten(highlighted)
     };
-  (end_, (highlighted_rs, List.flatten(closed_child_rss)));
+  (end_, {highlighted, closed_children: List.flatten(closed_children)});
 };
 
 let lines_rects =
@@ -217,7 +225,7 @@ let lines_rects =
       start: CaretPosition.t,
       lines: list(list(MeasuredLayout.t)),
     )
-    : (CaretPosition.t, (rects, list(rects))) => {
+    : (CaretPosition.t, current_term_rects) => {
   lines
   |> ListUtil.map_with_accumulator(
        (line_start, line: list(MeasuredLayout.t)) => {
@@ -229,7 +237,10 @@ let lines_rects =
              let line_end =
                MeasuredLayout.next_position(~indent=0, line_start, m);
              (line_end, (highlighted_rs, []));
-           | _ => line_rects(~overflow_left, line_start, line)
+           | _ =>
+             let (line_end, {highlighted, closed_children}) =
+               line_rects(~overflow_left, line_start, line);
+             (line_end, (highlighted, closed_children));
            };
          ({row: line_end.row + 1, col: 0}, rss);
        },
@@ -241,14 +252,17 @@ let lines_rects =
         let (highlighted_rs, closed_child_rss) = List.split(zipped);
         (
           {...end_, row: end_.row - 1},
-          (List.flatten(highlighted_rs), List.flatten(closed_child_rss)),
+          {
+            highlighted: List.flatten(highlighted_rs),
+            closed_children: List.flatten(closed_child_rss),
+          },
         );
       }
   );
 };
 
 let subblock_rects =
-    (~offset: int, subject: MeasuredLayout.t): (rects, list(rects)) => {
+    (~offset: int, subject: MeasuredLayout.t): current_term_rects => {
   let flattened = MeasuredLayout.flatten(subject);
   switch (flattened) {
   | [
@@ -256,7 +270,7 @@ let subblock_rects =
       ..._,
     ] =>
     // TODO undo hack
-    ([], [])
+    {highlighted: [], closed_children: []}
   | _ =>
     flattened
     |> ListUtil.map_with_accumulator(
@@ -264,13 +278,15 @@ let subblock_rects =
            let (line_end, rss) =
              switch (line) {
              | [{layout: Annot(Step(_), m), _}] =>
-               lines_rects(
-                 ~overflow_left=true,
-                 line_start,
-                 MeasuredLayout.peel_and_flatten(m),
-               )
+               let (line_end, {highlighted, closed_children}) =
+                 lines_rects(
+                   ~overflow_left=true,
+                   line_start,
+                   MeasuredLayout.peel_and_flatten(m),
+                 );
+               (line_end, (highlighted, closed_children));
              | [{layout: Annot(OpenChild(_), m), _}] =>
-               let highlighted_rs =
+               let highlighted =
                  multiline_open_child_rects(
                    ~overflow_left=true,
                    line_start,
@@ -278,7 +294,7 @@ let subblock_rects =
                  );
                let line_end =
                  MeasuredLayout.next_position(~indent=0, line_start, m);
-               (line_end, (highlighted_rs, []));
+               (line_end, (highlighted, []));
              | _ =>
                failwith(
                  "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
@@ -292,10 +308,91 @@ let subblock_rects =
       fun
       | (_, zipped) => {
           let (highlighted_rs, closed_child_rss) = List.split(zipped);
-          (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
+          {
+            highlighted: List.flatten(highlighted_rs),
+            closed_children: List.flatten(closed_child_rss),
+          };
         }
     )
   };
+};
+
+let sort_cls: TermSort.t => string =
+  fun
+  | Typ => "Typ"
+  | Pat => "Pat"
+  | Exp => "Exp";
+
+let closed_child_filter = (sort: TermSort.t) => {
+  let sort_cls = sort_cls(sort);
+  Vdom.(
+    Node.create_svg(
+      "filter",
+      [
+        Attr.id(
+          String.lowercase_ascii(sort_cls) ++ "-closed-child-drop-shadow",
+        ),
+      ],
+      [
+        Node.create_svg(
+          "feOffset",
+          [
+            Attr.create("in", "SourceAlpha"),
+            Attr.create("dx", "0.1"),
+            Attr.create("dy", "0.04"),
+            Attr.create("result", "offset-alpha"),
+          ],
+          [],
+        ),
+        Node.create_svg(
+          "feFlood",
+          [
+            Attr.classes(["closed-child-inset-shadow", sort_cls]),
+            Attr.create("flood-opacity", "1"),
+            Attr.create("result", "color"),
+          ],
+          [],
+        ),
+        Node.create_svg(
+          "feComposite",
+          [
+            // Attr.classes(["closed-child-drop-shadow"]),
+            Attr.create("operator", "out"),
+            Attr.create("in", "SourceAlpha"),
+            Attr.create("in2", "offset-alpha"),
+            Attr.create("result", "shadow-shape"),
+          ],
+          [],
+        ),
+        Node.create_svg(
+          "feComposite",
+          [
+            Attr.create("operator", "in"),
+            Attr.create("in", "color"),
+            Attr.create("in2", "shadow-shape"),
+            Attr.create("result", "drop-shadow"),
+          ],
+          [],
+        ),
+        Node.create_svg(
+          "feMerge",
+          [],
+          [
+            Node.create_svg(
+              "feMergeNode",
+              [Attr.create("in", "SourceGraphic")],
+              [],
+            ),
+            Node.create_svg(
+              "feMergeNode",
+              [Attr.create("in", "drop-shadow")],
+              [],
+            ),
+          ],
+        ),
+      ],
+    )
+  );
 };
 
 let current_term_view =
@@ -307,7 +404,7 @@ let current_term_view =
       subject: MeasuredLayout.t,
     )
     : Vdom.Node.t => {
-  let (highlighted_rs, closed_child_rss) =
+  let {highlighted, closed_children} =
     switch (shape) {
     | SubBlock(_) =>
       // special case for now
@@ -335,34 +432,27 @@ let current_term_view =
       )
     };
 
-  let sort_cls =
-    switch (sort) {
-    | Typ => "Typ"
-    | Pat => "Pat"
-    | Exp => "Exp"
-    };
   let highlighted_vs =
-    ListUtil.is_empty(highlighted_rs)
+    ListUtil.is_empty(highlighted)
       ? []
       : [
         RectilinearPolygon.mk_svg(
           ~corner_radii,
-          ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls])],
-          highlighted_rs,
+          ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
+          highlighted,
         ),
       ];
   let closed_child_vs =
-    closed_child_rss
-    |> List.filter_map(
+    closed_children
+    |> List.map(
          fun
-         | [] => None
-         | rs =>
-           Some(
-             RectilinearPolygon.mk_svg(
-               ~corner_radii,
-               ~attrs=[Vdom.Attr.classes(["code-closed-child"])],
-               rs,
-             ),
+         | (sort, rs) =>
+           RectilinearPolygon.mk_svg(
+             ~corner_radii,
+             ~attrs=[
+               Vdom.Attr.classes(["code-closed-child", sort_cls(sort)]),
+             ],
+             rs,
            ),
        );
   let outer_filter =
@@ -374,7 +464,7 @@ let current_term_view =
           Node.create_svg(
             "feDropShadow",
             [
-              Attr.classes(["current-term-drop-shadow", sort_cls]),
+              Attr.classes(["current-term-drop-shadow", sort_cls(sort)]),
               Attr.create("dx", "0.1"),
               Attr.create("dy", "0.04"),
               Attr.create("stdDeviation", "0"),
@@ -386,77 +476,19 @@ let current_term_view =
     );
   // <feOffset in="SourceGraphic" dx="60" dy="60" />
   // <feFlood flood-color="black" flood-opacity="1" result="color"/>
-  let closed_child_filter =
-    Vdom.(
-      Node.create_svg(
-        "filter",
-        [Attr.id("closed-child-drop-shadow")],
-        [
-          Node.create_svg(
-            "feOffset",
-            [
-              Attr.create("in", "SourceAlpha"),
-              Attr.create("dx", "0.1"),
-              Attr.create("dy", "0.04"),
-              Attr.create("result", "offset-alpha"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "feFlood",
-            [
-              Attr.create("flood-color", "rgb(117, 187, 228)"),
-              Attr.create("flood-opacity", "1"),
-              Attr.create("result", "color"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "feComposite",
-            [
-              // Attr.classes(["closed-child-drop-shadow"]),
-              Attr.create("operator", "out"),
-              Attr.create("in", "SourceAlpha"),
-              Attr.create("in2", "offset-alpha"),
-              Attr.create("result", "shadow-shape"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "feComposite",
-            [
-              Attr.create("operator", "in"),
-              Attr.create("in", "color"),
-              Attr.create("in2", "shadow-shape"),
-              Attr.create("result", "drop-shadow"),
-            ],
-            [],
-          ),
-          Node.create_svg(
-            "feMerge",
-            [],
-            [
-              Node.create_svg(
-                "feMergeNode",
-                [Attr.create("in", "SourceGraphic")],
-                [],
-              ),
-              Node.create_svg(
-                "feMergeNode",
-                [Attr.create("in", "drop-shadow")],
-                [],
-              ),
-            ],
-          ),
-        ],
-      )
-    );
-
   Vdom.(
     Node.create_svg(
       "g",
       [],
-      [outer_filter, closed_child_filter, ...highlighted_vs] @ closed_child_vs,
+      [
+        // TODO cache filters at document root
+        outer_filter,
+        closed_child_filter(Typ),
+        closed_child_filter(Pat),
+        closed_child_filter(Exp),
+        ...highlighted_vs,
+      ]
+      @ closed_child_vs,
     )
   );
 };
