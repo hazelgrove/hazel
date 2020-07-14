@@ -292,6 +292,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
         ),
         combo(Enter, simple("Create new line ")),
+        single_line_multiple_actions(
+          "Create new comment line",
+          [keyboard_button(Pound), keyboard_button(Shift_Enter)],
+        ),
         combo(LeftParen, simple("Parenthesize")),
       ],
     ),
