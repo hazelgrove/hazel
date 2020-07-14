@@ -868,73 +868,136 @@ module GrayscaleLivelit: LIVELIT = {
   let param_tys = [("url", HTyp.String)];
 
   [@deriving sexp]
-  type model = unit;
+  type model = {
+    brightness: SpliceName.t,
+    grayscale: SpliceName.t,
+  };
   [@deriving sexp]
   type action = unit;
   type trigger = action => Vdom.Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return();
-
-  let update = (_, _) => SpliceGenCmd.return();
-
-  let view = (_, _, _, _) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["grayscale-livelit"])],
-        [
-          Node.div(
-            [Attr.classes(["slider-bar"])],
-            [
-              Node.create(
-                "img",
-                [
-                  Attr.id("grayscale-icon"),
-                  Attr.create(
-                    "src",
-                    "https://imageog.flaticon.com/icons/png/512/108/108931.png?size=1200x630f&pad=10,10,10,10&ext=png&bg=FFFFFFFF",
-                  ),
-                ],
-                [],
-              ),
-              Node.div(
-                [Attr.classes(["splice-content"])],
-                [Node.text("hello world")],
-              ),
-              Node.div([], []),
-              Node.create(
-                "img",
-                [
-                  Attr.id("brightness-icon"),
-                  Attr.create(
-                    "src",
-                    "https://cdn2.iconfinder.com/data/icons/ecommerce-1-4/65/18-512.png",
-                  ),
-                ],
-                [],
-              ),
-              Node.div(
-                [Attr.classes(["splice-content"])],
-                [Node.text("hello world")],
-              ),
-            ],
+  let init_model =
+    SpliceGenCmd.(
+      bind(
+        new_splice(
+          ~init_uhexp_gen=
+            u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
+          HTyp.Int,
+        ),
+        brightness =>
+        bind(
+          new_splice(
+            ~init_uhexp_gen=
+              u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
+            HTyp.Int,
           ),
-          Node.create(
-            "img",
-            [
-              Attr.classes(["subject"]),
-              Attr.create("src", "https://tinyurl.com/y8neczz3"),
-            ],
-            // https://tinyurl.com/yd2dw4ww
-            [],
-          ),
-        ],
+          grayscale =>
+          return({brightness, grayscale})
+        )
       )
     );
 
-  let view_shape = _ => LivelitView.MultiLine(18);
+  let update = (model, _) => SpliceGenCmd.return(model);
 
-  let expand = () => UHExp.Block.wrap(UHExp.intlit'(0));
+  let height = 18;
+  let view_shape = _ => LivelitView.MultiLine(height);
+
+  let view =
+      (
+        {brightness, grayscale},
+        _,
+        _,
+        {dargs, dhcode, _}: LivelitView.splice_and_param_getters,
+      ) => {
+    open Vdom;
+    let subject = {
+      let height_prop_val = Printf.sprintf("height: %dem;", height);
+      switch (dargs, dhcode(brightness), dhcode(grayscale)) {
+      | (
+          Some([("url", Some((DHExp.StringLit(url), _)))]),
+          Some((DHExp.IntLit(b), _)),
+          Some((DHExp.IntLit(g), _)),
+        )
+          when 0 <= b && b <= 100 && 0 <= g && g <= 100 =>
+        Node.create(
+          "img",
+          [
+            Attr.classes(["subject"]),
+            Attr.create("src", url),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "filter: brightness(%d%%) grayscale(%d%%); %s",
+                b,
+                g,
+                height_prop_val,
+              ),
+            ),
+          ],
+          [],
+        )
+      | _ =>
+        Node.div(
+          [
+            Attr.classes(["missing-subject"]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "background-color: gray; width: 550px; %s",
+                height_prop_val,
+              ),
+            ),
+          ],
+          [],
+        )
+      };
+    };
+    Node.div(
+      [Attr.classes(["grayscale-livelit"])],
+      [
+        Node.div(
+          [Attr.classes(["slider-bar"])],
+          [
+            Node.create(
+              "img",
+              [
+                Attr.id("grayscale-icon"),
+                Attr.create(
+                  "src",
+                  "https://imageog.flaticon.com/icons/png/512/108/108931.png?size=1200x630f&pad=10,10,10,10&ext=png&bg=FFFFFFFF",
+                ),
+              ],
+              [],
+            ),
+            Node.div(
+              [Attr.classes(["splice-content"])],
+              [Node.text("hello world")],
+            ),
+            Node.div([], []),
+            Node.create(
+              "img",
+              [
+                Attr.id("brightness-icon"),
+                Attr.create(
+                  "src",
+                  "https://cdn2.iconfinder.com/data/icons/ecommerce-1-4/65/18-512.png",
+                ),
+              ],
+              [],
+            ),
+            Node.div(
+              [Attr.classes(["splice-content"])],
+              [Node.text("hello world")],
+            ),
+          ],
+        ),
+        subject,
+      ],
+    );
+  };
+
+  let expand = _ => UHExp.Block.wrap(UHExp.intlit'(0));
 };
 
 module ColorLivelit: LIVELIT = {
