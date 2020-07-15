@@ -106,26 +106,15 @@ html, body {
 }
 
 #error-message {
-  visibility: hidden;
   position: sticky;
   bottom: 0;
-  width: 100%;
-  height: 100px;
+  width: auto;
+  height: fit-content;
+  max-height: 100px;
+  overflow-y: auto;
+  padding: 10px;
   background-color: red;
-}
-
-#error-message.visible {
-  visibility: visible;
-}
-
-.closebtn {
-  padding: 5px;
   color: white;
-  font-weight: bold;
-  float: right;
-  font-size: 22px;
-  line-height: 20px;
-  cursor: pointer;
 }
 
 #cardstack-controls {

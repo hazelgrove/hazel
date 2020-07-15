@@ -1,6 +1,6 @@
 module Js = Js_of_ocaml.Js;
 module Exn = Base.Exn;
-module Dom_html = Js_of_ocaml.Dom_html;
+module Dom = Js_of_ocaml.Dom;
 module Vdom = Virtual_dom.Vdom;
 
 Logger.init_log();
@@ -8,7 +8,7 @@ Logger.init_log();
 let () = {
   // Handle exceptions via a Monitor
   // See <https://github.com/janestreet/incr_dom/blob/master/example/monitor>
-  // <https://github.com/janestreet/async_js/blob/master/src/async_js0.ml>
+  // and <https://github.com/janestreet/async_js/blob/master/src/async_js0.ml>
   let monitor = Async_kernel.Monitor.create();
   let _ =
     Async_kernel.Monitor.detach_and_iter_errors(
@@ -32,24 +32,18 @@ let () = {
           };
         print_endline(message);
 
-        let err_box = JSUtil.force_get_elem_by_id("error-message");
-        err_box##.classList##add(Js.string("visible"));
-        /*
-         TODO: Hannah Not sure if just making visible and invisible is really the
-         best way to do this since then you will have invisible elements just hanging
-         around (but having trouble making the thing below work)
-         let dom =
-           Vdom.Node.to_dom(
-             Vdom.Node.body(
-               [],
-               [Vdom.Node.h2([], [Vdom.Node.text("Error!")])],
-             ),
-           );
-         let dom =
-           Dom.document##createElement(Js.string("some-error-message"));
-         let current_body =
-           Dom_html.document##.body##replaceChild(err_box, dom);
-         ();*/
+        let root = JSUtil.force_get_elem_by_id("root");
+        let error_box =
+          Vdom.Node.to_dom(
+            Vdom.Node.body(
+              [Vdom.Attr.id("error-message")],
+              [
+                Vdom.Node.h3([], [Vdom.Node.text("ERROR!")]),
+                Vdom.Node.text(message),
+              ],
+            ),
+          );
+        Dom.appendChild(root, error_box);
       },
     );
 
