@@ -57,10 +57,9 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
-let annot_SubBlock =
-    (~hd: UHExp.line, ~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
+let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
   Doc.annot(
-    UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd, hd_index}), ()),
+    UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
   );
 
 let rec mk =
@@ -90,7 +89,7 @@ and mk_block =
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
-    let (leading, (last, last_doc)) =
+    let (leading, (_, last_doc)) =
       block
       |> List.mapi((i, line) =>
            (
@@ -103,24 +102,20 @@ and mk_block =
 
     ListUtil.fold_right_i(
       ((i, (hd, hd_doc)), tl_doc) =>
-        annot_SubBlock(
-          ~hd,
-          ~hd_index=offset + i,
-          Doc.vsep(
-            hd_doc,
-            UHDoc_common.annot_OpenChild(
-              ~is_enclosed=true,
-              ~is_inline=false,
-              tl_doc,
+        switch ((hd: UHExp.line)) {
+        | EmptyLine
+        | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
+        | LetLine(_) =>
+          annot_SubBlock(
+            ~hd_index=offset + i,
+            Doc.vsep(
+              hd_doc,
+              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
             ),
-          ),
-        ),
+          )
+        },
       leading,
-      annot_SubBlock(
-        ~hd=last,
-        ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
-        last_doc,
-      ),
+      last_doc,
     );
   }
 and mk_line =
@@ -132,7 +127,6 @@ and mk_line =
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-          |> Doc.annot(UHAnnot.EmptyLine)
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, ann, def) =>
@@ -149,7 +143,7 @@ and mk_line =
                  )
                );
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
-          UHDoc_common.mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
+          UHDoc_common.mk_LetLine(p, ann, def);
         }: UHDoc_common.t
       )
     )

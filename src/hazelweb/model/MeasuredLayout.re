@@ -24,6 +24,7 @@ let height = (m: t) =>
 let width = (m: t) =>
   m.metrics |> List.map(box => box.width) |> List.fold_left(max, 0);
 
+// TODO assign indent default value
 let next_position =
     (~indent: int, {row, col}: CaretPosition.t, m: t): CaretPosition.t => {
   let updated_row = row + height(m) - 1;
@@ -38,6 +39,33 @@ let next_position =
     );
   };
   {row: updated_row, col: updated_col};
+};
+
+let pos_fold =
+    (
+      ~linebreak: CaretPosition.t => 'acc,
+      ~text: (CaretPosition.t, string) => 'acc,
+      ~align: (CaretPosition.t, 'acc) => 'acc,
+      ~cat: (CaretPosition.t, 'acc, 'acc) => 'acc,
+      ~annot:
+         // allow client to control recursion based on annotation
+         (t => 'acc, CaretPosition.t, UHAnnot.t, t) => 'acc,
+      ~indent: int=0,
+      ~start: CaretPosition.t={row: 0, col: 0},
+      m: t,
+    )
+    : 'acc => {
+  let rec go = (indent: int, start: CaretPosition.t, m: t) =>
+    switch (m.layout) {
+    | Linebreak => linebreak(start)
+    | Text(s) => text(start, s)
+    | Align(m) => align(start, go(start.col, start, m))
+    | Cat(m1, m2) =>
+      let mid = next_position(~indent, start, m1);
+      cat(start, go(indent, start, m1), go(indent, mid, m2));
+    | Annot(ann, m) => annot(go(indent, start), start, ann, m)
+    };
+  go(indent, start, m);
 };
 
 // flattens away Linebreak and Cat nodes

@@ -108,8 +108,6 @@ let annot_Padding = (d: t): t =>
   | _ => Doc.annot(UHAnnot.Padding, d)
   };
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
-let annot_OpenChild = (~is_enclosed=true, ~is_inline: bool): (t => t) =>
-  Doc.annot(UHAnnot.mk_OpenChild(~is_enclosed, ~is_inline, ()));
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
@@ -158,21 +156,21 @@ type formatted_child =
   | EnforcedInline(t)
   | Unformatted((~enforce_inline: bool) => t);
 
+// TODO rename to pad_bidelimited_open_child
 let pad_open_child =
     (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
   open Doc;
-  let annot_child = annot_OpenChild(~is_enclosed=true);
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
     let lpadding = left == empty_ ? [] : [annot_Padding(left)];
     let rpadding = right == empty_ ? [] : [annot_Padding(right)];
     hcats([
       hcats(List.concat([lpadding, [child_doc], rpadding]))
-      |> annot_child(~is_inline=true),
+      |> annot(UHAnnot.OpenChild(InlineWithBorder)),
     ]);
   };
   let para_choice = child_doc =>
-    child_doc |> indent_and_align |> annot_child(~is_inline=false);
+    child_doc |> indent_and_align |> annot(UHAnnot.OpenChild(Multiline));
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
@@ -227,19 +225,18 @@ let pad_closed_child =
   };
 };
 
+// TODO rename to pad_left_delimited_open_child
 let pad_left_delimited_child =
     (~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
-  let annot_child =
-    // TODO is_enclosed flag is not right
-    annot_OpenChild(~is_enclosed=true);
   let inline_choice = child_doc => {
     let lpadding =
       inline_padding == empty_ ? [] : [inline_padding |> annot_Padding];
-    hcats(lpadding @ [child_doc]) |> annot_child(~is_inline=true);
+    hcats(lpadding @ [child_doc])
+    |> annot(UHAnnot.OpenChild(InlineWithoutBorder));
   };
   let para_choice = child_doc =>
-    child_doc |> indent_and_align |> annot_child(~is_inline=false);
+    child_doc |> indent_and_align |> annot(UHAnnot.OpenChild(Multiline));
   switch (child) {
   | EnforcedInline(child_doc) => inline_choice(child_doc)
   | UserNewline(child_doc) =>
@@ -367,7 +364,7 @@ let mk_Case =
         scrut |> pad_left_delimited_child(~inline_padding=space_),
       ]),
       // TODO undo open child hack when fixing case indicator
-      annot_OpenChild(~is_inline=false, vseps(rules)),
+      annot(UHAnnot.OpenChild(Multiline), vseps(rules)),
       close_group,
     ])
   )
@@ -470,17 +467,16 @@ let rec mk_BinOp =
     let op = annot_Tessera(annot_Step(op_index, mk_operator(op)));
     let skel1 = go(skel1);
     let skel2 = go(skel2);
-    let annot_unenclosed_OpenChild = annot_OpenChild(~is_enclosed=false);
     let inline_choice =
       Doc.(
         hcats([
-          annot_unenclosed_OpenChild(
-            ~is_inline=true,
+          annot(
+            UHAnnot.OpenChild(InlineWithBorder),
             hcats([skel1(~enforce_inline=true), ...lpadding]),
           ),
           op,
-          annot_unenclosed_OpenChild(
-            ~is_inline=true,
+          annot(
+            UHAnnot.OpenChild(InlineWithBorder),
             hcats(rpadding @ [skel2(~enforce_inline=true)]),
           ),
         ])
@@ -488,15 +484,15 @@ let rec mk_BinOp =
     let multiline_choice =
       Doc.(
         vsep(
-          annot_unenclosed_OpenChild(
-            ~is_inline=false,
+          annot(
+            UHAnnot.OpenChild(Multiline),
             align(skel1(~enforce_inline=false)),
           ),
           hcat(
             op,
             // TODO need to have a choice here for multiline vs not
-            annot_unenclosed_OpenChild(
-              ~is_inline=false,
+            annot(
+              UHAnnot.OpenChild(Multiline),
               hcats(rpadding @ [align(skel2(~enforce_inline=false))]),
             ),
           ),
@@ -543,16 +539,15 @@ let mk_NTuple =
       };
     let hd_doc = (~enforce_inline: bool) =>
       // TODO need to relax is_inline
-      annot_OpenChild(
-        ~is_inline=enforce_inline,
-        ~is_enclosed=false,
+      Doc.annot(
+        UHAnnot.OpenChild(enforce_inline ? InlineWithBorder : Multiline),
         mk_BinOp(~enforce_inline, hd),
       );
     let comma_doc = (step: int) => annot_Step(step, mk_op(","));
     let (inline_choice, comma_indices) =
       tl
-      |> ListUtil.fold_left_i(
-           ((tuple, comma_indices), (i, elem)) => {
+      |> List.fold_left(
+           ((tuple, comma_indices), elem) => {
              let comma_index =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
              let elem_doc = mk_BinOp(~enforce_inline=true, elem);
@@ -560,9 +555,8 @@ let mk_NTuple =
                Doc.hcats([
                  tuple,
                  annot_Tessera(comma_doc(comma_index)),
-                 annot_OpenChild(
-                   ~is_enclosed=i == List.length(tl) - 1,
-                   ~is_inline=true,
+                 Doc.annot(
+                   UHAnnot.OpenChild(InlineWithBorder),
                    Doc.hcat(annot_Padding(space_), elem_doc),
                  ),
                ]);
@@ -572,8 +566,8 @@ let mk_NTuple =
          );
     let multiline_choice =
       tl
-      |> ListUtil.fold_left_i(
-           (tuple, (i, elem)) => {
+      |> List.fold_left(
+           (tuple, elem) => {
              let comma_index =
                Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
              let elem_doc = mk_BinOp(~enforce_inline=false, elem);
@@ -583,9 +577,8 @@ let mk_NTuple =
                  hcat(
                    annot_Tessera(comma_doc(comma_index)),
                    // TODO need to have a choice here for multiline vs not
-                   annot_OpenChild(
-                     ~is_enclosed=i == List.length(tl) - 1,
-                     ~is_inline=false,
+                   annot(
+                     UHAnnot.OpenChild(Multiline),
                      hcat(annot_Padding(space_), align(elem_doc)),
                    ),
                  ),
