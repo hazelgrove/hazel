@@ -588,6 +588,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  /* get style class for an entry,
+   * ~cur_id is the id for current selected entry
+   * ~id is the id for the entry querying for a style class
+   */
   let get_status_class =
       (~cur_id: UndoHistory.id, ~id: UndoHistory.id): list(string) =>
     if (cur_id.group_id > id.group_id
@@ -602,8 +606,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       ["the-cur-history"];
     };
 
+  /* return whether an entry is currently selected,
+   * ~cur_id is the id for current selected entry
+   * ~id is the id for the query entry
+   */
   let is_current_entry = (~cur_id: UndoHistory.id, ~id: UndoHistory.id): bool => {
-    cur_id.group_id == id.group_id && cur_id.elt_id == id.elt_id;
+    cur_id == id;
   };
 
   let history_title_entry_view =
