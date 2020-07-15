@@ -22,7 +22,17 @@ let question_mark_circle: Vdom.Node.t =
   );
 
 let check_circle: Vdom.Node.t =
-  Vdom.(Node.a([Attr.classes(["circle-icon"])], [Node.text("✓")]));
+  Vdom.(
+    Node.div(
+      [Attr.classes(["circle-icon"])],
+      [Node.text(UnicodeConstants.check_mark)],
+    )
+  );
 
 let x_circle: Vdom.Node.t =
-  Vdom.(Node.a([Attr.classes(["circle-icon"])], [Node.text("✗")]));
+  Vdom.(
+    Node.div(
+      [Attr.classes(["circle-icon"])],
+      [Node.text(UnicodeConstants.ballot_x)],
+    )
+  );

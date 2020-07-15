@@ -6,6 +6,8 @@ let typeN = "ℕ"; // U+2115 "Double-struck capital N"
 let typeB = "𝔹"; // U+1D539 "Mathematical double-struck capital B"
 
 let inconsistent = "≁"; //  U+2241 "Not Tilde"
+let check_mark = "✓"; // U+2713 "Check Mark"
+let ballot_x = "✗"; // U+2717 "Ballot X"
 
 let user_newline = "↵"; // U+21B5 "Downwards arrow with corner leftwards"
 

@@ -79,7 +79,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
-  | ToggleCursorInspectorView
+  | ToggleCursorInspectorExpansion
   | ToggleNoviceMode =>
     Logger.append(
       Sexp.to_string(
@@ -319,7 +319,7 @@ let apply_action =
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
-      | ToggleCursorInspectorView => {
+      | ToggleCursorInspectorExpansion => {
           ...model,
           cursor_inspector: {
             ...model.cursor_inspector,

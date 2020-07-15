@@ -132,13 +132,18 @@ let novice_summary =
         HTypCode.view(ty),
       ]
     | AnaTypeInconsistent(expected_ty, got_ty)
-    | SynErrorArrow(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) => [
         Vdom.Node.text("Expected " ++ article),
         term_tag,
         Vdom.Node.text("of type"),
         HTypCode.view(expected_ty),
         Vdom.Node.text("but got type"),
+        HTypCode.view(got_ty),
+      ]
+    | SynErrorArrow(_expected_ty, got_ty) => [
+        Vdom.Node.text("Expected " ++ article),
+        term_tag,
+        Vdom.Node.text("of function type but got type"),
         HTypCode.view(got_ty),
       ]
     | AnaWrongLength(expected_len, got_len, _expected_ty)
@@ -234,9 +239,9 @@ let summary_bar =
     ) => {
   let arrow =
     if (show_expanded) {
-      Icons.down_arrow(["ci-arrow"]);
+      Icons.down_arrow(["cursor-inspector-arrow"]);
     } else {
-      Icons.right_arrow(["ci-arrow"]);
+      Icons.right_arrow(["cursor-inspector-arrow"]);
     };
   let err_icon =
     switch (err_state_b) {
@@ -261,7 +266,7 @@ let summary_bar =
               Vdom.Event.Many([
                 Event.Prevent_default,
                 Event.Stop_propagation,
-                inject(ModelAction.ToggleCursorInspectorView),
+                inject(ModelAction.ToggleCursorInspectorExpansion),
               ])
             ),
           ],

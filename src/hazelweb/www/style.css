@@ -328,7 +328,6 @@ html, body {
   display: flex;
   align-items: baseline;
   color: white;
-  background-color: var(--title-bar-color);
   padding: 5px;
 }
 
@@ -367,7 +366,7 @@ html, body {
   margin: 0 10px;
 }
 
-.ci-arrow {
+.cursor-inspector-arrow {
   color: white;
   cursor: pointer;
 }

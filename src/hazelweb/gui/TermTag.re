@@ -8,14 +8,14 @@ type tag_typ =
 let get_cursor_term_tag_typ =
     (cursor_term: CursorInfo_common.cursor_term): tag_typ => {
   switch (cursor_term) {
-  | Exp(_, _) => Exp
-  | Pat(_, _) => Pat
-  | Typ(_, _) => Typ
-  | ExpOp(_, _) => Exp
-  | PatOp(_, _) => Pat
-  | TypOp(_, _) => Typ
+  | Exp(_, _)
+  | ExpOp(_, _)
   | Line(_, _)
   | Rule(_, _) => Exp
+  | Pat(_, _)
+  | PatOp(_, _) => Pat
+  | Typ(_, _)
+  | TypOp(_, _) => Typ
   };
 };
 

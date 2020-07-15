@@ -80,8 +80,8 @@ let view =
     () => {
       open Vdom;
 
-      let rec go = (layout: UHLayout.t): list(Node.t) => {
-        switch (layout) {
+      let rec go: UHLayout.t => _ =
+        fun
         | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
         | Linebreak => [Node.br([])]
         | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
@@ -89,14 +89,15 @@ let view =
 
         | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
 
-        | Annot(Token({shape, _}), l) =>
-          let clss =
-            switch (shape) {
-            | Text => ["code-text"]
-            | Op => ["code-op"]
-            | Delim(_) => ["code-delim"]
-            };
-          [Node.span([Attr.classes(clss)], go(l))];
+        | Annot(Token({shape, _}), l) => {
+            let clss =
+              switch (shape) {
+              | Text => ["code-text"]
+              | Op => ["code-op"]
+              | Delim(_) => ["code-delim"]
+              };
+            [Node.span([Attr.classes(clss)], go(l))];
+          }
         | Annot(DelimGroup, l) => [
             Node.span([Attr.classes(["DelimGroup"])], go(l)),
           ]
@@ -110,14 +111,15 @@ let view =
         | Annot(Indent, l) => [
             Node.span([Attr.classes(["Indent"])], go(l)),
           ]
-        | Annot(HoleLabel({len}), l) =>
-          let width = Css_gen.width(`Ch(float_of_int(len)));
-          [
-            Node.span(
-              [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-              [Node.span([Attr.classes(["HoleNumber"])], go(l))],
-            ),
-          ];
+        | Annot(HoleLabel({len}), l) => {
+            let width = Css_gen.width(`Ch(float_of_int(len)));
+            [
+              Node.span(
+                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+                [Node.span([Attr.classes(["HoleNumber"])], go(l))],
+              ),
+            ];
+          }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
           ]
@@ -154,18 +156,15 @@ let view =
               ],
               go(l),
             ),
-          ]
-        };
-      };
+          ];
 
       let children =
         switch (caret_pos) {
         | None => go(l)
-        | Some((caret_row, caret_col)) =>
-          let caret_x = float_of_int(caret_col) *. font_metrics.col_width;
-          let caret_y = float_of_int(caret_row) *. font_metrics.row_height;
-          let caret = caret_from_pos(caret_x, caret_y);
-
+        | Some((row, col)) =>
+          let x = float_of_int(col) *. font_metrics.col_width;
+          let y = float_of_int(row) *. font_metrics.row_height;
+          let caret = caret_from_pos(x, y);
           [caret, ...go(l)];
         };
       let id = "code-root";
