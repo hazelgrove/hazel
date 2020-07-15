@@ -869,6 +869,7 @@ h1 {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
+  max-width: 80ch;
   cursor: text;
 }
 .contenteditable {
