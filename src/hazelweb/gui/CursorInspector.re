@@ -35,10 +35,15 @@ let advanced_summary =
     | PatSynthesized(ty)
     | SynMatchingArrow(_, ty) => [Vdom.Node.text(":"), HTypCode.view(ty)]
     | AnaTypeInconsistent(expected_ty, got_ty)
-    | SynErrorArrow(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) => [
         Vdom.Node.text(":"),
         HTypCode.view(expected_ty),
+        inconsistent_symbol,
+        HTypCode.view(got_ty),
+      ]
+    | SynErrorArrow(_expected_ty, got_ty) => [
+        Vdom.Node.text(":"),
+        emphasize_text("Function Type"),
         inconsistent_symbol,
         HTypCode.view(got_ty),
       ]
@@ -58,9 +63,14 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Invalid Text"),
       ]
-    | SynInvalid
-    | SynInvalidArrow(_) => [
+    | SynInvalid => [
         emphasize_text(~additional_classes=["only-pad-end"], "Invalid Text"),
+      ]
+    | SynInvalidArrow(_) => [
+        Vdom.Node.text(":"),
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Invalid Text"),
       ]
     | AnaFree(expected_ty) => [
         Vdom.Node.text(":"),
@@ -68,12 +78,17 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Free Variable"),
       ]
-    | SynFree
-    | SynFreeArrow(_) => [
+    | SynFree => [
         emphasize_text(
           ~additional_classes=["only-pad-end"],
           "Free Variable",
         ),
+      ]
+    | SynFreeArrow(_) => [
+        Vdom.Node.text(":"),
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Free Variable"),
       ]
     | AnaKeyword(expected_ty, _)
     | PatAnaKeyword(expected_ty, _) => [
@@ -83,12 +98,17 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ]
     | SynKeyword(_)
-    | SynKeywordArrow(_)
     | PatSynKeyword(_) => [
         emphasize_text(
           ~additional_classes=["only-pad-end"],
           "Reserved Keyword",
         ),
+      ]
+    | SynKeywordArrow(_) => [
+        Vdom.Node.text(":"),
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Reserved Keyword"),
       ]
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
@@ -111,12 +131,17 @@ let advanced_summary =
         ]
       | _ => message(typed)
       }
-    | SynInconsistentBranches(_)
-    | SynInconsistentBranchesArrow(_) => [
+    | SynInconsistentBranches(_) => [
         emphasize_text(
           ~additional_classes=["only-pad-end"],
           "Inconsistent Branch Types",
         ),
+      ]
+    | SynInconsistentBranchesArrow(_) => [
+        Vdom.Node.text(":"),
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => []
     | OnLine => [
@@ -176,7 +201,7 @@ let novice_summary =
         Vdom.Node.text("Expected " ++ article),
         term_tag,
         Vdom.Node.text("of"),
-        emphasize_text("function type"),
+        emphasize_text("Function Type"),
         Vdom.Node.text("but got type"),
         HTypCode.view(got_ty),
       ]
@@ -198,9 +223,13 @@ let novice_summary =
         Vdom.Node.text("but got"),
         emphasize_text("Invalid Text"),
       ]
-    | SynInvalid
+    | SynInvalid => [Vdom.Node.text("Got"), emphasize_text("Invalid Text")]
     | SynInvalidArrow(_) => [
-        Vdom.Node.text("Got"),
+        Vdom.Node.text("Expected " ++ article),
+        term_tag,
+        Vdom.Node.text("of"),
+        emphasize_text("Function Type"),
+        Vdom.Node.text("but got"),
         emphasize_text("Invalid Text"),
       ]
     | AnaFree(expected_ty) => [
@@ -211,9 +240,13 @@ let novice_summary =
         Vdom.Node.text("but got a"),
         emphasize_text("Free Variable"),
       ]
-    | SynFree
+    | SynFree => [Vdom.Node.text("Got a"), emphasize_text("Free Variable")]
     | SynFreeArrow(_) => [
-        Vdom.Node.text("Got a"),
+        Vdom.Node.text("Expected " ++ article),
+        term_tag,
+        Vdom.Node.text("of"),
+        emphasize_text("Function Type"),
+        Vdom.Node.text("but got a"),
         emphasize_text("Free Variable"),
       ]
     | AnaKeyword(expected_ty, _)
@@ -222,13 +255,20 @@ let novice_summary =
         term_tag,
         Vdom.Node.text("of type"),
         HTypCode.view(expected_ty),
-        Vdom.Node.text("but got a "),
+        Vdom.Node.text("but got a"),
         emphasize_text("Reserved Keyword"),
       ]
     | SynKeyword(_)
-    | SynKeywordArrow(_)
     | PatSynKeyword(_) => [
         Vdom.Node.text("Got a"),
+        emphasize_text("Reserved Keyword"),
+      ]
+    | SynKeywordArrow(_) => [
+        Vdom.Node.text("Expected " ++ article),
+        term_tag,
+        Vdom.Node.text("of"),
+        emphasize_text("Function Type"),
+        Vdom.Node.text("but got a"),
         emphasize_text("Reserved Keyword"),
       ]
     | SynBranchClause(join, typed, _) =>
@@ -257,9 +297,16 @@ let novice_summary =
         ]
       | _ => message(typed)
       }
-    | SynInconsistentBranches(_)
-    | SynInconsistentBranchesArrow(_) => [
+    | SynInconsistentBranches(_) => [
         Vdom.Node.text("Got"),
+        emphasize_text("Inconsistent Branch Types"),
+      ]
+    | SynInconsistentBranchesArrow(_) => [
+        Vdom.Node.text("Expected " ++ article),
+        term_tag,
+        Vdom.Node.text("of"),
+        emphasize_text("Function Type"),
+        Vdom.Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
     | OnType => [Vdom.Node.text("Got a"), term_tag]
