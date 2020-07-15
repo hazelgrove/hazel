@@ -265,8 +265,7 @@ let apply_action =
         let new_history =
           model.undo_history
           |> UndoHistory.shift_history(
-               shift_history_info.id.group_id,
-               shift_history_info.id.elt_id,
+               shift_history_info.id,
                shift_history_info.call_by_mouseenter,
              );
         Model.load_undo_history(model, new_history, ~is_after_move=false);

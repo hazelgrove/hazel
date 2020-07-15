@@ -876,21 +876,20 @@ let shift_to_next = (history: t): t => {
   };
 };
 
-let shift_history =
-    (group_id: int, elt_id: int, is_mouseenter: bool, undo_history: t): t => {
-  switch (ZList.shift_to(group_id, undo_history.groups)) {
+let shift_history = (id: id, is_mouseenter: bool, undo_history: t): t => {
+  switch (ZList.shift_to(id.group_id, undo_history.groups)) {
   | None => failwith("Impossible match, because undo_history is non-empty")
   | Some(new_groups) =>
     let cur_group = ZList.prj_z(new_groups);
     /* shift to the element with elt_id */
-    switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
+    switch (ZList.shift_to(id.elt_id, cur_group.group_entries)) {
     | None => failwith("Impossible because group_entries is non-empty")
     | Some(new_group_entries) =>
       let hover_recover_id =
         if (is_mouseenter) {
           undo_history.hover_recover_id;
         } else {
-          {group_id, elt_id};
+          id;
         };
       {
         ...undo_history,
@@ -901,10 +900,7 @@ let shift_history =
           ),
         disable_auto_scrolling: true,
         hover_recover_id,
-        cur_id: {
-          group_id,
-          elt_id,
-        },
+        cur_id: id,
       };
     };
   };
