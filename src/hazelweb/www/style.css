@@ -364,6 +364,16 @@ html, body {
 
 .type-info-summary .HTypCode {
   margin: 0 10px;
+  font-weight: bolder;
+}
+
+.type-info-summary .emphasize-text {
+  margin: 0 10px;
+  font-weight: bolder;
+}
+
+.type-info-summary .emphasize-text.only-pad-end {
+  margin-left: 0;
 }
 
 .cursor-inspector-arrow {
@@ -371,8 +381,12 @@ html, body {
   cursor: pointer;
 }
 
-.novice-mode .term-tag {
-  margin: 0 10px;
+.type-info-summary .term-tag {
+  margin-right: 10px;
+}
+
+.type-info-summary .novice-mode .term-tag {
+  margin-left: 10px;
 }
 
 .cursor-OK.cursor-inspector {
