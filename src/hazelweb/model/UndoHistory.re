@@ -38,11 +38,7 @@ type t = {
   disable_auto_scrolling: bool,
   preview_on_hover: bool,
   hover_recover_id: id,
-  /*   hover_recover_group_id: int,
-       hover_recover_elt_id: int, */
   cur_id: id,
-  /*   cur_group_id: int,
-       cur_elt_id: int, */
 };
 
 let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) => {
