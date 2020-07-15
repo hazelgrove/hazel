@@ -20,6 +20,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let rec entries_view = (entry_func, base_id: UndoHistory.id, lst) => {
+    switch (lst) {
+    | [] => []
+    | [head, ...tail] =>
+      let next_id = {...base_id, elt_id: base_id.elt_id + 1};
+      [
+        entry_func(base_id, head),
+        ...entries_view(entry_func, next_id, tail),
+      ];
+    };
+  };
   let code_view = (code: string) => {
     Vdom.(
       Node.span([Attr.classes(["panel-code-font"])], [Node.text(code)])
@@ -476,7 +487,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let history_entry_tab_icon =
-      (group_id: UndoHistory.group_id, has_hidden_part: bool, is_expanded: bool) =>
+      (
+        group_id: UndoHistory.group_id,
+        has_hidden_part: bool,
+        is_expanded: bool,
+      ) =>
     if (has_hidden_part) {
       /* expand icon*/
       if (is_expanded) {
@@ -658,8 +673,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     Vdom.Event.Many([
                       inject(
                         ModelAction.ShiftHistory({
-                          id:{group_id: undo_history.hover_recover_group_id,
-                          elt_id: undo_history.hover_recover_elt_id,},
+                          id: undo_history.hover_recover_id,
                           call_by_mouseenter: false,
                         }),
                       ),
@@ -706,8 +720,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     Vdom.Event.Many([
                       inject(
                         ModelAction.ShiftHistory({
-                          id:{group_id: undo_history.hover_recover_group_id,
-                          elt_id: undo_history.hover_recover_elt_id,},
+                          id: undo_history.hover_recover_id,
                           call_by_mouseenter: false,
                         }),
                       ),
@@ -753,19 +766,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let history_hidden_entry_view =
       (
         ~undo_history: UndoHistory.t,
-        id:UndoHistory.id,
+        id: UndoHistory.id,
         undo_history_entry: undo_history_entry,
       ) => {
-    let status_class =
-      get_status_class(
-        ~cur_id=undo_history.cur_id,
-        ~id,
-      );
-    let is_current_entry =
-      is_current_entry(
-        ~cur_id=undo_history.cur_id,
-        ~id,
-      );
+    let status_class = get_status_class(~cur_id=undo_history.cur_id, ~id);
+    let is_current_entry = is_current_entry(~cur_id=undo_history.cur_id, ~id);
     /* making the entry show preview effect when scrolling
        is realized by getting topmost element under the mouse.
        Due to css padding setting, this element can be at any level,
@@ -812,8 +817,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     Vdom.Event.Many([
                       inject(
                         ModelAction.ShiftHistory({
-                          id:{group_id: undo_history.hover_recover_group_id,
-                          elt_id: undo_history.hover_recover_elt_id,}
+                          id: undo_history.hover_recover_id,
                           call_by_mouseenter: false,
                         }),
                       ),
@@ -860,8 +864,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     Vdom.Event.Many([
                       inject(
                         ModelAction.ShiftHistory({
-                          id:{group_id: undo_history.hover_recover_group_id,
-                          elt_id: undo_history.hover_recover_elt_id,},
+                          id: undo_history.hover_recover_id,
                           call_by_mouseenter: false,
                         }),
                       ),
@@ -901,7 +904,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let group_view =
-      (~undo_history: UndoHistory.t, group_id: UndoHistory.group_id, group: undo_history_group) => {
+      (
+        ~undo_history: UndoHistory.t,
+        group_id: UndoHistory.group_id,
+        group: undo_history_group,
+      ) => {
     let entries = ZList.join(group.group_entries);
     switch (entries) {
     | [] => Vdom.(Node.div([], []))
@@ -917,14 +924,16 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ~undo_history,
                 ~is_expanded=group.is_expanded,
                 ~has_hidden_part,
-                group_id,
-                0 /*elt_id*/,
+                {group_id, elt_id: 0 /* base elt_id */},
                 title_entry,
               ),
               /* hidden entries */
-              ...list_map_helper_func(
-                   history_hidden_entry_view(~undo_history, group_id),
-                   1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
+              ...entries_view(
+                   history_hidden_entry_view(~undo_history),
+                   {
+                     group_id,
+                     elt_id: 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
+                   },
                    hidden_entries,
                  ),
             ],
@@ -936,8 +945,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ~undo_history,
           ~is_expanded=group.is_expanded,
           ~has_hidden_part,
-          group_id,
-          0 /*elt_id*/,
+          {group_id, elt_id: 0 /* base elt_id */},
           title_entry,
         );
       };
@@ -1065,7 +1073,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
 
   /* return option((group_id, elt_id)) */
-  let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
+  let get_elt_id_under_mouse = (model: Model.t): option(UndoHistory.id) => {
     let elt: Js.t(Dom_html.divElement) =
       JSUtil.element_from_point(model.mouse_position^);
     switch (
@@ -1073,7 +1081,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       JSUtil.get_attr("elt_id", elt),
     ) {
     | (Some(group_id), Some(elt_id)) =>
-      Some((int_of_string(group_id), int_of_string(elt_id)))
+      Some({
+        group_id: int_of_string(group_id),
+        elt_id: int_of_string(elt_id),
+      })
     | _ => None
     };
   };
@@ -1102,12 +1113,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                    so we get the history entry under the mouse
                    and shift to this entry manually  */
                 switch (get_elt_id_under_mouse(model)) {
-                | Some((group_id, elt_id)) =>
+                | Some(id) =>
                   Vdom.Event.Many([
                     inject(
                       ModelAction.ShiftHistory({
-                        group_id,
-                        elt_id,
+                        id,
                         call_by_mouseenter: true,
                       }),
                     ),
