@@ -3,16 +3,8 @@ open Sexplib.Std;
 [@deriving sexp]
 type operator = Operators_Exp.t;
 
-// TODO
-// type t =
-// /* laid out vertically */
-// | V(block)
-// /* laid out horizontally */
-// | H(opseq)
 [@deriving sexp]
 type t = block
-// TODO
-// block = (bool /* user newline */, list(line))
 and block = list(line)
 and line =
   | EmptyLine
@@ -207,7 +199,7 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
-  | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
+  | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
