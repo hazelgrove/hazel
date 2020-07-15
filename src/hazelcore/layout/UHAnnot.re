@@ -20,6 +20,12 @@ type token_data = {
 };
 
 [@deriving sexp]
+type open_child_format =
+  | InlineWithoutBorder
+  | InlineWithBorder
+  | Multiline;
+
+[@deriving sexp]
 type t =
   | Indent
   | Padding
@@ -27,20 +33,13 @@ type t =
   | Token(token_data)
   | SpaceOp
   | UserNewline
-  | OpenChild({
-      // TODO consider whether necessary
-      is_inline: bool,
-      // TODO consider whether necessary
-      is_enclosed: bool,
-    })
+  | OpenChild(open_child_format)
   | ClosedChild({
       // TODO consider whether necessary
       is_inline: bool,
       sort: TermSort.t,
     })
   | Tessera
-  | EmptyLine
-  | LetLine
   | Step(int)
   | Term(term_data);
 
@@ -50,5 +49,3 @@ let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});
-let mk_OpenChild = (~is_enclosed=true, ~is_inline: bool, ()) =>
-  OpenChild({is_inline, is_enclosed});

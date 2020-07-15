@@ -177,161 +177,6 @@ let multiline_open_child_rects =
   ];
 };
 
-let line_rects =
-    (
-      ~overflow_left: bool,
-      start: CaretPosition.t,
-      line: list(MeasuredLayout.t),
-    )
-    : (CaretPosition.t, current_term_rects) => {
-  let (end_, zipped) =
-    line
-    |> ListUtil.map_with_accumulator(
-         (word_start, word: MeasuredLayout.t) => {
-           switch (word) {
-           | {layout: Annot(Tessera, m), _} =>
-             let (word_end, {highlighted, closed_children}) =
-               tessera_rects(word_start, m);
-             (word_end, (highlighted, closed_children));
-           | {layout: Annot(OpenChild({is_inline, _}), m), _} =>
-             let highlighted =
-               is_inline
-                 ? inline_open_child_rects(word_start, m)
-                 : multiline_open_child_rects(
-                     ~overflow_left=true,
-                     word_start,
-                     m,
-                   );
-             let word_end =
-               MeasuredLayout.next_position(~indent=0, word_start, m);
-             (word_end, (highlighted, []));
-           | _ =>
-             failwith(
-               "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
-             )
-           }
-         },
-         start,
-       );
-  let (highlighted, closed_children) = List.split(zipped);
-  let highlighted =
-    switch (line) {
-    | [{layout: Annot(Tessera, m), _}, ..._] when overflow_left =>
-      let height = MeasuredLayout.height(m);
-      [
-        RectilinearPolygon.{
-          min: {
-            x: Float.of_int(start.col) -. 0.25,
-            y: Float.of_int(start.row),
-          },
-          height: Float.of_int(height),
-          width: 0.25,
-        },
-        ...List.flatten(highlighted),
-      ];
-    | _ => List.flatten(highlighted)
-    };
-  (end_, {highlighted, closed_children: List.flatten(closed_children)});
-};
-
-let lines_rects =
-    (
-      ~overflow_left: bool,
-      start: CaretPosition.t,
-      lines: list(list(MeasuredLayout.t)),
-    )
-    : (CaretPosition.t, current_term_rects) => {
-  lines
-  |> ListUtil.map_with_accumulator(
-       (line_start, line: list(MeasuredLayout.t)) => {
-         let (line_end, rss) =
-           switch (line) {
-           | [{layout: Annot(OpenChild(_), m), _}] =>
-             let highlighted_rs =
-               multiline_open_child_rects(~overflow_left, line_start, m);
-             let line_end =
-               MeasuredLayout.next_position(~indent=0, line_start, m);
-             (line_end, (highlighted_rs, []));
-           | _ =>
-             let (line_end, {highlighted, closed_children}) =
-               line_rects(~overflow_left, line_start, line);
-             (line_end, (highlighted, closed_children));
-           };
-         ({row: line_end.row + 1, col: 0}, rss);
-       },
-       start,
-     )
-  |> (
-    fun
-    | (end_, zipped) => {
-        let (highlighted_rs, closed_child_rss) = List.split(zipped);
-        (
-          {...end_, row: end_.row - 1},
-          {
-            highlighted: List.flatten(highlighted_rs),
-            closed_children: List.flatten(closed_child_rss),
-          },
-        );
-      }
-  );
-};
-
-let subblock_rects =
-    (~offset: int, subject: MeasuredLayout.t): current_term_rects => {
-  let flattened = MeasuredLayout.flatten(subject);
-  switch (flattened) {
-  | [
-      [{layout: Annot(Step(_), {layout: Annot(EmptyLine, _), _}), _}],
-      ..._,
-    ] =>
-    // TODO undo hack
-    {highlighted: [], closed_children: []}
-  | _ =>
-    flattened
-    |> ListUtil.map_with_accumulator(
-         (line_start, line: list(MeasuredLayout.t)) => {
-           let (line_end, rss) =
-             switch (line) {
-             | [{layout: Annot(Step(_), m), _}] =>
-               let (line_end, {highlighted, closed_children}) =
-                 lines_rects(
-                   ~overflow_left=true,
-                   line_start,
-                   MeasuredLayout.peel_and_flatten(m),
-                 );
-               (line_end, (highlighted, closed_children));
-             | [{layout: Annot(OpenChild(_), m), _}] =>
-               let highlighted =
-                 multiline_open_child_rects(
-                   ~overflow_left=true,
-                   line_start,
-                   m,
-                 );
-               let line_end =
-                 MeasuredLayout.next_position(~indent=0, line_start, m);
-               (line_end, (highlighted, []));
-             | _ =>
-               failwith(
-                 "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
-               )
-             };
-           ({row: line_end.row + 1, col: 0}, rss);
-         },
-         {row: 0, col: offset},
-       )
-    |> (
-      fun
-      | (_, zipped) => {
-          let (highlighted_rs, closed_child_rss) = List.split(zipped);
-          {
-            highlighted: List.flatten(highlighted_rs),
-            closed_children: List.flatten(closed_child_rss),
-          };
-        }
-    )
-  };
-};
-
 let sort_cls: TermSort.t => string =
   fun
   | Typ => "Typ"
@@ -410,6 +255,77 @@ let closed_child_filter = (sort: TermSort.t) => {
   );
 };
 
+let current_term_closed_child_rects =
+    (~offset: int, subject: MeasuredLayout.t): list((TermSort.t, rects)) =>
+  subject
+  |> MeasuredLayout.pos_fold(
+       ~start={row: 0, col: offset},
+       ~linebreak=_ => [],
+       ~text=(_, _) => [],
+       ~align=(_, _) => [],
+       ~cat=(_, rss1, rss2) => rss1 @ rss2,
+       ~annot=
+         (go, start, annot, m) =>
+           switch (annot) {
+           | Tessera => go(m)
+           | ClosedChild({sort, _}) => [
+               (sort, snd(rects(~vtrim=0.1, start, m))),
+             ]
+           // hack for case and subblocks
+           // TODO remove when we have tiles
+           | Step(_)
+           | Term({shape: Rule, _}) => go(m)
+           | _ => []
+           },
+     );
+
+let current_term_highlighted_rects =
+    (~overflow_left: bool, ~offset: int, subject: MeasuredLayout.t): rects =>
+  subject
+  |> MeasuredLayout.pos_fold(
+       ~start={row: 0, col: offset},
+       ~linebreak=_ => [],
+       ~text=(_, _) => [],
+       ~align=(_, _) => [],
+       ~cat=(_, rs1, rs2) => rs1 @ rs2,
+       ~annot=
+         (go, start, annot, m) =>
+           switch (annot) {
+           | Tessera =>
+             let rs = snd(rects(start, m));
+             // TODO may need to revisit this guard
+             // with layouts like
+             // let _ = \x.{
+             //   _
+             // } in ...
+             // where lambda has offset head
+             if (overflow_left && start.col == 0) {
+               // TODO factor out magic constants
+               let height = MeasuredLayout.height(m);
+               let overflow =
+                 RectilinearPolygon.{
+                   min: {
+                     x: Float.of_int(start.col) -. 0.25,
+                     y: Float.of_int(start.row),
+                   },
+                   height: Float.of_int(height),
+                   width: 0.25,
+                 };
+               [overflow, ...rs];
+             } else {
+               rs;
+             };
+           | OpenChild(InlineWithBorder) => inline_open_child_rects(start, m)
+           | OpenChild(Multiline) =>
+             multiline_open_child_rects(~overflow_left, start, m)
+           // hack for case and subblocks
+           // TODO remove when we have tiles
+           | Step(_)
+           | Term({shape: Rule, _}) => go(m)
+           | _ => []
+           },
+     );
+
 let current_term_view =
     (
       ~corner_radii: (float, float),
@@ -419,56 +335,36 @@ let current_term_view =
       subject: MeasuredLayout.t,
     )
     : Vdom.Node.t => {
-  let {highlighted, closed_children} =
+  let overflow_left =
     switch (shape) {
-    | SubBlock(_) =>
-      // special case for now
-      subblock_rects(~offset, subject)
-    | Rule
-    | Var(_)
-    | Operand(_)
-    | Invalid =>
-      snd(
-        lines_rects(
-          ~overflow_left=false,
-          {row: 0, col: offset},
-          MeasuredLayout.flatten(subject),
-        ),
-      )
-    | Case(_)
+    | SubBlock(_)
+    | NTuple(_)
     | BinOp(_)
-    | NTuple(_) =>
-      snd(
-        lines_rects(
-          ~overflow_left=true,
-          {row: 0, col: offset},
-          MeasuredLayout.flatten(subject),
-        ),
-      )
+    | Case(_) => true
+    | Rule
+    | Operand(_)
+    | Var(_)
+    | Invalid => false
     };
 
-  let highlighted_vs =
-    ListUtil.is_empty(highlighted)
-      ? []
-      : [
-        RectilinearPolygon.mk_svg(
-          ~corner_radii,
-          ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
-          highlighted,
-        ),
-      ];
-  let closed_child_vs =
-    closed_children
-    |> List.map(
-         fun
-         | (sort, rs) =>
-           RectilinearPolygon.mk_svg(
-             ~corner_radii,
-             ~attrs=[
-               Vdom.Attr.classes(["code-closed-child", sort_cls(sort)]),
-             ],
-             rs,
-           ),
+  let highlighted =
+    subject
+    |> current_term_highlighted_rects(~overflow_left, ~offset)
+    |> RectilinearPolygon.mk_svg(
+         ~corner_radii,
+         ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
+       );
+  let closed_children =
+    subject
+    |> current_term_closed_child_rects(~offset)
+    |> List.map(((sort, rs)) =>
+         RectilinearPolygon.mk_svg(
+           ~corner_radii,
+           ~attrs=[
+             Vdom.Attr.classes(["code-closed-child", sort_cls(sort)]),
+           ],
+           rs,
+         )
        );
   let outer_filter =
     Vdom.(
@@ -501,9 +397,9 @@ let current_term_view =
         closed_child_filter(Typ),
         closed_child_filter(Pat),
         closed_child_filter(Exp),
-        ...highlighted_vs,
-      ]
-      @ closed_child_vs,
+        highlighted,
+        ...closed_children,
+      ],
     )
   );
 };
