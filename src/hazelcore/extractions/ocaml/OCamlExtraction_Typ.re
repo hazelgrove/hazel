@@ -4,12 +4,11 @@ type t =
 
 let rec extract = (t: HTyp.t): t =>
   switch (t) {
-  | Hole => ExtractionFailed("Typ: Hole type") //FIXME: remove Hole check in expression
+  | Hole => ExtractionFailed("Typ: Hole type")
   | Int => OcamlTyp("int")
   | Float => OcamlTyp("float")
   | Bool => OcamlTyp("bool")
   // add parenthesis is necessary
-  // (int -> int) -> int != int -> int -> int
   | Arrow(t1, t2) =>
     switch (extract(t1), extract(t2)) {
     | (OcamlTyp(x), OcamlTyp(y)) => OcamlTyp("(" ++ x ++ " -> " ++ y ++ ")")

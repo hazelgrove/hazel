@@ -9,7 +9,6 @@ let ocaml_name_check = (name: Var.t): bool => {
   Re.Str.string_match(re, name, 0);
 };
 
-// should write like "expand"
 let rec extract = (dp: DHPat.t): t =>
   switch (dp) {
   | EmptyHole(_, _) => ExtractionFailed("Pat: Empty Hole")
@@ -18,7 +17,8 @@ let rec extract = (dp: DHPat.t): t =>
   | Keyword(_, _, _) => ExtractionFailed("Pat: Incomplete Program, Keyword")
   | InvalidText(_, _, _) => ExtractionFailed("Pat: InvalidText")
   | Var(s) =>
-    // OCaml variable naming rule is same as Hazel
+    //check variable naming is valid
+    //FIXME: I think check is unnecessary here
     if (ocaml_name_check(s)) {
       OcamlPat(s);
     } else {
@@ -71,7 +71,7 @@ let rec extract = (dp: DHPat.t): t =>
   };
 
 // take dp as a pattern, pat_t the expected type, and ctx the original context
-// used to update the pattern in case
+// used to update the pattern in case or let
 type ctx_update_t =
   | UpdateResult(Contexts.t)
   | UpdateFailed(string);
@@ -81,8 +81,8 @@ let rec update_pattern =
   switch (dp) {
   | EmptyHole(_)
   | NonEmptyHole(_)
-  | Keyword(_) => UpdateFailed("Pat: Case wrong pattern")
-  | Ap(_, _) => UpdateFailed("Pat: Case rule error, apply")
+  | Keyword(_) => UpdateFailed("Pat: Context Update wrong pattern")
+  | Ap(_, _) => UpdateFailed("Pat: Context Update error, apply")
   | InvalidText(_, _, _) => UpdateFailed("Pat: Invalid Text")
   | Var(x) =>
     //I don't think we need to recheck it here...
@@ -108,44 +108,32 @@ let rec update_pattern =
   | Cons(p1, p2) =>
     switch (pat_t) {
     | List(t) =>
-      // only add variable into context
-      let ctx1 =
-        switch (p1) {
-        | Var(x) => Contexts.extend_gamma(ctx, (x, t))
-        | _ => ctx
-        };
-      switch (p2) {
-      | Var(y) => UpdateResult(Contexts.extend_gamma(ctx1, (y, List(t))))
-      | _ => UpdateResult(ctx1)
-      };
-    | _ => failwith("Exp: Case wrong rule pattern, list")
+      // Recursively add sub-patterns.
+      // TODO: Test them (passed now)
+      switch (update_pattern(p1, t, ctx)) {
+      | UpdateFailed(err) => UpdateFailed(err)
+      | UpdateResult(ctx1) => update_pattern(p2, List(t), ctx1)
+      }
+    | _ => UpdateFailed("Pat: Cons are not list as Expected")
     }
-  //TODO: rewrite it more beautiful
   | Pair(p1, p2) =>
     switch (pat_t) {
     | Prod([h, t]) =>
-      let ctx1 =
-        switch (p1) {
-        | Var(x) => Contexts.extend_gamma(ctx, (x, h))
-        | _ => ctx
-        };
-      switch (p2) {
-      | Var(y) => UpdateResult(Contexts.extend_gamma(ctx1, (y, t)))
-      | _ => UpdateResult(ctx1)
-      };
+      switch (update_pattern(p1, h, ctx)) {
+      | UpdateFailed(err) => UpdateFailed(err)
+      | UpdateResult(ctx1) => update_pattern(p2, t, ctx1)
+      }
     | Prod([h, m, ...t]) =>
-      let ctx1 =
-        switch (p1) {
-        | Var(x) => Contexts.extend_gamma(ctx, (x, h))
-        | _ => ctx
-        };
-      switch (p2) {
-      | Var(y) =>
-        UpdateResult(Contexts.extend_gamma(ctx1, (y, Prod([m, ...t]))))
-      | _ => UpdateResult(ctx1)
-      };
-    | _ => UpdateFailed("Exp: Case wrong rule pattern, pair")
+      switch (update_pattern(p1, h, ctx)) {
+      | UpdateFailed(err) => UpdateFailed(err)
+      | UpdateResult(ctx1) => update_pattern(p2, Prod([m, ...t]), ctx1)
+      }
+    | _ => UpdateFailed("Pat: Pairs are not as Expected")
     }
-
-  | _ => UpdateResult(ctx) //don't need update context
+  | Triv
+  | Wild
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | ListNil => UpdateResult(ctx) //don't need update context
   };

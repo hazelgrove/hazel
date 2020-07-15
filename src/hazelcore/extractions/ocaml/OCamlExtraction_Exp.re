@@ -1,13 +1,9 @@
-// (extracted expression, dynamic/inner type) like ExpandResult
-// Htyp.t is like the ground type
+/* Theorem: If extract(ctx, d) = Some(ce, ty) and ctx |- d : ty then ce :_ocaml Typ.extract(ty) */
 
-//type extract_result = option((ocaml_exp, HTyp.t));
 type t =
   | OcamlExp(ocaml_exp, HTyp.t)
   | ExtractionFailed(string)
 and ocaml_exp = string;
-
-/* Theorem: If extract(ctx, d) = Some(ce, ty) and ctx |- d : ty then ce :_ocaml Typ.extract(ty) */
 
 //TODO: replace == with HTyp.consistent
 let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
@@ -23,13 +19,7 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     let typ = VarCtx.lookup(Contexts.gamma(ctx), x);
     switch (typ) {
     | None => ExtractionFailed("Exp: BoundVar " ++ x ++ " Not Found")
-    // if the hole type, we don't print the type
     | Some(t) => OcamlExp(x, t)
-    // if (t == Hole) {
-    //   ("(" ++ x ++ ")", t);
-    // } else {
-    //   ("(" ++ x ++ " : " ++ Typ.extract(~t) ++ ")", t);
-    // }
     };
   | Let(dp, de1, de2) =>
     // Let can bind patterns, so use "update_pattern" as rules (Case)
@@ -205,7 +195,7 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     }
   | ListNil(t) => OcamlExp("[]", List(t))
   | Cons(d1, d2) =>
-    //TODO: add proper parenthesis to avoid priority in case "map"
+    //add proper parenthesis to avoid priority
     switch (extract(ctx, d1), extract(ctx, d2)) {
     | (ExtractionFailed(err), _)
     | (_, ExtractionFailed(err)) => ExtractionFailed(err)
