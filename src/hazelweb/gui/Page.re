@@ -233,15 +233,18 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           Attr.on_click(_ => {
                             Printf.printf(
                               "%s\n%!",
-                              fst(
+                              switch (
                                 OCamlExtraction_Exp.extract(
-                                  ~ctx=Contexts.empty,
-                                  ~de=
-                                    model
-                                    |> Model.get_program
-                                    |> Program.get_expansion,
-                                ),
-                              ),
+                                  Contexts.empty,
+                                  model
+                                  |> Model.get_program
+                                  |> Program.get_expansion,
+                                )
+                              ) {
+                              | ExtractionFailed(err) =>
+                                "An Error Occurs: \n" ++ err
+                              | OcamlExp(str, _typ) => str
+                              },
                             );
                             Event.Ignore;
                           }),
