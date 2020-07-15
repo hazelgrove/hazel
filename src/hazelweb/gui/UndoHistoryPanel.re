@@ -20,17 +20,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let rec entries_view = (entry_func, base_id: UndoHistory.id, lst) => {
-    switch (lst) {
-    | [] => []
-    | [head, ...tail] =>
-      let next_id = {...base_id, elt_id: base_id.elt_id + 1};
-      [
-        entry_func(base_id, head),
-        ...entries_view(entry_func, next_id, tail),
-      ];
-    };
-  };
   let code_view = (code: string) => {
     Vdom.(
       Node.span([Attr.classes(["panel-code-font"])], [Node.text(code)])
@@ -622,8 +611,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ~undo_history: UndoHistory.t,
         ~is_expanded: bool,
         ~has_hidden_part: bool,
-        id: UndoHistory.id,
-        undo_history_entry: undo_history_entry,
+        ~id: UndoHistory.id,
+        ~undo_history_entry: undo_history_entry,
       ) => {
     let status_class = get_status_class(~cur_id=undo_history.cur_id, ~id);
     let is_current_entry = is_current_entry(~cur_id=undo_history.cur_id, ~id);
@@ -766,8 +755,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let history_hidden_entry_view =
       (
         ~undo_history: UndoHistory.t,
-        id: UndoHistory.id,
-        undo_history_entry: undo_history_entry,
+        ~id: UndoHistory.id,
+        ~undo_history_entry: undo_history_entry,
       ) => {
     let status_class = get_status_class(~cur_id=undo_history.cur_id, ~id);
     let is_current_entry = is_current_entry(~cur_id=undo_history.cur_id, ~id);
@@ -903,6 +892,30 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     );
   };
 
+  /* turn a list of undo_history entries in the same group to view,
+   * and bind a unique id to each entry view,
+   * base_id is the id for the first entry in the list
+   */
+  let rec hidden_entries_lst_to_view =
+          (
+            undo_history: UndoHistory.t,
+            base_id: UndoHistory.id,
+            lst: list(UndoHistory.undo_history_entry),
+          ) => {
+    switch (lst) {
+    | [] => []
+    | [head, ...tail] =>
+      let next_id = {...base_id, elt_id: base_id.elt_id + 1};
+      [
+        history_hidden_entry_view(
+          ~undo_history,
+          ~id=base_id,
+          ~undo_history_entry=head,
+        ),
+        ...hidden_entries_lst_to_view(undo_history, next_id, tail),
+      ];
+    };
+  };
   let group_view =
       (
         ~undo_history: UndoHistory.t,
@@ -924,12 +937,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 ~undo_history,
                 ~is_expanded=group.is_expanded,
                 ~has_hidden_part,
-                {group_id, elt_id: 0 /* base elt_id */},
-                title_entry,
+                ~id={group_id, elt_id: 0 /* base elt_id */},
+                ~undo_history_entry=title_entry,
               ),
               /* hidden entries */
-              ...entries_view(
-                   history_hidden_entry_view(~undo_history),
+              ...hidden_entries_lst_to_view(
+                   undo_history,
                    {
                      group_id,
                      elt_id: 1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
@@ -945,8 +958,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ~undo_history,
           ~is_expanded=group.is_expanded,
           ~has_hidden_part,
-          {group_id, elt_id: 0 /* base elt_id */},
-          title_entry,
+          ~id={group_id, elt_id: 0 /* base elt_id */},
+          ~undo_history_entry=title_entry,
         );
       };
     };
@@ -1072,7 +1085,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     );
 
-  /* return option((group_id, elt_id)) */
   let get_elt_id_under_mouse = (model: Model.t): option(UndoHistory.id) => {
     let elt: Js.t(Dom_html.divElement) =
       JSUtil.element_from_point(model.mouse_position^);
