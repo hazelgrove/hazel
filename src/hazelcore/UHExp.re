@@ -316,7 +316,7 @@ let associate = (seq: seq): skel => {
    */
   let rec go_seq =
           (
-            skels: list(skel), /* List of skels to be combined into single output skel. */
+            skel_stack: list(skel), /* List of skels to be combined into single output skel. */
             op_stack: list(Operators_Exp.t), /* Stack of operators. */
             seq: seq, /* Convert this seq to output skel. */
             lex_addr: int,
@@ -328,7 +328,7 @@ let associate = (seq: seq): skel => {
        * If the next token is an operand, add a new operand to the output skel.
        */
       go_affix(
-        [Skel.Placeholder(lex_addr), ...skels],
+        [Skel.Placeholder(lex_addr), ...skel_stack],
         op_stack,
         affix, /* Tail of seq without first operand. */
         lex_addr + 1 /* Increment lexical address of operand in seq. */
@@ -337,7 +337,7 @@ let associate = (seq: seq): skel => {
   }
   and go_affix =
       (
-        skels: list(skel),
+        skel_stack: list(skel),
         op_stack: list(Operators_Exp.t),
         affix: affix,
         lex_addr: int,
@@ -368,31 +368,32 @@ let associate = (seq: seq): skel => {
           };
         };
 
-      let (skels', op_stack') = build_ast_while(skels, op_stack, should_mv);
+      let (skel_stack', op_stack') =
+        build_ast_while(skel_stack, op_stack, should_mv);
 
       /* Push this operator to the operator stack. */
-      go_seq(skels', [op, ...op_stack'], seq, lex_addr);
+      go_seq(skel_stack', [op, ...op_stack'], seq, lex_addr);
     | E =>
       /**
        * Once the input seq is empty, continuously pop
        * operators in the stack and build up the output skel.
        */
-      let (skels', _) = build_ast_while(skels, op_stack, _ => true);
-      switch (skels') {
+      let (skel_stack', _) = build_ast_while(skel_stack, op_stack, _ => true);
+      switch (skel_stack') {
       | [final_skel] => final_skel // In this case,
       | _ => Skel.Placeholder(-1) // This case will never be reached
       };
     };
   }
   and build_ast_while =
-      (skels: list(skel), op_stack: list(Operators_Exp.t), should_mv)
+      (skel_stack: list(skel), op_stack: list(Operators_Exp.t), should_mv)
       : (list(skel), list(Operators_Exp.t)) => {
     /* Move operators from the operator stack to the output skel list while... */
-    switch (op_stack) {
-    | [] => (skels, op_stack) /* (1) The operator stack is not empty. */
-    | [op, ...op_stack'] =>
-      if (should_mv(op)) {
-        /**  (2) See defn of should_mv in go_affix.
+    switch (op_stack, skel_stack) {
+    | ([], _) => (skel_stack, op_stack) /* (1) The operator stack is not empty. */
+    | ([op, ...op_stack'], [subskel1, subskel2, ...skel_stack'])
+        when should_mv(op) =>
+      /**  (2) See defn of should_mv in go_affix.
          *       Note - This impl supports only binary operators.
          *
          * Example -
@@ -412,23 +413,15 @@ let associate = (seq: seq): skel => {
          * []
          *
          */
-        (
-          switch (skels) {
-          | [rand_2, rand_1, ...skels'] =>
-            build_ast_while(
-              [
-                Skel.BinOp(ErrStatus.NotInHole, op, rand_1, rand_2),
-                ...skels',
-              ],
-              op_stack',
-              should_mv,
-            )
-          | _ => (skels, op_stack)
-          }
-        );
-      } else {
-        (skels, op_stack);
-      }
+      build_ast_while(
+        [
+          Skel.BinOp(ErrStatus.NotInHole, op, subskel2, subskel1),
+          ...skel_stack',
+        ],
+        op_stack',
+        should_mv,
+      )
+    | _ => (skel_stack, op_stack)
     };
   };
   go_seq([], [], seq, 0);

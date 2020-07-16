@@ -105,6 +105,6 @@ You can print to the browser console using the standard `print_endline` function
 
 ### Testing
 
-You can run all of the unit tests located in `src/hazelcore/test` by running `dune runtest`.
+You can run all of the unit tests located in `src/hazelcore/test` by running `make test`.
 
 Unit tests are written using the (ppx_expect)[https://github.com/janestreet/ppx_expect/tree/master/example] and (ppx_inline_tests)[https://github.com/janestreet/ppx_inline_test/tree/master/example]. If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.

@@ -10,7 +10,7 @@ let%expect_test "expect_test" = {
 };
 
 // To create an inline test, write a function () -> bool
-// who's result is the assertion you wish to test.
+// whose result is the assertion you wish to test.
 //
 // More at https://github.com/janestreet/ppx_inline_test
 let%test "inline_test" = 12 == 12;
