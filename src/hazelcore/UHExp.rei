@@ -25,7 +25,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  | AssertLit(ErrStatus.t)
+  | AssertLit(ErrStatus.t, AssertNumber.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -61,7 +61,7 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
-let assertlit: (~err: ErrStatus.t=?, unit) => operand;
+let assertlit: (~err: ErrStatus.t=?, AssertNumber.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
@@ -99,14 +99,14 @@ let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
-let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
+let new_InvalidText: (IDGen.t, string) => (operand, IDGen.t);
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
+let new_EmptyHole: IDGen.t => (operand, IDGen.t);
 
 let is_EmptyHole: operand => bool;
 
-let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
+let empty_rule: IDGen.t => (rule, IDGen.t);
 
 /* put e in the specified hole */
 let get_err_status: t => ErrStatus.t;
@@ -128,18 +128,17 @@ let set_err_status_operand: (ErrStatus.t, operand) => operand;
 let is_inconsistent: operand => bool;
 
 /* put e in a new hole, if it is not already in a hole */
-let mk_inconsistent: (MetaVarGen.t, t) => (t, MetaVarGen.t);
+let mk_inconsistent: (IDGen.t, t) => (t, IDGen.t);
 
-let mk_inconsistent_block: (MetaVarGen.t, t) => (t, MetaVarGen.t);
+let mk_inconsistent_block: (IDGen.t, t) => (t, IDGen.t);
 
-let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
+let mk_inconsistent_opseq: (IDGen.t, opseq) => (opseq, IDGen.t);
 
-let mk_inconsistent_operand:
-  (MetaVarGen.t, operand) => (operand, MetaVarGen.t);
+let mk_inconsistent_operand: (IDGen.t, operand) => (operand, IDGen.t);
 
 let drop_outer_parentheses: operand => t;
 
-let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
+let text_operand: (IDGen.t, TextShape.t) => (operand, IDGen.t);
 
 let associate: seq => Skel.t(Operators_Exp.t);
 

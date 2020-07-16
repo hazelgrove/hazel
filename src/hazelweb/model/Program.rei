@@ -26,7 +26,7 @@ let get_uhexp: t => UHExp.t;
 let get_path: t => CursorPath_common.t;
 let get_steps: t => CursorPath_common.steps;
 
-let get_u_gen: t => MetaVarGen.t;
+let get_id_gen: t => IDGen.t;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None

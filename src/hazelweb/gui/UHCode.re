@@ -121,6 +121,9 @@ let view =
               ),
             ];
           }
+        | Annot(AssertNumber, l) => {
+            [Node.span([Attr.classes(["AssertNumber"])], go(l))];
+          }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
           ]

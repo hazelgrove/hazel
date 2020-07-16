@@ -6,9 +6,9 @@ let bind = (cmd, f, psi) => {
   f(a, psi');
 };
 
-let exec = (cmd, psi, u_gen) => {
+let exec = (cmd, psi, id_gen) => {
   let (a, psi) = cmd(psi);
-  (a, psi, u_gen);
+  (a, psi, id_gen);
 };
 
 /* Have to add these functions to stub ppx_deriving.show for types that use this type */
