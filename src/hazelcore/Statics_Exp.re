@@ -682,8 +682,8 @@ let rec syn_fix_holes =
           e: UHExp.t,
         )
         : (UHExp.t, HTyp.t, MetaVarGen.t) =>
-  Lazy.force(syn_fix_holes_block, ctx, u_gen, ~renumber_empty_holes, e)
-and syn_fix_holes_block =
+  Lazy.force(syn_fix_holes_block', ctx, u_gen, ~renumber_empty_holes, e)
+and syn_fix_holes_block' =
   lazy(
     stable_syn_fixer(
       (
@@ -696,7 +696,7 @@ and syn_fix_holes_block =
       | None =>
         let (leading, _ctx, u_gen) =
           Lazy.force(
-            syn_fix_holes_lines,
+            syn_fix_holes_lines',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -711,7 +711,7 @@ and syn_fix_holes_block =
       | Some((leading, conclusion)) =>
         let (leading, ctx, u_gen) =
           Lazy.force(
-            syn_fix_holes_lines,
+            syn_fix_holes_lines',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -719,7 +719,7 @@ and syn_fix_holes_block =
           );
         let (conclusion, ty, u_gen) =
           Lazy.force(
-            syn_fix_holes_opseq,
+            syn_fix_holes_opseq',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -729,7 +729,7 @@ and syn_fix_holes_block =
       }
     )
   )
-and syn_fix_holes_lines =
+and syn_fix_holes_lines' =
   lazy(
     stable_syn_fixer(
       (
@@ -751,7 +751,7 @@ and syn_fix_holes_lines =
              ) => {
                let (fixed_line, ctx, u_gen) =
                  Lazy.force(
-                   syn_fix_holes_line,
+                   syn_fix_holes_line',
                    ctx,
                    u_gen,
                    ~renumber_empty_holes,
@@ -764,7 +764,7 @@ and syn_fix_holes_lines =
       (rev_fixed_lines |> List.rev, ctx, u_gen);
     })
   )
-and syn_fix_holes_line =
+and syn_fix_holes_line' =
   lazy(
     stable_syn_fixer(
       (
@@ -777,7 +777,7 @@ and syn_fix_holes_line =
       | ExpLine(e) =>
         let (e, _, u_gen) =
           Lazy.force(
-            syn_fix_holes_opseq,
+            syn_fix_holes_opseq',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -817,7 +817,7 @@ and syn_fix_holes_line =
       }
     )
   )
-and syn_fix_holes_opseq =
+and syn_fix_holes_opseq' =
   lazy(
     stable_syn_fixer(
       (
@@ -852,7 +852,7 @@ and syn_fix_holes_skel =
           let en = seq |> Seq.nth_operand(n);
           let (en, ty, u_gen) =
             Lazy.force(
-              syn_fix_holes_operand,
+              syn_fix_holes_operand',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -1044,7 +1044,7 @@ and syn_fix_holes_skel =
       )
     )
   )
-and syn_fix_holes_operand =
+and syn_fix_holes_operand' =
   lazy(
     stable_syn_fixer(
       (
@@ -1342,7 +1342,7 @@ and ana_fix_holes_block =
         | None =>
           let (leading, _ctx, u_gen) =
             Lazy.force(
-              syn_fix_holes_lines,
+              syn_fix_holes_lines',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -1353,7 +1353,7 @@ and ana_fix_holes_block =
         | Some((leading, conclusion)) =>
           let (leading, ctx, u_gen) =
             Lazy.force(
-              syn_fix_holes_lines,
+              syn_fix_holes_lines',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -1463,7 +1463,7 @@ and ana_fix_holes_opseq =
               let (u, u_gen) = u_gen |> MetaVarGen.next;
               let (opseq, _, u_gen) =
                 Lazy.force(
-                  syn_fix_holes_opseq,
+                  syn_fix_holes_opseq',
                   ctx,
                   u_gen,
                   ~renumber_empty_holes,
@@ -1624,7 +1624,7 @@ and ana_fix_holes_operand =
         | BoolLit(_, _) =>
           let (e, ty', u_gen) =
             Lazy.force(
-              syn_fix_holes_operand,
+              syn_fix_holes_operand',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -1671,7 +1671,7 @@ and ana_fix_holes_operand =
               } else {
                 let (e', _, u_gen) =
                   Lazy.force(
-                    syn_fix_holes_operand,
+                    syn_fix_holes_operand',
                     ctx,
                     u_gen,
                     ~renumber_empty_holes,
@@ -1702,7 +1702,7 @@ and ana_fix_holes_operand =
           | None =>
             let (e', _, u_gen) =
               Lazy.force(
-                syn_fix_holes_operand,
+                syn_fix_holes_operand',
                 ctx,
                 u_gen,
                 ~renumber_empty_holes,
@@ -1729,7 +1729,7 @@ and ana_fix_holes_operand =
           | None =>
             let (e', ty', u_gen) =
               Lazy.force(
-                syn_fix_holes_operand,
+                syn_fix_holes_operand',
                 ctx,
                 u_gen,
                 ~renumber_empty_holes,
@@ -1762,7 +1762,7 @@ and ana_fix_holes_operand =
         | ApPalette(_, _, _, _) =>
           let (e', ty', u_gen) =
             Lazy.force(
-              syn_fix_holes_operand,
+              syn_fix_holes_operand',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -1786,9 +1786,9 @@ and ana_fix_holes_operand =
   );
 
 let syn_fix_holes_block = (ctx, u_gen, ~renumber_empty_holes=false, block) =>
-  Lazy.force(syn_fix_holes_block, ctx, u_gen, ~renumber_empty_holes, block);
+  Lazy.force(syn_fix_holes_block', ctx, u_gen, ~renumber_empty_holes, block);
 let syn_fix_holes_opseq = (ctx, u_gen, ~renumber_empty_holes=false, opseq) =>
-  Lazy.force(syn_fix_holes_opseq, ctx, u_gen, ~renumber_empty_holes, opseq);
+  Lazy.force(syn_fix_holes_opseq', ctx, u_gen, ~renumber_empty_holes, opseq);
 let syn_fix_holes_rules =
     (ctx, u_gen, ~renumber_empty_holes=false, rules, pat_ty) => {
   let (rules, (rule_types, common_type), u_gen) =

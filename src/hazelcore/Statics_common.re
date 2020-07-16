@@ -65,3 +65,12 @@ let stable_ana_fixer =
       f(ctx, u_gen, ~renumber_empty_holes, ~extra_input, term, ty);
     (changed ? fixed_term : term, extra_output, u_gen, changed);
   };
+
+let set_hole_reason = (u_gen: MetaVarGen.t, reason: ErrStatus.HoleReason.t, ErrStatus.t) =>
+  switch (err) {
+  | InHole(r, _) when r == reason => (err, u_gen, false)
+  | _ =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let err = ErrStatus.InHole(reason, u);
+    (err, u_gen, true);
+  };
