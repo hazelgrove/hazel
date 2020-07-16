@@ -88,6 +88,22 @@ module Delim = {
   let open_Lam = (): t => mk(~index=2, ".{");
   let close_Lam = (): t => mk(~index=3, "}");
 
+  let assertlit = () /*numbering: string*/: t => {
+    //Doc.(hcats([text("assert"),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
+    //let doc1 = Doc.text("assert") |> Doc.annot(UHAnnot.AssertNumber);
+    //let doc2 = Doc.text(numbering); |> Doc.annot(UHAnnot.AssertNumber);
+    /*switch(Assertresult.lookup(int_of_string(numbering))){ //0 = pass, 1= fail, 2= not yet determined
+        |0 => Doc.text(checkmark) |>Doc.annot(UHAnnot.AssertPass)✔
+        |1 => Doc.text(x mark) |> Doc.annot(UHAnnot.AssertFail)✘
+        |2 => Doc.text(grey box) |> Doc.annot(UHAnnot.AssertIndet)△
+      }*/
+    //|> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()));
+    //Doc.(hcats([doc1, doc2]))
+    Doc.text("assert")
+    |> Doc.annot(UHAnnot.AssertNumber)
+    |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()));
+  };
+
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
@@ -273,8 +289,9 @@ let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
-let mk_AssertLit = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
-  mk_text("assert") |> annot_Operand(~sort, ~err);
+let mk_AssertLit =
+    (~sort: TermSort.t, ~err: ErrStatus.t, () /*numbering: string*/): t =>
+  Delim.assertlit() |> annot_Operand(~sort, ~err);
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);

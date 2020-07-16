@@ -16,6 +16,8 @@ type t =
   | Indent
   | Padding
   | HoleLabel({len: int})
+  //| AssertLabel
+  | AssertNumber
   | Token({
       shape: token_shape,
       len: int,

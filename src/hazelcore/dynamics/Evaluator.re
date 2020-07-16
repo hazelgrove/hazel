@@ -73,7 +73,7 @@ let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
   | FailedAssert(d1) => Indet(d1)
-  | AssertLit => BoxedValue(d)
+  | AssertLit(_) => BoxedValue(d)
   | Let(dp, d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -87,14 +87,25 @@ let rec evaluate = (d: DHExp.t): result =>
     }
   | FixF(x, _, d1) => evaluate(Elaborator_Exp.subst_var(d, x, d1))
   | Lam(_, _, _) => BoxedValue(d)
+  | Sequence(d1, d2) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(_) => evaluate(d2)
+    | Indet(d1) =>
+      switch (evaluate(d2)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(d2) => Indet(Sequence(d1, d2))
+      | Indet(d2) => Indet(Sequence(d1, d2))
+      }
+    }
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(AssertLit) =>
+    | BoxedValue(AssertLit(n)) =>
       switch (evaluate(d2)) {
       | BoxedValue(BoolLit(b)) =>
         b ? BoxedValue(Triv) : Indet(FailedAssert(d2))
-      | _ => Indet(Ap(AssertLit, d2))
+      | _ => Indet(Ap(AssertLit(n), d2))
       }
     | BoxedValue(Lam(dp, _, d3)) =>
       switch (evaluate(d2)) {

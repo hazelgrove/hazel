@@ -90,7 +90,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  | AssertLit(_) => CursorPosition.text_cursors(6)
+  | AssertLit(_, _) => CursorPosition.text_cursors(6)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =
@@ -484,33 +484,32 @@ and set_err_status_zoperand = (err, zoperand) =>
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
-let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
-  ze |> mk_inconsistent_zblock(u_gen)
+let rec mk_inconsistent = (id_gen: IDGen.t, ze: t): (t, IDGen.t) =>
+  ze |> mk_inconsistent_zblock(id_gen)
 and mk_inconsistent_zblock =
-    (u_gen: MetaVarGen.t, (prefix, zline, suffix): zblock)
-    : (zblock, MetaVarGen.t) =>
+    (id_gen: IDGen.t, (prefix, zline, suffix): zblock): (zblock, IDGen.t) =>
   switch (suffix |> ListUtil.split_last) {
   | None =>
-    let (zconclusion, u_gen) =
-      zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(u_gen);
-    ((prefix, ExpLineZ(zconclusion), []), u_gen);
+    let (zconclusion, id_gen) =
+      zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(id_gen);
+    ((prefix, ExpLineZ(zconclusion), []), id_gen);
   | Some((suffix_leading, suffix_last)) =>
-    let (conclusion, u_gen) =
+    let (conclusion, id_gen) =
       suffix_last
       |> UHExp.Line.force_get_opseq
-      |> UHExp.mk_inconsistent_opseq(u_gen);
-    ((prefix, zline, suffix_leading @ [ExpLine(conclusion)]), u_gen);
+      |> UHExp.mk_inconsistent_opseq(id_gen);
+    ((prefix, zline, suffix_leading @ [ExpLine(conclusion)]), id_gen);
   }
-and mk_inconsistent_zopseq = (u_gen, zopseq) =>
-  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, u_gen, zopseq)
-and mk_inconsistent_zoperand = (u_gen, zoperand) =>
+and mk_inconsistent_zopseq = (id_gen, zopseq) =>
+  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, id_gen, zopseq)
+and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   switch (zoperand) {
   | CursorE(cursor, operand) =>
-    let (operand, u_gen) = operand |> UHExp.mk_inconsistent_operand(u_gen);
-    (CursorE(cursor, operand), u_gen);
+    let (operand, id_gen) = operand |> UHExp.mk_inconsistent_operand(id_gen);
+    (CursorE(cursor, operand), id_gen);
   | ParenthesizedZ(zbody) =>
-    let (zbody, u_gen) = mk_inconsistent(u_gen, zbody);
-    (ParenthesizedZ(zbody), u_gen);
+    let (zbody, id_gen) = mk_inconsistent(id_gen, zbody);
+    (ParenthesizedZ(zbody), id_gen);
   /* already in hole */
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
@@ -518,7 +517,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
+  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, id_gen)
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -537,14 +536,14 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       _,
     )
   | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
-    (zoperand, u_gen);
+    (zoperand, id_gen);
   };
-let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-  (place_before_operand(hole), u_gen);
+let new_EmptyHole = (id_gen: IDGen.t): (zoperand, IDGen.t) => {
+  let (hole, id_gen) = UHExp.new_EmptyHole(id_gen);
+  (place_before_operand(hole), id_gen);
 };
 
 let rec cursor_on_outer_expr =
@@ -568,11 +567,11 @@ let rec cursor_on_outer_expr =
   | ApPaletteZ(_) => None
   };
 
-let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
-  let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-  let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
+let empty_zrule = (id_gen: IDGen.t): (zrule, IDGen.t) => {
+  let (zp, id_gen) = ZPat.new_EmptyHole(id_gen);
+  let (clause, id_gen) = UHExp.new_EmptyHole(id_gen);
   let zrule = RuleZP(ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
-  (zrule, u_gen);
+  (zrule, id_gen);
 };
 
 let is_inconsistent = zoperand =>

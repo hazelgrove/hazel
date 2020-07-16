@@ -1,5 +1,5 @@
 [@deriving sexp]
-type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
+type edit_state = (ZExp.t, HTyp.t, IDGen.t);
 
 type type_mode =
   | Syn

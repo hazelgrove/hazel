@@ -46,9 +46,9 @@ let get_steps = program => {
   steps;
 };
 
-let get_u_gen = program => {
-  let (_, _, u_gen) = program.edit_state;
-  u_gen;
+let get_id_gen = program => {
+  let (_, _, id_gen) = program.edit_state;
+  id_gen;
 };
 
 exception MissingCursorInfo;
@@ -100,12 +100,13 @@ let perform_edit_action = (a, program) => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (ze, ty, u_gen) = new_edit_state;
+    let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze), false)) {
-        (ze, ty, MetaVarGen.init);
+        print_endline("hit here2");
+        (ze, ty, IDGen.init_hole(id_gen));
       } else {
-        (ze, ty, u_gen);
+        (ze, ty, id_gen);
       };
     program |> put_edit_state(new_edit_state);
   };
