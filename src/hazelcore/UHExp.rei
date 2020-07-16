@@ -138,8 +138,6 @@ let drop_outer_parentheses: operand => t;
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
-let associate: seq => Skel.t(Operators_Exp.t);
-
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete_line: (line, bool) => bool;
