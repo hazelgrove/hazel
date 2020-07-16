@@ -6,7 +6,7 @@ let%test "single operand test" = {
   let single_op_seq = Seq.S(UHExp.IntLit(NotInHole, "1"), Seq.E);
   let single_op_skel = Skel.Placeholder(0);
 
-  UHExp.associate(single_op_seq) == single_op_skel;
+  Skel.associate(single_op_seq) == single_op_skel;
 };
 
 let%test "simple addition test" = {
@@ -24,7 +24,7 @@ let%test "simple addition test" = {
       Skel.Placeholder(1),
     );
 
-  UHExp.associate(simple_add_seq) == simple_add_skel;
+  Skel.associate(simple_add_seq) == simple_add_skel;
 };
 
 let%test "single hole test" = {
@@ -32,7 +32,7 @@ let%test "single hole test" = {
   let single_hole_seq = Seq.S(UHExp.EmptyHole(mvar), E);
   let single_hole_skel = Skel.Placeholder(0);
 
-  UHExp.associate(single_hole_seq) == single_hole_skel;
+  Skel.associate(single_hole_seq) == single_hole_skel;
 };
 
 let%test "addition w/ left hole" = {
@@ -50,7 +50,7 @@ let%test "addition w/ left hole" = {
       Skel.Placeholder(1),
     );
 
-  UHExp.associate(add_l_hole_seq) == add_l_hole_skel;
+  Skel.associate(add_l_hole_seq) == add_l_hole_skel;
 };
 
 let%test "operator precedence test" = {
@@ -113,7 +113,7 @@ let%test "operator precedence test" = {
       ),
     );
 
-  UHExp.associate(precedence_op_seq) == precedence_op_skel;
+  Skel.associate(precedence_op_seq) == precedence_op_skel;
 };
 
 let%test "holey operator precedence test" = {
@@ -176,5 +176,5 @@ let%test "holey operator precedence test" = {
       ),
     );
 
-  UHExp.associate(precedence_op_seq) == precedence_op_skel;
+  Skel.associate(precedence_op_seq) == precedence_op_skel;
 };
