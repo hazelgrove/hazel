@@ -25,14 +25,14 @@ let name = kc => {
   mod_prefix ++ kc.key.plain_name;
 };
 
-let enter = plain(Key.code2("Enter", "Enter", "NumpadEnter"));
-let escape = plain(Key.the_code("Escape"));
-let backspace = plain(Key.the_code("Backspace"));
-let delete = plain(Key.the_code("Delete"));
-let tab = plain(Key.the_code("Tab"));
-let shift_tab = shift(Key.the_code("Tab"));
+let enter = plain(Key.the_key("Enter"));
+let escape = plain(Key.the_key("Escape"));
+let backspace = plain(Key.the_key("Backspace"));
+let delete = plain(Key.the_key("Delete"));
+let tab = plain(Key.the_key("Tab"));
+let shift_tab = shift(Key.the_key("Tab"));
 let shift_enter = shift(Key.code2("Enter", "Enter", "NumpadEnter")); // For creating another "CommentLine"
-let space = plain(Key.the_code("Space"));
+let space = plain(Key.key1("Space", " "));
 let lt = no_ctrl_alt_meta(Key.the_key("<"));
 let gt = no_ctrl_alt_meta(Key.the_key(">"));
 let colon = no_ctrl_alt_meta(Key.the_key(":"));
