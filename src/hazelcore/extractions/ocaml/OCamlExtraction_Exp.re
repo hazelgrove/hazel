@@ -132,9 +132,17 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     };
   | BoolLit(bool) => OcamlExp(string_of_bool(bool), Bool)
   | IntLit(int) => OcamlExp(string_of_int(int), Int)
-  // FIXME: Special string, ask Yunsoo
-  | FloatLit(float) => OcamlExp(string_of_float(float), Float)
-  // TODO: BinxxxOp can accept Lit or Op
+  // contains special floats, the float is already ocaml type
+  | FloatLit(float) =>
+    let str =
+      switch (string_of_float(float)) {
+      | "inf" => "infinity"
+      | "-inf" => "neg_infinity"
+      | "nan" => "nan"
+      | s => s
+      };
+    OcamlExp(str, Float);
+  // BinxxxOp can accept Lit or Op
   | BinBoolOp(op, d1, d2) =>
     switch (extract(ctx, d1), extract(ctx, d2)) {
     | (ExtractionFailed(err), _)
