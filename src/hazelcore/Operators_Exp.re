@@ -78,13 +78,9 @@ let precedence =
   | FDivide => 6
   | Space => 7;
 
-type associativity =
-  | Left
-  | Right;
-
 let associativity =
   fun
-  | Cons => Right
-  | And => Right
-  | Or => Right
-  | _ => Left;
+  | Cons => Associativity.Right
+  | And => Associativity.Right
+  | Or => Associativity.Right
+  | _ => Associativity.Left;
