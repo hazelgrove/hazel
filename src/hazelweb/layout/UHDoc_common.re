@@ -358,15 +358,16 @@ let mk_Case =
   let open_group = Delim.open_Case() |> annot_Tessera;
   let close_group = Delim.close_Case() |> annot_Tessera;
   Doc.(
-    vseps([
-      hcats([
-        open_group,
-        scrut |> pad_left_delimited_child(~inline_padding=space_),
-      ]),
-      // TODO undo open child hack when fixing case indicator
-      annot(UHAnnot.OpenChild(Multiline), vseps(rules)),
-      close_group,
-    ])
+    vseps(
+      [
+        hcats([
+          open_group,
+          scrut |> pad_left_delimited_child(~inline_padding=space_),
+        ]),
+        ...rules,
+      ]
+      @ [close_group],
+    )
   )
   |> annot_Case(~err);
 };

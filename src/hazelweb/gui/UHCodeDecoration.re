@@ -1,5 +1,9 @@
 module Vdom = Virtual_dom.Vdom;
 
+let inline_open_child_border_height = 0.1; // y units
+let multiline_open_child_border_width = 0.25; // x units
+let tessera_margin = 0.03; // y units
+
 type rects = list(RectilinearPolygon.rect);
 
 type current_term_rects = {
@@ -153,9 +157,13 @@ let inline_open_child_rects =
     RectilinearPolygon.{
       min: {
         x: Float.of_int(start.col),
-        y: Float.of_int(start.row) +. 1. -. 0.1,
+        y:
+          Float.of_int(start.row)
+          +. 1.
+          -. inline_open_child_border_height
+          -. tessera_margin,
       },
-      height: 0.1, // TODO
+      height: inline_open_child_border_height,
       width: Float.of_int(MeasuredLayout.width(m)),
     },
   ];
@@ -163,7 +171,7 @@ let inline_open_child_rects =
 
 let multiline_open_child_rects =
     (~overflow_left, start: CaretPosition.t, m: MeasuredLayout.t): rects => {
-  let overflow_left = overflow_left ? 0.25 : 0.0;
+  let overflow_left = overflow_left ? multiline_open_child_border_width : 0.0;
   [
     // make singleton skinny rect
     RectilinearPolygon.{
@@ -172,7 +180,7 @@ let multiline_open_child_rects =
         y: Float.of_int(start.row),
       },
       height: Float.of_int(MeasuredLayout.height(m)),
-      width: 0.25 // TODO
+      width: multiline_open_child_border_width,
     },
   ];
 };
@@ -255,32 +263,20 @@ let closed_child_filter = (sort: TermSort.t) => {
   );
 };
 
-let current_term_closed_child_rects =
-    (~offset: int, subject: MeasuredLayout.t): list((TermSort.t, rects)) =>
-  subject
-  |> MeasuredLayout.pos_fold(
-       ~start={row: 0, col: offset},
-       ~linebreak=_ => [],
-       ~text=(_, _) => [],
-       ~align=(_, _) => [],
-       ~cat=(_, rss1, rss2) => rss1 @ rss2,
-       ~annot=
-         (go, start, annot, m) =>
-           switch (annot) {
-           | Tessera => go(m)
-           | ClosedChild({sort, _}) => [
-               (sort, snd(rects(~vtrim=0.1, start, m))),
-             ]
-           // hack for case and subblocks
-           // TODO remove when we have tiles
-           | Step(_)
-           | Term({shape: Rule, _}) => go(m)
-           | _ => []
-           },
-     );
+let overflow_left: TermShape.t => bool =
+  fun
+  | SubBlock(_)
+  | NTuple(_)
+  | BinOp(_) => true
+  | Case(_)
+  | Rule
+  | Operand(_)
+  | Var(_)
+  | Invalid => false;
 
-let current_term_highlighted_rects =
-    (~overflow_left: bool, ~offset: int, subject: MeasuredLayout.t): rects =>
+// highlighted tesserae (ignoring closed children)
+let current_term_tessera_rects =
+    (~shape: TermShape.t, ~offset: int, subject: MeasuredLayout.t): rects =>
   subject
   |> MeasuredLayout.pos_fold(
        ~start={row: 0, col: offset},
@@ -290,41 +286,120 @@ let current_term_highlighted_rects =
        ~cat=(_, rs1, rs2) => rs1 @ rs2,
        ~annot=
          (go, start, annot, m) =>
-           switch (annot) {
-           | Tessera =>
-             let rs = snd(rects(start, m));
-             // TODO may need to revisit this guard
-             // with layouts like
+           switch (shape, annot) {
+           | (Case(_) | SubBlock(_), Step(_))
+           | (Case(_), Term({shape: Rule, _})) => go(m)
+           | (_, Tessera) => snd(rects(~vtrim=tessera_margin, start, m))
+           | _ => []
+           },
+     );
+
+// closed child "cutouts" from highlighted tesserae
+let current_term_closed_child_rects =
+    (~shape: TermShape.t, ~offset: int, subject: MeasuredLayout.t)
+    : list((TermSort.t, rects)) =>
+  subject
+  |> MeasuredLayout.pos_fold(
+       ~start={row: 0, col: offset},
+       ~linebreak=_ => [],
+       ~text=(_, _) => [],
+       ~align=(_, _) => [],
+       ~cat=(_, rss1, rss2) => rss1 @ rss2,
+       ~annot=
+         (go, start, annot, m) =>
+           switch (shape, annot) {
+           // hack for case and subblocks
+           // TODO remove when we have tiles
+           | (Case(_) | SubBlock(_), Step(_))
+           | (Case(_), Term({shape: Rule, _})) => go(m)
+           | (_, Tessera) => go(m)
+           | (_, ClosedChild({sort, _})) => [
+               (sort, snd(rects(~vtrim=0.1, start, m))),
+             ]
+           | _ => []
+           },
+     );
+
+// highlighted borders of open children
+let current_term_open_child_rects =
+    (~shape: TermShape.t, ~offset: int, subject: MeasuredLayout.t): rects => {
+  let has_multiline_open_child =
+    subject
+    |> MeasuredLayout.fold(
+         ~linebreak=false,
+         ~text=_ => false,
+         ~align=b => b,
+         ~cat=(||),
+         ~annot=
+           (go, annot, m) =>
+             switch (shape, annot) {
+             | (Case(_) | SubBlock(_), Step(_))
+             | (Case(_), Term({shape: Rule, _})) => go(m)
+             | (_, OpenChild(Multiline)) => true
+             | (_, _) => false
+             },
+       );
+  let subject_height = MeasuredLayout.height(subject);
+  subject
+  |> MeasuredLayout.pos_fold(
+       ~start={row: 0, col: offset},
+       ~linebreak=_ => [],
+       ~text=(_, _) => [],
+       ~align=(_, _) => [],
+       ~cat=(_, rs1, rs2) => rs1 @ rs2,
+       ~annot=
+         (go, start, annot, m) => {
+           // some tesserae need to be padded on left side to form
+           // a straight edge with borders of neighboring multiline
+           // open children
+           let tessera_padding = overflow_left => {
+             let min_x =
+               Float.of_int(start.col)
+               -. (overflow_left ? multiline_open_child_border_width : 0.0);
+             let min_y =
+               Float.of_int(start.row)
+               +. (start.row == 0 ? tessera_margin : 0.);
+             let height =
+               Float.of_int(MeasuredLayout.height(m))
+               -. (start.row == 0 ? tessera_margin : 0.)
+               -. (start.row == subject_height - 1 ? tessera_margin : 0.);
+             RectilinearPolygon.[
+               {
+                 min: {
+                   x: min_x,
+                   y: min_y,
+                 },
+                 height,
+                 width: multiline_open_child_border_width,
+               },
+             ];
+           };
+
+           switch (shape, annot) {
+           | (Case(_) | SubBlock(_), Step(_))
+           | (Case(_), Term({shape: Rule, _})) => go(m)
+           | (_, OpenChild(InlineWithBorder)) =>
+             inline_open_child_rects(start, m)
+           | (_, OpenChild(Multiline)) =>
+             multiline_open_child_rects(
+               ~overflow_left=overflow_left(shape),
+               start,
+               m,
+             )
+           | (Case(_), Tessera) => tessera_padding(false)
+           | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
+             // TODO may need to revisit above when guard
+             // to support layouts like
              // let _ = \x.{
              //   _
              // } in ...
              // where lambda has offset head
-             if (overflow_left && start.col == 0) {
-               // TODO factor out magic constants
-               let height = MeasuredLayout.height(m);
-               let overflow =
-                 RectilinearPolygon.{
-                   min: {
-                     x: Float.of_int(start.col) -. 0.25,
-                     y: Float.of_int(start.row),
-                   },
-                   height: Float.of_int(height),
-                   width: 0.25,
-                 };
-               [overflow, ...rs];
-             } else {
-               rs;
-             };
-           | OpenChild(InlineWithBorder) => inline_open_child_rects(start, m)
-           | OpenChild(Multiline) =>
-             multiline_open_child_rects(~overflow_left, start, m)
-           // hack for case and subblocks
-           // TODO remove when we have tiles
-           | Step(_)
-           | Term({shape: Rule, _}) => go(m)
+             tessera_padding(overflow_left(shape))
            | _ => []
-           },
+           };
+         },
      );
+};
 
 let current_term_view =
     (
@@ -335,28 +410,19 @@ let current_term_view =
       subject: MeasuredLayout.t,
     )
     : Vdom.Node.t => {
-  let overflow_left =
-    switch (shape) {
-    | SubBlock(_)
-    | NTuple(_)
-    | BinOp(_)
-    | Case(_) => true
-    | Rule
-    | Operand(_)
-    | Var(_)
-    | Invalid => false
-    };
-
-  let highlighted =
-    subject
-    |> current_term_highlighted_rects(~overflow_left, ~offset)
-    |> RectilinearPolygon.mk_svg(
-         ~corner_radii,
-         ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
-       );
+  let highlighted = {
+    let tesserae = subject |> current_term_tessera_rects(~shape, ~offset);
+    let open_child_borders =
+      subject |> current_term_open_child_rects(~shape, ~offset);
+    RectilinearPolygon.mk_svg(
+      ~corner_radii,
+      ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
+      tesserae @ open_child_borders,
+    );
+  };
   let closed_children =
     subject
-    |> current_term_closed_child_rects(~offset)
+    |> current_term_closed_child_rects(~shape, ~offset)
     |> List.map(((sort, rs)) =>
          RectilinearPolygon.mk_svg(
            ~corner_radii,

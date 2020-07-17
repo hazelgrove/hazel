@@ -41,6 +41,32 @@ let next_position =
   {row: updated_row, col: updated_col};
 };
 
+let fold =
+    (
+      ~linebreak: 'acc,
+      ~text: string => 'acc,
+      ~align: 'acc => 'acc,
+      ~cat: ('acc, 'acc) => 'acc,
+      ~annot:
+         // allow client to control recursion based on annotation
+         (t => 'acc, UHAnnot.t, t) => 'acc,
+      m: t,
+    )
+    : 'acc => {
+  let rec go = (m: t) =>
+    switch (m.layout) {
+    | Linebreak => linebreak
+    | Text(s) => text(s)
+    | Align(m) => align(go(m))
+    | Cat(m1, m2) =>
+      let acc1 = go(m1);
+      let acc2 = go(m2);
+      cat(acc1, acc2);
+    | Annot(ann, m) => annot(go, ann, m)
+    };
+  go(m);
+};
+
 let pos_fold =
     (
       ~linebreak: CaretPosition.t => 'acc,
