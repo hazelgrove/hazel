@@ -308,7 +308,7 @@ let text_operand =
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
-let mk_OpSeq = OpSeq.mk(~associate=Skel.associate);
+let mk_OpSeq = OpSeq.mk(~associate=Skel.mk);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {

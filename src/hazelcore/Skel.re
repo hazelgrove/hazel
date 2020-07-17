@@ -106,7 +106,13 @@ let mk_skel_str =
   mk_skel_str'(string_of_op, seq, counter, ph_map);
 };
 
-let associate = (seq: Seq.t('operand, 'op)): t('op) => {
+let mk =
+    (
+      seq: Seq.t('operand, 'op),
+      precedence: 'operator => int,
+      associativity: 'operator => Associativity.t,
+    )
+    : t('op) => {
   /**
    * Shunting-yard opp algorithm according to the specification here
    * https://en.wikipedia.org/wiki/Shunting-yard_algorithm#The_algorithm_in_detail
@@ -158,11 +164,9 @@ let associate = (seq: Seq.t('operand, 'op)): t('op) => {
          * greater precedence to the current operator.
          */
         {
-          switch (Operators_Exp.associativity(op')) {
-          | Left =>
-            Operators_Exp.precedence(op) <= Operators_Exp.precedence(op')
-          | Right =>
-            Operators_Exp.precedence(op) < Operators_Exp.precedence(op')
+          switch (associativity(op')) {
+          | Associativity.Left => precedence(op) <= precedence(op')
+          | Associativity.Right => precedence(op) < precedence(op')
           };
         };
 
