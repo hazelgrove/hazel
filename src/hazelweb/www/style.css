@@ -319,9 +319,16 @@ html, body {
 .cursor-inspector-outer {
   z-index: var(--caret-z);
   position: absolute;
-  margin-top: calc(var(--code-line-height) * 1em);
   width: max-content;
   cursor: default;
+}
+
+.cursor-inspector-outer.below {
+  margin-top: calc(var(--code-line-height) * 1em);
+}
+
+.cursor-inspector-outer.above {
+  transform: translateY(-100%);
 }
 
 .cursor-inspector .title-bar {

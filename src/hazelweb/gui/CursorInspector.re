@@ -790,6 +790,11 @@ let view =
         Css_gen.top(`Px(int_of_float(y))),
       ),
     );
+  let above_or_below =
+    switch (ci.cursor_term) {
+    | Exp(OnDelim(0, _), Case(_)) => "above"
+    | _ => "below"
+    };
   let summary =
     summary_bar(
       ~inject,
@@ -805,7 +810,7 @@ let view =
     };
   Vdom.(
     Node.div(
-      [Attr.classes(["cursor-inspector-outer"]), pos_attr],
+      [Attr.classes(["cursor-inspector-outer", above_or_below]), pos_attr],
       [
         Node.div(
           [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
