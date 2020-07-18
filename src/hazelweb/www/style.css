@@ -324,21 +324,31 @@ html, body {
   cursor: default;
 }
 
+.cursor-inspector .title-bar {
+  padding: 3px;
+}
+
 .type-info-summary {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start; 
   color: white;
-  padding: 5px;
+  padding-left: 5px;
+  font-family: Montserrat, sans-serif;
 }
 
 /* TODO Hannah if stick with this, see if can combine with circle icons somehow - maybe do some refactoring */
-.type-info-summary .inconsistent-symbol {
+.type-info-summary .consistency-symbol {
   background-color:white;
   font-size: var(--code-font-size);
   font-weight: bold;
   font-family: var(--code-font-family);
   border-radius:100%;
   text-align: center;
+}
+
+.type-info-summary .consistent-symbol {
+  cursor: pointer;
+  margin-right: 5px;
 }
 
 .type-info-summary .circle-icon {
@@ -350,30 +360,49 @@ html, body {
   font-size: 15px;
 }
 
-.cursor-OK.cursor-inspector .circle-icon {
-  background-color: #5dbd38;
+.cursor-OK.cursor-inspector .type-info-summary .HTypCode {
+  background-color: #0b6d3e;
 }
 
-.cursor-TypeInconsistency.cursor-inspector .circle-icon {
-  background-color: #da5858;
+.cursor-TypeInconsistency.cursor-inspector .type-info-summary .HTypCode {
+  background-color: #bb0707;
 }
 
-.cursor-BindingError.cursor-inspector .circle-icon {
-  background-color: #f0ad32;
+.cursor-BindingError.cursor-inspector .type-info-summary .HTypCode {
+  background-color: #f1760a;
+}
+
+.cursor-OK.cursor-inspector .emphasize-text {
+  background-color: #0b6d3e;
+}
+
+.cursor-TypeInconsistency.cursor-inspector .emphasize-text {
+  background-color: #bb0707;
+}
+
+.cursor-BindingError.cursor-inspector .emphasize-text {
+  background-color: #f1760a;
+}
+
+.type-info-summary .colon {
+  font-weight: bolder;
+  font-family: var(--code-font-family);
 }
 
 .type-info-summary .HTypCode {
   margin: 0 10px;
   font-weight: bolder;
+  font-family: var(--code-font-family);
+}
+
+.type-info-summary .term-tag-typ {
+  margin-right: 10px;
 }
 
 .type-info-summary .emphasize-text {
   margin: 0 10px;
   font-weight: bolder;
-}
-
-.type-info-summary .emphasize-text.only-pad-end {
-  margin-left: 0;
+  font-family: var(--code-font-family);
 }
 
 .cursor-inspector-arrow {
@@ -381,12 +410,9 @@ html, body {
   cursor: pointer;
 }
 
-.type-info-summary .term-tag {
-  margin-right: 10px;
-}
-
 .type-info-summary .novice-mode .term-tag {
   margin-left: 10px;
+  margin-right: 10px;
 }
 
 .cursor-OK.cursor-inspector {
@@ -440,6 +466,10 @@ html, body {
 
 .cursor-BindingError .type-info-summary .inconsistent-symbol {
   color: #ce5f00;
+}
+
+.cursor-OK .type-info-summary .consistent-symbol {
+  color: var(--title-bar-color);
 }
 
 .typebar, .infobar {
