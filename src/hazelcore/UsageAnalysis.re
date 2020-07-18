@@ -71,6 +71,8 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _)
   | ApPalette(_) => []
+  | UnaryOp(_, _, operand) =>
+    find_uses_operand(~steps=steps @ [1], x, operand)
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)

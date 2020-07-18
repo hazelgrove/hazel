@@ -105,7 +105,8 @@ type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpOp(CursorPosition.t, UHExp.operator)
+  | ExpBinop(CursorPosition.t, UHExp.binop)
+  | ExpUnop(CursorPosition.t, UHExp.unop)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
@@ -150,7 +151,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | _ => false
     }
   | Typ(_, _)
-  | ExpOp(_, _)
+  | ExpBinop(_, _)
+  | ExpUnop(_, _)
   | PatOp(_, _)
   | TypOp(_, _) => false
   | Line(_, line) =>
@@ -171,7 +173,8 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | Pat(_, _) => false
   | Typ(_, Hole) => true
   | Typ(_, _) => false
-  | ExpOp(_, _)
+  | ExpBinop(_, _)
+  | ExpUnop(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
   | Line(_, _)
@@ -186,7 +189,8 @@ let is_empty_line = (cursor_term): bool => {
   | Exp(_, _)
   | Pat(_, _)
   | Typ(_, _)
-  | ExpOp(_, _)
+  | ExpBinop(_, _)
+  | ExpUnop(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
   | Rule(_, _) => false

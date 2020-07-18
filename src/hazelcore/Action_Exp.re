@@ -1,5 +1,5 @@
 let operator_of_shape =
-    (os: Action_common.operator_shape): option(UHExp.operator) =>
+    (os: Action_common.operator_shape): option(UHExp.binop) =>
   switch (os) {
   | SPlus => Some(Plus)
   | SMinus => Some(Minus)
@@ -18,7 +18,7 @@ let operator_of_shape =
   };
 
 let shape_of_operator =
-    (op: UHExp.operator): option(Action_common.operator_shape) =>
+    (op: UHExp.binop): option(Action_common.operator_shape) =>
   switch (op) {
   | Minus => Some(SMinus)
   | Plus => Some(SPlus)
@@ -81,7 +81,7 @@ let mk_and_ana_fix_ZOpSeq =
      * new expression.
      */
 let keyword_suffix_to_opseq =
-    (suffix: Seq.affix(UHExp.operand, UHExp.operator), u_gen: MetaVarGen.t)
+    (suffix: Seq.affix(UHExp.operand, UHExp.binop), u_gen: MetaVarGen.t)
     : (UHExp.opseq, MetaVarGen.t) =>
   switch (suffix) {
   | A(Space, suffix_tl) => (UHExp.mk_OpSeq(suffix_tl), u_gen)
@@ -103,7 +103,7 @@ let delete_operator =
     ~is_EmptyHole=UHExp.is_EmptyHole,
     ~place_before_operand=ZExp.place_before_operand,
     ~place_after_operand=ZExp.place_after_operand,
-    ~place_after_operator=ZExp.place_after_operator,
+    ~place_after_operator=ZExp.place_after_binop,
   );
 
 //TBD
@@ -113,7 +113,7 @@ let construct_operator_before_zoperand =
     ~new_EmptyHole=UHExp.new_EmptyHole,
     ~erase_zoperand=ZExp.erase_zoperand,
     ~place_before_operand=ZExp.place_before_operand,
-    ~place_after_operator=ZExp.place_after_operator,
+    ~place_after_operator=ZExp.place_after_binop,
   );
 
 //TBD
@@ -123,7 +123,7 @@ let construct_operator_after_zoperand =
     ~new_EmptyHole=UHExp.new_EmptyHole,
     ~erase_zoperand=ZExp.erase_zoperand,
     ~place_before_operand=ZExp.place_before_operand,
-    ~place_after_operator=ZExp.place_after_operator,
+    ~place_after_operator=ZExp.place_after_binop,
   );
 
 //TBD
@@ -1165,12 +1165,12 @@ and syn_perform_opseq =
 
   /* Space construction on operators becomes movement... */
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
-      when ZExp.is_after_zoperator(zoperator) =>
+      when ZExp.is_after_zbinop(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
   /* ...while other construction is applied after movement */
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
-      ZExp.is_before_zoperator(zoperator)
+      ZExp.is_before_zbinop(zoperator)
         ? ZExp.move_cursor_left_zopseq : ZExp.move_cursor_right_zopseq;
     switch (zopseq |> move_cursor) {
     | None => Failed
@@ -2513,12 +2513,12 @@ and ana_perform_opseq =
 
   /* construction on operators either becomes movement... */
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
-      when ZExp.is_after_zoperator(zoperator) =>
+      when ZExp.is_after_zbinop(zoperator) =>
     ana_perform_opseq(ctx, MoveRight, (zopseq, u_gen), ty)
   /* ...or construction after movement */
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
-      ZExp.is_before_zoperator(zoperator)
+      ZExp.is_before_zbinop(zoperator)
         ? ZExp.move_cursor_left_zopseq : ZExp.move_cursor_right_zopseq;
     switch (zopseq |> move_cursor) {
     | None => Failed
