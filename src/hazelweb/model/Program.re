@@ -107,6 +107,17 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, u_gen);
       };
+
+    // Synthesis Hook
+    switch (a) {
+    | Delete
+    | Backspace
+    | Construct(_) =>
+      print_endline("REAL Change In Program. Restarting Synthesizer.");
+      Worker.run((x, y) => x *. y);
+    | _ => print_endline("superficial change ignored by synthesizer")
+    };
+
     program |> put_edit_state(new_edit_state);
   };
 };
