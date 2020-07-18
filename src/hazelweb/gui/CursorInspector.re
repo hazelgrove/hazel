@@ -402,7 +402,10 @@ let summary_bar =
     };
   Vdom.(
     Node.div(
-      [Attr.classes(["type-info-summary"])],
+      [
+        Attr.classes(["type-info-summary"]),
+        Attr.create("title", "Ctrl-Space to show/hide"),
+      ],
       [
         Node.div(
           [

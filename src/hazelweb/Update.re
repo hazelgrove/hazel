@@ -79,6 +79,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | UpdateIsMac(_)
+  | ToggleShowCursorInspector
   | ToggleCursorInspectorExpansion
   | ToggleNoviceMode =>
     Logger.append(
@@ -319,6 +320,13 @@ let apply_action =
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
+      | ToggleShowCursorInspector => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            visible: !model.cursor_inspector.visible,
+          },
+        }
       | ToggleCursorInspectorExpansion => {
           ...model,
           cursor_inspector: {

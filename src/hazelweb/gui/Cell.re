@@ -84,16 +84,20 @@ let view = (~inject, model: Model.t) => {
                 program,
               );
 
-            let (cursor_row, cursor_col) =
-              CursorMap.find_beginning_of_token(caret_pos, cmap);
-            let cursor_x =
-              float_of_int(cursor_col) *. model.font_metrics.col_width;
-            let cursor_y =
-              float_of_int(cursor_row) *. model.font_metrics.row_height;
-            let ci =
-              CursorInspector.view(~inject, model, (cursor_x, cursor_y));
+            if (model.cursor_inspector.visible) {
+              let (cursor_row, cursor_col) =
+                CursorMap.find_beginning_of_token(caret_pos, cmap);
+              let cursor_x =
+                float_of_int(cursor_col) *. model.font_metrics.col_width;
+              let cursor_y =
+                float_of_int(cursor_row) *. model.font_metrics.row_height;
+              let ci =
+                CursorInspector.view(~inject, model, (cursor_x, cursor_y));
 
-            (Some(caret_pos), Some(ci));
+              (Some(caret_pos), Some(ci));
+            } else {
+              (Some(caret_pos), None);
+            };
           } else {
             (None, None);
           };
@@ -151,6 +155,8 @@ let view = (~inject, model: Model.t) => {
                   } else {
                     Event.Ignore;
                   }
+                | Some(Ctrl_Space) =>
+                  prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
                 | Some(kc) =>
                   prevent_stop_inject(
                     ModelAction.EditAction(

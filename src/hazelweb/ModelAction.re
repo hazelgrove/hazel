@@ -57,5 +57,6 @@ type t =
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
   | UpdateIsMac(bool)
+  | ToggleShowCursorInspector
   | ToggleCursorInspectorExpansion
   | ToggleNoviceMode;

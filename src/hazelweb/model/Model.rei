@@ -30,6 +30,7 @@ type measurements = {
  * Flags for the display of the cursor inspector
  */
 type cursor_inspector = {
+  visible: bool,
   show_expanded: bool,
   novice_mode: bool,
 };

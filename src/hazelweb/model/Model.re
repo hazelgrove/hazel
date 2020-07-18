@@ -19,6 +19,7 @@ type measurements = {
 };
 
 type cursor_inspector = {
+  visible: bool,
   show_expanded: bool,
   novice_mode: bool,
 };
@@ -126,6 +127,7 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     cursor_inspector: {
+      visible: true,
       show_expanded: false,
       novice_mode: false,
     },
