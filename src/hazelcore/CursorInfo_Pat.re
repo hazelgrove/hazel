@@ -481,6 +481,12 @@ and ana_cursor_info_zoperand =
         ),
       )
     // not in hole
+    | InvalidText(_) =>
+      Some(
+        CursorNotOnDeferred(
+          CursorInfo_common.mk(PatAnaInvalid(ty), ctx, cursor_term),
+        ),
+      )
     | Var(NotInHole, _, var_warn_status, x) =>
       Some(
         CursorOnDeferredVarPat(

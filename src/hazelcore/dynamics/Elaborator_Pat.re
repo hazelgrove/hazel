@@ -132,6 +132,12 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
+  | InvalidText(u, t) =>
+    let gamma = Contexts.gamma(ctx);
+    let dp = DHPat.InvalidText(u, 0, t);
+    let ty = HTyp.Hole;
+    let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
+    Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
@@ -354,6 +360,7 @@ and ana_elab_operand =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
+  | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
@@ -389,6 +396,7 @@ let rec renumber_result_only =
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
+  | InvalidText(_)
   | BoolLit(_)
   | ListNil
   | Triv => (dp, hii)

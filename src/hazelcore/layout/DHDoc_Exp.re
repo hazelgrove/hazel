@@ -30,6 +30,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   switch (d) {
   | BoundVar(_)
   | FreeVar(_)
+  | InvalidText(_)
   | Keyword(_)
   | Duplicate(_)
   | BoolLit(_)
@@ -47,7 +48,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Let(_)
   | FixF(_)
   | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max /* TODO: is this right */
+  | InconsistentBranches(_) => DHDoc_common.precedence_max
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
@@ -181,6 +182,8 @@ let rec mk =
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | Duplicate(u, i, _sigma, x) =>
         text(x) |> annot(DHAnnot.VarHole(Duplicate, (u, i)))
+      | InvalidText(u, i, _sigma, t) =>
+        DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)

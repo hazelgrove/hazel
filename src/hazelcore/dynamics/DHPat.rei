@@ -6,6 +6,7 @@ type t =
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | Duplicate(MetaVar.t, MetaVarInst.t, Var.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
   | IntLit(int)
   | FloatLit(float)

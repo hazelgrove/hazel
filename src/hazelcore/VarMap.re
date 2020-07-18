@@ -10,65 +10,25 @@ let is_empty =
   | [] => true
   | [_, ..._] => false;
 
-let rec drop = (ctx, x) =>
-  switch (ctx) {
-  | [] => ctx
-  | [(y, elt), ...ctx'] =>
-    if (Var.eq(x, y)) {
-      ctx';
-    } else {
-      [(y, elt), ...drop(ctx', x)];
-    }
-  };
-
 let extend = (ctx, xa) => {
   let (x, _) = xa;
-  [xa, ...drop(ctx, x)];
+  [xa, ...List.remove_assoc(x, ctx)];
 };
 
 let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
 
-let rec lookup = (ctx, x) =>
-  switch (ctx) {
-  | [] => None
-  | [(y, elt), ...ctx'] =>
-    if (Var.eq(x, y)) {
-      Some(elt);
-    } else {
-      lookup(ctx', x);
-    }
-  };
+let lookup = (ctx, x) => List.assoc_opt(x, ctx);
 
 let lookup_typ = (ctx, x) =>
-  switch (lookup(ctx, x)) {
-  | None => None
-  | Some((typ, _)) => Some(typ)
-  };
+  lookup(ctx, x) |> OptUtil.map(((typ, _)) => typ);
 
 let lookup_steps = (ctx, x) =>
-  switch (lookup(ctx, x)) {
-  | None => None
-  | Some((_, steps)) => Some(steps)
-  };
+  lookup(ctx, x) |> OptUtil.map(((_, steps)) => steps);
 
-let contains = (ctx, x) =>
-  switch (lookup(ctx, x)) {
-  | Some(_) => true
-  | None => false
-  };
+let contains = (ctx, x) => List.mem_assoc(x, ctx);
 
-let map = (f, xs) =>
-  List.map(
-    xa => {
-      let (x, _) = xa;
-      (x, f(xa));
-    },
-    xs,
-  );
+let map = (f, xs) => List.map(((x, _) as xa) => (x, f(xa)), xs);
 
-let rec length =
-  fun
-  | [] => 0
-  | [_, ...ctx'] => 1 + length(ctx');
+let length = List.length;
 
 let to_list = ctx => ctx;

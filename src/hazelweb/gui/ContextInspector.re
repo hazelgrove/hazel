@@ -5,6 +5,9 @@ let view =
     (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   open Vdom;
 
+  /**
+   * Shows typing info for a context entry.
+   */
   let static_info = ((x, ty)) =>
     Node.div(
       [Attr.classes(["static-info"])],
@@ -20,6 +23,9 @@ let view =
       ],
     );
 
+  /**
+   * Shows runtime value for a context entry.
+   */
   let dynamic_info = (sigma, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
@@ -78,10 +84,7 @@ let view =
         | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None =>
-            // raise(InvalidInstance)
-            JSUtil.log("[InvalidInstance]");
-            Elaborator_Exp.id_env(ctx);
+          | None => raise(InvalidInstance)
           | Some((sigma, _)) => sigma
           }
         };
@@ -303,6 +306,9 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
+  /**
+   * Shows the `InstancePath` to the currently selected instance.
+   */
   let path_viewer =
     if (model.compute_results.compute_results) {
       let program = model |> Model.get_program;
@@ -330,9 +336,7 @@ let view =
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None =>
-                  // raise(InvalidInstance)
-                  [instructional_msg("Internal Error: [InvalidInstance]")]
+                | None => raise(InvalidInstance)
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),

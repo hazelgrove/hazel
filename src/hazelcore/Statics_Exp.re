@@ -161,6 +161,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
+  | InvalidText(_) => Some(Hole)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -380,6 +381,7 @@ and ana_operand =
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some()
+  | InvalidText(_) => Some()
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -401,13 +403,10 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-      _,
-    )
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+  | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
@@ -939,6 +938,7 @@ and syn_fix_holes_operand =
     } else {
       (e, Hole, u_gen);
     }
+  | InvalidText(_) => (e, Hole, u_gen)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup_typ(gamma, x)) {
@@ -1355,6 +1355,7 @@ and ana_fix_holes_operand =
     } else {
       (e, u_gen);
     }
+  | InvalidText(_) => (e, u_gen)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)

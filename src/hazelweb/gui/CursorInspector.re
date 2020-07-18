@@ -361,6 +361,9 @@ let view =
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
 
+  let got_invalid_indicator =
+    got_indicator("Got invalid text", typebar(HTyp.Hole));
+
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
@@ -438,6 +441,11 @@ let view =
         );
       let ind3 = var_indicator(VarNone);
       (ind1, ind2, ind3, TypeInconsistency, NoWarn);
+    | AnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      let ind3 = var_indicator(VarNone);
+      (ind1, ind2, ind3, BindingError, NoWarn);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
@@ -471,6 +479,11 @@ let view =
           var_indicator(VarExp(use_index, List.length(other_uses)))
         };
       (ind1, ind2, ind3, OK, NoWarn);
+    | SynInvalid =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_invalid_indicator;
+      let ind3 = var_indicator(VarNone);
+      (ind1, ind2, ind3, BindingError, NoWarn);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
@@ -518,6 +531,15 @@ let view =
         );
       let ind3 = var_indicator(VarNone);
       (ind1, ind2, ind3, BindingError, NoWarn);
+    | SynInvalidArrow(matched_ty) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_indicator(
+          "Got invalid text ▶ matched to",
+          matched_ty_bar(HTyp.Hole, matched_ty),
+        );
+      let ind3 = var_indicator(VarNone);
+      (ind1, ind2, ind3, BindingError, NoWarn);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -557,6 +579,12 @@ let view =
       (ind1, ind2, ind3, err_state_b, NoWarn);
     | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
+      let ind2 =
+        got_inconsistent_branches_indicator(rule_types, path_to_case);
+      let ind3 = var_indicator(VarNone);
+      (ind1, ind2, ind3, TypeInconsistency, NoWarn);
+    | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
+      let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
       let ind3 = var_indicator(VarNone);
@@ -612,6 +640,11 @@ let view =
         );
       let ind3 = var_indicator(VarNone);
       (ind1, ind2, ind3, TypeInconsistency, NoWarn);
+    | PatAnaInvalid(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_invalid_indicator;
+      let ind3 = var_indicator(VarNone);
+      (ind1, ind2, ind3, BindingError, NoWarn);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
@@ -683,6 +716,7 @@ let view =
   let (ind1, ind2, ind3, err_state_b, warn_state_b) =
     get_indicator_info(ci.typed);
 
+  // this determines the color
   let cls_of_err_state_b =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"

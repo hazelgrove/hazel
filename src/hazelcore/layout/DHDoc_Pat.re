@@ -7,6 +7,7 @@ let precedence = (dp: DHPat.t) =>
   | Wild
   | Keyword(_)
   | Duplicate(_)
+  | InvalidText(_)
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
@@ -38,6 +39,7 @@ let rec mk =
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
     | Keyword(u, i, k) => DHDoc_common.mk_Keyword(u, i, k)
     | Duplicate(u, i, x) => DHDoc_common.mk_Duplicate(u, i, x)
+    | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
     | Triv => DHDoc_common.Delim.triv

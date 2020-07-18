@@ -100,6 +100,9 @@ let mk_Duplicate = (u, i, x) =>
   Doc.text(Var.to_string(x))
   |> Doc.annot(DHAnnot.VarHole(Duplicate, (u, i)));
 
+let mk_InvalidText = (t, (u, i)) =>
+  Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
+
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_FloatLit = (f: float) =>

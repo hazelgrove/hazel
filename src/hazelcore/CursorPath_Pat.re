@@ -29,6 +29,7 @@ and follow_operand =
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
+    | InvalidText(_)
     | Var(_)
     | IntLit(_)
     | FloatLit(_)
@@ -89,6 +90,7 @@ and of_steps_operand =
     switch (operand) {
     | EmptyHole(_)
     | Wild(_)
+    | InvalidText(_)
     | Var(_, _, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -158,6 +160,7 @@ and holes_operand =
       {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true},
       ...hs,
     ]
+  | InvalidText(u, _)
   | Wild(InHole(_, u))
   | Var(InHole(_, u), _, _, _)
   | Var(_, InVarHole(_, u), _, _)
@@ -214,6 +217,16 @@ and holes_zoperand =
           sort: PatHole(u),
           steps: List.rev(rev_steps),
           is_empty: true,
+        }),
+      (),
+    )
+  | CursorP(_, InvalidText(u, _)) =>
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some({
+          sort: PatHole(u),
+          steps: List.rev(rev_steps),
+          is_empty: false,
         }),
       (),
     )
