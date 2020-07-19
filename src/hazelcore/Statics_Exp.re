@@ -188,9 +188,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
-  | UnaryOp(NotInHole, _, operand) =>
-    /* unop and operand should be the same type if NotInHole */
-    syn_operand(ctx, operand)
+  | UnaryOp(NotInHole, _, operand) => syn_operand(ctx, operand)
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -411,7 +409,6 @@ and ana_operand =
       }
     };
   | UnaryOp(NotInHole, _, operand) =>
-    /* unop and operand should be the same type if NotInHole */
     switch (syn_operand(ctx, operand)) {
     | None => None
     | Some(ty') =>
