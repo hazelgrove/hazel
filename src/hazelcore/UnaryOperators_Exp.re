@@ -1,11 +1,11 @@
 [@deriving sexp]
 type t =
-  | Minus
+  | IMinus
   | FMinus;
 
 let to_string =
   fun
-  | Minus => "-"
+  | IMinus => "-"
   | FMinus => "-.";
 
 let to_parse_string = to_string;

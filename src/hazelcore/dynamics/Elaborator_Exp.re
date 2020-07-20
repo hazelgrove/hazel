@@ -686,6 +686,7 @@ and syn_elab_operand =
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
+  | UnaryOp(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -705,6 +706,7 @@ and syn_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
@@ -794,6 +796,16 @@ and syn_elab_operand =
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
     };
+  | UnaryOp(NotInHole, unop, operand) =>
+    switch (syn_elab_operand(ctx, delta, operand)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      switch (d1, unop) {
+      | (IntLit(i), IMinus) => Elaborates(IntLit(- i), ty1, delta)
+      | (FloatLit(f), FMinus) => Elaborates(FloatLit(-. f), ty1, delta)
+      | (_, _) => DoesNotElaborate
+      }
+    }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1099,6 +1111,7 @@ and ana_elab_operand =
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
+  | UnaryOp(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -1118,6 +1131,7 @@ and ana_elab_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
+  | UnaryOp(InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
@@ -1214,6 +1228,7 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
+  | UnaryOp(NotInHole, _, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
