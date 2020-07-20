@@ -177,7 +177,7 @@ let%test "holey operator precedence test" = {
     );
 
   Utils.run_n_times(
-    10000000,
+    10_000_000,
     "precedence op skel",
     UHExp.associate,
     precedence_op_seq,

@@ -10,7 +10,7 @@ let run_n_times = (n: int, name: string, func, args) => {
   print_endline(
     "Elapsed time for test ("
     ++ name
-    ++ ") in "
+    ++ ") over "
     ++ string_of_int(n)
     ++ " runs: "
     ++ string_of_float(elapsed)
