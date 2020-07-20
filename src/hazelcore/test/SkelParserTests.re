@@ -1,15 +1,12 @@
 // Test suite for the skel parser.
 let mvar = MetaVarGen.init;
 
-let expParser =
-  Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity);
-
 let%test "single operand test" = {
   // 1
   let single_op_seq = Seq.S(UHExp.IntLit(NotInHole, "1"), Seq.E);
   let single_op_skel = Skel.Placeholder(0);
 
-  expParser(single_op_seq) == single_op_skel;
+  UHExp.associate(single_op_seq) == single_op_skel;
 };
 
 let%test "simple addition test" = {
@@ -27,7 +24,7 @@ let%test "simple addition test" = {
       Skel.Placeholder(1),
     );
 
-  expParser(simple_add_seq) == simple_add_skel;
+  UHExp.associate(simple_add_seq) == simple_add_skel;
 };
 
 let%test "single hole test" = {
@@ -35,7 +32,7 @@ let%test "single hole test" = {
   let single_hole_seq = Seq.S(UHExp.EmptyHole(mvar), E);
   let single_hole_skel = Skel.Placeholder(0);
 
-  expParser(single_hole_seq) == single_hole_skel;
+  UHExp.associate(single_hole_seq) == single_hole_skel;
 };
 
 let%test "addition w/ left hole" = {
@@ -53,7 +50,7 @@ let%test "addition w/ left hole" = {
       Skel.Placeholder(1),
     );
 
-  expParser(add_l_hole_seq) == add_l_hole_skel;
+  UHExp.associate(add_l_hole_seq) == add_l_hole_skel;
 };
 
 let%test "operator precedence test" = {
@@ -116,7 +113,7 @@ let%test "operator precedence test" = {
       ),
     );
 
-  expParser(precedence_op_seq) == precedence_op_skel;
+  UHExp.associate(precedence_op_seq) == precedence_op_skel;
 };
 
 let%test "holey operator precedence test" = {
@@ -179,25 +176,12 @@ let%test "holey operator precedence test" = {
       ),
     );
 
-  let parsed_skel = expParser(precedence_op_seq);
-
-  let previous_time = Sys.time();
-  let n = 10000;
-
-  for (_ in 1 to n) {
-    let _ = expParser(precedence_op_seq);
-    ();
-  };
-
-  let elapsed = Sys.time() -. previous_time;
-
-  print_endline(
-    "Elapsed time for "
-    ++ string_of_int(n)
-    ++ " runs: "
-    ++ string_of_float(elapsed)
-    ++ " sec",
+  Utils.run_n_times(
+    10000000,
+    "precedence op skel",
+    UHExp.associate,
+    precedence_op_seq,
   );
 
-  parsed_skel == precedence_op_skel;
+  UHExp.associate(precedence_op_seq) == precedence_op_skel;
 };
