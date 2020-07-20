@@ -19,9 +19,10 @@ let to_parse_string = op =>
 let precedence =
   fun
   | Arrow => 0
-  | Prod => 1
-  | Sum => 2;
+  | Sum => 1
+  | Prod => 2;
 
 let associativity =
   fun
+  | Arrow => Associativity.Right
   | _ => Associativity.Left;
