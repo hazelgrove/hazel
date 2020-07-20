@@ -79,7 +79,7 @@
   --grade-cutoffs-scale-height: 50px;
   --grade-cutoffs-livelit-width:
     max(var(--grade-cutoffs-slider-width), var(--grade-cutoffs-scale-width));
-  --grade-cutoffs-livelit-height: 200px;
+  --grade-cutoffs-livelit-height: 85px;
 }
 
 /* general */
@@ -1132,19 +1132,24 @@ h1 {
   padding: 1em 0;
 }
 
-.grade-cutoffs-livelit .data-err-msg {
-  position: absolute;
-  top: 90%;
-  left: 50%;
-  color: firebrick;
-  font-family: "Gill Sans", sans-serif;
-  font-size: 8pt;
-  display: none;
-}
 
 .grade-cutoffs-livelit {
   width: var(--grade-cutoffs-livelit-width);
   height: var(--grade-cutoffs-livelit-height);
+}
+.grade-cutoffs-livelit .grade-display {
+  position: relative;
+  width: var(--grade-cutoffs-livelit-width);
+  height: var(--grade-cutoffs-livelit-height);
+}
+
+.grade-cutoffs-livelit .data-err-msg {
+  position: absolute;
+  top: 90%;
+  left: 0%;
+  color: firebrick;
+  font-family: "Gill Sans", sans-serif;
+  font-size: 8pt;
 }
 
 .grade-cutoffs-livelit .grade-cutoff-slider {

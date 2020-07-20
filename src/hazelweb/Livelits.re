@@ -686,16 +686,20 @@ module GradeCutoffLivelit: LIVELIT = {
       | None => ([], [Vdom.Node.text("Grades data was never evaluated")])
       | Some((grades_svgs, invalid_count)) => (
           grades_svgs,
-          invalid_count == 0
-            ? []
-            : [
+          if (invalid_count == 0) {
+            [];
+          } else if (invalid_count == 1) {
+            [Vdom.Node.text("1 grade was indeterminate or out of bounds")];
+          } else {
+            [
               Vdom.Node.text(
                 Printf.sprintf(
                   "%d grades were indeterminate or out of bounds",
                   invalid_count,
                 ),
               ),
-            ],
+            ];
+          },
         )
       };
 
