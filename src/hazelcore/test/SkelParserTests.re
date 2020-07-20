@@ -179,5 +179,25 @@ let%test "holey operator precedence test" = {
       ),
     );
 
-  expParser(precedence_op_seq) == precedence_op_skel;
+  let parsed_skel = expParser(precedence_op_seq);
+
+  let previous_time = Sys.time();
+  let n = 10000;
+
+  for (_ in 1 to n) {
+    let _ = expParser(precedence_op_seq);
+    ();
+  };
+
+  let elapsed = Sys.time() -. previous_time;
+
+  print_endline(
+    "Elapsed time for "
+    ++ string_of_int(n)
+    ++ " runs: "
+    ++ string_of_float(elapsed)
+    ++ " sec",
+  );
+
+  parsed_skel == precedence_op_skel;
 };
