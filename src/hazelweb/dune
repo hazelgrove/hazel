@@ -8,20 +8,9 @@
 (library
  ;; This library ensures that all modules are type checked even if they are not used.
  (name hazelweb)
- (modules :standard \ Main Worker Synthesizer)
- (libraries hazelcore incr_dom)
+ (modules :standard \ Main)
+ (libraries hazelcore incr_dom synthesizer_communication)
  (wrapped false)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
- (preprocess
-  (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
-
-(executable
- (name Worker)
- (modules Worker Synthesizer)
- (libraries hazelweb)
- (modes js)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
