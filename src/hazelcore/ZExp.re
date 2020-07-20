@@ -434,7 +434,11 @@ and erase_zrule =
 let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
 let mk_ZOpSeq =
-  ZOpSeq.mk(~associate=Skel.mk, ~erase_zoperand, ~erase_zoperator);
+  ZOpSeq.mk(
+    ~associate=Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity),
+    ~erase_zoperand,
+    ~erase_zoperator,
+  );
 
 let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
 let get_err_status_zblock = zblock =>

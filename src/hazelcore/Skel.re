@@ -108,9 +108,9 @@ let mk_skel_str =
 
 let mk =
     (
+      precedence: _ => int,
+      associativity: _ => Associativity.t,
       seq: Seq.t('operand, 'op),
-      precedence: 'operator => int,
-      associativity: 'operator => Associativity.t,
     )
     : t('op) => {
   /**
@@ -121,7 +121,7 @@ let mk =
   let rec go_seq =
           (
             skel_stack: list(t('op)), /* List of skels to be combined into single output skel. */
-            op_stack: list(Operators_Exp.t), /* Stack of operators. */
+            op_stack: list('op), /* Stack of operators. */
             seq: Seq.t('operand, 'op), /* Convert this seq to output skel. */
             lex_addr: int,
           ) /* Lexical address of the current operand. */
@@ -142,8 +142,8 @@ let mk =
   and go_affix =
       (
         skel_stack: list(t('op)),
-        op_stack: list(Operators_Exp.t),
-        affix: Seq.affix('operand, 'operator),
+        op_stack: list('op),
+        affix: Seq.affix('operand, 'op),
         lex_addr: int,
       )
       : t('op) => {
@@ -188,12 +188,8 @@ let mk =
     };
   }
   and build_ast_while =
-      (
-        skel_stack: list(t('op)),
-        op_stack: list(Operators_Exp.t),
-        should_mv,
-      )
-      : (list(t('op)), list(Operators_Exp.t)) => {
+      (skel_stack: list(t('op)), op_stack: list('op), should_mv)
+      : (list(t('op)), list('op)) => {
     /* Move operators from the operator stack to the output skel list while... */
     switch (op_stack, skel_stack) {
     | ([], _) => (skel_stack, op_stack) /* (1) The operator stack is not empty. */
