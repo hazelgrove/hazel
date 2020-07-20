@@ -3,11 +3,11 @@
 // output with your test's output.
 //
 // More at https://github.com/janestreet/ppx_expect
-// let%expect_test "expect_test" = {
-//   print_endline("hazel");
-//   %expect
-//   {|hazel|};
-// };
+let%expect_test "expect_test" = {
+  print_endline("hazel");
+  %expect
+  {|hazel|};
+};
 
 // To create an inline test, write a function () -> bool
 // whose result is the assertion you wish to test.
