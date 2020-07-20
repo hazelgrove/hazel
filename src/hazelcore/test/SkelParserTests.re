@@ -1,12 +1,15 @@
 // Test suite for the skel parser.
 let mvar = MetaVarGen.init;
 
+let expParser =
+  Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity);
+
 let%test "single operand test" = {
   // 1
   let single_op_seq = Seq.S(UHExp.IntLit(NotInHole, "1"), Seq.E);
   let single_op_skel = Skel.Placeholder(0);
 
-  Skel.mk(single_op_seq) == single_op_skel;
+  expParser(single_op_seq) == single_op_skel;
 };
 
 let%test "simple addition test" = {
@@ -24,7 +27,7 @@ let%test "simple addition test" = {
       Skel.Placeholder(1),
     );
 
-  Skel.mk(simple_add_seq) == simple_add_skel;
+  expParser(simple_add_seq) == simple_add_skel;
 };
 
 let%test "single hole test" = {
@@ -32,7 +35,7 @@ let%test "single hole test" = {
   let single_hole_seq = Seq.S(UHExp.EmptyHole(mvar), E);
   let single_hole_skel = Skel.Placeholder(0);
 
-  Skel.mk(single_hole_seq) == single_hole_skel;
+  expParser(single_hole_seq) == single_hole_skel;
 };
 
 let%test "addition w/ left hole" = {
@@ -50,7 +53,7 @@ let%test "addition w/ left hole" = {
       Skel.Placeholder(1),
     );
 
-  Skel.mk(add_l_hole_seq) == add_l_hole_skel;
+  expParser(add_l_hole_seq) == add_l_hole_skel;
 };
 
 let%test "operator precedence test" = {
@@ -113,7 +116,7 @@ let%test "operator precedence test" = {
       ),
     );
 
-  Skel.mk(precedence_op_seq) == precedence_op_skel;
+  expParser(precedence_op_seq) == precedence_op_skel;
 };
 
 let%test "holey operator precedence test" = {
@@ -176,5 +179,5 @@ let%test "holey operator precedence test" = {
       ),
     );
 
-  Skel.mk(precedence_op_seq) == precedence_op_skel;
+  expParser(precedence_op_seq) == precedence_op_skel;
 };
