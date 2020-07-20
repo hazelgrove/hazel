@@ -31,8 +31,8 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-  | Label(LabelErrStatus.t, Label.t)
-  | Prj(t, Label.t)
+  | Label(ErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, t, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -200,11 +200,11 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | ApPalette(err, _, _, _) => err
+  | ApPalette(err, _, _, _)
+  | Label(err, _)
+  | Prj(err, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
-  | Parenthesized(e) => get_err_status(e)
-  | Label(_) => failwith("unimplemented")
-  | Prj(_) => failwith("unimplemented");
+  | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
@@ -228,8 +228,8 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Label(_) => failwith("unimplemented")
-  | Prj(_) => failwith("unimplemented")
+  | Label(_, label) => Label(err, label)
+  | Prj(_, exp, label) => Prj(err, exp, label)
   };
 
 let is_inconsistent = operand =>

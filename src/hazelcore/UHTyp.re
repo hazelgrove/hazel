@@ -87,8 +87,9 @@ let contract = (ty: HTyp.t): t => {
       | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
-      | Label(_) => failwith("unimplemented")
-      | Label_Elt(_) => failwith("unimplemented")
+      | Label(id) => Seq.wrap(Label(id))
+      | Label_Elt(label, ty) =>
+        mk_seq_operand(HTyp.precedence_Label, Space, label, ty)
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));

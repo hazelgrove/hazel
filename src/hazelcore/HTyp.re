@@ -70,8 +70,8 @@ let rec consistent = (x, y) =>
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
-  | (Label_Elt(id, ty), Label_Elt(id', ty')) =>
-    consistent(id, id') && consistent(ty, ty')
+  | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
+    consistent(label, label') && consistent(ty, ty')
   | (Label_Elt(_), _) => false
   | (Label(id), Label(id')) => id == id'
   | (Label(_), _) => false

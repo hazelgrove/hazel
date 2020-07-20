@@ -237,7 +237,7 @@ module Pat = {
         ana(ctx, p1, ty1);
       }
     | Parenthesized(p) => ana(ctx, p, ty)
-    | Label(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented")
     };
 
   /**
@@ -901,7 +901,12 @@ module Exp = {
       | None => None
       | Some(ty1) =>
         switch (HTyp.matched_arrow(ty1)) {
-        | None => None
+        | None => 
+          // TODO ECD: For simplicity, if skel1 is a hole then Hazel only expects a fxn expression.  Change it to also expect a Labeled tuple.
+          (switch (ty1) => 
+            | Label(id) => syn_skel(ctx, skel2, seq, ty2) |> OptUtil.map(ty2 => HTyp.Label_Elt(ty, ty2))
+            | _ => None
+          )
         | Some((ty2, ty)) =>
           ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
         }
@@ -932,7 +937,9 @@ module Exp = {
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-    | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+    | Label(InHole(TypeInconsistent, _), _)
+    | Prj(InHole(TypeInconsistent, _), _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
@@ -943,7 +950,9 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => None
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Label(InHole(WrongLength, _), _)
+    | Prj(InHole(WrongLength, _), _) => None
     | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
       switch (syn(ctx, scrut)) {
       | None => None
@@ -1020,8 +1029,24 @@ module Exp = {
         }
       };
     | Parenthesized(body) => syn(ctx, body)
-    | Label(_) => failwith("unimplemented")
-    | Prj(_) => failwith("unimplemented")
+    | Label(NotInHole, label) => Some(Label(label))
+    | Prj(NotInHole, exp, label) => 
+      // ECD TODO: May need to refactor Prj operand's exp member, since it cannot check if the exp is part of a product
+      switch (syn_operand(ctx, exp)) {
+        | Some(ty) => let rec checkForLabel = (tyList: list(HTyp.typ), label: Label.t) => 
+          switch(tyList){
+            | [] => None
+            | [hd, ...tl] => switch(hd){
+              | Label_Elt(labelTy, expTy)=> switch(labelTy){
+                | Label(label') => label == label' ? Some(expTy) : checkForLabel(tl, label)
+                | _ => None // Label_Elt is invalid, does not have label as first element
+              }
+              | _ => checkForLabel(tl, label) //Look further into product for labeled element with same
+            }
+          };
+          checkForLabel(HTyp.get_prod_elements(ty), label) 
+        | None => None 
+      }
     }
   and syn_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -1137,7 +1162,13 @@ module Exp = {
       ) =>
       switch (syn_skel(ctx, skel, seq)) {
       | None => None
-      | Some(ty') => HTyp.consistent(ty, ty') ? Some() : None
+      | Some(ty') => HTyp.consistent(ty, ty') ? Some() : 
+        (
+          switch (ty) {
+            | Label_Elt(label, label_ty) => label_ty == ty ? Some() : None
+            | _ => None
+          }  
+        )
       }
     }
   and ana_operand =
@@ -1153,7 +1184,9 @@ module Exp = {
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-    | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+    | Label(InHole(TypeInconsistent, _), _)
+    | Prj(InHole(TypeInconsistent, _), _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
@@ -1172,7 +1205,9 @@ module Exp = {
         _,
         _,
       )
-    | ApPalette(InHole(WrongLength, _), _, _, _) =>
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Label(InHole(WrongLength, _), _)
+    | Prj(InHole(WrongLength, _), _) =>
       ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */
     | ListNil(NotInHole) =>
@@ -1183,7 +1218,9 @@ module Exp = {
     | Var(NotInHole, _, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
-    | BoolLit(NotInHole, _) =>
+    | BoolLit(NotInHole, _) 
+    | Label(NotInHole, _)
+    | Prj(NotInHole, _)=>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
       switch (syn_operand(ctx, operand')) {
       | None => None
@@ -1237,8 +1274,6 @@ module Exp = {
         }
       }
     | Parenthesized(body) => ana(ctx, body, ty)
-    | Label(_) => failwith("unimplemented")
-    | Prj(_) => failwith("unimplemented")
     }
   and ana_rules =
       (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
