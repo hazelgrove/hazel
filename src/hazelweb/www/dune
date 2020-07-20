@@ -1,4 +1,7 @@
 (include_subdirs no)
 
 (rule
+ (copy ../Worker.bc.js Worker.js))
+
+(rule
  (copy ../main.bc.js hazel.js))
