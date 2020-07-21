@@ -5,8 +5,11 @@ type t =
   Js.t(Worker.worker(MessageTypes.to_worker, MessageTypes.from_worker));
 
 //// DEBUG \\//
-let log = data =>
-  print_endline("WorkerHandler.re Log: " ++ string_of_int(data));
+let log: MessageTypes.from_worker => unit = print_endline;
+/* data => {
+     Js.export("data", data);
+     Js.Unsafe.eval_string({|console.log("WorkerHandler.re Log: " + data);|});
+   }; */
 //\\ DEBUG //\\
 
 let spawn: unit => t = () => Worker.create("Worker.js");

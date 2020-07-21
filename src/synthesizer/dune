@@ -7,7 +7,7 @@
 
 (executable
  (name Worker)
- (libraries synthesizer_communication)
+ (libraries synthesizer)
  (modes js)
  (js_of_ocaml
   (flags

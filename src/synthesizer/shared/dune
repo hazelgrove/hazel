@@ -6,7 +6,8 @@
   (glob_files www/*)))
 
 (library
- (name synthesizer_communication)
+ (name synthesizer)
+ (libraries hazelcore)
  (wrapped false)
  (js_of_ocaml
   (flags
