@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo
+echo '================================================================================'
+echo 'Remember to issue `#use_output "cat dune-top";` to load the project libraries...'
+echo '================================================================================'
+echo
+
+esy dune top | sed 's/;;/;/' > dune-top
+esy rtop

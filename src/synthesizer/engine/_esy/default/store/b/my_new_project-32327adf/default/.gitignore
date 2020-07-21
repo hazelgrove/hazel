@@ -1,0 +1,11 @@
+.DS_Store
+.merlin
+.bsb.lock
+npm-debug.log
+/lib/bs/
+/node_modules/
+*.bs.js
+dune-top
+esy.lock/
+_esy/
+my-new-project.install

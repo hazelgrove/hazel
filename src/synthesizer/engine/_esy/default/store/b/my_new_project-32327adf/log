@@ -1,0 +1,249 @@
+# /Users/David/.esy/3___________________________________________________________________/i/opam__s__dune-opam__c__2.5.0-772d253f/bin/dune top
+# OCAMLPARAM: unset
+# Workspace root: "/Users/David/Desktop/projects/PM MAP/___nut/project"
+$ /usr/bin/getconf _NPROCESSORS_ONLN > /var/folders/8z/nyl2lz6j59s4ccb89b8b4r0h0000gn/T/dune7bc35c.output 2> /dev/null
+# Auto-detected concurrency: 4
+# disable binary cache
+$ /Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamlc.opt -config > /var/folders/8z/nyl2lz6j59s4ccb89b8b4r0h0000gn/T/dune60eb39.output
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dyn
+#  ; merlin = true
+#  ; for_host = None
+#  ; fdo_target_exe = None
+#  ; build_dir = "default"
+#  ; toplevel_path =
+#      Some
+#        External
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/lib/ocaml"
+#  ; ocaml_bin =
+#      External
+#        "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin"
+#  ; ocaml =
+#      Ok
+#        External
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocaml"
+#  ; ocamlc =
+#      External
+#        "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamlc.opt"
+#  ; ocamlopt =
+#      Ok
+#        External
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamlopt.opt"
+#  ; ocamldep =
+#      Ok
+#        External
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamldep.opt"
+#  ; ocamlmklib =
+#      Ok
+#        External
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamlmklib.opt"
+#  ; env =
+#      map
+#        { "INSIDE_DUNE" :
+#            "/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default"
+#        ; "OCAMLFIND_IGNORE_DUPS_IN" :
+#            "/Users/David/Desktop/projects/PM MAP/___nut/project//Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/install/default/lib"
+#        ; "OCAMLTOP_INCLUDE_PATH" :
+#            "/Users/David/Desktop/projects/PM MAP/___nut/project//Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/install/default/lib/toplevel"
+#        ; "OCAML_COLOR" : "always"
+#        ; "OPAMCOLOR" : "always"
+#        }
+#  ; findlib_path =
+#      [ External
+#          "/Users/David/.esy/3___________________________________________________________________/i/esy_ocaml__s__reason-3.5.2-2ce69aa4/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/esy_ocaml__s__rtop-3.3.4-4934f6c7/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__dune-opam__c__2.5.0-772d253f/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__merlin-opam__c__3.3.6-fbe458a8/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__odoc-opam__c__1.5.1-d119761c/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/reason_native__s__console-0.1.0-98e0b62e/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/reason_native__s__pastel-0.3.0-ca5833d9/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/reason_native__s__rely-3.2.1-e0b13bf6/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/refmterr-3.3.2-a0bb1e15/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__menhir-opam__c__20200624-3541b627/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__merlin_extend-opam__c__0.5-54e8e9ed/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__ocaml_migrate_parsetree-opam__c__1.7.3-45d768a3/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__ocamlfind-opam__c__1.8.1-cbae71df/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__result-opam__c__1.5-2b405238/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/esy_ocaml__s__substs-0.0.1-dcea4195/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__utop-opam__c__2.6.0-c854e5f5/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__base_threads-opam__c__base-beddf47d/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__base_unix-opam__c__base-b5812a5c/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__yojson-opam__c__1.7.0-c4bee077/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__astring-opam__c__0.8.4-745c4478/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__cmdliner-opam__c__1.0.4-dc00fbbc/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__cppo-opam__c__1.6.6-748660a3/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__fpath-opam__c__0.7.2-2d8b3424/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__tyxml-opam__c__4.4.0-b16051ca/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__re-opam__c__1.9.0-7982f199/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__junit-opam__c__2.0.2-f5ffd10c/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/reason_native__s__cli-0.0.1-alpha-674c33ad/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/reason_native__s__file_context_printer-0.0.3-f9f36ce1/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__atdgen-opam__c__2.2.1-92c4b008/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__menhirlib-opam__c__20200624-a883cf6e/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__menhirsdk-opam__c__20200624-ffd90bbe/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__ppx__derivers-opam__c__1.2.1-f2286bc8/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__conf_m4-opam__c__1-45a7fa38/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__camomile-opam__c__1.0.2-cac45734/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__lambda_term-opam__c__3.1.0-27aef5ff/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__lwt-opam__c__5.3.0-027068da/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__lwt__react-opam__c__1.1.3-e70990e8/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__react-opam__c__1.2.1-809cdd5b/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__biniou-opam__c__1.2.1-1ea8c2ab/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__easy_format-opam__c__1.3.2-86ddbd3e/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__ocamlbuild-opam__c__0.14.0-77414297/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__topkg-opam__c__1.0.1-95c2b65e/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__seq-opam__c__base-c4bafc44/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__uutf-opam__c__1.0.2-2a3244f6/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__ptime-opam__c__0.8.5-895e0d93/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__atd-opam__c__2.2.1-90bb88ca/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__atdgen_runtime-opam__c__2.2.1-a7993142/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__lwt__log-opam__c__1.1.1-720967ec/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__mew__vi-opam__c__0.5.0-1470212f/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__zed-opam__c__3.1.0-1c888ff2/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__dune_configurator-opam__c__2.5.1-bae57f84/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__mmap-opam__c__1.1.0-417ea974/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__ocplib_endian-opam__c__1.1-64a9de1f/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__uchar-opam__c__0.0.2-884ce67d/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__mew-opam__c__0.1.0-4e3b6757/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__base_bytes-opam__c__base-e6301671/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__charinfo__width-opam__c__1.1.0-29581a5b/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__dune_private_libs-opam__c__2.5.1-7d1622c1/lib"
+#      ; External
+#          "/Users/David/.esy/3___________________________________________________________________/i/opam__s__trie-opam__c__1.0.0-bcf78a16/lib"
+#      ; External "/Users/David/.opam/hazel/lib"
+#      ]
+#  ; arch_sixtyfour = true
+#  ; natdynlink_supported = true
+#  ; supports_shared_libraries = true
+#  ; ocaml_config =
+#      { version = "4.08.1"
+#      ; standard_library_default =
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/lib/ocaml"
+#      ; standard_library =
+#          "/Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/lib/ocaml"
+#      ; standard_runtime = "the_standard_runtime_variable_was_deleted"
+#      ; ccomp_type = "cc"
+#      ; c_compiler = "gcc"
+#      ; ocamlc_cflags = [ "-O2"; "-fno-strict-aliasing"; "-fwrapv" ]
+#      ; ocamlopt_cflags = [ "-O2"; "-fno-strict-aliasing"; "-fwrapv" ]
+#      ; bytecomp_c_compiler =
+#          [ "gcc"
+#          ; "-O2"
+#          ; "-fno-strict-aliasing"
+#          ; "-fwrapv"
+#          ; "-D_FILE_OFFSET_BITS=64"
+#          ; "-D_REENTRANT"
+#          ]
+#      ; bytecomp_c_libraries = [ "-lm"; "-lpthread" ]
+#      ; native_c_compiler =
+#          [ "gcc"
+#          ; "-O2"
+#          ; "-fno-strict-aliasing"
+#          ; "-fwrapv"
+#          ; "-D_FILE_OFFSET_BITS=64"
+#          ; "-D_REENTRANT"
+#          ]
+#      ; native_c_libraries = [ "-lm" ]
+#      ; cc_profile = [ "-pg" ]
+#      ; architecture = "amd64"
+#      ; model = "default"
+#      ; int_size = 63
+#      ; word_size = 64
+#      ; system = "macosx"
+#      ; asm = [ "clang"; "-arch"; "x86_64"; "-Wno-trigraphs"; "-c" ]
+#      ; asm_cfi_supported = false
+#      ; with_frame_pointers = false
+#      ; ext_exe = ""
+#      ; ext_obj = ".o"
+#      ; ext_asm = ".s"
+#      ; ext_lib = ".a"
+#      ; ext_dll = ".so"
+#      ; os_type = "Unix"
+#      ; default_executable_name = "a.out"
+#      ; systhread_supported = true
+#      ; host = "x86_64-apple-darwin19.5.0"
+#      ; target = "x86_64-apple-darwin19.5.0"
+#      ; profiling = true
+#      ; flambda = false
+#      ; spacetime = false
+#      ; safe_string = false
+#      ; exec_magic_number = "Caml1999X025"
+#      ; cmi_magic_number = "Caml1999I025"
+#      ; cmo_magic_number = "Caml1999O025"
+#      ; cma_magic_number = "Caml1999A025"
+#      ; cmx_magic_number = "Caml1999Y025"
+#      ; cmxa_magic_number = "Caml1999Z025"
+#      ; ast_impl_magic_number = "Caml1999M025"
+#      ; ast_intf_magic_number = "Caml1999N025"
+#      ; cmxs_magic_number = "Caml1999D025"
+#      ; cmt_magic_number = "Caml1999T025"
+#      ; natdynlink_supported = true
+#      ; supports_shared_libraries = true
+#      ; windows_unicode = false
+#      }
+#  }
+$ (cd '/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default' && /Users/David/.esy/3___________________________________________________________________/i/esy_ocaml__s__reason-3.5.2-2ce69aa4/bin/refmt --print binary src/HelloWorld.re) > '/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default/src/HelloWorld.re.ml'
+$ (cd '/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default' && /Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamldep.opt -modules -impl src/HelloWorld.re.ml) > '/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default/src/.synthnut.objs/HelloWorld.re.ml.d'
+$ (cd '/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default' && /Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamlc.opt -w -40 -w -26 -w -39 -w -27 -w -8 -g -bin-annot -I src/.synthnut.objs/byte -no-alias-deps -opaque -open Synthnut -o src/.synthnut.objs/byte/synthnut__HelloWorld.cmo -c -impl src/HelloWorld.re.ml)
+$ (cd '/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/store/b/my_new_project-32327adf/default' && /Users/David/.esy/3___________________________________________________________________/i/ocaml-4.8.1000-426898cd/bin/ocamlc.opt -w -40 -w -26 -w -39 -w -27 -w -8 -g -a -o src/synthnut.cma src/.synthnut.objs/byte/synthnut.cmo src/.synthnut.objs/byte/synthnut__Tools.cmo src/.synthnut.objs/byte/synthnut__Types.cmo src/.synthnut.objs/byte/synthnut__Evaluator.cmo src/.synthnut.objs/byte/synthnut__Unevaluator.cmo src/.synthnut.objs/byte/synthnut__Typing.cmo src/.synthnut.objs/byte/synthnut__Guesser.cmo src/.synthnut.objs/byte/synthnut__IdGenerator.cmo src/.synthnut.objs/byte/synthnut__Refiner.cmo src/.synthnut.objs/byte/synthnut__Filler.cmo src/.synthnut.objs/byte/synthnut__Solver.cmo src/.synthnut.objs/byte/synthnut__Parser.cmo src/.synthnut.objs/byte/synthnut__HelloWorld.cmo)

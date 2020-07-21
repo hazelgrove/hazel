@@ -1,0 +1,35 @@
+(** @canonical Synthnut.Evaluator *)
+module Evaluator = Synthnut__Evaluator
+
+(** @canonical Synthnut.Filler *)
+module Filler = Synthnut__Filler
+
+(** @canonical Synthnut.Guesser *)
+module Guesser = Synthnut__Guesser
+
+(** @canonical Synthnut.HelloWorld *)
+module HelloWorld = Synthnut__HelloWorld
+
+(** @canonical Synthnut.IdGenerator *)
+module IdGenerator = Synthnut__IdGenerator
+
+(** @canonical Synthnut.Parser *)
+module Parser = Synthnut__Parser
+
+(** @canonical Synthnut.Refiner *)
+module Refiner = Synthnut__Refiner
+
+(** @canonical Synthnut.Solver *)
+module Solver = Synthnut__Solver
+
+(** @canonical Synthnut.Tools *)
+module Tools = Synthnut__Tools
+
+(** @canonical Synthnut.Types *)
+module Types = Synthnut__Types
+
+(** @canonical Synthnut.Typing *)
+module Typing = Synthnut__Typing
+
+(** @canonical Synthnut.Unevaluator *)
+module Unevaluator = Synthnut__Unevaluator

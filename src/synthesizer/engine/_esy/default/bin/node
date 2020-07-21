@@ -1,0 +1,4 @@
+#!/bin/sh
+export ESY__NODE_BIN_PATH="/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/bin"
+exec "/Users/David/.nvm/versions/node/v11.10.1/bin/node" -r "/Users/David/Desktop/projects/PM MAP/___nut/project/_esy/default/pnp.js" "$@"
+              

@@ -1,0 +1,6 @@
+description = ""
+requires = ""
+archive(byte) = "synthnut.cma"
+archive(native) = "synthnut.cmxa"
+plugin(byte) = "synthnut.cma"
+plugin(native) = "synthnut.cmxs"

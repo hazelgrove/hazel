@@ -1,0 +1,5 @@
+(library
+  (name synthnut)
+  (flags 
+    (-w -40 -w -26 -w -39 -w -27 -w -8))
+  (public_name my-new-project))
