@@ -9,4 +9,11 @@ exception InvalidInstance;
 /**
  * Panel showing the typing context and environment at the cursor.
  */
-let view: (~inject: ModelAction.t => Vdom.Event.t, Model.t) => Vdom.Node.t;
+let view:
+  (
+    ~inject: ModelAction.t => Vdom.Event.t,
+    Program.t,
+    option(HoleInstance.t),
+    Model.compute_results
+  ) =>
+  Vdom.Node.t;

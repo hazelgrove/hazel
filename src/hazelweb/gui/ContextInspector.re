@@ -2,7 +2,13 @@ module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;
 let view =
-    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      program: Program.t,
+      model_instance: option(HoleInstance.t),
+      compute_results: Model.compute_results,
+    )
+    : Vdom.Node.t => {
   open Vdom;
 
   /**
@@ -48,8 +54,8 @@ let view =
                   ~inject,
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
-                  ~show_casts=model.compute_results.show_casts,
-                  ~selected_instance=model |> Model.get_selected_hole_instance,
+                  ~show_casts=compute_results.show_casts,
+                  ~selected_instance=model_instance,
                   ~width=30,
                   d,
                 ),
@@ -71,16 +77,15 @@ let view =
   };
 
   let context_view = {
-    let program = model |> Model.get_program;
     let ctx =
       program
       |> Program.get_cursor_info
       |> CursorInfo_common.get_ctx
       |> Contexts.gamma;
     let sigma =
-      if (model.compute_results.compute_results) {
+      if (compute_results.compute_results) {
         let (_, hii, _) = program |> Program.get_result;
-        switch (model |> Model.get_selected_hole_instance) {
+        switch (model_instance) {
         | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
@@ -126,7 +131,7 @@ let view =
             DHCode.view_of_hole_instance(
               ~inject,
               ~width=30,
-              ~selected_instance=model |> Model.get_selected_hole_instance,
+              ~selected_instance=model_instance,
               inst,
             ),
           ],
@@ -171,8 +176,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance=model_instance,
                     inst,
                   ),
                 ],
@@ -211,8 +215,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance=model_instance,
                     inst,
                   ),
                 ],
@@ -310,8 +313,7 @@ let view =
    * Shows the `InstancePath` to the currently selected instance.
    */
   let path_viewer =
-    if (model.compute_results.compute_results) {
-      let program = model |> Model.get_program;
+    if (compute_results.compute_results) {
       let ctx =
         program
         |> Program.get_cursor_info
@@ -329,7 +331,7 @@ let view =
               ),
             ]
           | Some(u) =>
-            switch (model |> Model.get_selected_hole_instance) {
+            switch (model_instance) {
             | None => [
                 instructional_msg("Click on a hole instance in the result"),
               ]
