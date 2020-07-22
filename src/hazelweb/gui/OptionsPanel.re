@@ -14,7 +14,10 @@ let labeled_checkbox =
   let checkbox_id = id ++ "_checkbox";
   Vdom.(
     Node.div(
-      [Attr.id(id), Attr.classes(["labeled-checkbox", ...classes])],
+      [
+        Attr.id(id),
+        Attr.classes(["labeled-checkbox", "noselect", ...classes]),
+      ],
       [
         Node.input(
           [

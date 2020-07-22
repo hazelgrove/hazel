@@ -493,7 +493,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               ),
               Attr.create("title", "Collapse Group"),
             ],
-            [Icons.down_arrow(["entry-tab-icon", "history-tab-icon"])],
+            [
+              Icons.down_arrow([
+                "entry-tab-icon",
+                "history-tab-icon",
+                "noselect",
+              ]),
+            ],
           )
         );
       } else {
@@ -510,7 +516,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               ),
               Attr.create("title", "Expand Group"),
             ],
-            [Icons.left_arrow(["entry-tab-icon", "history-tab-icon"])],
+            [
+              Icons.left_arrow([
+                "entry-tab-icon",
+                "history-tab-icon",
+                "noselect",
+              ]),
+            ],
           )
         );
       };
@@ -642,7 +654,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 Attr.id("cur-selected-entry"),
                 Attr.create("group_id", string_of_int(group_id)),
                 Attr.create("elt_id", string_of_int(elt_id)),
-                Attr.classes(["history-entry"]),
+                Attr.classes(["history-entry", "noselect"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
@@ -692,7 +704,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               [
                 Attr.create("group_id", string_of_int(group_id)),
                 Attr.create("elt_id", string_of_int(elt_id)),
-                Attr.classes(["history-entry"]),
+                Attr.classes(["history-entry", "noselect"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
@@ -804,7 +816,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               [
                 Attr.create("group_id", string_of_int(group_id)),
                 Attr.create("elt_id", string_of_int(elt_id)),
-                Attr.classes(["history-entry"]),
+                Attr.classes(["history-entry", "noselect"]),
                 Attr.id("cur-selected-entry"),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
@@ -855,7 +867,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               [
                 Attr.create("group_id", string_of_int(group_id)),
                 Attr.create("elt_id", string_of_int(elt_id)),
-                Attr.classes(["history-entry"]),
+                Attr.classes(["history-entry", "noselect"]),
                 Attr.on_click(_ =>
                   Vdom.Event.Many([
                     inject(
@@ -1005,7 +1017,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ),
             Attr.create("title", title),
           ],
-        [Icons.undo(["redo-undo-icon"])],
+        [Icons.undo(["redo-undo-icon", "noselect"])],
       )
     );
   };
@@ -1031,7 +1043,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ),
             Attr.create("title", title),
           ],
-        [Icons.undo(["redo-undo-icon", "horizontal-flip"])],
+        [Icons.undo(["redo-undo-icon", "horizontal-flip", "noselect"])],
       )
     );
   };
@@ -1050,7 +1062,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ),
             Attr.create("title", "Collapse Groups"),
           ],
-          [Icons.down_arrow(["all-history-tab-icon", "history-tab-icon"])],
+          [
+            Icons.down_arrow([
+              "all-history-tab-icon",
+              "history-tab-icon",
+              "noselect",
+            ]),
+          ],
         )
       );
     } else {
@@ -1066,7 +1084,13 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ),
             Attr.create("title", "Expand Groups"),
           ],
-          [Icons.left_arrow(["all-history-tab-icon", "history-tab-icon"])],
+          [
+            Icons.left_arrow([
+              "all-history-tab-icon",
+              "history-tab-icon",
+              "noselect",
+            ]),
+          ],
         )
       );
     };

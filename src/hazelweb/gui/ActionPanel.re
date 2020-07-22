@@ -4,7 +4,7 @@ let action_panel = (children: list(Vdom.Node.t)): Vdom.Node.t => {
   open Vdom;
   let panel_title =
     Node.div(
-      [Attr.classes(["panel-title-bar", "title-bar"])],
+      [Attr.classes(["panel-title-bar", "title-bar", "noselect"])],
       [Node.text("Edit Actions")],
     );
 
@@ -44,8 +44,8 @@ let info_button = (can_perform, lbl) =>
       [
         Attr.classes(
           can_perform
-            ? ["action-panel-entry", "action-enabled"]
-            : ["action-panel-entry", "action-disabled"],
+            ? ["action-panel-entry", "action-enabled", "noselect"]
+            : ["action-panel-entry", "action-disabled", "noselect"],
         ),
       ],
       [action_label(lbl)],
@@ -75,8 +75,8 @@ let action_button =
       [
         Attr.classes(
           can_perform
-            ? ["action-panel-entry", "action-enabled"]
-            : ["action-panel-entry", "action-disabled"],
+            ? ["action-panel-entry", "action-enabled", "noselect"]
+            : ["action-panel-entry", "action-disabled", "noselect"],
         ),
         Attr.on_click(_ => inject(ModelAction.EditAction(a))),
         Attr.on_keydown(evt =>
@@ -170,7 +170,7 @@ let action_list =
   let items = List.map(item, actions);
   Vdom.(
     Node.div(
-      [Attr.classes(["action-panel-entry"]), display_flex],
+      [Attr.classes(["action-panel-entry", "noselect"]), display_flex],
       [label, ...items],
     )
   );
@@ -247,7 +247,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   let spaced_line = children => {
     Vdom.Node.div(
       Vdom.Attr.[
-        classes(["action-panel-entry"]),
+        classes(["action-panel-entry", "noselect"]),
         style(
           Css_gen.(
             create(~field="display", ~value="flex")
