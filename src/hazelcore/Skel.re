@@ -108,8 +108,8 @@ let mk_skel_str =
 
 let mk =
     (
-      precedence: _ => int,
-      associativity: _ => Associativity.t,
+      precedence: 'op => int,
+      associativity: 'op => Associativity.t,
       seq: Seq.t('operand, 'op),
     )
     : t('op) => {
@@ -183,7 +183,7 @@ let mk =
       let (skel_stack', _) = build_ast_while(skel_stack, op_stack, _ => true);
       switch (skel_stack') {
       | [final_skel] => final_skel // In this case,
-      | _ => Placeholder(-1) // This case will never be reached
+      | _ => failwith("Error: Skel parser called with invalid operands")
       };
     };
   }
@@ -220,7 +220,7 @@ let mk =
         op_stack',
         should_mv,
       )
-    | _ => (skel_stack, op_stack)
+    | _ => failwith("Error: Skel parser called with invalid operands")
     };
   };
   go_seq([], [], seq, 0);
