@@ -14,6 +14,7 @@ let () = {
     Async_kernel.Monitor.detach_and_iter_errors(
       monitor,
       ~f=exn => {
+        /* TODO Hannah - See if Js.Error handling is necessary/works */
         let exn =
           switch (Async_kernel.Monitor.extract_exn(exn)) {
           | Js.Error(err) => `Js(err)
@@ -30,7 +31,6 @@ let () = {
             Js.to_string(err##.message) ++ backtrace;
           | `Exn(exn) => Exn.to_string(exn)
           };
-        print_endline(message);
 
         let root = JSUtil.force_get_elem_by_id("root");
         let error_box =
