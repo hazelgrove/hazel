@@ -18,9 +18,9 @@ let to_parse_string = op =>
 
 let precedence =
   fun
-  | Arrow => 0
-  | Sum => 1
-  | Prod => 2;
+  | Prod => 1
+  | Arrow => 2
+  | Sum => 3;
 
 let associativity =
   fun
