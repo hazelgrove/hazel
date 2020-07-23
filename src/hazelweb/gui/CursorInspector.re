@@ -285,6 +285,11 @@ let view =
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
       (ind1, ind2, TypeInconsistency);
+    | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_inconsistent_branches_indicator(rule_types, path_to_case);
+      (ind1, ind2, TypeInconsistency);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
@@ -348,6 +353,7 @@ let view =
 
   let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
 
+  // this determines the color
   let cls_of_err_state_b =
     switch (err_state_b) {
     | TypeInconsistency => "cursor-TypeInconsistency"
