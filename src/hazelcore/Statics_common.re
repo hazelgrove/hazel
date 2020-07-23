@@ -66,7 +66,8 @@ let stable_ana_fixer =
     (changed ? fixed_term : term, extra_output, u_gen, changed);
   };
 
-let set_hole_reason = (u_gen: MetaVarGen.t, reason: ErrStatus.HoleReason.t, ErrStatus.t) =>
+let set_hole_reason =
+    (u_gen: MetaVarGen.t, reason: ErrStatus.HoleReason.t, err: ErrStatus.t) =>
   switch (err) {
   | InHole(r, _) when r == reason => (err, u_gen, false)
   | _ =>
