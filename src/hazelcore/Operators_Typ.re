@@ -22,6 +22,8 @@ let precedence =
   | Arrow => 2
   | Sum => 3;
 
+let precedence_const = 4;
+
 let associativity =
   fun
   | Arrow => Associativity.Right

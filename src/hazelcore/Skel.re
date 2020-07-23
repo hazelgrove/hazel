@@ -220,7 +220,7 @@ let mk =
         op_stack',
         should_mv,
       )
-    | _ => failwith("Error: Skel parser called with invalid operands")
+    | _ => (skel_stack, op_stack)
     };
   };
   go_seq([], [], seq, 0);
