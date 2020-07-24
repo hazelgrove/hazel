@@ -24,17 +24,6 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let unwrap_parentheses = (operand: operand): t =>
-  switch (operand) {
-  | Hole
-  | Unit
-  | Int
-  | Float
-  | Bool
-  | List(_) => OpSeq.wrap(operand)
-  | Parenthesized(p) => p
-  };
-
 let associate = (seq: seq) => {
   let skel_str = Skel.mk_skel_str(seq, Operators_Typ.to_parse_string);
   let lexbuf = Lexing.from_string(skel_str);
