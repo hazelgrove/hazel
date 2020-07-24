@@ -259,17 +259,16 @@ let split_cases =
   };
 };
 
-let split_cases_let =
+let split_cases_binding =
     (
       u_gen: MetaVarGen.t,
       ascrip_option: option(UHTyp.t),
-      ctx: Contexts.t,
-      def: UHExp.t,
-      mk_result: (MetaVarGen.t, ZExp.t) => ActionOutcome.t('success),
+      backup_type: option(HTyp.t),
+      mk_result: (MetaVarGen.t, ZPat.t) => ActionOutcome.t('success),
     )
     : ActionOutcome.t('success) =>
   ascrip_option
-  |> Option.fold(~none=Statics_Exp.syn(ctx, def), ~some=pat_ty =>
+  |> Option.fold(~none=backup_type, ~some=pat_ty =>
        Some(UHTyp.expand(pat_ty))
      )
   |> Option.fold(
@@ -277,15 +276,7 @@ let split_cases_let =
        ~some=pat_ty => {
          let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, pat_ty);
          switch (patterns) {
-         | [pat] =>
-           mk_result(
-             u_gen,
-             (
-               [],
-               LetLineZP(ZPat.place_before(pat), ascrip_option, def),
-               [],
-             ),
-           )
+         | [pat] => mk_result(u_gen, ZPat.place_before(pat))
          | _ => Failed
          };
        },
@@ -1015,7 +1006,10 @@ and syn_perform_line =
 
   | (SplitCases, LetLineZP(zp, ascrip_option, def))
       when can_split_cases_opseq(zp) =>
-    split_cases_let(u_gen, ascrip_option, ctx, def, mk_result)
+    split_cases_binding(
+      u_gen, ascrip_option, Statics_Exp.syn(ctx, def), (u_gen, new_zp) =>
+      mk_result(u_gen, ([], LetLineZP(new_zp, ascrip_option, def), []))
+    )
   | (UpdateApPalette(_) | SplitCases, CursorL(_)) => Failed
 
   /* Invalid swap actions */
@@ -1798,6 +1792,30 @@ and syn_perform_operand =
         u_gen,
       ),
     )
+  | (SplitCases, LamZP(err, zpat, ascrip_option, body))
+      when can_split_cases_opseq(zpat) =>
+    // We don't have to consider ty, because we can not get a type other than hole for the argument without binding it
+    // , which `would make can_split_cases_opseq(zpat)` return false
+    ascrip_option
+    |> Option.fold(
+         ~none=ActionOutcome.Failed,
+         ~some=ascrip => {
+           let (patterns, u_gen) =
+             ascrip |> UHTyp.expand |> UHPat.patterns_of_type(u_gen);
+           switch (patterns) {
+           | [pat] =>
+             Succeeded(
+               SynDone((
+                 ZExp.LamZP(err, ZPat.place_before(pat), ascrip_option, body)
+                 |> ZExp.ZBlock.wrap,
+                 ty,
+                 u_gen,
+               )),
+             )
+           | _ => Failed
+           };
+         },
+       )
   | (SplitCases, CursorE(_)) => Failed
 
   /* Invalid Swap actions */
@@ -2387,8 +2405,11 @@ and ana_perform_block =
 
   | (SplitCases, LetLineZP(zp, ascrip_option, def))
       when can_split_cases_opseq(zp) =>
-    split_cases_let(u_gen, ascrip_option, ctx, def, (u_gen, zexp) =>
-      Succeeded(AnaDone((zexp, u_gen)))
+    split_cases_binding(
+      u_gen, ascrip_option, Statics_Exp.syn(ctx, def), (u_gen, new_zp) =>
+      Succeeded(
+        AnaDone((([], LetLineZP(new_zp, ascrip_option, def), []), u_gen)),
+      )
     )
   | (SplitCases, CursorL(_)) => Failed
 
@@ -3208,6 +3229,20 @@ and ana_perform_operand =
         u_gen,
       ),
       ty,
+    )
+  | (SplitCases, LamZP(err, zpat, ascrip_option, body))
+      when can_split_cases_opseq(zpat) =>
+    split_cases_binding(
+      u_gen,
+      ascrip_option,
+      ty |> HTyp.matched_arrow |> Option.map(((argType, _)) => argType),
+      (u_gen, new_zp) =>
+      Succeeded(
+        AnaDone((
+          ZExp.LamZP(err, new_zp, ascrip_option, body) |> ZExp.ZBlock.wrap,
+          u_gen,
+        )),
+      )
     )
   | (SplitCases, CursorE(_)) => Failed
 
