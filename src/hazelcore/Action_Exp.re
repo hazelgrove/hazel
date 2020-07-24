@@ -222,13 +222,15 @@ let resurround_z =
     ((new_prefix_lines, zline, new_suffix_lines), u_gen);
   };
 
-let can_split_cases: ZExp.zrules => bool =
+let can_split_cases_opseq = (zp: ZPat.t): bool => {
+  let OpSeq(_, seq) = ZPat.erase(zp);
+  seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
+};
+
+// Only try to derive type and continue if the only rule was just an empty hole
+let can_split_cases_rules: ZExp.zrules => bool =
   fun
-  | ([], RuleZP(zpat, _), []) => {
-      let OpSeq(_, seq) = ZPat.erase(zpat);
-      // Only try to derive type and continue if the only rule was just an empty hole
-      seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
-    }
+  | ([], RuleZP(zpat, _), []) => can_split_cases_opseq(zpat)
   | _ => false;
 
 let split_cases =
@@ -256,6 +258,38 @@ let split_cases =
     Some((u_gen, zrules));
   };
 };
+
+let split_cases_let =
+    (
+      u_gen: MetaVarGen.t,
+      ascrip_option: option(UHTyp.t),
+      ctx: Contexts.t,
+      def: UHExp.t,
+      mk_result: (MetaVarGen.t, ZExp.t) => ActionOutcome.t('success),
+    )
+    : ActionOutcome.t('success) =>
+  ascrip_option
+  |> Option.fold(~none=Statics_Exp.syn(ctx, def), ~some=pat_ty =>
+       Some(UHTyp.expand(pat_ty))
+     )
+  |> Option.fold(
+       ~none=ActionOutcome.Failed,
+       ~some=pat_ty => {
+         let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, pat_ty);
+         switch (patterns) {
+         | [pat] =>
+           mk_result(
+             u_gen,
+             (
+               [],
+               LetLineZP(ZPat.place_before(pat), ascrip_option, def),
+               [],
+             ),
+           )
+         | _ => Failed
+         };
+       },
+     );
 
 type expanding_result = {
   kw: ExpandingKeyword.t,
@@ -977,7 +1011,12 @@ and syn_perform_line =
     | None => Failed
     | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
     };
-  | (Construct(_) | UpdateApPalette(_) | SplitCases, CursorL(_)) => Failed
+  | (Construct(_), CursorL(_)) => Failed
+
+  | (SplitCases, LetLineZP(zp, ascrip_option, def))
+      when can_split_cases_opseq(zp) =>
+    split_cases_let(u_gen, ascrip_option, ctx, def, mk_result)
+  | (UpdateApPalette(_) | SplitCases, CursorL(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
@@ -1744,11 +1783,8 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
 
-  | (
-      SplitCases,
-      CaseZE(err, zscrut, [UHExp.Rule(OpSeq(_, seq) as pat, exp)]),
-    )
-      when seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole =>
+  | (SplitCases, CaseZE(err, zscrut, [UHExp.Rule(pat, exp)]))
+      when pat |> ZPat.place_before |> can_split_cases_opseq =>
     syn_perform_operand(
       ctx,
       SplitCases,
@@ -2049,7 +2085,7 @@ and syn_perform_rules =
     }
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
-  | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrules) =>
+  | (SplitCases, RuleZP(_, exp)) when can_split_cases_rules(zrules) =>
     switch (split_cases(u_gen, pat_ty, exp)) {
     | None => Failed
     | Some((u_gen, zrules)) =>
@@ -2210,7 +2246,7 @@ and ana_perform_rules =
   | (Construct(_) | UpdateApPalette(_) | SplitCases, CursorR(OnDelim(_), _)) =>
     Failed
 
-  | (SplitCases, RuleZP(_, exp)) when can_split_cases(zrules) =>
+  | (SplitCases, RuleZP(_, exp)) when can_split_cases_rules(zrules) =>
     switch (split_cases(u_gen, pat_ty, exp)) {
     | None => Failed
     | Some((u_gen, zrules)) =>
@@ -2348,6 +2384,13 @@ and ana_perform_block =
     }
 
   /* No construction handled at block level */
+
+  | (SplitCases, LetLineZP(zp, ascrip_option, def))
+      when can_split_cases_opseq(zp) =>
+    split_cases_let(u_gen, ascrip_option, ctx, def, (u_gen, zexp) =>
+      Succeeded(AnaDone((zexp, u_gen)))
+    )
+  | (SplitCases, CursorL(_)) => Failed
 
   /* SwapUp and SwapDown is handled at block level */
   | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
@@ -3151,11 +3194,8 @@ and ana_perform_operand =
     Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
 
-  | (
-      SplitCases,
-      CaseZE(err, zscrut, [UHExp.Rule(OpSeq(_, seq) as pat, exp)]),
-    )
-      when seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole =>
+  | (SplitCases, CaseZE(err, zscrut, [UHExp.Rule(pat, exp)]))
+      when pat |> ZPat.place_before |> can_split_cases_opseq =>
     ana_perform_operand(
       ctx,
       SplitCases,
