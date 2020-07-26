@@ -176,12 +176,12 @@ let%test "holey operator precedence test" = {
       ),
     );
 
-  Utils.run_n_times(
-    10_000_000,
-    "precedence op skel",
-    UHExp.associate,
-    precedence_op_seq,
-  );
+  // Utils.run_n_times(
+  //   10_000_000,
+  //   "precedence op skel",
+  //   UHExp.associate,
+  //   precedence_op_seq,
+  // );
 
   UHExp.associate(precedence_op_seq) == precedence_op_skel;
 };
@@ -212,23 +212,23 @@ let%test "type precedence test" = {
   let precedence_op_skel =
     Skel.BinOp(
       NotInHole,
-      Operators_Typ.Sum,
+      Operators_Typ.Prod,
+      Skel.Placeholder(0),
       Skel.BinOp(
         NotInHole,
         Operators_Typ.Arrow,
+        Skel.Placeholder(1),
         Skel.BinOp(
           NotInHole,
-          Operators_Typ.Prod,
-          Skel.Placeholder(0),
-          Skel.Placeholder(1),
+          Operators_Typ.Arrow,
+          Skel.BinOp(
+            NotInHole,
+            Operators_Typ.Sum,
+            Skel.Placeholder(2),
+            Skel.Placeholder(3),
+          ),
+          Skel.Placeholder(4),
         ),
-        Skel.Placeholder(2),
-      ),
-      Skel.BinOp(
-        NotInHole,
-        Operators_Typ.Arrow,
-        Skel.Placeholder(3),
-        Skel.Placeholder(4),
       ),
     );
 
