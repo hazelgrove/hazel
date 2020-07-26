@@ -137,6 +137,12 @@ and mk_line =
                );
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
           UHDoc_common.mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
+        | DefineLine(tp, ty) =>
+          let tp =
+            UHDoc_TPat.mk_child(~memoize, ~enforce_inline, ~child_step=0, tp);
+          let ty =
+            UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
+          UHDoc_common.mk_DefineLine(tp, ty) |> Doc.annot(UHAnnot.DefineLine);
         }: UHDoc_common.t
       )
     )

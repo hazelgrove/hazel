@@ -94,6 +94,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action_common.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
+  | Define => Construct(SDefine)
   };
 
 //TBD
@@ -244,6 +245,12 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
   SynExpands({kw: Case, u_gen, prefix, suffix, subject: scrut});
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
+let mk_SynExpandsToDefine = (~u_gen, ~prefix=[], ~suffix=[], ()) => {
+  let _ = print_endline("enter mk_SynExpandsToDefine");
+  let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+  let sub = UHExp.Block.wrap(new_hole);
+  SynExpands({kw: Define, u_gen, prefix, suffix, subject: sub});
+};
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -423,12 +430,18 @@ let syn_split_text =
       let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
       (UHExp.Block.wrap(operand), u_gen);
     };
-    Succeeded(
+    switch (kw) {
+    | Let => Succeeded(mk_SynExpandsToLet(~u_gen, ~def=subject, ()))
+    | Case => Succeeded(mk_SynExpandsToCase(~u_gen, ~scrut=subject, ()))
+    | Define => Failed
+    };
+  /*Succeeded( TODO
       switch (kw) {
       | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
+      | Define =>
       },
-    );
+    );*/
   | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
@@ -463,12 +476,17 @@ let ana_split_text =
       let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
       (UHExp.Block.wrap(operand), u_gen);
     };
-    Succeeded(
-      switch (kw) {
-      | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
-      | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
-      },
-    );
+    switch (kw) {
+    | Let => Succeeded(mk_AnaExpandsToLet(~u_gen, ~def=subject, ()))
+    | Case => Succeeded(mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ()))
+    | Define => Failed
+    };
+  /*    Succeeded(
+          switch (kw) {
+          | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
+          | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
+          },
+        );*/
   | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
@@ -624,6 +642,12 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+  | Succeeded(SynExpands({kw: Define, prefix, suffix, u_gen, _})) =>
+    let (ztp_hole, u_gen) = u_gen |> ZTPat.new_EmptyHole;
+    let ty = OpSeq.wrap(UHTyp.Hole);
+    let zdefine = ZExp.DefineLineZP(ztp_hole, ty);
+    let new_ze = (prefix, zdefine, suffix) |> ZExp.prune_empty_hole_lines;
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   };
 }
 and syn_perform_block =
@@ -693,7 +717,11 @@ and syn_perform_block =
   | SwapUp when ZExp.line_can_be_swapped(zline) =>
     switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
     | (None, _, _) => Failed
-    | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
+    | (
+        Some((_, LetLine(_) | DefineLine(_))),
+        ExpLine(OpSeq(_, S(EmptyHole(_), E))),
+        [],
+      ) =>
       Failed
     /* handle the corner case when swapping the last line up where the second to last line is EmptyLine */
     | (Some((rest, EmptyLine)), _, []) =>
@@ -715,7 +743,13 @@ and syn_perform_block =
     switch (suffix, zline) {
     | ([], _) => Failed
     /* avoid swap down for the Let line if it is second to last */
-    | ([_], LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_))) => Failed
+    | (
+        [_],
+        LetLineZP(_) | LetLineZA(_) | CursorL(_, LetLine(_)) | DefineLineZP(_) |
+        DefineLineZT(_) |
+        CursorL(_, DefineLine(_)),
+      ) =>
+      Failed
     /* handle corner case when the second to last line is an EmptyLine */
     | ([last], CursorL(_, EmptyLine)) =>
       let (new_hole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -816,6 +850,7 @@ and syn_perform_line =
       _,
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
       CursorL(OnText(_) | OnOp(_), LetLine(_)) |
+      CursorL(OnText(_) | OnOp(_), DefineLine(_)) |
       CursorL(_, ExpLine(_)),
     ) =>
     Failed
@@ -899,6 +934,9 @@ and syn_perform_line =
       fix_and_mk_result(u_gen, new_ze);
     }
 
+  | (Backspace, CursorL(OnDelim(_, After), DefineLine(_, _))) =>
+    let new_ze = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
+    fix_and_mk_result(u_gen, new_ze);
   /* Construction */
 
   | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
@@ -942,9 +980,14 @@ and syn_perform_line =
   | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
 
   /* Invalid swap actions */
-  | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
-  | (SwapLeft, CursorL(_))
-  | (SwapRight, CursorL(_)) => Failed
+  | (
+      SwapUp | SwapDown,
+      CursorL(_) | LetLineZP(_) | LetLineZA(_) | DefineLineZP(_) |
+      DefineLineZT(_),
+    ) =>
+    Failed
+  | (SwapLeft, CursorL(_) | DefineLineZP(_))
+  | (SwapRight, CursorL(_) | DefineLineZP(_)) => Failed
 
   /* Zipper */
 
@@ -988,10 +1031,15 @@ and syn_perform_line =
     };
 
   | (_, LetLineZA(p, zann, def)) =>
+    let _ = print_endline("enter letlineZA");
+    //let _ = TyVarCtx.print(Contexts.tyvars(ctx));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
+    let _ = print_endline("expand succeed");
     switch (Statics_Typ.syn(ctx, hty)) {
     | None => Failed
     | Some(kind) =>
+      let _ = print_endline("syn_perform");
+      let _ = TyVarCtx.print(Contexts.tyvars(ctx));
       switch (Action_Typ.syn_perform(ctx, a, (zann, kind, u_gen))) {
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
@@ -1003,8 +1051,9 @@ and syn_perform_line =
         let (def, u_gen) =
           Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
         let new_zline = ZExp.LetLineZA(p, new_zann, def);
+        let _ = print_endline("almost finish");
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
-      }
+      };
     };
 
   | (_, LetLineZE(p, None, zdef)) =>
@@ -1033,6 +1082,42 @@ and syn_perform_line =
       | Some(new_ctx) =>
         let new_zline = ZExp.LetLineZE(p, Some(ann), new_zdef);
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
+      }
+    };
+  | (_, DefineLineZP(ztp, uty)) =>
+    switch (Action_TPat.perform(a, ztp, u_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((new_ztp, u_gen)) =>
+      let hty = UHTyp.expand(Contexts.tyvars(ctx), uty);
+      switch (Statics_TPat.ana(ctx, new_ztp |> ZTPat.erase, hty)) {
+      | None => Failed
+      | Some(new_ctx) =>
+        let new_zline = ZExp.DefineLineZP(new_ztp, uty);
+        Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
+      };
+    }
+  | (_, DefineLineZT(tp, zty)) =>
+    let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
+    switch (Statics_Typ.syn(ctx, hty)) {
+    | None => Failed
+    | Some(kind) =>
+      switch (Action_Typ.syn_perform(ctx, a, (zty, kind, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded((new_zty, _, u_gen)) =>
+        switch (
+          Statics_TPat.ana(
+            ctx,
+            tp,
+            new_zty |> ZTyp.erase |> UHTyp.expand(Contexts.tyvars(ctx)),
+          )
+        ) {
+        | None => Failed
+        | Some(new_ctx) =>
+          let new_zline = ZExp.DefineLineZT(tp, new_zty);
+          Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
+        }
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
@@ -1276,7 +1361,8 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
+    let _ = print_endline("single operand");
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
@@ -1529,6 +1615,9 @@ and syn_perform_operand =
       ),
     )
 
+  | (Construct(SDefine), CursorE(OnDelim(0, Before | After), EmptyHole(_))) =>
+    Succeeded(mk_SynExpandsToDefine(~u_gen, ()))
+  | (Construct(SDefine), _) => Failed // TODO
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
     let new_ze =
@@ -2225,6 +2314,7 @@ and ana_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_zblock = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
+  | Succeeded(AnaExpands({kw: Define, _})) => Failed
   }
 and ana_perform_block =
     (
@@ -2341,7 +2431,9 @@ and ana_perform_block =
         | CursorL(_)
         | LetLineZP(_)
         | LetLineZA(_)
-        | LetLineZE(_) => Failed
+        | LetLineZE(_)
+        | DefineLineZP(_)
+        | DefineLineZT(_) => Failed
         | ExpLineZ(zopseq) =>
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
           | Failed => Failed
@@ -2765,7 +2857,7 @@ and ana_perform_operand =
       ),
     ) =>
     Failed
-
+  | (Construct(SDefine), _) => Failed // TODO
   | (_, CursorE(cursor, operand))
       when !ZExp.is_valid_cursor_operand(cursor, operand) =>
     Failed

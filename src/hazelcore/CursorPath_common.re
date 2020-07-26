@@ -51,6 +51,7 @@ let of_zopseq_ =
 [@deriving sexp]
 type hole_sort =
   | TypHole
+  | TPatHole
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t);
 
@@ -471,7 +472,8 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
         switch (sort) {
         | ExpHole(u')
         | PatHole(u') => MetaVar.eq(u, u')
-        | TypHole => false
+        | TypHole
+        | TPatHole => false
         },
       hole_list,
     )
@@ -490,6 +492,7 @@ let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
     | Some({sort: PatHole(u'), steps, _}) =>
       MetaVar.eq(u, u') ? Some(steps) : steps_to_hole(holes_after, u)
     | Some({sort: TypHole, _})
+    | Some({sort: TPatHole, _})
     | None => steps_to_hole(holes_after, u)
     }
   };

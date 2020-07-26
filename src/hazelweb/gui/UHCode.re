@@ -26,7 +26,8 @@ let sort_clss: TermSort.t => list(cls) =
   fun
   | Typ => ["Typ"]
   | Pat => ["Pat"]
-  | Exp => ["Exp"];
+  | Exp => ["Exp"]
+  | TPat => ["TPat"];
 
 let shape_clss: TermShape.t => list(cls) =
   fun
@@ -105,7 +106,9 @@ let view =
         | Annot(LetLine, l) => [
             Node.span([Attr.classes(["LetLine"])], go(l)),
           ]
-
+        | Annot(DefineLine, l) => [
+            Node.span([Attr.classes(["DefineLine"])], go(l)),
+          ]
         | Annot(Padding, l) => [
             Node.span([Attr.classes(["Padding"])], go(l)),
           ]

@@ -304,6 +304,11 @@ let view =
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
+    | OnTPat
+    | OnTPatHole =>
+      let ind1 = expected_a_type_indicator;
+      let ind2 = got_a_type_indicator;
+      (ind1, ind2, OK);
     | PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));

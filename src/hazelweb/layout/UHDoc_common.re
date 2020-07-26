@@ -99,6 +99,10 @@ module Delim = {
   let colon_LetLine = (): t => mk(~index=1, ":");
   let eq_LetLine = (): t => mk(~index=2, "=");
   let in_LetLine = (): t => mk(~index=3, "in");
+
+  let define_DefineLine = (): t => mk(~index=0, "define");
+  let is_DefineLine = (): t => mk(~index=1, "is");
+  let in_DefineLine = (): t => mk(~index=2, "in");
 };
 
 let annot_Indent: t => t = Doc.annot(UHAnnot.Indent);
@@ -404,6 +408,26 @@ let mk_LetLine =
   Doc.hcats([
     open_group,
     def |> pad_open_child(~inline_padding=(space_, space_)),
+    close_group,
+  ]);
+};
+
+let mk_DefineLine = (tp: formatted_child, ty: formatted_child): t => {
+  let open_group = {
+    let define_delim = Delim.define_DefineLine();
+    let is_delim = Delim.is_DefineLine();
+    let doc =
+      Doc.hcats([
+        define_delim,
+        tp |> pad_closed_child(~inline_padding=(space_, space_)),
+        is_delim,
+      ]);
+    doc |> annot_DelimGroup;
+  };
+  let close_group = Delim.in_DefineLine() |> annot_DelimGroup;
+  Doc.hcats([
+    open_group,
+    ty |> pad_open_child(~inline_padding=(space_, space_)),
     close_group,
   ]);
 };

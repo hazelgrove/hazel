@@ -11,6 +11,8 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | LetLineZP(zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LetLineZA(_, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
   | LetLineZE(_, _, zexp) => extract_cursor_term(zexp)
+  | DefineLineZP(zpt, _) => CursorInfo_TPat.extract_cursor_term(zpt)
+  | DefineLineZT(_, ztyp) => CursorInfo_Typ.extract_cursor_term(ztyp)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -64,6 +66,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   | LetLineZP(zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LetLineZA(_, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
   | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
+  | DefineLineZP(ztp, _) => CursorInfo_TPat.get_zoperand_from_ztpat(ztp)
+  | DefineLineZT(_, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
   };
 }
 and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
@@ -116,6 +120,8 @@ and get_outer_zrules_from_zline =
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _) => outer_zrules
   | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | DefineLineZP(_, _)
+  | DefineLineZT(_, _) => outer_zrules
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -195,6 +201,7 @@ let caret_is_after_zoperand = (zexp: ZExp.t): bool => {
     | ZExp(zoperand) => ZExp.is_after_zoperand(zoperand)
     | ZPat(zoperand) => ZPat.is_after_zoperand(zoperand)
     | ZTyp(zoperand) => ZTyp.is_after_zoperand(zoperand)
+    | ZTPat(zoperand) => ZTPat.is_after_zoperand(zoperand)
     }
   };
 };
@@ -206,6 +213,7 @@ let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
     | ZExp(zoperand) => ZExp.is_before_zoperand(zoperand)
     | ZPat(zoperand) => ZPat.is_before_zoperand(zoperand)
     | ZTyp(zoperand) => ZTyp.is_before_zoperand(zoperand)
+    | ZTPat(zoperand) => ZTPat.is_before_zoperand(zoperand)
     }
   };
 };
@@ -221,7 +229,9 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | CursorL(_, _)
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => true
+      | LetLineZE(_, _, _)
+      | DefineLineZP(_)
+      | DefineLineZT(_) => true
       }
     | Some((_, _)) => false
     };
@@ -236,7 +246,9 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | CursorL(_, _)
       | LetLineZP(_, _, _)
       | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => false
+      | LetLineZE(_, _, _)
+      | DefineLineZP(_)
+      | DefineLineZT(_) => false
       }
     | _ => false
     };
@@ -327,6 +339,12 @@ and syn_cursor_info_line =
       ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
       |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
     }
+  | DefineLineZT(_, zty) =>
+    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zty)
+    |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+  | DefineLineZP(ztp, _) =>
+    CursorInfo_TPat.cursor_info(~steps=steps @ [0], ctx, ztp)
+    |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
   }
 and syn_cursor_info_zopseq =
     (
@@ -634,7 +652,9 @@ and ana_cursor_info_zblock =
       | CursorL(_)
       | LetLineZP(_)
       | LetLineZA(_)
-      | LetLineZE(_) => None
+      | LetLineZE(_)
+      | DefineLineZP(_)
+      | DefineLineZT(_) => None
       | ExpLineZ(zopseq) =>
         ana_cursor_info_zopseq(
           ~steps=steps @ [List.length(prefix)],

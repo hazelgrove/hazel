@@ -11,6 +11,8 @@ and of_zline = (zline: ZExp.zline): CursorPath_common.t =>
   | LetLineZP(zp, _, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LetLineZA(_, zann, _) => cons'(1, CursorPath_Typ.of_z(zann))
   | LetLineZE(_, _, zdef) => cons'(2, of_z(zdef))
+  | DefineLineZP(ztp, _) => cons'(0, CursorPath_TPat.of_z(ztp))
+  | DefineLineZT(_, zty) => cons'(1, CursorPath_Typ.of_z(zty))
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
   }
 and of_zopseq = (zopseq: ZExp.zopseq): CursorPath_common.t =>
@@ -69,7 +71,7 @@ and follow_line =
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
     follow_opseq(path, opseq) |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
-  | ([], EmptyLine | LetLine(_, _, _)) =>
+  | ([], EmptyLine | LetLine(_, _, _) | DefineLine(_, _)) =>
     line |> ZExp.place_cursor_line(cursor)
   | ([_, ..._], EmptyLine) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
@@ -90,6 +92,18 @@ and follow_line =
       def
       |> follow((xs, cursor))
       |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
+    | _ => None
+    }
+  | ([x, ...xs], DefineLine(tp, ty)) =>
+    switch (x) {
+    | 0 =>
+      tp
+      |> CursorPath_TPat.follow((xs, cursor))
+      |> OptUtil.map(ztp => ZExp.DefineLineZP(ztp, ty))
+    | 1 =>
+      ty
+      |> CursorPath_Typ.follow((xs, cursor))
+      |> OptUtil.map(zty => ZExp.DefineLineZT(tp, zty))
     | _ => None
     }
   }
@@ -250,7 +264,7 @@ and of_steps_line =
     : option(CursorPath_common.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-  | ([], EmptyLine | LetLine(_, _, _)) =>
+  | ([], EmptyLine | LetLine(_, _, _) | DefineLine(_, _)) =>
     let place_cursor =
       switch (side) {
       | Before => ZExp.place_before_line
@@ -275,6 +289,7 @@ and of_steps_line =
     | 2 => def |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
     | _ => None
     }
+  | ([_, ..._], DefineLine(_, _)) => None // TODO
   }
 and of_steps_opseq =
     (steps: CursorPath_common.steps, ~side: Side.t, opseq: UHExp.opseq)
@@ -443,6 +458,10 @@ and holes_line =
       }
     )
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+  | DefineLine(tp, ty) =>
+    hs
+    |> CursorPath_TPat.holes(tp, [0, ...rev_steps])
+    |> CursorPath_Typ.holes(ty, [1, ...rev_steps])
   | ExpLine(opseq) =>
     hs
     |> CursorPath_common.holes_opseq(
@@ -595,6 +614,22 @@ and holes_zline =
       )
     | _ => CursorPath_common.no_holes
     };
+  | CursorL(cursor, DefineLine(tp, ty)) =>
+    let holes_tp = CursorPath_TPat.holes(tp, [0, ...rev_steps], []);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    switch (cursor) {
+    | OnDelim(0, _) =>
+      CursorPath_common.mk_zholes(~holes_after=holes_tp @ holes_ty, ())
+    | OnDelim(1, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_tp,
+        ~holes_after=holes_ty,
+        (),
+      )
+    | OnDelim(2, _) =>
+      CursorPath_common.mk_zholes(~holes_before=holes_tp @ holes_ty, ())
+    | _ => CursorPath_common.no_holes
+    };
   | ExpLineZ(zopseq) => holes_zopseq(zopseq, rev_steps)
   | LetLineZP(zp, ann, body) =>
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
@@ -633,6 +668,26 @@ and holes_zline =
       holes_z(zbody, [2, ...rev_steps]);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_p @ holes_ann @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
+  | DefineLineZP(ztp, ty) =>
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      CursorPath_TPat.holes_z(ztp, [0, ...rev_steps]);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_ty,
+      (),
+    );
+  | DefineLineZT(tp, zty) =>
+    let holes_tp = CursorPath_TPat.holes(tp, [0, ...rev_steps], []);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(zty, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_tp @ holes_before,
       ~hole_selected,
       ~holes_after,
       (),

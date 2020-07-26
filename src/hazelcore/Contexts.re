@@ -18,6 +18,11 @@ let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
   vars: VarCtx.extend(ctx.vars, binding),
 };
 
+let extend_tyvarctx = (ctx: t, binding: (TyId.t, Kind.t)): t => {
+  ...ctx,
+  tyvars: TyVarCtx.extend(ctx.tyvars, binding),
+};
+
 let gamma_union = (ctx: t, gamma': VarCtx.t): t => {
   ...ctx,
   vars: VarCtx.union(ctx.vars, gamma'),

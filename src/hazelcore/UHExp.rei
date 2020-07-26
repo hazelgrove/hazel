@@ -15,6 +15,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), t)
+  | DefineLine(TPat.t, UHTyp.t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =

@@ -2,4 +2,5 @@
 type t =
   | Typ
   | Pat
-  | Exp;
+  | Exp
+  | TPat;

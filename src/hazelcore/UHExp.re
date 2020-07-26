@@ -9,6 +9,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), t)
+  | DefineLine(TPat.t, UHTyp.t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -92,13 +93,15 @@ module Line = {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
     | ExpLine(_)
     | EmptyLine
-    | LetLine(_) => line
+    | LetLine(_)
+    | DefineLine(_) => line
     };
 
   let get_opseq =
     fun
     | EmptyLine
-    | LetLine(_, _, _) => None
+    | LetLine(_, _, _)
+    | DefineLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
     line
@@ -331,6 +334,7 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     } else {
       UHPat.is_complete(pat) && is_complete(body, check_type_holes);
     }
+  | DefineLine(tpat, ty) => TPat.is_complete(tpat) && UHTyp.is_complete(ty)
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
   };

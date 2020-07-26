@@ -68,6 +68,10 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty) => Statics_Pat.ana(ctx, p, ty)
       }
     }
+  | DefineLine(tp, uty) =>
+    // may need to re-consider
+    let hty = UHTyp.expand(Contexts.tyvars(ctx), uty);
+    Statics_TPat.ana(ctx, tp, hty);
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -708,6 +712,19 @@ and syn_fix_holes_line =
       let (p, ctx, u_gen) =
         Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
       (LetLine(p, ann, def), ctx, u_gen);
+    }
+  | DefineLine(tp, uty) =>
+    // may need to re-consider
+    switch (tp) {
+    | EmptyHole(_) =>
+      let _ = print_endline("finish fix");
+      (line, ctx, u_gen);
+    | TyVar(_, id) =>
+      let ty = UHTyp.expand(Contexts.tyvars(ctx), uty);
+      switch (Statics_Typ.syn(ctx, ty)) {
+      | Some(k) => (line, Contexts.extend_tyvarctx(ctx, (id, k)), u_gen)
+      | None => (line, ctx, u_gen)
+      };
     }
   }
 and syn_fix_holes_opseq =

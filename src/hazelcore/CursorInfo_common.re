@@ -109,6 +109,8 @@ type typed =
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
   | OnType(Kind.t)
+  | OnTPatHole
+  | OnTPat
   /* (we will have a richer structure here later)*/
   | OnLine
   | OnRule;
@@ -118,6 +120,7 @@ type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
+  | TPat(CursorPosition.t, TPat.operand)
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
@@ -138,7 +141,8 @@ type t = {
 type zoperand =
   | ZExp(ZExp.zoperand)
   | ZTyp(ZTyp.zoperand)
-  | ZPat(ZPat.zoperand);
+  | ZPat(ZPat.zoperand)
+  | ZTPat(ZTPat.zoperand);
 
 let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
@@ -162,6 +166,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | BoolLit(_, _) => true
     | _ => false
     }
+  | TPat(_, _) => true
   | Typ(_, _)
   | ExpOp(_, _)
   | PatOp(_, _)
@@ -170,6 +175,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     switch (line) {
     | EmptyLine => true
     | LetLine(_, _, _)
+    | DefineLine(_, _)
     | ExpLine(_) => false
     }
   | Rule(_, _) => false
@@ -184,6 +190,8 @@ let is_empty_hole = (cursor_term: cursor_term): bool => {
   | Pat(_, _) => false
   | Typ(_, Hole) => true
   | Typ(_, _) => false
+  | TPat(_, EmptyHole(_)) => true
+  | TPat(_, _) => false
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
@@ -199,6 +207,7 @@ let is_empty_line = (cursor_term): bool => {
   | Exp(_, _)
   | Pat(_, _)
   | Typ(_, _)
+  | TPat(_, _)
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)

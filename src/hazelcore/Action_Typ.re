@@ -233,7 +233,11 @@ let mk_syn_text =
     ));
   | Some(TyVar(x)) =>
     if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
+      let _ = print_endline("Contains is true");
+      let _ = TyVarCtx.print(ctx.tyvars);
+      let _ = print_endline("--------");
       let idx = TyVarCtx.index_of_exn(Contexts.tyvars(ctx), x);
+      let _ = print_endline("index_of_exn finish");
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
       Succeeded((
         ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInVarHole, x))),
@@ -497,7 +501,10 @@ and syn_perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   /* Zipper */
   | (_, ZOperand(zoperand, (E, E))) =>
-    syn_perform_operand(ctx, a, (zoperand, k, u_gen))
+    let _ = print_endline("Typ perform_operand");
+    let _ = TyVarCtx.print(ctx.tyvars);
+    let _ = print_endline("-------");
+    syn_perform_operand(ctx, a, (zoperand, k, u_gen));
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
@@ -546,7 +553,8 @@ and syn_perform_operand =
   | (
       UpdateApPalette(_) |
       Construct(
-        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
+        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
+        SDefine,
       ) |
       SwapUp |
       SwapDown,
@@ -872,7 +880,8 @@ and ana_perform_operand =
   | (
       UpdateApPalette(_) |
       Construct(
-        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
+        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
+        SDefine,
       ) |
       SwapUp |
       SwapDown,

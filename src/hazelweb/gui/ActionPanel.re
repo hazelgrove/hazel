@@ -497,6 +497,7 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SInj(R)) => Added
   | Construct(SCase) => Added
   | Construct(SLet) => Added
+  | Construct(SDefine) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
   | SwapUp => Added

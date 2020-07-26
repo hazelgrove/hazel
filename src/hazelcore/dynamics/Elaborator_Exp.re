@@ -500,6 +500,15 @@ and syn_elab_line =
       LinesExpand(prelude, ctx, delta);
     }
   | EmptyLine => LinesExpand(d => d, ctx, delta)
+  | DefineLine(tp, ty) =>
+    switch (tp) {
+    | EmptyHole(_) => LinesExpand(d => d, ctx, delta)
+    | TyVar(_, id) =>
+      let hty = UHTyp.expand(ctx.tyvars, ty);
+      let new_ctx =
+        Contexts.extend_tyvarctx(ctx, (id, Kind.Singleton(hty)));
+      LinesExpand(d => d, new_ctx, delta);
+    }
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>

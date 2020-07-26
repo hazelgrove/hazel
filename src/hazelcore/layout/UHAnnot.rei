@@ -29,6 +29,7 @@ type t =
   | DelimGroup
   | EmptyLine
   | LetLine
+  | DefineLine
   | Step(int)
   | Term(term_data);
 

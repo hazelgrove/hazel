@@ -29,6 +29,7 @@ type shape =
   | SLet
   | SLine
   | SCase
+  | SDefine
   | SOp(operator_shape)
   | SApPalette(PaletteName.t);
 
@@ -65,6 +66,7 @@ let shape_to_string = (shape: shape): string => {
   | SLet => "let binding"
   | SLine => "new line"
   | SCase => "case expression"
+  | SDefine => "define binding"
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"
