@@ -10,7 +10,7 @@ open Types;
 
 let memo = Array.make(10, []);
 
-let resetMemo = () => Array.mapi((i, x) => memo[i] = [], memo);
+let resetMemo = () => Array.mapi((i, _) => memo[i] = [], memo);
 
 let rec partition_h = (n, m, i) =>
   if (m == i) {
@@ -26,14 +26,12 @@ let guessFst = (delta, gamma, typ, i) => {
     List.filter(
       e =>
         switch (Typing.getType(delta, gamma, e)) {
-        | Pair_t(typ, _) => true
-        | t => false
+        | Pair_t(typ', _) when typ' == typ => true
+        | _ => false
         },
       memo[i - 2],
     );
-  let ret = List.map(e => Fst(e), candidates);
-  List.map(e => {e}, ret);
-  ret;
+  List.map(e => Fst(e), candidates);
 };
 
 let guessSnd = (delta, gamma, typ, i) => {
@@ -41,7 +39,7 @@ let guessSnd = (delta, gamma, typ, i) => {
     List.filter(
       e =>
         switch (Typing.getType(delta, gamma, e)) {
-        | Pair_t(_, typ) => true
+        | Pair_t(_, typ') when typ == typ' => true
         | _ => false
         },
       memo[i - 2],
@@ -89,7 +87,7 @@ let guessCtors = (delta, gamma, typ, i) => {
   };
 };
 
-let guessApp = (delta, gamma: context, typ: type_, i: int, j: int): list(exp) => {
+let guessApp = (delta, gamma: context, _: type_, i: int, j: int): list(exp) => {
   let funcs =
     List.filter(
       e =>
@@ -105,7 +103,12 @@ let guessApp = (delta, gamma: context, typ: type_, i: int, j: int): list(exp) =>
         let candidates =
           List.filter(
             x => {
-              let Function_t(t1, t2) = Typing.getType(delta, gamma, e);
+              let t1 =
+                switch (Typing.getType(delta, gamma, e)) {
+                | Function_t(t1, _) => t1
+                | _ =>
+                  failwith("These should never have a non-functional type")
+                };
               let t = Typing.getType(delta, gamma, x);
               switch (e) {
               | Function(n, _, _, _)

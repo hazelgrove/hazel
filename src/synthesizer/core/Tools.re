@@ -11,7 +11,7 @@ let rec lookup = (key, plst) => {
 let rec add = ((k, v: pairlist('a, 'b)), plst) => {
   switch (plst) {
   | [] => [(k, v)]
-  | [(k, v'), ...xs] => [(k, List.concat([v, v'])), ...xs]
+  | [(k', v'), ...xs] when k == k' => [(k, List.concat([v, v'])), ...xs]
   | [p, ...xs] => [p, ...add((k, v), xs)]
   };
 };

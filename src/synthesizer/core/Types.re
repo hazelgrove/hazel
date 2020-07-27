@@ -100,13 +100,13 @@ and hole_context = Tools.pairlist(hole_identifier, (context, type_)) //parser_ge
 and adt =
   | List
   | Num
-  | Bool;
+  | Boolean;
 
 // Datatype context
 let sigma: Tools.pairlist(adt, Tools.pairlist(identifier, type_)) = [
   (List, [(0, Unit_t), (1, Pair_t(D(Num), D(List)))]),
   (Num, [(0, Unit_t), (1, D(Num))]),
-  (Bool, [(0, Unit_t), (1, Unit_t)]),
+  (Boolean, [(0, Unit_t), (1, Unit_t)]),
 ];
 
 // Examples

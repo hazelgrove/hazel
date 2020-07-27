@@ -22,7 +22,7 @@ let rec getType = (delta: hole_context, gamma: context, e: exp): type_ =>
   | Application(e1, e2) =>
     switch (getType(delta, gamma, e1)) {
     | Function_t(t1, t2) when getType(delta, gamma, e2) == t1 => t2
-    | x => failwith("Application type error")
+    | _ => failwith("Application type error")
     }
   | Hole(id) =>
     let (_, t) = Tools.lookup(id, delta);
@@ -47,10 +47,10 @@ let rec getType = (delta: hole_context, gamma: context, e: exp): type_ =>
     } else {
       failwith("Constructor did not typecheck");
     }
-  | Case(e1, branches) =>
+  | Case(_, branches) =>
     switch (branches) {
     | [] => failwith("No branches supplied to case")
-    | [(x, (v, e1)), ..._] => getType(delta, gamma, e1)
+    | [(_, (_, e1)), ..._] => getType(delta, gamma, e1)
     }
   | _ => failwith("Not yet implemented")
   };
@@ -95,13 +95,17 @@ let rec getResType = (delta, r: res) =>
     }
   | Rictor(_, _, r') => getResType(delta, r')
   | Rcase(r', bs, env) =>
-    let D(d) = getResType(delta, r');
+    let d =
+      switch (getResType(delta, r')) {
+      | D(x) => x
+      | _ => failwith("Expect an adt for the type of scrutinee")
+      };
     let gamma = generateContext(delta, env);
     switch (bs) {
     | [] => Any_t
-    | [(id, (_, e)), ...xs] =>
+    | [(id, (_, _)), ...xs] =>
       let t: type_ = Tools.lookup(d, sigma) |> Tools.lookup(id);
-      if (List.filter(((c, (_, e))) => getType(delta, gamma, e) == t, xs)
+      if (List.filter(((_, (_, e))) => getType(delta, gamma, e) == t, xs)
           == xs) {
         t;
       } else {
@@ -174,9 +178,11 @@ let rec generateHoleContextU_h = (delta, us) => {
 
 let generateHoleContextU = us => generateHoleContextU_h([], List.rev(us));
 
-let rec generateHoleContextF = fs => {
-  switch (fs) {
-  | [] => []
-  | [(id, e), ...xs] => []
-  };
-};
+/*
+ let generateHoleContextF = fs => {
+   switch (fs) {
+   | [] => []
+   | [(id, e), ...xs] => []
+   };
+ };
+ */

@@ -46,7 +46,11 @@ let rec unevaluate = (delta, f, res: res, ex: example): option(unevalcons) => {
   // unevaluation on r1 with a new example.
   | (_, Rapp(r1, r2)) =>
     if (Typecasting.castable(r2)) {
-      let Some(v) = Typecasting.resToVal(r2);
+      let v =
+        switch (Typecasting.resToVal(r2)) {
+        | Some(x) => x
+        | None => failwith("Since it's castable, this is never reached")
+        };
       unevaluate(delta, f, r1, Efunc(v, ex));
     } else {
       None; // fail
@@ -66,7 +70,11 @@ let rec unevaluate = (delta, f, res: res, ex: example): option(unevalcons) => {
     let cons =
       List.map(
         ((ctor_id, (p, e1))) => {
-          let D(t) = Typing.getResType(delta, r');
+          let t =
+            switch (Typing.getResType(delta, r')) {
+            | D(x) => x
+            | _ => failwith("Type error, scrutinee isn't adt")
+            };
           let k1 = unevaluate(delta, f, r', Ector(ctor_id, t, Top));
           let patBinds =
             List.map(
@@ -84,7 +92,7 @@ let rec unevaluate = (delta, f, res: res, ex: example): option(unevalcons) => {
       |> List.filter(optionPred);
     switch (cons) {
     | [] => None
-    | [k, ...xs] => k
+    | [k, ..._] => k
     };
   // When none of the inference rules apply
   | _ => None // fail
@@ -114,7 +122,7 @@ and getPatRes_h = (id, p, r) =>
     | (Some(r'), None) => Some(Rfst(r'))
     | (None, Some(r')) => Some(Rsnd(r'))
     | (None, None) => failwith("Id not found in pattern")
-    | (Some(r1), Some(r2)) =>
+    | (Some(_), Some(_)) =>
       failwith(
         "The same variable id is bound in two places in the same pattern",
       )

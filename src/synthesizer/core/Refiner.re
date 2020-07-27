@@ -12,8 +12,16 @@ let refinable = (typ, exs) =>
   | D(adt) =>
     switch (exs) {
     | [] => true
-    | [(env, Ector(id, adt, _)), ...xs] =>
-      List.length(List.filter(((_, Ector(id', adt, _))) => id == id', xs))
+    | [(_, Ector(id, adt', _)), ...xs] when adt == adt' =>
+      List.length(
+        List.filter(
+          ((_, ex)) => switch (ex) {
+            | Ector(id', adt', _) => id == id' && adt == adt'
+            | _ => false
+          },
+          xs,
+        ),
+      )
       == List.length(xs)
     | _ => false
     }
@@ -47,7 +55,7 @@ let rec allFuncs = exs => {
 let allConstructs = (exs): option(int) => {
   let c =
     switch (exs) {
-    | [(_, Ector(id, _, ex)), ...xs] => Some(id)
+    | [(_, Ector(id, _, _)), ..._] => Some(id)
     | _ => None
     };
   switch (c) {
@@ -55,9 +63,9 @@ let allConstructs = (exs): option(int) => {
   | Some(i) =>
     let haveIdC =
       List.filter(
-        ((env, ex)) => {
+        ((_, ex)) => {
           switch (ex) {
-          | Ector(i, _, _) => true
+          | Ector(i', _, _) when i == i' => true
           | _ => false
           }
         },
@@ -71,28 +79,57 @@ let allConstructs = (exs): option(int) => {
   };
 };
 
-let firstExs = exs => List.map(((env, Epair(ex1, _))) => (env, ex1), exs);
+let firstExs = exs =>
+  List.map(
+    ((env, ex)) =>
+      switch (ex) {
+      | Epair(ex1, _) => (env, ex1)
+      | _ => failwith("Expected all examples to be of the form Epair")
+      },
+    exs,
+  );
 
-let sndExs = exs => List.map(((env, Epair(_, ex2))) => (env, ex2), exs);
+let sndExs = exs =>
+  List.map(
+    ((env, ex)) =>
+      switch (ex) {
+      | Epair(_, ex2) => (env, ex2)
+      | _ => failwith("Expected all examples to be of the form Epair")
+      },
+    exs,
+  );
 
 let prepFuncExs = (exs, e) => {
-  let Function(n, x, t, e') = e;
+  let (n, x, t, e') = switch (e) {
+    | Function(n, x, t, e') => (n, x, t, e')
+    | _ => failwith("This shouldn't happen dingus")
+  };
   List.map(
-    ((env, Efunc(v, ex))) =>
-      (
-        [
-          (n, Rfunc(n, x, t, e', env)),
-          (x, Typecasting.valToRes(v)),
-          ...env,
-        ],
-        ex,
-      ),
+    ((env, ex)) =>
+      switch (ex) {
+      | Efunc(v, ex) => (
+          [
+            (n, Rfunc(n, x, t, e', env)),
+            (x, Typecasting.valToRes(v)),
+            ...env,
+          ],
+          ex,
+        )
+      | _ => failwith("Expected all examples to be of form Efunc")
+      },
     exs,
   );
 };
 
 let prepConsExs = exs =>
-  List.map(((env, Ector(id, _, ex))) => (env, ex), exs);
+  List.map(
+    ((env, ex)) =>
+      switch (ex) {
+      | Ector(_, _, ex) => (env, ex)
+      | _ => failwith("Expected all examples of form Ector")
+      },
+    exs,
+  );
 
 // Takes in hole context, context, goal type, and example constraints
 // To Do:

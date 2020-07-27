@@ -1,6 +1,6 @@
-open ../engine/project/src/Types;
-open ../engine/project/src/IdGenerator;
-open ../../hazelcore/UHExp;
+open Types;
+open IdGenerator;
+open UHExp;
 
 /*
    The goal is to convert a UHExp into an exp.
@@ -18,8 +18,8 @@ let hashVar = (v) => {
         0)
 }
 
-let rec hTypeToType_ = (t: ../../hazelcore/Htyp.t):type_ => {
-    open ../../hazelcore/Htyp;
+let rec hTypeToType_ = (t: Htyp.t):type_ => {
+    open Htyp;
     switch (t) {
         | Hole => Any_t
         | Int => Int_t
@@ -61,7 +61,7 @@ and operandToExp = (op: UHExp.operand):Exp => {
                 | _ => failwith("Function pattern should only be hole or var.")
             }
         }
-        | Inj(_, _)) => Unit
+        | Inj(_, _) => Unit
         | Case(_, e, rules) => {
             switch (getType(e)) {
                 | D(adt) => {
@@ -70,9 +70,9 @@ and operandToExp = (op: UHExp.operand):Exp => {
                         ((n, typ), rule) => {
                             let Rule(pat, uhexp) = rule;
                             let pattern = switch (pat) {
-                                | Var(_, _, v) => V(hashVar(v))
-                                | _ => failwith("Expected var within branch")
-                                }
+                                | Var(_, _, v) => V(hashVar(v));
+                                | _ => failwith("Expected var within branch");
+                                };
                             (n, (pattern, UHExpToExp(uhexp)))
                         },
                         constructors,

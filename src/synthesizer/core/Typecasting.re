@@ -60,7 +60,7 @@ let rec resToVal = (res: res): option(value) => {
     }
   | Rapp(r1, r2) =>
     switch (r1) {
-    | Rfunc(name, id, typ, e, env) =>
+    | Rfunc(name, id, _, e, env) =>
       Evaluator.eval([(name, r1), (id, r2), ...env], e) |> resToVal
     | _ => None
     }
