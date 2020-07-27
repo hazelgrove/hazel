@@ -9,7 +9,7 @@
  ;; This library ensures that all modules are type checked even if they are not used.
  (name hazelweb)
  (modules :standard \ Main)
- (libraries hazelcore incr_dom synthesizer)
+ (libraries hazelcore incr_dom synthesis)
  (wrapped false)
  (js_of_ocaml
   (flags
