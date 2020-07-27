@@ -801,8 +801,8 @@ and syn_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
       switch (d1, unop) {
-      | (IntLit(i), IMinus) => Elaborates(IntLit(- i), ty1, delta)
-      | (FloatLit(f), FMinus) => Elaborates(FloatLit(-. f), ty1, delta)
+      | (IntLit(i), UnaryMinus) => Elaborates(IntLit(- i), ty1, delta)
+      | (FloatLit(f), FUnaryMinus) => Elaborates(FloatLit(-. f), ty1, delta)
       | (_, _) => DoesNotElaborate
       }
     }

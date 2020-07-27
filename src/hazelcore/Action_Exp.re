@@ -17,6 +17,11 @@ let operator_of_shape =
   | SVBar => None
   };
 
+let unop_of_shape = (os: Action_common.unop_shape): option(UHExp.unop) =>
+  switch (os) {
+  | SUnaryMinus => Some(UnaryMinus)
+  };
+
 let shape_of_operator =
     (op: UHExp.binop): option(Action_common.operator_shape) =>
   switch (op) {
@@ -1366,13 +1371,15 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+        Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+        UnaryOp(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
-        ApPalette(_),
+        ApPalette(_) |
+        UnaryOp(_),
       ),
     ) =>
     Failed
@@ -1500,22 +1507,10 @@ and syn_perform_operand =
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
 
-  | (Construct(SCase), CursorE(_, operand)) =>
-    Succeeded(
-      mk_SynExpandsToCase(
-        ~u_gen,
-        ~scrut=UHExp.Block.wrap'(OpSeq.wrap(operand)),
-        (),
-      ),
-    )
-  | (Construct(SLet), CursorE(_, operand)) =>
-    Succeeded(
-      mk_SynExpandsToLet(
-        ~u_gen,
-        ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
-        (),
-      ),
-    )
+  | (Construct(SUnop(sop)), CursorE(OnText(j), _))
+      when ZExp.is_before_zoperand(zoperand) =>
+    /* TODO ANAND wrap the zoperand in a UnaryOpZU with cursor After the unop */
+    failwith("not implemented")
 
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
@@ -1705,6 +1700,8 @@ and syn_perform_operand =
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
   | (SwapLeft | SwapRight, CursorE(_)) => Failed
+  | (SwapUp | SwapDown | SwapLeft | SwapRight, UnaryOpZU(_) | UnaryOpZN(_)) =>
+    failwith("not implemented.")
 
   /* Zipper Cases */
   | (_, ParenthesizedZ(zbody)) =>
@@ -1720,6 +1717,33 @@ and syn_perform_operand =
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
+  | (_, UnaryOpZU(_, zunop, _)) =>
+    switch (a, zunop) {
+    /* invalid cursor positions */
+    | (_, (OnText(_) | OnDelim(_, _), _)) => Failed
+    /* movement handled at top level */
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
+      failwith("unimplemented")
+    /* swapping (unimplemented) */
+    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) =>
+      failwith("unimplemented")
+
+    /* Backspace and Delete */
+    | (Delete, (CursorPosition.OnOp(Before), _))
+    | (Backspace, (CursorPosition.OnOp(After), _)) =>
+      /* TODO ANAND remove the unary operator, move cursor to beginning of operand? */ failwith(
+        "not implemented.",
+      )
+    | (Delete, (CursorPosition.OnOp(After), _))
+    | (Backspace, (CursorPosition.OnOp(Before), _)) =>
+      /* TODO ANAND escape to side */ failwith("not implemented.")
+
+    | (Construct(_), _) => failwith("not implemented")
+    | (UpdateApPalette(_), _) => failwith("not implemented")
+    | (Init, _) => failwith("Init action should not be performed.")
+    }
+  | (_, UnaryOpZN(_, _, zoperand)) =>
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
   | (_, LamZP(_, zp, ann, body)) =>
     let ty1 =
       switch (ann) {
@@ -2744,7 +2768,8 @@ and ana_perform_operand =
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
         ApPalette(_),
-      ),
+      ) |
+      CursorE(_, UnaryOp(_)),
     ) =>
     Failed
 
