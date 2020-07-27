@@ -2,6 +2,12 @@ open ../engine/project/src/Types;
 open ../engine/project/src/IdGenerator;
 open ../../hazelcore/UHExp;
 
+/*
+   The goal is to convert a UHExp into an exp.
+   
+   This requires conversion of lines into expressions.
+*/
+
 let hashVar = (v) => {
     Array.init(
         Js.String.length(v),
@@ -50,15 +56,41 @@ and operandToExp = (op: UHExp.operand):Exp => {
         | AssertList(_) => Unit 
         | Lam(_, pat, Some(t), block) => {
             switch (pat) {
-                | (EmptyHole(m), _) => Unit 
+                | (EmptyHole(m), _) => Hole(m) 
                 | (Var(_, _, v), _) => Function(hashVar(v), hTypeToType(t), UHExpToExp(block))
                 | _ => failwith("Function pattern should only be hole or var.")
             }
         }
         | Inj(_, _)) => Unit
-        | Case(_, e, _) => Unit 
+        | Case(_, e, rules) => {
+            switch (getType(e)) {
+                | D(adt) => {
+                    let constructors = Tools.lookup(adt, sigma);
+                    let branches = List.map2(
+                        ((n, typ), rule) => {
+                            let Rule(pat, uhexp) = rule;
+                            let pattern = switch (pat) {
+                                | Var(_, _, v) => V(hashVar(v))
+                                | _ => failwith("Expected var within branch")
+                                }
+                            (n, (pattern, UHExpToExp(uhexp)))
+                        },
+                        constructors,
+                        rules);
+                    Case(UHExpToExp(e), branches)
+                }
+                | _ => failwith("Type needs to be some adt")
+                }
+        }
         | Parenthesized(e) => UHExpToExp(e)
         | ApPalette(_, _, _, _) => Unit 
+        }
+}
+
+and getType = (op: UHExp.operand):Exp => {
+    switch (Statics_Exp.syn(Contexts.empty, op)) {
+        | None => failwith("Typing could not be accomplished")
+        | Some(htyp) => hTypeToType_(htyp)
         }
 }
 
