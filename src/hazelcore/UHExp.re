@@ -128,10 +128,14 @@ module Block = {
 
   let split_conclusion = (block: block): option((list(line), opseq)) =>
     switch (block |> ListUtil.split_last) {
-    | None => None
+    | None =>
+      print_endline("UHExp132");
+      None;
     | Some((leading, last)) =>
       switch (last |> Line.get_opseq) {
-      | None => None
+      | None =>
+        print_endline("UHExp137");
+        None;
       | Some(opseq) => Some((leading, opseq))
       }
     };

@@ -244,12 +244,12 @@ let next_card = model => {
 let add_cell = model => {
   let cell_num = model.cell_num + 1;
   let model = {...model, cell_num};
-  model |> focus_cell;
+  model |> map_program(Program.add_cell_boundary) |> focus_cell;
 };
 let remove_cell = model => {
   let cell_num = model.cell_num - 1;
   let model = {...model, cell_num};
-  model |> focus_cell;
+  model |> map_program(Program.remove_cell_boundary) |> focus_cell;
 };
 
 let perform_edit_action = (a: Action_common.t, model: t): t => {

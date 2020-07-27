@@ -462,10 +462,14 @@ let rec syn_elab =
 and syn_elab_block =
     (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
-  | None => DoesNotElaborate
+  | None =>
+    print_endline("Elab466");
+    DoesNotElaborate;
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
+    | LinesDoNotExpand =>
+      print_endline("Elab469");
+      DoesNotElaborate;
     | LinesExpand(prelude, ctx, delta) =>
       switch (syn_elab_opseq(ctx, delta, conclusion)) {
       | DoesNotElaborate => DoesNotElaborate

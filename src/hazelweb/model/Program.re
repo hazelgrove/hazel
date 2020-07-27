@@ -32,6 +32,35 @@ let blur = program => {...program, is_focused: false};
 
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
+let add_cell_boundary = program => {
+  let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
+  let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+  let edit_state = (
+    (
+      prefix,
+      zline,
+      suffix
+      @ [
+        UHExp.CommentLine("CellBoundary"),
+        UHExp.ExpLine(OpSeq.wrap(hole)),
+      ],
+    ),
+    ty,
+    u_gen,
+  );
+  program |> put_edit_state(edit_state);
+};
+
+let remove_cell_boundary = program => {
+  let (zexp, ty, u_gen) = program.edit_state;
+  let edit_state = (
+    ZExp.remove_last_occurred(zexp, UHExp.CommentLine("CellBoundary")),
+    ty,
+    u_gen,
+  );
+  program |> put_edit_state(edit_state);
+};
+
 let get_zexp = program => {
   let (ze, _, _) = program.edit_state;
   ze;

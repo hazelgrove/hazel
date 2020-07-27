@@ -1109,3 +1109,29 @@ and cursor_on_EmptyHole_zrule =
   | CursorR(_)
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+
+let rec remove_last_occurred_rec = (exp: UHExp.line, l: list(UHExp.line)) => {
+  switch (l) {
+  | [] => ([], false)
+  | [x, ...xs] =>
+    if (x == exp) {
+      (xs |> List.rev, true);
+    } else {
+      remove_last_occurred_rec(exp, xs);
+    }
+  };
+};
+
+let remove_last_occurred = (zexp: t, exp: UHExp.line) => {
+  let (prefix, zline, suffix) = zexp;
+  let (suffix, flag) = suffix |> List.rev |> remove_last_occurred_rec(exp);
+  if (flag == true) {
+    (prefix, zline, suffix);
+  } else {
+    let (prefix, _) = prefix |> List.rev |> remove_last_occurred_rec(exp);
+    switch (prefix |> List.rev) {
+    | [] => ZBlock.wrap(CursorE(OnDelim(0, Before), UHExp.EmptyHole(0))) //will not happen
+    | [x, ...xs] => (xs |> List.rev, place_after_line(x), [])
+    };
+  };
+};
