@@ -1,5 +1,16 @@
 open ../engine/project/src/Types;
+open ../engine/project/src/IdGenerator;
 open ../../hazelcore/UHExp;
+
+let hashVar = (v) => {
+    Array.init(
+        Js.String.length(v),
+        (i) => Js.String.charCodeAt(i, v))
+    |> Array.to_list
+    |> List.fold_left(
+        (accum, chr) => ((accum lsl 5) - accum) + chr,
+        0)
+}
 
 let rec hTypeToType_ = (t: ../../hazelcore/Htyp.t):type_ => {
     open ../../hazelcore/Htyp;
@@ -14,28 +25,38 @@ let rec hTypeToType_ = (t: ../../hazelcore/Htyp.t):type_ => {
     }
 }
 
-and UHExpToExp = (e: UHExp.t):exp => {
+and UHExpToExp = (e: UHExp.t):list(exp) => {
     switch (e) {
-        | [] => Unit 
+        | [] => [] 
         | [EmptyLine, ...xs] => UHExpToExp(xs)
-        | [ExpLine(seq), ...xs] => Pair(opSeqToExp(seq), UHExpToExp(xs))
+        | [ExpLine(seq), ...xs] => [opSeqToExp(seq), ...UHExpToExp(xs)]
+        | [LetLine(pat, t, block), ...xs] => {
+            let element = opSeqToExp(pat);
+            [element, ...UHExpToExp(xs)]
+        }
         | _ => failwith("Not yet implemented")
     }
 }
 
 and operandToExp = (op: UHExp.operand):Exp => {
     switch (op) {
-        | EmptyHole(x) => Hole(0)
+        | EmptyHole(x) => Hole(x)
         | InvalidText(x, y) => failwith(y)
-        | Var(_, _, v) => Var(0)
+        | Var(_, _, v) => Var(hashVar(v))
         | IntLit(_, s) => Int(int_of_string(s))
         | FloatLit(_, s) => Float(float_of_string(s))
         | BoolLit(_, s) => Bool(bool_of_string(s))
         | ListNil(_) => Ctor(0, List, Unit)
         | AssertList(_) => Unit 
-        | Lam(_, _, _) => Unit 
-        | Inj(_, )) => Unit
-        | Case(_, _, _) => Unit 
+        | Lam(_, pat, Some(t), block) => {
+            switch (pat) {
+                | (EmptyHole(m), _) => Unit 
+                | (Var(_, _, v), _) => Function(hashVar(v), hTypeToType(t), UHExpToExp(block))
+                | _ => failwith("Function pattern should only be hole or var.")
+            }
+        }
+        | Inj(_, _)) => Unit
+        | Case(_, e, _) => Unit 
         | Parenthesized(e) => UHExpToExp(e)
         | ApPalette(_, _, _, _) => Unit 
         }
@@ -67,10 +88,17 @@ and seqToExp = (seq: Seq.t):Exp => {
                 | Or => Or(o, seqToExp(seq'))
                 }
     }
-}
+};
 
 and opSeqToExp = (seq: OpSeq.t):exp => {
     let OpSeq(_, seq') = seq;
     seqToExp(seq');
+}
+
+/*and expToSeq = (e: exp):Seq.t => {
+    switch (e) {
+        | Int(x) => S(IntL
+    
 };
+*/
 
