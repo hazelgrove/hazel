@@ -79,17 +79,18 @@ let get_expansion = (program: t): DHExp.t =>
 exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
-  switch (program |> get_expansion |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) =>
+let get_result = (program: t): (Result.t, AssertMap.t) =>
+  switch (AssertMap.empty |> evaluate(get_expansion(program))) {
+  | (InvalidInput(_), _) => raise(InvalidInput)
+  | (BoxedValue(d), assert_map) =>
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, BoxedValue(d_renumbered));
-  | Indet(d) =>
+    print_endline(Sexplib.Sexp.to_string(AssertMap.sexp_of_t(assert_map)));
+    ((d_renumbered, hii, BoxedValue(d_renumbered)), assert_map);
+  | (Indet(d), assert_map) =>
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, Indet(d_renumbered));
+    ((d_renumbered, hii, Indet(d_renumbered)), assert_map);
   };
 
 exception FailedAction;
@@ -144,6 +145,7 @@ let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
       UHDoc_Exp.mk,
       ~memoize=memoize_doc,
       ~enforce_inline=false,
+      ~map=snd(get_result(program)),
       get_uhexp(program),
     )
   });

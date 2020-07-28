@@ -11,6 +11,10 @@ type t =
   | InconsistentBranches(HoleInstance.t)
   | Invalid(HoleInstance.t)
   | AssertionFail
+  | AssertPass
+  | AssertFail
+  | AssertIndet
+  | AssertComp
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration

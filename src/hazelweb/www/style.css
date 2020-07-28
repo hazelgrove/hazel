@@ -806,6 +806,30 @@ h1 {
   border: 2px dotted;
   margin: -1px;
 }
+.DHCode .AssertPass:after{
+  content: "✔";
+  color: greenyellow;
+  font-size: 70%;
+  vertical-align: top;
+}
+.DHCode .AssertFail:after{
+  content: "✘";
+  color:red;
+  font-size: 70%;
+  vertical-align: top;
+}
+.DHCode .AssertIndet:after{
+  content: "△";
+  color: #BBB;
+  font-size: 70%;
+  vertical-align: top;
+}
+.DHCode .AssertComp:after{
+  content: "1";
+  color: #BBB;
+  font-size: 70%;
+  vertical-align: top;
+}
 
 .DHCode .FailedCastDelim {
   color: red;
@@ -1366,12 +1390,32 @@ h1 {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   /* line-height: initial; */
 }
-.AssertNumber:after{
+
+.AssertPass:after{
+  content: "✔";
+  color: #BBB;
+  font-size: 70%;
+  vertical-align: top;
+}
+.AssertFail:after{
+  content: "✘";
+  color: #BBB;
+  font-size: 70%;
+  vertical-align: top;
+}
+.AssertIndet:after{
+  content: "△";
+  color: #BBB;
+  font-size: 70%;
+  vertical-align: top;
+}
+.AssertComp:after{
   content: "1";
   color: #BBB;
   font-size: 70%;
   vertical-align: top;
 }
+
 
 #code-container .HoleLabel span {
   font-size: 65%;

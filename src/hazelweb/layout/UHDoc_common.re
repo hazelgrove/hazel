@@ -8,16 +8,16 @@ type memoization_value('a) = {
 };
 
 let memoize =
-    (f: (~memoize: bool, ~enforce_inline: bool, 'k) => 'v)
-    : ((~memoize: bool, ~enforce_inline: bool, 'k) => 'v) => {
+    (f: (~memoize: bool, ~enforce_inline: bool, ~map: AssertMap.t, 'k) => 'v)
+    : ((~memoize: bool, ~enforce_inline: bool, ~map: AssertMap.t, 'k) => 'v) => {
   let table: WeakMap.t('k, memoization_value('v)) = WeakMap.mk();
-  (~memoize: bool, ~enforce_inline: bool, k: 'k) => (
+  (~memoize: bool, ~enforce_inline: bool, ~map: AssertMap.t, k: 'k) => (
     if (!memoize) {
-      f(~memoize, ~enforce_inline, k);
+      f(~memoize, ~enforce_inline, ~map, k);
     } else {
       switch (WeakMap.get(table, k)) {
       | None =>
-        let v = f(~memoize, ~enforce_inline, k);
+        let v = f(~memoize, ~enforce_inline, ~map, k);
         let m =
           if (enforce_inline) {
             {inline_true: Some(v), inline_false: None};
@@ -31,7 +31,7 @@ let memoize =
           switch (m.inline_true) {
           | Some(v) => v
           | None =>
-            let v = f(~memoize, ~enforce_inline, k);
+            let v = f(~memoize, ~enforce_inline, ~map, k);
             m.inline_true = Some(v);
             v;
           };
@@ -39,7 +39,7 @@ let memoize =
           switch (m.inline_false) {
           | Some(v) => v
           | None =>
-            let v = f(~memoize, ~enforce_inline, k);
+            let v = f(~memoize, ~enforce_inline, ~map, k);
             m.inline_false = Some(v);
             v;
           };
@@ -88,7 +88,7 @@ module Delim = {
   let open_Lam = (): t => mk(~index=2, ".{");
   let close_Lam = (): t => mk(~index=3, "}");
 
-  let assertlit = () /*numbering: string*/: t => {
+  let assertlit = (n, map) /*numbering: string*/: t => {
     //Doc.(hcats([text("assert"),text(" ") , len])) // grey triangle, green checkmark, red "x" mark / first need to check for the numbering
     //let doc1 = Doc.text("assert") |> Doc.annot(UHAnnot.AssertNumber);
     //let doc2 = Doc.text(numbering); |> Doc.annot(UHAnnot.AssertNumber);
@@ -99,9 +99,30 @@ module Delim = {
       }*/
     //|> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()));
     //Doc.(hcats([doc1, doc2]))
-    Doc.text("assert")
-    |> Doc.annot(UHAnnot.AssertNumber)
-    |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()));
+    switch (AssertMap.lookup(n, map)) {
+    | Some(a) =>
+      switch (AssertMap.check(a)) {
+      | Pass =>
+        Doc.text("assert")
+        |> Doc.annot(UHAnnot.AssertPass)
+        |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
+      | Fail =>
+        Doc.text("assert")
+        |> Doc.annot(UHAnnot.AssertFail)
+        |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
+      | Indet =>
+        Doc.text("assert")
+        |> Doc.annot(UHAnnot.AssertIndet)
+        |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
+      | Comp =>
+        Doc.text("assert")
+        |> Doc.annot(UHAnnot.AssertComp)
+        |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
+      }
+    | None =>
+      Doc.text("assert")
+      |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=6, ()))
+    };
   };
 
   let open_Case = (): t => mk(~index=0, "case");
@@ -290,8 +311,14 @@ let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
 let mk_AssertLit =
-    (~sort: TermSort.t, ~err: ErrStatus.t, () /*numbering: string*/): t =>
-  Delim.assertlit() |> annot_Operand(~sort, ~err);
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t,
+      n: AssertNumber.t,
+      map: AssertMap.t /*numbering: string*/,
+    )
+    : t =>
+  Delim.assertlit(n, map) |> annot_Operand(~sort, ~err);
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Operand(~sort, ~err);
@@ -427,7 +454,8 @@ let mk_LetLine =
 let rec mk_BinOp =
         (
           ~sort: TermSort.t,
-          ~mk_operand: (~enforce_inline: bool, 'operand) => t,
+          ~mk_operand:
+             (~enforce_inline: bool, ~map: AssertMap.t, 'operand) => t,
           ~mk_operator: 'operator => t,
           ~inline_padding_of_operator: 'operator => (t, t),
           ~enforce_inline: bool,
@@ -447,7 +475,8 @@ let rec mk_BinOp =
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    mk_operand(~enforce_inline, operand) |> annot_Step(n);
+    mk_operand(~enforce_inline, ~map=AssertMap.empty, operand)
+    |> annot_Step(n);
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let op_doc = mk_operator(op) |> annot_DelimGroup;
@@ -468,13 +497,15 @@ let mk_NTuple =
     (
       ~sort: TermSort.t,
       ~get_tuple_elements: Skel.t('operator) => list(Skel.t('operator)),
-      ~mk_operand: (~enforce_inline: bool, 'operand) => t,
+      ~mk_operand: (~enforce_inline: bool, ~map: AssertMap.t, 'operand) => t,
       ~mk_operator: 'operator => t,
       ~inline_padding_of_operator: 'operator => (t, t),
       ~enforce_inline: bool,
+      ~map: AssertMap.t,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
     )
     : t => {
+  print_endline(string_of_bool(map == map));
   let mk_BinOp =
     mk_BinOp(
       ~sort,

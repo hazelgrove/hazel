@@ -19,7 +19,10 @@ type t =
   | Padding
   | HoleLabel({len: int})
   //| AssertLabel
-  | AssertNumber
+  | AssertPass
+  | AssertFail
+  | AssertIndet
+  | AssertComp
   | Token({
       shape: token_shape,
       len: int,
