@@ -410,7 +410,7 @@ and syn_fix_holes_skel' =
       | BinOp(_, Space, skel1, skel2) =>
         let ((skel1, seq), ctx, u_gen, changed1) =
           Lazy.force(
-            ana_fix_holes_skel,
+            ana_fix_holes_skel',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -419,7 +419,7 @@ and syn_fix_holes_skel' =
           );
         let ((skel2, seq), ctx, u_gen, changed2) =
           Lazy.force(
-            ana_fix_holes_skel,
+            ana_fix_holes_skel',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -448,7 +448,7 @@ and syn_fix_holes_skel' =
         let ty = HTyp.List(ty_elt);
         let ((skel2, seq), ctx, u_gen, changed2) =
           Lazy.force(
-            ana_fix_holes_skel,
+            ana_fix_holes_skel',
             ctx,
             u_gen,
             ~renumber_empty_holes,
@@ -580,7 +580,7 @@ and ana_fix_holes_opseq' =
                  ) => {
                    let ((skel, seq), ctx, u_gen, changed_elem) =
                      Lazy.force(
-                       ana_fix_holes_skel,
+                       ana_fix_holes_skel',
                        ctx,
                        u_gen,
                        ~renumber_empty_holes,
@@ -601,7 +601,7 @@ and ana_fix_holes_opseq' =
               fun
               | (rev_skels, seq, ctx, u_gen, changed_elems) => {
                   let changed = err != NotInHole || changed_elems;
-                  let skel = rev_skels |> List.rev |> UHPat.mk_tuple;
+                  let skel = UHPat.mk_tuple(List.rev(rev_skels));
                   (OpSeq.OpSeq(skel, seq), ctx, u_gen, changed);
                 }
             )
@@ -658,11 +658,7 @@ and ana_fix_holes_opseq' =
               );
             } else {
               let (err, u_gen, changed) =
-                Statics_common.set_hole_reason(
-                  u_gen,
-                  WrongLength,
-                  UHPat.get_err_status_opseq(opseq),
-                );
+                Statics_common.set_hole_reason(u_gen, WrongLength, err);
               let (opseq, (_, _), u_gen, changed_elems) =
                 Lazy.force(
                   syn_fix_holes_opseq',
@@ -688,7 +684,7 @@ and ana_fix_holes_opseq' =
       )
     )
   )
-and ana_fix_holes_skel =
+and ana_fix_holes_skel' =
   lazy(
     stable_ana_fixer(
       (
@@ -701,12 +697,12 @@ and ana_fix_holes_skel =
       (
         switch (skel) {
         | BinOp(_, Comma, _, _) =>
-          failwith("Pat.ana_fix_holes_skel: tuples handled at opseq level")
+          failwith("Pat.ana_fix_holes_skel': tuples handled at opseq level")
         | Placeholder(n) =>
           let pn = Seq.nth_operand(n, seq);
           let (pn, ctx, u_gen, changed) =
             Lazy.force(
-              ana_fix_holes_operand,
+              ana_fix_holes_operand',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -718,7 +714,7 @@ and ana_fix_holes_skel =
         | BinOp(err, Space, skel1, skel2) =>
           let ((skel1, seq), ctx, u_gen, changed1) =
             Lazy.force(
-              ana_fix_holes_skel,
+              ana_fix_holes_skel',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -727,7 +723,7 @@ and ana_fix_holes_skel =
             );
           let ((skel2, seq), ctx, u_gen, changed2) =
             Lazy.force(
-              ana_fix_holes_skel,
+              ana_fix_holes_skel',
               ctx,
               u_gen,
               ~renumber_empty_holes,
@@ -752,7 +748,7 @@ and ana_fix_holes_skel =
           | Some(ty_elt) =>
             let ((skel1, seq), ctx, u_gen, changed1) =
               Lazy.force(
-                ana_fix_holes_skel,
+                ana_fix_holes_skel',
                 ctx,
                 u_gen,
                 ~renumber_empty_holes,
@@ -762,7 +758,7 @@ and ana_fix_holes_skel =
             let ty_list = HTyp.List(ty_elt);
             let ((skel2, seq), ctx, u_gen, changed2) =
               Lazy.force(
-                ana_fix_holes_skel,
+                ana_fix_holes_skel',
                 ctx,
                 u_gen,
                 ~renumber_empty_holes,
@@ -789,26 +785,17 @@ and ana_fix_holes_skel =
             let ty_list = HTyp.List(ty_elt);
             let ((skel2, seq), ctx, u_gen, changed2) =
               Lazy.force(
-                ana_fix_holes_skel,
+                ana_fix_holes_skel',
                 ctx,
                 u_gen,
                 ~renumber_empty_holes,
                 (skel2, seq),
                 ty_list,
               );
-            let (err, u_gen, changed) =
-              switch (err) {
-              | InHole(TypeInconsistent, _) => (
-                  err,
-                  u_gen,
-                  changed1 || changed2,
-                )
-              | _ =>
-                let (u, u_gen) = MetaVarGen.next(u_gen);
-                (InHole(TypeInconsistent, u), u_gen, true);
-              };
+            let (err, u_gen, changed_outer) =
+              Statics_common.set_hole_reason(u_gen, TypeInconsistent, err);
             let skel = Skel.BinOp(err, Operators_Pat.Cons, skel1, skel2);
-            ((skel, seq), ctx, u_gen, changed);
+            ((skel, seq), ctx, u_gen, changed_outer || changed1 || changed2);
           }
         }: (
           (UHPat.skel, UHPat.seq),
@@ -819,7 +806,7 @@ and ana_fix_holes_skel =
       )
     )
   )
-and ana_fix_holes_operand =
+and ana_fix_holes_operand' =
   lazy(
     stable_ana_fixer(
       (

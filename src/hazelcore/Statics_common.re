@@ -75,3 +75,20 @@ let set_hole_reason =
     let err = ErrStatus.InHole(reason, u);
     (err, u_gen, true);
   };
+
+let set_inconsistent_branches =
+    (
+      u_gen: MetaVarGen.t,
+      rule_types: list(HTyp.t),
+      case_err: CaseErrStatus.t,
+    ) =>
+  switch (case_err) {
+  | InconsistentBranches(rule_types', _) when rule_types == rule_types' => (
+      case_err,
+      u_gen,
+      false,
+    )
+  | _ =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    (InconsistentBranches(rule_types, u), u_gen, true);
+  };
