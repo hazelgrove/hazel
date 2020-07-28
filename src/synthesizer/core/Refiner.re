@@ -15,10 +15,11 @@ let refinable = (typ, exs) =>
     | [(_, Ector(id, adt', _)), ...xs] when adt == adt' =>
       List.length(
         List.filter(
-          ((_, ex)) => switch (ex) {
+          ((_, ex)) =>
+            switch (ex) {
             | Ector(id', adt', _) => id == id' && adt == adt'
             | _ => false
-          },
+            },
           xs,
         ),
       )
@@ -100,10 +101,11 @@ let sndExs = exs =>
   );
 
 let prepFuncExs = (exs, e) => {
-  let (n, x, t, e') = switch (e) {
+  let (n, x, t, e') =
+    switch (e) {
     | Function(n, x, t, e') => (n, x, t, e')
     | _ => failwith("This shouldn't happen dingus")
-  };
+    };
   List.map(
     ((env, ex)) =>
       switch (ex) {

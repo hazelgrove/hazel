@@ -10,7 +10,10 @@ open Types;
 
 let memo = Array.make(10, []);
 
-let resetMemo = () => Array.mapi((i, _) => memo[i] = [], memo);
+let resetMemo = () => {
+  let memo = Array.mapi((i, _) => memo[i] = [], memo);
+  ();
+};
 
 let rec partition_h = (n, m, i) =>
   if (m == i) {

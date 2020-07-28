@@ -93,7 +93,14 @@ and branch_indiv = (delta, gamma, f, typ, exs, datatype) => {
             switch (pat) {
             | V(var) => ([(var, (ti, AnnRec)), ...newGamma], h, typ, xs)
             | P(V(x1), V(x2)) =>
-              let Pair_t(t1, t2) = ti;
+              let (t1, t2) =
+                switch (ti) {
+                | Pair_t(t1', t2') => (t1', t2')
+                | _ =>
+                  failwith(
+                    "Pattern implies a pair, but the type of the constructor is not a pair",
+                  )
+                };
               (
                 [(x1, (t1, AnnRec)), (x2, (t2, AnnRec)), ...newGamma],
                 h,
