@@ -530,6 +530,7 @@ module Exp = {
     | InvalidOperation(d, err) =>
       let d' = subst_var(d1, x, d);
       InvalidOperation(d', err);
+    | Label(_) => failwith("unimplemented")
     }
   and subst_var_rules =
       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -735,6 +736,7 @@ module Exp = {
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
+    | Label(_) => failwith("unimplemented")
     }
   and matches_cast_Pair =
       (
@@ -794,6 +796,7 @@ module Exp = {
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
+    | Label(_) => failwith("unimplemented")
     }
   and matches_cast_Cons =
       (
@@ -851,6 +854,7 @@ module Exp = {
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
+    | Label(_) => failwith("unimplemented")
     };
 
   type expand_result_lines =
@@ -1814,6 +1818,7 @@ module Exp = {
     | InvalidOperation(d, err) =>
       let (d, hii) = renumber_result_only(path, hii, d);
       (InvalidOperation(d, err), hii);
+    | Label(_) => failwith("unimplemented")
     }
   and renumber_result_only_rules =
       (
@@ -1919,6 +1924,7 @@ module Exp = {
     | InvalidOperation(d, err) =>
       let (d, hii) = renumber_sigmas_only(path, hii, d);
       (InvalidOperation(d, err), hii);
+    | Label(_) => failwith("unimplemented")
     }
   and renumber_sigmas_only_rules =
       (
@@ -2325,6 +2331,7 @@ module Evaluator = {
       | BoxedValue(d')
       | Indet(d') => Indet(InvalidOperation(d', err))
       }
+    | Label(_) => failwith("unimplemented")
     }
   and evaluate_case =
       (

@@ -243,6 +243,7 @@ module Exp = {
     | Cons(_) => precedence_Cons
     | Pair(_) => precedence_Comma
     | NonEmptyHole(_, _, _, _, d) => precedence'(d)
+    | Label(_) => failwith("unimplemented")
     };
   };
 
@@ -511,6 +512,7 @@ module Exp = {
           } else {
             annot(DHAnnot.Collapsed, text("<fn>"));
           }
+        | Label(_) => failwith("unimplemented")
         };
       let doc =
         parenthesize

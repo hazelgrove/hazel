@@ -157,6 +157,7 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
+  | Label(Label.t)
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
@@ -195,6 +196,7 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
+  | Label(_) => failwith("unimplemented")
   };
 
 let rec mk_tuple: list(t) => t =
