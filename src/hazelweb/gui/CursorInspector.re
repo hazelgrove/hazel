@@ -78,12 +78,14 @@ let advanced_summary =
       | _ => [colon, HTypCode.view(got_ty)]
       }
     | AnaTypeInconsistent(expected_ty, got_ty)
-    | PatAnaTypeInconsistent(expected_ty, got_ty) => [
+    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
+      let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
+      [
         colon,
-        HTypCode.view(expected_ty),
+        TypDiffCode.view(expected_diff),
         inconsistent_symbol,
-        HTypCode.view(got_ty),
-      ]
+        TypDiffCode.view(got_diff),
+      ];
     | SynErrorArrow(_expected_ty, got_ty) => [
         colon,
         emphasize_text("Function Type"),
@@ -144,11 +146,12 @@ let advanced_summary =
         if (HTyp.consistent(ty, got_ty)) {
           [colon, HTypCode.view(ty)];
         } else {
+          let (ty_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           [
             colon,
-            HTypCode.view(ty),
+            TypDiffCode.view(ty_diff),
             inconsistent_symbol,
-            HTypCode.view(got_ty),
+            TypDiffCode.view(got_diff),
           ];
         }
       | (InconsistentBranchTys(_), _) => [
@@ -248,14 +251,16 @@ let novice_summary =
         HTypCode.view(ty),
       ]
     | AnaTypeInconsistent(expected_ty, got_ty)
-    | PatAnaTypeInconsistent(expected_ty, got_ty) => [
+    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
+      let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
+      [
         Vdom.Node.text("Expecting " ++ article),
         term_tag,
         Vdom.Node.text("of type"),
-        HTypCode.view(expected_ty),
+        TypDiffCode.view(expected_diff),
         Vdom.Node.text("but got type"),
-        HTypCode.view(got_ty),
-      ]
+        TypDiffCode.view(got_diff),
+      ];
     | SynErrorArrow(_expected_ty, got_ty) => [
         Vdom.Node.text("Expecting " ++ article),
         term_tag,
@@ -341,13 +346,14 @@ let novice_summary =
             HTypCode.view(ty),
           ];
         } else {
+          let (ty_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           [
             Vdom.Node.text("Expecting " ++ article),
             term_tag,
             Vdom.Node.text("of type"),
-            HTypCode.view(ty),
+            TypDiffCode.view(ty_diff),
             Vdom.Node.text("but got type"),
-            HTypCode.view(got_ty),
+            TypDiffCode.view(got_diff),
           ];
         }
       | (InconsistentBranchTys(_), _) => [

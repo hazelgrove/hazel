@@ -402,6 +402,12 @@ html, body {
   font-family: var(--code-font-family);
 }
 
+.type-info-summary .HTypCode .Diff {
+  text-decoration: underline;
+  /*background-color: white;
+  color: #8e0000;*/
+}
+
 .type-info-summary .term-tag-typ {
   margin-right: 10px;
 }
