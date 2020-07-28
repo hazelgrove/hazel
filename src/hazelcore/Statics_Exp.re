@@ -699,13 +699,17 @@ and syn_fix_holes_line =
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
+      let _ = print_endline("typ fix holes");
+      let _ = TyVarCtx.print(ctx.tyvars);
+      let (uty1, u_gen) =
+        Statics_Typ.fix_holes(ctx, u_gen, ~renumber_empty_holes, uty1);
       let ty1 = UHTyp.expand(Contexts.tyvars(ctx), uty1);
       let ctx_def = ctx_for_let(ctx, p, ty1, def);
       let (def, u_gen) =
         ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
       let (p, ctx, u_gen) =
         Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
-      (LetLine(p, ann, def), ctx, u_gen);
+      (LetLine(p, Some(uty1), def), ctx, u_gen);
     | None =>
       let (def, ty1, u_gen) =
         syn_fix_holes(~renumber_empty_holes, ctx, u_gen, def);
@@ -958,6 +962,14 @@ and syn_fix_holes_operand =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
   | Lam(_, p, ann, body) =>
+    let (ann, u_gen) =
+      switch (ann) {
+      | None => (ann, u_gen)
+      | Some(uty1) =>
+        let (uty1, u_gen) =
+          Statics_Typ.fix_holes(ctx, u_gen, ~renumber_empty_holes, uty1);
+        (Some(uty1), u_gen);
+      };
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(Contexts.tyvars(ctx), uty1)
