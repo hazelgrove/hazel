@@ -103,6 +103,7 @@ let rec mk =
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
+          map: AssertMap.t,
           d: DHExp.t,
         )
         : DHDoc_common.t => {
@@ -187,7 +188,17 @@ let rec mk =
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-      | AssertLit(_) => text("assert")
+      | AssertLit(n) =>
+        switch (AssertMap.lookup(n, map)) {
+        | Some(a) =>
+          switch (AssertMap.check(a)) {
+          | Pass => Doc.text("assert") |> Doc.annot(DHAnnot.AssertPass)
+          | Fail => Doc.text("assert") |> Doc.annot(DHAnnot.AssertFail)
+          | Indet => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
+          | Comp => Doc.text("assert") |> Doc.annot(DHAnnot.AssertComp)
+          }
+        | None => Doc.text("assert") |> Doc.annot(DHAnnot.AssertPass)
+        }
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
@@ -360,7 +371,13 @@ and mk_rule =
     : DHDoc_common.t => {
   open Doc;
   let mk' =
-    mk(~show_casts, ~show_fn_bodies, ~show_case_clauses, ~selected_instance);
+    mk(
+      ~show_casts,
+      ~show_fn_bodies,
+      ~show_case_clauses,
+      ~selected_instance,
+      AssertMap.empty,
+    );
   let hidden_clause =
     annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
   let clause_doc =

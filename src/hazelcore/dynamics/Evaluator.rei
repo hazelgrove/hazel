@@ -37,13 +37,14 @@ let eval_bin_int_op: (DHExp.BinIntOp.t, int, int) => DHExp.t;
 
 let eval_bin_float_op: (DHExp.BinFloatOp.t, float, float) => DHExp.t;
 
-let evaluate: DHExp.t => result;
+let evaluate: (DHExp.t, AssertMap.t) => (result, AssertMap.t);
 
 let evaluate_case:
   (
     option((MetaVar.t, MetaVarInst.t, VarMap.t_(DHExp.t))),
     DHExp.t,
     list(DHExp.rule),
-    int
+    int,
+    AssertMap.t
   ) =>
   result;

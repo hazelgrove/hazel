@@ -121,8 +121,17 @@ let view =
               ),
             ];
           }
-        | Annot(AssertNumber, l) => {
-            [Node.span([Attr.classes(["AssertNumber"])], go(l))];
+        | Annot(AssertPass, l) => {
+            [Node.span([Attr.classes(["AssertPass"])], go(l))];
+          }
+        | Annot(AssertFail, l) => {
+            [Node.span([Attr.classes(["AssertFail"])], go(l))];
+          }
+        | Annot(AssertIndet, l) => {
+            [Node.span([Attr.classes(["AssertIndet"])], go(l))];
+          }
+        | Annot(AssertComp, l) => {
+            [Node.span([Attr.classes(["AssertComp"])], go(l))];
           }
         | Annot(UserNewline, l) => [
             Node.span([Attr.classes(["UserNewline"])], go(l)),
