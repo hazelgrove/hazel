@@ -199,7 +199,7 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
-  | Case(InconsistentBranches(_), _, _) => NotInHole /* TODO: What to do here...? */
+  | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */

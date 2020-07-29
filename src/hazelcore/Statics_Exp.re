@@ -378,13 +378,10 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-      _,
-    )
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+  | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
