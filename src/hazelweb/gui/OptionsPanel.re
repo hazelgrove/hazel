@@ -42,6 +42,41 @@ let labeled_checkbox =
   );
 };
 
+let benchmark = (model: Model.t): unit => {
+  let program = model |> Model.get_program;
+  let width = program.width;
+  let go = (): float => {
+    let doc =
+      Program.get_doc(
+        ~measure_program_get_doc=false,
+        ~memoize_doc=model.memoize_doc,
+        program,
+      );
+    let start_time = Sys.time();
+    ignore(Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc));
+    let end_time = Sys.time();
+    Printf.printf("start: %f end: %f\n", start_time, end_time);
+    end_time -. start_time;
+  };
+
+  let times = List.sort(Float.compare, List.init(100, _ => go()));
+  let rec drop = (i: int, ls: List.t(float)): List.t(float) =>
+    if (i == 0) {
+      ls;
+    } else {
+      drop(i - 1, List.tl(ls));
+    };
+  let rec take = (i: int, ls: List.t(float)): List.t(float) =>
+    if (i == 0) {
+      [];
+    } else {
+      [List.hd(ls), ...take(i - 1, List.tl(ls))];
+    };
+  let sum =
+    List.fold_left((x, y) => x +. y, 0.0, take(50, drop(25, times)));
+  Printf.printf("layout_time: %f %4.0fms\n", sum, 1000.0 *. sum /. 50.0);
+};
+
 let view =
     (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let compute_results_checkbox =
@@ -157,6 +192,16 @@ let view =
             ~on_change=() => inject(ToggleMeasureUpdate_apply_action),
             ~disabled=!model.measurements.measurements,
             model.measurements.update_apply_action,
+          ),
+          //
+          Node.button(
+            [
+              Attr.on_click(_ => {
+                benchmark(model);
+                Event.Ignore;
+              }),
+            ],
+            [Node.text("Benchmark")],
           ),
           //
           labeled_checkbox(

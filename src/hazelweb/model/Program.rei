@@ -126,3 +126,6 @@ let get_cursor_map_z:
   (CursorMap.t, CursorMap.binding);
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
+
+let get_doc:
+  (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc_common.t;
