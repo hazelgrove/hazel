@@ -493,7 +493,6 @@ let get_new_action_group =
             }
           }
         }
-      | SCommentLine
       | SParenthesized
       | SList
       | SAsc
@@ -502,6 +501,7 @@ let get_new_action_group =
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))
+      | SCommentLine
       | SChar(_) =>
         if (group_entry(
               ~prev_group,
