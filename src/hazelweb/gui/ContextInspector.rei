@@ -12,8 +12,8 @@ exception InvalidInstance;
 let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    Program.t,
-    option(HoleInstance.t),
-    Model.compute_results
+    ~selected_instance: option(HoleInstance.t),
+    ~compute_results: Model.compute_results,
+    Program.t
   ) =>
   Vdom.Node.t;
