@@ -1107,54 +1107,54 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  Vdom.(
-    Node.div(
-      [
-        Attr.id("history-panel"),
-        Attr.classes(["panel", "context-inspector-panel"]),
-      ],
-      [
-        Panel.view_of_main_title_bar("history"),
-        button_bar_view(model.undo_history, model.is_mac),
-        Node.div(
-          if (model.undo_history.preview_on_hover) {
-            [
-              Attr.classes(["panel-body", "context-inspector-body"]),
-              Attr.id("history-body"),
-              Attr.on_mousemove(evt => {
-                /* update mouse position */
-                model.mouse_position := JSUtil.get_mouse_position(evt);
-                Vdom.Event.Many([inject(FocusCell)]);
-              }),
-              Attr.on("scroll", _ => {
-                /* on_mouseenter/on_mouseleave will not be fired when scrolling,
-                   so we get the history entry under the mouse
-                   and shift to this entry manually  */
-                switch (get_elt_id_under_mouse(model)) {
-                | Some((group_id, elt_id)) =>
-                  Vdom.Event.Many([
-                    inject(
-                      ModelAction.ShiftHistory({
-                        group_id,
-                        elt_id,
-                        call_by_mouseenter: true,
-                      }),
-                    ),
-                    inject(FocusCell),
-                  ])
-                | None => Vdom.Event.Ignore
-                }
-              }),
-            ];
-          } else {
-            [
-              Attr.classes(["panel-body", "context-inspector-body"]),
-              Attr.id("history-body"),
-            ];
-          },
-          [history_view(model)],
-        ),
-      ],
-    )
+  let panel_body = [
+    button_bar_view(model.undo_history, model.is_mac),
+    Vdom.(
+      Node.div(
+        if (model.undo_history.preview_on_hover) {
+          [
+            Attr.classes(["panel-body", "context-inspector-body"]),
+            Attr.id("history-body"),
+            Attr.on_mousemove(evt => {
+              /* update mouse position */
+              model.mouse_position := JSUtil.get_mouse_position(evt);
+              Vdom.Event.Many([inject(FocusCell)]);
+            }),
+            Attr.on("scroll", _ => {
+              /* on_mouseenter/on_mouseleave will not be fired when scrolling,
+                 so we get the history entry under the mouse
+                 and shift to this entry manually  */
+              switch (get_elt_id_under_mouse(model)) {
+              | Some((group_id, elt_id)) =>
+                Vdom.Event.Many([
+                  inject(
+                    ModelAction.ShiftHistory({
+                      group_id,
+                      elt_id,
+                      call_by_mouseenter: true,
+                    }),
+                  ),
+                  inject(FocusCell),
+                ])
+              | None => Vdom.Event.Ignore
+              }
+            }),
+          ];
+        } else {
+          [
+            Attr.classes(["panel-body", "context-inspector-body"]),
+            Attr.id("history-body"),
+          ];
+        },
+        [history_view(model)],
+      )
+    ),
+  ];
+
+  Panel.view(
+    ~title_text="history",
+    ~id=Some("history-panel"),
+    ~classes=["context-inspector-panel"],
+    ~body_contents=panel_body,
   );
 };
