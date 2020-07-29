@@ -1,6 +1,7 @@
 (library
  (name synthesis)
  (modules Synthesizer)
+ (wrapped false)
  (libraries synthesiscomm synthesiscore)
  (js_of_ocaml
   (flags

@@ -1,6 +1,7 @@
 (library
  (name synthesiscomm)
- (libraries synthesiscore)
+ (libraries synthesiscore hazelcore)
+ (wrapped false)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
