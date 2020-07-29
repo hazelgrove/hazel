@@ -8,14 +8,14 @@ open UHExp;
     This requires conversion of lines into expressions.
  */
 
-let hashVar = v => {
+let hashVar = Id.of_string; /*v => {
   Array.init(Js.String.length(v), i => Js.String.charCodeAt(i, v))
   |> Array.to_list
   |> List.fold_left((accum, chr) => accum lsl 5 - accum + chr, 0);
-};
+};*/
 
-let rec hTypeToType_ = (t: Htyp.t): type_ => {
-  Htyp.(
+let rec hTypeToType_ = (t: HTyp.t): type_ => {
+  HTyp.(
     switch (t) {
     | Hole => Any_t
     | Int => Int_t
@@ -28,21 +28,17 @@ let rec hTypeToType_ = (t: Htyp.t): type_ => {
   );
 }
 
-and UHExpToExp =
-  (e: UHExp.t) => (
-    {
-      switch (e) {
-      | [] => []
-      | [EmptyLine, ...xs] => UHExpToExp(xs)
-      | [ExpLine(seq), ...xs] => [opSeqToExp(seq), ...UHExpToExp(xs)]
-      | [LetLine(pat, t, block), ...xs] =>
-        let element = opSeqToExp(pat);
-        [element, ...UHExpToExp(xs)];
-      | _ => failwith("Not yet implemented")
-      };
-    }:
-      list(exp)
-  )
+and uHExpToExp = (e: UHExp.t): list(exp) => {
+  switch (e) {
+  | [] => []
+  | [EmptyLine, ...xs] => uHExpToExp(xs)
+  | [ExpLine(seq), ...xs] => [opSeqToExp(seq), ...uHExpToExp(xs)]
+  | [LetLine(pat, t, block), ...xs] =>
+    let element = opSeqToExp(pat);
+    [element, ...uHExpToExp(xs)];
+  | _ => failwith("Not yet implemented")
+  };
+}
 
 and operandToExp = (op: UHExp.operand): exp => {
   switch (op) {
@@ -58,7 +54,7 @@ and operandToExp = (op: UHExp.operand): exp => {
     switch (pat) {
     | (EmptyHole(m), _) => Hole(m)
     | (Var(_, _, v), _) =>
-      Function(hashVar(v), hTypeToType(t), UHExpToExp(block))
+      Function(hashVar(v), hTypeToType(t), uHExpToExp(block))
     | _ => failwith("Function pattern should only be hole or var.")
     }
   | Inj(_, _) => Unit
@@ -75,15 +71,15 @@ and operandToExp = (op: UHExp.operand): exp => {
               | Var(_, _, v) => V(hashVar(v))
               | _ => failwith("Expected var within branch")
               };
-            (n, (pattern, UHExpToExp(uhexp)));
+            (n, (pattern, uHExpToExp(uhexp)));
           },
           constructors,
           rules,
         );
-      Case(UHExpToExp(e), branches);
+      Case(uHExpToExp(e), branches);
     | _ => failwith("Type needs to be some adt")
     }
-  | Parenthesized(e) => UHExpToExp(e)
+  | Parenthesized(e) => uHExpToExp(e)
   | ApPalette(_, _, _, _) => Unit
   };
 }
