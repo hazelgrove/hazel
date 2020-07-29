@@ -15,12 +15,6 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SArrow
   | SVBar => None;
 
-let shape_of_operator: UHPat.operator => Action_common.operator_shape =
-  fun
-  | Comma => SComma
-  | Space => SSpace
-  | Cons => SCons;
-
 let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   zseq
   |> ZPat.erase_zseq

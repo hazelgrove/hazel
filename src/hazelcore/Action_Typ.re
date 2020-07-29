@@ -17,13 +17,6 @@ let operator_of_shape =
   | SCons => None
   };
 
-let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
-  switch (op) {
-  | Arrow => SArrow
-  | Prod => SComma
-  | Sum => SVBar
-  };
-
 let construct_operator =
     (
       operator: UHTyp.operator,

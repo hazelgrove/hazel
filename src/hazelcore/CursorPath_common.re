@@ -1,20 +1,5 @@
 open Sexplib.Std;
 
-/*
- module Steps : {
-   type t;
-   let prepend_step : ChildIndex.t => t => t;
-   let append_step : t => ChildIndex.t => t;
-   let to_list : t => list(ChildIndex.t);
- } = {
-   type t = list(ChildIndex.t);
-
-   let prepend_step = (step, steps) => [step, ...steps];
-   let append_step = (steps, step) => steps ++ [step];
-   let to_list = steps => steps;
- }
- */
-
 [@deriving sexp]
 type steps = list(ChildIndex.t);
 [@deriving sexp]
@@ -459,11 +444,6 @@ let holes_zopseq_ =
   };
 };
 
-let append = ((appendee_steps, appendee_cursor): t, steps): t => (
-  steps @ appendee_steps,
-  appendee_cursor,
-);
-
 let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
@@ -478,49 +458,4 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   ) {
   | None => None
   | Some({steps, _}) => Some(steps)
-  };
-
-let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
-  let {holes_before, hole_selected, holes_after} = zhole_list;
-  switch (steps_to_hole(holes_before, u)) {
-  | Some(_) as res => res
-  | None =>
-    switch (hole_selected) {
-    | Some({sort: ExpHole(u'), steps, _})
-    | Some({sort: PatHole(u'), steps, _}) =>
-      MetaVar.eq(u, u') ? Some(steps) : steps_to_hole(holes_after, u)
-    | Some({sort: TypHole, _})
-    | None => steps_to_hole(holes_after, u)
-    }
-  };
-};
-
-let opt_steps_to_opt_path =
-    (cursor: CursorPosition.t, opt_steps: option(steps)): option(t) =>
-  switch (opt_steps) {
-  | None => None
-  | Some(steps) => Some((List.rev(steps), cursor))
-  };
-
-let rec is_prefix_of = (steps, prefix) =>
-  switch (prefix, steps) {
-  | ([], _) => true
-  | ([_, ..._], []) => false
-  | ([prefix_first, ...prefix_rest], [steps_first, ...steps_rest]) =>
-    prefix_first == steps_first && prefix_rest |> is_prefix_of(steps_rest)
-  };
-
-let rec compare_steps = (steps1, steps2) =>
-  switch (steps1, steps2) {
-  | ([], []) => 0
-  | ([], [_, ..._]) => (-1)
-  | ([_, ..._], []) => 1
-  | ([step1, ...rest1], [step2, ...rest2]) =>
-    if (step1 > step2) {
-      1;
-    } else if (step1 < step2) {
-      (-1);
-    } else {
-      compare_steps(rest1, rest2);
-    }
   };
