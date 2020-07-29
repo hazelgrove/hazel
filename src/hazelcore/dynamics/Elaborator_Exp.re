@@ -10,7 +10,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | FreeVar(_) => d2
   | InvalidText(_) => d2
   | Keyword(_) => d2
-  | Duplicate(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -281,7 +280,6 @@ and matches_cast_Inj =
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
-  | Duplicate(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
@@ -342,7 +340,6 @@ and matches_cast_Pair =
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
-  | Duplicate(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
@@ -401,7 +398,6 @@ and matches_cast_Cons =
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _, _) => Indet
-  | Duplicate(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Lam(_, _, _) => DoesNotMatch
@@ -779,7 +775,7 @@ and syn_elab_operand =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
-      | Duplicate => DHExp.Duplicate(u, 0, sigma, x)
+      | Duplicate => failwith("duplicate var in expression")
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -1162,7 +1158,7 @@ and ana_elab_operand =
       switch (reason) {
       | Free => FreeVar(u, 0, sigma, x)
       | Keyword(k) => Keyword(u, 0, sigma, k)
-      | Duplicate => Duplicate(u, 0, sigma, x)
+      | Duplicate => failwith("duplicate var in expression")
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
@@ -1364,9 +1360,6 @@ let rec renumber_result_only =
   | Keyword(u, _, sigma, k) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (Keyword(u, i, sigma, k), hii);
-  | Duplicate(u, _, sigma, x) =>
-    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (Duplicate(u, i, sigma, x), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
@@ -1470,10 +1463,6 @@ let rec renumber_sigmas_only =
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     (Keyword(u, i, sigma, k), hii);
-  | Duplicate(u, i, sigma, x) =>
-    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
-    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (Duplicate(u, i, sigma, x), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
