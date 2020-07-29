@@ -1,1 +1,0 @@
-src/exploration/DatatypeDeclarations-MyNewProject.cmj : MyNewProject.cmi src/exploration/MutablePair-MyNewProject.cmj src/exploration/MutablePair-MyNewProject.cmi src/Tools-MyNewProject.cmj src/Tools-MyNewProject.cmi

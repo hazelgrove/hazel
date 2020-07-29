@@ -1,1 +1,0 @@
-{ "dirs" : [ "src" , "src/exploration" ] , "pkgs" : [ [ "bs-readline" , "/Users/sameagen/MAP/hazel/src/synthesizer/engine/node_modules/bs-readline" ] , [ "bs-platform" , "/Users/sameagen/MAP/hazel/src/synthesizer/engine/node_modules/bs-platform" ] ] , "generated" : [] }

@@ -114,7 +114,7 @@ let perform_edit_action = (a, program) => {
     | Backspace
     | Construct(_) =>
       print_endline("REAL Change In Program. Restarting Synthesizer.");
-      WorkerHandler.run(WorkerHandler.log, Shim.main(ze));
+      Synthesizer.main(ze);
     | _ => print_endline("superficial change ignored by synthesizer")
     };
 

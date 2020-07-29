@@ -1,1 +1,0 @@
-src/evaluator-MyNewProject.cmj : MyNewProject.cmi src/Printer-MyNewProject.cmj src/Printer-MyNewProject.cmi src/Tools-MyNewProject.cmj src/Tools-MyNewProject.cmi src/Types-MyNewProject.cmj src/Types-MyNewProject.cmi

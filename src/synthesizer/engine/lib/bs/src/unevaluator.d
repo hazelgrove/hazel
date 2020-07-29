@@ -1,1 +1,0 @@
-src/unevaluator-MyNewProject.cmj : MyNewProject.cmi src/evaluator-MyNewProject.cmj src/evaluator-MyNewProject.cmi src/Tools-MyNewProject.cmj src/Tools-MyNewProject.cmi src/Typecasting-MyNewProject.cmj src/Typecasting-MyNewProject.cmi src/Types-MyNewProject.cmj src/Types-MyNewProject.cmi src/Typing-MyNewProject.cmj src/Typing-MyNewProject.cmi
