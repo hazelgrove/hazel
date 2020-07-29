@@ -1132,7 +1132,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | _ => None
     };
   };
-  let panel_body: List.t(Vdom.Node.t) = [
+  let panel_body = [
     button_bar_view(model.undo_history, model.is_mac),
     Vdom.(
       Node.div(

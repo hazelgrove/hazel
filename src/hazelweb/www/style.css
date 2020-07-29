@@ -1479,6 +1479,7 @@ h1 {
 /* edit action history panel */
 
 .the-history {
+  flex-grow: 1;
   cursor: pointer;
 }
 

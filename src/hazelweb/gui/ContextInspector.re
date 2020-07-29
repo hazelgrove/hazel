@@ -358,14 +358,17 @@ let view =
       Node.div([], []);
     };
 
-  Node.div(
-    [Attr.classes(["panel", "context-inspector-panel"])],
-    [
-      Panel.view_of_main_title_bar("context"),
-      Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])],
-        [context_view, path_viewer],
-      ),
-    ],
+  let panel_body = [
+    Node.div(
+      [Attr.classes(["panel-body", "context-inspector-body"])],
+      [context_view, path_viewer],
+    ),
+  ];
+
+  Panel.view(
+    ~title_text="context",
+    ~id=None,
+    ~classes=["context-inspector-panel"],
+    ~body_contents=panel_body,
   );
 };
