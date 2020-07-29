@@ -247,9 +247,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                   CursorInspector.view(~inject, model),
                   ContextInspector.view(
                     ~inject,
+                    ~selected_instance,
+                    ~compute_results=model.compute_results,
                     program,
-                    selected_instance,
-                    model.compute_results,
                   ),
                   UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
