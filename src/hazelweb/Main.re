@@ -1,4 +1,3 @@
-module Js = Js_of_ocaml.Js;
 module Exn = Base.Exn;
 module Dom = Js_of_ocaml.Dom;
 module Vdom = Virtual_dom.Vdom;
@@ -14,24 +13,7 @@ let () = {
     Async_kernel.Monitor.detach_and_iter_errors(
       monitor,
       ~f=exn => {
-        /* TODO Hannah - See if Js.Error handling is necessary/works */
-        let exn =
-          switch (Async_kernel.Monitor.extract_exn(exn)) {
-          | Js.Error(err) => `Js(err)
-          | exn => `Exn(exn)
-          };
-        let message =
-          switch (exn) {
-          | `Js(err) =>
-            let backtrace =
-              switch (Js.Optdef.to_option(err##.stack)) {
-              | Some(stack) => Js.to_string(stack)
-              | None => "No backtrace found"
-              };
-            Js.to_string(err##.message) ++ backtrace;
-          | `Exn(exn) => Exn.to_string(exn)
-          };
-
+        let message = Exn.to_string(Async_kernel.Monitor.extract_exn(exn));
         let root = JSUtil.force_get_elem_by_id("root");
         let error_box =
           Vdom.Node.to_dom(
