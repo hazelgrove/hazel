@@ -7,7 +7,6 @@ Logger.init_log();
 let () = {
   // Handle exceptions via a Monitor
   // See <https://github.com/janestreet/incr_dom/blob/master/example/monitor>
-  // and <https://github.com/janestreet/async_js/blob/master/src/async_js0.ml>
   let monitor = Async_kernel.Monitor.create();
   let _ =
     Async_kernel.Monitor.detach_and_iter_errors(
