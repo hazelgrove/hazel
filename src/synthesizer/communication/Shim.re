@@ -28,14 +28,49 @@ let rec hTypeToType_ = (t: HTyp.t): type_ => {
   );
 }
 
+and uhTypToType_ = (t: UHTyp.t): type_ => UHTyp.expand(t) |> hTypeToType_
+
+and collapseBlock = (block: list(exp)): exp => {
+  switch (block) {
+  | [] => failwith("Empty block")
+  | [e] => e
+  | [e, ...xs] =>
+    switch (e) {
+    | Function(_, x, t, e') =>
+      Application(
+        Function(IdGenerator.getId(), x, t, collapseBlock(xs)),
+        e',
+      )
+    | _ =>
+      failwith("Expression lines before let lines are currently unsupported")
+    }
+  };
+}
+
 and uHExpToExp = (e: UHExp.t): list(exp) => {
   switch (e) {
   | [] => []
   | [EmptyLine, ...xs] => uHExpToExp(xs)
-  | [ExpLine(seq), ...xs] => [opSeqToExp(seq), ...uHExpToExp(xs)]
+  | [ExpLine(seq), ...xs] => [
+      opSeqToExp(seq, operandToExp),
+      ...uHExpToExp(xs),
+    ]
   | [LetLine(pat, t, block), ...xs] =>
-    let element = opSeqToExp(pat);
-    [element, ...uHExpToExp(xs)];
+    let t =
+      switch (t) {
+      | Some(x) => x
+      | None => failwith("The type must be supplied for the let bind.")
+      };
+    let bind =
+      switch (opPatToExp(pat)) {
+      | Var(x) => x
+      | _ =>
+        failwith(
+          "Pattern must be a single variable for now. Holes in let binds not yet supported in synthesizer",
+        )
+      };
+    let exp = uHExpToExp(block) |> collapseBlock;
+    [Function(0, bind, uhTypToType_(t), exp), ...uHExpToExp(xs)];
   | _ => failwith("Not yet implemented")
   };
 }
@@ -47,17 +82,22 @@ and operandToExp = (op: UHExp.operand): exp => {
   | Var(_, _, v) => Var(hashVar(v))
   | IntLit(_, s) => Int(int_of_string(s))
   | FloatLit(_, s) => Float(float_of_string(s))
-  | BoolLit(_, s) => Bool(bool_of_string(s))
+  | BoolLit(_, b) => Bool(b)
   | ListNil(_) => Ctor(0, List, Unit)
-  | AssertList(_) => Unit
+  | AssertLit(_) => Unit
   | Lam(_, pat, Some(t), block) =>
-    switch (pat) {
-    | (EmptyHole(m), _) => Hole(m)
-    | (Var(_, _, v), _) =>
-      Function(hashVar(v), hTypeToType(t), uHExpToExp(block))
+    switch (opPatToExp(pat)) {
+    | Hole(x) => Hole(x)
+    | Var(v) =>
+      Function(
+        IdGenerator.getId(),
+        v,
+        uhTypToType_(t),
+        collapseBlock(uHExpToExp(block)),
+      )
     | _ => failwith("Function pattern should only be hole or var.")
     }
-  | Inj(_, _) => Unit
+  | Inj(_, _, _) => Unit
   | Case(_, e, rules) =>
     switch (getType(e)) {
     | D(adt) =>
@@ -67,61 +107,93 @@ and operandToExp = (op: UHExp.operand): exp => {
           ((n, typ), rule) => {
             let Rule(pat, uhexp) = rule;
             let pattern =
-              switch (pat) {
-              | Var(_, _, v) => V(hashVar(v))
+              switch (opPatToExp(pat)) {
+              | Var(v) => V(v)
               | _ => failwith("Expected var within branch")
               };
-            (n, (pattern, uHExpToExp(uhexp)));
+            (n, (pattern, uHExpToExp(uhexp) |> collapseBlock));
           },
           constructors,
           rules,
         );
-      Case(uHExpToExp(e), branches);
+      Case(uHExpToExp(e) |> collapseBlock, branches);
     | _ => failwith("Type needs to be some adt")
     }
-  | Parenthesized(e) => uHExpToExp(e)
+  | Parenthesized(e) => uHExpToExp(e) |> collapseBlock
   | ApPalette(_, _, _, _) => Unit
   };
 }
 
-and getType = (op: UHExp.operand): type_ => {
+and patOperandToExp = (op: UHPat.operand): exp => {
+  switch (op) {
+  | EmptyHole(m) => Hole(m)
+  | Wild(_) => Unit
+  | InvalidText(_, _) => Unit
+  | Var(_, _, v) => Var(hashVar(v))
+  | IntLit(_, s) => Int(int_of_string(s))
+  | FloatLit(_, s) => Float(float_of_string(s))
+  | BoolLit(_, b) => Bool(b)
+  | ListNil(_) => Unit
+  | Parenthesized(t) => Unit
+  | Inj(_, _, _) => Unit
+  };
+}
+
+and getType = (op: UHExp.t): type_ => {
   switch (Statics_Exp.syn(Contexts.empty, op)) {
   | None => failwith("Typing could not be accomplished")
   | Some(htyp) => hTypeToType_(htyp)
   };
 }
 
-and seqToExp = (seq: Seq.t): exp => {
+and seqToExp = (seq: Seq.t('operand, 'operator), operandProcessor): exp => {
   let S(operand, affix) = seq;
-  let o = operandToExp(operand);
+  let o = operandProcessor(operand);
   switch (affix) {
   | E => o
   | A(op, seq') =>
     switch (op) {
     | None => o
-    | Plus => Plus(o, seqToExp(seq'))
-    | Minus => Minus(o, seqToExp(seq'))
-    | Times => Times(o, seqToExp(seq'))
-    | Divide => Divide(o, seqToExp(seq'))
-    | FPlus => FPlus(o, seqToExp(seq'))
-    | FMinus => FMinus(o, seqToExp(seq'))
-    | FTimes => FTimes(o, seqToExp(seq'))
-    | FDivide => FDivide(o, seqToExp(seq'))
-    | LessThan => LessThan(o, seqToExp(seq'))
-    | GreaterThan => GreaterThan(o, seqToExp(seq'))
-    | Equals => Equals(o, seqToExp(seq'))
-    | FLessThan => FLessThan(o, seqToExp(seq'))
-    | FGreaterThan => FGreaterThan(o, seqToExp(seq'))
-    | FEquals => FEquals(o, seqToExp(seq'))
-    | And => And(o, seqToExp(seq'))
-    | Or => Or(o, seqToExp(seq'))
+    | Some(Operators_Exp.Plus) => Plus(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.Minus) =>
+      Minus(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.Times) =>
+      Times(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.Divide) =>
+      Divide(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FPlus) =>
+      FPlus(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FMinus) =>
+      FMinus(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FTimes) =>
+      FTimes(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FDivide) =>
+      FDivide(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.LessThan) =>
+      LessThan(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.GreaterThan) =>
+      GreaterThan(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.Equals) =>
+      Equals(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FLessThan) =>
+      FLessThan(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FGreaterThan) =>
+      FGreaterThan(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.FEquals) =>
+      FEquals(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.And) => And(o, seqToExp(seq', operandProcessor))
+    | Some(Operators_Exp.Or) => Or(o, seqToExp(seq', operandProcessor))
     }
   };
 }
 
-and opSeqToExp = (seq: OpSeq.t): exp => {
+and opPatToExp = (pat: UHPat.t): exp => {
+  opSeqToExp(pat, patOperandToExp);
+}
+
+and opSeqToExp = (seq: OpSeq.t, operandProcessor): exp => {
   let OpSeq(_, seq') = seq;
-  seqToExp(seq');
+  seqToExp(seq', operandProcessor);
 };
 
 /*and expToSeq = (e: exp):Seq.t => {
