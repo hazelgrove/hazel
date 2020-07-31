@@ -111,20 +111,10 @@ let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
-let annot_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t)
-    : (t => t) =>
-  Doc.annot(
-    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
-  );
-let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =>
-  Doc.annot(
-    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Operand(~err, ()), ()),
-  );
-let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
-  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
-let annot_Invalid = (~sort: TermSort.t): (t => t) =>
-  Doc.annot(UHAnnot.mk_Term(~sort, ~shape=TermShape.Invalid, ()));
+let annot_Operand = (~sort: TermSort.t): (t => t) =>
+  Doc.annot(UHAnnot.mk_Term(~sort, ~shape=Operand, ()));
+let annot_Case: t => t =
+  Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case, ()));
 
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent() |> annot_Indent, align(d)]));
@@ -271,27 +261,26 @@ let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_Wild = (~err: ErrStatus.t): t =>
-  Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort=Pat, ~err);
+let mk_Wild = (): t =>
+  Delim.mk(~index=0, "_") |> annot_Tessera |> annot_Operand(~sort=Pat);
 
 let mk_InvalidText = (~sort: TermSort.t, t: string): t =>
-  mk_text(t) |> annot_Tessera |> annot_Invalid(~sort);
+  mk_text(t) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
-  mk_text(x) |> annot_Tessera |> annot_Var(~sort, ~err, ~verr);
+let mk_Var = (~sort: TermSort.t, x: Var.t): t =>
+  mk_text(x) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
-  mk_text(n) |> annot_Tessera |> annot_Operand(~sort, ~err);
+let mk_IntLit = (~sort: TermSort.t, n: string): t =>
+  mk_text(n) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
-  mk_text(f) |> annot_Tessera |> annot_Operand(~sort, ~err);
+let mk_FloatLit = (~sort: TermSort.t, f: string): t =>
+  mk_text(f) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
-  mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort, ~err);
+let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
+  mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
-  Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort, ~err);
+let mk_ListNil = (~sort: TermSort.t, ()): t =>
+  Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
@@ -308,26 +297,15 @@ let mk_List = (body: formatted_child): t => {
 };
 
 let mk_Inj =
-    (
-      ~sort: TermSort.t,
-      ~err: ErrStatus.t,
-      ~inj_side: InjSide.t,
-      body: formatted_child,
-    )
-    : t => {
+    (~sort: TermSort.t, ~inj_side: InjSide.t, body: formatted_child): t => {
   let open_group = Delim.open_Inj(inj_side) |> annot_Tessera;
   let close_group = Delim.close_Inj() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
-  |> annot_Operand(~sort, ~err);
+  |> annot_Operand(~sort);
 };
 
 let mk_Lam =
-    (
-      ~err: ErrStatus.t,
-      p: formatted_child,
-      ann: option(formatted_child),
-      body: formatted_child,
-    )
+    (p: formatted_child, ann: option(formatted_child), body: formatted_child)
     : t => {
   let open_group = {
     let lam_delim = Delim.sym_Lam();
@@ -350,11 +328,10 @@ let mk_Lam =
   };
   let close_group = Delim.close_Lam() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
-  |> annot_Operand(~sort=Exp, ~err);
+  |> annot_Operand(~sort=Exp);
 };
 
-let mk_Case =
-    (~err: CaseErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
+let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
   let open_group = Delim.open_Case() |> annot_Tessera;
   let close_group = Delim.close_Case() |> annot_Tessera;
   Doc.(
@@ -369,7 +346,7 @@ let mk_Case =
       @ [close_group],
     )
   )
-  |> annot_Case(~err);
+  |> annot_Case;
 };
 
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
@@ -456,7 +433,7 @@ let rec mk_BinOp =
   | Placeholder(n) =>
     let operand = Seq.nth_operand(n, seq);
     annot_Step(n, mk_operand(~enforce_inline, operand));
-  | BinOp(err, op, skel1, skel2) =>
+  | BinOp(_, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let (lpadding, rpadding) = {
       let (l, r) = inline_padding_of_operator(op);
@@ -503,7 +480,7 @@ let rec mk_BinOp =
       enforce_inline
         ? inline_choice : Doc.choice(inline_choice, multiline_choice);
     Doc.annot(
-      UHAnnot.mk_Term(~sort, ~shape=BinOp({err, op_index}), ()),
+      UHAnnot.mk_Term(~sort, ~shape=BinOp({op_index: op_index}), ()),
       choices,
     );
   };
@@ -533,11 +510,6 @@ let mk_NTuple =
   | [] => failwith(__LOC__ ++ ": found empty tuple")
   | [singleton] => mk_BinOp(~enforce_inline, singleton)
   | [hd, ...tl] =>
-    let err =
-      switch (skel) {
-      | Placeholder(_) => assert(false)
-      | BinOp(err, _, _, _) => err
-      };
     let hd_doc = (~enforce_inline: bool) =>
       // TODO need to relax is_inline
       Doc.annot(
@@ -592,7 +564,11 @@ let mk_NTuple =
       enforce_inline
         ? inline_choice : Doc.choice(inline_choice, multiline_choice);
     Doc.annot(
-      UHAnnot.mk_Term(~sort, ~shape=NTuple({comma_indices, err}), ()),
+      UHAnnot.mk_Term(
+        ~sort,
+        ~shape=NTuple({comma_indices: comma_indices}),
+        (),
+      ),
       choices,
     );
   };

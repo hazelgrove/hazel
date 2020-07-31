@@ -39,11 +39,9 @@ let current =
     | NTuple({comma_indices, _}) =>
       List.exists(n => steps == [n], comma_indices)
     | BinOp({op_index, _}) => steps == [op_index]
-    | Operand(_)
-    | Case(_)
-    | Rule
-    | Var(_)
-    | Invalid => steps == []
+    | Operand
+    | Case
+    | Rule => steps == []
     };
   let err_holes =
     decorations.err_holes
