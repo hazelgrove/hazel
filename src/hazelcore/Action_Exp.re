@@ -662,7 +662,7 @@ and syn_perform_block =
       syn_perform(ctx, MoveRight, (zblock, ty, u_gen)) |> wrap_in_SynDone
     }
   | Backspace when ZExp.is_before_zline(zline) =>
-    switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
+    switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
     | (Some(([], EmptyLine)), EmptyLine) =>
       let new_ze = {
@@ -691,7 +691,11 @@ and syn_perform_block =
 
   /* SwapUp and SwapDown is handled at block level */
   | SwapUp when ZExp.line_can_be_swapped(zline) =>
-    switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+    switch (
+      ListUtil.split_last_opt(prefix),
+      zline |> ZExp.erase_zline,
+      suffix,
+    ) {
     | (None, _, _) => Failed
     | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
       Failed
@@ -1935,7 +1939,7 @@ and syn_perform_rules =
       zrules |> ZList.replace_z(ZExp.CursorR(OnDelim(k, After), rule));
     syn_perform_rules(ctx, Backspace, (new_zrules, u_gen), pat_ty);
   | (Backspace, CursorR(OnDelim(_, After), _)) =>
-    switch (prefix |> ListUtil.split_last, suffix) {
+    switch (prefix |> ListUtil.split_last_opt, suffix) {
     | (None, []) =>
       let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
       let new_zrules = ([], new_zrule, []);
@@ -1996,7 +2000,7 @@ and syn_perform_rules =
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
-    switch (ListUtil.split_last(prefix)) {
+    switch (ListUtil.split_last_opt(prefix)) {
     | None => Failed
     | Some((rest, last)) =>
       let new_zrules = (rest, zrule, [last, ...suffix]);
@@ -2086,7 +2090,7 @@ and ana_perform_rules =
       clause_ty,
     );
   | (Backspace, CursorR(OnDelim(_, After), _)) =>
-    switch (prefix |> ListUtil.split_last, suffix) {
+    switch (prefix |> ListUtil.split_last_opt, suffix) {
     | (None, []) =>
       let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
       let new_zrules = ([], new_zrule, []);
@@ -2147,7 +2151,7 @@ and ana_perform_rules =
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
-    switch (ListUtil.split_last(prefix)) {
+    switch (ListUtil.split_last_opt(prefix)) {
     | None => Failed
     | Some((rest, last)) =>
       let new_zrules = (rest, zrule, [last, ...suffix]);
@@ -2245,7 +2249,7 @@ and ana_perform_block =
       ana_perform(ctx, MoveRight, (zblock, u_gen), ty) |> wrap_in_AnaDone
     }
   | (Backspace, _) when ZExp.is_before_zline(zline) =>
-    switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
+    switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
     | (Some(([], EmptyLine)), EmptyLine) =>
       let new_ze = {
@@ -2276,7 +2280,11 @@ and ana_perform_block =
 
   /* SwapUp and SwapDown is handled at block level */
   | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
-    switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+    switch (
+      ListUtil.split_last_opt(prefix),
+      zline |> ZExp.erase_zline,
+      suffix,
+    ) {
     | (None, _, _) => Failed
     | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
       Failed
