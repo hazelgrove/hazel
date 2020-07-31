@@ -51,10 +51,7 @@ and uHExpToExp = (e: UHExp.t): list(exp) => {
   switch (e) {
   | [] => []
   | [EmptyLine, ...xs] => uHExpToExp(xs)
-  | [ExpLine(seq), ...xs] => [
-      opSeqToExp(seq, operandToExp),
-      ...uHExpToExp(xs),
-    ]
+  | [ExpLine(seq), ...xs] => [opSeqToExp(seq), ...uHExpToExp(xs)]
   | [LetLine(pat, t, block), ...xs] =>
     let t =
       switch (t) {
@@ -146,54 +143,55 @@ and getType = (op: UHExp.t): type_ => {
   };
 }
 
-and seqToExp = (seq: Seq.t('operand, 'operator), operandProcessor): exp => {
+and seqToExp = (seq: Seq.t(UHExp.operand, Operators_Exp.t)): exp => {
   let S(operand, affix) = seq;
-  let o = operandProcessor(operand);
+  let o = operandToExp(operand);
   switch (affix) {
   | E => o
   | A(op, seq') =>
     switch (op) {
-    | None => o
-    | Some(Operators_Exp.Plus) => Plus(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.Minus) =>
-      Minus(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.Times) =>
-      Times(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.Divide) =>
-      Divide(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FPlus) =>
-      FPlus(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FMinus) =>
-      FMinus(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FTimes) =>
-      FTimes(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FDivide) =>
-      FDivide(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.LessThan) =>
-      LessThan(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.GreaterThan) =>
-      GreaterThan(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.Equals) =>
-      Equals(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FLessThan) =>
-      FLessThan(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FGreaterThan) =>
-      FGreaterThan(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.FEquals) =>
-      FEquals(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.And) => And(o, seqToExp(seq', operandProcessor))
-    | Some(Operators_Exp.Or) => Or(o, seqToExp(seq', operandProcessor))
+    | Operators_Exp.Plus => Plus(o, seqToExp(seq'))
+    | Operators_Exp.Minus => Minus(o, seqToExp(seq'))
+    | Operators_Exp.Times => Times(o, seqToExp(seq'))
+    | Operators_Exp.Divide => Divide(o, seqToExp(seq'))
+    | Operators_Exp.FPlus => FPlus(o, seqToExp(seq'))
+    | Operators_Exp.FMinus => FMinus(o, seqToExp(seq'))
+    | Operators_Exp.FTimes => FTimes(o, seqToExp(seq'))
+    | Operators_Exp.FDivide => FDivide(o, seqToExp(seq'))
+    | Operators_Exp.LessThan => LessThan(o, seqToExp(seq'))
+    | Operators_Exp.GreaterThan => GreaterThan(o, seqToExp(seq'))
+    | Operators_Exp.Equals => Equals(o, seqToExp(seq'))
+    | Operators_Exp.FLessThan => FLessThan(o, seqToExp(seq'))
+    | Operators_Exp.FGreaterThan => FGreaterThan(o, seqToExp(seq'))
+    | Operators_Exp.FEquals => FEquals(o, seqToExp(seq'))
+    | Operators_Exp.And => And(o, seqToExp(seq'))
+    | Operators_Exp.Or => Or(o, seqToExp(seq'))
+    }
+  };
+}
+
+and patSeqToExp = (seq: Seq.t(UHPat.operand, Operators_Pat.t)): exp => {
+  let S(operand, affix) = seq;
+  let o = patOperandToExp(operand);
+  switch (affix) {
+  | E => o
+  | A(op, seq') =>
+    switch (op) {
+    | Operators_Pat.Comma => Pair(o, patSeqToExp(seq'))
+    | Operators_Pat.Space => Application(o, patSeqToExp(seq'))
+    | Operators_Pat.Cons => Pair(o, patSeqToExp(seq'))
     }
   };
 }
 
 and opPatToExp = (pat: UHPat.t): exp => {
-  opSeqToExp(pat, patOperandToExp);
+  let OpSeq(_, seq) = pat;
+  patSeqToExp(seq);
 }
 
-and opSeqToExp = (seq: OpSeq.t, operandProcessor): exp => {
+and opSeqToExp = (seq: OpSeq.t(UHExp.operand, Operators_Exp.t)): exp => {
   let OpSeq(_, seq') = seq;
-  seqToExp(seq', operandProcessor);
+  seqToExp(seq');
 };
 
 /*and expToSeq = (e: exp):Seq.t => {
