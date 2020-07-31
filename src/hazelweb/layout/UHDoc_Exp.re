@@ -1,4 +1,5 @@
-open Pretty;
+module Doc = Pretty.Doc;
+
 let inline_padding_of_operator:
   UHExp.operator => (UHDoc_common.t, UHDoc_common.t) =
   fun

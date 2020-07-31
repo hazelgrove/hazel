@@ -1,4 +1,4 @@
-// TODO(undergrad): Rename to CaretPosition
+// TODO(undergrad): Rename to MeasuredPosition
 // (including updating all variable
 // naming that assumed cursor position).
 // Talk to @d before starting.

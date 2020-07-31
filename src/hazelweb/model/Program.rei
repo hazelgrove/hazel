@@ -73,7 +73,7 @@ let move_via_click:
     ~measure_program_get_doc: bool,
     ~measure_layoutOfDoc_layout_of_doc: bool,
     ~memoize_doc: bool,
-    CaretPosition.t,
+    Pretty.MeasuredPosition.t,
     t
   ) =>
   (t, Action_common.t);
@@ -105,7 +105,7 @@ let get_measured_layout:
     ~memoize_doc: bool,
     t
   ) =>
-  MeasuredLayout.t;
+  UHMeasuredLayout.t;
 
 let get_box:
   (
@@ -125,4 +125,4 @@ let get_caret_position:
     ~memoize_doc: bool,
     t
   ) =>
-  CaretPosition.t;
+  Pretty.MeasuredPosition.t;

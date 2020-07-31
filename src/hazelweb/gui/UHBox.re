@@ -1,2 +1,2 @@
 [@deriving sexp]
-type t = Box.t(UHAnnot.t);
+type t = Pretty.Box.t(UHAnnot.t);
