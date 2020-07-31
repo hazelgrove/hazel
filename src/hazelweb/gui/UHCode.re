@@ -3,6 +3,9 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
+
 let decoration_views =
     (~font_metrics: FontMetrics.t, ds: Decorations.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
@@ -10,9 +13,9 @@ let decoration_views =
           (
             ~tl: list(Vdom.Node.t),
             ~indent: int,
-            ~start: CaretPosition.t,
+            ~start: MeasuredPosition.t,
             ds: Decorations.t,
-            m: MeasuredLayout.t,
+            m: UHMeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
     let go' = go(~indent, ~start);
@@ -63,7 +66,13 @@ let decoration_views =
       }
     };
   };
-  go(~tl=[], ~indent=0, ~start={row: 0, col: 0}, ds, MeasuredLayout.mk(l));
+  go(
+    ~tl=[],
+    ~indent=0,
+    ~start={row: 0, col: 0},
+    ds,
+    UHMeasuredLayout.mk(l),
+  );
 };
 
 let key_handlers =
@@ -191,7 +200,7 @@ let view =
           ~memoize_doc=false,
           program,
         );
-      let code_text = go(Box.mk(l));
+      let code_text = go(Pretty.Box.mk(l));
 
       let ds = Program.get_decorations(program);
       let decorations = decoration_views(~font_metrics, ds, l);
@@ -243,7 +252,7 @@ let view =
               float_of_int(evt##.clientY),
             );
             let caret_pos =
-              CaretPosition.{
+              MeasuredPosition.{
                 row:
                   Float.to_int(
                     (target_y -. container_rect##.top)

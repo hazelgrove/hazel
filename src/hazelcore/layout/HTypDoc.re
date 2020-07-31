@@ -1,4 +1,4 @@
-open Pretty;
+module Doc = Pretty.Doc;
 
 type t = Doc.t(HTypAnnot.t);
 

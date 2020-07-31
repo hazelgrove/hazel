@@ -1,4 +1,6 @@
 module Vdom = Virtual_dom.Vdom;
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
 
 let inline_open_child_border_height = 0.1; // y units
 let multiline_open_child_border_width = 0.25; // x units
@@ -12,13 +14,13 @@ type current_term_rects = {
 };
 
 let rects =
-    (~vtrim=0.0, ~indent=0, start: CaretPosition.t, m: MeasuredLayout.t)
-    : (CaretPosition.t, rects) => {
+    (~vtrim=0.0, ~indent=0, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
+    : (MeasuredPosition.t, rects) => {
   let mk_rect =
       (
         ~is_first=false,
         ~is_last=false,
-        start: CaretPosition.t,
+        start: MeasuredPosition.t,
         box: MeasuredLayout.box,
       ) =>
     RectilinearPolygon.{
@@ -37,14 +39,14 @@ let rects =
     leading
     |> List.mapi((i, box) => (i, box))
     |> ListUtil.map_with_accumulator(
-         (start: CaretPosition.t, (i, box: MeasuredLayout.box)) =>
+         (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
            (
              {row: start.row + box.height, col: 0},
              mk_rect(~is_first=i == 0, start, box),
            ),
          start,
        );
-  let end_: CaretPosition.t = {
+  let end_: MeasuredPosition.t = {
     row: last_start.row + last.height - 1,
     col:
       last.width
@@ -61,7 +63,11 @@ let rects =
 };
 
 let err_hole_view =
-    (~corner_radii: (float, float), ~offset: int, subject: MeasuredLayout.t)
+    (
+      ~corner_radii: (float, float),
+      ~offset: int,
+      subject: UHMeasuredLayout.t,
+    )
     : Vdom.Node.t =>
   subject
   |> rects({row: 0, col: offset})
@@ -76,7 +82,11 @@ let err_hole_view =
      );
 
 let var_err_hole_view =
-    (~corner_radii: (float, float), ~offset: int, subject: MeasuredLayout.t)
+    (
+      ~corner_radii: (float, float),
+      ~offset: int,
+      subject: UHMeasuredLayout.t,
+    )
     : Vdom.Node.t =>
   subject
   |> rects({row: 0, col: offset})
@@ -91,7 +101,11 @@ let var_err_hole_view =
      );
 
 let var_use_view =
-    (~corner_radii: (float, float), ~offset: int, subject: MeasuredLayout.t)
+    (
+      ~corner_radii: (float, float),
+      ~offset: int,
+      subject: UHMeasuredLayout.t,
+    )
     : Vdom.Node.t =>
   subject
   |> rects({row: 0, col: offset})
@@ -105,51 +119,8 @@ let var_use_view =
          ],
      );
 
-let tessera_rects =
-    (start: CaretPosition.t, m: MeasuredLayout.t)
-    : (CaretPosition.t, current_term_rects) => {
-  let (end_, highlighted) = rects(start, m);
-  let closed_children =
-    m
-    |> MeasuredLayout.flatten
-    |> ListUtil.map_with_accumulator(
-         (line_start, line: list(MeasuredLayout.t)) => {
-           line
-           |> ListUtil.map_with_accumulator(
-                (word_start, word: MeasuredLayout.t) => {
-                  switch (word) {
-                  | {layout: Annot(ClosedChild({sort, _}), m), _} =>
-                    let (word_end, rs) = rects(~vtrim=0.1, word_start, m);
-                    (word_end, Some((sort, rs)));
-                  | _ => (
-                      MeasuredLayout.next_position(
-                        ~indent=0,
-                        word_start,
-                        word,
-                      ),
-                      None,
-                    )
-                  }
-                },
-                line_start,
-              )
-           |> (
-             fun
-             | (line_end, rss) => (
-                 line_end,
-                 List.filter_map(sort_rs => sort_rs, rss),
-               )
-           )
-         },
-         start,
-       )
-    |> snd
-    |> List.flatten;
-  (end_, {highlighted, closed_children});
-};
-
 let inline_open_child_rects =
-    (start: CaretPosition.t, m: MeasuredLayout.t): rects => {
+    (start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
   // TODO relax assumption
   assert(MeasuredLayout.height(m) == 1);
   // make singleton skinny rect along bottom
@@ -170,7 +141,7 @@ let inline_open_child_rects =
 };
 
 let multiline_open_child_rects =
-    (~overflow_left, start: CaretPosition.t, m: MeasuredLayout.t): rects => {
+    (~overflow_left, start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
   let overflow_left = overflow_left ? multiline_open_child_border_width : 0.0;
   [
     // make singleton skinny rect
@@ -276,7 +247,7 @@ let overflow_left: TermShape.t => bool =
 
 // highlighted tesserae (ignoring closed children)
 let current_term_tessera_rects =
-    (~shape: TermShape.t, ~offset: int, subject: MeasuredLayout.t): rects =>
+    (~shape: TermShape.t, ~offset: int, subject: UHMeasuredLayout.t): rects =>
   subject
   |> MeasuredLayout.pos_fold(
        ~start={row: 0, col: offset},
@@ -285,7 +256,7 @@ let current_term_tessera_rects =
        ~align=(_, _) => [],
        ~cat=(_, rs1, rs2) => rs1 @ rs2,
        ~annot=
-         (go, start, annot, m) =>
+         (go, start, annot: UHAnnot.t, m) =>
            switch (shape, annot) {
            | (Case(_) | SubBlock(_), Step(_))
            | (Case(_), Term({shape: Rule, _})) => go(m)
@@ -296,7 +267,7 @@ let current_term_tessera_rects =
 
 // closed child "cutouts" from highlighted tesserae
 let current_term_closed_child_rects =
-    (~shape: TermShape.t, ~offset: int, subject: MeasuredLayout.t)
+    (~shape: TermShape.t, ~offset: int, subject: UHMeasuredLayout.t)
     : list((TermSort.t, rects)) =>
   subject
   |> MeasuredLayout.pos_fold(
@@ -306,7 +277,7 @@ let current_term_closed_child_rects =
        ~align=(_, _) => [],
        ~cat=(_, rss1, rss2) => rss1 @ rss2,
        ~annot=
-         (go, start, annot, m) =>
+         (go, start, annot: UHAnnot.t, m) =>
            switch (shape, annot) {
            // hack for case and subblocks
            // TODO remove when we have tiles
@@ -322,7 +293,7 @@ let current_term_closed_child_rects =
 
 // highlighted borders of open children
 let current_term_open_child_rects =
-    (~shape: TermShape.t, ~offset: int, subject: MeasuredLayout.t): rects => {
+    (~shape: TermShape.t, ~offset: int, subject: UHMeasuredLayout.t): rects => {
   let has_multiline_open_child =
     subject
     |> MeasuredLayout.fold(
@@ -331,7 +302,7 @@ let current_term_open_child_rects =
          ~align=b => b,
          ~cat=(||),
          ~annot=
-           (go, annot, m) =>
+           (go, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
              | (Case(_) | SubBlock(_), Step(_))
              | (Case(_), Term({shape: Rule, _})) => go(m)
@@ -348,7 +319,7 @@ let current_term_open_child_rects =
        ~align=(_, _) => [],
        ~cat=(_, rs1, rs2) => rs1 @ rs2,
        ~annot=
-         (go, start, annot, m) => {
+         (go, start, annot: UHAnnot.t, m) => {
            // some tesserae need to be padded on left side to form
            // a straight edge with borders of neighboring multiline
            // open children
@@ -407,7 +378,7 @@ let current_term_view =
       ~offset: int,
       ~sort: TermSort.t,
       ~shape: TermShape.t,
-      subject: MeasuredLayout.t,
+      subject: UHMeasuredLayout.t,
     )
     : Vdom.Node.t => {
   let highlighted = {
@@ -471,7 +442,8 @@ let current_term_view =
 };
 
 let caret_view =
-    (~font_metrics: FontMetrics.t, {row, col}: CaretPosition.t): Vdom.Node.t => {
+    (~font_metrics: FontMetrics.t, {row, col}: MeasuredPosition.t)
+    : Vdom.Node.t => {
   Vdom.(
     Node.span(
       [
@@ -497,10 +469,10 @@ let view =
       ~corner_radius=2.5, // px
       ~font_metrics: FontMetrics.t,
       // TODO document
-      ~origin: CaretPosition.t,
+      ~origin: MeasuredPosition.t,
       ~offset: int,
       // ~shape: TermShape.t,
-      ~subject: MeasuredLayout.t,
+      ~subject: UHMeasuredLayout.t,
       d: Decoration.t,
     ) => {
   let num_rows =

@@ -5,6 +5,7 @@ type t = {
   row: int,
   col: int,
 };
+
 let compare = (pos1, pos2) =>
   if (pos1.row < pos2.row) {
     (-1);
