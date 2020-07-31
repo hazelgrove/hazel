@@ -8,7 +8,6 @@ type t = block
 and block = list(line)
 and line =
   | EmptyLine
-  | CommentLine(string)
   | CellBoundary
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
@@ -92,7 +91,6 @@ module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
-    | CommentLine(_)
     | CellBoundary
     | ExpLine(_)
     | EmptyLine
@@ -102,7 +100,6 @@ module Line = {
   let get_opseq =
     fun
     | EmptyLine
-    | CommentLine(_)
     | CellBoundary
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
@@ -124,16 +121,14 @@ module Block = {
   let num_lines: block => int = List.length;
 
   let prune_empty_hole_lines = (block: block): block =>
-    switch (block |> ListUtil.split_last) {
+    switch (block |> ListUtil.split_last_opt) {
     | None => block
     | Some((leading, last)) => (leading |> Lines.prune_empty_holes) @ [last]
     };
 
   let split_conclusion = (block: block): option((list(line), opseq)) =>
-    switch (block |> ListUtil.split_last) {
-    | None =>
-      print_endline("UHExp132");
-      None;
+    switch (block |> ListUtil.split_last_opt) {
+    | None => None
     | Some((leading, last)) =>
       switch (last |> Line.get_opseq) {
       | None =>
@@ -329,7 +324,6 @@ let mk_OpSeq = OpSeq.mk(~associate);
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
   | EmptyLine
-  | CommentLine(_)
   | CellBoundary => true
   | LetLine(pat, option_ty, body) =>
     if (check_type_holes) {

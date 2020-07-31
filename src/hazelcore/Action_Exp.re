@@ -654,41 +654,6 @@ and syn_perform_block =
   | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
 
   /* Backspace & Delete */
-  // Handle 2 special cases for CommentLines
-  // Case 1
-  | Backspace when ZExp.is_begin_of_comment(zblock) =>
-    switch (prefix |> ListUtil.split_last) {
-    | Some((new_prefix, pre_zline)) =>
-      switch (pre_zline, zline) {
-      | (CommentLine(pre_comment), CursorL(_, CommentLine(comment))) =>
-        let new_zline =
-          ZExp.CursorL(
-            OnText(String.length(pre_comment)),
-            CommentLine(pre_comment ++ comment),
-          );
-        let new_ze = (new_prefix, new_zline, suffix);
-        Succeeded(SynDone((new_ze, ty, u_gen)));
-      | _ => Failed
-      }
-    | _ => Failed
-    }
-
-  // Case 2
-  | Delete when ZExp.is_end_of_comment(zblock) =>
-    switch (suffix, zline) {
-    | (
-        [CommentLine(post_comment), ...new_suffix],
-        CursorL(_, CommentLine(comment)),
-      ) =>
-      let new_zline =
-        ZExp.CursorL(
-          OnText(String.length(comment)),
-          CommentLine(comment ++ post_comment),
-        );
-      let new_ze = (prefix, new_zline, new_suffix);
-      Succeeded(SynDone((new_ze, ty, u_gen)));
-    | _ => Failed
-    }
 
   | Delete when ZExp.is_after_zline(zline) =>
     switch (zline |> ZExp.erase_zline, suffix) {
@@ -705,7 +670,7 @@ and syn_perform_block =
       syn_perform(ctx, MoveRight, (zblock, ty, u_gen)) |> wrap_in_SynDone
     }
   | Backspace when ZExp.is_before_zline(zline) =>
-    switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
+    switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
     | (Some(([], EmptyLine)), EmptyLine) =>
       let new_ze = {
@@ -734,7 +699,11 @@ and syn_perform_block =
 
   /* SwapUp and SwapDown is handled at block level */
   | SwapUp when ZExp.line_can_be_swapped(zline) =>
-    switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+    switch (
+      ListUtil.split_last_opt(prefix),
+      zline |> ZExp.erase_zline,
+      suffix,
+    ) {
     | (None, _, _) => Failed
     | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
       Failed
@@ -860,7 +829,6 @@ and syn_perform_line =
       CursorL(OnText(_) | OnDelim(_) | OnOp(_), CellBoundary) |
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
       CursorL(OnText(_) | OnOp(_), LetLine(_)) |
-      CursorL(OnOp(_), CommentLine(_)) |
       CursorL(_, ExpLine(_)),
     ) =>
     Failed
@@ -944,79 +912,6 @@ and syn_perform_line =
       fix_and_mk_result(u_gen, new_ze);
     }
 
-  | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
-    let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
-    mk_result(u_gen, new_zblock);
-
-  | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
-    if (j == String.length(comment)) {
-      escape(u_gen, After);
-    } else {
-      let new_zblock = {
-        let new_comment = comment |> StringUtil.delete(j);
-        let new_line: UHExp.line = CommentLine(new_comment);
-        ([], ZExp.CursorL(OnText(j), new_line), []);
-      };
-      mk_result(u_gen, new_zblock);
-    }
-
-  | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
-    if (j == 0) {
-      escape(u_gen, Before);
-    } else {
-      let new_zblock = {
-        let new_comment = comment |> StringUtil.backspace(j);
-        let new_line: UHExp.line = CommentLine(new_comment);
-        ([], ZExp.CursorL(OnText(j - 1), new_line), []);
-      };
-      mk_result(u_gen, new_zblock);
-    }
-
-  /* Construction */
-
-  | (Construct(SCommentLine), CursorL(_, EmptyLine)) =>
-    let new_zblock = ([], ZExp.CursorL(OnText(0), CommentLine("")), []);
-    mk_result(u_gen, new_zblock);
-
-  // Another way to construct "SCommentLine" (To create multi-lines)
-  //   # this is a mai|n comment
-  //         =>
-  //   # this is a mai
-  //   # n comment
-  | (Construct(SCommentLine), CursorL(OnText(loca), CommentLine(comment))) =>
-    let com_bef = String.sub(comment, 0, loca);
-    let com_aft = String.sub(comment, loca, String.length(comment) - loca);
-    let new_zblock = (
-      [UHExp.CommentLine(com_bef)],
-      ZExp.CursorL(OnText(0), CommentLine(com_aft)),
-      [],
-    );
-    mk_result(u_gen, new_zblock);
-
-  | (Construct(SOp(SSpace)), CursorL(OnText(j), CommentLine(comment))) =>
-    let new_zblock = {
-      let new_comment = comment |> StringUtil.insert(j, " ");
-      let new_line: UHExp.line = CommentLine(new_comment);
-      ([], ZExp.CursorL(OnText(j + 1), new_line), []);
-    };
-    mk_result(u_gen, new_zblock);
-
-  | (
-      Construct(SOp(SSpace)),
-      CursorL(OnDelim(_, After), CommentLine(_) as line),
-    ) =>
-    let new_zblock = {
-      ([], ZExp.CursorL(OnText(0), line), []);
-    };
-    mk_result(u_gen, new_zblock);
-
-  | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
-    let new_zblock = {
-      let new_comment = comment |> StringUtil.insert(j, s);
-      let new_line: UHExp.line = CommentLine(new_comment);
-      ([], ZExp.CursorL(OnText(j + 1), new_line), []);
-    };
-    mk_result(u_gen, new_zblock);
   | (Construct(SChar(_)), CursorL(_)) => Failed
 
   | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
@@ -1595,24 +1490,6 @@ and syn_perform_operand =
 
   /* Construction */
 
-  | (Construct(SCommentLine), _) =>
-    if (ZExp.is_before_zoperand(zoperand)) {
-      let operand = ZExp.erase_zoperand(zoperand);
-      Succeeded(
-        SynDone((
-          (
-            [],
-            CursorL(OnText(0), CommentLine("")),
-            [ExpLine(OpSeq.wrap(operand))],
-          ),
-          ty,
-          u_gen,
-        )),
-      );
-    } else {
-      Failed;
-    }
-
   // TODO consider relaxing guards and
   // merging with regular op construction
   | (Construct(SOp(sop)), CursorE(OnText(j), InvalidText(_, t)))
@@ -2071,7 +1948,7 @@ and syn_perform_rules =
       zrules |> ZList.replace_z(ZExp.CursorR(OnDelim(k, After), rule));
     syn_perform_rules(ctx, Backspace, (new_zrules, u_gen), pat_ty);
   | (Backspace, CursorR(OnDelim(_, After), _)) =>
-    switch (prefix |> ListUtil.split_last, suffix) {
+    switch (prefix |> ListUtil.split_last_opt, suffix) {
     | (None, []) =>
       let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
       let new_zrules = ([], new_zrule, []);
@@ -2132,7 +2009,7 @@ and syn_perform_rules =
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
-    switch (ListUtil.split_last(prefix)) {
+    switch (ListUtil.split_last_opt(prefix)) {
     | None => Failed
     | Some((rest, last)) =>
       let new_zrules = (rest, zrule, [last, ...suffix]);
@@ -2222,7 +2099,7 @@ and ana_perform_rules =
       clause_ty,
     );
   | (Backspace, CursorR(OnDelim(_, After), _)) =>
-    switch (prefix |> ListUtil.split_last, suffix) {
+    switch (prefix |> ListUtil.split_last_opt, suffix) {
     | (None, []) =>
       let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
       let new_zrules = ([], new_zrule, []);
@@ -2283,7 +2160,7 @@ and ana_perform_rules =
 
   /* SwapUp and SwapDown actions */
   | (SwapUp, CursorR(_) | RuleZP(_)) =>
-    switch (ListUtil.split_last(prefix)) {
+    switch (ListUtil.split_last_opt(prefix)) {
     | None => Failed
     | Some((rest, last)) =>
       let new_zrules = (rest, zrule, [last, ...suffix]);
@@ -2381,7 +2258,7 @@ and ana_perform_block =
       ana_perform(ctx, MoveRight, (zblock, u_gen), ty) |> wrap_in_AnaDone
     }
   | (Backspace, _) when ZExp.is_before_zline(zline) =>
-    switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
+    switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
     | (Some(([], EmptyLine)), EmptyLine) =>
       let new_ze = {
@@ -2412,7 +2289,11 @@ and ana_perform_block =
 
   /* SwapUp and SwapDown is handled at block level */
   | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
-    switch (ListUtil.split_last(prefix), zline |> ZExp.erase_zline, suffix) {
+    switch (
+      ListUtil.split_last_opt(prefix),
+      zline |> ZExp.erase_zline,
+      suffix,
+    ) {
     | (None, _, _) => Failed
     | (Some((_, LetLine(_))), ExpLine(OpSeq(_, S(EmptyHole(_), E))), []) =>
       Failed
@@ -3035,23 +2916,6 @@ and ana_perform_operand =
   /* TODO consider deletion of type ascription on case */
 
   /* Construction */
-
-  | (Construct(SCommentLine), _) =>
-    if (ZExp.is_before_zoperand(zoperand)) {
-      let operand = ZExp.erase_zoperand(zoperand);
-      Succeeded(
-        AnaDone((
-          (
-            [],
-            CursorL(OnText(0), CommentLine("")),
-            [ExpLine(OpSeq.wrap(operand))],
-          ),
-          u_gen,
-        )),
-      );
-    } else {
-      Failed;
-    }
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)

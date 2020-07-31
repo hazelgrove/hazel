@@ -258,7 +258,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
-      | CommentLine(_) => indicate_words_view("comment")
       | LetLine(_, _, _) =>
         Vdom.(
           Node.span(
@@ -304,7 +303,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SList
     | SListNil
     | SLine
-    | SCommentLine
     | SAsc
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))

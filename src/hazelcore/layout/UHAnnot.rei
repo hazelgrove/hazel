@@ -10,25 +10,29 @@ type token_shape =
   | Text
   | Op
   | Delim(DelimIndex.t);
+[@deriving sexp]
+type token_data = {
+  shape: token_shape,
+  len: int,
+  has_cursor: option(int),
+};
+
+type open_child_format =
+  | InlineWithoutBorder
+  | InlineWithBorder
+  | Multiline;
 
 [@deriving sexp]
 type t =
-  | Indent
-  | Padding
   | HoleLabel({len: int})
-  | Token({
-      shape: token_shape,
-      len: int,
-      has_cursor: option(int),
-    })
-  | SpaceOp
+  | Token(token_data)
   | UserNewline
-  | OpenChild({is_inline: bool})
-  | ClosedChild({is_inline: bool})
-  | DelimGroup
-  | EmptyLine
-  | LetLine
-  | CommentLine
+  | OpenChild(open_child_format)
+  | ClosedChild({
+      is_inline: bool,
+      sort: TermSort.t,
+    })
+  | Tessera
   | Step(int)
   | Term(term_data);
 
@@ -37,7 +41,3 @@ let mk_Token:
 
 let mk_Term:
   (~has_cursor: bool=?, ~shape: TermShape.t, ~sort: TermSort.t, unit) => t;
-
-let mk_OpenChild: (~is_inline: bool, unit) => t;
-
-let mk_ClosedChild: (~is_inline: bool, unit) => t;

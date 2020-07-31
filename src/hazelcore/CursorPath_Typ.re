@@ -149,10 +149,7 @@ and holes_operand =
     )
     : CursorPath_common.hole_list =>
   switch (operand) {
-  | Hole => [
-      {sort: TypHole, steps: List.rev(rev_steps), is_empty: true},
-      ...hs,
-    ]
+  | Hole => [{sort: TypHole, steps: List.rev(rev_steps)}, ...hs]
   | Unit
   | Int
   | Float
@@ -183,8 +180,7 @@ and holes_zoperand =
   switch (zoperand) {
   | CursorT(_, Hole) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=
-        Some({sort: TypHole, steps: List.rev(rev_steps), is_empty: true}),
+      ~hole_selected=Some({sort: TypHole, steps: List.rev(rev_steps)}),
       (),
     )
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
