@@ -32,6 +32,25 @@ let blur = program => {...program, is_focused: false};
 
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
+// let rec split_into_cells_helper = (l,acc) => {
+//   switch (l) {
+//   | [] => [[]]
+//   | [x,...xs] =>
+//     if(x==UHExp.CommentLine("CellBoundary")) {
+//       acc @ split_into_cells_helper(xs, [[]]);
+//     } else {
+//       List.rev(List.tl(List.rev(acc))) @ [List.hd(List.rev(acc))@[x]] @ split_into_cells_helper(xs,[[]]);
+//     }
+//   }
+// }
+
+// let extract_zcells = program => {
+//   let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
+//   let prefix_list=split_into_cells_helper(prefix,[[]]);
+//   let suffix_list=split_into_cells_helper(suffix,[[]]);
+//   List.hd(List.rev(prefix_list)) @ [zline] @ List.hd(suffix_list);
+// }
+
 let add_cell_boundary = program => {
   let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
   let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -39,11 +58,7 @@ let add_cell_boundary = program => {
     (
       prefix,
       zline,
-      suffix
-      @ [
-        UHExp.CommentLine("CellBoundary"),
-        UHExp.ExpLine(OpSeq.wrap(hole)),
-      ],
+      suffix @ [UHExp.CellBoundary, UHExp.ExpLine(OpSeq.wrap(hole))],
     ),
     ty,
     u_gen,
@@ -54,7 +69,7 @@ let add_cell_boundary = program => {
 let remove_cell_boundary = program => {
   let (zexp, ty, u_gen) = program.edit_state;
   let edit_state = (
-    ZExp.remove_last_occurred(zexp, UHExp.CommentLine("CellBoundary")),
+    ZExp.remove_last_occurred(zexp, UHExp.CellBoundary),
     ty,
     u_gen,
   );

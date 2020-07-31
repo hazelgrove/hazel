@@ -857,6 +857,7 @@ and syn_perform_line =
   /* Invalid cursor positions */
   | (
       _,
+      CursorL(OnText(_) | OnDelim(_) | OnOp(_), CellBoundary) |
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
       CursorL(OnText(_) | OnOp(_), LetLine(_)) |
       CursorL(OnOp(_), CommentLine(_)) |

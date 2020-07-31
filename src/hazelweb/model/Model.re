@@ -251,6 +251,9 @@ let remove_cell = model => {
   let model = {...model, cell_num};
   model |> map_program(Program.remove_cell_boundary) |> focus_cell;
 };
+// let extract_zcells = model => {
+//   model |> map_program(Program.extract_zcells) |> focus_cell;
+// };
 
 let perform_edit_action = (a: Action_common.t, model: t): t => {
   TimeUtil.measure_time(

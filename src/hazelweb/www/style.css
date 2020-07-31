@@ -1383,6 +1383,10 @@ h1 {
   font-style: italic;
 }
 
+.CellBoundary {
+  border: 2px solid #CCC;
+}
+
 .UserNewline {
   vertical-align: middle;
   font-size: 60%;

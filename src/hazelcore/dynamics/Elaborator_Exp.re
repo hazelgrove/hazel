@@ -504,7 +504,8 @@ and syn_elab_line =
       LinesExpand(prelude, ctx, delta);
     }
   | EmptyLine
-  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
+  | CommentLine(_)
+  | CellBoundary => LinesExpand(d => d, ctx, delta)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>

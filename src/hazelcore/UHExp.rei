@@ -15,6 +15,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
+  | CellBoundary
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)

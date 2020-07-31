@@ -181,7 +181,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
-    | CommentLine(_) => MinLen
+    | CommentLine(_)
+    | CellBoundary => MinLen // TODO: check
     | LetLine(_, _, _)
     | ExpLine(_) => MaxLen
     }

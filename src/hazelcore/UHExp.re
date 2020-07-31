@@ -9,6 +9,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
+  | CellBoundary
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
@@ -92,6 +93,7 @@ module Line = {
     switch (line) {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
     | CommentLine(_)
+    | CellBoundary
     | ExpLine(_)
     | EmptyLine
     | LetLine(_) => line
@@ -101,6 +103,7 @@ module Line = {
     fun
     | EmptyLine
     | CommentLine(_)
+    | CellBoundary
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -326,7 +329,8 @@ let mk_OpSeq = OpSeq.mk(~associate);
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
   | EmptyLine
-  | CommentLine(_) => true
+  | CommentLine(_)
+  | CellBoundary => true
   | LetLine(pat, option_ty, body) =>
     if (check_type_holes) {
       switch (option_ty) {

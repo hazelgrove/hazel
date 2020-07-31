@@ -203,16 +203,16 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ],
           );
         };
-      let rec generate_cell = (~inject, model, cell_num) =>
-        if (cell_num == 1) {
-          [Cell.view(~inject, model), cell_status];
-        } else {
-          [Cell.view(~inject, model), cell_status]
-          @ generate_cell(~inject, model, cell_num - 1);
-        };
+      // let rec generate_cell = (~inject, model, cell_num) =>
+      //   if (cell_num == 1) {
+      //     [Cell.view(~inject, model), cell_status];
+      //   } else {
+      //     [Cell.view(~inject, model), cell_status]
+      //     @ generate_cell(~inject, model, cell_num - 1);
+      //   };
 
-      let cell = (~inject, model) =>
-        Node.div([], generate_cell(~inject, model, model.cell_num));
+      // let cell = (~inject, model) =>
+      //   Node.div([], generate_cell(~inject, model, model.cell_num));
       Node.div(
         [Attr.id("root")],
         [
@@ -248,7 +248,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             [Attr.classes(["card-caption"])],
                             [card.info.caption],
                           ),
-                          cell(~inject, model),
+                          Cell.view(~inject, model),
+                          cell_status,
                           cell_controls(~inject),
                           cardstack_controls(~inject, model),
                         ],

@@ -53,7 +53,8 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
   | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
   | EmptyLine
-  | CommentLine(_) => Some(ctx)
+  | CommentLine(_)
+  | CellBoundary => Some(ctx)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty) =>
@@ -693,7 +694,8 @@ and syn_fix_holes_line =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
-  | CommentLine(_) => (line, ctx, u_gen)
+  | CommentLine(_)
+  | CellBoundary => (line, ctx, u_gen)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
