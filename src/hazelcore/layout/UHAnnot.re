@@ -27,11 +27,8 @@ type open_child_format =
 
 [@deriving sexp]
 type t =
-  | Indent
-  | Padding
   | HoleLabel({len: int})
   | Token(token_data)
-  | SpaceOp
   | UserNewline
   | OpenChild(open_child_format)
   | ClosedChild({

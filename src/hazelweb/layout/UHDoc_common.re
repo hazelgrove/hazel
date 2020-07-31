@@ -51,9 +51,9 @@ let memoize =
 
 let empty_: t = Doc.empty();
 let space_: t = Doc.space();
+let indent_: t = Doc.indent();
 
-let indent_and_align_ = (doc: t): t =>
-  Doc.(hcat(annot(UHAnnot.Indent, indent()), align(doc)));
+let indent_and_align_ = (doc: t): t => Doc.(hcat(indent_, align(doc)));
 
 module Delim = {
   let mk = (~index: int, delim_text: string): t =>
@@ -101,12 +101,6 @@ module Delim = {
   let in_LetLine = (): t => mk(~index=3, "in");
 };
 
-let annot_Indent: t => t = Doc.annot(UHAnnot.Indent);
-let annot_Padding = (d: t): t =>
-  switch (d.doc) {
-  | Text("") => d
-  | _ => Doc.annot(UHAnnot.Padding, d)
-  };
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
@@ -116,8 +110,7 @@ let annot_Operand = (~sort: TermSort.t): (t => t) =>
 let annot_Case: t => t =
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case, ()));
 
-let indent_and_align = (d: t): t =>
-  Doc.(hcats([indent() |> annot_Indent, align(d)]));
+let indent_and_align = (d: t): t => Doc.(hcats([indent_, align(d)]));
 
 let mk_text = (s: string): t =>
   Doc.annot(
@@ -131,12 +124,12 @@ let mk_op = (op_text: string): t =>
     Doc.text(op_text),
   );
 
-let mk_space_op: t = Doc.annot(UHAnnot.SpaceOp, space_);
+let mk_space_op: t = space_;
 
 let user_newline: t =
   Doc.(
     hcats([
-      space_ |> annot_Padding,
+      space_,
       text(UnicodeConstants.user_newline) |> annot(UHAnnot.UserNewline),
     ])
   );
@@ -152,8 +145,8 @@ let pad_open_child =
   open Doc;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
-    let lpadding = left == empty_ ? [] : [annot_Padding(left)];
-    let rpadding = right == empty_ ? [] : [annot_Padding(right)];
+    let lpadding = left == empty_ ? [] : [left];
+    let rpadding = right == empty_ ? [] : [right];
     hcats([
       hcats(List.concat([lpadding, [child_doc], rpadding]))
       |> annot(UHAnnot.OpenChild(InlineWithBorder)),
@@ -187,8 +180,8 @@ let pad_closed_child =
   open Doc;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
-    let lpadding = left == empty_ ? [] : [annot_Padding(left)];
-    let rpadding = right == empty_ ? [] : [annot_Padding(right)];
+    let lpadding = left == empty_ ? [] : [left];
+    let rpadding = right == empty_ ? [] : [right];
     hcats(
       List.concat([
         lpadding,
@@ -220,8 +213,7 @@ let pad_left_delimited_child =
     (~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
   let inline_choice = child_doc => {
-    let lpadding =
-      inline_padding == empty_ ? [] : [inline_padding |> annot_Padding];
+    let lpadding = inline_padding == empty_ ? [] : [inline_padding];
     hcats(lpadding @ [child_doc])
     |> annot(UHAnnot.OpenChild(InlineWithoutBorder));
   };
@@ -402,8 +394,8 @@ let mk_LetLine =
 let pad_operator =
     (~inline_padding as (left, right): (t, t), operator: t): t => {
   open Doc;
-  let ldoc = left == empty_ ? empty_ : left |> annot_Padding;
-  let rdoc = right == empty_ ? empty_ : right |> annot_Padding;
+  let ldoc = left == empty_ ? empty_ : left;
+  let rdoc = right == empty_ ? empty_ : right;
   choices([
     hcats([ldoc, operator, rdoc]),
     hcats([linebreak(), operator, rdoc]),
@@ -437,10 +429,7 @@ let rec mk_BinOp =
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let (lpadding, rpadding) = {
       let (l, r) = inline_padding_of_operator(op);
-      (
-        l == empty_ ? [] : [annot_Padding(l)],
-        r == empty_ ? [] : [annot_Padding(r)],
-      );
+      (l == empty_ ? [] : [l], r == empty_ ? [] : [r]);
     };
     let op = annot_Tessera(annot_Step(op_index, mk_operator(op)));
     let skel1 = go(skel1);
@@ -530,7 +519,7 @@ let mk_NTuple =
                  annot_Tessera(comma_doc(comma_index)),
                  Doc.annot(
                    UHAnnot.OpenChild(InlineWithBorder),
-                   Doc.hcat(annot_Padding(space_), elem_doc),
+                   Doc.hcat(space_, elem_doc),
                  ),
                ]);
              (doc, [comma_index, ...comma_indices]);
@@ -552,7 +541,7 @@ let mk_NTuple =
                    // TODO need to have a choice here for multiline vs not
                    annot(
                      UHAnnot.OpenChild(Multiline),
-                     hcat(annot_Padding(space_), align(elem_doc)),
+                     hcat(space_, align(elem_doc)),
                    ),
                  ),
                )
