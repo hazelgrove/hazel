@@ -27,22 +27,16 @@ let mk_EmptyHole: string => UHDoc_common.t =
   UHDoc_common.mk_EmptyHole(~sort=Exp);
 let mk_InvalidText: string => UHDoc_common.t =
   UHDoc_common.mk_InvalidText(~sort=Exp);
-let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
-  UHDoc_common.mk_IntLit(~sort=Exp);
-let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
+let mk_IntLit: string => UHDoc_common.t = UHDoc_common.mk_IntLit(~sort=Exp);
+let mk_FloatLit: string => UHDoc_common.t =
   UHDoc_common.mk_FloatLit(~sort=Exp);
-let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc_common.t =
-  UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc_common.t =
-  UHDoc_common.mk_ListNil(~sort=Exp);
-let mk_Var:
-  (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => UHDoc_common.t =
-  UHDoc_common.mk_Var(~sort=Exp);
+let mk_BoolLit: bool => UHDoc_common.t = UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_ListNil: unit => UHDoc_common.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_Var: string => UHDoc_common.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
 let mk_Inj:
-  (~err: ErrStatus.t, ~inj_side: InjSide.t, UHDoc_common.formatted_child) =>
-  UHDoc_common.t =
+  (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc_common.t =
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple:
   (
@@ -175,12 +169,12 @@ and mk_operand =
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
         | InvalidText(_, t) => mk_InvalidText(t)
-        | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-        | IntLit(err, n) => mk_IntLit(~err, n)
-        | FloatLit(err, f) => mk_FloatLit(~err, f)
-        | BoolLit(err, b) => mk_BoolLit(~err, b)
-        | ListNil(err) => mk_ListNil(~err, ())
-        | Lam(err, p, ann, body) =>
+        | Var(_, _, x) => mk_Var(x)
+        | IntLit(_, n) => mk_IntLit(n)
+        | FloatLit(_, f) => mk_FloatLit(f)
+        | BoolLit(_, b) => mk_BoolLit(b)
+        | ListNil(_) => mk_ListNil()
+        | Lam(_, p, ann, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ann =
@@ -194,14 +188,14 @@ and mk_operand =
                  )
                );
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=2, body);
-          UHDoc_common.mk_Lam(~err, p, ann, body);
-        | Inj(err, inj_side, body) =>
+          UHDoc_common.mk_Lam(p, ann, body);
+        | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_Inj(~err, ~inj_side, body);
+          mk_Inj(~inj_side, body);
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Case(err, scrut, rules) =>
+        | Case(_, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();
           } else {
@@ -213,7 +207,7 @@ and mk_operand =
                    Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
                    |> UHDoc_common.annot_Step(1 + i)
                  );
-            UHDoc_common.mk_Case(~err, scrut, rules);
+            UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc_common.t

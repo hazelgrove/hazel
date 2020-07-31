@@ -239,11 +239,9 @@ let overflow_left: TermShape.t => bool =
   | SubBlock(_)
   | NTuple(_)
   | BinOp(_) => true
-  | Case(_)
+  | Case
   | Rule
-  | Operand(_)
-  | Var(_)
-  | Invalid => false;
+  | Operand => false;
 
 // highlighted tesserae (ignoring closed children)
 let current_term_tessera_rects =
@@ -258,8 +256,8 @@ let current_term_tessera_rects =
        ~annot=
          (go, start, annot: UHAnnot.t, m) =>
            switch (shape, annot) {
-           | (Case(_) | SubBlock(_), Step(_))
-           | (Case(_), Term({shape: Rule, _})) => go(m)
+           | (Case | SubBlock(_), Step(_))
+           | (Case, Term({shape: Rule, _})) => go(m)
            | (_, Tessera) => snd(rects(~vtrim=tessera_margin, start, m))
            | _ => []
            },
@@ -281,8 +279,8 @@ let current_term_closed_child_rects =
            switch (shape, annot) {
            // hack for case and subblocks
            // TODO remove when we have tiles
-           | (Case(_) | SubBlock(_), Step(_))
-           | (Case(_), Term({shape: Rule, _})) => go(m)
+           | (Case | SubBlock(_), Step(_))
+           | (Case, Term({shape: Rule, _})) => go(m)
            | (_, Tessera) => go(m)
            | (_, ClosedChild({sort, _})) => [
                (sort, snd(rects(~vtrim=0.1, start, m))),
@@ -304,8 +302,8 @@ let current_term_open_child_rects =
          ~annot=
            (go, annot: UHAnnot.t, m) =>
              switch (shape, annot) {
-             | (Case(_) | SubBlock(_), Step(_))
-             | (Case(_), Term({shape: Rule, _})) => go(m)
+             | (Case | SubBlock(_), Step(_))
+             | (Case, Term({shape: Rule, _})) => go(m)
              | (_, OpenChild(Multiline)) => true
              | (_, _) => false
              },
@@ -347,8 +345,8 @@ let current_term_open_child_rects =
            };
 
            switch (shape, annot) {
-           | (Case(_) | SubBlock(_), Step(_))
-           | (Case(_), Term({shape: Rule, _})) => go(m)
+           | (Case | SubBlock(_), Step(_))
+           | (Case, Term({shape: Rule, _})) => go(m)
            | (_, OpenChild(InlineWithBorder)) =>
              inline_open_child_rects(start, m)
            | (_, OpenChild(Multiline)) =>
@@ -357,7 +355,7 @@ let current_term_open_child_rects =
                start,
                m,
              )
-           | (Case(_), Tessera) => tessera_padding(false)
+           | (Case, Tessera) => tessera_padding(false)
            | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
              // TODO may need to revisit above when guard
              // to support layouts like
