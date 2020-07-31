@@ -276,20 +276,6 @@ let rec map_with_accumulator_opt =
     (final, [y, ...ys]);
   };
 
-/*
- let rec pairs = (xs: list('x)): list(('x, 'x)) =>
-   switch (xs) {
-   | []
-   | [_] => []
-   | [x1, x2, ...xs] => [(x1, x2), ...pairs([x2, ...xs])]
-   };
- */
-
-/**
- * `disjoint_pairs(xs)` returns a list of disjoint pairs
- * of consecutive elements in `xs`. If `xs` has an odd
- * number of elements, the last element is dropped.
- */
 let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
   switch (xs) {
   | []
@@ -302,25 +288,3 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
-
-/*
- let cycle_map = (g: ('x, 'x) => 'y, xs: list('x)): list('y) => {
-   let rec go = (~hd: option('x)=?, xs: list('x)): list('y) =>
-     switch (xs) {
-     | [] => []
-     | [x] =>
-       switch (hd) {
-       | Some(hd) => [g(x, hd)]
-       | None => [g(x, x)]
-       }
-     | [x1, x2, ...xs] =>
-       let hd =
-         switch (hd) {
-         | None => x1
-         | Some(hd) => hd
-         };
-       [g(x1, x2), ...go(~hd, [x2, ...xs])];
-     };
-   go(xs);
- };
- */
