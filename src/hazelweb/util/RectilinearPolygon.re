@@ -53,7 +53,16 @@ let get_scalar =
   | Dx(f)
   | Dy(f) => f;
 
-// expects rectangles to form a single contour, otherwise result undefined
+/**
+ * `mk_svg(~attrs, ~corner_radii, rects)` returns an SVG path
+ * element tracing the contour of the union of rectangles in
+ * `rects`, rounding corners according to `corner_radii` and
+ * adding `attrs` to the attributes of the path element.
+ *
+ * Expects union of rectangles to form a single contour, otherwise
+ * result is unspecified. This is not a fundamental limitation of
+ * the underlying algorithm, just an incidental one.
+ */
 let mk_svg =
     (
       ~attrs: list(Vdom.Attr.t),
