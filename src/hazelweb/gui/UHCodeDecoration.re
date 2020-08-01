@@ -420,8 +420,6 @@ let current_term_view =
         ],
       )
     );
-  // <feOffset in="SourceGraphic" dx="60" dy="60" />
-  // <feFlood flood-color="black" flood-opacity="1" result="color"/>
   Vdom.(
     Node.create_svg(
       "g",
