@@ -180,8 +180,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Rule(_, _) => MaxLen
   | Line(_, line) =>
     switch (line) {
-    | EmptyLine
-    | CommentLine(_) => MinLen
+    | EmptyLine => MinLen
+    | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_, _, _)
     | ExpLine(_) => MaxLen
     }
