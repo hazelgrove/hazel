@@ -481,7 +481,8 @@ module Exp = {
     | IntLit(_)
     | FloatLit(_)
     | ListNil(_)
-    | Triv => d2
+    | Triv
+    | Label(_) => d2
     | Cons(d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
@@ -530,7 +531,10 @@ module Exp = {
     | InvalidOperation(d, err) =>
       let d' = subst_var(d1, x, d);
       InvalidOperation(d', err);
-    | Label(_) => failwith("unimplemented")
+    | Label_Elt(d3, d4) =>
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      Label_Elt(d3, d4);
     }
   and subst_var_rules =
       (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -737,6 +741,7 @@ module Exp = {
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
     | Label(_) => failwith("unimplemented")
+    | Label_Elt(_) => failwith("unimplemented")
     }
   and matches_cast_Pair =
       (
@@ -797,6 +802,7 @@ module Exp = {
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
     | Label(_) => failwith("unimplemented")
+    | Label_Elt(_, _) => failwith("unimplemented")
     }
   and matches_cast_Cons =
       (
@@ -855,6 +861,7 @@ module Exp = {
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
     | Label(_) => failwith("unimplemented")
+    | Label_Elt(_, _) => failwith("unimplemented")
     };
 
   type expand_result_lines =
@@ -1010,7 +1017,21 @@ module Exp = {
       | None => ExpandResult.DoesNotExpand
       | Some(ty1) =>
         switch (HTyp.matched_arrow(ty1)) {
-        | None => ExpandResult.DoesNotExpand
+        // ECD TODO: Asummes hole is arrow type before assuming that it is a label type, need to check if that is the right behavior
+        | None =>
+          switch (ty1) {
+          | Label(label) =>
+            switch (syn_expand_skel(ctx, delta, skel2, seq)) {
+            | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
+            | Expands(d2, ty2', delta) =>
+              Expands(
+                Label_Elt(Label(label), d2),
+                Label_Elt(Label(label), ty2'),
+                delta
+              )
+            }
+          | _ => ExpandResult.DoesNotExpand
+          }
         | Some((ty2, ty)) =>
           let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
           switch (ana_expand_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
@@ -1819,6 +1840,7 @@ module Exp = {
       let (d, hii) = renumber_result_only(path, hii, d);
       (InvalidOperation(d, err), hii);
     | Label(_) => failwith("unimplemented")
+    | Label_Elt(_, _) => failwith("unimplemented")
     }
   and renumber_result_only_rules =
       (
@@ -1925,6 +1947,7 @@ module Exp = {
       let (d, hii) = renumber_sigmas_only(path, hii, d);
       (InvalidOperation(d, err), hii);
     | Label(_) => failwith("unimplemented")
+    | Label_Elt(_, _) => failwith("unimplemented")
     }
   and renumber_sigmas_only_rules =
       (
@@ -2332,6 +2355,7 @@ module Evaluator = {
       | Indet(d') => Indet(InvalidOperation(d', err))
       }
     | Label(_) => failwith("unimplemented")
+    | Label_Elt(_) => failwith("unimplemented")
     }
   and evaluate_case =
       (
