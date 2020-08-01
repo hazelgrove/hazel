@@ -146,7 +146,7 @@ let lines_of_prefix =
   | E => ([], u_gen)
   | A(_) =>
     let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    let opseq = UHExp.mk_OpSeq(Seq.affix_seq(prefix, S(hole, E)));
+    let opseq = UHExp.mk_OpSeq(Seq.prefix_seq(prefix, S(hole, E)));
     ([UHExp.ExpLine(opseq)], u_gen);
   };
 
@@ -161,7 +161,7 @@ let lines_of_suffix =
   | E => ([], u_gen)
   | A(_) =>
     let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    let opseq = UHExp.mk_OpSeq(Seq.seq_affix(S(hole, E), suffix));
+    let opseq = UHExp.mk_OpSeq(Seq.seq_suffix(S(hole, E), suffix));
     ([UHExp.ExpLine(opseq)], u_gen);
   };
 
@@ -174,7 +174,7 @@ let resurround =
     : (UHExp.t, MetaVarGen.t) =>
   switch (e) {
   | [ExpLine(OpSeq(_, seq))] =>
-    let new_seq = Seq.affix_seq(prefix, Seq.seq_affix(seq, suffix));
+    let new_seq = Seq.prefix_seq(prefix, Seq.seq_suffix(seq, suffix));
     (UHExp.Block.wrap'(UHExp.mk_OpSeq(new_seq)), u_gen);
   | block =>
     let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
@@ -1189,13 +1189,13 @@ and syn_perform_opseq =
       when zoperand |> ZExp.is_after_zoperand =>
     let (new_line, u_gen) = {
       let operand = zoperand |> ZExp.erase_zoperand;
-      let seq = Seq.affix_seq(prefix, S(operand, E));
+      let seq = Seq.prefix_seq(prefix, S(operand, E));
       let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
       (UHExp.ExpLine(opseq), u_gen);
     };
     let (new_zline, ty, u_gen) = {
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let seq = Seq.seq_affix(S(hole, E), suffix);
+      let seq = Seq.seq_suffix(S(hole, E), suffix);
       let (opseq, ty, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
       (ZExp.ExpLineZ(opseq |> ZExp.place_before_opseq), ty, u_gen);
     };
@@ -1208,7 +1208,7 @@ and syn_perform_opseq =
     ) =>
     let (new_line, u_gen) = {
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let seq = Seq.affix_seq(prefix, S(hole, E));
+      let seq = Seq.prefix_seq(prefix, S(hole, E));
       let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
       (UHExp.ExpLine(opseq), u_gen);
     };
@@ -2566,13 +2566,13 @@ and ana_perform_opseq =
       when zoperand |> ZExp.is_after_zoperand =>
     let (new_line, u_gen) = {
       let operand = zoperand |> ZExp.erase_zoperand;
-      let seq = Seq.affix_seq(prefix, S(operand, E));
+      let seq = Seq.prefix_seq(prefix, S(operand, E));
       let (opseq, u_gen) = mk_and_ana_fix_OpSeq(ctx, u_gen, seq, ty);
       (UHExp.ExpLine(opseq), u_gen);
     };
     let (new_zline, u_gen) = {
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let seq = Seq.seq_affix(S(hole, E), suffix);
+      let seq = Seq.seq_suffix(S(hole, E), suffix);
       let (opseq, u_gen) = mk_and_ana_fix_OpSeq(ctx, u_gen, seq, ty);
       (ZExp.ExpLineZ(opseq |> ZExp.place_before_opseq), u_gen);
     };
@@ -2585,7 +2585,7 @@ and ana_perform_opseq =
     ) =>
     let (new_line, u_gen) = {
       let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let seq = Seq.affix_seq(prefix, S(hole, E));
+      let seq = Seq.prefix_seq(prefix, S(hole, E));
       let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
       (UHExp.ExpLine(opseq), u_gen);
     };

@@ -53,7 +53,18 @@ let get_scalar =
   | Dx(f)
   | Dy(f) => f;
 
-// expects rectangles to form a single contour, otherwise result undefined
+/**
+ * `mk_svg(~attrs, ~corner_radii, rects)` returns an SVG path
+ * element tracing the contour of the union of rectangles in
+ * `rects`, rounding corners according to `corner_radii` and
+ * adding `attrs` to the attributes of the path element.
+ *
+ * Expects `rects` to be nonempty.
+ *
+ * Expects union of rectangles to form a single contour, otherwise
+ * result is unspecified. (This is not a fundamental limitation of
+ * the underlying algorithm, just an incidental one.)
+ */
 let mk_svg =
     (
       ~attrs: list(Vdom.Attr.t),
@@ -61,6 +72,11 @@ let mk_svg =
       rects: list(rect),
     )
     : Vdom.Node.t => {
+  // Implements algorithm described in Section 8.5 of
+  // Computational Geometry: An Introduction by Preparata
+  // & Shamos. If you need to understand the algorithm in
+  // detail, you should first read Sections 1.2.3.1 + 8.3.
+
   assert(rects != []);
 
   let is_left_side = (edge: linked_edge): bool => {
@@ -267,16 +283,6 @@ let mk_svg =
   };
   let path = [cmd_of_linked_edge(start), ...build_path(start)];
 
-  // TODO refine estimate
-  let buffer = Buffer.create(List.length(path) * 20);
-  Buffer.add_string(
-    buffer,
-    Printf.sprintf(
-      "M %f %f ",
-      (start.src.x +. start.dst.x) *. 0.5,
-      (start.src.y +. start.dst.y) *. 0.5,
-    ),
-  );
   path
   |> List.map(
        fun
@@ -301,20 +307,19 @@ let mk_svg =
            ry_min *. rx >= rx_min *. ry
              ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
          let clockwise = Float.sign_bit(dx) == Float.sign_bit(dy);
-         Printf.sprintf(
-           "h %s a %s %s 0 0 %s %s %s v %s ",
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dx) -. rx, dx),
-           ),
-           FloatUtil.to_string_zero(rx),
-           FloatUtil.to_string_zero(ry),
-           clockwise ? "1" : "0",
-           FloatUtil.to_string_zero(Float.copy_sign(rx, dx)),
-           FloatUtil.to_string_zero(Float.copy_sign(ry, dy)),
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dy) -. ry, dy),
-           ),
-         );
+         SvgUtil.Path.[
+           H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
+           A_({
+             rx,
+             ry,
+             x_axis_rotation: 0.,
+             large_arc_flag: false,
+             sweep_flag: clockwise,
+             dx: Float.copy_sign(rx, dx),
+             dy: Float.copy_sign(ry, dy),
+           }),
+           V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
+         ];
        | (Dy(dy), Dx(dx)) =>
          let rx_min = min(rx, Float.abs(dx));
          let ry_min = min(ry, Float.abs(dy));
@@ -322,71 +327,27 @@ let mk_svg =
            ry_min *. rx >= rx_min *. ry
              ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
          let clockwise = Float.sign_bit(dy) != Float.sign_bit(dx);
-         Printf.sprintf(
-           "v %s a %s %s 0 0 %s %s %s h %s ",
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dy) -. ry, dy),
-           ),
-           FloatUtil.to_string_zero(rx),
-           FloatUtil.to_string_zero(ry),
-           clockwise ? "1" : "0",
-           FloatUtil.to_string_zero(Float.copy_sign(rx, dx)),
-           FloatUtil.to_string_zero(Float.copy_sign(ry, dy)),
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dx) -. rx, dx),
-           ),
-         );
+         [
+           V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
+           A_({
+             rx,
+             ry,
+             x_axis_rotation: 0.,
+             large_arc_flag: false,
+             sweep_flag: clockwise,
+             dx: Float.copy_sign(rx, dx),
+             dy: Float.copy_sign(ry, dy),
+           }),
+           H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
+         ];
        }
      })
-  |> List.iter(cmd_str => Buffer.add_string(buffer, cmd_str));
-
-  Vdom.(
-    Node.create_svg(
-      "path",
-      [Attr.create("d", Buffer.contents(buffer)), ...attrs],
-      [],
-    )
-  );
-};
-
-/**
- * Merges consecutive collinear segments. Result
- * is a list alternating between `Dx` and `Dy`.
- */
-let rec compress = (path: t): t =>
-  switch (path) {
-  | [] => []
-  | [Dx(dx1), Dx(dx2), ...path] => compress([Dx(dx1 +. dx2), ...path])
-  | [Dy(dy1), Dy(dy2), ...path] => compress([Dy(dy1 +. dy2), ...path])
-  | [d, ...path] => [d, ...compress(path)]
-  };
-
-let h = (f: float): string =>
-  Printf.sprintf("h %s ", FloatUtil.to_string_zero(f));
-let v = (f: float): string =>
-  Printf.sprintf("v %s ", FloatUtil.to_string_zero(f));
-
-let rounded_corner = ((rx: float, ry: float), enter: cmd, exit: cmd): string => {
-  let (dx, dy) =
-    switch (enter, exit) {
-    | (Dx(_), Dx(_))
-    | (Dy(_), Dy(_)) => failwith("invalid argument")
-    | (Dx(x), Dy(y))
-    | (Dy(y), Dx(x)) => (Float.copy_sign(rx, x), Float.copy_sign(ry, y))
-    };
-  let sweep =
-    switch (enter, exit) {
-    | (Dx(_), Dx(_))
-    | (Dy(_), Dy(_)) => failwith("invalid argument")
-    | (Dx(x), Dy(y)) => x >= 0.0 != (y >= 0.0)
-    | (Dy(y), Dx(x)) => x >= 0.0 == (y >= 0.0)
-    };
-  Printf.sprintf(
-    "a %s %s 0 0 %s %s %s ",
-    FloatUtil.to_string_zero(rx),
-    FloatUtil.to_string_zero(ry),
-    sweep ? "1" : "0",
-    FloatUtil.to_string_zero(dx),
-    FloatUtil.to_string_zero(dy),
-  );
+  |> List.flatten
+  |> List.cons(
+       SvgUtil.Path.M({
+         x: (start.src.x +. start.dst.x) *. 0.5,
+         y: (start.src.y +. start.dst.y) *. 0.5,
+       }),
+     )
+  |> SvgUtil.Path.view(attrs);
 };
