@@ -59,9 +59,11 @@ let get_scalar =
  * `rects`, rounding corners according to `corner_radii` and
  * adding `attrs` to the attributes of the path element.
  *
+ * Expects `rects` to be nonempty.
+ *
  * Expects union of rectangles to form a single contour, otherwise
- * result is unspecified. This is not a fundamental limitation of
- * the underlying algorithm, just an incidental one.
+ * result is unspecified. (This is not a fundamental limitation of
+ * the underlying algorithm, just an incidental one.)
  */
 let mk_svg =
     (
@@ -70,6 +72,11 @@ let mk_svg =
       rects: list(rect),
     )
     : Vdom.Node.t => {
+  // Implements algorithm described in Section 8.5 of
+  // Computational Geometry: An Introduction by Preparata
+  // & Shamos. If you need to understand the algorithm in
+  // detail, you should first read Sections 1.2.3.1 + 8.3.
+
   assert(rects != []);
 
   let is_left_side = (edge: linked_edge): bool => {
