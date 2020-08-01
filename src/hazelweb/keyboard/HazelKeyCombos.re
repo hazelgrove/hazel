@@ -28,6 +28,10 @@ type t =
   | Alt_L
   | Alt_R
   | Alt_C
+  | Alt_N
+  | Alt_P
+  | Alt_LeftBracket
+  | Alt_RightBracket
   | Pound
   | Ctrl_Z
   | Ctrl_Shift_Z
@@ -66,6 +70,10 @@ let get_details =
   | Alt_L => KeyCombo.alt_L
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
+  | Alt_N => KeyCombo.alt_N
+  | Alt_P => KeyCombo.alt_P
+  | Alt_LeftBracket => KeyCombo.alt_LeftBracket
+  | Alt_RightBracket => KeyCombo.alt_RightBracket
   | Ctrl_Z => KeyCombo.ctrl_z
   | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
   | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
@@ -137,6 +145,14 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Alt_R);
   } else if (evt_matches(KeyCombo.alt_C)) {
     Some(Alt_C);
+  } else if (evt_matches(KeyCombo.alt_N)) {
+    Some(Alt_N);
+  } else if (evt_matches(KeyCombo.alt_P)) {
+    Some(Alt_P);
+  } else if (evt_matches(KeyCombo.alt_LeftBracket)) {
+    Some(Alt_LeftBracket);
+  } else if (evt_matches(KeyCombo.alt_RightBracket)) {
+    Some(Alt_RightBracket);
   } else if (evt_matches(KeyCombo.ctrl_alt_i)) {
     Some(Ctrl_Alt_I);
   } else if (evt_matches(KeyCombo.ctrl_alt_k)) {

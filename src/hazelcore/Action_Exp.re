@@ -332,7 +332,7 @@ let mk_syn_text =
       | Var(x) => x
       | _ => "_"
       };
-    switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
+    switch (VarMap.lookup_typ(ctx |> Contexts.gamma, x)) {
     | Some(ty) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, u_gen)));
@@ -526,6 +526,10 @@ let rec syn_move =
     |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
          Succeeded(SynDone((ze, ty, u_gen)))
        )
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | Construct(_)
   | Delete
   | Backspace
@@ -587,6 +591,10 @@ let rec ana_move =
     |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
          Succeeded(AnaDone((ze, u_gen)))
        )
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | Construct(_)
   | Delete
   | Backspace
@@ -601,6 +609,78 @@ let rec ana_move =
       ++ ": expected movement action, got "
       ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
     )
+  };
+let syn_go_to =
+    (
+      ctx: Contexts.t,
+      a: Action_common.t,
+      (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
+    )
+    : ActionOutcome.t(syn_success) =>
+  switch (CursorInfo_Exp.syn_cursor_info(Contexts.empty, ze)) {
+  | None => Failed
+  | Some(ci) =>
+    switch (a) {
+    | GoToDefinition =>
+      switch (ci.typed) {
+      | AnaTypeInconsistent(_, _, Some((_, binding_steps, _, _)))
+      | AnaSubsumed(_, _, Some((_, binding_steps, _, _)))
+      | SynErrorArrow(_, _, Some((_, binding_steps, _, _)))
+      | SynMatchingArrow(_, _, Some((_, binding_steps, _, _)))
+      | Synthesized(_, Some((_, binding_steps, _, _)))
+      | SynBranchClause(
+          _,
+          Synthesized(_, Some((_, binding_steps, _, _))),
+          _,
+        ) =>
+        syn_move(ctx, MoveTo((binding_steps, OnText(0))), (ze, ty, u_gen))
+      | _ => Failed
+      }
+    | GoToFirstUsage =>
+      // from binding site to first usage
+      switch (ci.typed) {
+      | PatAnaVar(_, _, _, _, [first_usage, ..._], _)
+      | PatSynVar(_, _, _, _, [first_usage, ..._], _) =>
+        syn_move(ctx, MoveTo((first_usage, OnText(0))), (ze, ty, u_gen))
+      | _ => Failed
+      }
+    | GoToNextUsage
+    | GoToPrevUsage =>
+      switch (ci.typed) {
+      | AnaTypeInconsistent(_, _, Some((_, _, _, [])))
+      | AnaSubsumed(_, _, Some((_, _, _, [])))
+      | SynErrorArrow(_, _, Some((_, _, _, [])))
+      | SynMatchingArrow(_, _, Some((_, _, _, [])))
+      | Synthesized(_, Some((_, _, _, [])))
+      | SynBranchClause(_, Synthesized(_, Some((_, _, _, []))), _) => Failed
+      | AnaTypeInconsistent(_, _, Some((_, _, i_cur, other_uses)))
+      | AnaSubsumed(_, _, Some((_, _, i_cur, other_uses)))
+      | SynErrorArrow(_, _, Some((_, _, i_cur, other_uses)))
+      | SynMatchingArrow(_, _, Some((_, _, i_cur, other_uses)))
+      | Synthesized(_, Some((_, _, i_cur, other_uses)))
+      | SynBranchClause(
+          _,
+          Synthesized(_, Some((_, _, i_cur, other_uses))),
+          _,
+        ) =>
+        let len = List.length(other_uses);
+        let result_steps =
+          switch (a) {
+          | GoToNextUsage => List.nth(other_uses, Int.rem(i_cur + len, len))
+          | GoToPrevUsage =>
+            List.nth(other_uses, Int.rem(i_cur - 1 + len, len))
+          | _ => assert(false)
+          };
+        syn_move(ctx, MoveTo((result_steps, OnText(0))), (ze, ty, u_gen));
+      | _ => Failed
+      }
+    | _ =>
+      failwith(
+        __LOC__
+        ++ ": expected goto action, got "
+        ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
+      )
+    }
   };
 
 let rec syn_perform =
@@ -644,6 +724,12 @@ and syn_perform_block =
   | MoveToNextHole
   | MoveLeft
   | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
+
+  /* Variable-based navigation handled at top level */
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage => syn_go_to(ctx, a, (zblock, ty, u_gen))
 
   /* Backspace & Delete */
 
@@ -769,7 +855,9 @@ and syn_perform_block =
           ) {
           | None => Failed
           | Some(new_ty) =>
-            let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
+            let new_ze =
+              (prefix @ inner_prefix, new_zline, inner_suffix)
+              |> UsageAnalysis.ana_var_zblock;
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
           }
         | [_, ..._] =>
@@ -777,7 +865,8 @@ and syn_perform_block =
             Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
           let new_zblock =
             (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
-            |> ZExp.prune_empty_hole_lines;
+            |> ZExp.prune_empty_hole_lines
+            |> UsageAnalysis.ana_var_zblock;
           Succeeded(SynDone((new_zblock, new_ty, u_gen)));
         }
       }
@@ -824,6 +913,10 @@ and syn_perform_line =
     ) =>
     Failed
   | (_, CursorL(cursor, line)) when !ZExp.is_valid_cursor_line(cursor, line) =>
+    Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
     Failed
 
   /* Movement */
@@ -1052,6 +1145,10 @@ and syn_perform_opseq =
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1383,6 +1480,10 @@ and syn_perform_operand =
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
   | (Construct(SList), _) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1924,6 +2025,10 @@ and syn_perform_rules =
   /* Invalid cursor positions */
   | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
 
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
+
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     failwith("unimplemented")
@@ -2068,6 +2173,10 @@ and ana_perform_rules =
   switch (a, zrule) {
   /* Invalid cursor positions */
   | (_, CursorR(OnText(_) | OnOp(_), _)) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2226,6 +2335,9 @@ and ana_perform_block =
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zline) {
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition, _) => Failed
+
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     ana_move(ctx, a, (zblock, u_gen), ty)
@@ -2356,7 +2468,9 @@ and ana_perform_block =
               }),
             )
           | Succeeded(AnaDone(((inner_prefix, zline, suffix), u_gen))) =>
-            let new_ze = (prefix @ inner_prefix, zline, suffix);
+            let new_ze =
+              (prefix @ inner_prefix, zline, suffix)
+              |> UsageAnalysis.ana_var_zblock;
             Succeeded(AnaDone((new_ze, u_gen)));
           }
         }
@@ -2389,7 +2503,8 @@ and ana_perform_block =
             Statics_Exp.ana_fix_holes_block(ctx_suffix, u_gen, suffix, ty);
           let new_zblock =
             (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
-            |> ZExp.prune_empty_hole_lines;
+            |> ZExp.prune_empty_hole_lines
+            |> UsageAnalysis.ana_var_zblock;
           Succeeded(AnaDone((new_zblock, u_gen)));
         }
       }
@@ -2409,6 +2524,10 @@ and ana_perform_opseq =
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2810,6 +2929,10 @@ and ana_perform_operand =
         }
       }
     };
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>

@@ -1048,3 +1048,46 @@ and cursor_on_EmptyHole_zrule =
   | CursorR(_)
   | RuleZP(_) => None
   | RuleZE(_, ze) => cursor_on_EmptyHole(ze);
+
+let rec cursor_on_Var = ze => cursor_on_Var_zblock(ze)
+and cursor_on_Var_zblock = ((_, zline, _)) => cursor_on_Var_zline(zline)
+and cursor_on_Var_zline =
+  fun
+  | CursorL(_) => None
+  | ExpLineZ(zopseq) => cursor_on_Var_zopseq(zopseq)
+  | LetLineZP(_)
+  | LetLineZA(_) => None
+  | LetLineZE(_, _, ze) => cursor_on_Var(ze)
+and cursor_on_Var_zopseq =
+  fun
+  | ZOpSeq(_, ZOperator(_)) => None
+  | ZOpSeq(_, ZOperand(zoperand, _)) => cursor_on_Var_zoperand(zoperand)
+and cursor_on_Var_zoperand =
+  fun
+  | CursorE(_, Var(_, _, x)) => Some(x)
+  | CursorE(_)
+  | LamZP(_)
+  | LamZA(_) => None
+  | LamZE(_, _, _, ze)
+  | ParenthesizedZ(ze)
+  | InjZ(_, _, ze)
+  | CaseZE(_, ze, _) => cursor_on_Var(ze)
+  | ApPaletteZ(_) => failwith("unimplemented")
+  | CaseZR(_, _, (_, zrule, _)) => cursor_on_Var_zrule(zrule)
+and cursor_on_Var_zrule =
+  fun
+  | CursorR(_)
+  | RuleZP(_) => None
+  | RuleZE(_, ze) => cursor_on_Var(ze);
+
+let rec cursor_on_VarPat = ze => cursor_on_VarPat_zblock(ze)
+and cursor_on_VarPat_zblock = ((_, zline, _)) =>
+  cursor_on_VarPat_zline(zline)
+and cursor_on_VarPat_zline =
+  fun
+  | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_, p, _, _), _)))
+  | LetLineZP(p, _, _) => ZPat.cursor_on_Var(p)
+  | LetLineZE(_, _, ze) => cursor_on_VarPat(ze)
+  | CursorL(_)
+  | ExpLineZ(_)
+  | LetLineZA(_) => None;

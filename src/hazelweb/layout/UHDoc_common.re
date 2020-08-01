@@ -114,10 +114,19 @@ let annot_ClosedChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
 let annot_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t)
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t=NotInHole,
+      ~verr: VarErrStatus.t,
+      ~vwarn: VarWarnStatus.t=NoWarning,
+    )
     : (t => t) =>
   Doc.annot(
-    UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
+    UHAnnot.mk_Term(
+      ~sort,
+      ~shape=TermShape.mk_Var(~err, ~verr, ~vwarn, ()),
+      (),
+    ),
   );
 let annot_Operand = (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole): (t => t) =>
   Doc.annot(
@@ -261,8 +270,15 @@ let mk_InvalidText = (~sort: TermSort.t, t: string): t =>
   mk_text(t) |> annot_Invalid(~sort);
 
 let mk_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t, x: Var.t): t =>
-  mk_text(x) |> annot_Var(~sort, ~err, ~verr);
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t,
+      ~verr: VarErrStatus.t,
+      ~vwarn: VarWarnStatus.t=NoWarning,
+      x: Var.t,
+    )
+    : t =>
+  mk_text(x) |> annot_Var(~sort, ~err, ~verr, ~vwarn);
 
 let mk_IntLit = (~sort: TermSort.t, ~err: ErrStatus.t, n: string): t =>
   mk_text(n) |> annot_Operand(~sort, ~err);

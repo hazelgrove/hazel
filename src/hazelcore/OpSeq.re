@@ -71,30 +71,48 @@ let mk_inconsistent =
 
 let rec is_complete_skel =
         (
-          is_complete_operand: ('operand, bool) => bool,
+          is_complete_operand: ('operand, bool, bool) => bool,
           sk: skel('operator),
           sq: seq('operand, 'operator),
+          check_pat: bool,
           check_type_holes: bool,
         )
         : bool => {
   switch (sk) {
   | Placeholder(n) as _skel =>
-    is_complete_operand(sq |> Seq.nth_operand(n), check_type_holes)
+    is_complete_operand(
+      sq |> Seq.nth_operand(n),
+      check_pat,
+      check_type_holes,
+    )
   | BinOp(InHole(_), _, _, _) => false
   | BinOp(NotInHole, _, skel1, skel2) =>
-    is_complete_skel(is_complete_operand, skel1, sq, check_type_holes)
-    && is_complete_skel(is_complete_operand, skel2, sq, check_type_holes)
+    is_complete_skel(
+      is_complete_operand,
+      skel1,
+      sq,
+      check_pat,
+      check_type_holes,
+    )
+    && is_complete_skel(
+         is_complete_operand,
+         skel2,
+         sq,
+         check_pat,
+         check_type_holes,
+       )
   };
 }
 and is_complete =
     (
-      is_complete_operand: ('operand, bool) => bool,
+      is_complete_operand: ('operand, bool, bool) => bool,
       opseq: t('operand, 'operator),
+      check_pat: bool,
       check_type_holes: bool,
     )
     : bool => {
   switch (opseq) {
   | OpSeq(sk, sq) =>
-    is_complete_skel(is_complete_operand, sk, sq, check_type_holes)
+    is_complete_skel(is_complete_operand, sk, sq, check_pat, check_type_holes)
   };
 };

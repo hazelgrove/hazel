@@ -86,6 +86,10 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
     |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), z =>
          Succeeded(z)
        )
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | Construct(_)
   | Delete
   | Backspace
@@ -120,6 +124,10 @@ and perform_opseq =
     )
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -241,6 +249,10 @@ and perform_operand =
   | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
   | (_, CursorT(cursor, operand))
       when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
+    Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
     Failed
 
   /* Movement handled at top level */

@@ -96,6 +96,10 @@ let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
 
+let mk_Duplicate = (u, i, x) =>
+  Doc.text(Var.to_string(x))
+  |> Doc.annot(DHAnnot.VarHole(Duplicate, (u, i)));
+
 let mk_InvalidText = (t, (u, i)) =>
   Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
 

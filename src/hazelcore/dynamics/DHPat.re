@@ -7,6 +7,7 @@ type t =
   | Wild
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
+  | Duplicate(MetaVar.t, MetaVarInst.t, Var.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
   | IntLit(int)
@@ -39,7 +40,8 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | BoolLit(_)
   | Triv
   | ListNil
-  | Keyword(_, _, _) => false
+  | Keyword(_, _, _)
+  | Duplicate(_, _, _) => false
   | Var(y) => Var.eq(x, y)
   | Inj(_, dp1) => binds_var(x, dp1)
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)

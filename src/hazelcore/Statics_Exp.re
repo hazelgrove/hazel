@@ -3,23 +3,39 @@ let tuple_zip =
 
 /* returns recursive ctx + name of recursively defined var */
 let ctx_for_let' =
-    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
+    (
+      ctx: Contexts.t,
+      p: UHPat.t,
+      ty: HTyp.t,
+      ~steps: CursorPath_common.steps=[],
+      e: UHExp.t,
+    )
     : (Contexts.t, option(Var.t)) =>
   switch (p, e) {
   | (
-      OpSeq(_, S(Var(_, NotInVarHole, x), E)),
+      OpSeq(_, S(Var(_, NotInVarHole, _, x), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
     ) =>
     switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
+    | Some(_) => (
+        Contexts.extend_gamma2(ctx, (x, (ty, steps @ [0]))),
+        Some(x),
+      )
     | None => (ctx, None)
     }
   | _ => (ctx, None)
   };
 
 let ctx_for_let =
-    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t => {
-  let (ctx, _) = ctx_for_let'(ctx, p, ty, e);
+    (
+      ctx: Contexts.t,
+      p: UHPat.t,
+      ty: HTyp.t,
+      ~steps: CursorPath_common.steps=[],
+      e: UHExp.t,
+    )
+    : Contexts.t => {
+  let (ctx, _) = ctx_for_let'(ctx, p, ty, ~steps, e);
   ctx;
 };
 
@@ -38,18 +54,26 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
     }
   }
 and syn_lines =
-    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
+    (
+      ~steps: CursorPath_common.steps=[],
+      ctx: Contexts.t,
+      lines: list(UHExp.line),
+    )
+    : option(Contexts.t) => {
   lines
+  |> List.mapi((i, line) => (i, line))
   |> List.fold_left(
-       (opt_ctx: option(Contexts.t), line: UHExp.line) =>
+       (opt_ctx: option(Contexts.t), (i, line): (ChildIndex.t, UHExp.line)) =>
          switch (opt_ctx) {
          | None => None
-         | Some(ctx) => syn_line(ctx, line)
+         | Some(ctx) => syn_line(~steps=steps @ [i], ctx, line)
          },
        Some(ctx),
      );
 }
-and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
+and syn_line =
+    (~steps: CursorPath_common.steps=[], ctx: Contexts.t, line: UHExp.line)
+    : option(Contexts.t) =>
   switch (line) {
   | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
   | EmptyLine => Some(ctx)
@@ -60,12 +84,12 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       let ctx_def = ctx_for_let(ctx, p, ty, def);
       switch (ana(ctx_def, def, ty)) {
       | None => None
-      | Some(_) => Statics_Pat.ana(ctx, p, ty)
+      | Some(_) => Statics_Pat.ana(~steps=steps @ [0], ctx, p, ty)
       };
     | None =>
       switch (syn(ctx, def)) {
       | None => None
-      | Some(ty) => Statics_Pat.ana(ctx, p, ty)
+      | Some(ty) => Statics_Pat.ana(~steps=steps @ [0], ctx, p, ty)
       }
     }
   }
@@ -181,7 +205,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       };
     }
   /* not in hole */
-  | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
+  | Var(NotInHole, NotInVarHole, x) =>
+    VarMap.lookup_typ(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
@@ -916,7 +941,7 @@ and syn_fix_holes_operand =
   | InvalidText(_) => (e, Hole, u_gen)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x)) {
+    switch (VarMap.lookup_typ(gamma, x)) {
     | Some(ty) => (UHExp.Var(NotInHole, NotInVarHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {

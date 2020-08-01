@@ -14,6 +14,11 @@ let clss_of_verr: VarErrStatus.t => list(cls) =
   | NotInVarHole => []
   | InVarHole(_) => ["InVarHole"];
 
+let clss_of_vwarn: VarWarnStatus.t => list(cls) =
+  fun
+  | NoWarning => []
+  | CritUnused => ["InVarWarnHole"];
+
 let clss_of_case_err: CaseErrStatus.t => list(cls) =
   fun
   | StandardErrStatus(err) => clss_of_err(err)
@@ -33,9 +38,11 @@ let shape_clss: TermShape.t => list(cls) =
   | Rule => ["Rule"]
   | Invalid => ["Invalid"]
   | Case({err}) => ["Case", ...clss_of_case_err(err)]
-  | Var({err, verr, show_use}) =>
+  | Var({err, verr, vwarn, show_def, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
     @ clss_of_verr(verr)
+    @ clss_of_vwarn(vwarn)
+    @ (show_def ? ["show-def"] : [])
     @ (show_use ? ["show-use"] : [])
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]

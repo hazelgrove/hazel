@@ -8,6 +8,8 @@ let left_arrow = (classes: list(string)): Vdom.Node.t =>
 let right_arrow = (classes: list(string)): Vdom.Node.t =>
   arrow(classes, UnicodeConstants.right_triangle);
 
+let up_arrow = (classes: list(string)): Vdom.Node.t =>
+  arrow(classes, UnicodeConstants.up_triangle);
 let down_arrow = (classes: list(string)): Vdom.Node.t =>
   arrow(classes, UnicodeConstants.down_triangle);
 let undo = (classes: list(string)): Vdom.Node.t =>

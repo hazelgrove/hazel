@@ -150,6 +150,36 @@ let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
   };
 
+let rec split_by_i = (i, xs) =>
+  i <= 0
+    ? ([], xs)
+    : (
+      switch (xs) {
+      | [] => failwith("split_by_i" ++ Int.to_string(List.length(xs)))
+      | [x, ...xs] =>
+        let (first, second) = split_by_i(i - 1, xs);
+        ([x, ...first], second);
+      }
+    );
+
+let rm_first_k = (k, xs) => {
+  let (_, second) = split_by_i(k, xs);
+  second;
+};
+
+let rec rm_one_or_zero_i =
+        (~i=0, f: 'a => bool, xs: list('a)): (list('a), int) =>
+  switch (xs) {
+  | [] => ([], i)
+  | [x, ...xs] =>
+    f(x)
+      ? (xs, i)
+      : {
+        let (acc, i) = rm_one_or_zero_i(~i=i + 1, f, xs);
+        ([x, ...acc], i);
+      }
+  };
+
 let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])

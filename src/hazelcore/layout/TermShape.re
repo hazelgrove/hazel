@@ -8,6 +8,8 @@ type t =
   | Var({
       err: ErrStatus.t,
       verr: VarErrStatus.t,
+      vwarn: VarWarnStatus.t,
+      show_def: bool,
       show_use: bool,
     })
   | Operand({err: ErrStatus.t})
@@ -25,9 +27,11 @@ let mk_Var =
     (
       ~err: ErrStatus.t=NotInHole,
       ~verr: VarErrStatus.t=NotInVarHole,
+      ~vwarn: VarWarnStatus.t=NoWarning,
       ~show_use=false,
+      ~show_def=false,
       (),
     ) =>
-  Var({err, verr, show_use});
+  Var({err, verr, vwarn, show_def, show_use});
 
 let mk_Operand = (~err: ErrStatus.t=NotInHole, ()) => Operand({err: err});

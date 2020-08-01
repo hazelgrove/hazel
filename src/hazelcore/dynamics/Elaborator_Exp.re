@@ -135,6 +135,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (NonEmptyHole(_, _, _, _), _) => Indet
   | (Wild, _) => Matches(Environment.empty)
   | (Keyword(_, _, _), _) => DoesNotMatch
+  | (Duplicate(_, _, _), _) => Indet
   | (InvalidText(_), _) => Indet
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
@@ -761,7 +762,7 @@ and syn_elab_operand =
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x)) {
+    switch (VarMap.lookup_typ(gamma, x)) {
     | Some(ty) => Elaborates(BoundVar(x), ty, delta)
     | None => DoesNotElaborate
     };
@@ -774,6 +775,7 @@ and syn_elab_operand =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      | Duplicate => failwith("duplicate var in expression")
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -1156,6 +1158,7 @@ and ana_elab_operand =
       switch (reason) {
       | Free => FreeVar(u, 0, sigma, x)
       | Keyword(k) => Keyword(u, 0, sigma, k)
+      | Duplicate => failwith("duplicate var in expression")
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)

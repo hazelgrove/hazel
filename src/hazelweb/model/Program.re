@@ -102,7 +102,7 @@ let perform_edit_action = (a, program) => {
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
     let new_edit_state =
-      if (UHExp.is_complete(ZExp.erase(ze), false)) {
+      if (UHExp.is_complete(ZExp.erase(ze), false, false)) {
         (ze, ty, MetaVarGen.init);
       } else {
         (ze, ty, u_gen);
@@ -173,9 +173,43 @@ let decorate_cursor = (steps, l) =>
   |> UHLayout.find_and_decorate_cursor(~steps)
   |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
 let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
-  switch (ci.uses) {
-  | None => l
-  | Some(uses) =>
+  switch (ci.typed) {
+  | AnaTypeInconsistent(_, _, Some((_, var_def, _, other_uses)))
+  | AnaSubsumed(_, _, Some((_, var_def, _, other_uses)))
+  | SynErrorArrow(_, _, Some((_, var_def, _, other_uses)))
+  | SynMatchingArrow(_, _, Some((_, var_def, _, other_uses)))
+  | Synthesized(_, Some((_, var_def, _, other_uses)))
+  | SynBranchClause(_, Synthesized(_, Some((_, var_def, _, other_uses))), _) =>
+    let l =
+      l
+      |> UHLayout.find_and_decorate_var_def(~steps=var_def)
+      |> OptUtil.get(() => {
+           failwith(
+             __LOC__
+             ++ ": could not find var def"
+             ++ Sexplib.Sexp.to_string(
+                  CursorPath_common.sexp_of_steps(var_def),
+                ),
+           )
+         });
+    other_uses
+    |> List.fold_left(
+         (l: UHLayout.t, use) =>
+           l
+           |> UHLayout.find_and_decorate_var_use(~steps=use)
+           |> OptUtil.get(() => {
+                failwith(
+                  __LOC__
+                  ++ ": could not find var use"
+                  ++ Sexplib.Sexp.to_string(
+                       CursorPath_common.sexp_of_steps(use),
+                     ),
+                )
+              }),
+         l,
+       );
+  | PatAnaVar(_, _, _, _, [_, ..._] as uses, _)
+  | PatSynVar(_, _, _, _, [_, ..._] as uses, _) =>
     uses
     |> List.fold_left(
          (l: UHLayout.t, use) =>
@@ -192,6 +226,7 @@ let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
               }),
          l,
        )
+  | _ => l
   };
 
 let get_decorated_layout =

@@ -23,8 +23,9 @@
   --code-line-height: 1.5;
   --closed-child-line-height: 1.25;
 
-  --err-hole-color: red;
-  --verr-hole-color: #ce5f00;
+  --err-hole-color: #8e0000;
+  --verr-hole-color: #8e0000;
+  --vwarn-hole-color: #ce5f00;
 
   --default-code-bg-color: transparent;
   --caret-color: red;
@@ -317,6 +318,7 @@ html, body {
 
 /* cursor inspector */
 
+  /* err_state */
 .cursor-OK.cursor-inspector {
   outline: 1px solid var(--title-bar-color);
 }
@@ -326,11 +328,11 @@ html, body {
 }
 
 .cursor-BindingError.cursor-inspector {
-  outline: 1px solid #ce5f00;
+  outline: 1px solid #8e0000;
 }
 
 .cursor-Keyword.cursor-inspector {
-  outline: 1px solid #ce5f00;
+  outline: 1px solid #8e0000;
 }
 
 .cursor-OK .title-bar {
@@ -342,10 +344,19 @@ html, body {
 }
 
 .cursor-BindingError .title-bar {
-  background-color: #ce5f00;
+  background-color: #8e0000;
 }
 
 .cursor-Keyword .titlebar {
+  background-color: #8e0000;
+}
+
+  /* warn_state */
+.cursor-OK.cursor-BindingWarn.cursor-inspector {
+  outline: 1px solid #ce5f00;
+}
+
+.cursor-OK.cursor-BindingWarn .title-bar {
 	background-color: #ce5f00;
 }
 
@@ -367,6 +378,74 @@ html, body {
   min-height: 38px;
 }
 
+.var_exp_bar {
+  font-size: 12pt;
+  align-items: center;
+  min-height: 38px;
+}
+
+.var_exp_bar > span {
+  white-space: pre;
+}
+
+.var_exp_bar > .number {
+  font-weight: bold;
+}
+
+.var_pat_bar {
+  font-size: 12pt;
+  align-items: center;
+  min-height: 38px;
+}
+
+.var_pat_bar > span {
+  white-space: pre;
+}
+
+.var_pat_bar > .number {
+  font-weight: bold;
+}
+
+.goto-button-bar {
+  color: white;
+  padding: 3px 5px 3px 3px;
+  font-size: 10pt;
+  background-color: #678a61;
+  display: table;
+  width: 100%;
+}
+
+.goto-button {
+  vertical-align: middle;
+  margin-left: 5px;
+  display: inline-block;
+  float: right;
+  cursor: pointer;
+}
+.goto-button[disabled]{
+  cursor: not-allowed;
+  color:lightgray;
+}
+
+.goto-icon {
+  display: inline-block;
+  vertical-align: middle;
+  font-weight: bolder;
+  width: 20px;
+  height: 25px;
+  padding-left: 5px;
+  padding-right: 5px;
+  font-size: 16px;
+}
+.goto-icon:hover{
+  border-radius: 40%;
+  background-color: #073f24;
+}
+.goto-button[disabled] .goto-icon:hover{
+  border-radius: 40%;
+  background-color: dimgray;
+}
+
 .cursor-OK .typebar, .cursor-OK .infobar {
   background-color: #FEFEEA;
 }
@@ -376,10 +455,14 @@ html, body {
 }
 
 .cursor-BindingError .typebar, .cursor-BindingError .infobar {
-  background-color: #fef6ea;
+  background-color: #ffe0e0;
 }
 
 .cursor-Keyword .typebar, .cursor-Keyword .infobar {
+  background-color: #ffe0e0;
+}
+
+.cursor-OK.cursor-BindingWarn .typebar, .cursor-OK.cursor-BindingWarn .infobar {
   background-color: #fef6ea;
 }
 
@@ -961,6 +1044,10 @@ h1 {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;
 }
+.InVarWarnHole {
+  border: 1px dashed var(--vwarn-hole-color);
+  margin: -1px;
+}
 .InconsistentBranches {
   border: 1px dashed var(--err-hole-color);
   margin: -1px;
@@ -1119,6 +1206,11 @@ h1 {
 }
 */
 
+.Var.show-def {
+  border: 2px solid var(--pat-bg-color);
+  margin: -2px;
+}
+
 .Var.show-use {
   background-color: rgba(175, 175, 175, 0.3);
 }
@@ -1244,6 +1336,10 @@ h1 {
   outline: 0px;
 }
 
+#cell .SNode.var-pat-usage {
+  background-color: rgba(175, 175, 175, 0.3);
+}
+
 .hole-indicator, .skel-hole-indicator, .ap-hole-indicator {
   position: absolute;
   z-index: var(--hole-indicator-z-index);
@@ -1297,12 +1393,24 @@ h1 {
   border: 0px !important;
 }
 
+.InVarHole {
+  border: 1px dashed #ce5f00;
+}
+
+.InVarHole.Duplicate {
+	font-weight: italic;
+}
+
 .InVarHole.Keyword {
 	font-weight: bold;
 }
 
 .Keyword .var {
 	font-style: normal;
+}
+
+.CritUnused {
+  color: red;
 }
 
 .result-view {

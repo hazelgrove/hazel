@@ -297,6 +297,10 @@ let rec syn_move =
     | None => CursorEscaped(After)
     | Some(zp) => mk_syn_result(ctx, u_gen, zp)
     }
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | Construct(_)
   | Delete
   | Backspace
@@ -361,6 +365,10 @@ let rec ana_move =
     | None => CursorEscaped(After)
     | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
     }
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | Construct(_)
   | Delete
   | Backspace
@@ -395,6 +403,10 @@ and syn_perform_opseq =
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, _) => Failed
@@ -578,6 +590,10 @@ and syn_perform_operand =
     ) =>
     Failed
 
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
+
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     syn_move(ctx, u_gen, a, ZOpSeq.wrap(zoperand))
@@ -617,7 +633,7 @@ and syn_perform_operand =
 
   | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
-  | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
+  | (Delete, CursorP(OnText(j), Var(_, _, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
@@ -628,7 +644,7 @@ and syn_perform_operand =
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
-  | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
+  | (Backspace, CursorP(OnText(j), Var(_, _, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
@@ -669,7 +685,7 @@ and syn_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, t)
-  | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
+  | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
@@ -701,7 +717,7 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (index, s), "_");
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
-  | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
+  | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     syn_insert_text(ctx, u_gen, (j, s), n)
@@ -804,6 +820,10 @@ and ana_perform_opseq =
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
   | (SwapUp | SwapDown, _) => Failed
+
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1000,6 +1020,10 @@ and ana_perform_operand =
     ) =>
     Failed
 
+  /* Variable-based navigation handled at top level */
+  | (GoToDefinition | GoToFirstUsage | GoToNextUsage | GoToPrevUsage, _) =>
+    Failed
+
   /* switch to synthesis if in a hole */
   | (_, _) when ZPat.is_inconsistent(ZOpSeq.wrap(zoperand)) =>
     let zp = ZOpSeq.wrap(zoperand);
@@ -1065,7 +1089,7 @@ and ana_perform_operand =
 
   | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, u_gen, j, t, ty)
-  | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
+  | (Delete, CursorP(OnText(j), Var(_, _, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     ana_delete_text(ctx, u_gen, j, n, ty)
@@ -1076,7 +1100,7 @@ and ana_perform_operand =
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
-  | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
+  | (Backspace, CursorP(OnText(j), Var(_, _, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     ana_backspace_text(ctx, u_gen, j, n, ty)
@@ -1123,7 +1147,7 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, t, ty)
-  | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
+  | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
@@ -1155,7 +1179,7 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (index, s), "_", ty);
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
-  | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
+  | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)

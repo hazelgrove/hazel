@@ -91,7 +91,7 @@ and of_steps_operand =
     | EmptyHole(_)
     | Wild(_)
     | InvalidText(_)
-    | Var(_, _, _)
+    | Var(_, _, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -162,8 +162,8 @@ and holes_operand =
     ]
   | InvalidText(u, _)
   | Wild(InHole(_, u))
-  | Var(InHole(_, u), _, _)
-  | Var(_, InVarHole(_, u), _)
+  | Var(InHole(_, u), _, _, _)
+  | Var(_, InVarHole(_, u), _, _)
   | IntLit(InHole(_, u), _)
   | FloatLit(InHole(_, u), _)
   | BoolLit(InHole(_, u), _)
@@ -171,7 +171,7 @@ and holes_operand =
       {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
       ...hs,
     ]
-  | Var(NotInHole, NotInVarHole, _)
+  | Var(NotInHole, NotInVarHole, _, _)
   | Wild(NotInHole)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
@@ -230,7 +230,7 @@ and holes_zoperand =
         }),
       (),
     )
-  | CursorP(_, Var(err, verr, _)) =>
+  | CursorP(_, Var(err, verr, _, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
     | (InHole(_, u), _)

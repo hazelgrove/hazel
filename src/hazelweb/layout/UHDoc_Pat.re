@@ -18,7 +18,13 @@ let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc_common.t =
 let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc_common.t =
   UHDoc_common.mk_ListNil(~sort=Pat);
 let mk_Var:
-  (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => UHDoc_common.t =
+  (
+    ~err: ErrStatus.t,
+    ~verr: VarErrStatus.t,
+    ~vwarn: VarWarnStatus.t=?,
+    string
+  ) =>
+  UHDoc_common.t =
   UHDoc_common.mk_Var(~sort=Pat);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
   UHDoc_common.mk_Parenthesized(~sort=Pat);
@@ -73,7 +79,7 @@ and mk_operand =
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
         | Wild(err) => UHDoc_common.mk_Wild(~err)
         | InvalidText(_, t) => mk_InvalidText(t)
-        | Var(err, verr, x) => mk_Var(~err, ~verr, x)
+        | Var(err, verr, vwarn, x) => mk_Var(~err, ~verr, ~vwarn, x)
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)
         | BoolLit(err, b) => mk_BoolLit(~err, b)

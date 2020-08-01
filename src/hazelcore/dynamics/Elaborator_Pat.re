@@ -104,7 +104,7 @@ and syn_elab_operand =
     : ElaborationResult.t =>
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
+  | Var(InHole(TypeInconsistent as reason, u), _, _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
@@ -120,7 +120,7 @@ and syn_elab_operand =
       Elaborates(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
+  | Var(InHole(WrongLength, _), _, _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
@@ -139,10 +139,12 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
+  | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
     Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
-  | Var(NotInHole, NotInVarHole, x) =>
+  | Var(NotInHole, InVarHole(Duplicate, u), _, x) =>
+    Elaborates(Duplicate(u, 0, x), Hole, ctx, delta)
+  | Var(NotInHole, NotInVarHole, _, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     Elaborates(Var(x), Hole, ctx, delta);
   | IntLit(NotInHole, n) =>
@@ -322,7 +324,7 @@ and ana_elab_operand =
     : ElaborationResult.t =>
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
+  | Var(InHole(TypeInconsistent as reason, u), _, _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
@@ -338,7 +340,7 @@ and ana_elab_operand =
       Elaborates(dp, ty, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
+  | Var(InHole(WrongLength, _), _, _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
@@ -349,10 +351,12 @@ and ana_elab_operand =
     let dp = DHPat.EmptyHole(u, 0);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
+  | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
-  | Var(NotInHole, NotInVarHole, x) =>
+  | Var(NotInHole, InVarHole(Duplicate, u), _, x) =>
+    Elaborates(Duplicate(u, 0, x), ty, ctx, delta)
+  | Var(NotInHole, NotInVarHole, _, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
@@ -411,6 +415,10 @@ let rec renumber_result_only =
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (Keyword(u, i, k), hii);
+  | Duplicate(u, _, k) =>
+    let sigma = Environment.empty;
+    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    (Duplicate(u, i, k), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);

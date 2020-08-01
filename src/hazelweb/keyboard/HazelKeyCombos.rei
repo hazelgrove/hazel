@@ -28,6 +28,10 @@ type t =
   | Alt_L
   | Alt_R
   | Alt_C
+  | Alt_N
+  | Alt_P
+  | Alt_LeftBracket
+  | Alt_RightBracket
   | Pound
   | Ctrl_Z
   | Ctrl_Shift_Z

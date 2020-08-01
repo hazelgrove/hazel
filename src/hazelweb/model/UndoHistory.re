@@ -184,7 +184,7 @@ let get_delete_action_group =
             }
           | (Pat(_, pat_1), Pat(_, pat_2)) =>
             switch (pat_1, pat_2) {
-            | (Var(_, _, _), Var(_, _, _))
+            | (Var(_, _, _, _), Var(_, _, _, _))
             | (IntLit(_, _), IntLit(_, _))
             | (FloatLit(_, _), FloatLit(_, _))
             | (BoolLit(_, _), BoolLit(_, _)) =>
@@ -648,6 +648,10 @@ let get_new_action_group =
     | MoveRight
     | MoveToNextHole
     | MoveToPrevHole
+    | GoToDefinition
+    | GoToFirstUsage
+    | GoToNextUsage
+    | GoToPrevUsage
     | Init => None
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")

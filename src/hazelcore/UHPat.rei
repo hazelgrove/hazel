@@ -10,7 +10,7 @@ and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
   | InvalidText(MetaVar.t, string)
-  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | Var(ErrStatus.t, VarErrStatus.t, VarWarnStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
@@ -24,7 +24,14 @@ type skel = OpSeq.skel(operator);
 [@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
-let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
+let var:
+  (
+    ~err: ErrStatus.t=?,
+    ~var_err: VarErrStatus.t=?,
+    ~var_warn: VarWarnStatus.t=?,
+    Var.t
+  ) =>
+  operand;
 
 let wild: (~err: ErrStatus.t=?, unit) => operand;
 
@@ -70,6 +77,10 @@ let mk_inconsistent_operand:
   (MetaVarGen.t, operand) => (operand, MetaVarGen.t);
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
+
+let get_variables: t => VarSet.t;
+
+let get_duplicate_variables: (~var_set: VarSet.t=?, t) => VarSet.t;
 
 let associate: seq => Skel.t(Operators_Pat.t);
 

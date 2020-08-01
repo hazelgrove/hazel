@@ -44,6 +44,8 @@ let find_line_line: line => line;
 
 let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 
+let is_rec_letline: line => bool;
+
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
 let intlit: (~err: ErrStatus.t=?, string) => operand;
@@ -134,14 +136,14 @@ let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
-let is_complete_line: (line, bool) => bool;
+let is_complete_line: (line, bool, bool) => bool;
 
-let is_complete_block: (block, bool) => bool;
+let is_complete_block: (block, bool, bool) => bool;
 
-let is_complete_rule: (rule, bool) => bool;
+let is_complete_rule: (rule, bool, bool) => bool;
 
-let is_complete_rules: (rules, bool) => bool;
+let is_complete_rules: (rules, bool, bool) => bool;
 
-let is_complete_operand: (operand, bool) => bool;
+let is_complete_operand: (operand, bool, bool) => bool;
 
-let is_complete: (t, bool) => bool;
+let is_complete: (t, bool, bool) => bool;

@@ -34,6 +34,10 @@ type shape =
 
 [@deriving sexp]
 type t =
+  | GoToDefinition
+  | GoToFirstUsage
+  | GoToNextUsage
+  | GoToPrevUsage
   | MoveTo(CursorPath_common.t)
   | MoveLeft
   | MoveRight

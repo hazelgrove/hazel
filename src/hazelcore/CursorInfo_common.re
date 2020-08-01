@@ -1,6 +1,20 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type varexp =
+  option(
+    (
+      Var.t,
+      // steps of binding site
+      CursorPath_common.steps,
+      // index of current use
+      int,
+      // other uses
+      UsageAnalysis.uses_list,
+    ),
+  );
+
+[@deriving sexp]
 type join_of_branches =
   | NoBranches
   // steps to the case
@@ -13,7 +27,7 @@ type typed =
   /* cursor in analytic position */
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
-  | AnaTypeInconsistent(HTyp.t, HTyp.t)
+  | AnaTypeInconsistent(HTyp.t, HTyp.t, varexp)
   // cursor is on a tuple of the wrong length
   | AnaWrongLength
       // expected length
@@ -33,7 +47,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
+  | AnaSubsumed(HTyp.t, HTyp.t, varexp)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -44,11 +58,12 @@ type typed =
         HTyp.t,
         // got
         HTyp.t,
+        varexp,
       )
   // cursor is on the function position of an ap,
   // and that expression does synthesize a type
   // with a matched arrow type
-  | SynMatchingArrow(HTyp.t, HTyp.t)
+  | SynMatchingArrow(HTyp.t, HTyp.t, varexp)
   // cursor is on a free variable in the function
   // position of an ap
   | SynFreeArrow(HTyp.t)
@@ -79,7 +94,7 @@ type typed =
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath_common.steps)
   // none of the above
-  | Synthesized(HTyp.t)
+  | Synthesized(HTyp.t, varexp)
   /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
@@ -97,14 +112,44 @@ type typed =
   | PatAnaInvalid(HTyp.t)
   // cursor is on a keyword
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on a variable with duplicated name
+  | PatAnaDuplicate(HTyp.t, Var.t)
+  // cursor is on a variable bindint site and not in var hole
+  | PatAnaVar(
+      HTyp.t,
+      Var.t,
+      // shadowing
+      bool,
+      // variable warning
+      VarWarnStatus.t,
+      // number of uses
+      UsageAnalysis.uses_list,
+      // number of recursive uses
+      UsageAnalysis.uses_list,
+    )
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
-  | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
+  // cursor is on a variable with duplicated name
+  | PatSynDuplicate(Var.t)
+  // cursor is on a variable and not in var hole
+  | PatSynVar(
+      HTyp.t,
+      Var.t,
+      // shadowing
+      bool,
+      // variable warning
+      VarWarnStatus.t,
+      // total variables uses
+      UsageAnalysis.uses_list,
+      // recursive variable uses
+      UsageAnalysis.uses_list,
+    )
+  | PatSynthesized(HTyp.t)
   /* cursor in type position */
   | OnType
   /* (we will have a richer structure here later)*/
@@ -129,8 +174,6 @@ type t = {
   cursor_term,
   typed,
   ctx: Contexts.t,
-  // hack while merging
-  uses: option(UsageAnalysis.uses_list),
 };
 
 type zoperand =
@@ -154,7 +197,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     switch (pat) {
     | EmptyHole(_)
     | Wild(_)
-    | Var(_, _, _)
+    | Var(_, _, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _) => true
@@ -204,12 +247,7 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let mk = (~uses=?, typed, ctx, cursor_term) => {
-  typed,
-  ctx,
-  uses,
-  cursor_term,
-};
+let mk = (typed, ctx, cursor_term) => {typed, ctx, cursor_term};
 
 let get_ctx = ci => ci.ctx;
 
@@ -221,5 +259,21 @@ let get_ctx = ci => ci.ctx;
  */
 
 type deferrable('t) =
-  | CursorNotOnDeferredVarPat('t)
-  | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
+  | CursorNotOnDeferred('t)
+  | CursorOnDeferredVarPat
+      // non-recursive uses
+      (
+        (
+          UsageAnalysis.uses_list,
+          // recursive uses
+          UsageAnalysis.uses_list
+        ) =>
+        't,
+        Var.t,
+      )
+  | CursorOnDeferredVarExp(
+      UsageAnalysis.uses_list => 't,
+      // steps of binding site
+      CursorPath_common.steps,
+      Var.t,
+    );

@@ -72,6 +72,9 @@ let mk_EmptyHole:
 let mk_Keyword:
   (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
+let mk_Duplicate:
+  (MetaVar.t, MetaVarInst.t, Var.t) => Pretty.Doc.t(DHAnnot.t);
+
 let mk_InvalidText:
   (string, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
 

@@ -144,7 +144,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(inv_str);
       }
-    | Var(_, _, var_str) =>
+    | Var(_, _, _, var_str) =>
       if (show_indicate_word) {
         Vdom.(
           Node.span([], [indicate_words_view("var: "), code_view(var_str)])
