@@ -59,4 +59,7 @@ type t =
   | UpdateIsMac(bool)
   | ToggleShowCursorInspector
   | ToggleCursorInspectorExpansion
+  | ToggleTermNoviceMessageMode
+  | ToggleColonNoviceMessageMode
+  | ToggleTypeNoviceMessageMode
   | ToggleNoviceMode;

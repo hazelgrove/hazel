@@ -6,6 +6,7 @@ let typeB: string;
 let inconsistent: string;
 let check_mark: string;
 let ballot_x: string;
+let no_symbol: string;
 let user_newline: string;
 let left_triangle: string;
 let right_triangle: string;

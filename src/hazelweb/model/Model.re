@@ -21,7 +21,9 @@ type measurements = {
 type cursor_inspector = {
   visible: bool,
   show_expanded: bool,
-  novice_mode: bool,
+  term_novice_message_mode: bool,
+  colon_novice_message_mode: bool,
+  type_novice_message_mode: bool,
 };
 
 type t = {
@@ -129,7 +131,27 @@ let init = (): t => {
     cursor_inspector: {
       visible: true,
       show_expanded: false,
-      novice_mode: false,
+      term_novice_message_mode: false,
+      colon_novice_message_mode: false,
+      type_novice_message_mode: false,
+    },
+  };
+};
+
+let get_novice_mode = (model: t): bool =>
+  model.cursor_inspector.term_novice_message_mode
+  && model.cursor_inspector.colon_novice_message_mode
+  && model.cursor_inspector.type_novice_message_mode;
+
+let toggle_novice_mode = (model: t): t => {
+  let toggle = get_novice_mode(model);
+  {
+    ...model,
+    cursor_inspector: {
+      ...model.cursor_inspector,
+      term_novice_message_mode: !toggle,
+      colon_novice_message_mode: !toggle,
+      type_novice_message_mode: !toggle,
     },
   };
 };

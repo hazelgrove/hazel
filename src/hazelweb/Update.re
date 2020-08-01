@@ -81,6 +81,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateIsMac(_)
   | ToggleShowCursorInspector
   | ToggleCursorInspectorExpansion
+  | ToggleTermNoviceMessageMode
+  | ToggleColonNoviceMessageMode
+  | ToggleTypeNoviceMessageMode
   | ToggleNoviceMode =>
     Logger.append(
       Sexp.to_string(
@@ -334,13 +337,31 @@ let apply_action =
             show_expanded: !model.cursor_inspector.show_expanded,
           },
         }
-      | ToggleNoviceMode => {
+      | ToggleTermNoviceMessageMode => {
           ...model,
           cursor_inspector: {
             ...model.cursor_inspector,
-            novice_mode: !model.cursor_inspector.novice_mode,
+            term_novice_message_mode:
+              !model.cursor_inspector.term_novice_message_mode,
           },
         }
+      | ToggleColonNoviceMessageMode => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            colon_novice_message_mode:
+              !model.cursor_inspector.colon_novice_message_mode,
+          },
+        }
+      | ToggleTypeNoviceMessageMode => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_novice_message_mode:
+              !model.cursor_inspector.type_novice_message_mode,
+          },
+        }
+      | ToggleNoviceMode => Model.toggle_novice_mode(model)
       };
     },
   );

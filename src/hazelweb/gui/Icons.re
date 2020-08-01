@@ -20,3 +20,19 @@ let question_mark_circle: Vdom.Node.t =
       [Node.text("?")],
     )
   );
+
+let check_circle: Vdom.Node.t =
+  Vdom.(
+    Node.div(
+      [Attr.classes(["circle-icon"])],
+      [Node.text(UnicodeConstants.check_mark)],
+    )
+  );
+
+let x_circle: Vdom.Node.t =
+  Vdom.(
+    Node.div(
+      [Attr.classes(["circle-icon"])],
+      [Node.text(UnicodeConstants.no_symbol)],
+    )
+  );

@@ -169,7 +169,7 @@ let view =
             ~id="novice_mode",
             ~label="Novice mode",
             ~on_change=() => inject(ToggleNoviceMode),
-            model.cursor_inspector.novice_mode,
+            Model.get_novice_mode(model),
           ),
         ],
       )

@@ -32,7 +32,9 @@ type measurements = {
 type cursor_inspector = {
   visible: bool,
   show_expanded: bool,
-  novice_mode: bool,
+  term_novice_message_mode: bool,
+  colon_novice_message_mode: bool,
+  type_novice_message_mode: bool,
 };
 
 type t = {
@@ -65,6 +67,9 @@ let cardstack_info: list(CardstackInfo.t);
  */
 let cutoff: (t, t) => bool;
 let init: unit => t;
+
+let get_novice_mode: t => bool;
+let toggle_novice_mode: t => t;
 
 let get_program: t => Program.t;
 
