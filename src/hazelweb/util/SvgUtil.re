@@ -34,42 +34,6 @@ module Path = {
   let cat = (@);
   let cats = List.concat;
 
-  // non-standard
-  type axis =
-    | X
-    | Y;
-  type direction =
-    | Pos
-    | Neg;
-  type orientation = (axis, direction);
-
-  let turn_90 =
-      (
-        clockwise: bool,
-        initial_orientation: orientation,
-        (rx: float, ry: float),
-      )
-      : command => {
-    let (dx, dy) =
-      switch (initial_orientation) {
-      | (X, Pos) => (rx, ry)
-      | (X, Neg) => (Float.neg(rx), Float.neg(ry))
-      | (Y, Pos) => (Float.neg(rx), ry)
-      | (Y, Neg) => (rx, Float.neg(ry))
-      };
-    A_({
-      rx,
-      ry,
-      x_axis_rotation: 0.0,
-      large_arc_flag: false,
-      sweep_flag: !clockwise,
-      dx,
-      dy,
-    });
-  };
-  let turn_left = turn_90(true);
-  let turn_right = turn_90(false);
-
   let string_of_flag =
     fun
     | false => "0"
@@ -103,18 +67,19 @@ module Path = {
         FloatUtil.to_string_zero(dy),
       );
 
-  let view = (attrs: list(Vdom.Attr.t), path: t) =>
+  let view = (attrs: list(Vdom.Attr.t), path: t): Vdom.Node.t => {
+    let buffer = Buffer.create(List.length(path) * 20);
+    path
+    |> List.iter(cmd => {
+         Buffer.add_string(buffer, string_of_command(cmd));
+         Buffer.add_string(buffer, " ");
+       });
     Vdom.(
       Node.create_svg(
         "path",
-        [
-          Attr.create(
-            "d",
-            path |> List.map(string_of_command) |> StringUtil.sep,
-          ),
-          ...attrs,
-        ],
+        [Attr.create("d", Buffer.contents(buffer)), ...attrs],
         [],
       )
     );
+  };
 };

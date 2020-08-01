@@ -283,16 +283,6 @@ let mk_svg =
   };
   let path = [cmd_of_linked_edge(start), ...build_path(start)];
 
-  // TODO refine estimate
-  let buffer = Buffer.create(List.length(path) * 20);
-  Buffer.add_string(
-    buffer,
-    Printf.sprintf(
-      "M %f %f ",
-      (start.src.x +. start.dst.x) *. 0.5,
-      (start.src.y +. start.dst.y) *. 0.5,
-    ),
-  );
   path
   |> List.map(
        fun
@@ -317,20 +307,19 @@ let mk_svg =
            ry_min *. rx >= rx_min *. ry
              ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
          let clockwise = Float.sign_bit(dx) == Float.sign_bit(dy);
-         Printf.sprintf(
-           "h %s a %s %s 0 0 %s %s %s v %s ",
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dx) -. rx, dx),
-           ),
-           FloatUtil.to_string_zero(rx),
-           FloatUtil.to_string_zero(ry),
-           clockwise ? "1" : "0",
-           FloatUtil.to_string_zero(Float.copy_sign(rx, dx)),
-           FloatUtil.to_string_zero(Float.copy_sign(ry, dy)),
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dy) -. ry, dy),
-           ),
-         );
+         SvgUtil.Path.[
+           H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
+           A_({
+             rx,
+             ry,
+             x_axis_rotation: 0.,
+             large_arc_flag: false,
+             sweep_flag: clockwise,
+             dx: Float.copy_sign(rx, dx),
+             dy: Float.copy_sign(ry, dy),
+           }),
+           V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
+         ];
        | (Dy(dy), Dx(dx)) =>
          let rx_min = min(rx, Float.abs(dx));
          let ry_min = min(ry, Float.abs(dy));
@@ -338,29 +327,27 @@ let mk_svg =
            ry_min *. rx >= rx_min *. ry
              ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
          let clockwise = Float.sign_bit(dy) != Float.sign_bit(dx);
-         Printf.sprintf(
-           "v %s a %s %s 0 0 %s %s %s h %s ",
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dy) -. ry, dy),
-           ),
-           FloatUtil.to_string_zero(rx),
-           FloatUtil.to_string_zero(ry),
-           clockwise ? "1" : "0",
-           FloatUtil.to_string_zero(Float.copy_sign(rx, dx)),
-           FloatUtil.to_string_zero(Float.copy_sign(ry, dy)),
-           FloatUtil.to_string_zero(
-             Float.copy_sign(Float.abs(dx) -. rx, dx),
-           ),
-         );
+         [
+           V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
+           A_({
+             rx,
+             ry,
+             x_axis_rotation: 0.,
+             large_arc_flag: false,
+             sweep_flag: clockwise,
+             dx: Float.copy_sign(rx, dx),
+             dy: Float.copy_sign(ry, dy),
+           }),
+           H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
+         ];
        }
      })
-  |> List.iter(cmd_str => Buffer.add_string(buffer, cmd_str));
-
-  Vdom.(
-    Node.create_svg(
-      "path",
-      [Attr.create("d", Buffer.contents(buffer)), ...attrs],
-      [],
-    )
-  );
+  |> List.flatten
+  |> List.cons(
+       SvgUtil.Path.M({
+         x: (start.src.x +. start.dst.x) *. 0.5,
+         y: (start.src.y +. start.dst.y) *. 0.5,
+       }),
+     )
+  |> SvgUtil.Path.view(attrs);
 };
