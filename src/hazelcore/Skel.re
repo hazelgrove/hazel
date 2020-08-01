@@ -74,9 +74,6 @@ let subskel_rooted_at_op = (op_index: OpIndex.t, skel: t('op)): t('op) => {
   subskel;
 };
 
-let range_of_subskel_rooted_at_op = (op_index, skel) =>
-  skel |> subskel_rooted_at_op(op_index) |> range;
-
 let rec mk_skel_str' =
         (
           string_of_op: 'op => string,
