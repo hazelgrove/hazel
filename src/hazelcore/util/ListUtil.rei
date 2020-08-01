@@ -51,7 +51,7 @@ let first: list('a) => option('a);
 
 let last: list('a) => option('a);
 
-let split_last: list('a) => option((list('a), 'a));
+let split_last_opt: list('a) => option((list('a), 'a));
 
 let elem_before: ('a, list('a)) => option('a);
 
