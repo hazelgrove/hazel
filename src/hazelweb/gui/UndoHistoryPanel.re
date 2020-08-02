@@ -267,6 +267,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
 
       | ExpLine(_) => indicate_words_view("expression line")
+      | CellBoundary => indicate_words_view("cell boundary")
       }
     | Rule(_, _) =>
       Vdom.(

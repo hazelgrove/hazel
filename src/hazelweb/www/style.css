@@ -812,6 +812,10 @@ h1 {
 .code.presentation .Tessera {
   display: inline-block;
 }
+.code.presentation .CellBoundary {
+    border-bottom: 1px dashed gray;
+    width: 90%; 
+}
 .code.presentation .Term.NTuple,
 .code.presentation .Term.BinOp {
   display: inline;

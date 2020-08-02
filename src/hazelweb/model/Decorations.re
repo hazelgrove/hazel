@@ -8,6 +8,40 @@ type t = {
   current_term: option(CursorPath_common.t),
 };
 
+/*
+
+ 0 let x = 1 in
+ 1 let y = 2 in
+ 2 x + y
+ 3 -------------
+   result is 3
+   -------------
+ 4 x + y
+ 5 -------------
+   result is 3
+   -------------
+
+ issues to consider for full design
+ - currently green cursor indicator on line items
+   extends all the way to the bottom of the program.
+   does this mean we need to split the program into
+   parts and restrict decorations to the parts?
+   - another issue is cursor indicators have particular
+     meanings w.r.t. open child borders, should they
+     extend past cell boundaries to respect that meaning?
+     should we rethink cells / cell boundaries so that
+     a concluding expression is not required, and redesign
+     cursor indicators for this context?
+ - cell boundaries should be able to be arbitrary height,
+   in which case the offset origin for positioning a decoration
+   within a cell should be the top left corner of the cell,
+   not the top left corner of the overall program
+   - maybe what we do with multiline livelits is what we want here
+ - if we decide to split the program into parts and decorate
+   only one part at a time, that doesn't actually work for, say,
+   variable usage
+ */
+
 let is_empty = (ds: t): bool =>
   ListUtil.is_empty(ds.err_holes)
   && ListUtil.is_empty(ds.var_err_holes)
