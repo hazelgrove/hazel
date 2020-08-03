@@ -48,6 +48,7 @@ let run = (callback, message) => {
   );
 };
 
-let callback = failwith("Callback!");
+let callback = (_hole_fillings: Synthesiscomm.MessageTypes.from_worker) =>
+  failwith("Callback!");
 
 let start = uhexp => run(callback, Shim.uHExpToExp(uhexp));

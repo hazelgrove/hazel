@@ -1,0 +1,30 @@
+#Parsers
+
+a = parse_debug_construct(inp); v
+exp = parse_exp(inp); Exp(v)
+env = parse_environment(inp); Environment(v)
+res = parse_res(inp); Res(v)
+type = parse_type_(inp); Type_(v)
+ex = parse_example(inp); Example(v)
+example = parse_example(inp); Example(v)
+context = parse_context(inp); Context(v)
+gamma = parse_context(inp); Context(v)
+hole_context = parse_hole_context(inp); Hole_Context(v)
+hole_fillings = parse_hole_fillings(inp); Hole_Fillings(v)
+delta = parse_hole_context(inp); Hole_Context(v)
+int = parse_int(inp); DB_Int(v)
+
+#Processors
+
+eval = Environment(v0); Exp(v1); Res(Evaluator.eval(v0, v1))
+uneval = Hole_Context(v0); Res(v1); Example(v2); Constraint_(Unevaluator.unevalInit(v0, v1, v2))
+unevaluate = Hole_Context(v0); Res(v1); Example(v2); Constraint_(Unevaluator.unevalInit(v0, v1, v2))
+guess = Hole_Context(v0); Context(v1); Type_(v2); DB_Int(v3); Guess_Output(Guesser.guess(v0, v1, v2, v3))
+
+let rec solve (hContext, k) > {
+solve = Constraint_(v1); Exp(v2); Solver_Output(Solver.solve(v1, v2))
+
+(delta, holeFillings, gamma, h, typ, exs)
+
+let refine  (context, typ, exs) > {
+refine... Nope.  Context(v0); Type_(v4); Excons(v5); Refiner.refine(v0,v4,v5)
