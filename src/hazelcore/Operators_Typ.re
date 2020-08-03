@@ -18,11 +18,11 @@ let to_parse_string = op =>
 
 let precedence =
   fun
-  | Sum => 3
+  | Sum => 1
   | Arrow => 2
-  | Prod => 1;
+  | Prod => 3;
 
-let precedence_const = 4;
+let precedence_const = 0;
 
 let associativity =
   fun
