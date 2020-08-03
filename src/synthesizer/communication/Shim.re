@@ -22,10 +22,19 @@ let rec hTypeToType_ = (t: HTyp.t): type_ => {
     | Float => Float_t
     | Bool => Bool_t
     | Arrow(t1, t2) => Function_t(hTypeToType_(t1), hTypeToType_(t2))
+    | Prod(ts) => unfoldTypes(ts)
     | Sum(t1, t2) => Pair_t(hTypeToType_(t1), hTypeToType_(t2))
     | _ => failwith("Not yet implemented")
     }
   );
+}
+
+and unfoldTypes = (ts: list(HTyp.t)) => {
+  switch (ts) {
+  | [] => failwith("Product type needs at least two types")
+  | [t] => hTypeToType_(t)
+  | [t, ...xs] => Pair_t(hTypeToType_(t), unfoldTypes(xs))
+  };
 }
 
 and uhTypToType_ = (t: UHTyp.t): type_ => UHTyp.expand(t) |> hTypeToType_
@@ -94,6 +103,7 @@ and operandToExp = (op: UHExp.operand): exp => {
       )
     | _ => failwith("Function pattern should only be hole or var.")
     }
+  // Need help figuring out injections
   | Inj(_, _, _) => Unit
   | Case(_, e, rules) =>
     switch (getType(e)) {
@@ -131,7 +141,8 @@ and patOperandToExp = (op: UHPat.operand): exp => {
   | FloatLit(_, s) => Float(float_of_string(s))
   | BoolLit(_, b) => Bool(b)
   | ListNil(_) => Unit
-  | Parenthesized(t) => Unit
+  | Parenthesized(t) => opPatToExp(t)
+  // Same as above, I don't know exactly what inj is.
   | Inj(_, _, _) => Unit
   };
 }
