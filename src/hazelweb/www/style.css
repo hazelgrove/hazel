@@ -29,6 +29,8 @@
   --default-code-bg-color: transparent;
   --caret-color: red;
 
+  --code-radius: 4px;
+
   --exp-bg-color: rgb(197, 253, 197);
   --exp-shadow-color: rgb(135, 204, 135);
 

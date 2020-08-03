@@ -85,6 +85,7 @@ let append_hbox = (boxes1: list(t('annot)), boxes2: list(t('annot))) => {
   };
 };
 
+// TODO memoize
 let mk = (l: Layout.t('annot)): t('annot) => {
   let mk = (boxes: list(list(t(_)))) =>
     VBox(List.map(row => HBox(row), boxes));
