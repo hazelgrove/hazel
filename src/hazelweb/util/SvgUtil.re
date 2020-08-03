@@ -5,10 +5,11 @@ module Path = {
    * SVG <path> element
    * https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
    */
-
   type t = list(command)
-  // constructors with underscore suffix
-  // correspond to lower-case variants
+  /**
+   * Path commands. Constructors with underscore
+   * suffix correspond to lower-case variants.
+   */
   and command =
     | M({
         x: float,
