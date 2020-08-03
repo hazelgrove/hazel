@@ -1,11 +1,13 @@
 module Js = Js_of_ocaml.Js;
 module Worker = Js_of_ocaml.Worker;
+open Synthesiscomm;
 
 type t =
   Js.t(Worker.worker(MessageTypes.to_worker, MessageTypes.from_worker));
 
 //// DEBUG \\//
-let log: MessageTypes.from_worker => unit = print_endline;
+let log: MessageTypes.from_worker => unit =
+  _ => print_endline("log not implemented");
 /* data => {
      Js.export("data", data);
      Js.Unsafe.eval_string({|console.log("WorkerHandler.re Log: " + data);|});
@@ -46,4 +48,6 @@ let run = (callback, message) => {
   );
 };
 
-let main = ze => run(log, Shim.main(ze));
+let callback = failwith("Callback!");
+
+let start = uhexp => run(callback, Shim.uHExpToExp(uhexp));
