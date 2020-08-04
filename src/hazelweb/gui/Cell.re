@@ -34,7 +34,6 @@ let kc_actions:
     (Asterisk, _ => Action_common.Construct(SOp(STimes))),
     (Slash, _ => Action_common.Construct(SOp(SDivide))),
     (LT, _ => Action_common.Construct(SOp(SLessThan))),
-    (Space, _ => Action_common.Construct(SOp(SSpace))),
     (
       Space,
       fun
