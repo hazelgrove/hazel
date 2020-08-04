@@ -190,7 +190,7 @@ and patSeqToExp = (seq: Seq.t(UHPat.operand, Operators_Pat.t)): exp => {
     switch (op) {
     | Operators_Pat.Comma => Pair(o, patSeqToExp(seq'))
     | Operators_Pat.Space => Application(o, patSeqToExp(seq'))
-    | Operators_Pat.Cons => Pair(o, patSeqToExp(seq'))
+    | Operators_Pat.Cons => Ctor(0, List, Pair(o, patSeqToExp(seq')))
     }
   };
 }
