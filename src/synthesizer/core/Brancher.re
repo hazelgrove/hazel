@@ -65,7 +65,7 @@ and branch_indiv = (delta, gamma, f, typ, exs, datatype) => {
               ((env, ex)) => {
                 let r =
                   simplifyConstructor(
-                    Rictor(id, datatype, Evaluator.eval(env, e)),
+                    Rictor(id, datatype, Eval.eval(env, e)),
                   );
                 let patBinds =
                   List.map(
@@ -126,7 +126,7 @@ and distribute = (delta, f, exs, adt, scrut, ctors) => {
     ((id, t)) => {
       List.filter(
         ((env, ex)) => {
-          let r = Evaluator.eval(env, scrut);
+          let r = Eval.eval(env, scrut);
           Unevaluator.unevaluate(delta, f, r, Ector(id, adt, Top))
           |> Unevaluator.optionPred;
         },

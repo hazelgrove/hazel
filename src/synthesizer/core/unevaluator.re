@@ -22,7 +22,7 @@ open Types;
 // But that means there's a bunch less cases
 // I believe this is all cases without adding in constructors
 let rec unevaluate = (delta, f, res: res, ex: example): option(unevalcons) => {
-  let res = Evaluator.fillRes(res, f);
+  let res = Eval.fillRes(res, f);
   switch (ex, res) {
   // Top adds no constraints
   | (Top, _) => Some(([], []))
@@ -139,7 +139,7 @@ and constrainExp = (delta, f, exp, exs) => {
   | [(env, ex), ...xs] =>
     switch (
       constrainExp(delta, f, exp, xs),
-      unevaluate(delta, f, Evaluator.evalAndFill(env, exp, f), ex),
+      unevaluate(delta, f, Eval.evalAndFill(env, exp, f), ex),
     ) {
     | (None, _) => None
     | (_, None) => None

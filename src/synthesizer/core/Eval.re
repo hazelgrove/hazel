@@ -5,7 +5,7 @@ open Types;
 // This process is completely deterministic
 
 // Take in an environment E and a expression e, and change the expression to
-// a result. Evaluator.eval(E, e)
+// a result. Eval.eval(E, e)
 // e = () => r = ()
 // e = (\x.x) () => r = ()
 // e = (\x.??) () => (E, x -> ()) ??
