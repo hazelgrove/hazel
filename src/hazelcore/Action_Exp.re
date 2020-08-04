@@ -996,23 +996,6 @@ and syn_perform_line =
     );
     mk_result(u_gen, new_zblock);
 
-  | (Construct(SOp(SSpace)), CursorL(OnText(j), CommentLine(comment))) =>
-    let new_zblock = {
-      let new_comment = comment |> StringUtil.insert(j, " ");
-      let new_line: UHExp.line = CommentLine(new_comment);
-      ([], ZExp.CursorL(OnText(j + 1), new_line), []);
-    };
-    mk_result(u_gen, new_zblock);
-
-  | (
-      Construct(SOp(SSpace)),
-      CursorL(OnDelim(_, After), CommentLine(_) as line),
-    ) =>
-    let new_zblock = {
-      ([], ZExp.CursorL(OnText(0), line), []);
-    };
-    mk_result(u_gen, new_zblock);
-
   | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
     let new_zblock = {
       let new_comment = comment |> StringUtil.insert(j, s);
