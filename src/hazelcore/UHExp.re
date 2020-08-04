@@ -311,11 +311,8 @@ let text_operand =
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
-};
+let associate =
+  Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
