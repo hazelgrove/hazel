@@ -74,35 +74,6 @@ let subskel_rooted_at_op = (op_index: OpIndex.t, skel: t('op)): t('op) => {
   subskel;
 };
 
-let rec mk_skel_str' =
-        (
-          string_of_op: 'op => string,
-          seq: Seq.t('operand, 'op),
-          counter: ref(int),
-          ph_map: Hashtbl.t(int, 'operand),
-        )
-        : string =>
-  switch (seq) {
-  | S(hd, E) =>
-    let n = counter^;
-    Hashtbl.add(ph_map, n, hd);
-    string_of_int(n);
-  | S(hd, A(op, seq)) =>
-    let n = counter^;
-    counter := n + 1;
-    Hashtbl.add(ph_map, n, hd);
-    let skel_str = mk_skel_str'(string_of_op, seq, counter, ph_map);
-    let op_str = string_of_op(op);
-    string_of_int(n) ++ op_str ++ skel_str;
-  };
-
-let mk_skel_str =
-    (seq: Seq.t('operand, 'op), string_of_op: 'op => string): string => {
-  let counter = ref(0);
-  let ph_map = Hashtbl.create(8);
-  mk_skel_str'(string_of_op, seq, counter, ph_map);
-};
-
 let mk =
     (
       precedence: 'op => int,
