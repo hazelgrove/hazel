@@ -45,8 +45,8 @@ let inc = (d, cmd) =>
 
 let string_of_cmd =
   fun
-  | Dx(dx) => Printf.sprintf("h %s ", FloatUtil.to_string_zero(dx))
-  | Dy(dy) => Printf.sprintf("v %s ", FloatUtil.to_string_zero(dy));
+  | Dx(dx) => Printf.sprintf("h %f ", dx)
+  | Dy(dy) => Printf.sprintf("v %f ", dy);
 
 let get_scalar =
   fun
