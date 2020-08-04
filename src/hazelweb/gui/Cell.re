@@ -35,6 +35,13 @@ let kc_actions:
     (Slash, _ => Action_common.Construct(SOp(SDivide))),
     (LT, _ => Action_common.Construct(SOp(SLessThan))),
     (Space, _ => Action_common.Construct(SOp(SSpace))),
+    (
+      Space,
+      fun
+      | {CursorInfo_common.cursor_term: Line(_, CommentLine(_)), _} =>
+        Action_common.Construct(SChar(" "))
+      | _ => Action_common.Construct(SOp(SSpace)),
+    ),
     (Comma, _ => Action_common.Construct(SOp(SComma))),
     (
       LeftBracket,

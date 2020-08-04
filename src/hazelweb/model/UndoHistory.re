@@ -573,7 +573,6 @@ let get_new_action_group =
         | SOr => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
-          | Line(_, CommentLine(_)) => None
           | Exp(pos, uexp_operand) =>
             switch (uexp_operand) {
             | Var(_, InVarHole(Keyword(k), _), _) =>
