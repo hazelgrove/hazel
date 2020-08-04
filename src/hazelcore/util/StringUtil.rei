@@ -1,7 +1,6 @@
 let is_empty: String.t => bool;
 
 let cat: list(string) => string;
-let sep: list(string) => string;
 
 let replicat: (int, string) => string;
 
