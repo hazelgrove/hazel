@@ -26,4 +26,4 @@ let range: t(_) => range;
  */
 let subskel_rooted_at_op: (OpIndex.t, t('op)) => t('op);
 
-let mk_skel_str: (Seq.t('operand, 'op), 'op => string) => string;
+let mk: ('op => int, 'op => Associativity.t, Seq.t('operand, 'op)) => t('op);
