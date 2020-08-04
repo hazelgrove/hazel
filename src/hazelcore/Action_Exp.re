@@ -1003,7 +1003,6 @@ and syn_perform_line =
       ([], ZExp.CursorL(OnText(j + 1), new_line), []);
     };
     mk_result(u_gen, new_zblock);
-  | (Construct(SChar(_)), CursorL(_)) => Failed
 
   | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
     let new_zblock = ([UHExp.EmptyLine], zline, []);
