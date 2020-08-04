@@ -1,18 +1,10 @@
 module Js = Js_of_ocaml.Js;
 module Worker = Js_of_ocaml.Worker;
+module IntMAp = Map.Make(Int);
 open Synthesiscomm;
 
 type t =
   Js.t(Worker.worker(MessageTypes.to_worker, MessageTypes.from_worker));
-
-//// DEBUG \\//
-let log: MessageTypes.from_worker => unit =
-  _ => print_endline("log not implemented");
-/* data => {
-     Js.export("data", data);
-     Js.Unsafe.eval_string({|console.log("WorkerHandler.re Log: " + data);|});
-   }; */
-//\\ DEBUG //\\
 
 let spawn: unit => t = () => Worker.create("Worker.js");
 let worker: ref(option(t)) = ref(None);
@@ -48,7 +40,22 @@ let run = (callback, message) => {
   );
 };
 
-let callback = (_hole_fillings: Synthesiscomm.MessageTypes.from_worker) =>
-  failwith("Callback!");
+/*
+ Public read only mutable field.
 
+ This field is mutable, but its mutation is strictly limited.
+ It is only mutated by the "callback" function in this file to
+ make it reflect the latest synthesis results immidiatly upon
+ the synthesis worker's completion, and before the display is
+ updated. Anywhere may view its contents but nowhere else may
+ edit it.
+ */
+let fillings = ref(IntMap.empty);
+
+let callback = (hole_fillings: Synthesiscomm.MessageTypes.from_worker) => {
+  fillings := IntMap.map(Shim.expToUHExp, hole_fillings);
+  print_endline("Repaint!");
+};
+
+//Public field
 let start = uhexp => run(callback, Shim.uHExpToExp(uhexp));

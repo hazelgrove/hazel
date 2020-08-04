@@ -2,7 +2,8 @@ open Synthesiscore.Types;
 open Synthesiscore.IdGenerator;
 open UHExp;
 
-let uHExpToExp = (e: UHExp.t): exp => failwith("No Shim");
+let uHExpToExp = (e: UHExp.t): exp => Unit;
+let expToUHExp = (e: exp): UHExp.t => [];
 
 /*
     The goal is to convert a UHExp into an exp.
