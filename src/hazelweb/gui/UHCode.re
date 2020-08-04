@@ -188,6 +188,7 @@ let view =
               ),
             ];
           | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+          | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
           | _ => vs
           };
         };

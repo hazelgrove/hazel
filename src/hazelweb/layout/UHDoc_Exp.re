@@ -99,6 +99,7 @@ and mk_block =
       ((i, (hd, hd_doc)), tl_doc) =>
         switch ((hd: UHExp.line)) {
         | EmptyLine
+        | CommentLine(_)
         | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
         | LetLine(_) =>
           annot_SubBlock(
@@ -122,6 +123,22 @@ and mk_line =
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+        | CommentLine(comment) =>
+          let comment_doc =
+            UHDoc_common.mk_text(comment)
+            |> Doc.annot(
+                 UHAnnot.mk_Token(
+                   ~shape=Text,
+                   ~len=StringUtil.utf8_length(comment),
+                   (),
+                 ),
+               );
+          Doc.hcats([
+            UHDoc_common.Delim.open_CommentLine(),
+            UHDoc_common.space_,
+            comment_doc,
+          ])
+          |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, ann, def) =>

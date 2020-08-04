@@ -135,6 +135,10 @@ let complete_tuple =
     ~new_EmptyHole=UHExp.new_EmptyHole,
   );
 
+/**
+ * Convert an opseq prefix into standalone
+ * line items (0 if prefix is empty, 1 otherwise)
+ */
 let lines_of_prefix =
     (u_gen: MetaVarGen.t, prefix: UHExp.affix)
     : (list(UHExp.line), MetaVarGen.t) =>
@@ -146,6 +150,10 @@ let lines_of_prefix =
     ([UHExp.ExpLine(opseq)], u_gen);
   };
 
+/**
+ * Convert an opseq suffix into standalone
+ * line items (0 if suffix is empty, 1 otherwise)
+ */
 let lines_of_suffix =
     (u_gen: MetaVarGen.t, suffix: UHExp.affix)
     : (list(UHExp.line), MetaVarGen.t) =>
@@ -646,6 +654,41 @@ and syn_perform_block =
   | MoveRight => syn_move(ctx, a, (zblock, ty, u_gen))
 
   /* Backspace & Delete */
+  // Handle 2 special cases for CommentLines
+  // Case 1
+  | Backspace when ZExp.is_begin_of_comment(zblock) =>
+    switch (prefix |> ListUtil.split_last_opt) {
+    | Some((new_prefix, pre_zline)) =>
+      switch (pre_zline, zline) {
+      | (CommentLine(pre_comment), CursorL(_, CommentLine(comment))) =>
+        let new_zline =
+          ZExp.CursorL(
+            OnText(String.length(pre_comment)),
+            CommentLine(pre_comment ++ comment),
+          );
+        let new_ze = (new_prefix, new_zline, suffix);
+        Succeeded(SynDone((new_ze, ty, u_gen)));
+      | _ => Failed
+      }
+    | _ => Failed
+    }
+
+  // Case 2
+  | Delete when ZExp.is_end_of_comment(zblock) =>
+    switch (suffix, zline) {
+    | (
+        [CommentLine(post_comment), ...new_suffix],
+        CursorL(_, CommentLine(comment)),
+      ) =>
+      let new_zline =
+        ZExp.CursorL(
+          OnText(String.length(comment)),
+          CommentLine(comment ++ post_comment),
+        );
+      let new_ze = (prefix, new_zline, new_suffix);
+      Succeeded(SynDone((new_ze, ty, u_gen)));
+    | _ => Failed
+    }
 
   | Delete when ZExp.is_after_zline(zline) =>
     switch (zline |> ZExp.erase_zline, suffix) {
@@ -820,6 +863,7 @@ and syn_perform_line =
       _,
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
       CursorL(OnText(_) | OnOp(_), LetLine(_)) |
+      CursorL(OnOp(_), CommentLine(_)) |
       CursorL(_, ExpLine(_)),
     ) =>
     Failed
@@ -903,7 +947,62 @@ and syn_perform_line =
       fix_and_mk_result(u_gen, new_ze);
     }
 
+  | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
+    let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
+    mk_result(u_gen, new_zblock);
+
+  | (Delete, CursorL(OnText(j), CommentLine(comment))) =>
+    if (j == String.length(comment)) {
+      escape(u_gen, After);
+    } else {
+      let new_zblock = {
+        let new_comment = comment |> StringUtil.delete(j);
+        let new_line: UHExp.line = CommentLine(new_comment);
+        ([], ZExp.CursorL(OnText(j), new_line), []);
+      };
+      mk_result(u_gen, new_zblock);
+    }
+
+  | (Backspace, CursorL(OnText(j), CommentLine(comment))) =>
+    if (j == 0) {
+      escape(u_gen, Before);
+    } else {
+      let new_zblock = {
+        let new_comment = comment |> StringUtil.backspace(j);
+        let new_line: UHExp.line = CommentLine(new_comment);
+        ([], ZExp.CursorL(OnText(j - 1), new_line), []);
+      };
+      mk_result(u_gen, new_zblock);
+    }
+
   /* Construction */
+
+  | (Construct(SCommentLine), CursorL(_, EmptyLine)) =>
+    let new_zblock = ([], ZExp.CursorL(OnText(0), CommentLine("")), []);
+    mk_result(u_gen, new_zblock);
+
+  // Another way to construct "SCommentLine" (To create multi-lines)
+  //   # this is a mai|n comment
+  //         =>
+  //   # this is a mai
+  //   # n comment
+  | (Construct(SCommentLine), CursorL(OnText(loca), CommentLine(comment))) =>
+    let com_bef = String.sub(comment, 0, loca);
+    let com_aft = String.sub(comment, loca, String.length(comment) - loca);
+    let new_zblock = (
+      [UHExp.CommentLine(com_bef)],
+      ZExp.CursorL(OnText(0), CommentLine(com_aft)),
+      [],
+    );
+    mk_result(u_gen, new_zblock);
+
+  | (Construct(SChar(s)), CursorL(OnText(j), CommentLine(comment))) =>
+    let new_zblock = {
+      let new_comment = comment |> StringUtil.insert(j, s);
+      let new_line: UHExp.line = CommentLine(new_comment);
+      ([], ZExp.CursorL(OnText(j + 1), new_line), []);
+    };
+    mk_result(u_gen, new_zblock);
 
   | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
     let new_zblock = ([UHExp.EmptyLine], zline, []);
@@ -1480,6 +1579,24 @@ and syn_perform_operand =
   /* TODO consider deletion of type ascription on case */
 
   /* Construction */
+
+  | (Construct(SCommentLine), _) =>
+    if (ZExp.is_before_zoperand(zoperand)) {
+      let operand = ZExp.erase_zoperand(zoperand);
+      Succeeded(
+        SynDone((
+          (
+            [],
+            CursorL(OnText(0), CommentLine("")),
+            [ExpLine(OpSeq.wrap(operand))],
+          ),
+          ty,
+          u_gen,
+        )),
+      );
+    } else {
+      Failed;
+    }
 
   // TODO consider relaxing guards and
   // merging with regular op construction
@@ -2907,6 +3024,23 @@ and ana_perform_operand =
   /* TODO consider deletion of type ascription on case */
 
   /* Construction */
+
+  | (Construct(SCommentLine), _) =>
+    if (ZExp.is_before_zoperand(zoperand)) {
+      let operand = ZExp.erase_zoperand(zoperand);
+      Succeeded(
+        AnaDone((
+          (
+            [],
+            CursorL(OnText(0), CommentLine("")),
+            [ExpLine(OpSeq.wrap(operand))],
+          ),
+          u_gen,
+        )),
+      );
+    } else {
+      Failed;
+    }
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
