@@ -42,6 +42,8 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
     (Alt_L, _ => Action_common.Construct(SInj(L))),
     (Alt_R, _ => Action_common.Construct(SInj(R))),
     (Alt_C, _ => Action_common.Construct(SCase)),
+    (Pound, _ => Action_common.Construct(SCommentLine)),
+    (Shift_Enter, _ => Action_common.Construct(SCommentLine)),
     (Ctrl_Alt_I, _ => Action_common.SwapUp),
     (Ctrl_Alt_K, _ => Action_common.SwapDown),
     (Ctrl_Alt_J, _ => Action_common.SwapLeft),
