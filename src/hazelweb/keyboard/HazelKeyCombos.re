@@ -15,6 +15,7 @@ type t =
   | Colon
   | Equals
   | Enter
+  | Shift_Enter
   | Backslash
   | Plus
   | Minus
@@ -53,6 +54,7 @@ let get_details =
   | Colon => KeyCombo.colon
   | Equals => KeyCombo.equals
   | Enter => KeyCombo.enter
+  | Shift_Enter => KeyCombo.shift_enter
   | Backslash => KeyCombo.backslash
   | Plus => KeyCombo.plus
   | Minus => KeyCombo.minus
@@ -111,6 +113,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Equals);
   } else if (evt_matches(KeyCombo.enter)) {
     Some(Enter);
+  } else if (evt_matches(KeyCombo.shift_enter)) {
+    Some(Shift_Enter);
   } else if (evt_matches(KeyCombo.backslash)) {
     Some(Backslash);
   } else if (evt_matches(KeyCombo.plus)) {
