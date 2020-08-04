@@ -42,30 +42,20 @@ module Path = {
 
   let string_of_command =
     fun
-    | M({x, y}) =>
-      Printf.sprintf(
-        "M %s %s",
-        FloatUtil.to_string_zero(x),
-        FloatUtil.to_string_zero(y),
-      )
-    | M_({dx, dy}) =>
-      Printf.sprintf(
-        "m %s %s",
-        FloatUtil.to_string_zero(dx),
-        FloatUtil.to_string_zero(dy),
-      )
-    | H_({dx}) => Printf.sprintf("h %s", FloatUtil.to_string_zero(dx))
-    | V_({dy}) => Printf.sprintf("v %s", FloatUtil.to_string_zero(dy))
+    | M({x, y}) => Printf.sprintf("M %f %f", x, y)
+    | M_({dx, dy}) => Printf.sprintf("m %f %f", dx, dy)
+    | H_({dx}) => Printf.sprintf("h %f", dx)
+    | V_({dy}) => Printf.sprintf("v %f", dy)
     | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, dx, dy}) =>
       Printf.sprintf(
-        "a %s %s %s %s %s %s %s",
-        FloatUtil.to_string_zero(rx),
-        FloatUtil.to_string_zero(ry),
-        FloatUtil.to_string_zero(x_axis_rotation),
+        "a %f %f %f %s %s %f %f",
+        rx,
+        ry,
+        x_axis_rotation,
         string_of_flag(large_arc_flag),
         string_of_flag(sweep_flag),
-        FloatUtil.to_string_zero(dx),
-        FloatUtil.to_string_zero(dy),
+        dx,
+        dy,
       );
 
   let view = (attrs: list(Vdom.Attr.t), path: t): Vdom.Node.t => {
