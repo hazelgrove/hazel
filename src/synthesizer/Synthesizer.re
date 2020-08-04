@@ -1,6 +1,5 @@
 module Js = Js_of_ocaml.Js;
 module Worker = Js_of_ocaml.Worker;
-module IntMAp = Map.Make(Int);
 open Synthesiscomm;
 
 type t =
@@ -46,12 +45,16 @@ let run = (callback, message) => {
  See Synthesizer.rei for a description of
  the limitations on fillings' mutation.
  */
-let fillings = ref(IntMap.empty);
+/* let fillings = ref(IntMap.empty); */
+
+// Public write once mutable field.
+let schedule_action =
+  ref(() => failwith("Synthesizer's schedule action wasn't set."));
 
 let callback = (hole_fillings: Synthesiscomm.MessageTypes.from_worker) => {
-  fillings := IntMap.map(Shim.expToUHExp, hole_fillings);
-  print_endline("Repaint!");
+  SynthesisTemp.fillings := IntMap.map(Shim.expToUHExp, hole_fillings);
+  schedule_action^();
 };
 
-//Public field
+// Public field
 let start = uhexp => run(callback, Shim.uHExpToExp(uhexp));

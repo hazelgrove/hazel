@@ -26,10 +26,9 @@ let inline_padding_of_operator:
 
 let mk_EmptyHole: string => UHDoc_common.t =
   str => {
-    print_endline(string_of_int(IntMap.cardinal(Synthesizer.fillings^)));
     UHDoc_common.mk_EmptyHole(
       ~sort=Exp,
-      switch (IntMap.find_opt(int_of_string(str), Synthesizer.fillings^)) {
+      switch (IntMap.find_opt(int_of_string(str), SynthesisTemp.fillings^)) {
       | None => str
       | Some(_filling) => String.map(_ => '*', str)
       },

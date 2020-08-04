@@ -94,6 +94,7 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | SwapRight
   | SwapUp
   | SwapDown
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -220,6 +221,9 @@ and perform_opseq =
         );
       }
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 2347981");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and perform_operand =
@@ -329,5 +333,8 @@ and perform_operand =
       perform_operand(Action_common.escape(side), zoperand)
     | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 174982");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };

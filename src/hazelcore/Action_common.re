@@ -47,6 +47,7 @@ type t =
   | SwapRight
   | SwapUp
   | SwapDown
+  | AcceptSuggestion
   | Init;
 
 let shape_to_string = (shape: shape): string => {

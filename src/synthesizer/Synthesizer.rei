@@ -9,4 +9,9 @@ let start: UHExp.t => unit;
  synthesis worker's completion, and before the display is updated.
  Anywhere may view its contents but nowhere else may edit it.
  */
-let fillings: ref(Map.Make(Int).t(UHExp.t));
+/* let fillings: ref(IntMap.t(UHExp.operand)); */
+
+/*
+  Public write once mutable field.
+ */
+let schedule_action: ref(unit => unit);

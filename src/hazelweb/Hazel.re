@@ -16,7 +16,7 @@ module Action = ModelAction;
 module State = State;
 
 // see incr_dom app_intf.ml
-let on_startup = (~schedule_action, _) => {
+let on_startup = (~schedule_action: Action.t => unit, _) => {
   /* we need line heights + character widths for various layout computations,
       so we created a font specimen and update font metrics whenever that
      element resizes. */
@@ -57,6 +57,9 @@ let on_startup = (~schedule_action, _) => {
       Js._true;
     });
   Cell.focus();
+
+  /* Give synthesizer the callback to schedule updates when if gets new results */
+  Synthesizer.schedule_action := (() => schedule_action(SynthesisUpdate));
 
   Async_kernel.Deferred.return(State.State);
 };

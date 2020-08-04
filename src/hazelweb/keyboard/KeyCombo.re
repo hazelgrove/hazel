@@ -61,6 +61,7 @@ let alt_PageDown = alt(Key.the_key("PageDown"));
 let alt_T = alt(Key.the_key("T"));
 let alt_F = alt(Key.the_key("F"));
 let ctrl_z = ctrl(Key.the_key("z"));
+let ctrl_a = ctrl(Key.the_key("a"));
 let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
 let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
 let ctrl_alt_k = ctrl_alt(Key.the_key("k"));

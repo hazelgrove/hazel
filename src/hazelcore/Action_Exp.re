@@ -538,6 +538,7 @@ let rec syn_move =
   | SwapRight
   | SwapUp
   | SwapDown
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -599,6 +600,7 @@ let rec ana_move =
   | SwapRight
   | SwapUp
   | SwapDown
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -1032,6 +1034,9 @@ and syn_perform_line =
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 52143");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -1350,6 +1355,9 @@ and syn_perform_opseq =
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 6123");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_operand =
@@ -1900,6 +1908,24 @@ and syn_perform_operand =
         };
       }
     }
+  | (AcceptSuggestion, CursorE(cp, EmptyHole(hole_id))) =>
+    print_endline("as 725436!!");
+    print_endline(string_of_int(hole_id));
+    switch (IntMap.find_opt(hole_id, SynthesisTemp.fillings^)) {
+    | None =>
+      print_endline("Unfilled.");
+      Failed;
+    | Some((filling: UHExp.operand)) =>
+      print_endline("Filled!");
+      Succeeded(
+        SynDone((ZExp.ZBlock.wrap(CursorE(cp, filling)), ty, u_gen)),
+      );
+    };
+
+  | (AcceptSuggestion, zop) =>
+    print_endline("as 725436: Nope!");
+    print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zop)));
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2044,6 +2070,9 @@ and syn_perform_rules =
         Succeeded((new_zrules, u_gen));
       }
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 154362");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2196,6 +2225,9 @@ and ana_perform_rules =
         Succeeded((new_zrules, u_gen));
       }
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 8362346");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2734,6 +2766,9 @@ and ana_perform_opseq =
         );
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 231256");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and ana_perform_operand =
@@ -3270,6 +3305,9 @@ and ana_perform_operand =
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+  | (AcceptSuggestion, _) =>
+    print_endline("as 51231");
+    Failed;
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
   }
