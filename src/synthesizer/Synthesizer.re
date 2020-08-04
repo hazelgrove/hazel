@@ -43,12 +43,8 @@ let run = (callback, message) => {
 /*
  Public read only mutable field.
 
- This field is mutable, but its mutation is strictly limited.
- It is only mutated by the "callback" function in this file to
- make it reflect the latest synthesis results immidiatly upon
- the synthesis worker's completion, and before the display is
- updated. Anywhere may view its contents but nowhere else may
- edit it.
+ See Synthesizer.rei for a description of
+ the limitations on fillings' mutation.
  */
 let fillings = ref(IntMap.empty);
 

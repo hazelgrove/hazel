@@ -1,4 +1,6 @@
 open Pretty;
+module IntMap = Map.Make(Int);
+
 let inline_padding_of_operator:
   UHExp.operator => (UHDoc_common.t, UHDoc_common.t) =
   fun
@@ -23,7 +25,17 @@ let inline_padding_of_operator:
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);
 
 let mk_EmptyHole: string => UHDoc_common.t =
-  UHDoc_common.mk_EmptyHole(~sort=Exp);
+  str => {
+    print_endline(string_of_int(IntMap.cardinal(Synthesizer.fillings^)));
+    UHDoc_common.mk_EmptyHole(
+      ~sort=Exp,
+      switch (IntMap.find_opt(int_of_string(str), Synthesizer.fillings^)) {
+      | None => str
+      | Some(_filling) => String.map(_ => '*', str)
+      },
+    );
+  };
+
 let mk_InvalidText: string => UHDoc_common.t =
   UHDoc_common.mk_InvalidText(~sort=Exp);
 let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
