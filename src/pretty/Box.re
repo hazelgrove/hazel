@@ -85,21 +85,31 @@ let append_hbox = (boxes1: list(t('annot)), boxes2: list(t('annot))) => {
   };
 };
 
-// TODO memoize
-let mk = (l: Layout.t('annot)): t('annot) => {
-  let mk = (boxes: list(list(t(_)))) =>
-    VBox(List.map(row => HBox(row), boxes));
-  let rec go = (l: Layout.t(_)) => {
-    switch (l) {
-    | Linebreak => [[], []]
-    | Text(s) => [[Text(s)]]
-    | Align(l) => [[mk(go(l))]]
-    | Annot(ann, l) => go(l) |> List.map(row => [Annot(ann, HBox(row))])
-    | Cat(l1, l2) =>
-      let (leading, last) = ListUtil.split_last(go(l1));
-      let (first, trailing) = ListUtil.split_first(go(l2));
-      leading @ [append_hbox(last, first), ...trailing];
+module Make = (MemoTbl: MemoTbl.S) => {
+  let table: MemoTbl.t(Layout.t(unit), t(unit)) = MemoTbl.mk();
+  let mk = (l: Layout.t('annot)): t('annot) => {
+    let mk = (boxes: list(list(t(_)))) =>
+      VBox(List.map(row => HBox(row), boxes));
+    let rec go = (l: Layout.t(_)) => {
+      switch (MemoTbl.get(table, Obj.magic(l))) {
+      | Some(box) => Obj.magic(box)
+      | None =>
+        let box =
+          switch (l) {
+          | Linebreak => [[], []]
+          | Text(s) => [[Text(s)]]
+          | Align(l) => [[mk(go(l))]]
+          | Annot(ann, l) =>
+            go(l) |> List.map(row => [Annot(ann, HBox(row))])
+          | Cat(l1, l2) =>
+            let (leading, last) = ListUtil.split_last(go(l1));
+            let (first, trailing) = ListUtil.split_first(go(l2));
+            leading @ [append_hbox(last, first), ...trailing];
+          };
+        MemoTbl.set(table, Obj.magic(l), Obj.magic(box));
+        box;
+      };
     };
+    mk(go(l));
   };
-  mk(go(l));
 };

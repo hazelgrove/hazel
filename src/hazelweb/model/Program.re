@@ -228,7 +228,7 @@ let get_box =
        ~measure_layoutOfDoc_layout_of_doc,
        ~memoize_doc,
      )
-  |> Pretty.Box.mk;
+  |> UHBox.mk;
 };
 
 let get_caret_position =
