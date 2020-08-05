@@ -95,26 +95,6 @@ let pos_fold =
   go(indent, start, m);
 };
 
-// flattens away Linebreak and Cat nodes
-let flatten = (m: t('annot)): list(list(t('annot))) => {
-  let rec go =
-          (~tail: list(list(t('annot))), m: t('annot))
-          : list(list(t('annot))) => {
-    switch (m.layout) {
-    | Text(_)
-    | Align(_)
-    | Annot(_) =>
-      switch (tail) {
-      | [] => [[m]]
-      | [row, ...rows] => [[m, ...row], ...rows]
-      }
-    | Linebreak => [[], ...tail]
-    | Cat(m1, m2) => go(~tail=go(~tail, m2), m1)
-    };
-  };
-  go(~tail=[], m);
-};
-
 module Make = (MemoTbl: MemoTbl.S) => {
   let table: MemoTbl.t(Layout.t(unit), t(unit)) = MemoTbl.mk();
   let rec mk = (l: Layout.t('annot)): t('annot) => {

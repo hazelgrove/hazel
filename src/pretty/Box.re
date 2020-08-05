@@ -7,17 +7,6 @@ type t('annot) =
   | VBox(list(t('annot)))
   | Annot('annot, t('annot));
 
-let hbox = boxes => HBox(boxes);
-let vbox = boxes => VBox(boxes);
-
-// Note: annots are inside-out (i.e. List.hd(annots) is the inner-most annot)
-let rec annot = (annots: list('annot), box: t('annot)): t('annot) => {
-  switch (annots) {
-  | [] => box
-  | [ann, ...anns] => annot(anns, Annot(ann, box))
-  };
-};
-
 module Make = (MemoTbl: MemoTbl.S) => {
   let height_tbl: MemoTbl.t(t(unit), int) = MemoTbl.mk();
   let rec height = (box: t('annot)) =>
@@ -34,6 +23,14 @@ module Make = (MemoTbl: MemoTbl.S) => {
       MemoTbl.set(height_tbl, Obj.magic(box), h);
       h;
     };
+
+  // Note: annots are inside-out (i.e. List.hd(annots) is the inner-most annot)
+  let rec annot = (annots: list('annot), box: t('annot)): t('annot) => {
+    switch (annots) {
+    | [] => box
+    | [ann, ...anns] => annot(anns, Annot(ann, box))
+    };
+  };
 
   let rec append_box =
           (~annots: list('annot)=[], box1: t('annot), box2: t('annot))
