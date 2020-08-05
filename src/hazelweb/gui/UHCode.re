@@ -11,9 +11,9 @@ let decoration_views =
     : list(Vdom.Node.t) => {
   let rec go =
           (
-            ~tl: list(Vdom.Node.t),
-            ~indent: int,
-            ~start: MeasuredPosition.t,
+            ~tl: list(Vdom.Node.t)=[],
+            ~indent=0,
+            ~start=MeasuredPosition.zero,
             ds: Decorations.t,
             m: UHMeasuredLayout.t,
           )
@@ -66,13 +66,7 @@ let decoration_views =
       }
     };
   };
-  go(
-    ~tl=[],
-    ~indent=0,
-    ~start={row: 0, col: 0},
-    ds,
-    UHMeasuredLayout.mk(l),
-  );
+  go(ds, UHMeasuredLayout.mk(l));
 };
 
 let key_handlers =

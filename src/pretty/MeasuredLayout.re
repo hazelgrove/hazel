@@ -78,7 +78,7 @@ let pos_fold =
          // let client control recursion based on annotation
          (t('annot) => 'acc, MeasuredPosition.t, 'annot, t('annot)) => 'acc,
       ~indent: int=0,
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       m: t('annot),
     )
     : 'acc => {
@@ -115,10 +115,10 @@ let flatten = (m: t('annot)): list(list(t('annot))) => {
   go(~tail=[], m);
 };
 
-module Make = (WeakMap: WeakMap_intf.S) => {
-  let table: WeakMap.t(Layout.t(unit), t(unit)) = WeakMap.mk();
+module Make = (MemoTbl: MemoTbl.S) => {
+  let table: MemoTbl.t(Layout.t(unit), t(unit)) = MemoTbl.mk();
   let rec mk = (l: Layout.t('annot)): t('annot) => {
-    switch (WeakMap.get(table, Obj.magic(l))) {
+    switch (MemoTbl.get(table, Obj.magic(l))) {
     | Some(m) => Obj.magic(m)
     | None =>
       let m =
@@ -154,7 +154,7 @@ module Make = (WeakMap: WeakMap_intf.S) => {
           let m = mk(l);
           {...m, layout: Annot(annot, m)};
         };
-      ignore(WeakMap.set(table, Obj.magic(l), Obj.magic(m)));
+      MemoTbl.set(table, Obj.magic(l), Obj.magic(m));
       m;
     };
   };

@@ -40,7 +40,7 @@ let caret_position_of_path =
         go(steps, indent, mid, m2);
       }
     };
-  go(steps, 0, {row: 0, col: 0}, m);
+  go(steps, 0, MeasuredPosition.zero, m);
 };
 
 type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
@@ -56,7 +56,7 @@ type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
 let find_path =
     (
       ~rev_steps: CursorPath_common.rev_steps=[],
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       ~indent: int=0,
       ~token:
          (
@@ -110,7 +110,7 @@ let first_path_in_row =
     (
       ~rev_steps: CursorPath_common.rev_steps=[],
       ~indent=0,
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       row: int,
       m: t,
     )
@@ -148,7 +148,7 @@ let first_path_in_row =
 let last_path_in_row =
     (
       ~rev_steps=[],
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       row: int,
       m: t,
     )
