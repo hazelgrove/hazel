@@ -499,7 +499,8 @@ and syn_elab_line =
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
       LinesExpand(prelude, ctx, delta);
     }
-  | EmptyLine => LinesExpand(d => d, ctx, delta)
+  | EmptyLine
+  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>

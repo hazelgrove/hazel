@@ -20,6 +20,8 @@ type seq = OpSeq.seq(operand, operator);
 
 let get_prod_elements: skel => list(skel);
 
+let unwrap_parentheses: operand => t;
+
 let associate: seq => Skel.t(Operators_Typ.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
