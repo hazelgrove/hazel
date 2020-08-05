@@ -1,43 +1,50 @@
 module Js = Js_of_ocaml.Js;
 module Dom_html = Js_of_ocaml.Dom_html;
 
-[@deriving sexp]
-type t =
-  | Escape
-  | Backspace
-  | Delete
-  | ShiftTab
-  | Tab
-  | GT
-  | Ampersand
-  | VBar
-  | LeftParen
-  | Colon
-  | Equals
-  | Enter
-  | Shift_Enter
-  | Backslash
-  | Plus
-  | Minus
-  | Asterisk
-  | Slash
-  | LT
-  | Space
-  | Comma
-  | LeftBracket
-  | Semicolon
-  | Alt_L
-  | Alt_R
-  | Alt_C
-  | Pound
-  | Ctrl_Z
-  | Ctrl_Shift_Z
-  | Ctrl_Alt_I
-  | Ctrl_Alt_K
-  | Ctrl_Alt_J
-  | Ctrl_Alt_L
-  | Meta_Z
-  | Meta_Shift_Z;
+let enter = plain(Key.the_key("Enter"));
+let escape = plain(Key.the_key("Escape"));
+let backspace = plain(Key.the_key("Backspace"));
+let delete = plain(Key.the_key("Delete"));
+let tab = plain(Key.the_key("Tab"));
+let shift_tab = shift(Key.the_key("Tab"));
+let shift_enter = shift(Key.the_key("Enter")); // For creating another "CommentLine"
+let space = plain(Key.key1("Space", " "));
+let lt = no_ctrl_alt_meta(Key.the_key("<"));
+let gt = no_ctrl_alt_meta(Key.the_key(">"));
+let colon = no_ctrl_alt_meta(Key.the_key(":"));
+let backslash = no_ctrl_alt_meta(Key.the_key("\\"));
+let left_parens = no_ctrl_alt_meta(Key.the_key("("));
+let right_parens = no_ctrl_alt_meta(Key.the_key(")"));
+let left_bracket = no_ctrl_alt_meta(Key.the_key("["));
+let right_bracket = no_ctrl_alt_meta(Key.the_key("]"));
+let qmark = no_ctrl_alt_meta(Key.the_key("?"));
+let equals = no_ctrl_alt_meta(Key.the_key("="));
+let pound = no_ctrl_alt_meta(Key.the_key("#"));
+let plus = no_ctrl_alt_meta(Key.the_key("+"));
+let minus = no_ctrl_alt_meta(Key.the_key("-"));
+let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
+let slash = no_ctrl_alt_meta(Key.the_key("/"));
+let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
+let comma = no_ctrl_alt_meta(Key.the_key(","));
+let vbar = no_ctrl_alt_meta(Key.the_key("|"));
+let ampersand = no_ctrl_alt_meta(Key.the_key("&"));
+let dollar = no_ctrl_alt_meta(Key.the_key("$"));
+let amp = no_ctrl_alt_meta(Key.the_key("&"));
+let alt_L = alt(Key.the_key("l"));
+let alt_R = alt(Key.the_key("r"));
+let alt_C = alt(Key.the_key("c"));
+let alt_PageUp = alt(Key.the_key("PageUp"));
+let alt_PageDown = alt(Key.the_key("PageDown"));
+let alt_T = alt(Key.the_key("T"));
+let alt_F = alt(Key.the_key("F"));
+let ctrl_z = ctrl(Key.the_key("z"));
+let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
+let ctrl_alt_i = ctrl_alt(Key.the_key("i"));
+let ctrl_alt_k = ctrl_alt(Key.the_key("k"));
+let ctrl_alt_j = ctrl_alt(Key.the_key("j"));
+let ctrl_alt_l = ctrl_alt(Key.the_key("l"));
+let meta_z = ctrl(Key.the_key("z"));
+let meta_shift_z = ctrl_shift(Key.the_key("Z"));
 
 let get_details =
   fun
@@ -80,7 +87,7 @@ let get_details =
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
   if (evt_matches(KeyCombo.pound)) {
-    Some(Pound);
+    Some(pound);
   } else if (evt_matches(KeyCombo.ctrl_z)) {
     Some(Ctrl_Z);
   } else if (evt_matches(KeyCombo.ctrl_shift_z)) {

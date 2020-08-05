@@ -187,13 +187,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   let combo_element = (is_allowed_action, combo, description) => {
     let action = Hashtbl.find(Cell.kc_actions, combo);
     let action = action(cursor_info);
-    action_button(
-      is_allowed_action,
-      inject,
-      action,
-      description,
-      HazelKeyCombos.get_details(combo),
-    );
+    action_button(is_allowed_action, inject, action, description, combo);
   };
 
   let combo = combo_element(is_action_allowed);
@@ -225,7 +219,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       List.map(
         combo => {
           let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
-          (HazelKeyCombos.get_details(combo), action);
+          (combo, action);
         },
         combos,
       );
@@ -235,7 +229,6 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let keyboard_button = combo => {
     let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
-    let combo = HazelKeyCombos.get_details(combo);
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
 
@@ -272,7 +265,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         info([text("Move using arrow keys")]),
         single_line_multiple_actions(
           "Move to next / previous hole",
-          [keyboard_button(Tab), keyboard_button(ShiftTab)],
+          [keyboard_button(tab), keyboard_button(ShiftTab)],
         ),
       ],
     ),
