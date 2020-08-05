@@ -23,13 +23,8 @@ let decoration_views =
     | Linebreak
     | Text(_) => tl
     | Cat(m1, m2) =>
-      let mid_row = {
-        let height1 =
-          m1.metrics
-          |> List.map((box: MeasuredLayout.box) => box.height)
-          |> List.fold_left((+), 0);
-        start.row + height1 - 1;
-      };
+      let mid_row =
+        start.row + MeasuredLayout.height(m1) - 1;
       let mid_col = {
         let (leading, MeasuredLayout.{width: last_width, _}) =
           ListUtil.split_last(m1.metrics);
@@ -57,7 +52,6 @@ let decoration_views =
                  ~font_metrics,
                  ~origin={row: start.row, col: indent},
                  ~offset=start.col - indent,
-                 // ~shape,
                  ~subject=m,
                ),
              );
