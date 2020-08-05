@@ -35,6 +35,7 @@ let backspace: t;
 let delete: t;
 let tab: t;
 let shift_tab: t;
+let shift_enter: t;
 let space: t;
 let lt: t;
 let gt: t;
