@@ -17,11 +17,6 @@ type join =
   | GLB
   | LUB;
 
-let is_Prod =
-  fun
-  | Prod(_) => true
-  | _ => false;
-
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
 let precedence_Sum = Operators_Typ.precedence(Sum);

@@ -102,14 +102,6 @@ let nth_operand: (int, t('operand, _)) => 'operand;
 
 let operands: t('operand, _) => list('operand);
 let operators: t(_, 'operator) => list('operator);
-let operators_of_affix: affix(_, 'operator) => list('operator);
-
-/* update the nth operand in seq, if it exists */
-let opt_update_nth_operand:
-  (int, 'operand, t('operand, 'operator)) => option(t('operand, 'operator));
-let opt_update_nth_operand_of_affix:
-  (int, 'operand, affix('operand, 'operator)) =>
-  option(affix('operand, 'operator));
 
 let update_nth_operand:
   (int, 'operand, t('operand, 'operator)) => t('operand, 'operator);
