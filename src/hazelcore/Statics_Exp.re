@@ -188,7 +188,11 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
-  | UnaryOp(NotInHole, _, operand) => syn_operand(ctx, operand)
+  | UnaryOp(NotInHole, unop, _) =>
+    switch (unop) {
+    | UnaryMinus => Some(Int)
+    | FUnaryMinus => Some(Float)
+    }
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -236,6 +240,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     };
   | Parenthesized(body) => syn(ctx, body)
   }
+
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
   let clause_types =
@@ -408,7 +413,7 @@ and ana_operand =
         None;
       }
     };
-  | UnaryOp(NotInHole, _, operand) =>
+  | UnaryOp(NotInHole, _, _) =>
     switch (syn_operand(ctx, operand)) {
     | None => None
     | Some(ty') =>
@@ -951,13 +956,15 @@ and syn_fix_holes_operand =
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
-  | UnaryOp(_, _, operand) =>
-    let ty =
-      switch (syn_operand(([], []), operand)) {
-      | None => failwith("Unary op not in hole but cannot synthesize type!")
-      | Some(ty) => ty
+  | UnaryOp(_, unop, operand) =>
+    let ty_u: HTyp.t =
+      switch (unop) {
+      | UnaryMinus => Int
+      | FUnaryMinus => Float
       };
-    (e_nih, ty, u_gen);
+    let (new_operand, u_gen) =
+      ana_fix_holes_operand(ctx, u_gen, operand, ty_u);
+    (UnaryOp(NotInHole, unop, new_operand), ty_u, u_gen);
   | Parenthesized(body) =>
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);

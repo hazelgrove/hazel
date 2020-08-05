@@ -1507,10 +1507,48 @@ and syn_perform_operand =
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
 
-  | (Construct(SUnop(sop)), CursorE(OnText(j), _))
+  | (Construct(SCase), CursorE(_, operand)) =>
+    Succeeded(
+      mk_SynExpandsToCase(
+        ~u_gen,
+        ~scrut=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+        (),
+      ),
+    )
+  | (Construct(SLet), CursorE(_, operand)) =>
+    Succeeded(
+      mk_SynExpandsToLet(
+        ~u_gen,
+        ~def=UHExp.Block.wrap'(OpSeq.wrap(operand)),
+        (),
+      ),
+    )
+
+  | (Construct(SUnop(sop)), CursorE(OnText(_), _))
       when ZExp.is_before_zoperand(zoperand) =>
-    /* TODO ANAND wrap the zoperand in a UnaryOpZU with cursor After the unop */
-    failwith("not implemented")
+    switch (unop_of_shape(sop)) {
+    | None => Failed
+    | Some(unop) =>
+      let zunop = (CursorPosition.OnOp(After), unop);
+      let ty_u: HTyp.t =
+        switch (unop) {
+        | UnaryMinus => Int
+        | FUnaryMinus => Float
+        };
+      let (new_operand, u_gen) =
+        Statics_Exp.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZExp.erase_zoperand(zoperand),
+          ty_u,
+        );
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
+        );
+      Succeeded(SynDone((new_ze, ty_u, u_gen)));
+    }
+  | (Construct(SUnop(_)), _) => Failed
 
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
@@ -1717,7 +1755,7 @@ and syn_perform_operand =
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
-  | (_, UnaryOpZU(_, zunop, _)) =>
+  | (_, UnaryOpZU(_, zunop, operand)) =>
     switch (a, zunop) {
     /* invalid cursor positions */
     | (_, (OnText(_) | OnDelim(_, _), _)) => Failed
@@ -1731,19 +1769,57 @@ and syn_perform_operand =
     /* Backspace and Delete */
     | (Delete, (CursorPosition.OnOp(Before), _))
     | (Backspace, (CursorPosition.OnOp(After), _)) =>
-      /* TODO ANAND remove the unary operator, move cursor to beginning of operand? */ failwith(
-        "not implemented.",
-      )
-    | (Delete, (CursorPosition.OnOp(After), _))
+      let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(operand));
+      switch (Statics_Exp.syn_operand(ctx, operand)) {
+      | None => Failed
+      | Some(ty) => Succeeded(SynDone((new_ze, ty, u_gen)))
+      };
+    | (Delete, (CursorPosition.OnOp(After), _)) =>
+      failwith("unimplemented")
     | (Backspace, (CursorPosition.OnOp(Before), _)) =>
-      /* TODO ANAND escape to side */ failwith("not implemented.")
-
+      CursorEscaped(Before)
     | (Construct(_), _) => failwith("not implemented")
     | (UpdateApPalette(_), _) => failwith("not implemented")
     | (Init, _) => failwith("Init action should not be performed.")
     }
-  | (_, UnaryOpZN(_, _, zoperand)) =>
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
+  | (_, UnaryOpZN(_, unop, zoperand)) =>
+    /* TODO ANAND ask cyrus about this in OH, specifically the unwrapping nonsense */
+    let ty_u: HTyp.t =
+      switch (unop) {
+      | UnaryMinus => Int
+      | FUnaryMinus => Float
+      };
+    switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
+    | Failed => Failed
+    | CursorEscaped(_) => failwith("not implemented")
+    | Succeeded(AnaExpands(_)) =>
+      failwith("unary operator's operand should not be expanding")
+    | Succeeded(AnaDone((ze, u_gen))) =>
+      /* unwrap ze to the operand */
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(zoperand, _) =>
+            if (HTyp.consistent(ty, ty_u)) {
+              let new_ze =
+                ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, zoperand));
+              Succeeded(SynDone((new_ze, ty, u_gen)));
+            } else {
+              let (u, u_gen) = u_gen |> MetaVarGen.next;
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  UnaryOpZN(InHole(TypeInconsistent, u), unop, zoperand),
+                );
+              Succeeded(SynDone((new_ze, ty, u_gen)));
+            }
+          | _ => failwith("Should be an operand.")
+          }
+        }
+      | _ => failwith("Should be an ExpLineZ.")
+      }
+    };
   | (_, LamZP(_, zp, ann, body)) =>
     let ty1 =
       switch (ann) {
@@ -2831,7 +2907,6 @@ and ana_perform_operand =
   | (Construct(SList), _) => Failed
 
   /* Backspace & Delete */
-
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
     let ze = operand |> ZExp.place_before_operand |> ZExp.ZBlock.wrap;
     ze |> ZExp.is_after
@@ -2939,6 +3014,47 @@ and ana_perform_operand =
     Succeeded(
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
     )
+
+  | (Construct(SUnop(sop)), CursorE(OnText(_), _))
+      when ZExp.is_before_zoperand(zoperand) =>
+    switch (unop_of_shape(sop)) {
+    | None => Failed
+    | Some(unop) =>
+      let zunop = (CursorPosition.OnOp(After), unop);
+      let ty_u: HTyp.t =
+        switch (unop) {
+        | UnaryMinus => Int
+        | FUnaryMinus => Float
+        };
+      let (new_operand, u_gen) =
+        Statics_Exp.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZExp.erase_zoperand(zoperand),
+          ty_u,
+        );
+      HTyp.consistent(ty, ty_u)
+        ? {
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
+            );
+          Succeeded(AnaDone((new_ze, u_gen)));
+        }
+        : {
+          let (u, u_gen) = u_gen |> MetaVarGen.next;
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              ZExp.UnaryOpZU(
+                ErrStatus.InHole(TypeInconsistent, u),
+                zunop,
+                new_operand,
+              ),
+            );
+          Succeeded(AnaDone((new_ze, u_gen)));
+        };
+    }
+  | (Construct(SUnop(_)), _) => Failed
 
   // TODO consider relaxing guards and
   // merging with regular op construction
@@ -3112,6 +3228,72 @@ and ana_perform_operand =
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(zbody));
       Succeeded(AnaDone((new_ze, u_gen)));
     }
+  | (_, UnaryOpZU(_, zunop, operand)) =>
+    switch (a, zunop) {
+    /* invalid cursor positions */
+    | (_, (OnText(_) | OnDelim(_, _), _)) => Failed
+    /* movement handled at top level */
+    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
+      failwith("unimplemented")
+    /* swapping (unimplemented) */
+    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) =>
+      failwith("unimplemented")
+
+    /* Backspace and Delete */
+    | (Delete, (CursorPosition.OnOp(Before), _))
+    | (Backspace, (CursorPosition.OnOp(After), _)) =>
+      let (operand, u_gen) =
+        Statics_Exp.ana_fix_holes_operand(ctx, u_gen, operand, ty);
+      let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(operand));
+      Succeeded(AnaDone((new_ze, u_gen)));
+    | (Delete, (CursorPosition.OnOp(After), _)) =>
+      failwith("unimplemented")
+    | (Backspace, (CursorPosition.OnOp(Before), _)) =>
+      CursorEscaped(Before)
+
+    | (Construct(_), _) => failwith("not implemented")
+    | (UpdateApPalette(_), _) => failwith("not implemented")
+    | (Init, _) => failwith("Init action should not be performed.")
+    }
+  | (_, UnaryOpZN(_, unop, _)) =>
+    /* TODO ANAND Ask cyrus about this in OH */
+    let ty_u: HTyp.t =
+      switch (unop) {
+      | UnaryMinus => Int
+      | FUnaryMinus => Float
+      };
+    switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_u)) {
+    | Failed
+    | CursorEscaped(_)
+    | Succeeded(AnaExpands(_)) => Failed
+    | Succeeded(AnaDone((ze, u_gen))) =>
+      /* unwrap ze to the operand */
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(zoperand, _) =>
+            HTyp.consistent(ty, ty_u)
+              ? {
+                let new_ze =
+                  ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, zoperand));
+                Succeeded(AnaDone((new_ze, u_gen)));
+              }
+              : {
+                let (u, u_gen) = u_gen |> MetaVarGen.next;
+                let new_ze =
+                  ZExp.ZBlock.wrap(
+                    UnaryOpZN(InHole(TypeInconsistent, u), unop, zoperand),
+                  );
+                Succeeded(AnaDone((new_ze, u_gen)));
+              }
+          | _ => Failed
+          }
+        }
+      | _ => Failed
+      }
+    };
   | (_, LamZP(_, zp, ann, body)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed

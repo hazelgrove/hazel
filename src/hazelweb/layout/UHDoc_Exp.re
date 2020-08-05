@@ -1,6 +1,6 @@
 open Pretty;
 let inline_padding_of_operator:
-  UHExp.operator => (UHDoc_common.t, UHDoc_common.t) =
+  UHExp.binop => (UHDoc_common.t, UHDoc_common.t) =
   fun
   | Space
   | Cons => (UHDoc_common.empty_, UHDoc_common.empty_)
@@ -44,9 +44,9 @@ let mk_Inj:
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc_common.t,
-    ~mk_operator: UHExp.operator => UHDoc_common.t,
+    ~mk_operator: UHExp.binop => UHDoc_common.t,
     ~enforce_inline: bool,
-    OpSeq.t('a, UHExp.operator)
+    OpSeq.t('a, UHExp.binop)
   ) =>
   UHDoc_common.t =
   UHDoc_common.mk_NTuple(
@@ -153,7 +153,7 @@ and mk_opseq =
       )
     )
   )
-and mk_operator = (op: UHExp.operator): UHDoc_common.t =>
+and mk_operator = (op: UHExp.binop): UHDoc_common.t =>
   op |> Operators_Exp.is_Space
     ? UHDoc_common.mk_space_op
     : UHDoc_common.mk_op(Operators_Exp.to_string(op))
