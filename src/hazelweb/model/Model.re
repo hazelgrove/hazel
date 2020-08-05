@@ -22,7 +22,6 @@ type cursor_inspector = {
   visible: bool,
   show_expanded: bool,
   term_novice_message_mode: bool,
-  colon_novice_message_mode: bool,
   type_novice_message_mode: bool,
 };
 
@@ -132,7 +131,6 @@ let init = (): t => {
       visible: true,
       show_expanded: false,
       term_novice_message_mode: false,
-      colon_novice_message_mode: false,
       type_novice_message_mode: false,
     },
   };
@@ -140,7 +138,6 @@ let init = (): t => {
 
 let get_novice_mode = (model: t): bool =>
   model.cursor_inspector.term_novice_message_mode
-  && model.cursor_inspector.colon_novice_message_mode
   && model.cursor_inspector.type_novice_message_mode;
 
 let toggle_novice_mode = (model: t): t => {
@@ -150,7 +147,6 @@ let toggle_novice_mode = (model: t): t => {
     cursor_inspector: {
       ...model.cursor_inspector,
       term_novice_message_mode: !toggle,
-      colon_novice_message_mode: !toggle,
       type_novice_message_mode: !toggle,
     },
   };

@@ -60,6 +60,5 @@ type t =
   | ToggleShowCursorInspector
   | ToggleCursorInspectorExpansion
   | ToggleTermNoviceMessageMode
-  | ToggleColonNoviceMessageMode
   | ToggleTypeNoviceMessageMode
   | ToggleNoviceMode;

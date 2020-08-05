@@ -33,7 +33,6 @@ type cursor_inspector = {
   visible: bool,
   show_expanded: bool,
   term_novice_message_mode: bool,
-  colon_novice_message_mode: bool,
   type_novice_message_mode: bool,
 };
 

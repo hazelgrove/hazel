@@ -82,7 +82,6 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleShowCursorInspector
   | ToggleCursorInspectorExpansion
   | ToggleTermNoviceMessageMode
-  | ToggleColonNoviceMessageMode
   | ToggleTypeNoviceMessageMode
   | ToggleNoviceMode =>
     Logger.append(
@@ -343,14 +342,6 @@ let apply_action =
             ...model.cursor_inspector,
             term_novice_message_mode:
               !model.cursor_inspector.term_novice_message_mode,
-          },
-        }
-      | ToggleColonNoviceMessageMode => {
-          ...model,
-          cursor_inspector: {
-            ...model.cursor_inspector,
-            colon_novice_message_mode:
-              !model.cursor_inspector.colon_novice_message_mode,
           },
         }
       | ToggleTypeNoviceMessageMode => {
