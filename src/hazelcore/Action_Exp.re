@@ -1722,6 +1722,46 @@ and syn_perform_operand =
     );
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
+  | (AcceptSuggestion, CursorE(cp, EmptyHole(hole_id))) =>
+    print_endline("as 725436");
+    print_endline(
+      "Accept suggestion, while cursor is on an empty hole with internal id: "
+      ++ string_of_int(hole_id),
+    );
+    print_endline(
+      "Cursor is on this: "
+      ++ Sexplib.Sexp.to_string(
+           ZExp.sexp_of_zoperand(CursorE(cp, EmptyHole(hole_id))),
+         ),
+    );
+    switch (IntMap.find_opt(hole_id, SynthesisTemp.fillings^)) {
+    | None =>
+      print_endline("...but the hole is unfilled.");
+      Failed;
+    | Some((filling: UHExp.operand)) =>
+      print_endline("..and the hole is filled!");
+      print_endline(
+        "I'm switching the cursor position from \""
+        ++ Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(cp))
+        ++ "\" to \""
+        ++ Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(OnText(0)))
+        ++ "\".",
+      );
+      let new_ze = ZExp.ZBlock.wrap(CursorE(OnText(0), filling));
+      Succeeded(SynDone((new_ze, ty, u_gen)));
+    /* Succeeded(
+         SynDone((ZExp.ZBlock.wrap(CursorE(cp, filling)), ty, u_gen)),
+       ); */
+    };
+
+  | (AcceptSuggestion, zop) =>
+    print_endline("as 763452");
+    print_endline("Accept suggestion while cursor is not on an empty hole.");
+    print_endline(
+      "Cursor is on this: "
+      ++ Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zop)),
+    );
+    Failed;
 
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
@@ -1908,24 +1948,6 @@ and syn_perform_operand =
         };
       }
     }
-  | (AcceptSuggestion, CursorE(cp, EmptyHole(hole_id))) =>
-    print_endline("as 725436!!");
-    print_endline(string_of_int(hole_id));
-    switch (IntMap.find_opt(hole_id, SynthesisTemp.fillings^)) {
-    | None =>
-      print_endline("Unfilled.");
-      Failed;
-    | Some((filling: UHExp.operand)) =>
-      print_endline("Filled!");
-      Succeeded(
-        SynDone((ZExp.ZBlock.wrap(CursorE(cp, filling)), ty, u_gen)),
-      );
-    };
-
-  | (AcceptSuggestion, zop) =>
-    print_endline("as 725436: Nope!");
-    print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zop)));
-    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }

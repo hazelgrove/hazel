@@ -3,7 +3,7 @@ open Synthesiscore.IdGenerator;
 open UHExp;
 
 let uHExpToExp = (e: UHExp.t): exp => Unit;
-let expToUHExp = (e: exp): UHExp.operand => IntLit(NotInHole, "17");
+let expToUHExp = (e: exp): UHExp.operand => IntLit(NotInHole, "1729");
 
 /*
     The goal is to convert a UHExp into an exp.

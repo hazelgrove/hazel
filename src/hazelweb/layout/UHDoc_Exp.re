@@ -28,7 +28,9 @@ let mk_EmptyHole: string => UHDoc_common.t =
   str => {
     UHDoc_common.mk_EmptyHole(
       ~sort=Exp,
-      switch (IntMap.find_opt(int_of_string(str), SynthesisTemp.fillings^)) {
+      switch (
+        IntMap.find_opt(int_of_string(str) - 1, SynthesisTemp.fillings^)
+      ) {
       | None => str
       | Some(_filling) => String.map(_ => '*', str)
       },
