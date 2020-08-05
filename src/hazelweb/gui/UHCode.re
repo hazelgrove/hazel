@@ -23,8 +23,7 @@ let decoration_views =
     | Linebreak
     | Text(_) => tl
     | Cat(m1, m2) =>
-      let mid_row =
-        start.row + MeasuredLayout.height(m1) - 1;
+      let mid_row = start.row + MeasuredLayout.height(m1) - 1;
       let mid_col = {
         let (leading, MeasuredLayout.{width: last_width, _}) =
           ListUtil.split_last(m1.metrics);
@@ -192,7 +191,7 @@ let view =
           program,
         );
 
-      let code_text = view_of_box(Pretty.Box.mk(l));
+      let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
         let ds = Program.get_decorations(program);
         decoration_views(~font_metrics, ds, l);
