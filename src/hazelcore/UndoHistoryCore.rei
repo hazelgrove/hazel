@@ -60,15 +60,6 @@ let is_var_group: action_group => bool;
 /* return true if new action_group can be grouped with the previous action_group */
 let group_action_group: (action_group, action_group) => bool;
 
-type comp_len_typ =
-  | MaxLen
-  | MinLen
-  | Len(int);
-
-let comp_len_lt: (comp_len_typ, comp_len_typ) => bool;
-
-let cursor_term_len: cursor_term => comp_len_typ;
-
 let cursor_term_len_larger: (cursor_term, cursor_term) => cursor_term;
 
 let has_typ_ann: cursor_term => bool;

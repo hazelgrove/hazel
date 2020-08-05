@@ -13,5 +13,3 @@ let text_cursors: int => list(t);
 let delim_cursors_k: int => list(t);
 
 let delim_cursors: int => list(t);
-
-let force_get_OnText: t => int;
