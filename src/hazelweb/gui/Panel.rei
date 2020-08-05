@@ -11,7 +11,7 @@ let view_of_main_title_bar: string => Virtual_dom.Vdom.Node.t;
 let view_of_other_title_bar: string => Virtual_dom.Vdom.Node.t;
 
 /**
- * For panel with title bar and body.
+ * For panel with a title bar and body.
  */
 let view:
   (
