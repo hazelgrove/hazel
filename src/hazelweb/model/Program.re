@@ -214,23 +214,6 @@ let get_measured_layout =
   |> UHMeasuredLayout.mk;
 };
 
-let get_box =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    )
-    : UHBox.t => {
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> UHBox.mk;
-};
-
 let get_caret_position =
     (
       ~measure_program_get_doc: bool,
