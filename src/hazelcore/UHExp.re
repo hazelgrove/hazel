@@ -8,6 +8,7 @@ type t = block
 and block = list(line)
 and line =
   | EmptyLine
+  | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
@@ -83,6 +84,7 @@ module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
+    | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
     | LetLine(_) => line
@@ -91,7 +93,8 @@ module Line = {
   let get_opseq =
     fun
     | EmptyLine
-    | LetLine(_, _, _) => None
+    | CommentLine(_)
+    | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
     line
@@ -111,13 +114,13 @@ module Block = {
   let num_lines: block => int = List.length;
 
   let prune_empty_hole_lines = (block: block): block =>
-    switch (block |> ListUtil.split_last) {
+    switch (block |> ListUtil.split_last_opt) {
     | None => block
     | Some((leading, last)) => (leading |> Lines.prune_empty_holes) @ [last]
     };
 
   let split_conclusion = (block: block): option((list(line), opseq)) =>
-    switch (block |> ListUtil.split_last) {
+    switch (block |> ListUtil.split_last_opt) {
     | None => None
     | Some((leading, last)) =>
       switch (last |> Line.get_opseq) {
@@ -293,17 +296,15 @@ let text_operand =
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
-};
+let associate =
+  Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
-  | EmptyLine => true
+  | EmptyLine
+  | CommentLine(_) => true
   | LetLine(pat, option_ty, body) =>
     if (check_type_holes) {
       switch (option_ty) {

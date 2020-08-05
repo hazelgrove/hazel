@@ -28,6 +28,7 @@ type t =
   | DelimGroup
   | EmptyLine
   | LetLine
+  | CommentLine
   | Step(int)
   | Term(term_data);
 
