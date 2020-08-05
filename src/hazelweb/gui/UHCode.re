@@ -142,6 +142,45 @@ let key_handlers =
   ];
 };
 
+let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
+  Vdom.(
+    switch (box) {
+    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+    | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+    | VBox(boxes) =>
+      let vs =
+        boxes
+        |> List.map(view_of_box)
+        |> ListUtil.join([Node.br([])])
+        |> List.flatten;
+      [Node.div([Attr.classes(["VBox"])], vs)];
+    | Annot(annot, box) =>
+      let vs = view_of_box(box);
+      switch (annot) {
+      | Token({shape, _}) =>
+        let clss =
+          switch (shape) {
+          | Text => ["code-text"]
+          | Op => ["code-op"]
+          | Delim(_) => ["code-delim"]
+          };
+        [Node.span([Attr.classes(clss)], vs)];
+      | HoleLabel({len}) =>
+        let width = Css_gen.width(`Ch(float_of_int(len)));
+        [
+          Node.span(
+            [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+            [Node.span([Attr.classes(["HoleNumber"])], vs)],
+          ),
+        ];
+      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+      | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+      | _ => vs
+      };
+    }
+  );
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -157,43 +196,6 @@ let view =
     () => {
       open Vdom;
 
-      let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
-        switch (box) {
-        | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | HBox(boxes) => boxes |> List.map(go) |> List.flatten
-        | VBox(boxes) =>
-          let vs =
-            boxes
-            |> List.map(go)
-            |> ListUtil.join([Node.br([])])
-            |> List.flatten;
-          [Node.div([Attr.classes(["VBox"])], vs)];
-        | Annot(annot, box) =>
-          let vs = go(box);
-          switch (annot) {
-          | Token({shape, _}) =>
-            let clss =
-              switch (shape) {
-              | Text => ["code-text"]
-              | Op => ["code-op"]
-              | Delim(_) => ["code-delim"]
-              };
-            [Node.span([Attr.classes(clss)], vs)];
-          | HoleLabel({len}) =>
-            let width = Css_gen.width(`Ch(float_of_int(len)));
-            [
-              Node.span(
-                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-                [Node.span([Attr.classes(["HoleNumber"])], vs)],
-              ),
-            ];
-          | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-          | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-          | _ => vs
-          };
-        };
-      };
-
       let l =
         Program.get_layout(
           ~measure_program_get_doc=false,
@@ -201,10 +203,23 @@ let view =
           ~memoize_doc=false,
           program,
         );
-      let code_text = go(Pretty.Box.mk(l));
 
-      let ds = Program.get_decorations(program);
-      let decorations = decoration_views(~font_metrics, ds, l);
+      let code_text = view_of_box(Pretty.Box.mk(l));
+      let decorations = {
+        let ds = Program.get_decorations(program);
+        decoration_views(~font_metrics, ds, l);
+      };
+      let caret = {
+        let caret_pos =
+          Program.get_caret_position(
+            ~measure_program_get_doc=false,
+            ~measure_layoutOfDoc_layout_of_doc=false,
+            ~memoize_doc=true,
+            program,
+          );
+        program.is_focused
+          ? [UHCodeDecoration.caret_view(~font_metrics, caret_pos)] : [];
+      };
 
       let key_handlers =
         program.is_focused
@@ -214,29 +229,6 @@ let view =
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];
-
-      let caret_pos =
-        Program.get_caret_position(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=true,
-          program,
-        );
-      /*
-       let children =
-         switch (caret_pos) {
-         | None => vs
-         | Some((row, col)) =>
-           let x = float_of_int(col) *. model.font_metrics.col_width;
-           let y = float_of_int(row) *. model.font_metrics.row_height;
-           let caret = caret_from_pos(x, y);
-           [caret, ...vs];
-         };
-       */
-
-      let caret =
-        program.is_focused
-          ? [UHCodeDecoration.caret_view(~font_metrics, caret_pos)] : [];
 
       let id = "code-root";
       Node.div(
