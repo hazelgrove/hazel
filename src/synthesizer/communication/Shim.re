@@ -238,19 +238,18 @@ and findAssert_hh = seq => {
 };
 
 let processAssertion = (e: UHExp.t) => {
-  let (e1, e2) =
-    switch (findAssertion(e)) {
-    | None => failwith("No assertion found")
-    | Some((e1, e2)) => (e1, e2)
-    };
-  let cast = uHExpToExp(e2) |> collapseBlock |> Typecasting.expToEx;
-  let ex =
-    switch (cast) {
-    | Some(x) => x
-    | None => failwith("Casting second UHExp to example failed")
-    };
-  let exp = uHExpToExp(e1) |> collapseBlock;
-  (exp, ex);
+  switch (findAssertion(e)) {
+  | None => (Unit, Eunit)
+  | Some((e1, e2)) =>
+    let cast = uHExpToExp(e2) |> collapseBlock |> Typecasting.expToEx;
+    let ex =
+      switch (cast) {
+      | Some(x) => x
+      | None => failwith("Casting second UHExp to example failed")
+      };
+    let exp = uHExpToExp(e1) |> collapseBlock;
+    (exp, ex);
+  };
 };
 
 let rec expToUHExp = (exp: Synthesiscore.Types.exp): UHExp.t => {
