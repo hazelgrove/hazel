@@ -113,10 +113,8 @@ let perform_edit_action = (a, program) => {
     switch (a) {
     | Delete
     | Backspace
-    | Construct(_) =>
-      print_endline("REAL Change In Program. Restarting Synthesizer.");
-      Synthesizer.start(ue);
-    | _ => print_endline("superficial change ignored by synthesizer")
+    | Construct(_) => Synthesizer.start(ue) //Restarting Synthesizer.
+    | _ => () //superficial change ignored by synthesizer
     };
 
     program |> put_edit_state(new_edit_state);
