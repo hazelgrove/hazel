@@ -25,7 +25,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  | AssertLit(ErrStatus.t)
+  | AssertLit(ErrStatus.t, t, t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)

@@ -142,7 +142,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | AssertLit(InHole(TypeInconsistent, _))
+  | AssertLit(InHole(TypeInconsistent, _), _, _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -154,7 +154,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | AssertLit(InHole(WrongLength, _))
+  | AssertLit(InHole(WrongLength, _), _, _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -188,7 +188,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
-  | AssertLit(NotInHole) => Some(Arrow(Bool, Prod([])))
+  | AssertLit(NotInHole, _, _) => Some(Arrow(Bool, Prod([])))
   | ListNil(NotInHole) => Some(List(Hole))
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
@@ -364,7 +364,7 @@ and ana_operand =
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | AssertLit(InHole(TypeInconsistent, _))
+  | AssertLit(InHole(TypeInconsistent, _), _, _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -379,7 +379,7 @@ and ana_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | AssertLit(InHole(WrongLength, _))
+  | AssertLit(InHole(WrongLength, _), _, _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -396,7 +396,7 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | AssertLit(NotInHole)
+  | AssertLit(NotInHole, _, _)
   | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {

@@ -698,7 +698,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | AssertLit(InHole(TypeInconsistent as reason, u))
+  | AssertLit(InHole(TypeInconsistent as reason, u), _, _)
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -717,7 +717,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | AssertLit(InHole(WrongLength, _))
+  | AssertLit(InHole(WrongLength, _), _, _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -762,7 +762,7 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  | AssertLit(NotInHole) =>
+  | AssertLit(NotInHole, _, _) =>
     Elaborates(AssertLit, HTyp.Arrow(Bool, Prod([])), delta)
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
@@ -1121,7 +1121,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | AssertLit(InHole(TypeInconsistent as reason, u))
+  | AssertLit(InHole(TypeInconsistent as reason, u), _, _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
@@ -1150,7 +1150,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | AssertLit(InHole(WrongLength, _))
+  | AssertLit(InHole(WrongLength, _), _, _)
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
@@ -1251,7 +1251,7 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
-  | AssertLit(NotInHole)
+  | AssertLit(NotInHole, _, _)
   | FloatLit(NotInHole, _)
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */

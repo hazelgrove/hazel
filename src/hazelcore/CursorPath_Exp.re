@@ -476,7 +476,7 @@ and holes_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
-  | AssertLit(err)
+  | AssertLit(err, _, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
@@ -696,7 +696,7 @@ and holes_zoperand =
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
-  | CursorE(_, AssertLit(err))
+  | CursorE(_, AssertLit(err, _, _))
   | CursorE(_, ListNil(err)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
