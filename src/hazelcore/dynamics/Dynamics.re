@@ -1027,7 +1027,7 @@ module Exp = {
               Expands(
                 Label_Elt(Label(label), d2),
                 Label_Elt(Label(label), ty2'),
-                delta
+                delta,
               )
             }
           | _ => ExpandResult.DoesNotExpand
@@ -1165,7 +1165,9 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Label(InHole(TypeInconsistent as reason, u), _)
+    | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1187,7 +1189,9 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => ExpandResult.DoesNotExpand
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Label(InHole(WrongLength, _), _)
+    | Prj(InHole(WrongLength, _), _, _) => ExpandResult.DoesNotExpand
     | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
       switch (syn_expand(ctx, delta, scrut)) {
       | DoesNotExpand => DoesNotExpand
@@ -1330,8 +1334,8 @@ module Exp = {
          ana_expand_exp ctx bound_expansion expansion_ty
        | None -> ExpandResult.DoesNotExpand
        end */
-    | Label(_) => failwith("unimplemented")
-    | Prj(_) => failwith("unimplemented")
+    | Label(NotInHole, label) => Expands(Label(label), Label(label), delta)
+    | Prj(NotInHole, _, _) => failwith("unimplemented")
     }
   and syn_expand_rules =
       (
@@ -1592,7 +1596,9 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Label(InHole(TypeInconsistent as reason, u), _)
+    | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
@@ -1616,7 +1622,9 @@ module Exp = {
         _,
         _,
       )
-    | ApPalette(InHole(WrongLength, _), _, _, _) => ExpandResult.DoesNotExpand
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Label(InHole(WrongLength, _), _)
+    | Prj(InHole(WrongLength, _), _, _) => ExpandResult.DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1713,7 +1721,13 @@ module Exp = {
     | ApPalette(NotInHole, _, _, _) =>
       /* subsumption */
       syn_expand_operand(ctx, delta, operand)
-    | Label(_) => failwith("unimplemented")
+    | Label(NotInHole, label) =>
+      // ECD TODO: Does not allow other expressions to analyze to a labeled version of that type
+      if (HTyp.consistent(Label(label), ty)) {
+        Expands(Label(label), Label(label), delta);
+      } else {
+        ExpandResult.DoesNotExpand;
+      }
     | Prj(_) => failwith("unimplemented")
     }
   and ana_expand_rules =
@@ -2053,7 +2067,9 @@ module Evaluator = {
     | Float
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
-    | List(Hole) => Ground
+    | List(Hole)
+    | Label(_)
+    | Label_Elt(_, _) => Ground
     | Prod(tys) =>
       if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
         Ground;
@@ -2063,8 +2079,6 @@ module Evaluator = {
     | Arrow(_, _) => grounded_Arrow
     | Sum(_, _) => grounded_Sum
     | List(_) => grounded_List
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_, _) => failwith("unimplemented")
     };
 
   let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
@@ -2151,7 +2165,8 @@ module Evaluator = {
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
-    | Triv => BoxedValue(d)
+    | Triv
+    | Label_Elt(_) => BoxedValue(d)
     | BinBoolOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2354,8 +2369,7 @@ module Evaluator = {
       | BoxedValue(d')
       | Indet(d') => Indet(InvalidOperation(d', err))
       }
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented") // ECD TODO: figure out what error code to use with invalid input
     }
   and evaluate_case =
       (

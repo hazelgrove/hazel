@@ -261,7 +261,9 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | Label(InHole(TypeInconsistent, _), _)
+  | Prj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -276,7 +278,9 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
+  | Label(NotInHole | InHole(WrongLength, _), _)
+  | Prj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -285,8 +289,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
-  | Label(_) => failwith("unimplemented")
-  | Prj(_) => failwith("unimplemented")
   };
 
 let rec drop_outer_parentheses = (operand): t =>
