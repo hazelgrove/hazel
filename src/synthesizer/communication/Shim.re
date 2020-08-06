@@ -239,8 +239,17 @@ and findAssert_hh = seq => {
 
 let processAssertion = (e: UHExp.t) => {
   switch (findAssertion(e)) {
-  | None => (Unit, Eunit)
+  | None =>
+    print_endline("No assertion");
+    (Unit, Eunit);
   | Some((e1, e2)) =>
+    print_endline(
+      "Assertion: ("
+      ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e1))
+      ++ ", "
+      ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e2))
+      ++ ")",
+    );
     let cast = uHExpToExp(e2) |> collapseBlock |> Typecasting.expToEx;
     let ex =
       switch (cast) {
