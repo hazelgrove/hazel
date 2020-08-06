@@ -143,8 +143,15 @@ module Block = {
     leading @ [ExpLine(conclusion)];
 };
 
-let assertlit = (~err: ErrStatus.t=NotInHole, ()): operand =>
-  AssertLit(err, Block.wrap(boollit(true)), Block.wrap(boollit(true)));
+let assertlit =
+    (
+      ~err: ErrStatus.t=NotInHole,
+      ~b1: t=boollit(true) |> Block.wrap,
+      ~b2: t=boollit(true) |> Block.wrap,
+      (),
+    )
+    : operand =>
+  AssertLit(err, b1, b2);
 
 let rec get_tuple_elements: skel => list(skel) =
   fun

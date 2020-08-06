@@ -61,7 +61,7 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
-let assertlit: (~err: ErrStatus.t=?, unit) => operand;
+let assertlit: (~err: ErrStatus.t=?, ~b1: t=?, ~b2: t=?, unit) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 

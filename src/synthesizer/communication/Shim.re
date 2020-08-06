@@ -254,7 +254,16 @@ let processAssertion = (e: UHExp.t) => {
 };
 
 let rec expToUHExp = (exp: Synthesiscore.Types.exp): UHExp.t => {
-  [EmptyLine];
+  switch (exp) {
+  | Int(x) => UHExp.intlit(string_of_int(x)) |> Block.wrap
+  | Float(f) => UHExp.floatlit(string_of_float(f)) |> Block.wrap
+  | Bool(b) => UHExp.boollit(b) |> Block.wrap
+  | Function(id, v, t, e) =>
+    UHExp.lam(OpSeq.wrap(UHPat.var(string_of_int(v))), expToUHExp(e))
+    |> Block.wrap
+  | Application(e1, e2) => [EmptyLine]
+  | _ => [EmptyLine]
+  };
 };
 
 let rec holeFillingToIntMap =
