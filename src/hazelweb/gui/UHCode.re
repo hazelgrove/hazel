@@ -111,6 +111,11 @@ let view =
         | Annot(Indent, l) => [
             Node.span([Attr.classes(["Indent"])], go(l)),
           ]
+
+        | Annot(CommentLine, l) => [
+            Node.span([Attr.classes(["CommentLine"])], go(l)),
+          ]
+
         | Annot(HoleLabel({len}), l) => {
             let width = Css_gen.width(`Ch(float_of_int(len)));
             [
