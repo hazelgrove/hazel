@@ -253,6 +253,22 @@ let processAssertion = (e: UHExp.t) => {
   (exp, ex);
 };
 
+let rec expToUHExp = (exp: Synthesiscore.Types.exp): UHExp.t => {
+  [EmptyLine];
+};
+
+let rec holeFillingToIntMap =
+        (hf: Synthesiscore.Types.hole_fillings): IntMap.t(UHExp.t) => {
+  IntMap.(hfHelper(hf));
+}
+
+and hfHelper = hf => {
+  switch (hf) {
+  | [] => IntMap.empty
+  | [(x, e), ...xs] => hfHelper(xs) |> IntMap.add(x, expToUHExp(e))
+  };
+};
+
 /*and expToSeq = (e: exp):Seq.t => {
       switch (e) {
           | Int(x) => S(IntL
