@@ -48,6 +48,19 @@ let rec exToExp = (ex: example): option(exp) => {
   };
 };
 
+let rec expToEx = (e: exp): option(example) => {
+  switch (e) {
+  | Int(x) => Some(Eint(x))
+  | Bool(b) => Some(Ebool(b))
+  | Pair(e1, e2) =>
+    switch (expToEx(e1), expToEx(e2)) {
+    | (Some(ex1), Some(ex2)) => Some(Epair(ex1, ex2))
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
 let rec resToVal = (res: res): option(value) => {
   switch (res) {
   | Rint(x) => Some(Vint(x))

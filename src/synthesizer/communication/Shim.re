@@ -206,6 +206,53 @@ and opSeqToExp = (seq: OpSeq.t(UHExp.operand, Operators_Exp.t)): exp => {
   seqToExp(seq');
 };
 
+let rec findAssertion = (e: UHExp.t) => {
+  switch (e) {
+  | [] => None
+  | [ExpLine(s), ...xs] =>
+    switch (findAssert_h(s)) {
+    | Some((e1, e2)) => Some((e1, e2))
+    | None => findAssertion(xs)
+    }
+  | [_, ...xs] => findAssertion(xs)
+  };
+}
+
+and findAssert_h = s => {
+  let OpSeq(_, seq) = s;
+  findAssert_hh(seq);
+}
+
+and findAssert_hh = seq => {
+  switch (seq) {
+  | S(op, aff) =>
+    switch (op) {
+    | AssertLit(_, e1, e2) => Some((e1, e2))
+    | _ =>
+      switch (aff) {
+      | E => None
+      | A(_, seq') => findAssert_hh(seq')
+      }
+    }
+  };
+};
+
+let processAssertion = (e: UHExp.t) => {
+  let (e1, e2) =
+    switch (findAssertion(e)) {
+    | None => failwith("No assertion found")
+    | Some((e1, e2)) => (e1, e2)
+    };
+  let cast = uHExpToExp(e2) |> collapseBlock |> Typecasting.expToEx;
+  let ex =
+    switch (cast) {
+    | Some(x) => x
+    | None => failwith("Casting second UHExp to example failed")
+    };
+  let exp = uHExpToExp(e1) |> collapseBlock;
+  (exp, ex);
+};
+
 /*and expToSeq = (e: exp):Seq.t => {
       switch (e) {
           | Int(x) => S(IntL
@@ -215,10 +262,10 @@ and opSeqToExp = (seq: OpSeq.t(UHExp.operand, Operators_Exp.t)): exp => {
 
 //TODO missing links
 
-let hazelToSynthesizer = (e: UHExp.t): Synthesiscore.Types.input => (
-  uHExpToExp(e) |> collapseBlock,
-  Eunit,
-);
+let hazelToSynthesizer = (e: UHExp.t): Synthesiscore.Types.input => {
+  let (exp, ex) = processAssertion(e);
+  (exp, ex);
+};
 
 let synthesizerToHazel =
     (_fillings: Synthesiscore.Types.output): IntMap.t(UHExp.operand) =>
