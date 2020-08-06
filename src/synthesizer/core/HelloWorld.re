@@ -1,7 +1,9 @@
 //Hello_World.re
-print_string("Hello World!\n");
+print_string("Hello World, I'm a synthesizer.\n");
 
 /*
+ Startup instructions for bucklescript:
+
  To compile:
  Run bsb -make-world -w in terminal to automatically compile on save.
 

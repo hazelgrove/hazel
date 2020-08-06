@@ -650,6 +650,11 @@ let get_new_action_group =
     | MoveToNextHole
     | MoveToPrevHole
     | Init => None
+    | AcceptSuggestion =>
+      print_endline(
+        "Undo should be but is not implemented for accept suggestion.",
+      );
+      None;
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
     };

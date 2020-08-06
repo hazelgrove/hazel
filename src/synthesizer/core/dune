@@ -1,6 +1,5 @@
 (library
  (name synthesiscore)
- (wrapped false)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

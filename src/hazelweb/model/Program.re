@@ -101,8 +101,9 @@ let perform_edit_action = (a, program) => {
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
+    let ue = ZExp.erase(ze);
     let new_edit_state =
-      if (UHExp.is_complete(ZExp.erase(ze), false)) {
+      if (UHExp.is_complete(ue, false)) {
         (ze, ty, MetaVarGen.init);
       } else {
         (ze, ty, u_gen);
@@ -114,7 +115,7 @@ let perform_edit_action = (a, program) => {
     | Backspace
     | Construct(_) =>
       print_endline("REAL Change In Program. Restarting Synthesizer.");
-      Synthesizer.main(ze);
+      Synthesizer.start(ue);
     | _ => print_endline("superficial change ignored by synthesizer")
     };
 

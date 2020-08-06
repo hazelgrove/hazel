@@ -1,16 +1,9 @@
 module Js = Js_of_ocaml.Js;
 module Worker = Js_of_ocaml.Worker;
+open Synthesiscomm;
 
 type t =
-  Js.t(Worker.worker(MessageTypes.to_worker, MessageTypes.from_worker));
-
-//// DEBUG \\//
-let log: MessageTypes.from_worker => unit = print_endline;
-/* data => {
-     Js.export("data", data);
-     Js.Unsafe.eval_string({|console.log("WorkerHandler.re Log: " + data);|});
-   }; */
-//\\ DEBUG //\\
+  Js.t(Worker.worker(Synthesiscore.Types.input, Synthesiscore.Types.output));
 
 let spawn: unit => t = () => Worker.create("Worker.js");
 let worker: ref(option(t)) = ref(None);
@@ -46,4 +39,22 @@ let run = (callback, message) => {
   );
 };
 
-let main = ze => run(log, Shim.main(ze));
+/*
+ Public read only mutable field.
+
+ See Synthesizer.rei for a description of
+ the limitations on fillings' mutation.
+ */
+/* let fillings = ref(IntMap.empty); */
+
+// Public write once mutable field.
+let schedule_action =
+  ref(() => failwith("Synthesizer's schedule action wasn't set."));
+
+let callback = (hole_fillings: Synthesiscore.Types.output) => {
+  SynthesisTemp.fillings := Shim.synthesizerToHazel(hole_fillings);
+  schedule_action^();
+};
+
+// Public field
+let start = uhexp => run(callback, Shim.hazelToSynthesizer(uhexp));

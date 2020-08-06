@@ -51,6 +51,7 @@ let kc_actions:
     (Ctrl_Alt_K, _ => Action_common.SwapDown),
     (Ctrl_Alt_J, _ => Action_common.SwapLeft),
     (Ctrl_Alt_L, _ => Action_common.SwapRight),
+    (Ctrl_A, _ => Action_common.AcceptSuggestion),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

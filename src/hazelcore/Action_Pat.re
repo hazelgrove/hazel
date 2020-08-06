@@ -309,6 +309,7 @@ let rec syn_move =
   | SwapDown
   | SwapLeft
   | SwapRight
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -373,6 +374,7 @@ let rec ana_move =
   | SwapDown
   | SwapLeft
   | SwapRight
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -543,6 +545,9 @@ and syn_perform_opseq =
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 27634214");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_operand =
@@ -779,6 +784,9 @@ and syn_perform_operand =
         };
       Succeeded((zp, ty, ctx, u_gen));
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 7892345");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -964,6 +972,9 @@ and ana_perform_opseq =
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 4798235");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and ana_perform_operand =
@@ -1265,5 +1276,8 @@ and ana_perform_operand =
         Succeeded((zp, ctx, u_gen));
       }
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 8792143");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };

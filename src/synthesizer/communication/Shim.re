@@ -1,6 +1,7 @@
-open Types;
-open IdGenerator;
+open Synthesiscore.Types;
+open Synthesiscore;
 open UHExp;
+module IntMap = Map.Make(Int);
 
 /*
     The goal is to convert a UHExp into an exp.
@@ -211,3 +212,18 @@ and opSeqToExp = (seq: OpSeq.t(UHExp.operand, Operators_Exp.t)): exp => {
 
   };
   */
+
+//TODO missing links
+
+let hazelToSynthesizer = (e: UHExp.t): Synthesiscore.Types.input => (
+  uHExpToExp(e) |> collapseBlock,
+  Eunit,
+);
+
+let synthesizerToHazel =
+    (_fillings: Synthesiscore.Types.output): IntMap.t(UHExp.operand) =>
+  IntMap.(
+    empty
+    |> add(0, IntLit(NotInHole, "1729"))
+    |> add(17, IntLit(NotInHole, "12"))
+  );

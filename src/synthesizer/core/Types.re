@@ -172,3 +172,7 @@ type debug_construct =
 
 type goal = (context, hole_identifier, type_, excons);
 type goals = list(goal);
+
+//Top level input output
+type input = (exp, example);
+type output = list((int, exp));

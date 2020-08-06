@@ -538,6 +538,7 @@ let rec syn_move =
   | SwapRight
   | SwapUp
   | SwapDown
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -599,6 +600,7 @@ let rec ana_move =
   | SwapRight
   | SwapUp
   | SwapDown
+  | AcceptSuggestion
   | Init =>
     failwith(
       __LOC__
@@ -1032,6 +1034,9 @@ and syn_perform_line =
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 52143");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -1350,6 +1355,9 @@ and syn_perform_opseq =
         Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 6123");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_operand =
@@ -1714,6 +1722,46 @@ and syn_perform_operand =
     );
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
+  | (AcceptSuggestion, CursorE(cp, EmptyHole(hole_id))) =>
+    print_endline("as 725436");
+    print_endline(
+      "Accept suggestion, while cursor is on an empty hole with internal id: "
+      ++ string_of_int(hole_id),
+    );
+    print_endline(
+      "Cursor is on this: "
+      ++ Sexplib.Sexp.to_string(
+           ZExp.sexp_of_zoperand(CursorE(cp, EmptyHole(hole_id))),
+         ),
+    );
+    switch (IntMap.find_opt(hole_id, SynthesisTemp.fillings^)) {
+    | None =>
+      print_endline("...but the hole is unfilled.");
+      Failed;
+    | Some((filling: UHExp.operand)) =>
+      print_endline("..and the hole is filled!");
+      print_endline(
+        "I'm switching the cursor position from \""
+        ++ Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(cp))
+        ++ "\" to \""
+        ++ Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(OnText(0)))
+        ++ "\".",
+      );
+      let new_ze = ZExp.ZBlock.wrap(CursorE(OnText(0), filling));
+      Succeeded(SynDone((new_ze, ty, u_gen)));
+    /* Succeeded(
+         SynDone((ZExp.ZBlock.wrap(CursorE(cp, filling)), ty, u_gen)),
+       ); */
+    };
+
+  | (AcceptSuggestion, zop) =>
+    print_endline("as 763452");
+    print_endline("Accept suggestion while cursor is not on an empty hole.");
+    print_endline(
+      "Cursor is on this: "
+      ++ Sexplib.Sexp.to_string(ZExp.sexp_of_zoperand(zop)),
+    );
+    Failed;
 
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
@@ -2044,6 +2092,9 @@ and syn_perform_rules =
         Succeeded((new_zrules, u_gen));
       }
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 154362");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2196,6 +2247,9 @@ and ana_perform_rules =
         Succeeded((new_zrules, u_gen));
       }
     }
+  | (AcceptSuggestion, _) =>
+    print_endline("as 8362346");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -2734,6 +2788,9 @@ and ana_perform_opseq =
         );
       }
     };
+  | (AcceptSuggestion, _) =>
+    print_endline("as 231256");
+    Failed;
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and ana_perform_operand =
@@ -3270,6 +3327,9 @@ and ana_perform_operand =
   /* Subsumption */
   | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+  | (AcceptSuggestion, _) =>
+    print_endline("as 51231");
+    Failed;
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
   }

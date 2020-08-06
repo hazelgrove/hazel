@@ -509,5 +509,6 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SApPalette(_)) => failwith("Unimplemented")
   | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
+  | AcceptSuggestion => failwith("Unimplemented")
   | Init => Added
   };
