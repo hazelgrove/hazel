@@ -260,14 +260,12 @@ let processAssertion = (e: UHExp.t) => {
         ++ ")",
       );
       */
-    let cast = operandToExp(e2) |> Typecasting.expToEx;
-    let ex =
-      switch (cast) {
-      | Some(x) => x
-      | None => failwith("Casting second UHExp to example failed")
-      };
-    let exp = operandToExp(e1);
-    (exp, ex);
+    switch (operandToExp(e2) |> Typecasting.expToEx) {
+    | Some(x) => (operandToExp(e1), x)
+    | None =>
+      print_endline("Casting second UHExp to example failed");
+      (Unit, Eunit);
+    }
   };
 };
 

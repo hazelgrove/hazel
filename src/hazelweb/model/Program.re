@@ -113,7 +113,11 @@ let perform_edit_action = (a, program) => {
     switch (a) {
     | Delete
     | Backspace
-    | Construct(_) => Synthesizer.start(ue) //Restarting Synthesizer.
+    | Construct(_) =>
+      print_endline(
+        "Program: " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(ue)),
+      );
+      Synthesizer.start(ue); //Restarting Synthesizer.
     | _ => () //superficial change ignored by synthesizer
     };
 
