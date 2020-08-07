@@ -38,6 +38,7 @@ type t =
     })
   | Tessera
   | CellBoundary
+  | CommentLine
   | Step(int)
   | Term(term_data);
 

@@ -101,24 +101,6 @@ let get_layout:
   ) =>
   UHLayout.t;
 
-let get_measured_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHMeasuredLayout.t;
-
-let get_box:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHBox.t;
-
 let cursor_on_exp_hole: t => option(MetaVar.t);
 
 let get_caret_position:

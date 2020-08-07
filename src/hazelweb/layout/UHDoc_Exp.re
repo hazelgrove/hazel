@@ -84,25 +84,35 @@ and mk_block =
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
-    block
-    |> List.mapi((i, line) =>
-         Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
-         |> UHDoc_common.annot_Step(offset + i)
-       )
-    |> ListUtil.split_last_opt
-    |> (
-      fun
-      | None => failwith(__LOC__ ++ ": empty block")
-      | Some((leading, concluding)) =>
-        ListUtil.fold_right_i(
-          ((i, hd_doc), tl_doc) =>
-            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
-          leading,
-          concluding
-          |> annot_SubBlock(
-               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
-             ),
-        )
+    let (leading, (_, last_doc)) =
+      block
+      |> List.mapi((i, line) =>
+           (
+             line,
+             Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+             |> UHDoc_common.annot_Step(offset + i),
+           )
+         )
+      |> ListUtil.split_last;
+
+    ListUtil.fold_right_i(
+      ((i, (hd, hd_doc)), tl_doc) =>
+        switch ((hd: UHExp.line)) {
+        | EmptyLine
+        | CellBoundary
+        | CommentLine(_)
+        | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
+        | LetLine(_) =>
+          annot_SubBlock(
+            ~hd_index=offset + i,
+            Doc.vsep(
+              hd_doc,
+              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
+            ),
+          )
+        },
+      leading,
+      last_doc,
     );
   }
 and mk_line =
@@ -126,7 +136,7 @@ and mk_line =
                );
           Doc.hcats([
             UHDoc_common.Delim.open_CommentLine(),
-            UHDoc_common.space_ |> UHDoc_common.annot_Padding,
+            UHDoc_common.space_,
             comment_doc,
           ])
           |> Doc.annot(UHAnnot.CommentLine);

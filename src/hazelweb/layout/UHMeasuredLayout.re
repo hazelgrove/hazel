@@ -40,13 +40,23 @@ let caret_position_of_path =
         go(steps, indent, mid, m2);
       }
     };
-  go(steps, 0, {row: 0, col: 0}, m);
+  go(steps, 0, MeasuredPosition.zero, m);
 };
 
+type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
+
+/**
+ * `find_path(~token, ~cat, m)` returns the path associated with
+ * the first `Token` annotation that passes the `token` check in
+ * the top-down traversal directed by `cat`. For each `Cat(m1, m2)`
+ * node encountered, the function `cat` specifies how to continue
+ * the traversal based on measured positions of the endpoints of
+ * `m1` and `m2`.
+ */
 let find_path =
     (
       ~rev_steps: CursorPath_common.rev_steps=[],
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       ~indent: int=0,
       ~token:
          (
@@ -54,7 +64,7 @@ let find_path =
            ~start: MeasuredPosition.t,
            UHAnnot.token_data
          ) =>
-         option('a),
+         option(path_position),
       ~cat:
          (
            ~go: (MeasuredPosition.t, t) => option('a),
@@ -65,10 +75,10 @@ let find_path =
            t,
            t
          ) =>
-         option('a),
+         option(path_position),
       m: t,
     )
-    : option('a) => {
+    : option(path_position) => {
   let rec go = (rev_steps, indent, start: MeasuredPosition.t, m: t) =>
     switch (m.layout) {
     | Linebreak
@@ -96,16 +106,11 @@ let find_path =
   go(rev_steps, indent, start, m);
 };
 
-/**
- * `first_path_in_row(row, m)` returns the first path encountered
- * during left-to-right traversal of row `row` of `m`, paired with
- * the found path's position.
- */
 let first_path_in_row =
     (
       ~rev_steps: CursorPath_common.rev_steps=[],
       ~indent=0,
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       row: int,
       m: t,
     )
@@ -140,15 +145,10 @@ let first_path_in_row =
            },
      );
 
-/**
- * `last_path_in_row(m)` returns the first path encountered
- * during right-to-left traversal of row `row` of `m`, paired
- * with the found path's position.
- */
 let last_path_in_row =
     (
       ~rev_steps=[],
-      ~start: MeasuredPosition.t={row: 0, col: 0},
+      ~start: MeasuredPosition.t=MeasuredPosition.zero,
       row: int,
       m: t,
     )
@@ -208,11 +208,6 @@ let arbitrate =
   };
 };
 
-/**
- * `prev_path_within_row(from, m) returns the next encountered path in a
- * right-to-left traversal of row `from.row` starting at (but not including)
- * `from.col`. Returned path is paired with its position.
- */
 let prev_path_within_row =
     (from: MeasuredPosition.t, m: t)
     : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
@@ -260,11 +255,6 @@ let prev_path_within_row =
            },
      );
 
-/**
- * `next_path_within_row(from, m) returns the next encountered path in a
- * left-to-right traversal of row `from.row` starting at (but not including)
- * `from.col`. Returned path is paired with its position.
- */
 let next_path_within_row =
     (from: MeasuredPosition.t, m: t)
     : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
