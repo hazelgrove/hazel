@@ -2166,7 +2166,8 @@ module Evaluator = {
     | IntLit(_)
     | FloatLit(_)
     | Triv
-    | Label_Elt(_) => BoxedValue(d)
+    | Label_Elt(_, _)
+    | Label(_) => BoxedValue(d)
     | BinBoolOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
@@ -2369,7 +2370,7 @@ module Evaluator = {
       | BoxedValue(d')
       | Indet(d') => Indet(InvalidOperation(d', err))
       }
-    | Label(_) => failwith("unimplemented") // ECD TODO: figure out what error code to use with invalid input
+    // | Label(_) => failwith("unimplemented") // ECD TODO: figure out what error code to use with invalid input
     }
   and evaluate_case =
       (
