@@ -57,6 +57,58 @@ let put_edit_state = (edit_state, program) => {...program, edit_state};
 let add_cell_boundary = program => {
   let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
   let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+  // let prefix =
+  //   switch (prefix |> List.rev) {
+  //   | [] => []
+  //   | [x, ..._] =>
+  //     switch (x) {
+  //     | LetLine(_, _, body) =>
+  //       switch (body |> List.rev) {
+  //       | [] => failwith("impossible")
+  //       | [y, ...ys] =>
+  //         switch (y) {
+  //         | ExpLine(OpSeq(_, S(EmptyHole(_), E))) =>
+  //           if (ys == []) {
+  //             print_endline("EMPTY");
+  //           };
+  //           (ys |> List.rev) @ [UHExp.EmptyLine];
+  //         | _ => prefix
+  //         }
+  //       }
+
+  //     | _ => prefix
+  //     }
+  //   };
+  let zline =
+    switch (zline) {
+    | LetLineZE(_,_, body) =>
+      switch (body |> List.rev) {
+      | [] => failwith("impossible")
+      | [y, ...ys] =>
+        switch (y) {
+        | ExpLineZ(ZOpSeq(_, ZOperator(CursorE(_, EmptyHole(_)), (E,E)))) =>
+          if (ys == []) {
+            print_endline("EMPTY");
+          };
+          (ys |> List.rev) @ [UHExp.EmptyLine];
+        | _ => prefix
+        }
+      }
+    | LetLine(_, _, body) =>
+      switch (body |> List.rev) {
+      | [] => failwith("impossible")
+      | [y, ...ys] =>
+        switch (y) {
+        | ExpLine(OpSeq(_, S(EmptyHole(_), E))) =>
+          if (ys == []) {
+            print_endline("EMPTY");
+          };
+          (ys |> List.rev) @ [UHExp.EmptyLine];
+        | _ => prefix
+        }
+      }
+    | _ => zline
+    };
   let edit_state = (
     (
       prefix,
