@@ -167,7 +167,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
-    | CellBoundary => true
+    | CellBoundary
+    | CommentLine(_) => true
     | LetLine(_, _, _)
     | ExpLine(_) => false
     }

@@ -84,34 +84,25 @@ and mk_block =
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
-    let (leading, (_, last_doc)) =
-      block
-      |> List.mapi((i, line) =>
-           (
-             line,
-             Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
-             |> UHDoc_common.annot_Step(offset + i),
-           )
-         )
-      |> ListUtil.split_last;
-
-    ListUtil.fold_right_i(
-      ((i, (hd, hd_doc)), tl_doc) =>
-        switch ((hd: UHExp.line)) {
-        | EmptyLine
-        | ExpLine(_)
-        | CellBoundary => Doc.vsep(hd_doc, tl_doc)
-        | LetLine(_) =>
-          annot_SubBlock(
-            ~hd_index=offset + i,
-            Doc.vsep(
-              hd_doc,
-              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
-            ),
-          )
-        },
-      leading,
-      last_doc,
+    block
+    |> List.mapi((i, line) =>
+         Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+         |> UHDoc_common.annot_Step(offset + i)
+       )
+    |> ListUtil.split_last_opt
+    |> (
+      fun
+      | None => failwith(__LOC__ ++ ": empty block")
+      | Some((leading, concluding)) =>
+        ListUtil.fold_right_i(
+          ((i, hd_doc), tl_doc) =>
+            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
+          leading,
+          concluding
+          |> annot_SubBlock(
+               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
+             ),
+        )
     );
   }
 and mk_line =
@@ -123,6 +114,22 @@ and mk_line =
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+        | CommentLine(comment) =>
+          let comment_doc =
+            UHDoc_common.mk_text(comment)
+            |> Doc.annot(
+                 UHAnnot.mk_Token(
+                   ~shape=Text,
+                   ~len=StringUtil.utf8_length(comment),
+                   (),
+                 ),
+               );
+          Doc.hcats([
+            UHDoc_common.Delim.open_CommentLine(),
+            UHDoc_common.space_ |> UHDoc_common.annot_Padding,
+            comment_doc,
+          ])
+          |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | CellBoundary => UHDoc_common.mk_CellBoundary
