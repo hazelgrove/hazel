@@ -226,8 +226,17 @@ and findAssert_h = s => {
 and findAssert_hh = seq => {
   switch (seq) {
   | S(op, aff) =>
-    switch (op) {
-    | AssertLit(_, e1, e2) => Some((e1, e2))
+    switch (op, aff) {
+    | (AssertLit(_), A(Space, S(Parenthesized(b), E))) =>
+      switch (b) {
+      | [ExpLine(opseq)] =>
+        let OpSeq(_, seq) = opseq;
+        switch (seq) {
+        | S(op1, A(Equals, S(op2, E))) => Some((op1, op2))
+        | _ => None
+        };
+      | _ => None
+      }
     | _ =>
       switch (aff) {
       | E => None
@@ -243,20 +252,21 @@ let processAssertion = (e: UHExp.t) => {
     print_endline("No assertion");
     (Unit, Eunit);
   | Some((e1, e2)) =>
-    print_endline(
-      "Assertion: ("
-      ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e1))
-      ++ ", "
-      ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e2))
-      ++ ")",
-    );
-    let cast = uHExpToExp(e2) |> collapseBlock |> Typecasting.expToEx;
+    /*print_endline(
+        "Assertion: ("
+        ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e1))
+        ++ ", "
+        ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e2))
+        ++ ")",
+      );
+      */
+    let cast = operandToExp(e2) |> Typecasting.expToEx;
     let ex =
       switch (cast) {
       | Some(x) => x
       | None => failwith("Casting second UHExp to example failed")
       };
-    let exp = uHExpToExp(e1) |> collapseBlock;
+    let exp = operandToExp(e1);
     (exp, ex);
   };
 };
