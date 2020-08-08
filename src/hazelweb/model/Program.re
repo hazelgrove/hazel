@@ -218,6 +218,9 @@ let add_cell_boundary = program => {
 };
 
 let remove_cell_boundary = program => {
+  /**
+   * remove cell boundary previous and closest to zline
+   */
   let (zexp, ty, u_gen) = program.edit_state;
   let edit_state = (
     ZExp.remove_last_occurred(zexp, UHExp.CellBoundary),

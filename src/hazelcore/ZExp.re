@@ -1123,10 +1123,10 @@ and cursor_on_EmptyHole_zrule =
 let rec remove_last_occurred_rec =
         (exp: UHExp.line, acc: list(UHExp.line), l: list(UHExp.line)) => {
   switch (l) {
-  | [] => ([], false)
+  | [] => []
   | [x, ...xs] =>
     if (x == exp) {
-      (acc @ xs |> List.rev, true);
+      acc @ xs |> List.rev;
     } else {
       remove_last_occurred_rec(exp, acc @ [x], xs);
     }
@@ -1135,13 +1135,12 @@ let rec remove_last_occurred_rec =
 
 let remove_last_occurred = (zexp: t, exp: UHExp.line) => {
   let (prefix, zline, suffix) = zexp;
-  let (suffix, flag) =
-    suffix |> List.rev |> remove_last_occurred_rec(exp, []);
-  if (flag == true) {
-    (prefix, zline, suffix);
-  } else {
-    let (prefix, _) =
-      prefix |> List.rev |> remove_last_occurred_rec(exp, []);
-    (prefix, zline, suffix);
-  };
+  // let (suffix, flag) =
+  //   suffix |> List.rev |> remove_last_occurred_rec(exp, []);
+  // if (flag == true) {
+  //   (prefix, zline, suffix);
+  // } else {
+  let prefix = prefix |> List.rev |> remove_last_occurred_rec(exp, []);
+  (prefix, zline, suffix);
+  // };
 };
