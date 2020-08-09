@@ -555,6 +555,13 @@ let view =
         [HTypCode.view(ty)],
       )
     );
+  let typebar_diff = ty =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["infobar", "typebar"])],
+        [TypDiffCode.view(ty)],
+      )
+    );
   let matched_ty_bar = (ty1, ty2) =>
     Vdom.(
       Node.div(
@@ -620,10 +627,16 @@ let view =
   let expected_ty_title_consistent = "Expecting an expression consistent with type";
   let expected_ty_indicator = ty =>
     expected_indicator(expected_ty_title, typebar(ty));
+  let expected_ty_indicator_diff = ty =>
+    expected_indicator(expected_ty_title, typebar_diff(ty));
   let expected_ty_indicator_pat = ty =>
     expected_indicator(expected_ty_title_pat, typebar(ty));
+  let expected_ty_indicator_pat_diff = ty =>
+    expected_indicator(expected_ty_title_pat, typebar_diff(ty));
   let expected_ty_indicator_consistent = ty =>
     expected_indicator(expected_ty_title_consistent, typebar(ty));
+  let expected_ty_indicator_consistent_diff = ty =>
+    expected_indicator(expected_ty_title_consistent, typebar_diff(ty));
   let expected_msg_indicator = msg =>
     expected_indicator("Expecting an expression of ", special_msg_bar(msg));
   let expected_msg_indicator_pat = msg =>
@@ -657,8 +670,8 @@ let view =
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
-  let got_inconsistent_indicator = got_ty =>
-    got_indicator("Got inconsistent type", typebar(got_ty));
+  let got_inconsistent_indicator_diff = got_ty =>
+    got_indicator("Got inconsistent type", typebar_diff(got_ty));
   let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
     got_indicator(
       "Got inconsistent type ▶ assumed ",
@@ -701,8 +714,9 @@ let view =
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
+      let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
+      let ind1 = expected_ty_indicator_diff(expected_diff);
+      let ind2 = got_inconsistent_indicator_diff(got_diff);
       (ind1, ind2, TypeInconsistency);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
@@ -806,21 +820,22 @@ let view =
           )
         | JoinTy(ty) => expected_ty_indicator_consistent(ty)
         };
-      let (ind2, err_state_b) =
-        switch (join, typed) {
-        | (JoinTy(ty), Synthesized(got_ty)) =>
-          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-          | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
-          | (true, false) => (got_consistent_indicator(got_ty), OK)
-          | (false, _) => (
-              got_inconsistent_indicator(got_ty),
-              TypeInconsistency,
-            )
-          }
-        | (InconsistentBranchTys(_), _) => (ind2, TypeInconsistency)
-        | _ => (ind2, err_state_b)
-        };
-      (ind1, ind2, err_state_b);
+      switch (join, typed) {
+      | (JoinTy(ty), Synthesized(got_ty)) =>
+        switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+        | (true, true) => (ind1, got_as_expected_ty_indicator(got_ty), OK)
+        | (true, false) => (ind1, got_consistent_indicator(got_ty), OK)
+        | (false, _) =>
+          let (expected_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
+          (
+            expected_ty_indicator_consistent_diff(expected_diff),
+            got_inconsistent_indicator_diff(got_diff),
+            TypeInconsistency,
+          );
+        }
+      | (InconsistentBranchTys(_), _) => (ind1, ind2, TypeInconsistency)
+      | _ => (ind1, ind2, err_state_b)
+      };
     | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
       let ind2 =
@@ -840,8 +855,9 @@ let view =
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 = got_inconsistent_indicator(got_ty);
+      let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
+      let ind1 = expected_ty_indicator_pat_diff(expected_diff);
+      let ind2 = got_inconsistent_indicator_diff(got_diff);
       (ind1, ind2, TypeInconsistency);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";

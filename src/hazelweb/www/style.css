@@ -433,7 +433,7 @@ html, body {
   font-family: var(--code-font-family);
 }
 
-.type-info-summary .HTypCode .Diff {
+.HTypCode .Diff {
   text-decoration: underline;
 }
 
