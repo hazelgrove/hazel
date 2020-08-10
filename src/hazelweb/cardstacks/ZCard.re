@@ -11,7 +11,7 @@ let mk = (~width, card: Card.t) => {
 
 let erase = (zcard: t): Card.t => {
   info: zcard.info,
-  edit_state: Program.get_edit_state(zcard.program),
+  edit_state: zcard.program.edit_state,
 };
 
 let get_program = card => card.program;

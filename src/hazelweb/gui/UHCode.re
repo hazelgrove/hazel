@@ -31,6 +31,7 @@ let sort_clss: TermSort.t => list(cls) =
 let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
+  | Invalid => ["Invalid"]
   | Case({err}) => ["Case", ...clss_of_case_err(err)]
   | Var({err, verr, show_use}) =>
     ["Operand", "Var", ...clss_of_err(err)]
@@ -66,8 +67,8 @@ let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
 
 let view =
     (
-      ~model: Model.t,
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~measure: bool,
+      ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~caret_pos: option((int, int)),
       l: UHLayout.t,
@@ -75,7 +76,7 @@ let view =
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    model.measurements.measurements && model.measurements.uhcode_view,
+    measure,
     () => {
       open Vdom;
 
@@ -109,6 +110,10 @@ let view =
           ]
         | Annot(Indent, l) => [
             Node.span([Attr.classes(["Indent"])], go(l)),
+          ]
+
+        | Annot(CommentLine, l) => [
+            Node.span([Attr.classes(["CommentLine"])], go(l)),
           ]
 
         | Annot(HoleLabel({len}), l) => {
@@ -162,8 +167,8 @@ let view =
         switch (caret_pos) {
         | None => go(l)
         | Some((row, col)) =>
-          let x = float_of_int(col) *. model.font_metrics.col_width;
-          let y = float_of_int(row) *. model.font_metrics.row_height;
+          let x = float_of_int(col) *. font_metrics.col_width;
+          let y = float_of_int(row) *. font_metrics.row_height;
           let caret = caret_from_pos(x, y);
           [caret, ...go(l)];
         };
@@ -191,7 +196,7 @@ let view =
                 ),
               ),
             );
-            inject(Update.Action.MoveAction(Click(row_col)));
+            inject(ModelAction.MoveAction(Click(row_col)));
           }),
         ],
         children,

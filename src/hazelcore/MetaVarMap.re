@@ -1,1 +1,1 @@
-include NatMap;
+include IntMap;

@@ -52,7 +52,8 @@ and syn_lines =
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
   | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
-  | EmptyLine => Some(ctx)
+  | EmptyLine
+  | CommentLine(_) => Some(ctx)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty) =>
@@ -137,6 +138,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
+  | InvalidText(_) => Some(Hole)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -264,9 +266,8 @@ and syn_rule =
 }
 and ana_splice_map =
     (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
-  NatMap.fold(
-    splice_map,
-    (c, (splice_name, (ty, e))) =>
+  IntMap.fold(
+    (splice_name, (ty, e), c) =>
       switch (c) {
       | None => None
       | Some(splice_ctx) =>
@@ -277,6 +278,7 @@ and ana_splice_map =
           Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
         }
       },
+    splice_map,
     Some(Contexts.empty),
   )
 /**
@@ -355,6 +357,7 @@ and ana_operand =
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some()
+  | InvalidText(_) => Some()
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -376,13 +379,10 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-      _,
-    )
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
+  | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
@@ -667,12 +667,10 @@ and stable_ana_rule_fixer = f => {
     (fixed_term, u_gen, fixed);
   };
 };
+
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
- *
- * Note: need to wrap these definitions with lazy in order to make them statically
- * constructive <https://caml.inria.fr/pub/docs/manual-ocaml/letrecvalues.html>
  */
 let rec syn_fix_holes' =
         (
@@ -791,7 +789,8 @@ and syn_fix_holes_line' =
             e,
           );
         (ExpLine(e), ctx, u_gen, fixed);
-      | EmptyLine => (line, ctx, u_gen, false)
+      | EmptyLine
+      | CommentLine(_) => (line, ctx, u_gen, false)
       | LetLine(p, ann, def) =>
         switch (ann) {
         | Some(uty1) =>
@@ -1124,6 +1123,7 @@ and syn_fix_holes_operand' =
             (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen, true);
           }
         };
+      | InvalidText(_) => (operand_nih, Hole, u_gen, false)
       | IntLit(_) => (operand_nih, Int, u_gen, was_in_hole)
       | FloatLit(_) => (operand_nih, Float, u_gen, was_in_hole)
       | BoolLit(_) => (operand_nih, Bool, u_gen, was_in_hole)
@@ -1331,7 +1331,7 @@ and ana_fix_holes_rule' =
       (
         ctx: Contexts.t,
         u_gen: MetaVarGen.t,
-        ~renumber_empty_holes,
+        ~renumber_empty_holes: bool,
         ~pat_ty: HTyp.t,
         Rule(p, clause): UHExp.rule,
         clause_ty: HTyp.t,
@@ -1367,19 +1367,18 @@ and ana_fix_holes_splice_map' =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      ~renumber_empty_holes,
+      ~renumber_empty_holes=false,
       splice_map: UHExp.splice_map,
     )
     : (UHExp.splice_map, MetaVarGen.t, bool) =>
-  NatMap.fold(
-    splice_map,
-    ((splice_map, u_gen, fixed), (splice_name, (ty, e))) => {
-      let (e, u_gen, fixed_splice) =
+  IntMap.fold(
+    (splice_name, (ty, e), (splice_map, u_gen, fixed)) => {
+      let (e, u_gen, splice_fixed) =
         ana_fix_holes'(ctx, u_gen, ~renumber_empty_holes, e, ty);
-      let splice_map =
-        NatMap.extend_unique(splice_map, (splice_name, (ty, e)));
-      (splice_map, u_gen, fixed || fixed_splice);
+      let splice_map = splice_map |> IntMap.add(splice_name, (ty, e));
+      (splice_map, u_gen, fixed || splice_fixed);
     },
+    splice_map,
     (splice_map, u_gen, false),
   )
 and ana_fix_holes' =
@@ -1685,7 +1684,7 @@ and ana_fix_holes_operand' =
       (
         ctx: Contexts.t,
         u_gen: MetaVarGen.t,
-        ~renumber_empty_holes,
+        ~renumber_empty_holes: bool,
         operand: UHExp.operand,
         ty: HTyp.t,
       ) =>
@@ -1702,6 +1701,7 @@ and ana_fix_holes_operand' =
             } else {
               (operand, u_gen, false);
             }
+          | InvalidText(_) => (operand_nih, u_gen, false)
           | Var(_)
           | IntLit(_)
           | FloatLit(_)
@@ -2072,14 +2072,7 @@ let ana_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
-  let (e, u_gen) =
-    ana_fix_holes(
-      ctx,
-      u_gen,
-      ~renumber_empty_holes=false,
-      ZExp.erase(ze),
-      ty,
-    );
+  let (e, u_gen) = ana_fix_holes(ctx, u_gen, ZExp.erase(ze), ty);
   let ze =
     CursorPath_Exp.follow(path, e)
     |> OptUtil.get(() =>

@@ -1,14 +1,14 @@
-# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: master](https://img.shields.io/travis/hazelgrove/hazel/master?label=build:%20master)](https://travis-ci.org/hazelgrove/hazel)
+# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: trunk](https://img.shields.io/travis/hazelgrove/hazel/trunk?label=build:%20trunk)](https://travis-ci.org/hazelgrove/hazel)
 
 [![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
-website](http://hazel.org/).
+website](https://hazel.org/).
 
 You can try Hazel online with either the
-[master](https://hazel.org/build/master/index.html) or
-[dev](https://hazel.org/build/dev/index.html) version. Note that the master
+[trunk](https://hazel.org/build/trunk/index.html) or
+[dev](https://hazel.org/build/dev/index.html) version. Note that the trunk
 branch is updated infrequently and is currently almost two years behind!
 
 <!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
@@ -102,3 +102,11 @@ The `make dev` and `make release` commands do three things:
 You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
 
 `js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+
+### Testing
+
+You can run all of the unit tests located in `src/hazelcore/test` by running `make test`.
+
+Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
+
+If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.

@@ -54,6 +54,7 @@ and syn_operand =
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
+  | InvalidText(_) => Some((Hole, ctx))
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
@@ -158,6 +159,7 @@ and ana_operand =
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(ctx)
+  | InvalidText(_) => Some(ctx)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
@@ -483,6 +485,7 @@ and syn_fix_holes_operand' =
               (operand, (HTyp.Hole, ctx), u_gen, false);
             }
           | Wild(_) => (operand_nih, (Hole, ctx), u_gen, was_in_hole)
+          | InvalidText(_) => (operand_nih, (Hole, ctx), u_gen, false)
           | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
           | Var(_, InVarHole(Keyword(_), _), _) => (
               operand_nih,
@@ -803,7 +806,7 @@ and ana_fix_holes_operand' =
       (
         ctx: Contexts.t,
         u_gen: MetaVarGen.t,
-        ~renumber_empty_holes,
+        ~renumber_empty_holes: bool,
         operand: UHPat.operand,
         ty: HTyp.t,
       ) =>
@@ -821,6 +824,7 @@ and ana_fix_holes_operand' =
               (operand, ctx, u_gen, false);
             }
           | Wild(_) => (operand_nih, ctx, u_gen, was_in_hole)
+          | InvalidText(_) => (operand_nih, ctx, u_gen, false)
           | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
           | Var(_, InVarHole(Keyword(_), _), _) => (
               operand_nih,

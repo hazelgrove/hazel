@@ -24,6 +24,8 @@ let inline_padding_of_operator:
 
 let mk_EmptyHole: string => UHDoc_common.t =
   UHDoc_common.mk_EmptyHole(~sort=Exp);
+let mk_InvalidText: string => UHDoc_common.t =
+  UHDoc_common.mk_InvalidText(~sort=Exp);
 let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
@@ -92,7 +94,7 @@ and mk_block =
          Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
          |> UHDoc_common.annot_Step(offset + i)
        )
-    |> ListUtil.split_last
+    |> ListUtil.split_last_opt
     |> (
       fun
       | None => failwith(__LOC__ ++ ": empty block")
@@ -118,6 +120,22 @@ and mk_line =
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
           |> Doc.annot(UHAnnot.EmptyLine)
+        | CommentLine(comment) =>
+          let comment_doc =
+            UHDoc_common.mk_text(comment)
+            |> Doc.annot(
+                 UHAnnot.mk_Token(
+                   ~shape=Text,
+                   ~len=StringUtil.utf8_length(comment),
+                   (),
+                 ),
+               );
+          Doc.hcats([
+            UHDoc_common.Delim.open_CommentLine(),
+            UHDoc_common.space_ |> UHDoc_common.annot_Padding,
+            comment_doc,
+          ])
+          |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, ann, def) =>
@@ -164,6 +182,7 @@ and mk_operand =
       (
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
+        | InvalidText(_, t) => mk_InvalidText(t)
         | Var(err, verr, x) => mk_Var(~err, ~verr, x)
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)
