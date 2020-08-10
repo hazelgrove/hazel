@@ -80,7 +80,7 @@ exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => Action_common.t;
 
 /**
- * `move_case_branch(steps, n)` returns an action that moves the cursor to
+ * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
  * the `n`th branch in case expression found at `steps` (when the user
  * clicks on a branch type in the error message for a case expression with
  * inconsistent branches)
