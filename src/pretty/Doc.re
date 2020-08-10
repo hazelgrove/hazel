@@ -21,19 +21,19 @@ type t('annot) = {
 and t'('annot) =
   | Text(string) // Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // associative
-  | Linebreak
+  | Linebreak(int)
   | Align(t('annot))
   | Annot('annot, t('annot)) // Annotations
-  | Fail // identity for `Choice`
+  | Fail(int) // identity for `Choice`
   | Choice(t('annot), t('annot));
 
 let t_of_t' = (t': t'('annot)): t('annot) => {mem: M.create(0), doc: t'};
 
 let text = (s: string) => t_of_t'(Text(s));
-let linebreak = () => t_of_t'(Linebreak);
+let linebreak = () => t_of_t'(Linebreak(0));
 let align = doc => t_of_t'(Align(doc));
 let annot = (annot, doc) => t_of_t'(Annot(annot, doc));
-let fail = () => t_of_t'(Fail);
+let fail = () => t_of_t'(Fail(0));
 
 let empty = () => text("");
 let space = () => text(Unicode.nbsp); // TODO: param to hsep
@@ -74,7 +74,7 @@ let rec map_annot: 'a 'b. ('a => 'b, t('a)) => t('b) =
     d
     |> map_t'(
          fun
-         | (Text(_) | Linebreak | Fail) as d' => d'
+         | (Text(_) | Linebreak(_) | Fail(_)) as d' => d'
          | Annot(annot, d) => Annot(f(annot), map_annot(f, d))
          | Align(d) => Align(map_annot(f, d))
          | Cat(d1, d2) => Cat(map_annot(f, d1), map_annot(f, d2))

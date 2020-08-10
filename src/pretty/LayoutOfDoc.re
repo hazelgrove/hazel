@@ -24,10 +24,10 @@ let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
       List.concat(
         List.map(l1 => List.map(l2 => Layout.Cat(l1, l2), ls2), ls1),
       );
-    | Linebreak => [Layout.Linebreak]
+    | Linebreak(_) => [Layout.Linebreak]
     | Align(d) => List.map(l => Layout.Align(l), all(d))
     | Annot(annot, d) => List.map(l => Layout.Annot(annot, l), all(d))
-    | Fail => []
+    | Fail(_) => []
     | Choice(d1, d2) => all(d1) @ all(d2)
     };
   };
@@ -63,14 +63,82 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // No pos' in Text: 3.4ms (Count of g: 45157) [undid]
 // Constant return value: 1.7ms
 // No count++: 0.9ms
+// No constant constructors: 0.9ms
+
+// With count++ and both Alt: avg:   2.0ms   per count:  19.8ns (count: 98647)
+// Without count++: avg:   2.0ms   per count:  19.8ns (count: 98647)
+
+// fib(25):         avg:   0.8ms   per count:   3.2ns (count: 242785)
+// fib(Int1(25)):   avg:   2.0ms   per count:   8.3ns (count: 242785)
+// fib(fib_rec_25): avg:   1.2ms   per count:   5.1ns (count: 242785)
+
+// JS: constant lifted x[0] out of loop
+
+// all 157ms:
+// y = 0; z = 1; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=y+1 }; Date.now() - start
+// y = 0; x = {tag:1}; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y+=x.tag }; Date.now() - start
+// y = 0; x = [1]; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y+=x[0] }; Date.now() - start
+// y = 0; x = [[1]]; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y+=x[0][0] }; Date.now() - start
+
+// 780ms
+// y = 0; x = 1; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x)/2; x++ }; Date.now() - start
+// y = 0; x = [1]; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x[0])/2; x[0]++ }; Date.now() - start
+// y = 0; x = {tag:1}; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x.tag)/2; x.tag++ }; Date.now() - start
+
+
 let count = ref(0);
 let linebreak_cost =
   PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak));
+type my_int =
+  | Int1(int)
+  | Int2(int)
+  | Int3(int);
+let rec fib = (x: my_int): int => {
+  switch (x) {
+  | Int1(x) =>
+    if (x < 2) {
+      1;
+    } else {
+      1 + fib(Int2(x - 1)) + fib(Int2(x - 2));
+    }
+  | Int2(x) =>
+    if (x < 2) {
+      1;
+    } else {
+      1 + fib(Int3(x - 1)) + fib(Int3(x - 2));
+    }
+  | Int3(x) =>
+    if (x < 2) {
+      1;
+    } else {
+      1 + fib(Int1(x - 1)) + fib(Int1(x - 2));
+    }
+  };
+};
+type my_fib = FibInt(int) | FibRec(my_fib, my_fib)
+let rec make_fib = (x: int):my_fib => {
+  if (x < 2) { FibInt(1) }
+  else { FibRec(make_fib(x-1), make_fib(x-2)) }
+}
+let fib_rec_25 = make_fib(25)
+
+let rec fib2 = (x : my_fib): int => {
+  switch (x) {
+    | FibInt(i) => i
+    | FibRec(f1, f2) => 1 + fib2(f1) + fib2(f2)
+  }
+}
+
+// let rec fib = (x: int): int => {
+//   if (x < 2) { 1 }
+//   else { 1 + fib(x-1) + fib(x-2) }
+// }
+
 let rec fast_layout_of_doc' =
         (doc: Doc.t(unit), ~width: int, ~pos: int)
         : PosMap.t((Cost.t, Layout.t(unit))) => {
   //Printf.printf("fast_layout_of_doc'");
-  //count := count^ + 1;
+  count := count^ + 1;
   // TODO: lift the switch(doc.doc) outside the lambda
   switch (doc.doc) {
   | Text(_string) =>
@@ -107,7 +175,7 @@ let rec fast_layout_of_doc' =
     //   l1,
     // );
     linebreak_cost;
-  | Linebreak => linebreak_cost
+  | Linebreak(_) => linebreak_cost
   | Align(d) =>
     // let layout = fast_layout_of_doc'(d, ~width=width - pos, ~pos=0);
     // PosMap.mapk(
@@ -120,9 +188,9 @@ let rec fast_layout_of_doc' =
     let _layout = fast_layout_of_doc'(d, ~width, ~pos);
     //PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
     linebreak_cost;
-  | Fail => PosMap.empty
-  | Choice(_d1, d2) =>
-    //let l1 = fast_layout_of_doc'(d1, ~width, ~pos);
+  | Fail(_) => PosMap.empty
+  | Choice(d1, d2) =>
+    let _l1 = fast_layout_of_doc'(d1, ~width, ~pos);
     let _l2 = fast_layout_of_doc'(d2, ~width, ~pos);
     //m'_union(l1, l2);
     linebreak_cost;
@@ -174,7 +242,7 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
         PosMap.empty,
         l1,
       );
-    | Linebreak =>
+    | Linebreak(_) =>
       PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak))
     | Align(d) =>
       let layout = layout_of_doc'(d, ~width=width - pos, ~pos=0);
@@ -185,7 +253,7 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
     | Annot(annot, d) =>
       let layout = layout_of_doc'(d, ~width, ~pos);
       PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
-    | Fail => PosMap.empty
+    | Fail(_) => PosMap.empty
     | Choice(d1, d2) =>
       let l1 = layout_of_doc'(d1, ~width, ~pos);
       let l2 = layout_of_doc'(d2, ~width, ~pos);
@@ -206,10 +274,14 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
 };
 
 let fast_layout_of_doc =
-    (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
-  let l: list((int, (Cost.t, Layout.t('annot)))) =
+    (doc: Doc.t('annot), ~width: int, ~pos: int)
+    : option(Layout.t('annot)) => {
+  let _l: list((int, (Cost.t, Layout.t('annot)))) =
     Obj.magic(fast_layout_of_doc'(Obj.magic(doc), ~width, ~pos));
-  Some(snd(snd(List.hd(l))));
+  //Some(snd(snd(List.hd(l))));
+  //count := fib(Int1(25));
+  //count := fib2(fib_rec_25);
+  None;
 };
 
 let layout_of_doc =

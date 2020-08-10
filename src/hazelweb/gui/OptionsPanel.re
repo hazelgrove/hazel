@@ -45,6 +45,7 @@ let labeled_checkbox =
 let benchmark = (model: Model.t): unit => {
   let program = model |> Model.get_program;
   let width = program.width;
+  let iters = 20;
   let go = (): float => {
     let doc =
       Program.get_doc(
@@ -54,20 +55,19 @@ let benchmark = (model: Model.t): unit => {
       );
     let start_time = Sys.time();
     Pretty.LayoutOfDoc.count := 0;
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
-    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    for (_ in 1 to iters) {
+      Pretty.LayoutOfDoc.count := 0;
+      ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    };
     let end_time = Sys.time();
-    Printf.printf("count: %d\n", Pretty.LayoutOfDoc.count^ / 10);
-    Printf.printf("start: %f end: %f\n", start_time, end_time);
-    end_time -. start_time;
+    Printf.printf("count: %d\n", Pretty.LayoutOfDoc.count^);
+    Printf.printf(
+      "start: %f end: %f diff: %f\n",
+      start_time,
+      end_time,
+      end_time -. start_time,
+    );
+    (end_time -. start_time) /. float_of_int(iters);
   };
 
   let times = List.sort(Float.compare, List.init(100, _ => go()));
@@ -85,10 +85,16 @@ let benchmark = (model: Model.t): unit => {
     };
   let sum =
     List.fold_left((x, y) => x +. y, 0.0, take(50, drop(25, times)));
+  let avg = sum /. 50.0;
   Printf.printf(
-    "layout_time: %f %5.1fms\n",
-    sum,
-    1000.0 /. 10.0 *. sum /. 50.0,
+    "avg: %5.1fms   per count: %5.1fns (count: %d)\n",
+    avg *. 1000.0,
+    avg
+    /. float_of_int(Pretty.LayoutOfDoc.count^)
+    *. 1000.0
+    *. 1000.0
+    *. 1000.0,
+    Pretty.LayoutOfDoc.count^,
   );
 };
 
