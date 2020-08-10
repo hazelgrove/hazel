@@ -48,6 +48,99 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // Random BlockChain
 // Constant indent
 
+// All times are for qsort_30 with `make release`
+// Original code: 156ms (Count of g: 204607)
+// Noop: 0ms
+// Alt does just right: 27ms (Count of g: 43897)
+// Skip Annot and Align: 24ms (Count of g: 43897)
+// cost = Cost.zero: 22ms (Count of g: 43897)
+// let pos' = pos + 5: 25ms (Count of g: 43897)
+// Omit "Doc.M.add(doc.mem, key, value)": 15ms (Count of g: 45067)
+// Omit memo lookup: 7ms (Count of g: 45157)
+// No h: 5ms (Count of g: 45157)
+// One-function/no-curry: 5.4ms (Count of g: 45157)
+// No work in Cat: 2.0ms (Count of g: 45157)
+// No pos' in Text: 3.4ms (Count of g: 45157) [undid]
+// Constant return value: 1.7ms
+// No count++: 0.9ms
+let count = ref(0);
+let linebreak_cost =
+  PosMap.singleton(0, (Cost.mk_height(1), Layout.Linebreak));
+let rec fast_layout_of_doc' =
+        (doc: Doc.t(unit), ~width: int, ~pos: int)
+        : PosMap.t((Cost.t, Layout.t(unit))) => {
+  //Printf.printf("fast_layout_of_doc'");
+  //count := count^ + 1;
+  // TODO: lift the switch(doc.doc) outside the lambda
+  switch (doc.doc) {
+  | Text(_string) =>
+    // TODO: cache text length in Text?
+    //let pos' = pos + String.length(string); //Unicode.length(string);
+    //let pos' = pos + 5;
+    // let cost =
+    //   if (pos' <= width) {
+    //     Cost.zero;
+    //   } else {
+    //     let overflow = pos' - width;
+    //     // overflow_cost = sum i from 1 to overflow
+    //     let overflow_cost = overflow * (overflow + 1) / 2;
+    //     Cost.mk_overflow(overflow_cost);
+    //   };
+    //let cost = Cost.zero;
+    //PosMap.singleton(pos', (cost, Layout.Text(string)));
+    linebreak_cost
+  | Cat(d1, d2) =>
+    let _l1 = fast_layout_of_doc'(d1, ~width, ~pos);
+    let _l2 = fast_layout_of_doc'(d2, ~width, ~pos);
+    // PosMap.fold_left(
+    //   (pos, z, (cost1, layout1)) => {
+    //     let l2 = fast_layout_of_doc'(d2, ~width, ~pos);
+    //     let layouts =
+    //       PosMap.map(
+    //         ((cost2, layout2)) =>
+    //           (Cost.add(cost1, cost2), Layout.Cat(layout1, layout2)),
+    //         l2,
+    //       );
+    //     m'_union(z, layouts);
+    //   },
+    //   PosMap.empty,
+    //   l1,
+    // );
+    linebreak_cost;
+  | Linebreak => linebreak_cost
+  | Align(d) =>
+    // let layout = fast_layout_of_doc'(d, ~width=width - pos, ~pos=0);
+    // PosMap.mapk(
+    //   (p, (c, l)) => (p + pos, (c, Layout.Align(l))),
+    //   layout,
+    // );
+    let _ = fast_layout_of_doc'(d, ~width, ~pos);
+    linebreak_cost;
+  | Annot(_annot, d) =>
+    let _layout = fast_layout_of_doc'(d, ~width, ~pos);
+    //PosMap.map(((c, l)) => (c, Layout.Annot(annot, l)), layout);
+    linebreak_cost;
+  | Fail => PosMap.empty
+  | Choice(_d1, d2) =>
+    //let l1 = fast_layout_of_doc'(d1, ~width, ~pos);
+    let _l2 = fast_layout_of_doc'(d2, ~width, ~pos);
+    //m'_union(l1, l2);
+    linebreak_cost;
+  // let h = (~width: int, ~pos: int): PosMap.t((Cost.t, Layout.t(unit))) => {
+  //   // let key = (width, pos);
+  //   // switch (Doc.M.find_opt(doc.mem, key)) {
+  //   // | Some(value) => value
+  //   // | None =>
+  //   //   let value = g(~width, ~pos);
+  //   //   //Doc.M.add(doc.mem, key, value);
+  //   //   value;
+  //   // };
+  //   g(~width, ~pos)
+  // };
+  // h;
+  };
+};
+
 let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
   let g = (~width: int, ~pos: int): Doc.m'(Layout.t(unit)) => {
     // TODO: lift the switch(doc.doc) outside the lambda
@@ -110,6 +203,13 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
     };
   };
   h;
+};
+
+let fast_layout_of_doc =
+    (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
+  let l: list((int, (Cost.t, Layout.t('annot)))) =
+    Obj.magic(fast_layout_of_doc'(Obj.magic(doc), ~width, ~pos));
+  Some(snd(snd(List.hd(l))));
 };
 
 let layout_of_doc =

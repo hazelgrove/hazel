@@ -53,8 +53,19 @@ let benchmark = (model: Model.t): unit => {
         program,
       );
     let start_time = Sys.time();
-    ignore(Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc));
+    Pretty.LayoutOfDoc.count := 0;
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
+    ignore(Pretty.LayoutOfDoc.fast_layout_of_doc(~width, ~pos=0, doc));
     let end_time = Sys.time();
+    Printf.printf("count: %d\n", Pretty.LayoutOfDoc.count^ / 10);
     Printf.printf("start: %f end: %f\n", start_time, end_time);
     end_time -. start_time;
   };
@@ -74,7 +85,11 @@ let benchmark = (model: Model.t): unit => {
     };
   let sum =
     List.fold_left((x, y) => x +. y, 0.0, take(50, drop(25, times)));
-  Printf.printf("layout_time: %f %4.0fms\n", sum, 1000.0 *. sum /. 50.0);
+  Printf.printf(
+    "layout_time: %f %5.1fms\n",
+    sum,
+    1000.0 /. 10.0 *. sum /. 50.0,
+  );
 };
 
 let view =
