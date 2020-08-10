@@ -71,6 +71,11 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // fib(25):         avg:   0.8ms   per count:   3.2ns (count: 242785)
 // fib(Int1(25)):   avg:   2.0ms   per count:   8.3ns (count: 242785)
 // fib(fib_rec_25): avg:   1.2ms   per count:   5.1ns (count: 242785)
+// fib with 4 rec:  avg:   1.5ms   per count:   6.3ns (count: 242785)
+// fib returning 1: avg:   1.3ms   (count: 242785)
+// with count++     avg:   1.5ms   per count:   6.1ns (count: 242785)
+
+// fib-doc(50):     avg:   2.0ms   per count:   9.7ns (count: 206668)
 
 // JS: constant lifted x[0] out of loop
 
@@ -85,6 +90,24 @@ let m'_union: 'a. (Doc.m'('a), Doc.m'('a)) => Doc.m'('a) =
 // y = 0; x = [1]; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x[0])/2; x[0]++ }; Date.now() - start
 // y = 0; x = {tag:1}; start = Date.now(); for (i=0; i<1000*1000*10*10; i++) { y=(y+x.tag)/2; x.tag++ }; Date.now() - start
 
+
+type my_fib =
+  | Text2(int)
+  | Cat2(my_fib, my_fib)
+  | Align2(my_fib)
+  | Annot2(int, my_fib)
+  | Choice2(my_fib, my_fib);
+// let rec t2_of_doc = (doc: Doc.t('annot)): t2 => {
+//   switch (doc.doc) {
+//   | Text(string) => Text2(string)
+//   | Cat(t1, t2) => Cat2(t2_of_doc(t1), t2_of_doc(t2))
+//   | Linebreak(int) => Linebreak2(int)
+//   | Align(t2) => Align2(t2_of_doc(t2))
+//   | Annot(int, t2) => Annot2(int, t2_of_doc(t2))
+//   | Fail(int) => Fail2(int)
+//   | Choice(t1, t2) => Choice2(t2_of_doc(t1), t2_of_doc(t2))
+//   };
+// };
 
 let count = ref(0);
 let linebreak_cost =
@@ -115,19 +138,29 @@ let rec fib = (x: my_int): int => {
     }
   };
 };
-type my_fib = FibInt(int) | FibRec(my_fib, my_fib)
-let rec make_fib = (x: int):my_fib => {
-  if (x < 2) { FibInt(1) }
-  else { FibRec(make_fib(x-1), make_fib(x-2)) }
-}
-let fib_rec_25 = make_fib(25)
-
-let rec fib2 = (x : my_fib): int => {
-  switch (x) {
-    | FibInt(i) => i
-    | FibRec(f1, f2) => 1 + fib2(f1) + fib2(f2)
+let rec make_fib = (x: int): my_fib => {
+  if (x < 2) {
+    Text2(1)
+  } else {
+    switch (x mod 4) {
+    | 0 => Cat2(make_fib(x - 1), make_fib(x - 2))
+    | 1 => Align2(make_fib(x - 1))
+    | 2 => Annot2(x, make_fib(x - 1))
+    | 3 => Choice2(make_fib(x - 1), make_fib(x - 2))
   }
-}
+  }};
+let fib_rec_25 = make_fib(40);
+
+let rec fib2 = (x: my_fib): int => {
+  count := count^ + 1;
+  switch (x) {
+  | Text2(i) => 1
+  | Cat2(f1, f2) => fib2(f1); fib2(f2); 1
+  | Align2(f1) => fib2(f1); 1
+  | Annot2(_, f1) => fib2(f1); 1
+  | Choice2(f1, f2) => fib2(f1); fib2(f2); 1
+  }
+};
 
 // let rec fib = (x: int): int => {
 //   if (x < 2) { 1 }
@@ -274,13 +307,12 @@ let rec layout_of_doc' = (doc: Doc.t(unit)): Doc.m(Layout.t(unit)) => {
 };
 
 let fast_layout_of_doc =
-    (doc: Doc.t('annot), ~width: int, ~pos: int)
-    : option(Layout.t('annot)) => {
-  let _l: list((int, (Cost.t, Layout.t('annot)))) =
-    Obj.magic(fast_layout_of_doc'(Obj.magic(doc), ~width, ~pos));
+    (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
+  //let _l: list((int, (Cost.t, Layout.t('annot)))) =
+  //  Obj.magic(fast_layout_of_doc'(Obj.magic(doc), ~width, ~pos));
   //Some(snd(snd(List.hd(l))));
   //count := fib(Int1(25));
-  //count := fib2(fib_rec_25);
+  ignore(fib2(fib_rec_25));
   None;
 };
 
