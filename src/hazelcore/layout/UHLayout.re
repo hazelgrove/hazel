@@ -129,6 +129,7 @@ let find_and_decorate_caret =
                     ),
                )
              | EmptyLine
+             | CommentLine
              | Term(_) => Skip
              | _ => Stop
              }
@@ -165,7 +166,8 @@ let find_and_decorate_caret =
                )
              | Term(_)
              | DelimGroup
-             | LetLine => Skip
+             | LetLine
+             | CommentLine => Skip
              | _ => Stop
              }
            )

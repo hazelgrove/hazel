@@ -1,19 +1,12 @@
 [@deriving sexp]
 type operator = Operators_Exp.t;
 
-// TODO
-// type t =
-// /* laid out vertically */
-// | V(block)
-// /* laid out horizontally */
-// | H(opseq)
 [@deriving sexp]
 type t = block
-// TODO
-// block = (bool /* user newline */, list(line))
 and block = list(line)
 and line =
   | EmptyLine
+  | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)

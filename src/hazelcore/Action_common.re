@@ -19,6 +19,7 @@ type operator_shape =
 
 [@deriving sexp]
 type shape =
+  | SCommentLine
   | SList
   | SParenthesized
   | SChar(string)
@@ -64,6 +65,7 @@ let shape_to_string = (shape: shape): string => {
     }
   | SLet => "let binding"
   | SLine => "new line"
+  | SCommentLine => "comment line"
   | SCase => "case expression"
   | SOp(operator_shape) =>
     switch (operator_shape) {
