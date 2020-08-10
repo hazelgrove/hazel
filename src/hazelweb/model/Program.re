@@ -102,6 +102,10 @@ let get_result = (program: t): Result.t =>
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
+  Statics_common.syn_count := 0;
+  Statics_common.syn_fixed_count := 0;
+  Statics_common.ana_count := 0;
+  Statics_common.ana_fixed_count := 0;
   let edit_state = program |> get_edit_state;
   switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
   | Failed => raise(FailedAction)
@@ -114,6 +118,10 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, u_gen);
       };
+    Printf.printf("syn_count = %d\n", Statics_common.syn_count^);
+    Printf.printf("syn_fixed_count = %d\n", Statics_common.syn_fixed_count^);
+    Printf.printf("ana_count = %d\n", Statics_common.ana_count^);
+    Printf.printf("ana_fixed_count = %d\n", Statics_common.ana_fixed_count^);
     program |> put_edit_state(new_edit_state);
   };
 };
