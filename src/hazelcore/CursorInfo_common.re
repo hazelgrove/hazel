@@ -166,7 +166,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | TypOp(_, _) => false
   | Line(_, line) =>
     switch (line) {
-    | EmptyLine => true
+    | EmptyLine
+    | CommentLine(_) => true
     | LetLine(_, _, _)
     | ExpLine(_) => false
     }
