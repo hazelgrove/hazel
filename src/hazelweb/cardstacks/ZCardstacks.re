@@ -18,6 +18,7 @@ let map_z = ZList.map_z;
 let get_program = cardstacks => cardstacks |> get_z |> Cardstack.get_program;
 let put_program = (program, cardstacks): t => {
   let new_cardstack = cardstacks |> get_z |> Cardstack.put_program(program);
+  print_endline("zcardstack21");
   cardstacks |> put_z(new_cardstack);
 };
 

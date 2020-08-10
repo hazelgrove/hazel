@@ -48,7 +48,9 @@ type t =
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init;
+  | Init
+  | AddCell
+  | RemoveCell;
 
 let shape_to_string = (shape: shape): string => {
   switch (shape) {

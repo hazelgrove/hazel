@@ -305,7 +305,9 @@ let rec syn_move =
   | SwapDown
   | SwapLeft
   | SwapRight
-  | Init =>
+  | Init
+  | AddCell
+  | RemoveCell =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -369,7 +371,9 @@ let rec ana_move =
   | SwapDown
   | SwapLeft
   | SwapRight
-  | Init =>
+  | Init
+  | AddCell
+  | RemoveCell =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -398,6 +402,9 @@ and syn_perform_opseq =
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, _) => Failed
+
+  /* Invalid cell actions */
+  | (AddCell | RemoveCell, _) => Failed
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -576,7 +583,9 @@ and syn_perform_operand =
       ) |
       UpdateApPalette(_) |
       SwapUp |
-      SwapDown,
+      SwapDown |
+      AddCell |
+      RemoveCell,
       _,
     ) =>
     Failed
@@ -807,6 +816,7 @@ and ana_perform_opseq =
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
   | (SwapUp | SwapDown, _) => Failed
+  | (AddCell | RemoveCell, _) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1001,7 +1011,9 @@ and ana_perform_operand =
       ) |
       UpdateApPalette(_) |
       SwapUp |
-      SwapDown,
+      SwapDown |
+      AddCell |
+      RemoveCell,
       _,
     ) =>
     Failed

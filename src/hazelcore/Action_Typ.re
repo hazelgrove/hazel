@@ -94,7 +94,9 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init =>
+  | Init
+  | AddCell
+  | RemoveCell =>
     failwith(
       __LOC__
       ++ ": expected movement action, got "
@@ -115,7 +117,9 @@ and perform_opseq =
         SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
       ) |
       SwapUp |
-      SwapDown,
+      SwapDown |
+      AddCell |
+      RemoveCell,
       _,
     )
   /* Invalid cursor positions */
@@ -233,7 +237,9 @@ and perform_operand =
         SCommentLine,
       ) |
       SwapUp |
-      SwapDown,
+      SwapDown |
+      AddCell |
+      RemoveCell,
       _,
     ) =>
     Failed

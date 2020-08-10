@@ -74,8 +74,9 @@ let prune_hole = (zexp: ZExp.t) => {
 };
 
 let rec add_cell_boundary = program => {
+  print_endline("add77");
   let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
-  let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+  let (EmptyHole(u) as hole, u_gen) = UHExp.new_EmptyHole(u_gen);
   let (_, zexp, _) = ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
   if (suffix == []) {
     switch (zline) {
@@ -94,13 +95,18 @@ let rec add_cell_boundary = program => {
       );
       program |> put_edit_state(edit_state);
     | ExpLineZ(zopseq) =>
+      print_endline("add98");
       switch (zopseq) {
       | ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E))) =>
+        print_endline("add101");
         let edit_state = (
           (prefix @ [UHExp.EmptyLine, UHExp.CellBoundary], zexp, suffix),
           ty,
           u_gen,
         );
+        print_endline("add107");
+        let si = UserSelectedInstances.init;
+        UserSelectedInstances.add(u, 0, si);
         program |> put_edit_state(edit_state);
       | _ =>
         let edit_state = (
@@ -113,7 +119,7 @@ let rec add_cell_boundary = program => {
           u_gen,
         );
         program |> put_edit_state(edit_state);
-      }
+      };
     | CursorL(OnDelim(1, After), LetLine(_)) =>
       switch (zline |> ZExp.move_cursor_right_zline) {
       | None => failwith("impossible")
