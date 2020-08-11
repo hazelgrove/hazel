@@ -129,10 +129,8 @@ let construct_operator_after_zoperand =
 //TBD
 let complete_tuple =
   Action_common.complete_tuple_(
-    ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
-    ~comma=Operators_Exp.Comma,
-    ~zcomma=(OnOp(After), Operators_Exp.Comma),
-    ~new_EmptyHole=UHExp.new_EmptyHole,
+    ~make_holy_tuple=UHExp.make_holy_tuple,
+    ~place_before_opseq=ZExp.place_before_opseq,
   );
 
 /**
@@ -231,6 +229,66 @@ let resurround_z =
     };
     ((new_prefix_lines, zline, new_suffix_lines), u_gen);
   };
+
+let can_split_cases_opseq = (zp: ZPat.t): bool => {
+  let OpSeq(_, seq) = ZPat.erase(zp);
+  seq |> Seq.nth_operand(0) |> UHPat.is_EmptyHole;
+};
+
+// Only try to derive type and continue if the only rule was just an empty hole
+let can_split_cases_rules: ZExp.zrules => bool =
+  fun
+  | ([], RuleZP(zpat, _), []) => can_split_cases_opseq(zpat)
+  | _ => false;
+
+let split_cases =
+    (u_gen: MetaVarGen.t, pat_ty: HTyp.t, exp: UHExp.t)
+    : option((MetaVarGen.t, ZExp.zrules)) => {
+  let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, pat_ty);
+
+  switch (patterns) {
+  | [] => None
+  | [head, ...tail] =>
+    let (u_gen, tailRules) =
+      tail
+      |> ListUtil.map_with_accumulator(
+           (u_gen, pat) => {
+             let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+             (u_gen, UHExp.Rule(pat, UHExp.Block.wrap(hole)));
+           },
+           u_gen,
+         );
+    let zrules = (
+      [],
+      ZExp.RuleZP(head |> ZPat.place_before, exp),
+      tailRules,
+    );
+    Some((u_gen, zrules));
+  };
+};
+
+let split_cases_binding =
+    (
+      u_gen: MetaVarGen.t,
+      ascrip_option: option(UHTyp.t),
+      backup_type: option(HTyp.t),
+      mk_result: (MetaVarGen.t, ZPat.t) => ActionOutcome.t('success),
+    )
+    : ActionOutcome.t('success) =>
+  ascrip_option
+  |> Option.fold(~none=backup_type, ~some=pat_ty =>
+       Some(UHTyp.expand(pat_ty))
+     )
+  |> Option.fold(
+       ~none=ActionOutcome.Failed,
+       ~some=pat_ty => {
+         let (patterns, u_gen) = UHPat.patterns_of_type(u_gen, pat_ty);
+         switch (patterns) {
+         | [pat] => mk_result(u_gen, ZPat.place_before(pat))
+         | _ => Failed
+         };
+       },
+     );
 
 type expanding_result = {
   kw: ExpandingKeyword.t,
@@ -542,6 +600,7 @@ let rec syn_move =
   | SwapRight
   | SwapUp
   | SwapDown
+  | SplitCases
   | Init =>
     failwith(
       __LOC__
@@ -603,6 +662,7 @@ let rec ana_move =
   | SwapRight
   | SwapUp
   | SwapDown
+  | SplitCases
   | Init =>
     failwith(
       __LOC__
@@ -1031,7 +1091,10 @@ and syn_perform_line =
     let new_zline = ZExp.LetLineZA(zp |> ZPat.erase, zty, def);
     fix_and_mk_result(u_gen, ([], new_zline, []));
 
-  | (Construct(_) | UpdateApPalette(_), CursorL(OnDelim(_, side), _))
+  | (
+      Construct(_) | UpdateApPalette(_) | SplitCases,
+      CursorL(OnDelim(_, side), _),
+    )
       when !ZExp.is_before_zline(zline) && !ZExp.is_after_zline(zline) =>
     let move_cursor =
       switch (side) {
@@ -1042,7 +1105,15 @@ and syn_perform_line =
     | None => Failed
     | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
     };
-  | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
+  | (Construct(_), CursorL(_)) => Failed
+
+  | (SplitCases, LetLineZP(zp, ascrip_option, def))
+      when can_split_cases_opseq(zp) =>
+    split_cases_binding(
+      u_gen, ascrip_option, Statics_Exp.syn(ctx, def), (u_gen, new_zp) =>
+      mk_result(u_gen, ([], LetLineZP(new_zp, ascrip_option, def), []))
+    )
+  | (UpdateApPalette(_) | SplitCases, CursorL(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
@@ -1150,7 +1221,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1827,6 +1898,47 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
 
+  | (SplitCases, CaseZE(err, zscrut, [UHExp.Rule(pat, exp)]))
+      when pat |> ZPat.place_before |> can_split_cases_opseq =>
+    syn_perform_operand(
+      ctx,
+      SplitCases,
+      (
+        ZExp.CaseZR(
+          err,
+          ZExp.erase(zscrut),
+          ZList.singleton(ZExp.RuleZP(ZPat.place_before(pat), exp)),
+        ),
+        ty,
+        u_gen,
+      ),
+    )
+  | (SplitCases, LamZP(err, zpat, ascrip_option, body))
+      when can_split_cases_opseq(zpat) =>
+    // We don't have to consider ty, because we can not get a type other than hole for the argument without binding it
+    // , which `would make can_split_cases_opseq(zpat)` return false
+    ascrip_option
+    |> Option.fold(
+         ~none=ActionOutcome.Failed,
+         ~some=ascrip => {
+           let (patterns, u_gen) =
+             ascrip |> UHTyp.expand |> UHPat.patterns_of_type(u_gen);
+           switch (patterns) {
+           | [pat] =>
+             Succeeded(
+               SynDone((
+                 ZExp.LamZP(err, ZPat.place_before(pat), ascrip_option, body)
+                 |> ZExp.ZBlock.wrap,
+                 ty,
+                 u_gen,
+               )),
+             )
+           | _ => Failed
+           };
+         },
+       )
+  | (SplitCases, CursorE(_)) => Failed
+
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
   | (SwapLeft | SwapRight, CursorE(_)) => Failed
@@ -2112,6 +2224,15 @@ and syn_perform_rules =
     }
   | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
 
+  | (SplitCases, RuleZP(_, exp)) when can_split_cases_rules(zrules) =>
+    switch (split_cases(u_gen, pat_ty, exp)) {
+    | None => Failed
+    | Some((u_gen, zrules)) =>
+      Succeeded((ZList.surround((prefix, suffix), zrules), u_gen))
+    }
+
+  | (SplitCases, CursorR(OnDelim(_), _)) => Failed
+
   /* Invalid swap actions */
   | (SwapLeft | SwapRight, CursorR(_)) => Failed
 
@@ -2261,7 +2382,15 @@ and ana_perform_rules =
     | Succeeded((zrules, u_gen)) =>
       ana_perform_rules(ctx, a, (zrules, u_gen), pat_ty, clause_ty)
     }
-  | (Construct(_) | UpdateApPalette(_), CursorR(OnDelim(_), _)) => Failed
+  | (Construct(_) | UpdateApPalette(_) | SplitCases, CursorR(OnDelim(_), _)) =>
+    Failed
+
+  | (SplitCases, RuleZP(_, exp)) when can_split_cases_rules(zrules) =>
+    switch (split_cases(u_gen, pat_ty, exp)) {
+    | None => Failed
+    | Some((u_gen, zrules)) =>
+      Succeeded((ZList.surround((prefix, suffix), zrules), u_gen))
+    }
 
   /* Invalid swap actions */
   | (SwapLeft | SwapRight, CursorR(_)) => Failed
@@ -2395,6 +2524,16 @@ and ana_perform_block =
 
   /* No construction handled at block level */
 
+  | (SplitCases, LetLineZP(zp, ascrip_option, def))
+      when can_split_cases_opseq(zp) =>
+    split_cases_binding(
+      u_gen, ascrip_option, Statics_Exp.syn(ctx, def), (u_gen, new_zp) =>
+      Succeeded(
+        AnaDone((([], LetLineZP(new_zp, ascrip_option, def), []), u_gen)),
+      )
+    )
+  | (SplitCases, CursorL(_)) => Failed
+
   /* SwapUp and SwapDown is handled at block level */
   | (SwapUp, _) when ZExp.line_can_be_swapped(zline) =>
     switch (
@@ -2525,7 +2664,7 @@ and ana_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2659,16 +2798,11 @@ and ana_perform_opseq =
         ZExp.is_after_zopseq(zopseq)
         && !(zopseq |> has_Comma)
         && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (opseq, u_gen) =
-      Statics_Exp.ana_fix_holes_opseq(
-        ctx,
-        u_gen,
-        zopseq |> ZExp.erase_zopseq,
-        // safe because pattern guard
-        ty |> HTyp.get_prod_elements |> List.hd,
-      );
-    let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
-    Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+    let (ZOpSeq(_, zseq), u_gen) =
+      complete_tuple(u_gen, ZExp.erase_zopseq(zopseq), ty);
+    let (new_zexp, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
+    ana_perform(ctx, MoveToNextHole, (new_zexp, u_gen), ty)
+    |> wrap_in_AnaDone;
 
   | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
       when zoperand |> ZExp.is_after_zoperand =>
@@ -3222,6 +3356,37 @@ and ana_perform_operand =
     );
     Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
+
+  | (SplitCases, CaseZE(err, zscrut, [UHExp.Rule(pat, exp)]))
+      when pat |> ZPat.place_before |> can_split_cases_opseq =>
+    ana_perform_operand(
+      ctx,
+      SplitCases,
+      (
+        ZExp.CaseZR(
+          err,
+          ZExp.erase(zscrut),
+          ZList.singleton(ZExp.RuleZP(ZPat.place_before(pat), exp)),
+        ),
+        u_gen,
+      ),
+      ty,
+    )
+  | (SplitCases, LamZP(err, zpat, ascrip_option, body))
+      when can_split_cases_opseq(zpat) =>
+    split_cases_binding(
+      u_gen,
+      ascrip_option,
+      ty |> HTyp.matched_arrow |> Option.map(((argType, _)) => argType),
+      (u_gen, new_zp) =>
+      Succeeded(
+        AnaDone((
+          ZExp.LamZP(err, new_zp, ascrip_option, body) |> ZExp.ZBlock.wrap,
+          u_gen,
+        )),
+      )
+    )
+  | (SplitCases, CursorE(_)) => Failed
 
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed

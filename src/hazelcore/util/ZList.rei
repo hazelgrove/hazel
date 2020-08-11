@@ -7,6 +7,9 @@ let split_at: (int, list('a)) => option(t('a, 'a));
 
 let join: t('a, 'a) => list('a);
 
+let surround:
+  ((list('a), list('a)), t('z, 'a)) => (list('a), 'z, list('a));
+
 let replace_z: ('z, t('z, 'a)) => t('z, 'a);
 
 let map_z: ('z1 => 'z2, t('z1, 'x)) => t('z2, 'x);

@@ -265,3 +265,10 @@ let rec map_with_accumulator_opt =
     let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
   };
+
+let iterate = (f: 'x => ('y, 'x), times: int, start: 'x): (list('y), 'x) => {
+  let swap = ((x, y)) => (y, x);
+  replicate(times, 0)
+  |> map_with_accumulator((x, _) => x |> f |> swap, start)
+  |> swap;
+};

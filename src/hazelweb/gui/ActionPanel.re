@@ -437,6 +437,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         ]),
         combo(Alt_C, simple("Insert case expression")),
         combo(Enter, simple("Add new rule")),
+        combo(Alt_Y, simple("Case split")),
       ],
     ),
   ];
@@ -504,6 +505,7 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
+  | SplitCases => Added
   | SwapUp => Added
   | SwapDown => Added
   | SwapLeft => Added

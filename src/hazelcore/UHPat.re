@@ -57,6 +57,9 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
+let injection = (~err: ErrStatus.t=NotInHole, side: InjSide.t, x: t) =>
+  Inj(err, side, x);
+
 let new_InvalidText =
     (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -68,6 +71,8 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
   (EmptyHole(u), u_gen);
 };
+
+let new_EmptyHoles = ListUtil.iterate(new_EmptyHole);
 
 let is_EmptyHole =
   fun
@@ -150,6 +155,65 @@ and mk_inconsistent_operand =
     (Parenthesized(set_p), u_gen);
   };
 
+let associate =
+  Skel.mk(Operators_Pat.precedence, Operators_Pat.associativity);
+
+let mk_OpSeq = OpSeq.mk(~associate);
+
+let make_holy_tuple =
+  OpSeq.make_holy_tuple(
+    ~comma=Operators_Pat.Comma,
+    ~new_EmptyHole,
+    ~mk_OpSeq,
+  );
+
+let patterns_of_type =
+    (u_gen: MetaVarGen.t, ty: HTyp.t): (list(t), MetaVarGen.t) =>
+  OpSeq.(
+    switch (ty) {
+    | HTyp.Hole
+    | Arrow(_, _) => ([], u_gen)
+    | Int
+    | Float =>
+      let zero =
+        if (ty == Int) {
+          intlit("0");
+        } else {
+          floatlit("0.");
+        };
+      ([zero, wild()] |> List.map(wrap), u_gen);
+    | Bool => ([true, false] |> List.map(b => b |> boollit |> wrap), u_gen)
+    | Prod([]) => ([], u_gen)
+    | Prod(tys) =>
+      let (holy_tuple, u_gen) =
+        // List.length(tys) should be >= 1, because we caught the unit-case above and tuple should otherwise have at least 2 elements
+        OpSeq.make_holy_tuple(
+          ~comma=Operators_Pat.Comma,
+          ~new_EmptyHole,
+          ~mk_OpSeq,
+          tys,
+          u_gen,
+        );
+      ([holy_tuple], u_gen);
+    | Sum(_, _) =>
+      let (holes, u_gen) = new_EmptyHoles(2, u_gen);
+      let patterns =
+        List.map2(
+          (side, hole) => wrap(injection(side, wrap(hole))),
+          InjSide.[L, R],
+          holes,
+        );
+      (patterns, u_gen);
+    | List(_) =>
+      let (hole1, u_gen) = u_gen |> new_EmptyHole;
+      let (hole2, u_gen) = u_gen |> new_EmptyHole;
+      (
+        [wrap(listnil()), wrap_operator(hole1, Operators_Pat.Cons, hole2)],
+        u_gen,
+      );
+    }
+  );
+
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
   switch (shape) {
@@ -166,12 +230,6 @@ let text_operand =
     );
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
-
-let associate =
-  Skel.mk(Operators_Pat.precedence, Operators_Pat.associativity);
-
-let mk_OpSeq = OpSeq.mk(~associate);
-
 let rec is_complete_skel = (sk: skel, sq: seq): bool => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))

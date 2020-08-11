@@ -57,6 +57,7 @@ let amp = no_ctrl_alt_meta(Key.the_key("&"));
 let alt_L = alt(Key.the_key("l"));
 let alt_R = alt(Key.the_key("r"));
 let alt_C = alt(Key.the_key("c"));
+let alt_Y = alt(Key.the_key("y"));
 let alt_PageUp = alt(Key.the_key("PageUp"));
 let alt_PageDown = alt(Key.the_key("PageDown"));
 let alt_T = alt(Key.the_key("T"));

@@ -61,6 +61,7 @@ let amp: t;
 let alt_L: t;
 let alt_R: t;
 let alt_C: t;
+let alt_Y: t;
 let alt_PageUp: t;
 let alt_PageDown: t;
 let alt_T: t;

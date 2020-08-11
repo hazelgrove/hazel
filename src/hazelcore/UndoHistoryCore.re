@@ -37,6 +37,7 @@ type action_group =
   /* SLine in Action_common.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
+  | SplitCasesEdit
   | SwapEdit(swap_group)
   | Init;
 
@@ -113,6 +114,7 @@ let group_action_group =
   | (DeleteEdit(Term(_, true)), VarGroup(Insert(_))) => true
   | (DeleteEdit(_), _)
   | (ConstructEdit(_), _)
+  | (SplitCasesEdit, _)
   | (SwapEdit(_), _)
   | (Init, _) => false
   };

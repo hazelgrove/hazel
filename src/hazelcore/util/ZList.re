@@ -25,6 +25,16 @@ let rec split_at = (n: int, xs: list('a)): option(t('a, 'a)) =>
 let join = ((prefix, z, suffix): t('a, 'a)): list('a) =>
   prefix @ [z, ...suffix];
 
+let surround =
+    (
+      (prefix_prefix: list('a), suffix_suffix: list('a)),
+      (prefix, z, suffix): t('z, 'a),
+    ) => (
+  prefix_prefix @ prefix,
+  z,
+  suffix @ suffix_suffix,
+);
+
 let replace_z = (z: 'z, (prefix, _, suffix): t('z, 'a)): t('z, 'a) => (
   prefix,
   z,

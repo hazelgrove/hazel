@@ -24,6 +24,11 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
+let is_EmptyHole =
+  fun
+  | Hole => true
+  | _ => false;
+
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole

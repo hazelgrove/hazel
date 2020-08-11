@@ -96,3 +96,5 @@ let map_with_accumulator:
 let map_with_accumulator_opt:
   (('acc, 'x) => option(('acc, 'y)), 'acc, list('x)) =>
   option(('acc, list('y)));
+
+let iterate: ('x => ('y, 'x), int, 'x) => (list('y), 'x);

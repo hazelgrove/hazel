@@ -644,6 +644,7 @@ let get_new_action_group =
     | SwapDown => Some(SwapEdit(Down))
     | SwapLeft => Some(SwapEdit(Left))
     | SwapRight => Some(SwapEdit(Right))
+    | SplitCases => Some(SplitCasesEdit)
     | MoveTo(_)
     | MoveLeft
     | MoveRight

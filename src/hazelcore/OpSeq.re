@@ -15,6 +15,47 @@ let mk =
 let wrap = (operand: 'operand): t('operand, _) =>
   OpSeq(Placeholder(0), S(operand, E));
 
+let wrap_operator =
+    (
+      ~err: ErrStatus.t=NotInHole,
+      left: 'operand,
+      op: 'operator,
+      right: 'operand,
+    )
+    : t('operand, 'operator) =>
+  OpSeq(
+    Skel.(BinOp(err, op, Placeholder(0), Placeholder(1))),
+    Seq.mk(left, [(op, right)]),
+  );
+
+let make_holy_tuple =
+    (
+      ~comma: 'operator,
+      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
+      ~mk_OpSeq: Seq.t('operand, 'operator) => t('operand, 'operator),
+      ~first_opt: option(t('operand, 'operator))=?,
+      tys: list(HTyp.t), // Assumed to have length > 1
+      u_gen: MetaVarGen.t,
+    )
+    : (t('operand, 'operator), MetaVarGen.t) => {
+  let (first, u_gen) =
+    switch (first_opt) {
+    | None =>
+      let (hole, u_gen) = u_gen |> new_EmptyHole;
+      (Seq.wrap(hole), u_gen);
+    | Some(OpSeq(_, seq)) => (seq, u_gen)
+    };
+  let (holes, u_gen) =
+    ListUtil.iterate(new_EmptyHole, List.length(tys) - 1, u_gen);
+  let hole_seq =
+    holes
+    |> List.tl
+    |> List.map(hole => (comma, hole))
+    |> Seq.mk(holes |> List.hd);
+  let opseq = hole_seq |> Seq.seq_op_seq(first, comma) |> mk_OpSeq;
+  (opseq, u_gen);
+};
+
 let get_err_status =
     (
       ~get_err_status_operand: 'operand => ErrStatus.t,

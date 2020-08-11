@@ -236,10 +236,8 @@ let construct_operator_after_zoperand =
 
 let complete_tuple =
   Action_common.complete_tuple_(
-    ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
-    ~comma=Operators_Pat.Comma,
-    ~zcomma=(OnOp(After), Operators_Pat.Comma),
-    ~new_EmptyHole=UHPat.new_EmptyHole,
+    ~make_holy_tuple=UHPat.make_holy_tuple,
+    ~place_before_opseq=ZPat.place_before,
   );
 
 let resurround_z =
@@ -305,6 +303,7 @@ let rec syn_move =
   | SwapDown
   | SwapLeft
   | SwapRight
+  | SplitCases
   | Init =>
     failwith(
       __LOC__
@@ -369,6 +368,7 @@ let rec ana_move =
   | SwapDown
   | SwapLeft
   | SwapRight
+  | SplitCases
   | Init =>
     failwith(
       __LOC__
@@ -394,7 +394,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, _) => Failed
@@ -576,7 +576,8 @@ and syn_perform_operand =
       ) |
       UpdateApPalette(_) |
       SwapUp |
-      SwapDown,
+      SwapDown |
+      SplitCases,
       _,
     ) =>
     Failed
@@ -805,7 +806,7 @@ and ana_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
+  | (UpdateApPalette(_) | SplitCases, ZOperator(_)) => Failed
   | (SwapUp | SwapDown, _) => Failed
 
   /* Movement handled at top level */
@@ -881,16 +882,10 @@ and ana_perform_opseq =
         ZPat.is_after_zopseq(zopseq)
         && !(zopseq |> has_Comma)
         && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (opseq, ctx, u_gen) =
-      Statics_Pat.ana_fix_holes_opseq(
-        ctx,
-        u_gen,
-        zopseq |> ZPat.erase_zopseq,
-        // safe because pattern guard
-        ty |> HTyp.get_prod_elements |> List.hd,
-      );
-    let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
-    Succeeded((new_zopseq, ctx, u_gen));
+    let (ZOpSeq.ZOpSeq(_, zseq), u_gen) =
+      complete_tuple(u_gen, ZPat.erase_zopseq(zopseq), ty);
+    let (new_zpat, ctx, u_gen) = mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty);
+    ana_perform(ctx, u_gen, MoveToNextHole, new_zpat, ty);
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
@@ -1001,7 +996,8 @@ and ana_perform_operand =
       ) |
       UpdateApPalette(_) |
       SwapUp |
-      SwapDown,
+      SwapDown |
+      SplitCases,
       _,
     ) =>
     Failed
