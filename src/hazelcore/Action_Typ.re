@@ -227,7 +227,8 @@ and perform_operand =
   | (
       UpdateApPalette(_) |
       Construct(
-        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
+        SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
+        SCommentLine,
       ) |
       SwapUp |
       SwapDown,

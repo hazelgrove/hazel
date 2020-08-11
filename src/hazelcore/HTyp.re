@@ -22,10 +22,10 @@ let is_Prod =
   | Prod(_) => true
   | _ => false;
 
-let precedence_Prod = 1;
-let precedence_Arrow = 2;
-let precedence_Sum = 3;
-let precedence_const = 4;
+let precedence_Prod = Operators_Typ.precedence(Prod);
+let precedence_Arrow = Operators_Typ.precedence(Arrow);
+let precedence_Sum = Operators_Typ.precedence(Sum);
+let precedence_const = Operators_Typ.precedence_const;
 let precedence = (ty: t): int =>
   switch (ty) {
   | Int

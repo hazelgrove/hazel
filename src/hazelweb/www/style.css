@@ -1378,6 +1378,11 @@ h1 {
   color: #BBB;
 }
 
+.CommentLine {
+  color: #777;
+  font-style: italic;
+}
+
 .UserNewline {
   vertical-align: middle;
   font-size: 60%;

@@ -30,15 +30,4 @@ let contract: HTyp.t => t;
 
 let expand: t => HTyp.t;
 
-let expand_opseq: t => HTyp.t;
-
-let expand_skel:
-  (OpSeq.skel(operator), OpSeq.seq(operand, operator)) => HTyp.t;
-
-let expand_operand: operand => HTyp.t;
-
-let is_complete_operand: operand => bool;
-
-let is_complete_skel: (skel, seq) => bool;
-
 let is_complete: t => bool;
