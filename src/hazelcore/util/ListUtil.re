@@ -130,7 +130,7 @@ let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
 
 let last = (xs: list('a)): option('a) => first(List.rev(xs));
 
-let split_last = (xs: list('a)): option((list('a), 'a)) =>
+let split_last_opt = (xs: list('a)): option((list('a), 'a)) =>
   switch (List.rev(xs)) {
   | [] => None
   | [y, ...ys] => Some((List.rev(ys), y))

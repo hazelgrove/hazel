@@ -213,7 +213,7 @@ let caret_is_before_zoperand = (zexp: ZExp.t): bool => {
 let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
   let prev_is_empty_line = {
     let prefix = ZList.prj_prefix(exp);
-    switch (ListUtil.split_last(prefix)) {
+    switch (ListUtil.split_last_opt(prefix)) {
     | None => false
     | Some((_, EmptyLine)) =>
       switch (ZList.prj_z(exp)) {
