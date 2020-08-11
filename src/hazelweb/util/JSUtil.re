@@ -12,7 +12,7 @@ let get_child_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) =>
 
 let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
-  |> OptUtil.map(s => Js.to_string(s));
+  |> Option.map(s => Js.to_string(s));
 
 let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
   switch (elem |> get_attr(attr)) {
