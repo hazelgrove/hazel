@@ -75,17 +75,15 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
       }
     }
   | MoveLeft =>
-    zty
-    |> ZTyp.move_cursor_left
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), z =>
-         Succeeded(z)
-       )
+    switch (ZTyp.move_cursor_left(zty)) {
+    | None => ActionOutcome.CursorEscaped(Before)
+    | Some(z) => Succeeded(z)
+    }
   | MoveRight =>
-    zty
-    |> ZTyp.move_cursor_right
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), z =>
-         Succeeded(z)
-       )
+    switch (ZTyp.move_cursor_right(zty)) {
+    | None => ActionOutcome.CursorEscaped(After)
+    | Some(z) => Succeeded(z)
+    }
   | Construct(_)
   | Delete
   | Backspace
