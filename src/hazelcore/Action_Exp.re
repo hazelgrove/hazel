@@ -784,23 +784,7 @@ and syn_perform_block =
       );
     }
 
-  | AddCell when suffix != [] =>
-    let new_zblock = (prefix, zline, [UHExp.CellBoundary] @ suffix);
-    Succeeded(SynDone((new_zblock, ty, u_gen)));
-  | AddCell =>
-    switch (syn_perform_line(ctx, a, (zline, u_gen))) {
-    | Succeeded(
-        LineDone(((inner_prefix, new_zline, inner_suffix), _, u_gen)),
-      ) =>
-      let new_zblock = (
-        prefix @ inner_prefix,
-        new_zline,
-        inner_suffix @ suffix,
-      );
-      Succeeded(SynDone((new_zblock, Hole, u_gen)));
-    | _ => Failed
-    }
-  | RemoveCell =>
+  | RemoveCell when zline |> ZExp.is_ExpLineZ =>
     let new_zblock = ZExp.remove_last_occurred(zblock, UHExp.CellBoundary);
     Succeeded(SynDone((new_zblock, ty, u_gen)));
 
@@ -834,7 +818,25 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => Failed
+          | None =>
+            switch (a) {
+            | AddCell =>
+              let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+              let (_, zexp, _) =
+                ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
+              let new_ze =
+                (
+                  prefix
+                  @ inner_prefix
+                  @ [new_zline |> ZExp.erase_zline]
+                  @ inner_suffix,
+                  zexp,
+                  [],
+                )
+                |> ZExp.prune_empty_hole_lines;
+              Succeeded(SynDone((new_ze, Hole, u_gen)));
+            | _ => Failed
+            }
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
@@ -1056,7 +1058,10 @@ and syn_perform_line =
     let new_zline = ZExp.LetLineZA(zp |> ZPat.erase, zty, def);
     fix_and_mk_result(u_gen, ([], new_zline, []));
 
-  | (Construct(_) | UpdateApPalette(_), CursorL(OnDelim(_, side), _))
+  | (
+      Construct(_) | UpdateApPalette(_) | AddCell | RemoveCell,
+      CursorL(OnDelim(_, side), _),
+    )
       when !ZExp.is_before_zline(zline) && !ZExp.is_after_zline(zline) =>
     let move_cursor =
       switch (side) {
@@ -1067,36 +1072,20 @@ and syn_perform_line =
     | None => Failed
     | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
     };
-  | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
+  | (Construct(_) | UpdateApPalette(_) | AddCell | RemoveCell, CursorL(_)) =>
+    Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
-  | (
-      AddCell,
-      ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E)))),
-    ) =>
-    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let (_, zexp, _) = ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
-    let ze = ([UHExp.EmptyLine, UHExp.CellBoundary], zexp, []);
-    Succeeded(LineDone((ze, ctx, u_gen)));
-
   | (AddCell, ExpLineZ(_)) =>
-    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let (_, zexp, _) = ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
-    let ze = ([zline |> ZExp.erase_zline, UHExp.CellBoundary], zexp, []);
+    let ze = ([], zline, [UHExp.CellBoundary]);
     Succeeded(LineDone((ze, ctx, u_gen)));
 
   /* Invalid cell actions */
-  | (
-      AddCell | RemoveCell,
-      LetLineZP(_) | LetLineZA(_) | CursorL(OnDelim(0, _), LetLine(_)) |
-      CursorL(OnDelim(1, Before), LetLine(_)) |
-      CursorL(OnDelim(2, After), LetLine(_)),
-    ) =>
-    Failed
+  | (AddCell | RemoveCell, LetLineZP(_) | LetLineZA(_)) => Failed
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
@@ -1112,6 +1101,7 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, None, def)) =>
+    print_endline("Action1115");
     switch (Statics_Exp.syn(ctx, def)) {
     | None => Failed
     | Some(ty_def) =>
@@ -1123,7 +1113,7 @@ and syn_perform_line =
         let new_zline = ZExp.LetLineZP(new_zp, None, new_def);
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       }
-    }
+    };
   | (_, LetLineZP(zp, Some(ann), def)) =>
     let ty = ann |> UHTyp.expand;
     switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty)) {
@@ -1180,8 +1170,6 @@ and syn_perform_line =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  | (AddCell, _) => Failed
-  | (RemoveCell, _) => Failed
   };
 }
 and syn_perform_opseq =
