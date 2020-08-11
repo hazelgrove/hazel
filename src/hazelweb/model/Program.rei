@@ -20,9 +20,6 @@ let blur: t => t;
 
 let put_edit_state: (Statics_common.edit_state, t) => t;
 
-let add_cell_boundary: t => t;
-let remove_cell_boundary: t => t;
-
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 

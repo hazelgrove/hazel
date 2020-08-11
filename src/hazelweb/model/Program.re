@@ -54,116 +54,116 @@ let put_edit_state = (edit_state, program) => {...program, edit_state};
 //   List.hd(List.rev(prefix_list)) @ [zline] @ List.hd(suffix_list);
 // }
 
-let rec prune_holes_rec = (acc: list(UHExp.line), l: list(UHExp.line)) => {
-  switch (l) {
-  | [] => []
-  | [x, ...xs] =>
-    if (x == UHExp.CellBoundary) {
-      acc @ l |> List.rev;
-    } else {
-      prune_holes_rec(acc @ [UHExp.Line.prune_empty_hole(x)], xs);
-    }
-  };
-};
+/* let rec prune_holes_rec = (acc: list(UHExp.line), l: list(UHExp.line)) => {
+     switch (l) {
+     | [] => []
+     | [x, ...xs] =>
+       if (x == UHExp.CellBoundary) {
+         acc @ l |> List.rev;
+       } else {
+         prune_holes_rec(acc @ [UHExp.Line.prune_empty_hole(x)], xs);
+       }
+     };
+   };
 
-let prune_hole = (zexp: ZExp.t) => {
-  let (prefix, zline, suffix) = zexp;
-  let line = zline |> ZExp.erase_zline |> UHExp.Line.prune_empty_hole;
-  let prefix = prefix |> List.rev |> prune_holes_rec([]);
-  (prefix @ [line, UHExp.CellBoundary], suffix);
-};
+   let prune_hole = (zexp: ZExp.t) => {
+     let (prefix, zline, suffix) = zexp;
+     let line = zline |> ZExp.erase_zline |> UHExp.Line.prune_empty_hole;
+     let prefix = prefix |> List.rev |> prune_holes_rec([]);
+     (prefix @ [line, UHExp.CellBoundary], suffix);
+   }; */
 
-let rec add_cell_boundary = program => {
-  print_endline("add77");
-  let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
-  let (EmptyHole(u) as hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-  let (_, zexp, _) = ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
-  if (suffix == []) {
-    switch (zline) {
-    /* does not support embedded Letline */
-    | LetLineZP(_)
-    | LetLineZA(_)
-    | CursorL(OnDelim(0, _), LetLine(_))
-    | CursorL(OnDelim(1, Before), LetLine(_))
-    | CursorL(OnDelim(2, After), LetLine(_)) => failwith("invalid action")
-    | LetLineZE(p, ann, zbody) =>
-      let (pre, suf) = prune_hole(zbody);
-      let edit_state = (
-        (prefix, ZExp.LetLineZE(p, ann, (pre, zexp, suf)), suffix),
-        ty,
-        u_gen,
-      );
-      program |> put_edit_state(edit_state);
-    | ExpLineZ(zopseq) =>
-      print_endline("add98");
-      switch (zopseq) {
-      | ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E))) =>
-        print_endline("add101");
-        let edit_state = (
-          (prefix @ [UHExp.EmptyLine, UHExp.CellBoundary], zexp, suffix),
-          ty,
-          u_gen,
-        );
-        print_endline("add107");
-        let si = UserSelectedInstances.init;
-        UserSelectedInstances.add(u, 0, si);
-        program |> put_edit_state(edit_state);
-      | _ =>
-        let edit_state = (
-          (
-            prefix @ [zline |> ZExp.erase_zline, UHExp.CellBoundary],
-            zexp,
-            suffix,
-          ),
-          ty,
-          u_gen,
-        );
-        program |> put_edit_state(edit_state);
-      };
-    | CursorL(OnDelim(1, After), LetLine(_)) =>
-      switch (zline |> ZExp.move_cursor_right_zline) {
-      | None => failwith("impossible")
-      | Some(_) => add_cell_boundary(program)
-      }
-    | CursorL(OnDelim(2, Before), LetLine(_)) =>
-      switch (zline |> ZExp.move_cursor_left_zline) {
-      | None => failwith("impossible")
-      | Some(_) => add_cell_boundary(program)
-      }
-    | _ =>
-      let edit_state = (
-        (
-          prefix @ [zline |> ZExp.erase_zline, UHExp.CellBoundary],
-          zexp,
-          suffix,
-        ),
-        ty,
-        u_gen,
-      );
-      program |> put_edit_state(edit_state);
-    };
-  } else {
-    let edit_state = (
-      (prefix, zline, [UHExp.CellBoundary] @ suffix),
-      ty,
-      u_gen,
-    );
-    program |> put_edit_state(edit_state);
-  };
-};
+// let rec add_cell_boundary = program => {
+//   print_endline("add77");
+//   let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
+//   let (EmptyHole(u) as hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+//   let (_, zexp, _) = ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
+//   if (suffix == []) {
+//     switch (zline) {
+//     /* does not support embedded Letline */
+//     | LetLineZP(_)
+//     | LetLineZA(_)
+//     | CursorL(OnDelim(0, _), LetLine(_))
+//     | CursorL(OnDelim(1, Before), LetLine(_))
+//     | CursorL(OnDelim(2, After), LetLine(_)) => failwith("invalid action")
+//     | LetLineZE(p, ann, zbody) =>
+//       let (pre, suf) = prune_hole(zbody);
+//       let edit_state = (
+//         (prefix, ZExp.LetLineZE(p, ann, (pre, zexp, suf)), suffix),
+//         ty,
+//         u_gen,
+//       );
+//       program |> put_edit_state(edit_state);
+//     | ExpLineZ(zopseq) =>
+//       print_endline("add98");
+//       switch (zopseq) {
+//       | ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E))) =>
+//         print_endline("add101");
+//         let edit_state = (
+//           (prefix @ [UHExp.EmptyLine, UHExp.CellBoundary], zexp, suffix),
+//           ty,
+//           u_gen,
+//         );
+//         print_endline("add107");
+//         let si = UserSelectedInstances.init;
+//         UserSelectedInstances.add(u, 0, si);
+//         program |> put_edit_state(edit_state);
+//       | _ =>
+//         let edit_state = (
+//           (
+//             prefix @ [zline |> ZExp.erase_zline, UHExp.CellBoundary],
+//             zexp,
+//             suffix,
+//           ),
+//           ty,
+//           u_gen,
+//         );
+//         program |> put_edit_state(edit_state);
+//       };
+//     | CursorL(OnDelim(1, After), LetLine(_)) =>
+//       switch (zline |> ZExp.move_cursor_right_zline) {
+//       | None => failwith("impossible")
+//       | Some(_) => add_cell_boundary(program)
+//       }
+//     | CursorL(OnDelim(2, Before), LetLine(_)) =>
+//       switch (zline |> ZExp.move_cursor_left_zline) {
+//       | None => failwith("impossible")
+//       | Some(_) => add_cell_boundary(program)
+//       }
+//     | _ =>
+//       let edit_state = (
+//         (
+//           prefix @ [zline |> ZExp.erase_zline, UHExp.CellBoundary],
+//           zexp,
+//           suffix,
+//         ),
+//         ty,
+//         u_gen,
+//       );
+//       program |> put_edit_state(edit_state);
+//     };
+//   } else {
+//     let edit_state = (
+//       (prefix, zline, [UHExp.CellBoundary] @ suffix),
+//       ty,
+//       u_gen,
+//     );
+//     program |> put_edit_state(edit_state);
+//   };
+// };
 
-let remove_cell_boundary = program => {
-  /**
-   * remove cell boundary previous and closest to zline
-   */
-  let (zexp, ty, u_gen) = program.edit_state;
-  let edit_state = (
-    ZExp.remove_last_occurred(zexp, UHExp.CellBoundary),
-    ty,
-    u_gen,
-  );
-  program |> put_edit_state(edit_state);
-};
+// let remove_cell_boundary = program => {
+//   /**
+//    * remove cell boundary previous and closest to zline
+//    */
+//   let (zexp, ty, u_gen) = program.edit_state;
+//   let edit_state = (
+//     ZExp.remove_last_occurred(zexp, UHExp.CellBoundary),
+//     ty,
+//     u_gen,
+//   );
+//   program |> put_edit_state(edit_state);
+// };
 
 let get_zexp = program => {
   let (ze, _, _) = program.edit_state;

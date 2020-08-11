@@ -20,7 +20,6 @@ type measurements = {
 
 type t = {
   cardstacks: ZCardstacks.t,
-  cell_num: int,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
@@ -42,7 +41,6 @@ let cardstack_info = [
 ];
 
 let init = (): t => {
-  let cell_num = 1;
   let cell_width = 80;
   let cardstacks = ZCardstacks.mk(~width=cell_width, cardstack_info);
   let undo_history: UndoHistory.t = {
@@ -89,7 +87,6 @@ let init = (): t => {
   };
   {
     cardstacks,
-    cell_num,
     cell_width,
     selected_instances,
     undo_history,
@@ -244,17 +241,17 @@ let next_card = model => {
   |> focus_cell;
 };
 
-let add_cell = model => {
-  let cell_num = model.cell_num + 1;
-  let model = {...model, cell_num};
-  print_endline("model247");
-  model |> map_program(Program.add_cell_boundary) |> focus_cell;
-};
-let remove_cell = model => {
-  let cell_num = model.cell_num - 1;
-  let model = {...model, cell_num};
-  model |> map_program(Program.remove_cell_boundary) |> focus_cell;
-};
+/* let add_cell = model => {
+     let cell_num = model.cell_num + 1;
+     let model = {...model, cell_num};
+     print_endline("model247");
+     model |> map_program(Program.add_cell_boundary) |> focus_cell;
+   };
+   let remove_cell = model => {
+     let cell_num = model.cell_num - 1;
+     let model = {...model, cell_num};
+     model |> map_program(Program.remove_cell_boundary) |> focus_cell;
+   }; */
 // let extract_zcells = model => {
 //   model |> map_program(Program.extract_zcells) |> focus_cell;
 // };

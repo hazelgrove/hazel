@@ -649,10 +649,11 @@ let get_new_action_group =
     | MoveRight
     | MoveToNextHole
     | MoveToPrevHole
-    | Init => None
-    | UpdateApPalette(_)
+    | Init
     | AddCell
-    | RemoveCell => failwith("ApPalette is not implemented in undo_history")
+    | RemoveCell => None
+    | UpdateApPalette(_) =>
+      failwith("ApPalette is not implemented in undo_history")
     };
   };
 let get_cursor_term_info =

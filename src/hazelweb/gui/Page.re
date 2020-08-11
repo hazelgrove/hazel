@@ -128,14 +128,16 @@ let cell_controls = (~inject) =>
             Node.button(
               [
                 Attr.id("add-button"),
-                Attr.on_click(_ => inject(ModelAction.AddCell)),
+                Attr.on_click(_ => inject(ModelAction.EditAction(AddCell))),
               ],
               [Node.text("Add")],
             ),
             Node.button(
               [
                 Attr.id("remove-button"),
-                Attr.on_click(_ => inject(ModelAction.RemoveCell)),
+                Attr.on_click(_ =>
+                  inject(ModelAction.EditAction(RemoveCell))
+                ),
               ],
               [Node.text("Remove")],
             ),
@@ -203,16 +205,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ],
           );
         };
-      // let rec generate_cell = (~inject, model, cell_num) =>
-      //   if (cell_num == 1) {
-      //     [Cell.view(~inject, model), cell_status];
-      //   } else {
-      //     [Cell.view(~inject, model), cell_status]
-      //     @ generate_cell(~inject, model, cell_num - 1);
-      //   };
-
-      // let cell = (~inject, model) =>
-      //   Node.div([], generate_cell(~inject, model, model.cell_num));
       Node.div(
         [Attr.id("root")],
         [
