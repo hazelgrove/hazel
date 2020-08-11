@@ -51,7 +51,7 @@ and syn_lines =
 }
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
-  | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
+  | ExpLine(opseq) => syn_opseq(ctx, opseq) |> Option.map(_ => ctx)
   | EmptyLine
   | CellBoundary
   | CommentLine(_) => Some(ctx)
@@ -82,34 +82,34 @@ and syn_skel =
     syn_operand(ctx, en);
   | BinOp(InHole(_), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-    syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
+    syn_skel(ctx, skel_not_in_hole, seq) |> Option.map(_ => HTyp.Hole);
   | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
     | None => None
-    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
+    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Int)
     }
   | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Float)
+      ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Float)
     }
   | BinOp(NotInHole, And | Or, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, HTyp.Bool) |> OptUtil.map(_ => HTyp.Bool)
+      ana_skel(ctx, skel2, seq, HTyp.Bool) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Int)) {
     | None => None
-    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Bool)
+    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Float)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Bool)
+      ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
@@ -118,7 +118,7 @@ and syn_skel =
       switch (HTyp.matched_arrow(ty1)) {
       | None => None
       | Some((ty2, ty)) =>
-        ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
+        ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
       }
     }
   | BinOp(NotInHole, Comma, _, _) =>
@@ -132,7 +132,7 @@ and syn_skel =
     | None => None
     | Some(ty1) =>
       let ty = HTyp.List(ty1);
-      ana_skel(ctx, skel2, seq, ty) |> OptUtil.map(_ => ty);
+      ana_skel(ctx, skel2, seq, ty) |> Option.map(_ => ty);
     }
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
@@ -150,7 +150,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
+    syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -306,7 +306,7 @@ and ana_opseq =
     | (InHole(TypeInconsistent, _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
-      syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
+      syn_opseq(ctx, opseq') |> Option.map(_ => ());
     | _ => None
     }
   | Some(skel_tys) =>

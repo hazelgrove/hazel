@@ -81,16 +81,16 @@ let string_of_layout: 'annot. t('annot) => string =
      switch (l) {
      | Linebreak
      | Text(_) => None
-     | Align(l) => l |> go |> OptUtil.map(align)
+     | Align(l) => l |> go |> Option.map(align)
      | Cat(l1, l2) =>
        switch (l1 |> go) {
        | Some(l1) => Some(Cat(l1, l2))
-       | None => l2 |> go |> OptUtil.map(l2 => Cat(l1, l2))
+       | None => l2 |> go |> Option.map(l2 => Cat(l1, l2))
        }
      | Annot(tg, l) =>
        switch (decorate(annot, l)) {
        | Failed => None
-       | Skipped => l |> go |> OptUtil.map(annot(tg))
+       | Skipped => l |> go |> Option.map(annot(tg))
        | Decorated(l) => Some(l)
        }
      };
