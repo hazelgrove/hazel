@@ -320,7 +320,7 @@ let place_before_operator = (op: UHExp.operator): option(zoperator) =>
 
 let rec place_after = (e: UHExp.t): t => e |> place_after_block
 and place_after_block = (block: UHExp.block): zblock =>
-  switch (block |> ListUtil.split_last) {
+  switch (block |> ListUtil.split_last_opt) {
   | None => failwith("place_after_block: empty block")
   | Some((leading, last)) => (leading, last |> place_after_line, [])
   }
@@ -454,7 +454,7 @@ let rec set_err_status = (err: ErrStatus.t, ze: t): t =>
   ze |> set_err_status_zblock(err)
 and set_err_status_zblock =
     (err: ErrStatus.t, (prefix, zline, suffix): zblock): zblock =>
-  switch (suffix |> ListUtil.split_last) {
+  switch (suffix |> ListUtil.split_last_opt) {
   | None =>
     let zopseq = zline |> ZLine.force_get_zopseq;
     (prefix, ExpLineZ(zopseq |> set_err_status_zopseq(err)), []);
@@ -488,7 +488,7 @@ let rec mk_inconsistent = (id_gen: IDGen.t, ze: t): (t, IDGen.t) =>
   ze |> mk_inconsistent_zblock(id_gen)
 and mk_inconsistent_zblock =
     (id_gen: IDGen.t, (prefix, zline, suffix): zblock): (zblock, IDGen.t) =>
-  switch (suffix |> ListUtil.split_last) {
+  switch (suffix |> ListUtil.split_last_opt) {
   | None =>
     let (zconclusion, id_gen) =
       zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(id_gen);
@@ -585,7 +585,7 @@ and move_cursor_left_zblock =
     switch (move_cursor_left_zline(zline)) {
     | Some(zline) => Some((prefix, zline, suffix))
     | None =>
-      switch (prefix |> ListUtil.split_last) {
+      switch (prefix |> ListUtil.split_last_opt) {
       | None
       | Some(([], EmptyLine)) => None
       | Some((prefix_leading, prefix_last)) =>

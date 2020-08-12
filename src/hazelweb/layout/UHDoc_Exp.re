@@ -32,8 +32,7 @@ let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc_common.t =
   UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc_common.t =
   UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_AssertLit:
-  (~err: ErrStatus.t, AssertNumber.t, AssertMap.t) => UHDoc_common.t =
+let mk_AssertLit: (~err: ErrStatus.t, AssertNumber.t) => UHDoc_common.t =
   UHDoc_common.mk_AssertLit(~sort=Exp);
 let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc_common.t =
   UHDoc_common.mk_ListNil(~sort=Exp);
@@ -48,11 +47,9 @@ let mk_Inj:
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple:
   (
-    ~mk_operand: (~enforce_inline: bool, ~map: AssertMap.t, 'a) =>
-                 UHDoc_common.t,
+    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc_common.t,
     ~mk_operator: UHExp.operator => UHDoc_common.t,
     ~enforce_inline: bool,
-    ~map: AssertMap.t,
     OpSeq.t('a, UHExp.operator)
   ) =>
   UHDoc_common.t =
@@ -69,92 +66,71 @@ let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
 
 let rec mk =
   lazy(
-    UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, ~map: AssertMap.t, e: UHExp.t) =>
-      (
-        Lazy.force(mk_block_0, ~memoize, ~enforce_inline, ~map, e): UHDoc_common.t
-      )
+    UHDoc_common.memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
+      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc_common.t)
     )
   )
 // Two versions of `mk_block` so we can memoize them
 and mk_block_0 =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        block: UHExp.block,
-      ) =>
-      (
-        mk_block(~offset=0, ~memoize, ~enforce_inline, ~map, block): UHDoc_common.t
-      )
+      (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
+      (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc_common.t)
     )
   )
 and mk_block_1 =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        block: UHExp.block,
-      ) =>
-      (
-        mk_block(~offset=1, ~memoize, ~enforce_inline, ~map, block): UHDoc_common.t
-      )
+      (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
+      (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc_common.t)
     )
   )
 and mk_block =
-    (
-      ~offset: int,
-      ~memoize,
-      ~enforce_inline: bool,
-      ~map: AssertMap.t,
-      block: UHExp.block,
-    )
+    (~offset: int, ~memoize, ~enforce_inline: bool, block: UHExp.block)
     : UHDoc_common.t =>
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
-    block
-    |> List.mapi((i, line) =>
-         Lazy.force(mk_line, ~memoize, ~enforce_inline, ~map, line)
-         |> UHDoc_common.annot_Step(offset + i)
-       )
-    |> ListUtil.split_last
-    |> (
-      fun
-      | None => failwith(__LOC__ ++ ": empty block")
-      | Some((leading, concluding)) =>
-        ListUtil.fold_right_i(
-          ((i, hd_doc), tl_doc) =>
-            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
-          leading,
-          concluding
-          |> annot_SubBlock(
-               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
-             ),
-        )
+    let (leading, (_, last_doc)) =
+      block
+      |> List.mapi((i, line) =>
+           (
+             line,
+             Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+             |> UHDoc_common.annot_Step(offset + i),
+           )
+         )
+      |> ListUtil.split_last;
+
+    ListUtil.fold_right_i(
+      ((i, (hd, hd_doc)), tl_doc) =>
+        switch ((hd: UHExp.line)) {
+        | EmptyLine
+        | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
+        | LetLine(_) =>
+          annot_SubBlock(
+            ~hd_index=offset + i,
+            Doc.vsep(
+              hd_doc,
+              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
+            ),
+          )
+        },
+      leading,
+      last_doc,
     );
   }
 and mk_line =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        line: UHExp.line,
-      ) =>
+      (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
       (
         switch (line) {
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-          |> Doc.annot(UHAnnot.EmptyLine)
         | ExpLine(opseq) =>
-          Lazy.force(mk_opseq, ~memoize, ~enforce_inline, ~map, opseq)
+          Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, ann, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
@@ -169,7 +145,7 @@ and mk_line =
                  )
                );
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
-          UHDoc_common.mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
+          UHDoc_common.mk_LetLine(p, ann, def);
         }: UHDoc_common.t
       )
     )
@@ -177,18 +153,12 @@ and mk_line =
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        opseq: UHExp.opseq,
-      ) =>
+      (~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
       (
         mk_NTuple(
           ~mk_operand=Lazy.force(mk_operand, ~memoize),
           ~mk_operator,
           ~enforce_inline,
-          ~map,
           opseq,
         ): UHDoc_common.t
       )
@@ -201,12 +171,7 @@ and mk_operator = (op: UHExp.operator): UHDoc_common.t =>
 and mk_operand =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        operand: UHExp.operand,
-      ) =>
+      (~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
       (
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
@@ -215,8 +180,7 @@ and mk_operand =
         | IntLit(err, n) => mk_IntLit(~err, n)
         | FloatLit(err, f) => mk_FloatLit(~err, f)
         | BoolLit(err, b) => mk_BoolLit(~err, b)
-        | AssertLit(err, n) =>
-          mk_AssertLit(~err, n, map /*string_of_int(n)*/)
+        | AssertLit(err, n) => mk_AssertLit(~err, n /*string_of_int(n)*/)
         | ListNil(err) => mk_ListNil(~err, ())
         | Lam(err, p, ann, body) =>
           let p =
@@ -248,7 +212,7 @@ and mk_operand =
             let rules =
               rules
               |> List.mapi((i, rule) =>
-                   Lazy.force(mk_rule, ~memoize, ~enforce_inline, ~map, rule)
+                   Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
                    |> UHDoc_common.annot_Step(1 + i)
                  );
             UHDoc_common.mk_Case(~err, scrut, rules);
@@ -264,7 +228,6 @@ and mk_rule =
       (
         ~memoize: bool,
         ~enforce_inline as _: bool,
-        ~map: AssertMap.t,
         Rule(p, clause): UHExp.rule,
       ) =>
       (
@@ -276,7 +239,7 @@ and mk_rule =
               ~child_step=0,
               p,
             );
-          print_endline(string_of_bool(map == map));
+
           let clause =
             mk_child(~memoize, ~enforce_inline=false, ~child_step=1, clause);
           UHDoc_common.mk_Rule(p, clause);
@@ -293,19 +256,13 @@ and mk_child =
       EnforcedInline(Doc.fail());
     } else {
       let formatted =
-        Lazy.force(
-          mk_block_1,
-          ~memoize,
-          ~enforce_inline=false,
-          ~map=AssertMap.empty,
-          subblock,
-        )
+        Lazy.force(mk_block_1, ~memoize, ~enforce_inline=false, subblock)
         |> UHDoc_common.annot_Step(child_step);
       UserNewline(formatted);
     }
   | _ =>
     let formattable = (~enforce_inline) =>
-      Lazy.force(mk, ~memoize, ~enforce_inline, ~map=AssertMap.empty, e)
+      Lazy.force(mk, ~memoize, ~enforce_inline, e)
       |> UHDoc_common.annot_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
