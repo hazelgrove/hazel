@@ -4,6 +4,10 @@ module ElaborationResult: {
     | DoesNotElaborate;
 };
 
+module Let_syntax = ElaborationResult;
+
+let syn_elab: (Contexts.t, Delta.t, UHPat.t) => ElaborationResult.t;
+
 let ana_elab: (Contexts.t, Delta.t, UHPat.t, HTyp.t) => ElaborationResult.t;
 
 let renumber_result_only:

@@ -7,7 +7,7 @@ let log = x => Js_of_ocaml.Firebug.console##log(x);
 
 let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
-  |> OptUtil.map(s => Js.to_string(s));
+  |> Option.map(s => Js.to_string(s));
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;

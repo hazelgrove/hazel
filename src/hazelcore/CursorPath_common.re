@@ -103,13 +103,13 @@ let follow_opseq_ =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_operand((xs, cursor))
-      |> OptUtil.map(zoperand =>
+      |> Option.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
          )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_operator((xs, cursor))
-      |> OptUtil.map(zoperator =>
+      |> Option.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
     }
@@ -134,11 +134,11 @@ let of_steps_opseq_ =
     | (None, None) => None
     | (Some((operand, _)), _) =>
       let path = operand |> of_steps_operand(xs, ~side);
-      path |> OptUtil.map(path => cons'(x, path));
+      path |> Option.map(path => cons'(x, path));
     | (_, Some((operator, _))) =>
       operator
       |> of_steps_operator(xs, ~side)
-      |> OptUtil.map(path => cons'(x, path))
+      |> Option.map(path => cons'(x, path))
     }
   };
 
@@ -326,9 +326,7 @@ let holes_zopseq_ =
               (),
             );
           } else {
-            // convert option to list
-            let binop_holes =
-              binop_hole |> OptUtil.map_default(~default=[], hole => [hole]);
+            let binop_holes = Option.to_list(binop_hole);
             if (n < preceding_operand_index) {
               let holes1 = holes_skel(skel1);
               let zholes2 = go(skel2);

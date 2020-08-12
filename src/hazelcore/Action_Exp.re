@@ -481,17 +481,15 @@ let rec syn_move =
       }
     }
   | MoveLeft =>
-    ze
-    |> ZExp.move_cursor_left
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), ze =>
-         Succeeded(SynDone((ze, ty, u_gen)))
-       )
+    switch (ZExp.move_cursor_left(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
+    }
   | MoveRight =>
-    ze
-    |> ZExp.move_cursor_right
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
-         Succeeded(SynDone((ze, ty, u_gen)))
-       )
+    switch (ZExp.move_cursor_right(ze)) {
+    | None => CursorEscaped(After)
+    | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -542,17 +540,15 @@ let rec ana_move =
       }
     }
   | MoveLeft =>
-    ze
-    |> ZExp.move_cursor_left
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), ze =>
-         Succeeded(AnaDone((ze, u_gen)))
-       )
+    switch (ZExp.move_cursor_left(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
+    }
   | MoveRight =>
-    ze
-    |> ZExp.move_cursor_right
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
-         Succeeded(AnaDone((ze, u_gen)))
-       )
+    switch (ZExp.move_cursor_right(ze)) {
+    | None => CursorEscaped(After)
+    | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -807,12 +803,10 @@ and syn_perform_line =
       | Before => ZExp.move_cursor_left_zline
       | After => ZExp.move_cursor_right_zline
       };
-    zline
-    |> move_cursor
-    |> OptUtil.map_default(
-         ~default=ActionOutcome.CursorEscaped(side), new_zline =>
-         fix_and_mk_result(u_gen, ([], new_zline, []))
-       );
+    switch (move_cursor(zline)) {
+    | None => ActionOutcome.CursorEscaped(side)
+    | Some(new_zline) => fix_and_mk_result(u_gen, ([], new_zline, []))
+    };
   };
 
   switch (a, zline) {
@@ -1987,12 +1981,10 @@ and syn_perform_rules =
       | Before => ZExp.move_cursor_left_zrules
       | After => ZExp.move_cursor_right_zrules
       };
-    zrules
-    |> move_cursor
-    |> OptUtil.map_default(
-         ~default=ActionOutcome.CursorEscaped(side), new_zrules =>
-         Succeeded((new_zrules, u_gen))
-       );
+    switch (move_cursor(zrules)) {
+    | None => ActionOutcome.CursorEscaped(side)
+    | Some(new_zrules) => Succeeded((new_zrules, u_gen))
+    };
   };
 
   switch (a, zrule) {
@@ -2132,12 +2124,10 @@ and ana_perform_rules =
       | Before => ZExp.move_cursor_left_zrules
       | After => ZExp.move_cursor_right_zrules
       };
-    zrules
-    |> move_cursor
-    |> OptUtil.map_default(
-         ~default=ActionOutcome.CursorEscaped(side), new_zrules =>
-         Succeeded((new_zrules, u_gen))
-       );
+    switch (move_cursor(zrules)) {
+    | None => ActionOutcome.CursorEscaped(side)
+    | Some(new_zrules) => Succeeded((new_zrules, u_gen))
+    };
   };
 
   switch (a, zrule) {

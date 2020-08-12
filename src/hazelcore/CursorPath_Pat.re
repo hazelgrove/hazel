@@ -40,7 +40,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZPat.ParenthesizedZ(zbody))
+        |> Option.map(zbody => ZPat.ParenthesizedZ(zbody))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -48,7 +48,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZPat.InjZ(err, side, zbody))
+        |> Option.map(zbody => ZPat.InjZ(err, side, zbody))
       | _ => None
       }
     }
@@ -101,7 +101,7 @@ and of_steps_operand =
       | 0 =>
         body
         |> of_steps(xs, ~side)
-        |> OptUtil.map(path => CursorPath_common.cons'(0, path))
+        |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
     | Inj(_, _, body) =>
@@ -109,7 +109,7 @@ and of_steps_operand =
       | 0 =>
         body
         |> of_steps(xs, ~side)
-        |> OptUtil.map(path => CursorPath_common.cons'(0, path))
+        |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
     }
