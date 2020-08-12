@@ -1,6 +1,11 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type undo_history_action =
+  | EditAction(Action_common.t)
+  | ModelAction(ModelAction.t)
+
+[@deriving sexp]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
   cardstacks_after_action: ZCardstacks.t,
@@ -8,7 +13,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
-  previous_action: Action_common.t,
+  previous_action: undo_history_action,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
 };
@@ -905,3 +910,11 @@ let toggle_all_hidden_history = (undo_history: t): t => {
     all_hidden_history_expand: !undo_history.all_hidden_history_expand,
   };
 };
+
+let push_entry =
+    (
+      undo_history: t,
+      cardstacks_before: ZCardstacks.t,
+      cardstacks_after: ZCardstacks.t,
+    )
+    : t =>
