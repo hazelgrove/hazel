@@ -1144,10 +1144,3 @@ let remove_last_occurred = (zexp: t, exp: UHExp.line) => {
   (prefix, zline, suffix);
   // };
 };
-
-let is_ExpLineZ = (zline: zline) => {
-  switch (zline) {
-  | ExpLineZ(_) => true
-  | _ => false
-  };
-};

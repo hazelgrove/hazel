@@ -780,7 +780,7 @@ and syn_perform_block =
       );
     }
 
-  | RemoveCell when zline |> ZExp.is_ExpLineZ =>
+  | RemoveCell when ZExp.is_before_zline(zline) =>
     let new_zblock = ZExp.remove_last_occurred(zblock, UHExp.CellBoundary);
     Succeeded(SynDone((new_zblock, ty, u_gen)));
 
@@ -1066,20 +1066,19 @@ and syn_perform_line =
     | None => Failed
     | Some(zline) => syn_perform_line(ctx, a, (zline, u_gen))
     };
-  | (Construct(_) | UpdateApPalette(_) | AddCell | RemoveCell, CursorL(_)) =>
-    Failed
+  | (Construct(_) | UpdateApPalette(_), CursorL(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, CursorL(_) | LetLineZP(_) | LetLineZA(_)) => Failed
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
-  | (AddCell, ExpLineZ(_)) =>
+  | (AddCell, ExpLineZ(_) | CursorL(_, EmptyLine)) =>
     let ze = ([], zline, [UHExp.CellBoundary]);
     Succeeded(LineDone((ze, ctx, u_gen)));
 
   /* Invalid cell actions */
-  | (AddCell | RemoveCell, LetLineZP(_) | LetLineZA(_)) => Failed
+  | (AddCell | RemoveCell, LetLineZP(_) | LetLineZA(_) | CursorL(_)) => Failed
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
@@ -2480,7 +2479,9 @@ and ana_perform_block =
       );
     }
 
-  | (AddCell | RemoveCell, _) => Failed
+  | (RemoveCell, _) when ZExp.is_before_zline(zline) =>
+    let new_zblock = ZExp.remove_last_occurred(zblock, UHExp.CellBoundary);
+    Succeeded(AnaDone((new_zblock, u_gen)));
 
   /* Zipper */
   | _ =>
@@ -2566,7 +2567,7 @@ and ana_perform_opseq =
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
-  | (AddCell | RemoveCell, _) => Failed
+  | (RemoveCell, _) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2806,6 +2807,19 @@ and ana_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
     ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
     |> wrap_in_AnaDone;
+
+  | (AddCell, _) =>
+    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let (_, zexp, _) = ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
+    let new_ze = (
+      [
+        ZExp.ExpLineZ(zopseq) |> ZExp.prune_empty_hole_line |> ZExp.erase_zline,
+        UHExp.CellBoundary,
+      ],
+      zexp,
+      [],
+    );
+    Succeeded(AnaDone((new_ze, u_gen)));
 
   /* Zipper */
 
