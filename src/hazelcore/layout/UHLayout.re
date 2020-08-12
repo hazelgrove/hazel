@@ -70,16 +70,16 @@ let rec find_and_decorate_Annot =
   switch (l) {
   | Linebreak
   | Text(_) => None
-  | Align(l1) => go(l1) |> OptUtil.map(l1 => Layout.Align(l1))
+  | Align(l1) => go(l1) |> Option.map(l1 => Layout.Align(l1))
   | Cat(l1, l2) =>
     switch (go(l1)) {
     | Some(l1) => Some(Cat(l1, l2))
-    | None => go(l2) |> OptUtil.map(l2 => Layout.Cat(l1, l2))
+    | None => go(l2) |> Option.map(l2 => Layout.Cat(l1, l2))
     }
   | Annot(annot, l1) =>
     switch (decorate(annot, l1)) {
     | Stop => None
-    | Skip => go(l1) |> OptUtil.map(l1 => Layout.Annot(annot, l1))
+    | Skip => go(l1) |> Option.map(l1 => Layout.Annot(annot, l1))
     | Return(l) => Some(l)
     }
   };
@@ -98,7 +98,7 @@ let rec follow_steps_and_decorate =
          | Step(step) when step == next_step =>
            l
            |> go(~steps=rest)
-           |> OptUtil.map(l => Layout.Annot(annot, l))
+           |> Option.map(l => Layout.Annot(annot, l))
            |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
@@ -198,7 +198,7 @@ let rec find_and_decorate_Term =
          let take_step = () =>
            l
            |> go(~steps=rest)
-           |> OptUtil.map(l => Layout.Annot(annot, l))
+           |> Option.map(l => Layout.Annot(annot, l))
            |> QueryResult.of_opt;
          let found_term_if = (cond, term_data) =>
            cond && rest == []
