@@ -86,6 +86,10 @@ let is_EmptyHole: operand => bool;
 
 let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
 
+let get_err_status: t => ErrStatus.t;
+
+let get_err_status_block: t => ErrStatus.t;
+
 let get_err_status_opseq: opseq => ErrStatus.t;
 
 let get_err_status_operand: operand => ErrStatus.t;
