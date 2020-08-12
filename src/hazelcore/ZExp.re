@@ -483,6 +483,10 @@ let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 let mk_ZOpSeq =
   ZOpSeq.mk(~associate=UHExp.associate, ~erase_zoperand, ~erase_zoperator);
 
+let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
+let get_err_status_zblock = zblock =>
+  zblock |> erase_zblock |> UHExp.get_err_status_block;
+
 let get_err_status_zopseq = zopseq =>
   zopseq |> erase_zopseq |> UHExp.get_err_status_opseq;
 let get_err_status_zoperand = zoperand =>

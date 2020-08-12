@@ -471,4 +471,4 @@ let rec compare_steps = (steps1, steps2) =>
     } else {
       compare_steps(rest1, rest2);
     }
-  }
+  };
