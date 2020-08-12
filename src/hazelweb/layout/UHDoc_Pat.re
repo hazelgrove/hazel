@@ -28,11 +28,9 @@ let mk_Inj:
   UHDoc_common.mk_Inj(~sort=Pat);
 let mk_NTuple:
   (
-    ~mk_operand: (~enforce_inline: bool, ~map: AssertMap.t, 'a) =>
-                 UHDoc_common.t,
+    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc_common.t,
     ~mk_operator: UHPat.operator => UHDoc_common.t,
     ~enforce_inline: bool,
-    ~map: AssertMap.t,
     OpSeq.t('a, UHPat.operator)
   ) =>
   UHDoc_common.t =
@@ -44,28 +42,19 @@ let mk_NTuple:
 
 let rec mk =
   lazy(
-    UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, ~map: AssertMap.t, p: UHPat.t) =>
-      (
-        Lazy.force(mk_opseq, ~memoize, ~enforce_inline, ~map, p): UHDoc_common.t
-      )
+    UHDoc_common.memoize((~memoize: bool, ~enforce_inline: bool, p: UHPat.t) =>
+      (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, p): UHDoc_common.t)
     )
   )
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        opseq: UHPat.opseq,
-      ) =>
+      (~memoize: bool, ~enforce_inline: bool, opseq: UHPat.opseq) =>
       (
         mk_NTuple(
           ~mk_operand=Lazy.force(mk_operand, ~memoize),
           ~mk_operator,
           ~enforce_inline,
-          ~map,
           opseq,
         ): UHDoc_common.t
       )
@@ -78,17 +67,10 @@ and mk_operator = (op: UHPat.operator): UHDoc_common.t =>
 and mk_operand =
   lazy(
     UHDoc_common.memoize(
-      (
-        ~memoize: bool,
-        ~enforce_inline: bool,
-        ~map: AssertMap.t,
-        operand: UHPat.operand,
-      ) =>
+      (~memoize: bool, ~enforce_inline: bool, operand: UHPat.operand) =>
       (
         switch (operand) {
-        | EmptyHole(u) =>
-          print_endline(string_of_bool(map == map));
-          mk_EmptyHole(UHDoc_common.hole_lbl(u + 1));
+        | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
         | Wild(err) => UHDoc_common.mk_Wild(~err)
         | InvalidText(_, t) => mk_InvalidText(t)
         | Var(err, verr, x) => mk_Var(~err, ~verr, x)
@@ -110,7 +92,7 @@ and mk_child =
     (~memoize: bool, ~enforce_inline: bool, ~child_step: int, p: UHPat.t)
     : UHDoc_common.formatted_child => {
   let formattable = (~enforce_inline: bool) =>
-    Lazy.force(mk, ~memoize, ~enforce_inline, ~map=AssertMap.empty, p)
+    Lazy.force(mk, ~memoize, ~enforce_inline, p)
     |> UHDoc_common.annot_Step(child_step);
   enforce_inline
     ? EnforcedInline(formattable(~enforce_inline=true))

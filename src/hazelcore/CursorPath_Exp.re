@@ -401,10 +401,12 @@ and of_steps_rule =
     };
   };
 
-let hole_sort = (u: MetaVar.t): CursorPath_common.hole_sort => ExpHole(u);
-let holes_err = CursorPath_common.holes_err(~hole_sort);
-let holes_case_err = CursorPath_common.holes_case_err(~hole_sort);
-let holes_verr = CursorPath_common.holes_verr(~hole_sort);
+let hole_sort = (shape, u: MetaVar.t): CursorPath_common.hole_sort =>
+  ExpHole(u, shape);
+let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
+let holes_case_err =
+  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
+let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =
         (
@@ -449,7 +451,7 @@ and holes_line =
     hs
     |> CursorPath_common.holes_opseq(
          ~holes_operand,
-         ~hole_sort,
+         ~hole_sort=hole_sort(TypeErr),
          ~is_space=Operators_Exp.is_Space,
          ~rev_steps,
          opseq,
@@ -464,11 +466,11 @@ and holes_operand =
     : CursorPath_common.hole_list =>
   switch (operand) {
   | EmptyHole(u) => [
-      {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: true},
+      {sort: ExpHole(u, Empty), steps: List.rev(rev_steps)},
       ...hs,
     ]
   | InvalidText(u, _) => [
-      {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
       ...hs,
     ]
   | Var(err, verr, _) =>
@@ -647,7 +649,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_sort,
+    ~hole_sort=hole_sort(TypeErr),
     ~is_space=Operators_Exp.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZExp.erase_zopseq,
@@ -661,35 +663,28 @@ and holes_zoperand =
   | CursorE(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({
-          sort: ExpHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: true,
-        }),
+        Some({sort: ExpHole(u, Empty), steps: List.rev(rev_steps)}),
       (),
     )
   | CursorE(_, InvalidText(u, _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({
-          sort: ExpHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: false,
-        }),
+        Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
   | CursorE(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
-    | (InHole(_, u), _)
+    | (InHole(_, u), _) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
+        (),
+      )
     | (_, InVarHole(_, u)) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({
-            sort: ExpHole(u),
-            steps: List.rev(rev_steps),
-            is_empty: false,
-          }),
+          Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
         (),
       )
     }
@@ -703,11 +698,7 @@ and holes_zoperand =
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({
-            sort: ExpHole(u),
-            steps: List.rev(rev_steps),
-            is_empty: false,
-          }),
+          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
         (),
       )
     }
@@ -724,9 +715,8 @@ and holes_zoperand =
       | NotInHole => None
       | InHole(_, u) =>
         Some({
-          sort: CursorPath_common.ExpHole(u),
+          sort: CursorPath_common.ExpHole(u, TypeErr),
           steps: List.rev(rev_steps),
-          is_empty: false,
         })
       };
     let body_holes = holes(body, [0, ...rev_steps], []);
@@ -746,11 +736,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some({
-          sort: ExpHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: false,
-        })
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_ann =
@@ -788,11 +774,7 @@ and holes_zoperand =
       | StandardErrStatus(NotInHole) => None
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) =>
-        Some({
-          sort: ExpHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: false,
-        })
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_rules =
@@ -827,7 +809,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
@@ -849,7 +831,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
@@ -867,7 +849,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
@@ -889,7 +871,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
@@ -907,9 +889,8 @@ and holes_zoperand =
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
           {
-            sort: CursorPath_common.ExpHole(u),
+            sort: CursorPath_common.ExpHole(u, TypeErr),
             steps: List.rev(rev_steps),
-            is_empty: false,
           },
         ]
       };
@@ -933,7 +914,7 @@ and holes_zoperand =
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          {sort: ExpHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);

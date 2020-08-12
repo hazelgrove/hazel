@@ -12,6 +12,18 @@ type token_shape =
   | Text
   | Op
   | Delim(DelimIndex.t);
+[@deriving sexp]
+type token_data = {
+  shape: token_shape,
+  len: int,
+  has_cursor: option(int),
+};
+
+[@deriving sexp]
+type open_child_format =
+  | InlineWithoutBorder
+  | InlineWithBorder
+  | Multiline;
 
 [@deriving sexp]
 type t =
@@ -19,22 +31,21 @@ type t =
   | Padding
   | HoleLabel({len: int})
   //| AssertLabel
-  | AssertPass
-  | AssertFail
-  | AssertIndet
-  | AssertComp
-  | Token({
-      shape: token_shape,
-      len: int,
-      has_cursor: option(int),
-    })
+  /*| AssertPass
+    | AssertFail
+    | AssertIndet
+    | AssertComp*/
+  | AssertNum({num: int})
+  | Token(token_data)
   | SpaceOp
   | UserNewline
-  | OpenChild({is_inline: bool})
-  | ClosedChild({is_inline: bool})
-  | DelimGroup
-  | EmptyLine
-  | LetLine
+  | OpenChild(open_child_format)
+  | ClosedChild({
+      // TODO consider whether necessary
+      is_inline: bool,
+      sort: TermSort.t,
+    })
+  | Tessera
   | Step(int)
   | Term(term_data);
 
@@ -44,7 +55,3 @@ let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
   Term({has_cursor, shape, sort});
-let mk_OpenChild = (~is_inline: bool, ()) =>
-  OpenChild({is_inline: is_inline});
-let mk_ClosedChild = (~is_inline: bool, ()) =>
-  ClosedChild({is_inline: is_inline});

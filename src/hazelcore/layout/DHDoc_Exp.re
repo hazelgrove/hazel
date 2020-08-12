@@ -197,7 +197,7 @@ let rec mk =
           | Indet => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
           | Comp => Doc.text("assert") |> Doc.annot(DHAnnot.AssertComp)
           }
-        | None => Doc.text("assert") |> Doc.annot(DHAnnot.AssertPass)
+        | None => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
         }
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));

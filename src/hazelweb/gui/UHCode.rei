@@ -5,10 +5,10 @@ open Virtual_dom;
  */
 let view:
   (
-    ~measure: bool,
     ~inject: ModelAction.t => Vdom.Event.t,
     ~font_metrics: FontMetrics.t,
-    ~caret_pos: option((int, int)),
-    UHLayout.t
+    ~measure: bool,
+    ~is_mac: bool,
+    Program.t
   ) =>
   Vdom.Node.t;

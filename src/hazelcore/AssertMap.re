@@ -20,18 +20,26 @@ let rec check = (result: list(AssertResult.t)): AssertResult.t =>
   | [x, ...xs] =>
     switch (x) {
     | Pass =>
-      switch (check(xs)) {
-      | Pass => Pass
-      | _ => Comp
+      if (xs == []) {
+        Pass;
+      } else {
+        switch (check(xs)) {
+        | Pass => Pass
+        | _ => Comp
+        };
       }
     | Fail =>
-      switch (check(xs)) {
-      | Fail => Fail
-      | _ => Comp
+      if (xs == []) {
+        Fail;
+      } else {
+        switch (check(xs)) {
+        | Fail => Fail
+        | _ => Comp
+        };
       }
     | Indet => Indet
     | Comp => Comp
     //| _ => failwith("unexpected on check")
     }
-  | [] => failwith("empty list in check")
+  | [] => Indet
   };

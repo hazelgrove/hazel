@@ -2,76 +2,184 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
-open ViewUtil;
 
-let clss_of_err: ErrStatus.t => list(cls) =
-  fun
-  | NotInHole => []
-  | InHole(_) => ["InHole"];
+let decoration_views =
+    (~font_metrics: FontMetrics.t, ds: Decorations.t, l: UHLayout.t)
+    : list(Vdom.Node.t) => {
+  let rec go =
+          (
+            ~tl: list(Vdom.Node.t),
+            ~indent: int,
+            ~start: CaretPosition.t,
+            ds: Decorations.t,
+            m: MeasuredLayout.t,
+          )
+          : list(Vdom.Node.t) => {
+    let go' = go(~indent, ~start);
+    switch (m.layout) {
+    | Linebreak
+    | Text(_) => tl
+    | Cat(m1, m2) =>
+      let mid_row = {
+        let height1 =
+          m1.metrics
+          |> List.map((box: MeasuredLayout.box) => box.height)
+          |> List.fold_left((+), 0);
+        start.row + height1 - 1;
+      };
+      let mid_col = {
+        let (leading, MeasuredLayout.{width: last_width, _}) =
+          ListUtil.split_last(m1.metrics);
+        let offset =
+          switch (leading) {
+          | [] => start.col
+          | [_, ..._] => indent
+          };
+        offset + last_width;
+      };
+      let mid_tl =
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, ds, m2);
+      go'(~tl=mid_tl, ds, m1);
+    | Align(m) => go(~tl, ~indent=start.col, ~start, ds, m)
+    | Annot(annot, m) =>
+      switch (annot) {
+      | Step(step) =>
+        let stepped = Decorations.take_step(step, ds);
+        Decorations.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+      /*| AssertNum({num}) =>
+        switch (AssertMap.lookup(num, ds.assert_decoration)) {
+        | Some(a) =>
+          switch (AssertMap.check(a)) {
+          | Pass => [
+              Vdom.Node.span(
+                [Vdom.Attr.classes(["AssertPass"])],
+                go'(~tl, ds, m),
+              ),
+            ]
 
-let clss_of_verr: VarErrStatus.t => list(cls) =
-  fun
-  | NotInVarHole => []
-  | InVarHole(_) => ["InVarHole"];
+          | Fail => [
+              Vdom.Node.span(
+                [Vdom.Attr.classes(["AssertFail"])],
+                go'(~tl, ds, m),
+              ),
+            ]
 
-let clss_of_case_err: CaseErrStatus.t => list(cls) =
-  fun
-  | StandardErrStatus(err) => clss_of_err(err)
-  | InconsistentBranches(_) => ["InconsistentBranches"];
+          | Comp => [
+              Vdom.Node.span(
+                [Vdom.Attr.classes(["AssertComp"])],
+                go'(~tl, ds, m),
+              ),
+            ]
 
-let cursor_clss = (has_cursor: bool): list(cls) =>
-  has_cursor ? ["Cursor"] : [];
+          | Indet => [
+              Vdom.Node.span(
+                [Vdom.Attr.classes(["AssertIndet"])],
+                go'(~tl, ds, m),
+              ),
+            ]
+          }
+        | None => [
+            Vdom.Node.span(
+              [Vdom.Attr.classes(["AssertIndet"])],
+              go'(~tl, ds, m),
+            ),
+          ]
+        }*/
+      | Term({shape, sort, _}) =>
+        let current_vs =
+          Decorations.current(sort, shape, ds)
+          |> List.map(
+               UHCodeDecoration.view(
+                 ~font_metrics,
+                 ~origin={row: start.row, col: indent},
+                 ~offset=start.col - indent,
+                 // ~shape,
+                 ~subject=m,
+               ),
+             );
+        go'(~tl=current_vs @ tl, ds, m);
 
-let sort_clss: TermSort.t => list(cls) =
-  fun
-  | Typ => ["Typ"]
-  | Pat => ["Pat"]
-  | Exp => ["Exp"];
+      | _ => go'(~tl, ds, m)
+      }
+    };
+  };
+  go(~tl=[], ~indent=0, ~start={row: 0, col: 0}, ds, MeasuredLayout.mk(l));
+};
 
-let shape_clss: TermShape.t => list(cls) =
-  fun
-  | Rule => ["Rule"]
-  | Invalid => ["Invalid"]
-  | Case({err}) => ["Case", ...clss_of_case_err(err)]
-  | Var({err, verr, show_use}) =>
-    ["Operand", "Var", ...clss_of_err(err)]
-    @ clss_of_verr(verr)
-    @ (show_use ? ["show-use"] : [])
-  | Operand({err}) => ["Operand", ...clss_of_err(err)]
-  | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
-  | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
-  | SubBlock(_) => ["SubBlock"];
-
-let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
-  List.concat([
-    has_inline_OpenChild ? ["has-Inline-OpenChild"] : [],
-    has_para_OpenChild ? ["has-Para-OpenChild"] : [],
-  ]);
-
-let has_child_clss = (has_child: bool) =>
-  has_child ? ["has-child"] : ["no-children"];
-
-let caret_from_pos = (x: float, y: float): Vdom.Node.t => {
-  let pos_attr =
-    Vdom.Attr.style(
-      Css_gen.combine(
-        Css_gen.left(`Px(int_of_float(Float.round(x)))),
-        Css_gen.top(`Px(int_of_float(Float.round(y)))),
-      ),
-    );
-  Vdom.Node.span(
-    [Vdom.Attr.id("caret"), pos_attr, Vdom.Attr.classes(["blink"])],
-    [],
-  );
+let key_handlers =
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
+    : list(Vdom.Attr.t) => {
+  open Vdom;
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  [
+    Attr.on_keypress(_ => Event.Prevent_default),
+    Attr.on_keydown(evt => {
+      switch (MoveKey.of_key(Key.get_key(evt))) {
+      | Some(move_key) =>
+        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
+      | None =>
+        switch (HazelKeyCombos.of_evt(evt)) {
+        | Some(Ctrl_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(ModelAction.Undo);
+          }
+        | Some(Meta_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(ModelAction.Undo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(Ctrl_Shift_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(ModelAction.Redo);
+          }
+        | Some(Meta_Shift_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(ModelAction.Redo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(kc) =>
+          prevent_stop_inject(
+            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+          )
+        | None =>
+          switch (HazelKeyCombos.of_evt(evt)) {
+          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
+          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
+          | Some(kc) =>
+            prevent_stop_inject(
+              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+            )
+          | None =>
+            switch (JSUtil.is_single_key(evt)) {
+            | None => Event.Ignore
+            | Some(single_key) =>
+              prevent_stop_inject(
+                ModelAction.EditAction(
+                  Construct(SChar(JSUtil.single_key_string(single_key))),
+                ),
+              )
+            }
+          }
+        }
+      }
+    }),
+  ];
 };
 
 let view =
     (
-      ~measure: bool,
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~caret_pos: option((int, int)),
-      l: UHLayout.t,
+      ~measure: bool,
+      ~is_mac: bool,
+      program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -80,106 +188,111 @@ let view =
     () => {
       open Vdom;
 
-      let rec go: UHLayout.t => _ =
-        fun
+      let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
+        switch (box) {
         | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | Linebreak => [Node.br([])]
-        | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
-        | Cat(l1, l2) => go(l1) @ go(l2)
-
-        | Annot(Step(_) | EmptyLine | SpaceOp, l) => go(l)
-
-        | Annot(Token({shape, _}), l) => {
+        | HBox(boxes) => boxes |> List.map(go) |> List.flatten
+        | VBox(boxes) =>
+          let vs =
+            boxes
+            |> List.map(go)
+            |> ListUtil.join([Node.br([])])
+            |> List.flatten;
+          [Node.div([Attr.classes(["VBox"])], vs)];
+        | Annot(annot, box) =>
+          let vs = go(box);
+          switch (annot) {
+          | Token({shape, _}) =>
             let clss =
               switch (shape) {
               | Text => ["code-text"]
               | Op => ["code-op"]
               | Delim(_) => ["code-delim"]
               };
-            [Node.span([Attr.classes(clss)], go(l))];
-          }
-        | Annot(DelimGroup, l) => [
-            Node.span([Attr.classes(["DelimGroup"])], go(l)),
-          ]
-        | Annot(LetLine, l) => [
-            Node.span([Attr.classes(["LetLine"])], go(l)),
-          ]
-
-        | Annot(Padding, l) => [
-            Node.span([Attr.classes(["Padding"])], go(l)),
-          ]
-        | Annot(Indent, l) => [
-            Node.span([Attr.classes(["Indent"])], go(l)),
-          ]
-
-        | Annot(HoleLabel({len}), l) => {
+            [Node.span([Attr.classes(clss)], vs)];
+          | HoleLabel({len}) =>
             let width = Css_gen.width(`Ch(float_of_int(len)));
             [
               Node.span(
                 [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-                [Node.span([Attr.classes(["HoleNumber"])], go(l))],
+                [Node.span([Attr.classes(["HoleNumber"])], vs)],
               ),
             ];
-          }
-        | Annot(AssertPass, l) => {
-            [Node.span([Attr.classes(["AssertPass"])], go(l))];
-          }
-        | Annot(AssertFail, l) => {
-            [Node.span([Attr.classes(["AssertFail"])], go(l))];
-          }
-        | Annot(AssertIndet, l) => {
-            [Node.span([Attr.classes(["AssertIndet"])], go(l))];
-          }
-        | Annot(AssertComp, l) => {
-            [Node.span([Attr.classes(["AssertComp"])], go(l))];
-          }
-        | Annot(UserNewline, l) => [
-            Node.span([Attr.classes(["UserNewline"])], go(l)),
-          ]
+          | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+          | AssertNum({num}) =>
+            let assert_map = snd(Program.get_result(program));
+            switch (AssertMap.lookup(num, assert_map)) {
+            | Some(a) =>
+              switch (AssertMap.check(a)) {
+              | Pass => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
+                ]
 
-        | Annot(OpenChild({is_inline}), l) => [
-            Node.span(
-              [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
-              go(l),
-            ),
-          ]
-        | Annot(ClosedChild({is_inline}), l) => [
-            Node.span(
-              [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
-              go(l),
-            ),
-          ]
+              | Fail => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
+                ]
 
-        | Annot(Term({has_cursor, shape, sort}), l) => [
-            Node.span(
-              [
-                Attr.classes(
-                  List.concat([
-                    ["Term"],
-                    cursor_clss(has_cursor),
-                    sort_clss(sort),
-                    shape_clss(shape),
-                    open_child_clss(
-                      l |> UHLayout.has_inline_OpenChild,
-                      l |> UHLayout.has_para_OpenChild,
-                    ),
-                    has_child_clss(l |> UHLayout.has_child),
-                  ]),
-                ),
-              ],
-              go(l),
-            ),
-          ];
+              | Comp => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
+                ]
 
-      let children =
-        switch (caret_pos) {
-        | None => go(l)
-        | Some((row, col)) =>
-          let x = float_of_int(col) *. font_metrics.col_width;
-          let y = float_of_int(row) *. font_metrics.row_height;
-          let caret = caret_from_pos(x, y);
-          [caret, ...go(l)];
+              | Indet => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+                ]
+              }
+            | None => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+              ]
+            };
+          | _ => vs
+          };
         };
+      };
+
+      let l =
+        Program.get_layout(
+          ~measure_program_get_doc=false,
+          ~measure_layoutOfDoc_layout_of_doc=false,
+          ~memoize_doc=false,
+          program,
+        );
+      let code_text = go(Box.mk(l));
+
+      let ds = Program.get_decorations(program);
+      let decorations = decoration_views(~font_metrics, ds, l);
+
+      let key_handlers =
+        program.is_focused
+          ? key_handlers(
+              ~inject,
+              ~is_mac,
+              ~cursor_info=Program.get_cursor_info(program),
+            )
+          : [];
+
+      let caret_pos =
+        Program.get_caret_position(
+          ~measure_program_get_doc=false,
+          ~measure_layoutOfDoc_layout_of_doc=false,
+          ~memoize_doc=true,
+          program,
+        );
+      /*
+       let children =
+         switch (caret_pos) {
+         | None => vs
+         | Some((row, col)) =>
+           let x = float_of_int(col) *. model.font_metrics.col_width;
+           let y = float_of_int(row) *. model.font_metrics.row_height;
+           let caret = caret_from_pos(x, y);
+           [caret, ...vs];
+         };
+       */
+
+      let caret =
+        program.is_focused
+          ? [UHCodeDecoration.caret_view(~font_metrics, caret_pos)] : [];
+
       let id = "code-root";
       Node.div(
         [
@@ -194,20 +307,31 @@ let view =
               float_of_int(evt##.clientX),
               float_of_int(evt##.clientY),
             );
-            let row_col = (
-              Float.to_int(
-                (target_y -. container_rect##.top) /. font_metrics.row_height,
-              ),
-              Float.to_int(
-                Float.round(
-                  (target_x -. container_rect##.left) /. font_metrics.col_width,
-                ),
-              ),
-            );
-            inject(ModelAction.MoveAction(Click(row_col)));
+            let caret_pos =
+              CaretPosition.{
+                row:
+                  Float.to_int(
+                    (target_y -. container_rect##.top)
+                    /. font_metrics.row_height,
+                  ),
+                col:
+                  Float.to_int(
+                    Float.round(
+                      (target_x -. container_rect##.left)
+                      /. font_metrics.col_width,
+                    ),
+                  ),
+              };
+            inject(ModelAction.MoveAction(Click(caret_pos)));
           }),
+          // necessary to make cell focusable
+          Attr.create("tabindex", "0"),
+          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+          ...key_handlers,
         ],
-        children,
+        caret
+        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
