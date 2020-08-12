@@ -39,26 +39,6 @@ let is_after =
   | ZOperand(zoperand, (_, E)) => is_after_zoperand(zoperand)
   };
 
-let place_before =
-    (
-      ~place_before_operand: 'operand => 'zoperand,
-      seq: Seq.t('operand, 'operator),
-    )
-    : t('operand, 'operator, 'zoperand, 'zoperator) => {
-  let (first, suffix) = seq |> Seq.split_first_and_suffix;
-  ZOperand(first |> place_before_operand, (E, suffix));
-};
-
-let place_after =
-    (
-      ~place_after_operand: 'operand => 'zoperand,
-      seq: Seq.t('operand, 'operator),
-    )
-    : t('operand, 'operator, 'zoperand, 'zoperator) => {
-  let (prefix, last) = seq |> Seq.split_prefix_and_last;
-  ZOperand(last |> place_after_operand, (prefix, E));
-};
-
 let move_cursor_left =
     (
       ~move_cursor_left_zoperand: 'zoperand => option('zoperand),
