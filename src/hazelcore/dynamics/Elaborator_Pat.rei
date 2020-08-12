@@ -2,12 +2,6 @@ module ElaborationResult: {
   type t =
     | Elaborates(DHPat.t, HTyp.t, Contexts.t, Delta.t)
     | DoesNotElaborate;
-
-  let to_option: t => option((DHPat.t, HTyp.t, Contexts.t, Delta.t));
-
-  let from_option: option((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t;
-
-  let bind: (t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t) => t;
 };
 
 module Let_syntax = ElaborationResult;

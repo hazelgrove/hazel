@@ -18,15 +18,7 @@ module ElaborationResult: {
   type t =
     | Elaborates(DHExp.t, HTyp.t, Delta.t)
     | DoesNotElaborate;
-
-  let to_option: t => option((DHExp.t, HTyp.t, Delta.t));
-
-  let from_option: option((DHExp.t, HTyp.t, Delta.t)) => t;
-
-  let bind: (t, ~f: ((DHExp.t, HTyp.t, Delta.t)) => t) => t;
 };
-
-module Let_syntax = ElaborationResult;
 
 let id_env: VarCtx.t => Environment.t;
 

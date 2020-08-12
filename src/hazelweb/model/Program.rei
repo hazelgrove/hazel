@@ -18,15 +18,10 @@ let mk: (~width: int, ~is_focused: bool=?, Statics_common.edit_state) => t;
 let focus: t => t;
 let blur: t => t;
 
-let put_edit_state: (Statics_common.edit_state, t) => t;
-
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
-let get_path: t => CursorPath_common.t;
 let get_steps: t => CursorPath_common.steps;
-
-let get_u_gen: t => MetaVarGen.t;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
@@ -108,14 +103,6 @@ let get_decorated_layout:
   ) =>
   UHLayout.t;
 
-let get_cursor_map:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  CursorMap.t;
 let get_cursor_map_z:
   (
     ~measure_program_get_doc: bool,
