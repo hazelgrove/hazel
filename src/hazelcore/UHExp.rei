@@ -37,8 +37,6 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let find_line: t => line;
-
 let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
