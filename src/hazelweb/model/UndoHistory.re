@@ -693,20 +693,22 @@ let push_edit_state =
       undo_history: t,
       new_cardstacks_before: ZCardstacks.t,
       new_cardstacks_after: ZCardstacks.t,
-      action: Action_common.t,
+      action: undo_history_action,
     )
     : t => {
-  let prev_group = ZList.prj_z(undo_history.groups);
+      let prev_group = ZList.prj_z(undo_history.groups);
   let new_cursor_term_info =
     get_cursor_term_info(~new_cardstacks_before, ~new_cardstacks_after);
+    let timestamp = Unix.time();
+  switch(action){
+  | EditAction(action') =>{
   let new_action_group =
     get_new_action_group(
       ~prev_group,
       ~new_cardstacks_before,
       ~new_cursor_term_info,
-      ~action,
+      ~action=action',
     );
-  let timestamp = Unix.time();
   switch (new_action_group) {
   | None =>
     let prev_entry = ZList.prj_z(prev_group.group_entries);
@@ -777,7 +779,18 @@ let push_edit_state =
         cur_elt_id: 0,
       };
     };
-  };
+  };}
+  | ModelAction(LoadExample(id)) => {
+    let new_entry = {
+      cardstacks_after_action: new_cardstacks_after,
+      cardstacks_after_move: new_cardstacks_after,
+      cursor_term_info: new_cursor_term_info,
+      previous_action: Mode,
+      action_group: new_action_group,
+      timestamp,
+    };
+  }
+}
 };
 
 let update_groups =
@@ -910,11 +923,3 @@ let toggle_all_hidden_history = (undo_history: t): t => {
     all_hidden_history_expand: !undo_history.all_hidden_history_expand,
   };
 };
-
-let push_entry =
-    (
-      undo_history: t,
-      cardstacks_before: ZCardstacks.t,
-      cardstacks_after: ZCardstacks.t,
-    )
-    : t =>

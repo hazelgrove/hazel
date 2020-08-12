@@ -30,6 +30,9 @@ type swap_group =
   | Right;
 
 [@deriving sexp]
+type example_id = string;
+
+[@deriving sexp]
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
@@ -38,7 +41,8 @@ type action_group =
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
-  | Init;
+  | Init
+  | LoadExample(example_id);
 
 [@deriving sexp]
 type cursor_term_info = {
