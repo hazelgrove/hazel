@@ -17,6 +17,30 @@ let operator_of_shape =
   | SVBar => None
   };
 
+let shape_of_operator =
+    (op: UHExp.operator): option(Action_common.operator_shape) =>
+  switch (op) {
+  | Minus => Some(SMinus)
+  | Plus => Some(SPlus)
+  | Times => Some(STimes)
+  | Divide => Some(SDivide)
+  | LessThan => Some(SLessThan)
+  | GreaterThan => Some(SGreaterThan)
+  | Equals => Some(SEquals)
+  | Space => Some(SSpace)
+  | Comma => Some(SComma)
+  | Cons => Some(SCons)
+  | And => Some(SAnd)
+  | Or => Some(SOr)
+  | FPlus
+  | FMinus
+  | FTimes
+  | FDivide
+  | FLessThan
+  | FGreaterThan
+  | FEquals => None
+  };
+
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
   |> ZExp.erase_zseq

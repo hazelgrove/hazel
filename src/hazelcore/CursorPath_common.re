@@ -457,3 +457,18 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   | None => None
   | Some({steps, _}) => Some(steps)
   };
+
+let rec compare_steps = (steps1, steps2) =>
+  switch (steps1, steps2) {
+  | ([], []) => 0
+  | ([], [_, ..._]) => (-1)
+  | ([_, ..._], []) => 1
+  | ([step1, ...rest1], [step2, ...rest2]) =>
+    if (step1 > step2) {
+      1;
+    } else if (step1 < step2) {
+      (-1);
+    } else {
+      compare_steps(rest1, rest2);
+    }
+  }
