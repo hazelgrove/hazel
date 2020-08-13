@@ -8,14 +8,14 @@ type t = {
   current_term: option(CursorPath_common.t),
 };
 
-let is_empty = (ds: t): bool =>
-  ListUtil.is_empty(ds.err_holes)
-  && ListUtil.is_empty(ds.var_err_holes)
-  && ListUtil.is_empty(ds.var_uses)
-  && ds.current_term == None;
+let is_empty = (dpaths: t): bool =>
+  ListUtil.is_empty(dpaths.err_holes)
+  && ListUtil.is_empty(dpaths.var_err_holes)
+  && ListUtil.is_empty(dpaths.var_uses)
+  && dpaths.current_term == None;
 
-let take_step = (step: int, decorations: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = decorations;
+let take_step = (step: int, dpaths: t): t => {
+  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -31,7 +31,7 @@ let take_step = (step: int, decorations: t): t => {
 };
 
 let current =
-    (term_sort: TermSort.t, term_shape: TermShape.t, decorations: t)
+    (term_sort: TermSort.t, term_shape: TermShape.t, dpaths: t)
     : list(UHDecorationShape.t) => {
   let is_current = steps =>
     switch (term_shape) {
@@ -44,22 +44,22 @@ let current =
     | Rule => steps == []
     };
   let err_holes =
-    decorations.err_holes
+    dpaths.err_holes
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.ErrHole)
     |> Option.to_list;
   let var_err_holes =
-    decorations.var_err_holes
+    dpaths.var_err_holes
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarErrHole)
     |> Option.to_list;
   let var_uses =
-    decorations.var_uses
+    dpaths.var_uses
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
   let current_term =
-    switch (decorations.current_term) {
+    switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [
         UHDecorationShape.CurrentTerm(term_sort, term_shape),
       ]
