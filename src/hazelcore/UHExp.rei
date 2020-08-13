@@ -37,8 +37,6 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let find_line: t => line;
-
 let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
@@ -88,7 +86,6 @@ let is_EmptyHole: operand => bool;
 
 let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
 
-/* put e in the specified hole */
 let get_err_status: t => ErrStatus.t;
 
 let get_err_status_block: t => ErrStatus.t;
@@ -97,27 +94,16 @@ let get_err_status_opseq: opseq => ErrStatus.t;
 
 let get_err_status_operand: operand => ErrStatus.t;
 
-let set_err_status: (ErrStatus.t, t) => t;
-
-let set_err_status_block: (ErrStatus.t, t) => block;
-
 let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
 let is_inconsistent: operand => bool;
 
-/* put e in a new hole, if it is not already in a hole */
-let mk_inconsistent: (MetaVarGen.t, t) => (t, MetaVarGen.t);
-
-let mk_inconsistent_block: (MetaVarGen.t, t) => (t, MetaVarGen.t);
-
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
 
 let mk_inconsistent_operand:
   (MetaVarGen.t, operand) => (operand, MetaVarGen.t);
-
-let drop_outer_parentheses: operand => t;
 
 let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
 
