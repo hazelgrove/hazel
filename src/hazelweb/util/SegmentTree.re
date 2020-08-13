@@ -5,8 +5,8 @@ type status =
   | Partial
   | Full;
 
-// TODO functorize over ordered elements
 type interval = (float, float);
+
 type t = {
   root: node,
   // interval endpoints specified at initialization
@@ -77,6 +77,17 @@ let string_of_op =
   | Insert => "insert"
   | Delete => "delete";
 
+/**
+ * Implementation follows algorithm described in Sections 8.3 + 8.5
+ * of Computational Geometry: An Introduction by Preparata & Shamos.
+ * Section 8.3 describes the general use of segment trees to compute
+ * features of a collection of rectangles; Section 8.5 describes the
+ * specialization of that approach to compute the contour of a union
+ * of rectangles. The general framework laid out in 8.3 is unnecessary
+ * for our purposes (so our implementation could be streamlined) but I
+ * implemented it anyway so that the text serves as documentation that
+ * closely maps to our code.
+ */
 let perform = (op, (a, b): interval, tree: t): t => {
   let rec go = (op, (a, b) as interval, node: node): node => {
     let (a', b') = node.interval;
@@ -124,6 +135,10 @@ let perform = (op, (a, b): interval, tree: t): t => {
 let insert = perform(Insert);
 let delete = perform(Delete);
 
+/**
+ * Preparata & Shamos use the terminology "contribution" and specify
+ * the following implementation in the procedure CONTR in Section 8.5.
+ */
 let complement_intersection = ((a, b): interval, tree: t): list(interval) => {
   let rec go =
           (~stack=[], (a, b) as interval, node: node)
