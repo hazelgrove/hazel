@@ -740,7 +740,7 @@ body {
   box-shadow: 3px 3px tan;
   min-width: 450px;
   /* border: 1px solid tan; */
-  /*max-width: 10in;*/
+  max-width: 100ch;
 }
 
 .card-caption {
@@ -869,7 +869,6 @@ h1 {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
-  max-width: 80ch;
   cursor: text;
 }
 .contenteditable {
