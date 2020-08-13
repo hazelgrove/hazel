@@ -10,12 +10,6 @@ let to_string =
   | Prod => ","
   | Sum => "|";
 
-let to_parse_string = op =>
-  switch (op) {
-  | Arrow => "->"
-  | _ => to_string(op)
-  };
-
 let precedence =
   fun
   | Sum => 3

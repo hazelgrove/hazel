@@ -72,24 +72,6 @@ let mk_and_ana_fix_ZOpSeq =
   Statics_Exp.ana_fix_holes_z(ctx, u_gen, ([], ExpLineZ(zopseq), []), ty);
 };
 
-/**
-     * Used to construct an expression from an opseq suffix that
-     * follows a keyword when the user hits space after the keyword.
-     * If the first operation is a space, then what follows the space
-     * becomes the new expression. Otherwise, a new hole is generated,
-     * prepended to the suffix, and the reuslting opseq becomes the
-     * new expression.
-     */
-let keyword_suffix_to_opseq =
-    (suffix: Seq.affix(UHExp.operand, UHExp.operator), u_gen: MetaVarGen.t)
-    : (UHExp.opseq, MetaVarGen.t) =>
-  switch (suffix) {
-  | A(Space, suffix_tl) => (UHExp.mk_OpSeq(suffix_tl), u_gen)
-  | _ =>
-    let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    (UHExp.mk_OpSeq(S(hole, suffix)), u_gen);
-  };
-
 let keyword_action = (kw: ExpandingKeyword.t): Action_common.t =>
   switch (kw) {
   | Let => Construct(SLet)
@@ -523,17 +505,15 @@ let rec syn_move =
       }
     }
   | MoveLeft =>
-    ze
-    |> ZExp.move_cursor_left
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), ze =>
-         Succeeded(SynDone((ze, ty, u_gen)))
-       )
+    switch (ZExp.move_cursor_left(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
+    }
   | MoveRight =>
-    ze
-    |> ZExp.move_cursor_right
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
-         Succeeded(SynDone((ze, ty, u_gen)))
-       )
+    switch (ZExp.move_cursor_right(ze)) {
+    | None => CursorEscaped(After)
+    | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -584,17 +564,15 @@ let rec ana_move =
       }
     }
   | MoveLeft =>
-    ze
-    |> ZExp.move_cursor_left
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), ze =>
-         Succeeded(AnaDone((ze, u_gen)))
-       )
+    switch (ZExp.move_cursor_left(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
+    }
   | MoveRight =>
-    ze
-    |> ZExp.move_cursor_right
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), ze =>
-         Succeeded(AnaDone((ze, u_gen)))
-       )
+    switch (ZExp.move_cursor_right(ze)) {
+    | None => CursorEscaped(After)
+    | Some(ze) => Succeeded(AnaDone((ze, u_gen)))
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -849,12 +827,10 @@ and syn_perform_line =
       | Before => ZExp.move_cursor_left_zline
       | After => ZExp.move_cursor_right_zline
       };
-    zline
-    |> move_cursor
-    |> OptUtil.map_default(
-         ~default=ActionOutcome.CursorEscaped(side), new_zline =>
-         fix_and_mk_result(u_gen, ([], new_zline, []))
-       );
+    switch (move_cursor(zline)) {
+    | None => ActionOutcome.CursorEscaped(side)
+    | Some(new_zline) => fix_and_mk_result(u_gen, ([], new_zline, []))
+    };
   };
 
   switch (a, zline) {
@@ -2029,12 +2005,10 @@ and syn_perform_rules =
       | Before => ZExp.move_cursor_left_zrules
       | After => ZExp.move_cursor_right_zrules
       };
-    zrules
-    |> move_cursor
-    |> OptUtil.map_default(
-         ~default=ActionOutcome.CursorEscaped(side), new_zrules =>
-         Succeeded((new_zrules, u_gen))
-       );
+    switch (move_cursor(zrules)) {
+    | None => ActionOutcome.CursorEscaped(side)
+    | Some(new_zrules) => Succeeded((new_zrules, u_gen))
+    };
   };
 
   switch (a, zrule) {
@@ -2174,12 +2148,10 @@ and ana_perform_rules =
       | Before => ZExp.move_cursor_left_zrules
       | After => ZExp.move_cursor_right_zrules
       };
-    zrules
-    |> move_cursor
-    |> OptUtil.map_default(
-         ~default=ActionOutcome.CursorEscaped(side), new_zrules =>
-         Succeeded((new_zrules, u_gen))
-       );
+    switch (move_cursor(zrules)) {
+    | None => ActionOutcome.CursorEscaped(side)
+    | Some(new_zrules) => Succeeded((new_zrules, u_gen))
+    };
   };
 
   switch (a, zrule) {

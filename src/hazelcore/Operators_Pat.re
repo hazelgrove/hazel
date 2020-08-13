@@ -10,12 +10,6 @@ let to_string =
   | Space => " "
   | Cons => "::";
 
-let to_parse_string = op =>
-  switch (op) {
-  | Space => "_"
-  | _ => to_string(op)
-  };
-
 let is_Space =
   fun
   | Space => true
