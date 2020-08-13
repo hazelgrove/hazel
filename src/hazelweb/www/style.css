@@ -806,11 +806,9 @@ h1 {
   position: relative;
 }
 .code.presentation .Term.Rule,
-.code.presentation .Term.Invalid,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
-.code.presentation .LetLine,
 .code.presentation .Tessera {
   display: inline-block;
 }
