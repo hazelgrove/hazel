@@ -162,14 +162,14 @@ let mk_svg =
            };
            if (is_left_side(v)) {
              let new_contour_edges =
-               SegmentTree.contribution(ys, tree)
+               SegmentTree.complement_intersection(ys, tree)
                |> List.map(mk_contour_edge);
              let updated_tree = SegmentTree.insert(ys, tree);
              (updated_tree, new_contour_edges);
            } else {
              let updated_tree = SegmentTree.delete(ys, tree);
              let new_contour_edges =
-               SegmentTree.contribution(ys, updated_tree)
+               SegmentTree.complement_intersection(ys, updated_tree)
                |> List.map(mk_contour_edge);
              (updated_tree, new_contour_edges);
            };
