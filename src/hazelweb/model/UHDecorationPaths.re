@@ -32,7 +32,7 @@ let take_step = (step: int, decorations: t): t => {
 
 let current =
     (term_sort: TermSort.t, term_shape: TermShape.t, decorations: t)
-    : list(Decoration.t) => {
+    : list(UHDecorationShape.t) => {
   let is_current = steps =>
     switch (term_shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
@@ -46,22 +46,22 @@ let current =
   let err_holes =
     decorations.err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => Decoration.ErrHole)
+    |> Option.map(_ => UHDecorationShape.ErrHole)
     |> Option.to_list;
   let var_err_holes =
     decorations.var_err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => Decoration.VarErrHole)
+    |> Option.map(_ => UHDecorationShape.VarErrHole)
     |> Option.to_list;
   let var_uses =
     decorations.var_uses
     |> List.find_opt(is_current)
-    |> Option.map(_ => Decoration.VarUse)
+    |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
   let current_term =
     switch (decorations.current_term) {
     | Some((steps, _)) when is_current(steps) => [
-        Decoration.CurrentTerm(term_sort, term_shape),
+        UHDecorationShape.CurrentTerm(term_sort, term_shape),
       ]
     | _ => []
     };

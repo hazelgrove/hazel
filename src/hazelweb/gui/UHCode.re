@@ -6,15 +6,87 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+let decoration_container =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~origin: MeasuredPosition.t,
+      ~height: int,
+      ~width: int,
+      ~cls: string,
+      vs: list(Vdom.Node.t),
+    )
+    : Vdom.Node.t => {
+  let buffered_height = height + 1;
+  let buffered_width = width + 1;
+
+  let buffered_height_px =
+    Float.of_int(buffered_height) *. font_metrics.row_height;
+  let buffered_width_px =
+    Float.of_int(buffered_width) *. font_metrics.col_width;
+
+  let container_origin_x =
+    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
+  let container_origin_y =
+    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
+
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes([
+          "decoration-container",
+          Printf.sprintf("%s-container", cls),
+        ]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: calc(%fpx - 1px); left: %fpx;",
+            container_origin_x,
+            container_origin_y,
+          ),
+        ),
+      ],
+      [
+        Node.create_svg(
+          "svg",
+          [
+            Attr.classes([cls]),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "-0.5 -0.5 %d %d",
+                buffered_width,
+                buffered_height,
+              ),
+            ),
+            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", buffered_height_px),
+            ),
+            Attr.create("preserveAspectRatio", "none"),
+          ],
+          vs,
+        ),
+      ],
+    )
+  );
+};
+
 let decoration_views =
-    (~font_metrics: FontMetrics.t, ds: Decorations.t, l: UHLayout.t)
+    (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
+  let corner_radius = 2.5;
+  let corner_radii = (
+    corner_radius /. font_metrics.col_width,
+    corner_radius /. font_metrics.row_height,
+  );
+
   let rec go =
           (
             ~tl: list(Vdom.Node.t)=[],
             ~indent=0,
             ~start=MeasuredPosition.zero,
-            ds: Decorations.t,
+            dpaths: UHDecorationPaths.t,
             m: UHMeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
@@ -35,31 +107,65 @@ let decoration_views =
         offset + last_width;
       };
       let mid_tl =
-        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, ds, m2);
-      go'(~tl=mid_tl, ds, m1);
-    | Align(m) => go(~tl, ~indent=start.col, ~start, ds, m)
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, dpaths, m2);
+      go'(~tl=mid_tl, dpaths, m1);
+    | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
     | Annot(annot, m) =>
       switch (annot) {
       | Step(step) =>
-        let stepped = Decorations.take_step(step, ds);
-        Decorations.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+        let stepped = UHDecorationPaths.take_step(step, dpaths);
+        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
+        let offset = start.col - indent;
+        let origin = MeasuredPosition.{row: start.row, col: indent};
+        let height = lazy(MeasuredLayout.height(m));
+        let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
-          Decorations.current(sort, shape, ds)
-          |> List.map(
-               UHCodeDecoration.view(
+          UHDecorationPaths.current(sort, shape, dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let (cls, decoration) =
+                 UHDecoration.(
+                   switch (dshape) {
+                   | ErrHole => (
+                       "err-hole",
+                       ErrHole.view(~corner_radii, ~offset, m),
+                     )
+                   | VarErrHole => (
+                       "var-err-hole",
+                       VarErrHole.view(~corner_radii, ~offset, m),
+                     )
+                   | VarUse => (
+                       "var-use",
+                       VarUse.view(~corner_radii, ~offset, m),
+                     )
+                   | CurrentTerm(_) => (
+                       "current-term",
+                       CurrentTerm.view(
+                         ~corner_radii,
+                         ~offset,
+                         ~sort,
+                         ~shape,
+                         m,
+                       ),
+                     )
+                   }
+                 );
+               decoration_container(
                  ~font_metrics,
-                 ~origin={row: start.row, col: indent},
-                 ~offset=start.col - indent,
-                 ~subject=m,
-               ),
-             );
-        go'(~tl=current_vs @ tl, ds, m);
-      | _ => go'(~tl, ds, m)
+                 ~height=Lazy.force(height),
+                 ~width=Lazy.force(width),
+                 ~origin,
+                 ~cls,
+                 [decoration],
+               );
+             });
+        go'(~tl=current_vs @ tl, dpaths, m);
+      | _ => go'(~tl, dpaths, m)
       }
     };
   };
-  go(ds, UHMeasuredLayout.mk(l));
+
+  go(dpaths, UHMeasuredLayout.mk(l));
 };
 
 let key_handlers =
@@ -156,7 +262,7 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
         let width = Css_gen.width(`Ch(float_of_int(len)));
         [
           Node.span(
-            [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
+            [Attr.style(width), Attr.classes(["HoleLabel"])],
             [Node.span([Attr.classes(["HoleNumber"])], vs)],
           ),
         ];
@@ -193,8 +299,8 @@ let view =
 
       let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
-        let ds = Program.get_decorations(program);
-        decoration_views(~font_metrics, ds, l);
+        let dpaths = Program.get_decoration_paths(program);
+        decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
         let caret_pos =
@@ -205,7 +311,7 @@ let view =
             program,
           );
         program.is_focused
-          ? [UHCodeDecoration.caret_view(~font_metrics, caret_pos)] : [];
+          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
 
       let key_handlers =

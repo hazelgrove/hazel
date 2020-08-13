@@ -17,7 +17,7 @@ and t'('annot) =
   | Annot('annot, t('annot));
 
 let height: t(_) => int;
-let width: t(_) => int;
+let width: (~offset: int=?, t(_)) => int;
 
 let fold:
   (
