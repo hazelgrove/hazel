@@ -1,5 +1,4 @@
 type ordinal = int;
-type interval = (ordinal, ordinal);
 
 type status =
   | Empty
@@ -7,14 +6,17 @@ type status =
   | Full;
 
 // TODO functorize over ordered elements
+type interval = (float, float);
 type t = {
   root: node,
+  // interval endpoints specified at initialization
   values: array(float),
+  // ordinals of sorted endpoints
   ordinals: Hashtbl.t(float, ordinal),
 }
 and node = {
   // invariant: unit intervals are leaves
-  interval,
+  interval: (ordinal, ordinal),
   shape: node_shape,
   // TODO factor out status and count
   status,
@@ -70,8 +72,12 @@ let update_status = (node: node): node => {
 type op =
   | Insert
   | Delete;
+let string_of_op =
+  fun
+  | Insert => "insert"
+  | Delete => "delete";
 
-let perform = (op, (a, b), tree: t): t => {
+let perform = (op, (a, b): interval, tree: t): t => {
   let rec go = (op, (a, b) as interval, node: node): node => {
     let (a', b') = node.interval;
     let node =
@@ -102,7 +108,13 @@ let perform = (op, (a, b), tree: t): t => {
     Hashtbl.find_opt(tree.ordinals, b),
   ) {
   | (None, _)
-  | (_, None) => failwith("invalid argument")
+  | (_, None) =>
+    let msg =
+      Printf.sprintf(
+        "SegmentTree.%s: expected interval with endpoints specified at initialization",
+        string_of_op(op),
+      );
+    raise(Invalid_argument(msg));
   | (Some(a), Some(b)) =>
     let interval = a < b ? (a, b) : (b, a);
     let new_root = go(op, interval, tree.root);
@@ -112,8 +124,10 @@ let perform = (op, (a, b), tree: t): t => {
 let insert = perform(Insert);
 let delete = perform(Delete);
 
-let contribution = ((a: float, b: float), tree: t): list((float, float)) => {
-  let rec go = (~stack=[], (a, b) as interval, node: node): list(interval) => {
+let complement_intersection = ((a, b): interval, tree: t): list(interval) => {
+  let rec go =
+          (~stack=[], (a, b) as interval, node: node)
+          : list((ordinal, ordinal)) => {
     let (a', b') = node.interval;
     switch (node.status) {
     | Full => stack
