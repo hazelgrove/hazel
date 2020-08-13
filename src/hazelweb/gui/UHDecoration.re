@@ -2,10 +2,6 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
-let inline_open_child_border_height = 0.1; // y units
-let multiline_open_child_border_width = 0.25; // x units
-let tessera_margin = 0.03; // y units
-
 type rects = list(SvgUtil.Rect.t);
 
 let rects =
@@ -106,6 +102,10 @@ module VarUse = {
 };
 
 module CurrentTerm = {
+  let inline_open_child_border_height = 0.1; // y units
+  let multiline_open_child_border_width = 0.25; // x units
+  let tessera_margin = 0.03; // y units
+
   let inline_open_child_rects =
       (start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
     // TODO relax assumption
