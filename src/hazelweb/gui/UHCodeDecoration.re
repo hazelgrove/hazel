@@ -6,7 +6,7 @@ let inline_open_child_border_height = 0.1; // y units
 let multiline_open_child_border_width = 0.25; // x units
 let tessera_margin = 0.03; // y units
 
-type rects = list(RectilinearPolygon.rect);
+type rects = list(SvgUtil.Rect.t);
 
 type current_term_rects = {
   highlighted: rects,
@@ -23,7 +23,7 @@ let rects =
         start: MeasuredPosition.t,
         box: MeasuredLayout.box,
       ) =>
-    RectilinearPolygon.{
+    SvgUtil.Rect.{
       min: {
         x: Float.of_int(start.col),
         y: Float.of_int(start.row) +. (is_first ? vtrim : 0.0),
@@ -72,8 +72,8 @@ let err_hole_view =
   subject
   |> rects({row: 0, col: offset})
   |> snd
-  |> RectilinearPolygon.mk_svg(
-       ~corner_radii,
+  |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+  |> SvgUtil.OrthogonalPolygon.view(
        ~attrs=
          Vdom.Attr.[
            classes(["err-hole"]),
@@ -91,8 +91,8 @@ let var_err_hole_view =
   subject
   |> rects({row: 0, col: offset})
   |> snd
-  |> RectilinearPolygon.mk_svg(
-       ~corner_radii,
+  |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+  |> SvgUtil.OrthogonalPolygon.view(
        ~attrs=
          Vdom.Attr.[
            classes(["var-err-hole"]),
@@ -110,8 +110,8 @@ let var_use_view =
   subject
   |> rects({row: 0, col: offset})
   |> snd
-  |> RectilinearPolygon.mk_svg(
-       ~corner_radii,
+  |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+  |> SvgUtil.OrthogonalPolygon.view(
        ~attrs=
          Vdom.Attr.[
            classes(["var-use"]),
@@ -125,7 +125,7 @@ let inline_open_child_rects =
   assert(MeasuredLayout.height(m) == 1);
   // make singleton skinny rect along bottom
   [
-    RectilinearPolygon.{
+    SvgUtil.Rect.{
       min: {
         x: Float.of_int(start.col),
         y:
@@ -145,7 +145,7 @@ let multiline_open_child_rects =
   let overflow_left = overflow_left ? multiline_open_child_border_width : 0.0;
   [
     // make singleton skinny rect
-    RectilinearPolygon.{
+    SvgUtil.Rect.{
       min: {
         x: Float.of_int(start.col) -. overflow_left,
         y: Float.of_int(start.row),
@@ -332,7 +332,7 @@ let current_term_open_child_rects =
                Float.of_int(MeasuredLayout.height(m))
                -. (start.row == 0 ? tessera_margin : 0.)
                -. (start.row == subject_height - 1 ? tessera_margin : 0.);
-             RectilinearPolygon.[
+             SvgUtil.Rect.[
                {
                  min: {
                    x: min_x,
@@ -380,26 +380,26 @@ let current_term_view =
     )
     : Vdom.Node.t => {
   let highlighted = {
-    let tesserae = subject |> current_term_tessera_rects(~shape, ~offset);
+    let tesserae = current_term_tessera_rects(~shape, ~offset, subject);
     let open_child_borders =
-      subject |> current_term_open_child_rects(~shape, ~offset);
-    RectilinearPolygon.mk_svg(
-      ~corner_radii,
-      ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
-      tesserae @ open_child_borders,
-    );
+      current_term_open_child_rects(~shape, ~offset, subject);
+    tesserae
+    @ open_child_borders
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.OrthogonalPolygon.view(
+         ~attrs=Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
+       );
   };
   let closed_children =
     subject
     |> current_term_closed_child_rects(~shape, ~offset)
     |> List.map(((sort, rs)) =>
-         RectilinearPolygon.mk_svg(
-           ~corner_radii,
-           ~attrs=[
-             Vdom.Attr.classes(["code-closed-child", sort_cls(sort)]),
-           ],
-           rs,
-         )
+         rs
+         |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+         |> SvgUtil.OrthogonalPolygon.view(
+              ~attrs=
+                Vdom.Attr.[classes(["code-closed-child", sort_cls(sort)])],
+            )
        );
   let outer_filter =
     Vdom.(
