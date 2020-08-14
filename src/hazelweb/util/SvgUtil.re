@@ -95,20 +95,18 @@ module OrthogonalPolygon = {
     src.x == dst.x ? V_({dy: dst.y -. src.y}) : H_({dx: dst.x -. src.x});
   };
 
-  /**
-   * Corner rounding cuts into the lengths of the entering and
-   * exiting edges. Find the maximum (proportionally scaled)
-   * radii possible given lengths of entering and exiting edges.
-   */
-  let max_radii =
-      ((rx: float, ry: float), (dx: float, dy: float)): (float, float) => {
-    let rx_min = min(rx, Float.abs(dx));
-    let ry_min = min(ry, Float.abs(dy));
-    ry_min *. rx >= rx_min *. ry
-      ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
-  };
-
   let round_corners = ((rx: float, ry: float), path: Path.t): Path.t => {
+    // Corner rounding cuts into the lengths of the entering and
+    // exiting edges. Find the maximum (proportionally scaled)
+    // radii possible given lengths of entering and exiting edges.
+    let max_radii =
+        ((rx: float, ry: float), (dx: float, dy: float)): (float, float) => {
+      let rx_min = min(rx, Float.abs(dx));
+      let ry_min = min(ry, Float.abs(dy));
+      ry_min *. rx >= rx_min *. ry
+        ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
+    };
+
     path
     |> List.map(
          fun
@@ -159,49 +157,87 @@ module OrthogonalPolygon = {
     |> List.flatten;
   };
 
+  let is_left_side = (edge: linked_edge): bool => {
+    edge.src.y > edge.dst.y;
+  };
+
   /**
-   * Implements algorithm described in Section 8.5 of
-   * Computational Geometry: An Introduction by Preparata
-   * & Shamos. If you need to understand the algorithm in
-   * detail, you should first read Sections 1.2.3.1 + 8.3.
+   * Merge coinciding vertical edges that point in the same direction
+   *
+   * TODO figure out if there's a cleaner + more efficient method for this pass
    */
-  let mk = (~corner_radii: (float, float), rects: list(Rect.t)): t => {
-    assert(rects != []);
+  let merge_coinciding_vertical_edges =
+      (edges: list(linked_edge)): list(linked_edge) => {
+    let (left_edges, right_edges) = List.partition(is_left_side, edges);
+    let merged_left_edges =
+      left_edges
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             (-1) * Float.compare(v1.src.y, v2.src.y);
+           }
+         )
+      |> List.fold_left(
+           (stack, v) =>
+             switch (stack) {
+             | [] => [v]
+             | [hd, ...tl] as stack =>
+               if (v.src.x == hd.dst.x && v.src.y >= hd.dst.y) {
+                 [{...hd, dst: v.dst}, ...tl];
+               } else {
+                 [v, ...stack];
+               }
+             },
+           [],
+         );
+    let merged_right_edges =
+      right_edges
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             Float.compare(v1.src.y, v2.src.y);
+           }
+         )
+      |> List.fold_left(
+           (stack, v) =>
+             switch (stack) {
+             | [] => [v]
+             | [hd, ...tl] as stack =>
+               if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
+                 [{...hd, dst: v.dst}, ...tl];
+               } else {
+                 [v, ...stack];
+               }
+             },
+           [],
+         );
+    merged_left_edges @ merged_right_edges;
+  };
 
-    let is_left_side = (edge: linked_edge): bool => {
-      edge.src.y > edge.dst.y;
-    };
-
+  /**
+   * `vertical_contour_edges(rs)` compute the vertical edges of the
+   * contour of the union of rectangles `rs`
+   */
+  let vertical_contour_edges = (rects: list(Rect.t)): list(linked_edge) => {
     let sorted_vertical_sides: list(linked_edge) =
       rects
       |> List.map((Rect.{min, width, height}) => {
            let max_x = min.x +. width;
            let max_y = min.y +. height;
+           let max = {x: max_x, y: max_y};
+           let min_max = {x: min.x, y: max_y};
+           let max_min = {x: max_x, y: min.y};
            [
              // left sides point in negative direction
-             {
-               src: {
-                 x: min.x,
-                 y: max_y,
-               },
-               dst: {
-                 x: min.x,
-                 y: min.y,
-               },
-               next: None,
-             },
+             {src: min_max, dst: min, next: None},
              // right sides point in positive direction
-             {
-               src: {
-                 x: max_x,
-                 y: min.y,
-               },
-               dst: {
-                 x: max_x,
-                 y: max_y,
-               },
-               next: None,
-             },
+             {src: max_min, dst: max, next: None},
            ];
          })
       |> List.flatten
@@ -225,110 +261,62 @@ module OrthogonalPolygon = {
            }
          );
 
-    let ys =
+    let segment_tree =
       rects
       |> List.map((Rect.{min, height, _}) => [min.y, min.y +. height])
-      |> List.flatten;
+      |> List.flatten
+      |> SegmentTree.mk;
 
-    let vertical_contour_edges =
-      sorted_vertical_sides
-      |> ListUtil.map_with_accumulator(
-           (tree, v) => {
-             let x = v.src.x;
-             let ys = (v.src.y, v.dst.y);
-             let mk_contour_edge = ((y_src, y_dst)) => {
-               {
-                 src: {
-                   x,
-                   y: y_src,
-                 },
-                 dst: {
-                   x,
-                   y: y_dst,
-                 },
-                 next: None,
-               };
-             };
-             if (is_left_side(v)) {
-               let new_contour_edges =
-                 SegmentTree.complement_intersection(ys, tree)
-                 |> List.map(mk_contour_edge);
-               let updated_tree = SegmentTree.insert(ys, tree);
-               (updated_tree, new_contour_edges);
-             } else {
-               let updated_tree = SegmentTree.delete(ys, tree);
-               let new_contour_edges =
-                 SegmentTree.complement_intersection(ys, updated_tree)
-                 |> List.map(mk_contour_edge);
-               (updated_tree, new_contour_edges);
-             };
-           },
-           SegmentTree.mk(ys),
-         )
-      |> snd
-      |> List.flatten;
+    sorted_vertical_sides
+    // plane-sweep
+    |> ListUtil.map_with_accumulator(
+         (tree, v) => {
+           let x = v.src.x;
+           let ys = (v.src.y, v.dst.y);
+           let mk_contour_edge = ((y_src, y_dst)) => {
+             let src = {x, y: y_src};
+             let dst = {x, y: y_dst};
+             {src, dst, next: None};
+           };
+           if (is_left_side(v)) {
+             let new_contour_edges =
+               SegmentTree.complement_intersection(ys, tree)
+               |> List.map(mk_contour_edge);
+             let updated_tree = SegmentTree.insert(ys, tree);
+             (updated_tree, new_contour_edges);
+           } else {
+             let updated_tree = SegmentTree.delete(ys, tree);
+             let new_contour_edges =
+               SegmentTree.complement_intersection(ys, updated_tree)
+               |> List.map(mk_contour_edge);
+             (updated_tree, new_contour_edges);
+           };
+         },
+         segment_tree,
+       )
+    |> snd
+    |> List.flatten
+    // this step is not explicated by Preparata & Shamos
+    // but its absence causes bugs
+    |> merge_coinciding_vertical_edges;
+  };
 
-    // TODO figure out if there's a cleaner + more efficient method for this pass
-    let merged_vertical_contour_edges = {
-      let (left_edges, right_edges) =
-        List.partition(
-          edge => edge.src.y > edge.dst.y,
-          vertical_contour_edges,
-        );
-      let merged_left_edges =
-        left_edges
-        |> List.sort((v1, v2) =>
-             if (v1.src.x < v2.src.x) {
-               (-1);
-             } else if (v1.src.x > v2.src.x) {
-               1;
-             } else {
-               (-1) * Float.compare(v1.src.y, v2.src.y);
-             }
-           )
-        |> List.fold_left(
-             (stack, v) =>
-               switch (stack) {
-               | [] => [v]
-               | [hd, ...tl] as stack =>
-                 if (v.src.x == hd.dst.x && v.src.y >= hd.dst.y) {
-                   [{...hd, dst: v.dst}, ...tl];
-                 } else {
-                   [v, ...stack];
-                 }
-               },
-             [],
-           );
-      let merged_right_edges =
-        right_edges
-        |> List.sort((v1, v2) =>
-             if (v1.src.x < v2.src.x) {
-               (-1);
-             } else if (v1.src.x > v2.src.x) {
-               1;
-             } else {
-               Float.compare(v1.src.y, v2.src.y);
-             }
-           )
-        |> List.fold_left(
-             (stack, v) =>
-               switch (stack) {
-               | [] => [v]
-               | [hd, ...tl] as stack =>
-                 if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
-                   [{...hd, dst: v.dst}, ...tl];
-                 } else {
-                   [v, ...stack];
-                 }
-               },
-             [],
-           );
-      merged_left_edges @ merged_right_edges;
-    };
+  /**
+   * Implements algorithm described in Section 8.5 of
+   * Computational Geometry: An Introduction by Preparata
+   * & Shamos. If you need to understand the algorithm in
+   * detail, you should first read Sections 1.2.3.1 + 8.3.
+   */
+  let mk = (~corner_radii: (float, float), rects: list(Rect.t)): t => {
+    assert(rects != []);
 
-    merged_vertical_contour_edges
+    let vertical_contour_edges = vertical_contour_edges(rects);
+
+    // join vertical contour edges via horizontal edges
+    vertical_contour_edges
     |> List.map(v => [(false, v), (true, v)])
     |> List.flatten
+    // sort endpoints by y coordinate, then x coordinate
     |> List.sort(((is_src1, v1), (is_src2, v2)) => {
          let pt1 = is_src1 ? v1.src : v1.dst;
          let pt2 = is_src2 ? v2.src : v2.dst;
@@ -341,6 +329,7 @@ module OrthogonalPolygon = {
          };
        })
     |> ListUtil.disjoint_pairs
+    // consecutive pairs of endpoints form horizontal edges
     |> List.iter((((is_src1, v1), (is_src2, v2))) => {
          let pt1 = is_src1 ? v1.src : v1.dst;
          let pt2 = is_src2 ? v2.src : v2.dst;
@@ -351,20 +340,14 @@ module OrthogonalPolygon = {
            is_src1 ? (pt2.x, pt1.x, v2, v1) : (pt1.x, pt2.x, v1, v2);
 
          let h = {
-           src: {
-             x: x_src,
-             y,
-           },
-           dst: {
-             x: x_dst,
-             y,
-           },
-           next: Some(next),
+           let src = {x: x_src, y};
+           let dst = {x: x_dst, y};
+           {src, dst, next: Some(next)};
          };
          prev.next = Some(h);
        });
 
-    let start = List.hd(merged_vertical_contour_edges);
+    let start = List.hd(vertical_contour_edges);
     let rec build_path = (edge: linked_edge): Path.t => {
       switch (edge.next) {
       | None => failwith("expected single cycle")
