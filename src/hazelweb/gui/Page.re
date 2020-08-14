@@ -242,8 +242,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                                 )
                               ) {
                               | ExtractionFailed(err) =>
-                                "An Error Occurs: \n" ++ err
-                              | OCamlExp(str) => str
+                                "An Error Occurs in the extraction: \n" ++ err
+                              | OCamlExp(str) =>
+                                "The extraction result is: \n" ++ str
                               },
                             );
                             Event.Ignore;

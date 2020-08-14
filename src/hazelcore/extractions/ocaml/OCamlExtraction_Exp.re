@@ -4,7 +4,7 @@
  Naming Conventions:
    d for DHExp, dp for DHPat, ht for HTyp
    ocaml_(pat|typ|exp) for return result of extract
-   (typ|pat|exp)_(str|typ) for destructed components
+   (typ|pat|exp)(_(str|typ))? for destructed components
  */
 
 type ocaml_exp = string;
@@ -12,8 +12,9 @@ type t =
   | OCamlExp(ocaml_exp, HTyp.t);
 
 exception Exp_Hole;
-exception Exp_Incomplete;
+exception Exp_Keyword(ExpandingKeyword.t);
 exception Exp_Invalid(option(string));
+exception Exp_Fixpoint(string);
 
 //at top level, we use de instead of d because it's used for destruction only
 let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
@@ -21,7 +22,7 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
   | EmptyHole(_)
   | NonEmptyHole(_) => raise(Exp_Hole)
   // used for variables that are keywords in Hazel, like "let" and "case"
-  | Keyword(_) => raise(Exp_Incomplete)
+  | Keyword(_, _, _, keyword) => raise(Exp_Keyword(keyword))
   // an expression with a free variable cannot be extracted to OCaml because free variables cause type errors in OCaml
   | FreeVar(_, _, _, _) => raise(Exp_Invalid(Some("free variable")))
   | BoundVar(s) =>
@@ -31,25 +32,31 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     | None => raise(Exp_Invalid(Some("undeclared variable")))
     | Some(t) => OCamlExp(s, t)
     };
-  //it's the case of fixpoint/ recursive functions
-  //Hazel programs will only ever result in internal expressions containing let ... = fix ...
-  //let rec f: some type = fun x -> f ... (is reasonable)
-  // x should be already inserted into context
-
-  // Here the function name should be added by let, do it here to be careful
-  //TODO: Move FixF into Let
+  // FixF is handled in Let,
+  // Recursive functions can only declear by Let, this design is to keep the invariant
+  | FixF(s, _ht, _d) => raise(Exp_Fixpoint(s))
   | Let(dp, d1, d2) =>
-    // Let can bind patterns, so use "update_pattern" as rules (Case)
     let ocaml_pat = OCamlExtraction_Pat.extract(dp);
-    let ocaml_exp1 = extract(ctx, d1);
+    // if d1 is a resursive function, should first update itself to context
+    let ocaml_exp1 =
+      switch (d1) {
+      | FixF(s, ht, d) =>
+        //fixpoint function name should be added into the context to evaluate itself
+        let ctx_fix = Contexts.extend_gamma(ctx, (s, ht));
+        switch (extract(ctx_fix, d)) {
+        | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str, ht)
+        };
+      | _ => extract(ctx, d1)
+      };
     switch (ocaml_pat, ocaml_exp1) {
     | (OCamlPat(pat_str), OCamlExp(exp1_str, exp1_typ)) =>
-      // update the context
+      //let can support various pattern declaration besides variable
       let ctx' = OCamlExtraction_Pat.update_pattern(dp, exp1_typ, ctx);
       let ocaml_exp2 = extract(ctx', d2);
       let ocaml_typ = OCamlExtraction_Typ.extract(exp1_typ);
       switch (ocaml_typ, ocaml_exp2) {
       | (OCamlTyp(typ_str), OCamlExp(exp2_str, exp2_typ)) =>
+        //using "let x:t = d1 in d2" ocaml format, if d1 is a recursive function, use "let rec" instead
         let body =
           pat_str
           ++ " : "
@@ -59,30 +66,16 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
           ++ " in\n"
           ++ exp2_str;
         switch (d1) {
-        // use the "let .. = .. in" format
-        // if it's a recursive function, it's format of let ... = fix ..., we change it to "let rec"
-        //, because the recursive function should be declared by "rec" only in ocaml
         | FixF(_, _, _) => OCamlExp("let rec " ++ body, exp2_typ)
         | _ => OCamlExp("let " ++ body, exp2_typ)
         };
       };
     };
-  | FixF(s, ht, d) =>
-    //it's the case of fixpoint/ recursive functions
-    //Hazel programs will only ever result in internal expressions containing let ... = fix ...
-    //let rec f: some type = fun x -> f ... (is reasonable)
-    // x should be already inserted into context
-
-    // Here the function name should be added by let, do it here to be careful
-    let ctx' = Contexts.extend_gamma(ctx, (s, ht));
-    switch (extract(ctx', d)) {
-    | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str, ht)
-    };
   | Lam(dp, ht, d) =>
-    //Htyp.t is the ground type of pattern
+    //Htyp.t is the expected type of pattern
     let ocaml_pat = OCamlExtraction_Pat.extract(dp);
     let ocaml_ht = OCamlExtraction_Typ.extract(ht);
-    // update pattern into environment
+    // lambda can also declear various patterns besides variable
     let ctx' = OCamlExtraction_Pat.update_pattern(dp, ht, ctx);
     let ocaml_exp = extract(ctx', d);
     switch (ocaml_pat, ocaml_ht, ocaml_exp) {
@@ -92,8 +85,8 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
         Arrow(ht, exp_typ),
       )
     };
+  //apply
   | Ap(d1, d2) =>
-    //apply
     let ocaml_exp1 = extract(ctx, d1);
     let ocaml_exp2 = extract(ctx, d2);
     switch (ocaml_exp1, ocaml_exp2) {
@@ -107,7 +100,7 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     };
   | BoolLit(bool) => OCamlExp(string_of_bool(bool), Bool)
   | IntLit(int) => OCamlExp(string_of_int(int), Int)
-  // contains special floats, the float is already ocaml type
+  // contains special floats, already implemented in ocaml(https://caml.inria.fr/pub/docs/manual-ocaml/libref/Float.html)
   | FloatLit(float) =>
     let str =
       switch (string_of_float(float)) {
@@ -117,7 +110,7 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
       | s => s
       };
     OCamlExp(str, Float);
-  // BinxxxOp can accept Lit or Op
+  // Bin(Bool|Int|Float)Op can accept Lit or Op
   | BinBoolOp(op, d1, d2) =>
     switch (extract(ctx, d1), extract(ctx, d2)) {
     | (OCamlExp(exp1_str, Bool), OCamlExp(exp2_str, Bool)) =>
@@ -178,7 +171,7 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     | (OCamlExp(hd_str, _hd_typ), OCamlExp(tl_str, tl_typ)) =>
       switch (tl_typ) {
       | List(t) =>
-        //remove typechek t == hd_typ
+        //removed typechek t == hd_typ
         OCamlExp("(" ++ hd_str ++ "::" ++ tl_str ++ ")", List(t))
       | _ => raise(OCamlExtraction_Typ.Typ_NotMatch("cons", "list"))
       }
@@ -205,7 +198,6 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
   | Triv => OCamlExp("()", Prod([])) //Prod([]) is the base type
   | ConsistentCase(cases) =>
     switch (cases) {
-    // the int seems useless
     | Case(d, rules, _) =>
       switch (extract(ctx, d)) {
       | OCamlExp(exp_str, exp_typ) =>
@@ -239,7 +231,7 @@ and rules_extract =
     let tail = rules_extract(~ctx, ~rules=t, ~pat_t);
     switch (head, tail) {
     | (OCamlExp(hd_str, _hd_typ), OCamlExp(tl_str, tl_typ)) =>
-      //remove consistent check HTyp.consistent(hd_typ, tl_typ)
+      //removed consistent check HTyp.consistent(hd_typ, tl_typ)
       OCamlExp(hd_str ++ "\n" ++ tl_str, tl_typ)
     };
   }
@@ -258,13 +250,16 @@ module Extraction_wrapper = {
     | OCamlExp(string)
     | ExtractionFailed(string);
 
-  //TODO: test exception handling
+  //TODO: test exception handling (seems good now)
   let extract = (ctx: Contexts.t, exp: DHExp.t): t =>
     switch (extract(ctx, exp)) {
+    // normal return value
     | item =>
       switch (item) {
       | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str)
       }
+    // Exception handling
+    //TODO: make the exceptions more human readable
     // type extraction exceptions
     | exception OCamlExtraction_Typ.Typ_Hole =>
       ExtractionFailed("Type exception: Hole exists in program")
@@ -277,10 +272,15 @@ module Extraction_wrapper = {
         ++ " type",
       )
     // pattern extraction exceptions
+
     | exception OCamlExtraction_Pat.Pat_Hole =>
       ExtractionFailed("Pattern exception: Hole exists in program")
-    | exception OCamlExtraction_Pat.Pat_Incomplete =>
-      ExtractionFailed("Pattern exception: Program is imcomplete")
+    | exception (OCamlExtraction_Pat.Pat_Keyword(keyword)) =>
+      ExtractionFailed(
+        "Pattern exception: Keyword "
+        ++ ExpandingKeyword.to_string(keyword)
+        ++ " is not allowed",
+      )
     | exception (OCamlExtraction_Pat.Pat_Invalid(err)) =>
       ExtractionFailed("Pattern exception: " ++ err ++ " is invalid in OCaml")
     | exception (OCamlExtraction_Pat.Pat_InvalidUpdate(err)) =>
@@ -292,8 +292,12 @@ module Extraction_wrapper = {
     // expression extraction exceptions
     | exception Exp_Hole =>
       ExtractionFailed("Expression exception: Hole exists in program")
-    | exception Exp_Incomplete =>
-      ExtractionFailed("Expression exception: Program is incomplete")
+    | exception (Exp_Keyword(keyword)) =>
+      ExtractionFailed(
+        "Expression exception: Keyword "
+        ++ ExpandingKeyword.to_string(keyword)
+        ++ " is not allowed",
+      )
     | exception (Exp_Invalid(err)) =>
       switch (err) {
       | Some(err_s) =>
@@ -304,5 +308,11 @@ module Extraction_wrapper = {
         )
       | None => ExtractionFailed("Expression exception: Invalid Operation")
       }
+    | exception (Exp_Fixpoint(s)) =>
+      ExtractionFailed(
+        "Expression exception: Fixpoint \""
+        ++ s
+        ++ "\" should be declared in Let expression",
+      )
     };
 };

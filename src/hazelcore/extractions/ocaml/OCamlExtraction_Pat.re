@@ -3,7 +3,7 @@ type t =
   | OCamlPat(string);
 
 exception Pat_Hole;
-exception Pat_Incomplete; //when there's Keyword
+exception Pat_Keyword(ExpandingKeyword.t); //there's Keyword
 exception Pat_Invalid(string);
 
 // the ocaml naming standard can be found in Chapter 7.3 of ocaml-manual (https://caml.inria.fr/pub/docs/manual-ocaml/names.html)
@@ -17,14 +17,14 @@ let rec extract = (dp: DHPat.t): t =>
   | EmptyHole(_, _)
   | NonEmptyHole(_, _, _, _) => raise(Pat_Hole)
   | Wild => OCamlPat("_")
-  | Keyword(_, _, _) => raise(Pat_Incomplete)
-  | InvalidText(_, _, _) => raise(Pat_Invalid("text"))
+  | Keyword(_, _, keyword) => raise(Pat_Keyword(keyword))
+  | InvalidText(_, _, s) => raise(Pat_Invalid("text \"" ++ s ++ "\""))
   | Var(s) =>
     //check variable naming is valid
     if (ocaml_name_check(s)) {
       OCamlPat(s);
     } else {
-      raise(Pat_Invalid("variable naming " ++ s));
+      raise(Pat_Invalid("variable naming \"" ++ s ++ "\""));
     }
   | IntLit(i) => OCamlPat(string_of_int(i))
   | FloatLit(f) => OCamlPat(string_of_float(f))
@@ -68,19 +68,17 @@ let rec update_pattern =
   switch (dp) {
   | EmptyHole(_)
   | NonEmptyHole(_) => raise(Pat_Hole)
-  | Keyword(_) => raise(Pat_Incomplete)
+  | Keyword(_, _, keyword) => raise(Pat_Keyword(keyword))
   | Ap(_, _) => raise(Pat_InvalidUpdate("apply"))
   | InvalidText(_, _, _) => raise(Pat_Invalid("text"))
   | Var(s) =>
-    //I don't think we need to recheck it here...
     if (ocaml_name_check(s)) {
       Contexts.extend_gamma(ctx, (s, pat_t));
     } else {
-      raise(Pat_Invalid("variable naming " ++ s));
+      raise(Pat_Invalid("variable naming \"" ++ s ++ "\""));
     }
   | Inj(side, p) =>
     // update a side of the pattern to context
-    // FIXME: does we really need L,R to be neither Hole type?
     switch (pat_t) {
     | Sum(tl, tr) =>
       switch (side) {

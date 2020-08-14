@@ -4,7 +4,7 @@ type t =
 
 // exception whenever we have a Hole in type
 exception Typ_Hole;
-// reserve for pat and exp use, (expression category, required type)
+// exception reserved for pat and exp extraction, (expression category, required type)
 exception Typ_NotMatch(string, string);
 
 let rec extract = (t: HTyp.t): t =>
@@ -29,8 +29,8 @@ let rec extract = (t: HTyp.t): t =>
         "[ " ++ "`Left of " ++ typ1 ++ " | " ++ "`Right of " ++ typ2 ++ " ]",
       )
     }
+  // explicit parenthesize, i.e. a*b*c = (a*b)*c
   | Prod(tl) => list_prod(~tl)
-  // left binding, i.e. a*b*c = (a*b)*c
   | List(t) =>
     switch (extract(t)) {
     | OCamlTyp(typ) => OCamlTyp(typ ++ " list")
