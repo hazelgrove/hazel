@@ -234,7 +234,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             Printf.printf(
                               "%s\n%!",
                               switch (
-                                OCamlExtraction_Exp.extract(
+                                OCamlExtraction_Exp.Extraction_wrapper.extract(
                                   Contexts.empty,
                                   model
                                   |> Model.get_program
@@ -243,7 +243,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                               ) {
                               | ExtractionFailed(err) =>
                                 "An Error Occurs: \n" ++ err
-                              | OcamlExp(str, _typ) => str
+                              | OCamlExp(str) => str
                               },
                             );
                             Event.Ignore;
