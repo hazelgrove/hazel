@@ -24,21 +24,18 @@ let rects =
         -. (is_first ? vtrim : 0.0)
         -. (is_last ? vtrim : 0.0),
     };
-  let (leading, last) = ListUtil.split_last(m.metrics);
-  let (last_start, leading_rects) =
-    leading
-    |> List.mapi((i, box) => (i, box))
-    |> ListUtil.map_with_accumulator(
-         (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
-           (
-             {row: start.row + box.height, col: 0},
-             mk_rect(~is_first=i == 0, start, box),
-           ),
-         start,
-       );
-  let last_rect =
-    mk_rect(~is_first=leading == [], ~is_last=true, last_start, last);
-  leading_rects @ [last_rect];
+  let n = List.length(m.metrics);
+  m.metrics
+  |> List.mapi((i, box) => (i, box))
+  |> ListUtil.map_with_accumulator(
+       (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
+         (
+           {row: start.row + box.height, col: 0},
+           mk_rect(~is_first=i == 0, ~is_last=i == n - 1, start, box),
+         ),
+       start,
+     )
+  |> snd;
 };
 
 module ErrHole = {
