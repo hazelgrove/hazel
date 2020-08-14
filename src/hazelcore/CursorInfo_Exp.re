@@ -323,7 +323,8 @@ and syn_cursor_info_line =
       |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
     | Some(ann) =>
       let ty = UHTyp.expand(ann);
-      let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
+      let (ctx_def, _) =
+        Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
       ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
       |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
     }
