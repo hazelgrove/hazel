@@ -52,7 +52,6 @@ let fold =
   go(m);
 };
 
-// TODO assign indent default value
 let next_position =
     (~indent: int, {row, col}: MeasuredPosition.t, m: t(_))
     : MeasuredPosition.t => {
