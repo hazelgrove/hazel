@@ -42,15 +42,6 @@ let to_string =
   | And => "&&"
   | Or => "||";
 
-let to_parse_string = op =>
-  switch (op) {
-  | Equals => "="
-  | Space => "_"
-  | And => "&"
-  | Or => "|"
-  | _ => to_string(op)
-  };
-
 let is_Space =
   fun
   | Space => true

@@ -493,6 +493,7 @@ let mk_ZOpSeq =
 let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
 let get_err_status_zblock = zblock =>
   zblock |> erase_zblock |> UHExp.get_err_status_block;
+
 let get_err_status_zopseq = zopseq =>
   zopseq |> erase_zopseq |> UHExp.get_err_status_opseq;
 let get_err_status_zoperand = zoperand =>
@@ -594,27 +595,6 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
   let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
   (place_before_operand(hole), u_gen);
 };
-
-let rec cursor_on_outer_expr =
-        (zoperand: zoperand): option((UHExp.t, CursorPosition.t)) =>
-  switch (zoperand) {
-  | CursorE(cursor, operand) =>
-    Some((UHExp.drop_outer_parentheses(operand), cursor))
-  | ParenthesizedZ((
-      [],
-      ExpLineZ(ZOpSeq(_, ZOperand(zoperand, (E, E)))),
-      [],
-    )) =>
-    cursor_on_outer_expr(zoperand)
-  | ParenthesizedZ(_)
-  | LamZP(_)
-  | LamZA(_)
-  | LamZE(_)
-  | InjZ(_)
-  | CaseZE(_)
-  | CaseZR(_)
-  | ApPaletteZ(_) => None
-  };
 
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);

@@ -72,24 +72,6 @@ let mk_and_ana_fix_ZOpSeq =
   Statics_Exp.ana_fix_holes_z(ctx, u_gen, ([], ExpLineZ(zopseq), []), ty);
 };
 
-/**
-     * Used to construct an expression from an opseq suffix that
-     * follows a keyword when the user hits space after the keyword.
-     * If the first operation is a space, then what follows the space
-     * becomes the new expression. Otherwise, a new hole is generated,
-     * prepended to the suffix, and the reuslting opseq becomes the
-     * new expression.
-     */
-let keyword_suffix_to_opseq =
-    (suffix: Seq.affix(UHExp.operand, UHExp.operator), u_gen: MetaVarGen.t)
-    : (UHExp.opseq, MetaVarGen.t) =>
-  switch (suffix) {
-  | A(Space, suffix_tl) => (UHExp.mk_OpSeq(suffix_tl), u_gen)
-  | _ =>
-    let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    (UHExp.mk_OpSeq(S(hole, suffix)), u_gen);
-  };
-
 let keyword_action = (kw: ExpandingKeyword.t): Action_common.t =>
   switch (kw) {
   | Let => Construct(SLet)

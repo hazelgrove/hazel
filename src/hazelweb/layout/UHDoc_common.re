@@ -141,8 +141,7 @@ type formatted_child =
   | EnforcedInline(t)
   | Unformatted((~enforce_inline: bool) => t);
 
-// TODO rename to pad_bidelimited_open_child
-let pad_open_child =
+let pad_bidelimited_open_child =
     (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
   open Doc;
   let inline_choice = child_doc => {
@@ -210,8 +209,7 @@ let pad_closed_child =
   };
 };
 
-// TODO rename to pad_left_delimited_open_child
-let pad_left_delimited_child =
+let pad_left_delimited_open_child =
     (~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
   let inline_choice = child_doc => {
@@ -279,14 +277,14 @@ let mk_ListNil = (~sort: TermSort.t, ()): t =>
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
   let close_group = Delim.close_Parenthesized() |> annot_Tessera;
-  Doc.hcats([open_group, body |> pad_open_child, close_group])
+  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort);
 };
 
 let mk_List = (body: formatted_child): t => {
   let open_group = Delim.open_List() |> annot_Tessera;
   let close_group = Delim.close_List() |> annot_Tessera;
-  Doc.hcats([open_group, body |> pad_open_child, close_group])
+  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort=Typ);
 };
 
@@ -294,7 +292,7 @@ let mk_Inj =
     (~sort: TermSort.t, ~inj_side: InjSide.t, body: formatted_child): t => {
   let open_group = Delim.open_Inj(inj_side) |> annot_Tessera;
   let close_group = Delim.close_Inj() |> annot_Tessera;
-  Doc.hcats([open_group, body |> pad_open_child, close_group])
+  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort);
 };
 
@@ -321,7 +319,7 @@ let mk_Lam =
     doc |> annot_Tessera;
   };
   let close_group = Delim.close_Lam() |> annot_Tessera;
-  Doc.hcats([open_group, body |> pad_open_child, close_group])
+  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort=Exp);
 };
 
@@ -333,7 +331,7 @@ let mk_Case = (scrut: formatted_child, rules: list(t)): t => {
       [
         hcats([
           open_group,
-          scrut |> pad_left_delimited_child(~inline_padding=space_),
+          scrut |> pad_left_delimited_open_child(~inline_padding=space_),
         ]),
         ...rules,
       ]
@@ -353,7 +351,7 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
     |> annot_Tessera;
   Doc.hcats([
     delim_group,
-    clause |> pad_left_delimited_child(~inline_padding=space_),
+    clause |> pad_left_delimited_open_child(~inline_padding=space_),
   ])
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
 };
@@ -391,7 +389,7 @@ let mk_LetLine =
   let close_group = Delim.in_LetLine() |> annot_Tessera;
   Doc.hcats([
     open_group,
-    def |> pad_open_child(~inline_padding=(space_, space_)),
+    def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
     close_group,
   ]);
 };

@@ -17,7 +17,7 @@ and t'('annot) =
   | Annot('annot, t('annot));
 
 let height: t(_) => int;
-let width: t(_) => int;
+let width: (~offset: int=?, t(_)) => int;
 
 let fold:
   (
@@ -46,6 +46,11 @@ let pos_fold:
   ) =>
   'acc;
 
+/**
+ * `next_position(~indent, start, m)` returns the position at the
+ * end of `m` assuming its starting position is `start` and `m` is
+ * indented by `indent`.
+ */
 let next_position:
   (~indent: int, MeasuredPosition.t, t(_)) => MeasuredPosition.t;
 

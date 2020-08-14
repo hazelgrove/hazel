@@ -21,8 +21,10 @@ and t'('annot) =
 let height = (m: t(_)) =>
   m.metrics |> List.map(box => box.height) |> List.fold_left((+), 0);
 
-let width = (m: t(_)) =>
-  m.metrics |> List.map(box => box.width) |> List.fold_left(max, 0);
+let width = (~offset=0, m: t(_)) =>
+  List.tl(m.metrics)
+  |> List.map(box => box.width)
+  |> List.fold_left(max, offset + List.hd(m.metrics).width);
 
 let fold =
     (
@@ -50,7 +52,6 @@ let fold =
   go(m);
 };
 
-// TODO assign indent default value
 let next_position =
     (~indent: int, {row, col}: MeasuredPosition.t, m: t(_))
     : MeasuredPosition.t => {
