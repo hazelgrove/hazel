@@ -63,6 +63,12 @@ let line_can_be_swapped = (line: zline): bool =>
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
+  | CommentLine(comment) =>
+    CursorPosition.[OnDelim(0, Before), OnDelim(0, After)]
+    @ (
+      ListUtil.range(String.length(comment) + 1)
+      |> List.map(i => CursorPosition.OnText(i))
+    )
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
   | LetLine(_, ann, _) =>
@@ -144,6 +150,7 @@ and is_before_zblock = ((prefix, zline, _): zblock): bool =>
   }
 and is_before_zline = (zline: zline): bool =>
   switch (zline) {
+  | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
@@ -175,6 +182,39 @@ and is_before_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false;
+
+// The following 2 functions are specifically for CommentLines!!
+// Check if the cursor at "OnDelim(After)" in a "CommentLine"
+/* For example:
+           # Comment1
+           #| Comment2
+
+   */
+let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
+  switch (zline) {
+  | CursorL(cursor, CommentLine(_)) =>
+    switch (prefix |> ListUtil.split_last_opt) {
+    | Some((_, CommentLine(_))) => cursor == OnDelim(0, After)
+    | _ => false
+    }
+  | _ => false
+  };
+// Check if the cursor at the end of a "CommentLine"
+/* For example:
+           # Comment1|
+           # Comment2
+
+   */
+let is_end_of_comment = ((_, zline, suffix): zblock): bool =>
+  switch (zline) {
+  | CursorL(cursor, CommentLine(comment)) =>
+    switch (suffix) {
+    | [CommentLine(_), ..._] => cursor == OnText(String.length(comment))
+    | _ => false
+    }
+  | _ => false
+  };
+
 let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true
@@ -192,6 +232,8 @@ and is_after_zblock = ((_, zline, suffix): zblock): bool =>
   }
 and is_after_zline =
   fun
+  | CursorL(cursor, CommentLine(comment)) =>
+    cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
@@ -242,6 +284,7 @@ and is_outer_zblock = ((_, zline, suffix): zblock): bool =>
 and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
+  | CursorL(_, CommentLine(_))
   | CursorL(_, LetLine(_, _, _)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
@@ -285,6 +328,7 @@ and place_before_block =
   | [first, ...rest] => ([], first |> place_before_line, rest)
 and place_before_line =
   fun
+  | CommentLine(_) as line => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
@@ -315,12 +359,14 @@ let place_before_operator = (op: UHExp.operator): option(zoperator) =>
 
 let rec place_after = (e: UHExp.t): t => e |> place_after_block
 and place_after_block = (block: UHExp.block): zblock =>
-  switch (block |> ListUtil.split_last) {
+  switch (block |> ListUtil.split_last_opt) {
   | None => failwith("place_after_block: empty block")
   | Some((leading, last)) => (leading, last |> place_after_line, [])
   }
 and place_after_line =
   fun
+  | CommentLine(comment) as line =>
+    CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_) as line => CursorL(OnDelim(3, After), line)
   | ExpLine(e) => ExpLineZ(place_after_opseq(e))
@@ -366,6 +412,7 @@ let place_cursor_line =
     // encoded in steps, not CursorPosition.t
     None
   | EmptyLine
+  | CommentLine(_)
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
@@ -439,6 +486,7 @@ let mk_ZOpSeq =
 let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
 let get_err_status_zblock = zblock =>
   zblock |> erase_zblock |> UHExp.get_err_status_block;
+
 let get_err_status_zopseq = zopseq =>
   zopseq |> erase_zopseq |> UHExp.get_err_status_opseq;
 let get_err_status_zoperand = zoperand =>
@@ -448,7 +496,7 @@ let rec set_err_status = (err: ErrStatus.t, ze: t): t =>
   ze |> set_err_status_zblock(err)
 and set_err_status_zblock =
     (err: ErrStatus.t, (prefix, zline, suffix): zblock): zblock =>
-  switch (suffix |> ListUtil.split_last) {
+  switch (suffix |> ListUtil.split_last_opt) {
   | None =>
     let zopseq = zline |> ZLine.force_get_zopseq;
     (prefix, ExpLineZ(zopseq |> set_err_status_zopseq(err)), []);
@@ -483,7 +531,7 @@ let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
 and mk_inconsistent_zblock =
     (u_gen: MetaVarGen.t, (prefix, zline, suffix): zblock)
     : (zblock, MetaVarGen.t) =>
-  switch (suffix |> ListUtil.split_last) {
+  switch (suffix |> ListUtil.split_last_opt) {
   | None =>
     let (zconclusion, u_gen) =
       zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(u_gen);
@@ -541,27 +589,6 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
   (place_before_operand(hole), u_gen);
 };
 
-let rec cursor_on_outer_expr =
-        (zoperand: zoperand): option((UHExp.t, CursorPosition.t)) =>
-  switch (zoperand) {
-  | CursorE(cursor, operand) =>
-    Some((UHExp.drop_outer_parentheses(operand), cursor))
-  | ParenthesizedZ((
-      [],
-      ExpLineZ(ZOpSeq(_, ZOperand(zoperand, (E, E)))),
-      [],
-    )) =>
-    cursor_on_outer_expr(zoperand)
-  | ParenthesizedZ(_)
-  | LamZP(_)
-  | LamZA(_)
-  | LamZE(_)
-  | InjZ(_)
-  | CaseZE(_)
-  | CaseZR(_)
-  | ApPaletteZ(_) => None
-  };
-
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
   let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -580,7 +607,7 @@ and move_cursor_left_zblock =
     switch (move_cursor_left_zline(zline)) {
     | Some(zline) => Some((prefix, zline, suffix))
     | None =>
-      switch (prefix |> ListUtil.split_last) {
+      switch (prefix |> ListUtil.split_last_opt) {
       | None
       | Some(([], EmptyLine)) => None
       | Some((prefix_leading, prefix_last)) =>
@@ -594,11 +621,19 @@ and move_cursor_left_zblock =
 and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_zline(zline) => None
+
   | CursorL(OnOp(_), _) => None
-  | CursorL(OnText(_), _) => None
+
+  | CursorL(OnText(_), EmptyLine) => None
+  | CursorL(OnText(0), CommentLine(_) as line) =>
+    Some(CursorL(OnDelim(0, After), line))
+  | CursorL(OnText(k), CommentLine(_) as line) =>
+    Some(CursorL(OnText(k - 1), line))
+  | CursorL(OnText(_), ExpLine(_) | LetLine(_)) => None
+
+  | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
-  | CursorL(OnDelim(_), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
     // k == 1 || k == 2 || k == 3
     switch (k == 1, k == 2, ann) {
@@ -805,9 +840,15 @@ and move_cursor_right_zline =
   fun
   | z when is_after_zline(z) => None
   | CursorL(OnOp(_), _) => None
-  | CursorL(OnText(_), _) => None
+  | CursorL(OnText(k), CommentLine(_) as line) =>
+    Some(CursorL(OnText(k + 1), line))
+  | CursorL(OnText(_), EmptyLine | ExpLine(_) | LetLine(_)) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
+
+  | CursorL(OnDelim(_, After), CommentLine(_) as line) =>
+    Some(CursorL(OnText(0), line))
+
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
     switch (k, ann) {

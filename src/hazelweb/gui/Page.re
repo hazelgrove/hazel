@@ -125,6 +125,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       open Vdom;
       let card = model |> Model.get_card;
       let program = model |> Model.get_program;
+      let selected_instance = model |> Model.get_selected_hole_instance;
       let cell_status =
         if (!model.compute_results.compute_results) {
           Node.div([], []);
@@ -163,8 +164,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~show_fn_bodies=model.compute_results.show_fn_bodies,
                     ~show_case_clauses=model.compute_results.show_case_clauses,
                     ~show_casts=model.compute_results.show_casts,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance,
                     ~width=80,
                     model.compute_results.show_unevaluated_expansion
                       ? program |> Program.get_expansion
@@ -268,7 +268,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
                   CursorInspector.view(~inject, model),
-                  ContextInspector.view(~inject, model),
+                  ContextInspector.view(
+                    ~inject,
+                    ~selected_instance,
+                    ~compute_results=model.compute_results,
+                    program,
+                  ),
                   UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
                 ]

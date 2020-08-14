@@ -94,7 +94,7 @@ and mk_block =
          Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
          |> UHDoc_common.annot_Step(offset + i)
        )
-    |> ListUtil.split_last
+    |> ListUtil.split_last_opt
     |> (
       fun
       | None => failwith(__LOC__ ++ ": empty block")
@@ -120,6 +120,22 @@ and mk_line =
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
           |> Doc.annot(UHAnnot.EmptyLine)
+        | CommentLine(comment) =>
+          let comment_doc =
+            UHDoc_common.mk_text(comment)
+            |> Doc.annot(
+                 UHAnnot.mk_Token(
+                   ~shape=Text,
+                   ~len=StringUtil.utf8_length(comment),
+                   (),
+                 ),
+               );
+          Doc.hcats([
+            UHDoc_common.Delim.open_CommentLine(),
+            UHDoc_common.space_ |> UHDoc_common.annot_Padding,
+            comment_doc,
+          ])
+          |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | LetLine(p, ann, def) =>
@@ -127,7 +143,7 @@ and mk_line =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ann =
             ann
-            |> OptUtil.map(ann =>
+            |> Option.map(ann =>
                  UHDoc_Typ.mk_child(
                    ~memoize,
                    ~enforce_inline,
@@ -177,7 +193,7 @@ and mk_operand =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ann =
             ann
-            |> OptUtil.map(ann =>
+            |> Option.map(ann =>
                  UHDoc_Typ.mk_child(
                    ~memoize,
                    ~enforce_inline,
