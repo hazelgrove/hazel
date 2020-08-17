@@ -802,14 +802,9 @@ h1 {
   top: -10px;
 }
 
-.DHCode .AssertionFail{
-  color: red;
-  border: 2px dotted;
-  margin: -1px;
-}
 .DHCode .AssertPass:after{
   content: "✔";
-  color: greenyellow;
+  color: green;
   font-size: 70%;
   vertical-align: top;
 }
@@ -821,12 +816,12 @@ h1 {
 }
 .DHCode .AssertIndet:after{
   content: "△";
-  color: #BBB;
+  color: brown;
   font-size: 70%;
   vertical-align: top;
 }
 .DHCode .AssertComp:after{
-  content: "comp";
+  content: "?";
   color: #BBB;
   font-size: 70%;
   vertical-align: top;
@@ -1222,27 +1217,31 @@ h1 {
 
 .AssertPass:after{
   content: "✔";
-  color: #BBB;
+  color:green;
   font-size: 70%;
   vertical-align: top;
+  position: absolute;
 }
 .AssertFail:after{
   content: "✘";
-  color: #BBB;
+  color: red;
   font-size: 70%;
   vertical-align: top;
+  position: absolute;
 }
 .AssertIndet:after{
   content: "△";
-  color: #BBB;
+  color: brown;
   font-size: 70%;
   vertical-align: top;
+  position: absolute;
 }
 .AssertComp:after{
-  content: "1";
+  content: "?";
   color: #BBB;
   font-size: 70%;
   vertical-align: top;
+  position: absolute;
 }
 
 

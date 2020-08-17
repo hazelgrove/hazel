@@ -241,7 +241,7 @@ let rec mk =
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
-      | FailedAssert(x) =>
+      | FailedAssert(_, x) =>
         //let (d_doc, _) = go'(x);
         let (d_doc, _) = go'(x);
         let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
