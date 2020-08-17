@@ -83,6 +83,7 @@ let view =
       map: AssertMap.t,
     )
     : Vdom.Node.t => {
+  // check assert map reset here
   DHDoc_Exp.mk(
     ~show_casts,
     ~show_fn_bodies,

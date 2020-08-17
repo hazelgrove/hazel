@@ -79,13 +79,14 @@ let get_expansion = (program: t): DHExp.t =>
 exception InvalidInput;
 
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+
 let get_result = (program: t): (Result.t, AssertMap.t) =>
+  //check if map is resetted here
   switch (AssertMap.empty |> evaluate(get_expansion(program))) {
   | (InvalidInput(_), _) => raise(InvalidInput)
   | (BoxedValue(d), assert_map) =>
     let (d_renumbered, hii) =
       Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    print_endline(Sexplib.Sexp.to_string(AssertMap.sexp_of_t(assert_map)));
     ((d_renumbered, hii, BoxedValue(d_renumbered)), assert_map);
   | (Indet(d), assert_map) =>
     let (d_renumbered, hii) =
