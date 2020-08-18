@@ -234,7 +234,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                             Printf.printf(
                               "%s\n%!",
                               switch (
-                                OCamlExtraction_Exp.Extraction_wrapper.extract(
+                                OCamlExtraction.extract(
                                   Contexts.empty,
                                   model
                                   |> Model.get_program
