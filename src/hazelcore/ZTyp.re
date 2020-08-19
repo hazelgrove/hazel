@@ -51,6 +51,8 @@ let mk_ZOpSeq: zseq => zopseq =
 let erase_zseq = zseq =>
   zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
+// Kept for completeness and likely future use
+[@live "+is_before"]
 let rec is_before = (zty: t): bool => zty |> is_before_zopseq
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
@@ -69,6 +71,8 @@ let is_before_zoperator: zoperator => bool =
   | (OnOp(Before), _) => true
   | _ => false;
 
+// Kept for completeness and likely future use
+[@live "+is_before"]
 let rec is_after = (zty: t): bool => zty |> is_after_zopseq
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
