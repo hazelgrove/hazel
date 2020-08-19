@@ -11,6 +11,7 @@ let replicat = (n: int, s: string) => cat(ListUtil.replicate(n, s));
  *
  * TODO rename to split
  */
+[@raises Invalid_argument]
 let split_string = (caret_index: int, s: string): (string, string) => (
   String.sub(s, 0, caret_index),
   String.sub(s, caret_index, String.length(s) - caret_index),

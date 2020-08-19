@@ -17,7 +17,9 @@ let operator_of_shape =
   | SVBar => None
   };
 
-let shape_of_operator =
+// Kept to ensure additions to UHExp.operator get added to Action_common.operator_shape
+[@dead "+_shape_of_operator"]
+let _shape_of_operator =
     (op: UHExp.operator): option(Action_common.operator_shape) =>
   switch (op) {
   | Minus => Some(SMinus)

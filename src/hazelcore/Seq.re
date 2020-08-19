@@ -78,10 +78,12 @@ and length_of_affix =
   | E => 0
   | A(_, seq) => length(seq);
 
+[@raises Invalid_argument]
 let rec nth_operand = (n: int, seq: t('operand, _)): 'operand => {
   let S(hd, tl) = seq;
   n === 0 ? hd : tl |> nth_operand_of_affix(n - 1);
 }
+[@raises Invalid_argument]
 and nth_operand_of_affix = (n: int, affix: affix('operand, _)): 'operand =>
   switch (affix) {
   | E => raise(Invalid_argument("Seq.nth_operand_of_affix"))

@@ -319,7 +319,7 @@ and syn_fix_holes_opseq =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      ~renumber_empty_holes=false,
+      ~renumber_empty_holes: bool,
       OpSeq(skel, seq): UHPat.opseq,
     )
     : (UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t) => {
@@ -331,7 +331,7 @@ and syn_fix_holes_skel =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      ~renumber_empty_holes=false,
+      ~renumber_empty_holes: bool,
       skel: UHPat.skel,
       seq: UHPat.seq,
     )
@@ -405,7 +405,7 @@ and syn_fix_holes_operand =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      ~renumber_empty_holes=false,
+      ~renumber_empty_holes: bool,
       operand: UHPat.operand,
     )
     : (UHPat.operand, HTyp.t, Contexts.t, MetaVarGen.t) => {
@@ -558,7 +558,7 @@ and ana_fix_holes_skel =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      ~renumber_empty_holes=false,
+      ~renumber_empty_holes: bool,
       skel: UHPat.skel,
       seq: UHPat.seq,
       ty: HTyp.t,
@@ -653,7 +653,7 @@ and ana_fix_holes_operand =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      ~renumber_empty_holes=false,
+      ~renumber_empty_holes: bool,
       operand: UHPat.operand,
       ty: HTyp.t,
     )

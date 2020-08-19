@@ -29,8 +29,6 @@ let pad_child:
 module Delim: {
   let mk: string => t;
 
-  let empty_hole: HoleInstance.t => t;
-
   let list_nil: t;
   let triv: t;
   let wild: t;
@@ -48,18 +46,11 @@ module Delim: {
   let open_FixF: t;
   let close_FixF: t;
 
-  let open_Inj: InjSide.t => t;
-  let close_Inj: t;
-
   let open_Case: t;
   let close_Case: t;
 
   let bar_Rule: t;
   let arrow_Rule: t;
-
-  let open_Cast: t;
-  let arrow_Cast: t;
-  let close_Cast: t;
 
   let open_FailedCast: Pretty.Doc.t(DHAnnot.t);
   let arrow_FailedCast: Pretty.Doc.t(DHAnnot.t);

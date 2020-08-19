@@ -459,6 +459,9 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   action_panel(body);
 };
 
+type ack_checkin =
+  | Added;
+
 /* This function is unused at runtime, its purpose is to catch
   * new cases added to the Acion.t type, but forgotten about in this
   * side pane. If you add a new action, please update the code above
@@ -468,9 +471,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   * Also consider looking at Cell.re to see if a keyboard shortcut
   * should be added for that particular action as well.
  */
-type ack_checkin =
-  | Added;
-
+[@dead "+_check_actions"]
 let _check_actions = (a: Action_common.t) =>
   switch (a) {
   /* Used */

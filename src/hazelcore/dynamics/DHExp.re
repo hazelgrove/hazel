@@ -29,7 +29,9 @@ module BinBoolOp = {
     | Comma => None
     };
 
-  let to_op = (op: t): UHExp.operator =>
+  // Kept to ensure additions to t get added to UHExp.operator
+  [@dead "+_to_op"]
+  let _to_op = (op: t): UHExp.operator =>
     switch (op) {
     | And => And
     | Or => Or
@@ -70,7 +72,9 @@ module BinIntOp = {
     | Comma => None
     };
 
-  let to_op = (bio: t): UHExp.operator =>
+  // Kept to ensure additions to t get added to UHExp.operator
+  [@dead "+_to_op"]
+  let _to_op = (bio: t): UHExp.operator =>
     switch (bio) {
     | Minus => Minus
     | Plus => Plus
@@ -116,7 +120,9 @@ module BinFloatOp = {
     | Comma => None
     };
 
-  let to_op = (bfo: t): UHExp.operator =>
+  // Kept to ensure additions to t get added to UHExp.operator
+  [@dead "+_to_op"]
+  let _to_op = (bfo: t): UHExp.operator =>
     switch (bfo) {
     | FPlus => FPlus
     | FMinus => FMinus
@@ -167,36 +173,6 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t);
-
-let constructor_string = (d: t): string =>
-  switch (d) {
-  | EmptyHole(_, _, _) => "EmptyHole"
-  | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
-  | Keyword(_, _, _, _) => "Keyword"
-  | FreeVar(_, _, _, _) => "FreeVar"
-  | InvalidText(_) => "InvalidText"
-  | BoundVar(_) => "BoundVar"
-  | Let(_, _, _) => "Let"
-  | FixF(_, _, _) => "FixF"
-  | Lam(_, _, _) => "Lam"
-  | Ap(_, _) => "Ap"
-  | BoolLit(_) => "BoolLit"
-  | IntLit(_) => "IntLit"
-  | FloatLit(_) => "FloatLit"
-  | BinBoolOp(_, _, _) => "BinBoolOp"
-  | BinIntOp(_, _, _) => "BinIntOp"
-  | BinFloatOp(_, _, _) => "BinFloatOp"
-  | ListNil(_) => "ListNil"
-  | Cons(_, _) => "Cons"
-  | Inj(_, _, _) => "Inj"
-  | Pair(_, _) => "Pair"
-  | Triv => "Triv"
-  | ConsistentCase(_) => "ConsistentCase"
-  | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
-  | Cast(_, _, _) => "Cast"
-  | FailedCast(_, _, _) => "FailedCast"
-  | InvalidOperation(_) => "InvalidOperation"
-  };
 
 let rec mk_tuple: list(t) => t =
   fun

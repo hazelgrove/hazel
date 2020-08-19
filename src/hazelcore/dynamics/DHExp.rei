@@ -5,8 +5,6 @@ module BinBoolOp: {
     | Or;
 
   let of_op: UHExp.operator => option(t);
-
-  let to_op: t => UHExp.operator;
 };
 
 module BinIntOp: {
@@ -21,8 +19,6 @@ module BinIntOp: {
     | Equals;
 
   let of_op: UHExp.operator => option((t, HTyp.t));
-
-  let to_op: t => UHExp.operator;
 };
 
 module BinFloatOp: {
@@ -37,8 +33,6 @@ module BinFloatOp: {
     | FEquals;
 
   let of_op: UHExp.operator => option((t, HTyp.t));
-
-  let to_op: t => UHExp.operator;
 };
 
 [@deriving sexp]
@@ -80,8 +74,6 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t);
-
-let constructor_string: t => string;
 
 let mk_tuple: list(t) => t;
 

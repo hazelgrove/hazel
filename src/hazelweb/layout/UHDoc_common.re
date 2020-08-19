@@ -52,9 +52,6 @@ let memoize =
 let empty_: t = Doc.empty();
 let space_: t = Doc.space();
 
-let indent_and_align_ = (doc: t): t =>
-  Doc.(hcat(annot(UHAnnot.Indent, indent()), align(doc)));
-
 module Delim = {
   let mk = (~index: int, delim_text: string): t =>
     Doc.annot(
@@ -90,7 +87,6 @@ module Delim = {
 
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
-  let close_Case_ann = (): t => mk(~index=1, "end :");
 
   let bar_Rule = (): t => mk(~index=0, "|");
   let arrow_Rule = (): t => mk(~index=1, "=>");
@@ -103,7 +99,6 @@ module Delim = {
   let open_CommentLine = (): t => mk(~index=0, "#");
 };
 
-let annot_Indent: t => t = Doc.annot(UHAnnot.Indent);
 let annot_Padding = (d: t): t =>
   switch (d.doc) {
   | Text("") => d
@@ -116,8 +111,7 @@ let annot_ClosedChild = (~is_inline: bool): (t => t) =>
   Doc.annot(UHAnnot.mk_ClosedChild(~is_inline, ()));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
 let annot_Var =
-    (~sort: TermSort.t, ~err: ErrStatus.t=NotInHole, ~verr: VarErrStatus.t)
-    : (t => t) =>
+    (~sort: TermSort.t, ~err: ErrStatus.t, ~verr: VarErrStatus.t): (t => t) =>
   Doc.annot(
     UHAnnot.mk_Term(~sort, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
   );
@@ -129,9 +123,6 @@ let annot_Case = (~err: CaseErrStatus.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case({err: err}), ()));
 let annot_Invalid = (~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=TermShape.Invalid, ()));
-
-let indent_and_align = (d: t): t =>
-  Doc.(hcats([indent() |> annot_Indent, align(d)]));
 
 let mk_text = (s: string): t =>
   Doc.annot(
@@ -214,7 +205,7 @@ let pad_closed_child: (~inline_padding: (t, t)=?, formatted_child) => t =
   pad_child(~is_open=false);
 
 let pad_left_delimited_child =
-    (~is_open: bool, ~inline_padding: t=empty_, child: formatted_child): t => {
+    (~is_open: bool, ~inline_padding: t, child: formatted_child): t => {
   open Doc;
   let annot_child = is_open ? annot_OpenChild : annot_ClosedChild;
   let inline_choice = child_doc => {
@@ -250,8 +241,6 @@ let mk_Float = (): t =>
   Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
-let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
-  StringUtil.cat([string_of_int(u), ":", string_of_int(i)]);
 
 let mk_EmptyHole = (~sort: TermSort.t, hole_lbl: string): t =>
   Delim.empty_hole_doc(hole_lbl) |> annot_Operand(~sort);

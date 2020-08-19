@@ -15,7 +15,9 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SArrow
   | SVBar => None;
 
-let shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>
+// Kept to ensure additions to UHPat.operator get added to Action_common.operator_shape
+[@dead "+_shape_of_operator"]
+let _shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>
   switch (op) {
   | Comma => SComma
   | Space => SSpace

@@ -1,38 +1,40 @@
 module Vdom = Virtual_dom.Vdom;
-module Attr = Vdom.Attr;
+//module Attr = Vdom.Attr;
 
 // let deserialize = s => ZExp.t_of_sexp(Sexplib.Sexp.of_string(s));
 
-let div = Vdom.Node.div;
-let span = Vdom.Node.span;
-let txt = Vdom.Node.text;
-let p = Vdom.Node.p;
-let ptxt = s => p([], [txt(s)]);
+// let div = Vdom.Node.div;
+// let span = Vdom.Node.span;
+// let txt = Vdom.Node.text;
+// let p = Vdom.Node.p;
+// let ptxt = s => p([], [txt(s)]);
 
-let code = s => span([Vdom.Attr.classes(["code"])], [txt(s)]);
-let keyblock = s => span([Vdom.Attr.classes(["keyblock"])], [txt(s)]);
+//let code = s => span([Vdom.Attr.classes(["code"])], [txt(s)]);
+//let keyblock = s => span([Vdom.Attr.classes(["keyblock"])], [txt(s)]);
 
-let intro_caption =
-  div(
-    [],
-    [
-      txt(
-        "Welcome to Hazel, a live functional programming environment organized around typed holes.",
-      ),
-      ptxt("Below is our very first hole, numbered automatically as shown."),
-      p(
-        [],
-        [
-          txt(
-            "Fill hole 1 with a number literal by placing the caret before or after the hole and typing in ",
-          ),
-          code("12345"),
-          txt("."),
-        ],
-      ),
-      ptxt("Click Next to go to the next card once you are finished."),
-    ],
-  );
+/*
+ let intro_caption =
+   div(
+     [],
+     [
+       txt(
+         "Welcome to Hazel, a live functional programming environment organized around typed holes.",
+       ),
+       ptxt("Below is our very first hole, numbered automatically as shown."),
+       p(
+         [],
+         [
+           txt(
+             "Fill hole 1 with a number literal by placing the caret before or after the hole and typing in ",
+           ),
+           code("12345"),
+           txt("."),
+         ],
+       ),
+       ptxt("Click Next to go to the next card once you are finished."),
+     ],
+   );
+   */
 let intro_init_zexp =
   ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0)));
 // deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
@@ -43,7 +45,7 @@ let intro_init_zexp =
  };
  */
 let intro_card: CardInfo.t = {
-  caption: div([], []),
+  caption: Vdom.Node.div([], []),
   init_zexp: intro_init_zexp,
 };
 /*

@@ -17,7 +17,9 @@ let operator_of_shape =
   | SCons => None
   };
 
-let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
+// Kept to ensure additions to UHTyp.operator get added to Action_common.operator_shape
+[@dead "+_shape_of_operator"]
+let _shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
   switch (op) {
   | Arrow => SArrow
   | Prod => SComma

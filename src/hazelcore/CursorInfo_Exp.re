@@ -614,7 +614,7 @@ and syn_cursor_info_zoperand =
   };
 }
 and ana_cursor_info =
-    (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t)
+    (~steps: CursorPath_common.steps, ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t)
     : option(CursorInfo_common.t) =>
   ana_cursor_info_zblock(~steps, ctx, ze, ty)
 and ana_cursor_info_zblock =
