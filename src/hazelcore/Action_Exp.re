@@ -1544,12 +1544,14 @@ and syn_perform_operand =
         switch (k) {
         | 0
         | 2 => ZExp.place_before
-        | _three => ZExp.place_after
+        | 3 => ZExp.place_after
+        | _ => failwith(__LOC__) // should be impossible
         }
       | _ =>
         switch (k) {
         | 0 => ZExp.place_before
-        | _one => ZExp.place_after
+        | 1 => ZExp.place_after
+        | _ => failwith(__LOC__) // should be impossible
         }
       };
     let new_ze = e |> place_cursor;
@@ -2985,12 +2987,14 @@ and ana_perform_operand =
         switch (k) {
         | 0
         | 2 => ZExp.place_before
-        | _three => ZExp.place_after
+        | 3 => ZExp.place_after
+        | _ => failwith(__LOC__) // should be impossible
         }
       | _ =>
         switch (k) {
         | 0 => ZExp.place_before
-        | _ => ZExp.place_after
+        | 1 => ZExp.place_after
+        | _ => failwith(__LOC__) // should be impossible
         }
       };
     let new_ze = e |> place_cursor;
