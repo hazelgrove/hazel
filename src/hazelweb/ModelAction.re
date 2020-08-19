@@ -7,6 +7,7 @@ type move_input =
   | Key(MoveKey.t)
   | Click((CursorMap.Row.t, CursorMap.Col.t));
 
+  
 [@deriving sexp]
 type shift_history_info = {
   group_id: int,
