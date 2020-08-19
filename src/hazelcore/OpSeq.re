@@ -78,7 +78,7 @@ let rec is_complete_skel =
         )
         : bool => {
   switch (sk) {
-  | Placeholder(n) as _skel =>
+  | Placeholder(n) =>
     is_complete_operand(sq |> Seq.nth_operand(n), check_type_holes)
   | BinOp(InHole(_), _, _, _) => false
   | BinOp(NotInHole, _, skel1, skel2) =>

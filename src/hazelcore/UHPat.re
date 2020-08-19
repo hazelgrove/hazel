@@ -174,7 +174,7 @@ let mk_OpSeq = OpSeq.mk(~associate);
 
 let rec is_complete_skel = (sk: skel, sq: seq): bool => {
   switch (sk) {
-  | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
+  | Placeholder(n) => is_complete_operand(sq |> Seq.nth_operand(n))
   | BinOp(InHole(_), _, _, _) => false
   | BinOp(NotInHole, _, skel1, skel2) =>
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
