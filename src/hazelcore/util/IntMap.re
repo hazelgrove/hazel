@@ -2,6 +2,7 @@ include Map.Make(Int);
 open Sexplib.Std;
 module Sexp = Sexplib.Sexp;
 
+// Defined just so we can call `sexp_of_binding` and `binding_of_sexp`
 [@deriving sexp]
 type binding('v) = (int, 'v);
 

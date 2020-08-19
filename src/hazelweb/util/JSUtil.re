@@ -1,3 +1,6 @@
+// Keeping everything (for now) as examples of how to do these things
+[@dead];
+
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
