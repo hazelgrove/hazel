@@ -210,9 +210,6 @@ and ana_operand =
   | Parenthesized(p) => ana(ctx, p, ty)
   };
 
-/**
-     * Get type mode of nth operand of an opseq in synthetic position
-     */
 let rec syn_nth_type_mode =
         (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHPat.opseq)
         : option(Statics_common.type_mode) =>
@@ -253,9 +250,6 @@ and syn_nth_type_mode' =
     };
   go(skel);
 }
-/**
-     * Get type mode of nth operand of an opseq in analytic position
-     */
 and ana_nth_type_mode =
     (
       ctx: Contexts.t,
