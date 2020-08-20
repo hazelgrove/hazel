@@ -16,11 +16,11 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_)
-  | Inj(InHole(_), _, _) => false
+  | Inj(InHole(_), _, _)
+  | Label(_, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
-  | Label(_) => failwith("unimplemented")
   };
 
 let rec find_uses =
@@ -73,7 +73,8 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _)
   | ApPalette(_) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
-  | Lam(NotInHole, p, _, body) =>
+  | Lam(NotInHole, p, _, body)
+  | Label(_, _) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
@@ -86,7 +87,6 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
-  | Label(_) => failwith("unimplemented")
   | Prj(_) => failwith("unimplemented")
   }
 and find_uses_rule =

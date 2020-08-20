@@ -880,7 +880,8 @@ module Pat = {
       | FloatLit(InHole(TypeInconsistent, _), _)
       | BoolLit(InHole(TypeInconsistent, _), _)
       | ListNil(InHole(TypeInconsistent, _))
-      | Inj(InHole(TypeInconsistent, _), _, _) =>
+      | Inj(InHole(TypeInconsistent, _), _, _)
+      | Label(InHole(TypeInconsistent, _), _) =>
         let operand' = UHPat.set_err_status_operand(NotInHole, operand);
         switch (Statics.Pat.syn_operand(ctx, operand')) {
         | None => None
@@ -897,7 +898,8 @@ module Pat = {
       | FloatLit(InHole(WrongLength, _), _)
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
-      | Inj(InHole(WrongLength, _), _, _) => None
+      | Inj(InHole(WrongLength, _), _, _)
+      | Label(InHole(WrongLength, _), _)=> None
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
         Some(
           CursorNotOnDeferredVarPat(
@@ -946,7 +948,7 @@ module Pat = {
                mk(PatAnalyzed(ty), ctx, cursor_term),
              )
            )
-      | Label(_) => failwith("unimplemented")
+      | Label(NotInHole, _) => failwith("unimplemented")
       }
     | InjZ(InHole(WrongLength, _), _, _) => None
     | InjZ(InHole(TypeInconsistent, _), _, _) =>
@@ -1545,7 +1547,9 @@ module Exp = {
       | Lam(InHole(TypeInconsistent, _), _, _, _)
       | Inj(InHole(TypeInconsistent, _), _, _)
       | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-      | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+      | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+      | Label(InHole(TypeInconsistent, _), _)
+      | Prj(InHole(TypeInconsistent, _), _, _) =>
         let operand' =
           zoperand
           |> ZExp.erase_zoperand
@@ -1567,14 +1571,17 @@ module Exp = {
           _,
           _,
         )
-      | ApPalette(InHole(WrongLength, _), _, _, _) => None
+      | ApPalette(InHole(WrongLength, _), _, _, _)
+      | Label(InHole(WrongLength, _), _)
+      | Prj(InHole(WrongLength, _), _, _) => None
       /* not in hole */
       | EmptyHole(_)
       | Var(NotInHole, NotInVarHole, _)
       | IntLit(NotInHole, _)
       | FloatLit(NotInHole, _)
       | BoolLit(NotInHole, _)
-      | ApPalette(NotInHole, _, _, _) =>
+      | ApPalette(NotInHole, _, _, _)
+      | Label(NotInHole, _) =>
         switch (Statics.Exp.syn_operand(ctx, e)) {
         | None => None
         | Some(ty') => Some(mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
@@ -1605,8 +1612,7 @@ module Exp = {
               : None;
           }
         }
-      | Label(_) => failwith("unimplemented")
-      | Prj(_) => failwith("unimplemented")
+      | Prj(NotInHole, _, _) => failwith("unimplemented")
       } /* zipper cases */
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */

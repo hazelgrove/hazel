@@ -709,7 +709,8 @@ module Pat = {
       (operand_nih, ctx, u_gen);
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) =>
+    | BoolLit(_, _)
+    | Label(_, _) =>
       let (operand', ty', ctx, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
       if (HTyp.consistent(ty, ty')) {
@@ -746,7 +747,6 @@ module Pat = {
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
       }
-    | Label(_) => failwith("unimplemented")
     };
   };
 
@@ -902,7 +902,7 @@ module Exp = {
       | Some(ty1) =>
         switch (HTyp.matched_arrow(ty1)) {
         | None =>
-          // TODO ECD: For simplicity, if skel1 is a hole then Hazel only expects a fxn expression.  Change it to also expect a Labeled tuple.
+          // TODO For simplicity, if skel1 is a hole then Hazel only expects a fxn expression.  Need to change it to also expect a Labeled tuple.
           switch (ty1) {
           | Label(_) =>
             syn_skel(ctx, skel2, seq)
@@ -1033,7 +1033,7 @@ module Exp = {
     | Parenthesized(body) => syn(ctx, body)
     | Label(NotInHole, label) => Some(Label(label))
     | Prj(NotInHole, exp, label) =>
-      // ECD TODO: May need to refactor Prj operand's exp member, since it cannot check if the exp is part of a product
+      // TODO: May need to refactor Prj operand's exp member, since it cannot check if the exp is part of a product
       switch (syn_operand(ctx, exp)) {
       | Some(ty) =>
         let rec checkForLabel = (tyList: list(HTyp.t), label: Label.t) =>
@@ -1682,7 +1682,7 @@ module Exp = {
     | BinOp(_, Space, skel1, skel2) =>
       let (skel1, seq, ty1, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      // TODO ECD: May need to come back here to add labeled tuple impl
+      // TODO: May need to come back here to add labeled tuple implementation
       switch (HTyp.matched_arrow(ty1)) {
       | Some((ty2, ty)) =>
         let (skel2, seq, u_gen) =
@@ -1840,7 +1840,7 @@ module Exp = {
           u_gen,
         );
       };
-    | Label(_) => failwith("unimplemented")
+    | Label(id) => (e_nih, Label(id), u_gen)
     | Prj(_) => failwith("unimplemented")
     };
   }
@@ -2190,7 +2190,8 @@ module Exp = {
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) =>
+    | BoolLit(_, _)
+    | Label(_, _) =>
       let (e, ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
       if (HTyp.consistent(ty, ty')) {
@@ -2312,7 +2313,6 @@ module Exp = {
           u_gen,
         );
       };
-    | Label(_) => failwith("unimplemented")
     | Prj(_) => failwith("unimplemented")
     };
 

@@ -1017,7 +1017,7 @@ module Exp = {
       | None => ExpandResult.DoesNotExpand
       | Some(ty1) =>
         switch (HTyp.matched_arrow(ty1)) {
-        // ECD TODO: Asummes hole is arrow type before assuming that it is a label type, need to check if that is the right behavior
+        // TODO: Asummes hole is arrow type before assuming that it is a label type, need to check if that is the right behavior
         | None =>
           switch (ty1) {
           | Label(label) =>
@@ -1722,7 +1722,7 @@ module Exp = {
       /* subsumption */
       syn_expand_operand(ctx, delta, operand)
     | Label(NotInHole, label) =>
-      // ECD TODO: Does not allow other expressions to analyze to a labeled version of that type
+      // TODO: Does not allow other expressions to analyze to a labeled version of that type
       if (HTyp.consistent(Label(label), ty)) {
         Expands(Label(label), Label(label), delta);
       } else {
@@ -2370,7 +2370,7 @@ module Evaluator = {
       | BoxedValue(d')
       | Indet(d') => Indet(InvalidOperation(d', err))
       }
-    // | Label(_) => failwith("unimplemented") // ECD TODO: figure out what error code to use with invalid input
+    // | Label(_) => failwith("unimplemented") // TODO: figure out what error code to use with invalid input
     }
   and evaluate_case =
       (

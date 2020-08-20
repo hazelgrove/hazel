@@ -381,7 +381,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Label(_) => failwith("unimplemented")
+  | Label(InHole(_), _) => false
+  | Label(NotInHole, _) => true
   | Prj(_) => failwith("unimplemented")
   };
 }
