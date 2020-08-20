@@ -71,10 +71,10 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _)
-  | ApPalette(_) => []
+  | ApPalette(_)
+  | Label(_, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
-  | Lam(NotInHole, p, _, body)
-  | Label(_, _) =>
+  | Lam(NotInHole, p, _, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>

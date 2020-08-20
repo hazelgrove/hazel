@@ -899,7 +899,7 @@ module Pat = {
       | BoolLit(InHole(WrongLength, _), _)
       | ListNil(InHole(WrongLength, _))
       | Inj(InHole(WrongLength, _), _, _)
-      | Label(InHole(WrongLength, _), _)=> None
+      | Label(InHole(WrongLength, _), _) => None
       | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
         Some(
           CursorNotOnDeferredVarPat(

@@ -1840,7 +1840,7 @@ module Exp = {
           u_gen,
         );
       };
-    | Label(id) => (e_nih, Label(id), u_gen)
+    | Label(_, id) => (e_nih, Label(id), u_gen)
     | Prj(_) => failwith("unimplemented")
     };
   }
