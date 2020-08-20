@@ -1055,6 +1055,9 @@ and syn_perform_line =
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
+  | (AddCell, zline) when ZExp.is_before_zline(zline) =>
+    let ze = ([UHExp.CellBoundary], zline, []);
+    Succeeded(LineDone((ze, ctx, u_gen)));
   | (AddCell, ExpLineZ(_) | CursorL(_, EmptyLine)) =>
     let ze = ([], zline, [UHExp.CellBoundary]);
     Succeeded(LineDone((ze, ctx, u_gen)));
