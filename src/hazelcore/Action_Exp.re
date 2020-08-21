@@ -505,10 +505,13 @@ let rec syn_move =
       }
     }
   | MoveLeft =>
+    print_endline("Action508");
     switch (ZExp.move_cursor_left(ze)) {
-    | None => CursorEscaped(Before)
+    | None =>
+      print_endline("Action510");
+      CursorEscaped(Before);
     | Some(ze) => Succeeded(SynDone((ze, ty, u_gen)))
-    }
+    };
   | MoveRight =>
     switch (ZExp.move_cursor_right(ze)) {
     | None => CursorEscaped(After)
@@ -673,8 +676,12 @@ and syn_perform_block =
     }
 
   | Delete when ZExp.is_after_zline(zline) =>
+    print_endline("Action679");
     switch (zline |> ZExp.erase_zline, suffix) {
     | (_, []) => CursorEscaped(After)
+    | (_, [CellBoundary, ...new_suffix]) =>
+      let new_ze = (prefix, zline, new_suffix);
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
     | (EmptyLine, [suffix_hd, ...new_suffix]) =>
       let new_zline = suffix_hd |> ZExp.place_before_line;
       let new_zblock = (prefix, new_zline, new_suffix);
@@ -685,7 +692,7 @@ and syn_perform_block =
       Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
     | _ =>
       syn_perform(ctx, MoveRight, (zblock, ty, u_gen)) |> wrap_in_SynDone
-    }
+    };
   | Backspace when ZExp.is_before_zline(zline) =>
     switch (prefix |> ListUtil.split_last_opt, zline |> ZExp.erase_zline) {
     | (None, _) => CursorEscaped(Before)
@@ -695,7 +702,7 @@ and syn_perform_block =
         ([UHExp.EmptyLine], new_zline, new_suffix);
       };
       Succeeded(SynDone((new_ze, ty, u_gen)));
-    | (Some((new_prefix, EmptyLine)), _) =>
+    | (Some((new_prefix, EmptyLine | CellBoundary)), _) =>
       let new_ze = (new_prefix, zline, suffix);
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Some((new_prefix, prefix_hd)), EmptyLine) =>
@@ -709,7 +716,9 @@ and syn_perform_block =
       let new_zline = prefix_hd |> ZExp.place_after_line;
       let new_ze = (new_prefix, new_zline, suffix);
       Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
-    | _ => syn_perform(ctx, MoveLeft, (zblock, ty, u_gen)) |> wrap_in_SynDone
+    | _ =>
+      print_endline("Action715");
+      syn_perform(ctx, MoveLeft, (zblock, ty, u_gen)) |> wrap_in_SynDone;
     }
 
   /* No construction handled at block level */

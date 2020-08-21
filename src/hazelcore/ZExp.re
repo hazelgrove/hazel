@@ -625,9 +625,12 @@ and move_cursor_left_zblock =
         ))
       }
     }
-and move_cursor_left_zline = (zline: zline): option(zline) =>
+and move_cursor_left_zline = (zline: zline): option(zline) => {
+  print_endline("Action629");
   switch (zline) {
-  | _ when is_before_zline(zline) => None
+  | _ when is_before_zline(zline) =>
+    print_endline("Action632");
+    None;
 
   | CursorL(OnOp(_), _) => None
 
@@ -681,7 +684,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | None =>
       Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase(zdef))))
     }
-  }
+  };
+}
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
