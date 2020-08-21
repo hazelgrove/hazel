@@ -1,6 +1,5 @@
 [@deriving sexp]
 type term_data = {
-  has_cursor: bool,
   shape: TermShape.t,
   sort: TermSort.t,
 };
@@ -14,7 +13,6 @@ type token_shape =
 type token_data = {
   shape: token_shape,
   len: int,
-  has_cursor: option(int),
 };
 
 type open_child_format =
@@ -37,8 +35,6 @@ type t =
   | Step(int)
   | Term(term_data);
 
-let mk_Token:
-  (~has_cursor: option(int)=?, ~len: int, ~shape: token_shape, unit) => t;
+let mk_Token: (~len: int, ~shape: token_shape, unit) => t;
 
-let mk_Term:
-  (~has_cursor: bool=?, ~shape: TermShape.t, ~sort: TermSort.t, unit) => t;
+let mk_Term: (~shape: TermShape.t, ~sort: TermSort.t, unit) => t;
