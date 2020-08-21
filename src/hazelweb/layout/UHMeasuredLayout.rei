@@ -11,7 +11,8 @@ type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
 
 /**
  * `first_path_in_row(r, m)` returns the first path encountered
- * during left-to-right traversal of row `r` of `m`
+ * during left-to-right traversal of row `r` of `m`. Returns `None`
+ * if row `r` is outside of `m`.
  */
 let first_path_in_row:
   (
@@ -25,11 +26,13 @@ let first_path_in_row:
 
 /**
  * `last_path_in_row(r, m)` returns the first path encountered
- * during right-to-left traversal of row `r` of `m`
+ * during right-to-left traversal of row `r` of `m`. Returns `None`
+ * if row `r` is outside of `m`.
  */
 let last_path_in_row:
   (
     ~rev_steps: CursorPath_common.rev_steps=?,
+    ~indent: int=?,
     ~start: MeasuredPosition.t=?,
     int,
     t
