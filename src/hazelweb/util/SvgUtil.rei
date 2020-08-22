@@ -46,7 +46,7 @@ module Path: {
 };
 
 module OrthogonalPolygon: {
-  type t;
+  type t = Path.t;
 
   /**
    * `mk(~corner_radii, rects)` returns a path tracing the
@@ -61,7 +61,4 @@ module OrthogonalPolygon: {
    * implementation.)
    */
   let mk: (~corner_radii: (float, float), list(Rect.t)) => t;
-
-  let view:
-    (~attrs: list(Virtual_dom.Vdom.Attr.t), t) => Virtual_dom.Vdom.Node.t;
 };
