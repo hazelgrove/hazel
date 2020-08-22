@@ -366,6 +366,4 @@ module OrthogonalPolygon = {
          }),
        );
   };
-
-  let view = Path.view;
 };

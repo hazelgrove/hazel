@@ -49,7 +49,7 @@ module ErrHole = {
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.OrthogonalPolygon.view(
+    |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
              classes(["err-hole"]),
@@ -69,7 +69,7 @@ module VarErrHole = {
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.OrthogonalPolygon.view(
+    |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
              classes(["var-err-hole"]),
@@ -89,7 +89,7 @@ module VarUse = {
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.OrthogonalPolygon.view(
+    |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
              classes(["var-use"]),
@@ -408,7 +408,7 @@ module CurrentTerm = {
       tesserae
       @ open_child_borders
       |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-      |> SvgUtil.OrthogonalPolygon.view(
+      |> SvgUtil.Path.view(
            ~attrs=
              Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
          );
@@ -419,7 +419,7 @@ module CurrentTerm = {
       |> List.map(((sort, rs)) =>
            rs
            |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-           |> SvgUtil.OrthogonalPolygon.view(
+           |> SvgUtil.Path.view(
                 ~attrs=
                   Vdom.Attr.[
                     classes(["code-closed-child", sort_cls(sort)]),
