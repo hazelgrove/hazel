@@ -307,17 +307,17 @@ module CurrentTerm = {
              // some tesserae need to be padded on left side to form
              // a straight edge with borders of neighboring multiline
              // open children
-             let tessera_padding = overflow_left => {
+             let tessera_padding =
+                 (~vtrim_top: bool, ~vtrim_bot: bool, ~overflow_left: bool) => {
                let min_x =
                  Float.of_int(start.col)
                  -. (overflow_left ? multiline_open_child_border_width : 0.0);
                let min_y =
-                 Float.of_int(start.row)
-                 +. (start.row == 0 ? tessera_margin : 0.);
+                 Float.of_int(start.row) +. (vtrim_top ? tessera_margin : 0.);
                let height =
                  Float.of_int(MeasuredLayout.height(m))
-                 -. (start.row == 0 ? tessera_margin : 0.)
-                 -. (start.row == subject_height - 1 ? tessera_margin : 0.);
+                 -. (vtrim_top ? tessera_margin : 0.)
+                 -. (vtrim_bot ? tessera_margin : 0.);
                SvgUtil.Rect.[
                  {
                    min: {
@@ -341,7 +341,18 @@ module CurrentTerm = {
                  start,
                  m,
                )
-             | (Case, Tessera) => tessera_padding(false)
+             | (Case, Tessera) =>
+               tessera_padding(
+                 ~vtrim_top=start.row == 0,
+                 ~vtrim_bot=start.row == subject_height - 1,
+                 ~overflow_left=false,
+               )
+             | (BinOp(_), Tessera) when has_multiline_open_child =>
+               tessera_padding(
+                 ~vtrim_top=false,
+                 ~vtrim_bot=true,
+                 ~overflow_left=true,
+               )
              | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
                // TODO may need to revisit above when guard
                // to support layouts like
@@ -349,7 +360,11 @@ module CurrentTerm = {
                //   _
                // } in ...
                // where lambda has offset head
-               tessera_padding(overflow_left(shape))
+               tessera_padding(
+                 ~vtrim_top=start.row == 0,
+                 ~vtrim_bot=start.row == subject_height - 1,
+                 ~overflow_left=overflow_left(shape),
+               )
              | _ => []
              };
            },
