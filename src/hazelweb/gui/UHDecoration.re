@@ -125,7 +125,12 @@ module CurrentTerm = {
   };
 
   let multiline_open_child_rects =
-      (~overflow_left, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
+      (
+        ~overflow_left,
+        ~vtrim_bot=false,
+        start: MeasuredPosition.t,
+        m: UHMeasuredLayout.t,
+      )
       : rects => {
     let overflow_left =
       overflow_left ? multiline_open_child_border_width : 0.0;
@@ -136,7 +141,9 @@ module CurrentTerm = {
           x: Float.of_int(start.col) -. overflow_left,
           y: Float.of_int(start.row),
         },
-        height: Float.of_int(MeasuredLayout.height(m)),
+        height:
+          Float.of_int(MeasuredLayout.height(m))
+          -. (vtrim_bot ? tessera_margin : 0.),
         width: multiline_open_child_border_width,
       },
     ];
@@ -338,6 +345,7 @@ module CurrentTerm = {
              | (_, OpenChild(Multiline)) =>
                multiline_open_child_rects(
                  ~overflow_left=overflow_left(shape),
+                 ~vtrim_bot=start.row == subject_height - 1,
                  start,
                  m,
                )
@@ -350,6 +358,19 @@ module CurrentTerm = {
              | (BinOp(_), Tessera) when has_multiline_open_child =>
                tessera_padding(
                  ~vtrim_top=false,
+                 ~vtrim_bot=true,
+                 ~overflow_left=true,
+               )
+             | (NTuple({comma_indices}), Tessera)
+                 when has_multiline_open_child =>
+               tessera_padding(
+                 ~vtrim_top=
+                   switch (m.layout) {
+                   | Annot(Step(step), _)
+                       when step == IntUtil.min(comma_indices) =>
+                     false
+                   | _ => true
+                   },
                  ~vtrim_bot=true,
                  ~overflow_left=true,
                )
