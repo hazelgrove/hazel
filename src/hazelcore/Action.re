@@ -366,7 +366,10 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
+    | (
+        Backspace,
+        CursorT(OnDelim(_, After), Unit | Int | Float | Bool | Label(_)),
+      ) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
     /* ( _ )<|  ==>  _| */
@@ -397,6 +400,11 @@ module Typ = {
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
+    | (Construct(SChar(".")), CursorT(_, Hole)) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(""))))
+    //TODO ECD: how to loop and continue to listen for the full label name
+    | (Construct(SChar(char)), CursorT(OnDelim(_, After), Label(id))) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(id ++ char))))
     | (Construct(SChar(_)), CursorT(_)) => Failed
 
     | (Construct(SList), CursorT(_)) =>
@@ -429,7 +437,6 @@ module Typ = {
       | Succeeded(zbody) => Succeeded(ZOpSeq.wrap(ZTyp.ListZ(zbody)))
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorT(_, Label(_))) => failwith("unimplemented")
     };
 };
 
