@@ -102,3 +102,11 @@ The `make dev` and `make release` commands do three things:
 You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
 
 `js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+
+### Testing
+
+You can run all of the unit tests located in `src/hazelcore/test` by running `make test`.
+
+Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
+
+If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.
