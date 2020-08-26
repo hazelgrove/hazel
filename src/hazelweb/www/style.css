@@ -74,8 +74,16 @@ html, body {
   margin: 0px;
   padding: 0px;
   font-family: Montserrat, sans-serif;
+  width: 100%;
   height: 100%;
+}
+
+html {
   overflow: hidden;
+}
+
+body {
+  overflow-x: auto;
 }
 
 #container {
@@ -84,8 +92,10 @@ html, body {
 
 #root {
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  display: grid;
+  grid-template-rows: 1fr 200fr;
+  overflow-y: auto;
 }
 
 /* top bar */
@@ -100,6 +110,7 @@ html, body {
   font-weight: bold;
   font-size: 14pt;
   width: 100%;
+  height: min-content;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -144,6 +155,8 @@ html, body {
   background-color: wheat;
   display: flex;
   flex-direction: row;
+  width: 100%;
+  height: 100%;
 }
 
 .flex-wrapper {
@@ -155,7 +168,8 @@ html, body {
 #page-area {
   flex-grow: 1;
   /* enable scroll */
-  height: 0px;
+  height: 100%;
+  width: 100%;
   overflow-y: auto;
 
   padding-left: var(--page-padding);
@@ -720,12 +734,13 @@ html, body {
 
 .page {
   background-color: white;
+  width: 100%;
   padding: 0.25in;
   margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
   box-shadow: 3px 3px tan;
+  min-width: 450px;
   /* border: 1px solid tan; */
-  /*max-width: 10in;*/
-  width: max-content;
+  max-width: 100ch;
 }
 
 .card-caption {
@@ -854,7 +869,6 @@ h1 {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
-  width: 80ch;
   cursor: text;
 }
 .contenteditable {

@@ -38,13 +38,6 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let rec find_line = (e: t): line => e |> find_line_block
-and find_line_block = block =>
-  List.nth(block, List.length(block) - 1) |> find_line_line
-and find_line_line =
-  fun
-  | line => line;
-
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
 
@@ -284,14 +277,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
-  };
-
-let rec drop_outer_parentheses = (operand): t =>
-  switch (operand) {
-  | Parenthesized([ExpLine(OpSeq(_, S(operand, E)))]) =>
-    drop_outer_parentheses(operand)
-  | Parenthesized(e) => e
-  | _ => Block.wrap(operand)
   };
 
 let text_operand =

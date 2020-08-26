@@ -46,11 +46,6 @@ let get_steps = program => {
   steps;
 };
 
-let get_u_gen = program => {
-  let (_, _, u_gen) = program.edit_state;
-  u_gen;
-};
-
 exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
