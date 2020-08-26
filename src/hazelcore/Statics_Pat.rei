@@ -1,7 +1,7 @@
 let tuple_zip: (UHPat.skel, HTyp.t) => option(list((UHPat.skel, HTyp.t)));
 
 /**
- * `syn_nth_type_mode(ctx, n, opseq) returns the type mode of the `n`th
+ * `syn_nth_type_mode(ctx, n, opseq)` returns the type mode of the `n`th
  * operand of `opseq`, assuming `opseq` is in synthetic position under
  * context `ctx`. Returns `None` if `n` is not a valid operand index
  * for `opseq`.
@@ -66,8 +66,8 @@ let ana_fix_holes_opseq:
  * The ticked versions of `[syn|ana]_fix_holes` have the same behavior
  * as the unticked versions, the only difference being that they return
  * an additional `bool` indicating whether any err statuses were updated.
- * For internal use only in `Statics_Exp` to ensure pointer stability
- * when there are no updates.
+ * For internal use only within `Statics_*` modules to ensure pointer
+ * stability when there are no updates.
  */
 let syn_fix_holes':
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>

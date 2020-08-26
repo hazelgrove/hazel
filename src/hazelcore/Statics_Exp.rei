@@ -13,18 +13,24 @@ let ctx_for_let:
   (Contexts.t, UHPat.t, HTyp.t, UHExp.t) => (Contexts.t, option(Var.t));
 
 /**
- * Get type mode of nth operand of an opseq in synthetic position
+ * `syn_nth_type_mode(ctx, n, opseq)` returns the type mode of the
+ * `n`th operand of `opseq`, assuming `opseq` is in synthetic position
+ * under context `ctx`. Returns `None` if `n` is not a valid operand
+ * index for `opseq`.
  */
 let syn_nth_type_mode:
   (Contexts.t, int, UHExp.opseq) => option(Statics_common.type_mode);
 /**
- * Get type mode of nth operand of an opseq in analytic position
+ * `ana_nth_type_mode(ctx, n, opseq, ty)` returns the type mode of the
+ * `n`th operand of `opseq`, assuming `opseq` is in analytic position
+ * against type `ty` under context `ctx`. Returns `None` if `n` is not
+ * a valid operand index for `opseq`.
  */
 let ana_nth_type_mode:
   (Contexts.t, int, UHExp.opseq, HTyp.t) => option(Statics_common.type_mode);
 
 /**
- * Under context `ctx`, `syn(ctx, e)` synthesizes a type for `e`
+ * `syn(ctx, e)` synthesizes a type for `e` under context `ctx`
  * (if possible)
  */
 let syn: (Contexts.t, UHExp.t) => option(HTyp.t);
@@ -37,16 +43,16 @@ let syn_rules: (Contexts.t, UHExp.rules, HTyp.t) => option(HTyp.t);
 let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
 
 /**
- * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
+ * `ana(ctx, p, ty)` analyzes `e` against `ty` under context `ctx`
  */
 let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
 let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
 
 /**
- * Given a pattern `e` in synthetic position under context `ctx`,
  * `syn_fix_holes(ctx, u_gen, e)` fixes the err statuses in `e` such
- * that it can synthesize a type and returns the results of doing so
+ * that it can synthesize a type under context `ctx` and and returns
+ * the results of doing so
  */
 let syn_fix_holes:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.t) =>
@@ -68,10 +74,9 @@ let syn_fix_holes_rules:
   (UHExp.rules, MetaVarGen.t, list(HTyp.t), option(HTyp.t));
 
 /**
- * Given a pattern `e` in analytic position under context `ctx`,
  * `ana_fix_holes(ctx, u_gen, e, ty)` fixes the err statuses in `e`
- * such that it can analyze against `ty` and returns the result of
- * doing so
+ * such that it can successfully analyze against `ty` under context
+ * `ctx` and returns the result of doing so
  */
 let ana_fix_holes:
   (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.t, HTyp.t) =>
