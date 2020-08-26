@@ -1,6 +1,6 @@
 /**
  * An immutable map from (row, col) character positions
- * in a program editor to {!type:CursorPath.rev_t} values.
+ * in a program editor to {!type:CursorPath_common.rev_t} values.
  * Used to handle cursor movement.
  *
  * Unenforced assumptions:
@@ -19,7 +19,7 @@ module Col: {
   type t = int;
 };
 [@deriving sexp]
-type binding = ((Row.t, Col.t), CursorPath.rev_t);
+type binding = ((Row.t, Col.t), CursorPath_common.rev_t);
 
 /**
  * Builds a cursor map given a {!type:UHLayout.t}.

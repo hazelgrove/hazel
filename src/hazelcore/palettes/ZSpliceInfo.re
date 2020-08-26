@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type zsplice_map('exp, 'zexp) = ZNatMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
+type zsplice_map('exp, 'zexp) = ZIntMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
 [@deriving sexp]
 type t('exp, 'zexp) = {
   next: SpliceInfo.splice_name,
@@ -11,7 +11,7 @@ type t('exp, 'zexp) = {
 let erase = (zpsi: t('exp, 'zexp), erase_z): SpliceInfo.t('exp) =>
   SpliceInfo.{
     next: zpsi.next,
-    splice_map: ZNatMap.erase(zpsi.zsplice_map, erase_z),
+    splice_map: ZIntMap.erase(zpsi.zsplice_map, erase_z),
     splice_order: zpsi.splice_order,
   };
 let select_opt =
@@ -22,13 +22,13 @@ let select_opt =
     )
     : option(t('exp, 'zexp)) => {
   let {SpliceInfo.next, SpliceInfo.splice_map, SpliceInfo.splice_order} = splice_info;
-  switch (NatMap.drop(splice_map, n)) {
+  switch (IntMap.find_opt(n, splice_map)) {
   | None => None
-  | Some((splice_map, ty_e)) =>
+  | Some(ty_e) =>
     switch (f(ty_e)) {
     | None => None
     | Some(ty_ze) =>
-      let zsplice_map = (splice_map, (n, ty_ze));
+      let zsplice_map = (IntMap.remove(n, splice_map), (n, ty_ze));
       Some({next, zsplice_map, splice_order});
     }
   };

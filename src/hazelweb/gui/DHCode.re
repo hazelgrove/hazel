@@ -24,6 +24,9 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(InconsistentBranches(_), l) => [
         Node.span([Attr.classes(["InconsistentBranches"])], go(l)),
       ]
+    | Annot(Invalid(_), l) => [
+        Node.span([Attr.classes(["InHole"])], go(l)),
+      ]
     | Annot(VarHole(_), l) => [
         Node.span([Attr.classes(["InVarHole"])], go(l)),
       ]
@@ -31,9 +34,7 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
         Node.span(
           [
             Attr.classes(["EmptyHole", ...selected ? ["selected"] : []]),
-            Attr.on_click(_ =>
-              inject(Update.Action.SelectHoleInstance(inst))
-            ),
+            Attr.on_click(_ => inject(ModelAction.SelectHoleInstance(inst))),
           ],
           go(l),
         ),
@@ -67,7 +68,7 @@ let view =
     )
     : Vdom.Node.t => {
   d
-  |> DHDoc.Exp.mk(
+  |> DHDoc_Exp.mk(
        ~show_casts,
        ~show_fn_bodies,
        ~show_case_clauses,
