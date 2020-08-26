@@ -92,6 +92,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
     // | ListNil(_)
     CursorPosition.delim_cursors(1)
   /* outer nodes - text */
+  | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
@@ -163,9 +164,8 @@ and is_before_zline = (zline: zline): bool =>
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
-  | CursorE(cursor, EmptyHole(_)) =>
-    // | CursorE(cursor, ListNil(_))
-    cursor == OnDelim(0, Before)
+  | CursorE(cursor, EmptyHole(_)) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, InvalidText(_, _))
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
@@ -212,9 +212,9 @@ and is_after_zline =
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
-  | CursorE(cursor, EmptyHole(_)) =>
-    // | CursorE(cursor, ListNil(_))
-    cursor == OnDelim(0, After)
+  | CursorE(cursor, EmptyHole(_)) => cursor == OnDelim(0, After)
+  | CursorE(cursor, InvalidText(_, t)) =>
+    cursor == OnText(String.length(t))
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorE(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
@@ -264,6 +264,7 @@ and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
 and is_outer_zoperand =
   fun
   | CursorE(_, EmptyHole(_))
+  | CursorE(_, InvalidText(_, _))
   | CursorE(_, ListLit(_))
   | CursorE(_, Var(_))
   | CursorE(_, IntLit(_))
@@ -303,9 +304,8 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand = operand =>
   switch (operand) {
-  | EmptyHole(_) =>
-    // | ListNil(_)
-    CursorE(OnDelim(0, Before), operand)
+  | EmptyHole(_) => CursorE(OnDelim(0, Before), operand)
+  | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
@@ -340,9 +340,8 @@ and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand = operand =>
   switch (operand) {
-  | EmptyHole(_) =>
-    // | ListNil(_)
-    CursorE(OnDelim(0, After), operand)
+  | EmptyHole(_) => CursorE(OnDelim(0, After), operand)
+  | InvalidText(_, t) => CursorE(OnText(String.length(t)), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
@@ -722,7 +721,10 @@ and move_cursor_left_zoperand =
       )
     }
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
+  | CursorE(
+      OnDelim(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+    ) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -950,7 +952,10 @@ and move_cursor_right_zoperand =
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
+  | CursorE(
+      OnDelim(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+    ) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
