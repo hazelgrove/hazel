@@ -18,15 +18,10 @@ let mk: (~width: int, ~is_focused: bool=?, Statics_common.edit_state) => t;
 let focus: t => t;
 let blur: t => t;
 
-let put_edit_state: (Statics_common.edit_state, t) => t;
-
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
-let get_path: t => CursorPath_common.t;
 let get_steps: t => CursorPath_common.steps;
-
-let get_u_gen: t => MetaVarGen.t;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
@@ -77,15 +72,15 @@ let move_via_click:
   (t, Action_common.t);
 
 exception HoleNotFound;
-let move_to_hole: (MetaVar.t, t) => t;
+let move_to_hole: (MetaVar.t, t) => Action_common.t;
 
 /**
- * `select_case_branch(steps, n, program)` moves the cursor to the `n`th branch
- * in case expression found at `steps` (when the user clicks on a branch type
- * in the error message for a case expression with inconsistent branches)
+ * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
+ * the `n`th branch in case expression found at `steps` (when the user
+ * clicks on a branch type in the error message for a case expression with
+ * inconsistent branches)
  */
-let move_to_case_branch:
-  (CursorPath_common.steps, int, t) => (t, Action_common.t);
+let move_to_case_branch: (CursorPath_common.steps, int) => Action_common.t;
 
 let get_layout:
   (
@@ -108,14 +103,6 @@ let get_decorated_layout:
   ) =>
   UHLayout.t;
 
-let get_cursor_map:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  CursorMap.t;
 let get_cursor_map_z:
   (
     ~measure_program_get_doc: bool,
