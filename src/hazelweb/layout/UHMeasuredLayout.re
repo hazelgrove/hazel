@@ -1,6 +1,7 @@
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+[@deriving sexp]
 type t = MeasuredLayout.t(UHAnnot.t);
 include MeasuredLayout.Make(WeakMap);
 
@@ -114,73 +115,86 @@ let first_path_in_row =
       row: int,
       m: t,
     )
-    : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
-  m
-  |> find_path(
-       ~rev_steps,
-       ~indent,
-       ~start,
-       ~token=
-         (~rev_steps, ~start, token_data) => {
-           let UHAnnot.{shape, _} = token_data;
-           let cursor: CursorPosition.t =
-             switch (shape) {
-             | Text => OnText(0)
-             | Op => OnOp(Before)
-             | Delim(k) => OnDelim(k, Before)
-             };
-           Some(((cursor, rev_steps), start));
-         },
-       ~cat=
-         (~go, ~rev_steps as _, ~start, ~mid, ~end_ as _, m1, m2) =>
-           if (row < mid.row) {
-             go(start, m1);
-           } else if (row > mid.row) {
-             go(mid, m2);
-           } else {
-             switch (go(start, m1)) {
-             | Some(result) => Some(result)
-             | None => go(mid, m2)
-             };
+    : option(path_position) => {
+  let end_ = MeasuredLayout.next_position(~indent, start, m);
+  if (row < start.row || row > end_.row) {
+    None;
+  } else {
+    m
+    |> find_path(
+         ~rev_steps,
+         ~indent,
+         ~start,
+         ~token=
+           (~rev_steps, ~start, token_data) => {
+             let UHAnnot.{shape, _} = token_data;
+             let cursor: CursorPosition.t =
+               switch (shape) {
+               | Text => OnText(0)
+               | Op => OnOp(Before)
+               | Delim(k) => OnDelim(k, Before)
+               };
+             Some(((cursor, rev_steps), start));
            },
-     );
+         ~cat=
+           (~go, ~rev_steps as _, ~start, ~mid, ~end_ as _, m1, m2) =>
+             if (row < mid.row) {
+               go(start, m1);
+             } else if (row > mid.row) {
+               go(mid, m2);
+             } else {
+               switch (go(start, m1)) {
+               | Some(result) => Some(result)
+               | None => go(mid, m2)
+               };
+             },
+       );
+  };
+};
 
 let last_path_in_row =
     (
       ~rev_steps=[],
+      ~indent=0,
       ~start: MeasuredPosition.t=MeasuredPosition.zero,
       row: int,
       m: t,
     )
-    : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
-  m
-  |> find_path(
-       ~rev_steps,
-       ~start,
-       ~token=
-         (~rev_steps, ~start, token_data) => {
-           let UHAnnot.{shape, len, _} = token_data;
-           let cursor: CursorPosition.t =
-             switch (shape) {
-             | Text => OnText(len)
-             | Op => OnOp(After)
-             | Delim(k) => OnDelim(k, After)
-             };
-           Some(((cursor, rev_steps), {...start, col: start.col + len}));
-         },
-       ~cat=
-         (~go, ~rev_steps as _, ~start, ~mid, ~end_ as _, m1, m2) =>
-           if (row < mid.row) {
-             go(start, m1);
-           } else if (row > mid.row) {
-             go(mid, m2);
-           } else {
-             switch (go(mid, m2)) {
-             | Some(result) => Some(result)
-             | None => go(start, m1)
-             };
+    : option(path_position) => {
+  let end_ = MeasuredLayout.next_position(~indent, start, m);
+  if (row < start.row || row > end_.row) {
+    None;
+  } else {
+    m
+    |> find_path(
+         ~rev_steps,
+         ~start,
+         ~token=
+           (~rev_steps, ~start, token_data) => {
+             let UHAnnot.{shape, len, _} = token_data;
+             let cursor: CursorPosition.t =
+               switch (shape) {
+               | Text => OnText(len)
+               | Op => OnOp(After)
+               | Delim(k) => OnDelim(k, After)
+               };
+             Some(((cursor, rev_steps), {...start, col: start.col + len}));
            },
-     );
+         ~cat=
+           (~go, ~rev_steps as _, ~start, ~mid, ~end_ as _, m1, m2) =>
+             if (row < mid.row) {
+               go(start, m1);
+             } else if (row > mid.row) {
+               go(mid, m2);
+             } else {
+               switch (go(mid, m2)) {
+               | Some(result) => Some(result)
+               | None => go(start, m1)
+               };
+             },
+       );
+  };
+};
 
 let arbitrate =
     (
@@ -209,8 +223,7 @@ let arbitrate =
 };
 
 let prev_path_within_row =
-    (from: MeasuredPosition.t, m: t)
-    : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
+    (from: MeasuredPosition.t, m: t): option(path_position) =>
   m
   |> find_path(
        ~token=
@@ -230,14 +243,12 @@ let prev_path_within_row =
            };
          },
        ~cat=
-         (~go, ~rev_steps, ~start, ~mid, ~end_, m1, m2) =>
+         (~go, ~rev_steps, ~start, ~mid, ~end_ as _, m1, m2) =>
            if (MeasuredPosition.compare(from, mid) <= 0) {
              go(start, m1);
            } else {
              switch (go(mid, m2)) {
-             | None =>
-               mid.row == end_.row
-                 ? last_path_in_row(~rev_steps, ~start, mid.row, m1) : None
+             | None => last_path_in_row(~rev_steps, ~start, from.row, m1)
              | Some((rev_path2, pos2)) =>
                if (MeasuredPosition.compare(pos2, mid) == 0) {
                  let rev_path =
@@ -256,8 +267,7 @@ let prev_path_within_row =
      );
 
 let next_path_within_row =
-    (from: MeasuredPosition.t, m: t)
-    : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
+    (from: MeasuredPosition.t, m: t): option(path_position) =>
   m
   |> find_path(
        ~token=
@@ -282,10 +292,7 @@ let next_path_within_row =
              go(mid, m2);
            } else {
              switch (go(start, m1)) {
-             | None =>
-               mid.row == start.row
-                 ? first_path_in_row(~rev_steps, ~start=mid, mid.row, m2)
-                 : None
+             | None => first_path_in_row(~rev_steps, ~start=mid, from.row, m2)
              | Some((rev_path1, pos1)) =>
                if (MeasuredPosition.compare(pos1, mid) == 0) {
                  let rev_path =
@@ -306,8 +313,7 @@ let next_path_within_row =
      );
 
 let nearest_path_within_row =
-    (target: MeasuredPosition.t, m: t)
-    : option((CursorPath_common.rev_t, MeasuredPosition.t)) =>
+    (target: MeasuredPosition.t, m: t): option(path_position) =>
   m
   |> find_path(
        ~token=

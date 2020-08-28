@@ -1107,7 +1107,7 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zp, new_ctx, u_gen)) =>
-      let ctx_def =
+      let (ctx_def, _) =
         Statics_Exp.ctx_for_let(ctx, new_zp |> ZPat.erase, ty, def);
       let (new_def, u_gen) =
         Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
@@ -1122,7 +1122,7 @@ and syn_perform_line =
     | Succeeded(new_zann) =>
       let ty = new_zann |> ZTyp.erase |> UHTyp.expand;
       let (p, new_ctx, u_gen) = Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty);
-      let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, def);
+      let (ctx_def, _) = Statics_Exp.ctx_for_let(ctx, p, ty, def);
       let (def, u_gen) = Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
       let new_zline = ZExp.LetLineZA(p, new_zann, def);
       Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
@@ -1144,7 +1144,8 @@ and syn_perform_line =
     }
   | (_, LetLineZE(p, Some(ann), zdef)) =>
     let ty = ann |> UHTyp.expand;
-    let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
+    let (ctx_def, _) =
+      Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
     switch (ana_perform(ctx_def, a, (zdef, u_gen), ty)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)

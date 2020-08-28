@@ -163,7 +163,6 @@ module OrthogonalPolygon = {
 
   /**
    * Merge coinciding vertical edges that point in the same direction
-   *
    * TODO figure out if there's a cleaner + more efficient method for this pass
    */
   let merge_coinciding_vertical_edges =
@@ -367,6 +366,4 @@ module OrthogonalPolygon = {
          }),
        );
   };
-
-  let view = Path.view;
 };

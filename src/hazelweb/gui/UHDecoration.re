@@ -49,7 +49,7 @@ module ErrHole = {
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.OrthogonalPolygon.view(
+    |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
              classes(["err-hole"]),
@@ -69,7 +69,7 @@ module VarErrHole = {
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.OrthogonalPolygon.view(
+    |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
              classes(["var-err-hole"]),
@@ -89,7 +89,7 @@ module VarUse = {
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.OrthogonalPolygon.view(
+    |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
              classes(["var-use"]),
@@ -125,7 +125,12 @@ module CurrentTerm = {
   };
 
   let multiline_open_child_rects =
-      (~overflow_left, start: MeasuredPosition.t, m: UHMeasuredLayout.t)
+      (
+        ~overflow_left,
+        ~vtrim_bot=false,
+        start: MeasuredPosition.t,
+        m: UHMeasuredLayout.t,
+      )
       : rects => {
     let overflow_left =
       overflow_left ? multiline_open_child_border_width : 0.0;
@@ -136,7 +141,9 @@ module CurrentTerm = {
           x: Float.of_int(start.col) -. overflow_left,
           y: Float.of_int(start.row),
         },
-        height: Float.of_int(MeasuredLayout.height(m)),
+        height:
+          Float.of_int(MeasuredLayout.height(m))
+          -. (vtrim_bot ? tessera_margin : 0.),
         width: multiline_open_child_border_width,
       },
     ];
@@ -307,17 +314,17 @@ module CurrentTerm = {
              // some tesserae need to be padded on left side to form
              // a straight edge with borders of neighboring multiline
              // open children
-             let tessera_padding = overflow_left => {
+             let tessera_padding =
+                 (~vtrim_top: bool, ~vtrim_bot: bool, ~overflow_left: bool) => {
                let min_x =
                  Float.of_int(start.col)
                  -. (overflow_left ? multiline_open_child_border_width : 0.0);
                let min_y =
-                 Float.of_int(start.row)
-                 +. (start.row == 0 ? tessera_margin : 0.);
+                 Float.of_int(start.row) +. (vtrim_top ? tessera_margin : 0.);
                let height =
                  Float.of_int(MeasuredLayout.height(m))
-                 -. (start.row == 0 ? tessera_margin : 0.)
-                 -. (start.row == subject_height - 1 ? tessera_margin : 0.);
+                 -. (vtrim_top ? tessera_margin : 0.)
+                 -. (vtrim_bot ? tessera_margin : 0.);
                SvgUtil.Rect.[
                  {
                    min: {
@@ -338,10 +345,35 @@ module CurrentTerm = {
              | (_, OpenChild(Multiline)) =>
                multiline_open_child_rects(
                  ~overflow_left=overflow_left(shape),
+                 ~vtrim_bot=start.row == subject_height - 1,
                  start,
                  m,
                )
-             | (Case, Tessera) => tessera_padding(false)
+             | (Case, Tessera) =>
+               tessera_padding(
+                 ~vtrim_top=start.row == 0,
+                 ~vtrim_bot=start.row == subject_height - 1,
+                 ~overflow_left=false,
+               )
+             | (BinOp(_), Tessera) when has_multiline_open_child =>
+               tessera_padding(
+                 ~vtrim_top=false,
+                 ~vtrim_bot=true,
+                 ~overflow_left=true,
+               )
+             | (NTuple({comma_indices}), Tessera)
+                 when has_multiline_open_child =>
+               tessera_padding(
+                 ~vtrim_top=
+                   switch (m.layout) {
+                   | Annot(Step(step), _)
+                       when step == IntUtil.min(comma_indices) =>
+                     false
+                   | _ => true
+                   },
+                 ~vtrim_bot=true,
+                 ~overflow_left=true,
+               )
              | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
                // TODO may need to revisit above when guard
                // to support layouts like
@@ -349,7 +381,11 @@ module CurrentTerm = {
                //   _
                // } in ...
                // where lambda has offset head
-               tessera_padding(overflow_left(shape))
+               tessera_padding(
+                 ~vtrim_top=start.row == 0,
+                 ~vtrim_bot=start.row == subject_height - 1,
+                 ~overflow_left=overflow_left(shape),
+               )
              | _ => []
              };
            },
@@ -372,7 +408,7 @@ module CurrentTerm = {
       tesserae
       @ open_child_borders
       |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-      |> SvgUtil.OrthogonalPolygon.view(
+      |> SvgUtil.Path.view(
            ~attrs=
              Vdom.[Attr.classes(["code-current-term", sort_cls(sort)])],
          );
@@ -383,7 +419,7 @@ module CurrentTerm = {
       |> List.map(((sort, rs)) =>
            rs
            |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-           |> SvgUtil.OrthogonalPolygon.view(
+           |> SvgUtil.Path.view(
                 ~attrs=
                   Vdom.Attr.[
                     classes(["code-closed-child", sort_cls(sort)]),

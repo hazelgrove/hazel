@@ -1,8 +1,7 @@
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
-/* returns recursive ctx + name of recursively defined var */
-let ctx_for_let' =
+let ctx_for_let =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
     : (Contexts.t, option(Var.t)) =>
   switch (p, e) {
@@ -17,15 +16,6 @@ let ctx_for_let' =
   | _ => (ctx, None)
   };
 
-let ctx_for_let =
-    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t => {
-  let (ctx, _) = ctx_for_let'(ctx, p, ty, e);
-  ctx;
-};
-
-/**
-     * Synthesize a type, if possible, for e
-     */
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   syn_block(ctx, e)
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
@@ -59,7 +49,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     switch (ann) {
     | Some(uty) =>
       let ty = UHTyp.expand(uty);
-      let ctx_def = ctx_for_let(ctx, p, ty, def);
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
       switch (ana(ctx_def, def, ty)) {
       | None => None
       | Some(_) => Statics_Pat.ana(ctx, p, ty)
@@ -282,9 +272,6 @@ and ana_splice_map =
     splice_map,
     Some(Contexts.empty),
   )
-/**
-     * Analyze e against expected type ty
-     */
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
 and ana_block =
@@ -700,7 +687,7 @@ and syn_fix_holes_line =
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
-      let ctx_def = ctx_for_let(ctx, p, ty1, def);
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty1, def);
       let (def, u_gen) =
         ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
       let (p, ctx, u_gen) =
