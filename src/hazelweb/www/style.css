@@ -802,6 +802,11 @@ h1 {
   top: -10px;
 }
 
+.DHCode .AssertionFail{
+  color: red;
+  border: 2px dotted;
+  margin: -1px;
+}
 .DHCode .AssertPass:after{
   content: "✔";
   color: green;
