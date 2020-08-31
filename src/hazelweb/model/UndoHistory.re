@@ -123,7 +123,8 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | Exp(cursor_pos, _)
   | Pat(cursor_pos, _)
   | Typ(cursor_pos, _)
-  | ExpOp(cursor_pos, _)
+  | ExpBinop(cursor_pos, _)
+  | ExpUnop(cursor_pos, _)
   | PatOp(cursor_pos, _)
   | TypOp(cursor_pos, _)
   | Line(cursor_pos, _)
@@ -237,6 +238,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Lam(_, _, _, _)
     | Inj(_, _, _)
     | Case(_, _, _)
+    | UnaryOp(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     }
@@ -262,7 +264,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Parenthesized(_)
     | List(_) => MaxLen
     }
-  | ExpOp(_, _)
+  | ExpBinop(_, _)
+  | ExpUnop(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
   | Rule(_, _) => MaxLen
@@ -828,6 +831,8 @@ let get_new_action_group =
           | _ => Some(ConstructEdit(SOp(SSpace)))
           }
         }
+
+      | SUnop(_) => failwith("not implemented.")
 
       | SApPalette(_) => failwith("ApPalette is not implemented")
       }

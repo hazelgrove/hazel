@@ -491,6 +491,7 @@ let check_actions = (a: Action_common.t) =>
   | Construct(SOp(SLessThan)) => Added
   | Construct(SOp(SSpace)) => Added
   | Construct(SOp(SComma)) => Added
+  | Construct(SUnop(SUnaryMinus)) => Added
   | Construct(SList) => Added
   | Construct(SListNil) => Added
   | Construct(SOp(SCons)) => Added

@@ -37,6 +37,10 @@ let mk_Var:
   UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
+let mk_Unop:
+  (~err: ErrStatus.t, UHExp.unop, UHDoc_common.formatted_child) =>
+  UHDoc_common.t =
+  UHDoc_common.mk_Unop(~sort=Exp);
 let mk_Inj:
   (~err: ErrStatus.t, ~inj_side: InjSide.t, UHDoc_common.formatted_child) =>
   UHDoc_common.t =
@@ -190,6 +194,13 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
+        | UnaryOp(err, unop, operand) =>
+          // let operand =
+          //   Lazy.force(mk_operand, ~memoize, ~enforce_inline, operand);
+          let operand_body =
+            UHExp.Block.wrap(operand)
+            |> mk_child(~memoize, ~enforce_inline, ~child_step=0);
+          mk_Unop(~err, unop, operand_body);
         | Case(err, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();

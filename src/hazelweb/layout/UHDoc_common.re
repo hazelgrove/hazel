@@ -278,6 +278,20 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
+let mk_Unop =
+    (
+      ~sort: TermSort.t,
+      ~err: ErrStatus.t,
+      unop: UHExp.unop,
+      operand: formatted_child,
+    )
+    : t => {
+  let unop_text =
+    mk_text(UnaryOperators_Exp.to_string(unop))
+    |> annot_Operand(~sort, ~err);
+  Doc.hcats([unop_text, operand |> pad_open_child]) |> annot_Operand(~sort);
+};
+
 let mk_List = (body: formatted_child): t => {
   let open_group = Delim.open_List() |> annot_DelimGroup;
   let close_group = Delim.close_List() |> annot_DelimGroup;
