@@ -315,17 +315,18 @@ and syn_cursor_info_line =
     };
   | LetLineZA(_, zann, _) =>
     CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
-    |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
   | LetLineZE(p, ann, zdef) =>
     switch (ann) {
     | None =>
       syn_cursor_info(~steps=steps @ [2], ctx, zdef)
-      |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
     | Some(ann) =>
       let ty = UHTyp.expand(ann);
-      let ctx_def = Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
+      let (ctx_def, _) =
+        Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
       ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
-      |> OptUtil.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
     }
   }
 and syn_cursor_info_zopseq =
@@ -345,7 +346,7 @@ and syn_cursor_info_zopseq =
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
     Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
-    |> OptUtil.map(ty =>
+    |> Option.map(ty =>
          CursorInfo_common.mk(
            Synthesized(ty),
            ctx,
@@ -382,7 +383,7 @@ and syn_cursor_info_skel =
       )
     | ZOperator(_) =>
       Statics_Exp.syn_skel(ctx, skel, seq)
-      |> OptUtil.map(ty =>
+      |> Option.map(ty =>
            CursorInfo_common.mk(
              Synthesized(ty),
              ctx,
@@ -441,7 +442,7 @@ and syn_cursor_info_skel =
             |> ZExp.erase_zoperand
             |> UHExp.set_err_status_operand(NotInHole);
           Statics_Exp.syn_operand(ctx, operand_nih)
-          |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
+          |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some(VarErr(Keyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
@@ -461,7 +462,7 @@ and syn_cursor_info_skel =
             | None => None
             | Some(ty) =>
               HTyp.matched_arrow(ty)
-              |> OptUtil.map(((ty1, ty2)) =>
+              |> Option.map(((ty1, ty2)) =>
                    mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
                  )
             }
@@ -752,7 +753,7 @@ and ana_cursor_info_skel =
       switch (err) {
       | NotInHole =>
         Statics_Exp.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ =>
+        |> Option.map(_ =>
              CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
            )
       | InHole(WrongLength, _) =>
@@ -885,7 +886,7 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
-      |> OptUtil.map(_ =>
+      |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
     | Lam(NotInHole, _, ann, _) =>

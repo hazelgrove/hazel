@@ -3,16 +3,91 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
+
+let decoration_container =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~origin: MeasuredPosition.t,
+      ~height: int,
+      ~width: int,
+      ~cls: string,
+      vs: list(Vdom.Node.t),
+    )
+    : Vdom.Node.t => {
+  let buffered_height = height + 1;
+  let buffered_width = width + 1;
+
+  let buffered_height_px =
+    Float.of_int(buffered_height) *. font_metrics.row_height;
+  let buffered_width_px =
+    Float.of_int(buffered_width) *. font_metrics.col_width;
+
+  let container_origin_x =
+    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
+  let container_origin_y =
+    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
+
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes([
+          "decoration-container",
+          Printf.sprintf("%s-container", cls),
+        ]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: calc(%fpx - 1px); left: %fpx;",
+            container_origin_x,
+            container_origin_y,
+          ),
+        ),
+      ],
+      [
+        Node.create_svg(
+          "svg",
+          [
+            Attr.classes([cls]),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "-0.5 -0.5 %d %d",
+                buffered_width,
+                buffered_height,
+              ),
+            ),
+            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", buffered_height_px),
+            ),
+            Attr.create("preserveAspectRatio", "none"),
+          ],
+          vs,
+        ),
+      ],
+    )
+  );
+};
+
 let decoration_views =
-    (~font_metrics: FontMetrics.t, ds: Decorations.t, l: UHLayout.t)
+    (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
+  let corner_radius = 2.5;
+  let corner_radii = (
+    corner_radius /. font_metrics.col_width,
+    corner_radius /. font_metrics.row_height,
+  );
+
   let rec go =
           (
-            ~tl: list(Vdom.Node.t),
-            ~indent: int,
-            ~start: CaretPosition.t,
-            ds: Decorations.t,
-            m: MeasuredLayout.t,
+            ~tl: list(Vdom.Node.t)=[],
+            ~indent=0,
+            ~start=MeasuredPosition.zero,
+            dpaths: UHDecorationPaths.t,
+            m: UHMeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
     let go' = go(~indent, ~start);
@@ -20,13 +95,7 @@ let decoration_views =
     | Linebreak
     | Text(_) => tl
     | Cat(m1, m2) =>
-      let mid_row = {
-        let height1 =
-          m1.metrics
-          |> List.map((box: MeasuredLayout.box) => box.height)
-          |> List.fold_left((+), 0);
-        start.row + height1 - 1;
-      };
+      let mid_row = start.row + MeasuredLayout.height(m1) - 1;
       let mid_col = {
         let (leading, MeasuredLayout.{width: last_width, _}) =
           ListUtil.split_last(m1.metrics);
@@ -38,72 +107,65 @@ let decoration_views =
         offset + last_width;
       };
       let mid_tl =
-        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, ds, m2);
-      go'(~tl=mid_tl, ds, m1);
-    | Align(m) => go(~tl, ~indent=start.col, ~start, ds, m)
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, dpaths, m2);
+      go'(~tl=mid_tl, dpaths, m1);
+    | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
     | Annot(annot, m) =>
       switch (annot) {
       | Step(step) =>
-        let stepped = Decorations.take_step(step, ds);
-        Decorations.is_empty(stepped) ? tl : go'(~tl, stepped, m);
-      /*| AssertNum({num}) =>
-        switch (AssertMap.lookup(num, ds.assert_decoration)) {
-        | Some(a) =>
-          switch (AssertMap.check(a)) {
-          | Pass => [
-              Vdom.Node.span(
-                [Vdom.Attr.classes(["AssertPass"])],
-                go'(~tl, ds, m),
-              ),
-            ]
-
-          | Fail => [
-              Vdom.Node.span(
-                [Vdom.Attr.classes(["AssertFail"])],
-                go'(~tl, ds, m),
-              ),
-            ]
-
-          | Comp => [
-              Vdom.Node.span(
-                [Vdom.Attr.classes(["AssertComp"])],
-                go'(~tl, ds, m),
-              ),
-            ]
-
-          | Indet => [
-              Vdom.Node.span(
-                [Vdom.Attr.classes(["AssertIndet"])],
-                go'(~tl, ds, m),
-              ),
-            ]
-          }
-        | None => [
-            Vdom.Node.span(
-              [Vdom.Attr.classes(["AssertIndet"])],
-              go'(~tl, ds, m),
-            ),
-          ]
-        }*/
+        let stepped = UHDecorationPaths.take_step(step, dpaths);
+        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
+        let offset = start.col - indent;
+        let origin = MeasuredPosition.{row: start.row, col: indent};
+        let height = lazy(MeasuredLayout.height(m));
+        let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
-          Decorations.current(sort, shape, ds)
-          |> List.map(
-               UHCodeDecoration.view(
+          UHDecorationPaths.current(sort, shape, dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let (cls, decoration) =
+                 UHDecoration.(
+                   switch (dshape) {
+                   | ErrHole => (
+                       "err-hole",
+                       ErrHole.view(~corner_radii, ~offset, m),
+                     )
+                   | VarErrHole => (
+                       "var-err-hole",
+                       VarErrHole.view(~corner_radii, ~offset, m),
+                     )
+                   | VarUse => (
+                       "var-use",
+                       VarUse.view(~corner_radii, ~offset, m),
+                     )
+                   | CurrentTerm(_) => (
+                       "current-term",
+                       CurrentTerm.view(
+                         ~corner_radii,
+                         ~offset,
+                         ~sort,
+                         ~shape,
+                         m,
+                       ),
+                     )
+                   }
+                 );
+               decoration_container(
                  ~font_metrics,
-                 ~origin={row: start.row, col: indent},
-                 ~offset=start.col - indent,
-                 // ~shape,
-                 ~subject=m,
-               ),
-             );
-        go'(~tl=current_vs @ tl, ds, m);
-
-      | _ => go'(~tl, ds, m)
+                 ~height=Lazy.force(height),
+                 ~width=Lazy.force(width),
+                 ~origin,
+                 ~cls,
+                 [decoration],
+               );
+             });
+        go'(~tl=current_vs @ tl, dpaths, m);
+      | _ => go'(~tl, dpaths, m)
       }
     };
   };
-  go(~tl=[], ~indent=0, ~start={row: 0, col: 0}, ds, MeasuredLayout.mk(l));
+
+  go(dpaths, UHMeasuredLayout.mk(l));
 };
 
 let key_handlers =
@@ -173,6 +235,70 @@ let key_handlers =
   ];
 };
 
+let rec view_of_box = (program: Program.t, box: UHBox.t): list(Vdom.Node.t) => {
+  Vdom.(
+    switch (box) {
+    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+    | HBox(boxes) => boxes |> List.map(view_of_box(program)) |> List.flatten
+    | VBox(boxes) =>
+      let vs =
+        boxes
+        |> List.map(view_of_box(program))
+        |> ListUtil.join([Node.br([])])
+        |> List.flatten;
+      [Node.div([Attr.classes(["VBox"])], vs)];
+    | Annot(annot, box) =>
+      let vs = view_of_box(program, box);
+      switch (annot) {
+      | Token({shape, _}) =>
+        let clss =
+          switch (shape) {
+          | Text => ["code-text"]
+          | Op => ["code-op"]
+          | Delim(_) => ["code-delim"]
+          };
+        [Node.span([Attr.classes(clss)], vs)];
+      | HoleLabel({len}) =>
+        let width = Css_gen.width(`Ch(float_of_int(len)));
+        [
+          Node.span(
+            [Attr.style(width), Attr.classes(["HoleLabel"])],
+            [Node.span([Attr.classes(["HoleNumber"])], vs)],
+          ),
+        ];
+      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+      | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+      | AssertNum({num}) =>
+        let assert_map = snd(Program.get_result(program));
+        switch (AssertMap.lookup(num, assert_map)) {
+        | Some(a) =>
+          switch (AssertMap.check(a)) {
+          | Pass => [
+              Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
+            ]
+
+          | Fail => [
+              Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
+            ]
+
+          | Comp => [
+              Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
+            ]
+
+          | Indet => [
+              Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+            ]
+          }
+        | None => [
+            Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+          ]
+        };
+      | _ => vs
+      };
+    }
+  );
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -187,68 +313,6 @@ let view =
     measure,
     () => {
       open Vdom;
-
-      let rec go = (box: UHBox.t): list(Vdom.Node.t) => {
-        switch (box) {
-        | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-        | HBox(boxes) => boxes |> List.map(go) |> List.flatten
-        | VBox(boxes) =>
-          let vs =
-            boxes
-            |> List.map(go)
-            |> ListUtil.join([Node.br([])])
-            |> List.flatten;
-          [Node.div([Attr.classes(["VBox"])], vs)];
-        | Annot(annot, box) =>
-          let vs = go(box);
-          switch (annot) {
-          | Token({shape, _}) =>
-            let clss =
-              switch (shape) {
-              | Text => ["code-text"]
-              | Op => ["code-op"]
-              | Delim(_) => ["code-delim"]
-              };
-            [Node.span([Attr.classes(clss)], vs)];
-          | HoleLabel({len}) =>
-            let width = Css_gen.width(`Ch(float_of_int(len)));
-            [
-              Node.span(
-                [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-                [Node.span([Attr.classes(["HoleNumber"])], vs)],
-              ),
-            ];
-          | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-          | AssertNum({num}) =>
-            let assert_map = snd(Program.get_result(program));
-            switch (AssertMap.lookup(num, assert_map)) {
-            | Some(a) =>
-              switch (AssertMap.check(a)) {
-              | Pass => [
-                  Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
-                ]
-
-              | Fail => [
-                  Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
-                ]
-
-              | Comp => [
-                  Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
-                ]
-
-              | Indet => [
-                  Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
-                ]
-              }
-            | None => [
-                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
-              ]
-            };
-          | _ => vs
-          };
-        };
-      };
-
       let l =
         Program.get_layout(
           ~measure_program_get_doc=false,
@@ -256,10 +320,23 @@ let view =
           ~memoize_doc=false,
           program,
         );
-      let code_text = go(Box.mk(l));
 
-      let ds = Program.get_decorations(program);
-      let decorations = decoration_views(~font_metrics, ds, l);
+      let code_text = view_of_box(program, UHBox.mk(l));
+      let decorations = {
+        let dpaths = Program.get_decoration_paths(program);
+        decoration_views(~font_metrics, dpaths, l);
+      };
+      let caret = {
+        let caret_pos =
+          Program.get_caret_position(
+            ~measure_program_get_doc=false,
+            ~measure_layoutOfDoc_layout_of_doc=false,
+            ~memoize_doc=true,
+            program,
+          );
+        program.is_focused
+          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+      };
 
       let key_handlers =
         program.is_focused
@@ -269,29 +346,6 @@ let view =
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];
-
-      let caret_pos =
-        Program.get_caret_position(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=true,
-          program,
-        );
-      /*
-       let children =
-         switch (caret_pos) {
-         | None => vs
-         | Some((row, col)) =>
-           let x = float_of_int(col) *. model.font_metrics.col_width;
-           let y = float_of_int(row) *. model.font_metrics.row_height;
-           let caret = caret_from_pos(x, y);
-           [caret, ...vs];
-         };
-       */
-
-      let caret =
-        program.is_focused
-          ? [UHCodeDecoration.caret_view(~font_metrics, caret_pos)] : [];
 
       let id = "code-root";
       Node.div(
@@ -308,7 +362,7 @@ let view =
               float_of_int(evt##.clientY),
             );
             let caret_pos =
-              CaretPosition.{
+              MeasuredPosition.{
                 row:
                   Float.to_int(
                     (target_y -. container_rect##.top)

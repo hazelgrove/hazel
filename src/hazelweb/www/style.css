@@ -13,7 +13,6 @@
 }
 
 :root {
-  --opseq-hover-color: rgba(255, 195, 0, 0.20);
   --empty-hole-color: #a040a0;
   --title-bar-color: #073f24;
   --page-padding: 15px;
@@ -30,6 +29,8 @@
   --default-code-bg-color: transparent;
   --caret-color: red;
 
+  --code-radius: 4px;
+
   --exp-bg-color: rgb(197, 253, 197);
   --exp-shadow-color: rgb(135, 204, 135);
 
@@ -40,11 +41,6 @@
   --typ-bg-color: rgb(233, 221, 253);
   --typ-shadow-color: rgb(173, 154, 202);
   --typ-bright-shadow-color: rgb(192, 159, 241);
-
-  --code-radius: 4px;
-  --child-border-thickness: 4px;
-  --code-shadow-thickness: 1.5px;
-  --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
 
   --current-term-z: 0;
   --var-use-z: 0;
@@ -75,8 +71,16 @@ html, body {
   margin: 0px;
   padding: 0px;
   font-family: Montserrat, sans-serif;
+  width: 100%;
   height: 100%;
+}
+
+html {
   overflow: hidden;
+}
+
+body {
+  overflow-x: auto;
 }
 
 #container {
@@ -85,8 +89,10 @@ html, body {
 
 #root {
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  display: grid;
+  grid-template-rows: 1fr 200fr;
+  overflow-y: auto;
 }
 
 /* top bar */
@@ -101,6 +107,7 @@ html, body {
   font-weight: bold;
   font-size: 14pt;
   width: 100%;
+  height: min-content;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -145,6 +152,8 @@ html, body {
   background-color: wheat;
   display: flex;
   flex-direction: row;
+  width: 100%;
+  height: 100%;
 }
 
 .flex-wrapper {
@@ -156,7 +165,8 @@ html, body {
 #page-area {
   flex-grow: 1;
   /* enable scroll */
-  height: 0px;
+  height: 100%;
+  width: 100%;
   overflow-y: auto;
 
   padding-left: var(--page-padding);
@@ -581,13 +591,6 @@ html, body {
   padding-bottom: 5px;
 }
 
-.context-entry .SDoc {
-  display: inline-block;
-}
-
-.the-path-viewer {
-}
-
 .path-area-parent {
   min-height: 38px;
   display: flex;
@@ -695,12 +698,6 @@ html, body {
   align-items: center;
 }
 
-/* .path-summary { */
-/*   background-color: var(--title-bar-color); */
-/*   color: white; */
-/*   padding: 3px; */
-/* } */
-
 /* options panel */
 
 #OptionsPanel .labeled-checkbox {
@@ -721,12 +718,13 @@ html, body {
 
 .page {
   background-color: white;
+  width: 100%;
   padding: 0.25in;
   margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
   box-shadow: 3px 3px tan;
+  min-width: 450px;
   /* border: 1px solid tan; */
-  /*max-width: 10in;*/
-  width: max-content;
+  max-width: 100ch;
 }
 
 .card-caption {
@@ -856,11 +854,9 @@ h1 {
   position: relative;
 }
 .code.presentation .Term.Rule,
-.code.presentation .Term.Invalid,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
-.code.presentation .LetLine,
 .code.presentation .Tessera {
   display: inline-block;
 }
@@ -967,7 +963,6 @@ h1 {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
-  width: 80ch;
   cursor: text;
 }
 .contenteditable {
@@ -1104,59 +1099,6 @@ h1 {
   outline: 0px;
 }
 
-.hole-indicator, .skel-hole-indicator, .ap-hole-indicator {
-  position: absolute;
-  z-index: var(--hole-indicator-z-index);
-  background-color: transparent;
-  font-family: var(--code-font-family);
-  font-size: 20px;
-}
-
-.hole-indicator {
-  border: 1px dashed var(--nonempty-hole-color);
-}
-
-.skel-hole-indicator, .ap-hole-indicator {
-  display: none;
-}
-
-.skel-hole-indicator, .ap-hole-indicator {
-  display: block;
-  border-top: 1px dashed var(--nonempty-hole-color);
-  border-bottom: 1px dashed var(--nonempty-hole-color);
-}
-
-.skel-hole-indicator-first, .ap-hole-indicator-first {
-  border-left: 1px dashed var(--nonempty-hole-color);
-}
-
-.skel-hole-indicator-first, .ap-hole-indicator-last {
-  border-right: 1px dashed var(--nonempty-hole-color);
-}
-
-.hole {
-  color: var(--empty-hole-color);
-}
-
-.OpSeq:hover .skel-binop {
-  background-color: var(--opseq-hover-color);
-  border-top: 1px solid var(--opseq-hover-color);
-  /* box-shadow: 0px 0px 0px 2px rgba(75, 50, 50, 0.20); */
-}
-
-.OpSeq:hover .Ap {
-  background-color: var(--opseq-hover-color);
-  border-top: 1px solid var(--opseq-hover-color);
-}
-
-.in_err_hole {
-  border: 1px dashed var(--nonempty-hole-color);
-}
-
-.in_err_hole > .in_err_hole {
-  border: 0px !important;
-}
-
 .InVarHole.Keyword {
 	font-weight: bold;
 }
@@ -1169,11 +1111,6 @@ h1 {
   font-size: 125%;
 }
 
-.hole-decorations {
-  display: inline-table;
-  vertical-align: top;
-}
-
 .DHCode .EmptyHole {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   cursor: pointer;
@@ -1184,32 +1121,8 @@ h1 {
   border: 1px solid var(--empty-hole-color);
 }
 
-.hole-instance {
-  border-left: 1px solid rgba(0, 0, 0, 0);
-  border-right: 1px solid rgba(0, 0, 0, 0);
-  border-top: 1px solid rgba(0, 0, 0, 0);
-  margin-left: -1px;
-  margin-right: -1px;
-  cursor: pointer;
-}
-
-.path-instance {
-  border: 1px dashed var(--empty-hole-color);
-}
-
 .selected-instance {
   border: 1px solid var(--empty-hole-color);
-}
-
-.hole-instance:hover {
-  border-left: 1px solid var(--empty-hole-color);
-  border-right: 1px solid var(--empty-hole-color);
-  border-top: 1px solid var(--empty-hole-color);
-  border-bottom: 1px solid var(--empty-hole-color);
-}
-
-.Hole {
-  border-bottom: 1px solid var(--empty-hole-color);
 }
 
 .HoleLabel {
@@ -1263,10 +1176,9 @@ h1 {
   color: #777;
 }
 
-.hole-inst-num {
-  vertical-align: super;
-  font-size: 50%;
-  color: #BBB;
+.CommentLine {
+  color: #777;
+  font-style: italic;
 }
 
 .UserNewline {
@@ -1281,38 +1193,6 @@ h1 {
 
 .hide-hole-envs .environment {
   display: none !important;
-}
-
-.hole-decorations > .holeName {
-  display: table-row;
-}
-
-.environment {
-  vertical-align: sub;
-  font-size: 50%;
-  color: var(--empty-hole-color);
-  color: black;
-}
-
-.hole-decorations > .environment {
-  display: table-row;
-}
-
-#num_changes_counter {
-  display: none;
-}
-
-.space {
-  margin-right: 2px;
-}
-
-.SFailedCastArrow {
-  color: red;
-  font-weight: bold;
-}
-
-.FailedCast {
-  background-color: rgba(255, 0, 0, 0.1);
 }
 
 .elided {
@@ -1346,28 +1226,11 @@ h1 {
   margin-left: 5px;
 }
 
-.text {
-  height: 1em; /* Ensure that empty texts still consume height */
-}
-
-.hbox {
-  display: flex;
-  flex-direction: row;
-  align-content: flex-start;
-}
-
-.vbox {
-  display: flex;
-  flex-direction: column;
-  align-content: flex-start;
-}
-
 /* edit action history panel */
 
 .the-history {
   cursor: pointer;
 }
-
 
 .history-entry {
   border: 1px outset #ffffff;
