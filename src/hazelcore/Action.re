@@ -402,11 +402,12 @@ module Typ = {
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
     | (Construct(SChar(".")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(""))))
-    //TODO ECD: how to loop and continue to listen for the full label name
+    | (Construct(SChar(" ")), CursorT(OnDelim(_, After), Label(_))) =>
+      failwith("unimplemented") //TODO ECD: How to create a labeled element type
+    //TODO ECD: how to change label when edited in the middle (ie: .[]hat => .[t]hat => .that)
     | (Construct(SChar(char)), CursorT(OnDelim(_, After), Label(id))) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(id ++ char))))
     | (Construct(SChar(_)), CursorT(_)) => Failed
-
     | (Construct(SList), CursorT(_)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
 
@@ -3371,7 +3372,13 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, f)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
-
+    | (Backspace, CursorE(OnText(j), Label(_, l))) =>
+      // ECD TODO: test if there is a bug with allowing labels wiht an empty string
+      // if(String.length(l) == 0){
+      //   Outcome.Suceeded()
+      // }
+      syn_backspace_text(ctx, u_gen, j, l)
+    //ecd you are here
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
       let (p, body_ctx, u_gen) =

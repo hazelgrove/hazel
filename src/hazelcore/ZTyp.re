@@ -17,10 +17,10 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Unit
   | Int
   | Float
-  | Bool => CursorPosition.delim_cursors(1)
+  | Bool
+  | Label(_) => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | List(_) => CursorPosition.delim_cursors(2)
-  | Label(_) => failwith("unimplemented");
+  | List(_) => CursorPosition.delim_cursors(2);
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun
@@ -62,10 +62,10 @@ and is_before_zoperand =
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
+  | CursorT(cursor, List(_))
+  | CursorT(cursor, Label(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false
-  | CursorT(_, Label(_)) => failwith("unimplemented");
+  | ListZ(_) => false;
 let is_before_zoperator: zoperator => bool =
   fun
   | (OnOp(Before), _) => true
@@ -79,12 +79,12 @@ and is_after_zoperand =
   | CursorT(cursor, Unit)
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
-  | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
+  | CursorT(cursor, Bool)
+  | CursorT(cursor, Label(_)) => cursor == OnDelim(0, After)
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false
-  | CursorT(_, Label(_)) => failwith("unimplemented");
+  | ListZ(_) => false;
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
@@ -95,9 +95,8 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(0, Before), operand)
-  | Label(_) => failwith("unimplemented");
+  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_) | Label(_)) as operand =>
+    CursorT(OnDelim(0, Before), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
 
@@ -106,11 +105,10 @@ and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool) as operand =>
+  | (Hole | Unit | Int | Float | Bool | Label(_)) as operand =>
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(1, After), operand)
-  | Label(_) => failwith("unimplemented");
+    CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
 
@@ -147,7 +145,8 @@ and move_cursor_left_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
-  | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool) => None
+  | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool | Label(_)) =>
+    None
   | CursorT(OnDelim(_k, Before), Parenthesized(ty1)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
@@ -163,8 +162,7 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(0, After), List(erase(zty1))))
-    }
-  | CursorT(_, Label(_)) => failwith("unimplemented");
+    };
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
@@ -190,7 +188,8 @@ and move_cursor_right_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
-  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool) => None
+  | CursorT(OnDelim(_, After), Hole | Unit | Int | Float | Bool | Label(_)) =>
+    None
   | CursorT(OnDelim(_k, After), Parenthesized(ty1)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(ty1)))
@@ -207,5 +206,4 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(1, Before), List(erase(zty1))))
-    }
-  | CursorT(_, Label(_)) => failwith("unimplemented");
+    };
