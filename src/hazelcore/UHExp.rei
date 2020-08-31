@@ -1,19 +1,12 @@
 [@deriving sexp]
 type operator = Operators_Exp.t;
 
-// TODO
-// type t =
-// /* laid out vertically */
-// | V(block)
-// /* laid out horizontally */
-// | H(opseq)
 [@deriving sexp]
 type t = block
-// TODO
-// block = (bool /* user newline */, list(line))
 and block = list(line)
 and line =
   | EmptyLine
+  | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
@@ -45,12 +38,6 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let find_line: t => line;
-
-let find_line_block: t => line;
-
-let find_line_line: line => line;
-
 let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
@@ -72,8 +59,6 @@ let listnil: (~err: ErrStatus.t=?, unit) => operand;
 module Line: {
   let prune_empty_hole: line => line;
 
-  let get_opseq: line => option(opseq);
-
   let force_get_opseq: line => opseq;
 };
 
@@ -89,10 +74,6 @@ module Block: {
   let prune_empty_hole_lines: block => block;
 
   let split_conclusion: block => option((list(line), opseq));
-
-  let force_split_conclusion: block => (list(line), opseq);
-
-  let join_conclusion: (list(line), opseq) => block;
 };
 
 let get_tuple_elements: skel => list(skel);
@@ -108,7 +89,6 @@ let is_EmptyHole: operand => bool;
 
 let empty_rule: IDGen.t => (rule, IDGen.t);
 
-/* put e in the specified hole */
 let get_err_status: t => ErrStatus.t;
 
 let get_err_status_block: t => ErrStatus.t;
@@ -117,41 +97,20 @@ let get_err_status_opseq: opseq => ErrStatus.t;
 
 let get_err_status_operand: operand => ErrStatus.t;
 
-let set_err_status: (ErrStatus.t, t) => t;
-
-let set_err_status_block: (ErrStatus.t, t) => block;
-
 let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
 let is_inconsistent: operand => bool;
 
-/* put e in a new hole, if it is not already in a hole */
-let mk_inconsistent: (IDGen.t, t) => (t, IDGen.t);
-
-let mk_inconsistent_block: (IDGen.t, t) => (t, IDGen.t);
-
 let mk_inconsistent_opseq: (IDGen.t, opseq) => (opseq, IDGen.t);
 
 let mk_inconsistent_operand: (IDGen.t, operand) => (operand, IDGen.t);
-
-let drop_outer_parentheses: operand => t;
 
 let text_operand: (IDGen.t, TextShape.t) => (operand, IDGen.t);
 
 let associate: seq => Skel.t(Operators_Exp.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
-
-let is_complete_line: (line, bool) => bool;
-
-let is_complete_block: (block, bool) => bool;
-
-let is_complete_rule: (rule, bool) => bool;
-
-let is_complete_rules: (rules, bool) => bool;
-
-let is_complete_operand: (operand, bool) => bool;
 
 let is_complete: (t, bool) => bool;

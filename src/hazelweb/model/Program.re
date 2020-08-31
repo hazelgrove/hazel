@@ -2,6 +2,9 @@ open Sexplib.Std;
 
 module Memo = Core_kernel.Memo;
 
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
+
 [@deriving sexp]
 type t = {
   edit_state: Statics_common.edit_state,
@@ -45,7 +48,6 @@ let get_steps = program => {
   let (steps, _) = program |> get_path;
   steps;
 };
-
 let get_id_gen = program => {
   let (_, _, id_gen) = program.edit_state;
   id_gen;
@@ -94,7 +96,7 @@ let get_result = (program: t): (Result.t, AssertMap.t) =>
     ((d_renumbered, hii, Indet(d_renumbered)), assert_map);
   };
 
-let get_decorations = (program: t): Decorations.t => {
+let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
@@ -121,9 +123,7 @@ let get_decorations = (program: t): Decorations.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  let assert_decoration =
-    snd(AssertMap.empty |> evaluate(get_expansion(program)));
-  {current_term, err_holes, var_uses, var_err_holes, assert_decoration};
+  {current_term, err_holes, var_uses, var_err_holes};
 };
 
 exception FailedAction;
@@ -206,31 +206,14 @@ let get_measured_layout =
       ~memoize_doc: bool,
       program,
     )
-    : MeasuredLayout.t => {
+    : UHMeasuredLayout.t => {
   program
   |> get_layout(
        ~measure_program_get_doc,
        ~measure_layoutOfDoc_layout_of_doc,
        ~memoize_doc,
      )
-  |> MeasuredLayout.mk;
-};
-
-let get_box =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    )
-    : UHBox.t => {
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> Box.mk;
+  |> UHMeasuredLayout.mk;
 };
 
 let get_caret_position =
@@ -240,7 +223,7 @@ let get_caret_position =
       ~memoize_doc: bool,
       program,
     )
-    : CaretPosition.t => {
+    : MeasuredPosition.t => {
   let m =
     get_measured_layout(
       ~measure_program_get_doc,
@@ -249,7 +232,7 @@ let get_caret_position =
       program,
     );
   let path = get_path(program);
-  MeasuredLayout.caret_position_of_path(path, m)
+  UHMeasuredLayout.caret_position_of_path(path, m)
   |> OptUtil.get(() => failwith("could not find caret"));
 };
 
@@ -258,7 +241,7 @@ let move_via_click =
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      target: CaretPosition.t,
+      target: MeasuredPosition.t,
       program,
     )
     : (t, Action_common.t) => {
@@ -270,7 +253,7 @@ let move_via_click =
       program,
     );
   let path =
-    MeasuredLayout.nearest_path_within_row(target, m)
+    UHMeasuredLayout.nearest_path_within_row(target, m)
     |> OptUtil.get(() => failwith("row with no caret positions"))
     |> fst
     |> CursorPath_common.rev;
@@ -313,44 +296,44 @@ let move_via_key =
     switch (move_key) {
     | ArrowUp =>
       let up_target =
-        CaretPosition.{row: caret_position.row - 1, col: from_col};
+        MeasuredPosition.{row: caret_position.row - 1, col: from_col};
       (
-        MeasuredLayout.nearest_path_within_row(up_target, m),
+        UHMeasuredLayout.nearest_path_within_row(up_target, m),
         put_col_on_start,
       );
     | ArrowDown =>
       let down_target =
-        CaretPosition.{row: caret_position.row + 1, col: from_col};
+        MeasuredPosition.{row: caret_position.row + 1, col: from_col};
       (
-        MeasuredLayout.nearest_path_within_row(down_target, m),
+        UHMeasuredLayout.nearest_path_within_row(down_target, m),
         put_col_on_start,
       );
     | ArrowLeft => (
-        switch (MeasuredLayout.prev_path_within_row(caret_position, m)) {
+        switch (UHMeasuredLayout.prev_path_within_row(caret_position, m)) {
         | Some(_) as found => found
         | None =>
           caret_position.row > 0
-            ? MeasuredLayout.last_path_in_row(caret_position.row - 1, m)
+            ? UHMeasuredLayout.last_path_in_row(caret_position.row - 1, m)
             : None
         },
         clear_start_col,
       )
     | ArrowRight => (
-        switch (MeasuredLayout.next_path_within_row(caret_position, m)) {
+        switch (UHMeasuredLayout.next_path_within_row(caret_position, m)) {
         | Some(_) as found => found
         | None =>
           caret_position.row < MeasuredLayout.height(m) - 1
-            ? MeasuredLayout.first_path_in_row(caret_position.row + 1, m)
+            ? UHMeasuredLayout.first_path_in_row(caret_position.row + 1, m)
             : None
         },
         clear_start_col,
       )
     | Home => (
-        MeasuredLayout.first_path_in_row(caret_position.row, m),
+        UHMeasuredLayout.first_path_in_row(caret_position.row, m),
         clear_start_col,
       )
     | End => (
-        MeasuredLayout.last_path_in_row(caret_position.row, m),
+        UHMeasuredLayout.last_path_in_row(caret_position.row, m),
         clear_start_col,
       )
     };

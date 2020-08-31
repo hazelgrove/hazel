@@ -167,11 +167,8 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | InvalidTextShape(t) => new_InvalidText(id_gen, t)
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Pat.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
-};
+let associate =
+  Skel.mk(Operators_Pat.precedence, Operators_Pat.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 

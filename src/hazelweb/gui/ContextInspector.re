@@ -2,7 +2,13 @@ module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;
 let view =
-    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      ~selected_instance: option(HoleInstance.t),
+      ~compute_results: Model.compute_results,
+      program: Program.t,
+    )
+    : Vdom.Node.t => {
   open Vdom;
 
   /**
@@ -48,8 +54,8 @@ let view =
                   ~inject,
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
-                  ~show_casts=model.compute_results.show_casts,
-                  ~selected_instance=model |> Model.get_selected_hole_instance,
+                  ~show_casts=compute_results.show_casts,
+                  ~selected_instance,
                   ~width=30,
                   d,
                   AssertMap.empty,
@@ -71,135 +77,11 @@ let view =
     Node.div([Attr.classes(["context-entry"])], children);
   };
 
-  let context_view = {
-    let program = model |> Model.get_program;
-    let ctx =
-      program
-      |> Program.get_cursor_info
-      |> CursorInfo_common.get_ctx
-      |> Contexts.gamma;
-    let sigma =
-      if (model.compute_results.compute_results) {
-        let (_, hii, _) = fst(program |> Program.get_result);
-        switch (model |> Model.get_selected_hole_instance) {
-        | None => Elaborator_Exp.id_env(ctx)
-        | Some(inst) =>
-          switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None =>
-            //raise(InvalidInstance)
-            JSUtil.log("[InvalidInstance]");
-
-            Elaborator_Exp.id_env(ctx);
-          | Some((sigma, _)) => sigma
-          }
-        };
-      } else {
-        Elaborator_Exp.id_env(ctx);
-      };
-    switch (VarCtx.to_list(ctx)) {
-    | [] =>
-      Node.div(
-        [Attr.classes(["the-context"])],
-        [
-          Node.div(
-            [Attr.classes(["context-is-empty-msg"])],
-            [Node.text("no variables in scope")],
-          ),
-        ],
-      )
-    | ctx_lst =>
-      Node.div(
-        [Attr.classes(["the-context"])],
-        List.map(context_entry(sigma), ctx_lst),
-      )
-    };
-  };
-
-  let path_view_titlebar =
-    Panel.view_of_other_title_bar("Closure above observed at ");
-
   let instructional_msg = msg =>
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
 
-  let view_of_path_item = ((inst, x)) =>
-    Node.div(
-      [Attr.classes(["path-item"])],
-      [
-        Node.div(
-          [Attr.classes(["inst"])],
-          [
-            DHCode.view_of_hole_instance(
-              ~inject,
-              ~width=30,
-              ~selected_instance=model |> Model.get_selected_hole_instance,
-              inst,
-            ),
-          ],
-        ),
-        Node.div(
-          [Attr.classes(["inst-var-separator"])],
-          [Node.text("·")],
-        ),
-        Node.div([Attr.classes(["path-var"])], [DHCode.view_of_var(x)]),
-      ],
-    );
-
-  let path_view = (inst, path: InstancePath.t) => {
-    let (titlebar_txt, path_area_children) =
-      switch (path) {
-      | [] => (
-          "which is in the result",
-          [
-            Node.div(
-              [Attr.classes(["special-msg"])],
-              [Node.div([], [Node.text("immediately")])],
-            ),
-          ],
-        )
-      | _ =>
-        let titlebar_txt = "which is in the result via path";
-        let path_area_children =
-          List.fold_left(
-            (acc, path_item) =>
-              [
-                view_of_path_item(path_item),
-                Node.span(
-                  [Attr.classes(["path-item-separator"])],
-                  [Node.text(" 〉 ")],
-                ),
-                ...acc,
-              ],
-            [
-              Node.div(
-                [Attr.classes(["trailing-inst"])],
-                [
-                  DHCode.view_of_hole_instance(
-                    ~inject,
-                    ~width=30,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
-                    inst,
-                  ),
-                ],
-              ),
-            ],
-            path,
-          );
-
-        (
-          titlebar_txt,
-          [Node.div([Attr.classes(["path-area"])], path_area_children)],
-        );
-      };
-
-    Node.div(
-      [Attr.classes(["path-view-with-path"])],
-      [
-        Panel.view_of_other_title_bar(titlebar_txt),
-        Node.div([Attr.classes(["path-area-parent"])], path_area_children),
-      ],
-    );
-  };
+  let path_view_titlebar =
+    Panel.view_of_other_title_bar("Closure above observed at ");
 
   let hii_summary = (hii, (u, i) as inst) => {
     let num_instances = HoleInstanceInfo.num_instances(hii, u);
@@ -216,8 +98,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance,
                     inst,
                   ),
                 ],
@@ -311,12 +192,129 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
+  let view_of_path_item = ((inst, x)) =>
+    Node.div(
+      [Attr.classes(["path-item"])],
+      [
+        Node.div(
+          [Attr.classes(["inst"])],
+          [
+            DHCode.view_of_hole_instance(
+              ~inject,
+              ~width=30,
+              ~selected_instance,
+              inst,
+            ),
+          ],
+        ),
+        Node.div(
+          [Attr.classes(["inst-var-separator"])],
+          [Node.text("·")],
+        ),
+        Node.div([Attr.classes(["path-var"])], [DHCode.view_of_var(x)]),
+      ],
+    );
+
+  let path_view = (inst, path: InstancePath.t) => {
+    let (titlebar_txt, path_area_children) =
+      switch (path) {
+      | [] => (
+          "which is in the result",
+          [
+            Node.div(
+              [Attr.classes(["special-msg"])],
+              [Node.div([], [Node.text("immediately")])],
+            ),
+          ],
+        )
+      | _ =>
+        let titlebar_txt = "which is in the result via path";
+        let path_area_children =
+          List.fold_left(
+            (acc, path_item) =>
+              [
+                view_of_path_item(path_item),
+                Node.span(
+                  [Attr.classes(["path-item-separator"])],
+                  [Node.text(" 〉 ")],
+                ),
+                ...acc,
+              ],
+            [
+              Node.div(
+                [Attr.classes(["trailing-inst"])],
+                [
+                  DHCode.view_of_hole_instance(
+                    ~inject,
+                    ~width=30,
+                    ~selected_instance,
+                    inst,
+                  ),
+                ],
+              ),
+            ],
+            path,
+          );
+
+        (
+          titlebar_txt,
+          [Node.div([Attr.classes(["path-area"])], path_area_children)],
+        );
+      };
+
+    Node.div(
+      [Attr.classes(["path-view-with-path"])],
+      [
+        Panel.view_of_other_title_bar(titlebar_txt),
+        Node.div([Attr.classes(["path-area-parent"])], path_area_children),
+      ],
+    );
+  };
+
+  let context_view = {
+    let ctx =
+      program
+      |> Program.get_cursor_info
+      |> CursorInfo_common.get_ctx
+      |> Contexts.gamma;
+    let sigma =
+      if (compute_results.compute_results) {
+        let (_, hii, _) = fst(program |> Program.get_result);
+        switch (selected_instance) {
+        | None => Elaborator_Exp.id_env(ctx)
+        | Some(inst) =>
+          switch (HoleInstanceInfo.lookup(hii, inst)) {
+          | None => raise(InvalidInstance)
+          | Some((sigma, _)) => sigma
+          }
+        };
+      } else {
+        Elaborator_Exp.id_env(ctx);
+      };
+    switch (VarCtx.to_list(ctx)) {
+    | [] =>
+      Node.div(
+        [Attr.classes(["the-context"])],
+        [
+          Node.div(
+            [Attr.classes(["context-is-empty-msg"])],
+            [Node.text("no variables in scope")],
+          ),
+        ],
+      )
+    | ctx_lst =>
+      Node.div(
+        [Attr.classes(["the-context"])],
+        List.map(context_entry(sigma), ctx_lst),
+      )
+    };
+  };
+
   /**
    * Shows the `InstancePath` to the currently selected instance.
    */
   let path_viewer =
-    if (model.compute_results.compute_results) {
-      let program = model |> Model.get_program;
+    if (compute_results.compute_results) {
       let ctx =
         program
         |> Program.get_cursor_info
@@ -334,7 +332,7 @@ let view =
               ),
             ]
           | Some(u) =>
-            switch (model |> Model.get_selected_hole_instance) {
+            switch (selected_instance) {
             | None => [
                 instructional_msg("Click on a hole instance in the result"),
               ]

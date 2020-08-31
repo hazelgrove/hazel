@@ -6,18 +6,16 @@ type t = {
   var_err_holes: list(CursorPath_common.steps),
   var_uses: list(CursorPath_common.steps),
   current_term: option(CursorPath_common.t),
-  assert_decoration: AssertMap.t,
 };
 
-let is_empty = (ds: t): bool =>
-  ListUtil.is_empty(ds.err_holes)
-  && ListUtil.is_empty(ds.var_err_holes)
-  && ListUtil.is_empty(ds.var_uses)
-  && ds.current_term == None
-  && ds.assert_decoration == AssertMap.empty;
+let is_empty = (dpaths: t): bool =>
+  ListUtil.is_empty(dpaths.err_holes)
+  && ListUtil.is_empty(dpaths.var_err_holes)
+  && ListUtil.is_empty(dpaths.var_uses)
+  && dpaths.current_term == None;
 
-let take_step = (step: int, decorations: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses, assert_decoration} = decorations;
+let take_step = (step: int, dpaths: t): t => {
+  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -29,46 +27,43 @@ let take_step = (step: int, decorations: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term, assert_decoration};
+  {err_holes, var_err_holes, var_uses, current_term};
 };
 
 let current =
-    (term_sort: TermSort.t, term_shape: TermShape.t, decorations: t)
-    : list(Decoration.t) => {
+    (term_sort: TermSort.t, term_shape: TermShape.t, dpaths: t)
+    : list(UHDecorationShape.t) => {
   let is_current = steps =>
     switch (term_shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
       List.exists(n => steps == [n], comma_indices)
     | BinOp({op_index, _}) => steps == [op_index]
-    | Operand(_)
-    | Case(_)
-    | Rule
-    | Var(_)
-    | Invalid => steps == []
+    | Operand
+    | Case
+    | Rule => steps == []
     };
   let err_holes =
-    decorations.err_holes
+    dpaths.err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => Decoration.ErrHole)
+    |> Option.map(_ => UHDecorationShape.ErrHole)
     |> Option.to_list;
   let var_err_holes =
-    decorations.var_err_holes
+    dpaths.var_err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => Decoration.VarErrHole)
+    |> Option.map(_ => UHDecorationShape.VarErrHole)
     |> Option.to_list;
   let var_uses =
-    decorations.var_uses
+    dpaths.var_uses
     |> List.find_opt(is_current)
-    |> Option.map(_ => Decoration.VarUse)
+    |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
   let current_term =
-    switch (decorations.current_term) {
+    switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [
-        Decoration.CurrentTerm(term_sort, term_shape),
+        UHDecorationShape.CurrentTerm(term_sort, term_shape),
       ]
     | _ => []
     };
-  //let assert_deco = decorations.assert_decoration;
   List.concat([err_holes, var_err_holes, var_uses, current_term]);
 };

@@ -182,6 +182,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | Line(_, line) =>
     switch (line) {
     | EmptyLine => MinLen
+    | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_, _, _)
     | ExpLine(_) => MaxLen
     }

@@ -2,7 +2,6 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type term_data = {
-  has_cursor: bool,
   shape: TermShape.t,
   sort: TermSort.t,
 };
@@ -16,7 +15,6 @@ type token_shape =
 type token_data = {
   shape: token_shape,
   len: int,
-  has_cursor: option(int),
 };
 
 [@deriving sexp]
@@ -27,8 +25,6 @@ type open_child_format =
 
 [@deriving sexp]
 type t =
-  | Indent
-  | Padding
   | HoleLabel({len: int})
   //| AssertLabel
   /*| AssertPass
@@ -37,7 +33,6 @@ type t =
     | AssertComp*/
   | AssertNum({num: int})
   | Token(token_data)
-  | SpaceOp
   | UserNewline
   | OpenChild(open_child_format)
   | ClosedChild({
@@ -46,12 +41,11 @@ type t =
       sort: TermSort.t,
     })
   | Tessera
+  | CommentLine
   | Step(int)
   | Term(term_data);
 
-let mk_Token = (~has_cursor=None, ~len: int, ~shape: token_shape, ()) =>
-  Token({has_cursor, len, shape});
+let mk_Token = (~len: int, ~shape: token_shape, ()) => Token({len, shape});
 
-let mk_Term =
-    (~has_cursor=false, ~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
-  Term({has_cursor, shape, sort});
+let mk_Term = (~shape: TermShape.t, ~sort: TermSort.t, ()): t =>
+  Term({shape, sort});

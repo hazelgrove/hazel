@@ -198,7 +198,7 @@ let move_cursor_left =
        ~erase_zoperand,
        ~erase_zoperator,
      )
-  |> OptUtil.map(zseq => ZOpSeq(skel, zseq));
+  |> Option.map(zseq => ZOpSeq(skel, zseq));
 
 let move_cursor_right =
     (
@@ -220,4 +220,4 @@ let move_cursor_right =
        ~erase_zoperand,
        ~erase_zoperator,
      )
-  |> OptUtil.map(zseq => ZOpSeq(skel, zseq));
+  |> Option.map(zseq => ZOpSeq(skel, zseq));
