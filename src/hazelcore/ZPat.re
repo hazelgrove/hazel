@@ -4,6 +4,8 @@ and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
 and zoperand =
   | CursorP(CursorPosition.t, UHPat.operand)
   | ParenthesizedZ(t)
+  | TypeAnnZP(ErrStatus.t, zoperand, UHTyp.t)
+  | TypeAnnZA(ErrStatus.t, UHPat.operand, ZTyp.t)
   | InjZ(ErrStatus.t, InjSide.t, t)
 and zoperator = (CursorPosition.t, UHPat.operator);
 
@@ -24,6 +26,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
+    | TypeAnn(_) => delim_cursors(1) //mayhaps 2?
   );
 let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
@@ -46,6 +49,8 @@ and set_err_status_zoperand = (err, zoperand) =>
     CursorP(cursor, operand |> UHPat.set_err_status_operand(err))
   | ParenthesizedZ(zp) => ParenthesizedZ(set_err_status(err, zp))
   | InjZ(_, inj_side, zp) => InjZ(err, inj_side, zp)
+  | TypeAnnZP(_, zp, za) => TypeAnnZP(err, zp, za)
+  | TypeAnnZA(_, zp, za) => TypeAnnZA(err, zp, za)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
@@ -65,6 +70,11 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | ParenthesizedZ(zp) =>
     let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
+  | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+  | TypeAnnZP(NotInHole | InHole(WrongLength), _, _) => 
+  | TypeAnnZP(_, zp, _) =>
+    let (zp, u_gen) = mk_inconsistent_zoperand(u_gen, zp);
+    (TypeAnnZP(_, zp, _) , u_gen)
   };
 
 let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
@@ -90,6 +100,7 @@ and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
+  | CursorP(cursor, TypeAnn(_)) // ?
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
@@ -111,6 +122,7 @@ and is_after_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
+  | CursorP(cursor, TypeAnn(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorP(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
@@ -142,6 +154,7 @@ and place_before_operand = operand =>
   | BoolLit(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
+  | TypeAnn(_, _) => CursorP(OnDelim(0, Before), operand) //??????
   };
 let place_before_operator = (op: UHPat.operator): option(zoperator) =>
   switch (op) {
@@ -164,6 +177,7 @@ and place_after_operand = operand =>
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
+  | TypeAnn(_, _) => CursorP(OnDelim(1, After), operand) //??????
   };
 let place_after_operator = (op: UHPat.operator): option(zoperator) =>
   switch (op) {

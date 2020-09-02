@@ -11,6 +11,7 @@ and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
+  | TypeAnn(ErrStatus.t, operand, UHTyp.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
@@ -87,6 +88,7 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | TypeAnn(err, _, _)
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status(p);
 
@@ -106,6 +108,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
+  | TypeAnn(_, p, t) => TypeAnn(err, p, t)
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -145,6 +148,7 @@ and mk_inconsistent_operand =
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
     (set_operand, u_gen);
+  //| TypeAnn(_, p , _)
   | Parenthesized(p) =>
     let (set_p, u_gen) = p |> mk_inconsistent(u_gen);
     (Parenthesized(set_p), u_gen);
@@ -203,6 +207,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Parenthesized(body) => is_complete(body)
+  | TypeAnn(_, p, t) => is_complete(p) && UHTyp.is_complete(t)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };
