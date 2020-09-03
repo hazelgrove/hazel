@@ -26,8 +26,8 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
-    | TypeAnn(_) => delim_cursors(1) //mayhaps 2?
-  );
+    | TypeAnn(_) => delim_cursors(1)
+  ); //mayhaps 2?
 let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
@@ -71,10 +71,14 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
     let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
     (ParenthesizedZ(zp), u_gen);
   | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | TypeAnnZP(NotInHole | InHole(WrongLength), _, _) => 
-  | TypeAnnZP(_, zp, _) =>
-    let (zp, u_gen) = mk_inconsistent_zoperand(u_gen, zp);
-    (TypeAnnZP(_, zp, _) , u_gen)
+  | TypeAnnZP(NotInHole | InHole(WrongLength, _), zp, za) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (TypeAnnZP(InHole(TypeInconsistent, u), zp, za), u_gen);
+  // ZA case here just copied from ZP... doesn't really make sense I think
+  | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+  | TypeAnnZA(NotInHole | InHole(WrongLength, _), zp, za) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (TypeAnnZA(InHole(TypeInconsistent, u), zp, za), u_gen);
   };
 
 let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
@@ -87,6 +91,8 @@ and erase_zoperand =
   | CursorP(_, operand) => operand
   | InjZ(err, inj_side, zp) => Inj(err, inj_side, erase(zp))
   | ParenthesizedZ(zp) => Parenthesized(erase(zp))
+  | TypeAnnZP(err, zp, za) => TypeAnn(err, erase_zoperand(zp), za)
+  | TypeAnnZA(err, zp, za) => TypeAnn(err, zp, ZTyp.erase(za))
 and erase_zoperator =
   fun
   | (_, op) => op;
@@ -100,7 +106,6 @@ and is_before_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, TypeAnn(_)) // ?
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorP(cursor, InvalidText(_, _))
   | CursorP(cursor, Var(_, _, _))
@@ -109,8 +114,11 @@ and is_before_zoperand =
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
+  | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
-  | ParenthesizedZ(_) => false;
+  | ParenthesizedZ(_) => false
+  | TypeAnnZP(_, zp, _) => is_before_zoperand(zp)
+  | TypeAnnZA(_) => false;
 let is_before_zoperator: zoperator => bool =
   fun
   | (OnOp(Before), _) => true
@@ -122,7 +130,6 @@ and is_after_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, TypeAnn(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorP(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
@@ -132,8 +139,11 @@ and is_after_zoperand =
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
+  | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
-  | ParenthesizedZ(_) => false;
+  | ParenthesizedZ(_) => false
+  | TypeAnnZP(_, zp, _) => is_after_zoperand(zp)
+  | TypeAnnZA(_) => false;
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
@@ -154,7 +164,7 @@ and place_before_operand = operand =>
   | BoolLit(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
-  | TypeAnn(_, _) => CursorP(OnDelim(0, Before), operand) //??????
+  | TypeAnn(err, zp, za) => TypeAnnZP(err, place_before_operand(zp), za)
   };
 let place_before_operator = (op: UHPat.operator): option(zoperator) =>
   switch (op) {
@@ -177,7 +187,7 @@ and place_after_operand = operand =>
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
-  | TypeAnn(_, _) => CursorP(OnDelim(1, After), operand) //??????
+  | TypeAnn(err, zp, za) => TypeAnnZA(err, zp, ZTyp.place_after(za))
   };
 let place_after_operator = (op: UHPat.operator): option(zoperator) =>
   switch (op) {
@@ -237,7 +247,8 @@ and move_cursor_left_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _),
+      FloatLit(_, _) |
+      TypeAnn(_),
     ) =>
     // invalid cursor position
     None
@@ -250,6 +261,17 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zp)) {
     | Some(zp) => Some(InjZ(err, side, zp))
     | None => Some(CursorP(OnDelim(0, After), Inj(err, side, erase(zp))))
+    }
+  | TypeAnnZP(err, zp, za) =>
+    switch (move_cursor_left_zoperand(zp)) {
+    | Some(zp) => Some(TypeAnnZP(err, zp, za))
+    | None => None
+    }
+  | TypeAnnZA(err, zp, za) =>
+    switch (ZTyp.move_cursor_left(za)) {
+    | Some(za) => Some(TypeAnnZA(err, zp, za))
+    | None =>
+      Some(CursorP(OnDelim(0, After), TypeAnn(err, zp, ZTyp.erase(za))))
     };
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
@@ -286,7 +308,8 @@ and move_cursor_right_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _),
+      FloatLit(_, _) |
+      TypeAnn(_),
     ) =>
     // invalid cursor position
     None
@@ -299,4 +322,17 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zp)) {
     | Some(zp) => Some(InjZ(err, side, zp))
     | None => Some(CursorP(OnDelim(1, Before), Inj(err, side, erase(zp))))
+    }
+  | TypeAnnZP(err, zp, za) =>
+    switch (move_cursor_right_zoperand(zp)) {
+    | Some(zp) => Some(TypeAnnZP(err, zp, za))
+    | None =>
+      Some(
+        CursorP(OnDelim(0, Before), TypeAnn(err, erase_zoperand(zp), za)),
+      )
+    }
+  | TypeAnnZA(err, zp, za) =>
+    switch (ZTyp.move_cursor_right(za)) {
+    | Some(za) => Some(TypeAnnZA(err, zp, za))
+    | None => None
     };

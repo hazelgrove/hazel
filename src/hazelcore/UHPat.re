@@ -108,7 +108,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
-  | TypeAnn(_, p, t) => TypeAnn(err, p, t)
+  | TypeAnn(_, p, a) => TypeAnn(err, p, a)
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -136,6 +136,7 @@ and mk_inconsistent_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | TypeAnn(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -143,12 +144,12 @@ and mk_inconsistent_operand =
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
+  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | TypeAnn(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
     (set_operand, u_gen);
-  //| TypeAnn(_, p , _)
   | Parenthesized(p) =>
     let (set_p, u_gen) = p |> mk_inconsistent(u_gen);
     (Parenthesized(set_p), u_gen);
@@ -207,7 +208,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Parenthesized(body) => is_complete(body)
-  | TypeAnn(_, p, t) => is_complete(p) && UHTyp.is_complete(t)
+  | TypeAnn(_, p, a) => is_complete_operand(p) && UHTyp.is_complete(a)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };

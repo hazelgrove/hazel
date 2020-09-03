@@ -6,6 +6,8 @@ and of_zoperand =
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody)
   | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
+  | TypeAnnZP(_, zop, _) => CursorPath_common.cons'(0, of_zoperand(zop))
+  | TypeAnnZA(_, _, zann) => CursorPath_common.cons'(1, CursorPath_Typ.of_z(zann))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
@@ -49,6 +51,18 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZPat.InjZ(err, side, zbody))
+      | _ => None
+      }
+    | TypeAnn(err, op, ann) =>
+      switch (x) {
+      | 0 =>
+        op
+        |> follow_operand((xs, cursor))
+        |> Option.map(zop => ZPat.TypeAnnZP(err, zop, ann))
+      | 1 =>
+        ann
+        |> CursorPath_Typ.follow((xs, cursor))
+        |> Option.map(zann => ZPat.TypeAnnZA(err, op, zann))
       | _ => None
       }
     }
@@ -110,6 +124,18 @@ and of_steps_operand =
         body
         |> of_steps(xs, ~side)
         |> Option.map(path => CursorPath_common.cons'(0, path))
+      | _ => None
+      }
+    | TypeAnn(_, op, ann) =>
+      switch (x) {
+      | 0 =>
+        op
+        |> of_steps_operand(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(0, path))
+      | 1 =>
+        ann
+        |> CursorPath_Typ.of_steps(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(1, path))
       | _ => None
       }
     }
@@ -187,6 +213,11 @@ and holes_operand =
         ...body_holes,
       ]
     };
+  | TypeAnn(err, op, ann) =>
+  hs
+  |> holes_operand(op, [0, ...rev_steps])
+  |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
+  |> CursorPath_common.holes_err(~hole_sort=u => PatHole(u), err, rev_steps) 
   };
 
 let rec holes_z =

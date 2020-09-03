@@ -19,6 +19,8 @@ and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_term(zpat)
+  | TypeAnnZP(_, zop, _) => extract_from_zpat_operand(zop)
+  | TypeAnnZA(_, _, zann) => CursorInfo_Typ.extract_cursor_term(zann)
   };
 };
 
@@ -41,6 +43,8 @@ and get_zoperand_from_zpat_operand =
   | CursorP(_, _) => Some(ZPat(zoperand))
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
+  | TypeAnnZP(_, zop, _) => get_zoperand_from_zpat_operand(zop)
+  | TypeAnnZA(_, _, zann) => CursorInfo_Typ.get_zoperand_from_ztyp(zann)
   };
 };
 let rec syn_cursor_info =
