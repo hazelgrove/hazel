@@ -7,7 +7,8 @@ and of_zoperand =
   | ParenthesizedZ(zbody)
   | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
   | TypeAnnZP(_, zop, _) => CursorPath_common.cons'(0, of_zoperand(zop))
-  | TypeAnnZA(_, _, zann) => CursorPath_common.cons'(1, CursorPath_Typ.of_z(zann))
+  | TypeAnnZA(_, _, zann) =>
+    CursorPath_common.cons'(1, CursorPath_Typ.of_z(zann))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
@@ -214,10 +215,14 @@ and holes_operand =
       ]
     };
   | TypeAnn(err, op, ann) =>
-  hs
-  |> holes_operand(op, [0, ...rev_steps])
-  |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
-  |> CursorPath_common.holes_err(~hole_sort=u => PatHole(u), err, rev_steps) 
+    hs
+    |> holes_operand(op, [0, ...rev_steps])
+    |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
+    |> CursorPath_common.holes_err(
+         ~hole_sort=u => PatHole(u),
+         err,
+         rev_steps,
+       )
   };
 
 let rec holes_z =
@@ -301,6 +306,16 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorP(OnDelim(k, _), TypeAnn(_, op, ann)) =>
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_operand(op, [0, ...rev_steps], []),
+        ~holes_after=CursorPath_Typ.holes(ann, [1, ...rev_steps], []),
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    }
   | CursorP(OnDelim(k, _), Inj(err, _, body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     let hole_selected: option(CursorPath_common.hole_info) =
@@ -324,7 +339,7 @@ and holes_zoperand =
       CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _)) =>
+  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | TypeAnn(_)) =>
     // invalid cursor position
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
@@ -335,8 +350,42 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...zbody_holes,
         holes_before: [
-          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true},
+          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true}, //bug, fix
           ...zbody_holes.holes_before,
+        ],
+      }
+    };
+  | TypeAnnZP(err, zop, ann) =>
+    let zop_holes = holes_zoperand(zop, [0, ...rev_steps]);
+    let ann_holes = CursorPath_Typ.holes(ann, [1, ...rev_steps], []);
+    let all_holes = {
+      ...zop_holes,
+      holes_after: ann_holes @ zop_holes.holes_after,
+    };
+    switch (err) {
+    | NotInHole => all_holes
+    | InHole(_, u) => {
+        ...all_holes,
+        holes_before: [
+          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
+          ...all_holes.holes_before,
+        ],
+      }
+    };
+  | TypeAnnZA(err, op, zann) =>
+    let op_holes = holes_operand(op, [0, ...rev_steps], []);
+    let zann_holes = CursorPath_Typ.holes_z(zann, [1, ...rev_steps]);
+    let all_holes = {
+      ...zann_holes,
+      holes_before: op_holes @ zann_holes.holes_before,
+    };
+    switch (err) {
+    | NotInHole => all_holes
+    | InHole(_, u) => {
+        ...all_holes,
+        holes_before: [
+          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
+          ...all_holes.holes_before,
         ],
       }
     };
