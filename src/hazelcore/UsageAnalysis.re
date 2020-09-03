@@ -21,6 +21,8 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
+  | TypeAnn(InHole(_), _, _) => false
+  | TypeAnn(NotInHole, p, _) => binds_var_operand(x, p) // do i need to check in type?
   };
 
 let rec find_uses =
