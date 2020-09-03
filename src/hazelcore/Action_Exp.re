@@ -391,7 +391,7 @@ let mk_ana_text =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTypUtil.consistent(ctx, ty, ty')) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
@@ -638,9 +638,13 @@ let rec syn_perform =
       |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
+    let _ = print_endline("almost finish syn_perform_block");
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+    let _ = print_endline("xxxxxxxjjjjjjjja");
+    let _ = TyVarCtx.print(ctx.tyvars);
+
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: Define, prefix, suffix, u_gen, _})) =>
     let (ztp_hole, u_gen) = u_gen |> ZTPat.new_EmptyHole;
@@ -1041,7 +1045,9 @@ and syn_perform_line =
       let _ = print_endline("syn_perform");
       let _ = TyVarCtx.print(Contexts.tyvars(ctx));
       switch (Action_Typ.syn_perform(ctx, a, (zann, kind, u_gen))) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("action_typ.syn_perform failed");
+        Failed;
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zann, _, _)) =>
         let ty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zann));
@@ -1863,7 +1869,7 @@ and syn_perform_operand =
     };
 
   | (_, LamZE(_, p, ann, zbody)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((_, ty2)) =>
       let ty1 =
@@ -2873,7 +2879,7 @@ and ana_perform_operand =
       | (Failed | CursorEscaped(_)) as outcome => outcome
       | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
       | Succeeded(SynDone((ze', ty', u_gen))) =>
-        if (HTyp.consistent(ty', ty)) {
+        if (HTypUtil.consistent(ctx, ty', ty)) {
           // prune unnecessary type annotation
           let ze' =
             switch (ze') {
@@ -2966,7 +2972,7 @@ and ana_perform_operand =
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
       let (p, body_ctx, u_gen) =
@@ -3081,7 +3087,7 @@ and ana_perform_operand =
     Succeeded(AnaDone((new_ze, u_gen)));
 
   | (Construct(SInj(side)), CursorE(_)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTypUtil.matched_sum(ctx, ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
       let (zbody, u_gen) =
@@ -3104,7 +3110,7 @@ and ana_perform_operand =
 
   | (Construct(SLam), CursorE(_)) =>
     let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | Some((_, ty2)) =>
       let (body, u_gen) = Statics_Exp.ana_fix_holes(ctx, u_gen, body, ty2);
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
@@ -3206,7 +3212,7 @@ and ana_perform_operand =
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, LamZP(_, zp, ann, body)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       let ty1 =
@@ -3230,7 +3236,7 @@ and ana_perform_operand =
       };
     }
   | (_, LamZA(_, p, zann, body)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
@@ -3248,7 +3254,7 @@ and ana_perform_operand =
           )
         | Succeeded((zann, _, _)) =>
           let ty1 = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(zann));
-          HTyp.consistent(ty1, ty1_given)
+          HTypUtil.consistent(ctx, ty1, ty1_given)
             ? {
               let (p, ctx, u_gen) =
                 Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty1);
@@ -3274,7 +3280,7 @@ and ana_perform_operand =
     }
 
   | (_, LamZE(_, p, ann, zbody)) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
       let ty1 =
@@ -3301,7 +3307,7 @@ and ana_perform_operand =
       };
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTypUtil.matched_sum(ctx, ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
       let picked = InjSide.pick(side, ty1, ty2);
@@ -3388,7 +3394,7 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
-      if (HTyp.consistent(ty, ty1)) {
+      if (HTypUtil.consistent(ctx, ty, ty1)) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);

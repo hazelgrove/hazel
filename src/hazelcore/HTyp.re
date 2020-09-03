@@ -232,3 +232,17 @@ let join_all = (j: join, types: list(t)): option(t) => {
     }
   };
 };
+
+let rec print = (t: t): string =>
+  switch (t) {
+  | TyVar(idx, id) => "TyVar " ++ string_of_int(idx) ++ " " ++ id
+  | TyVarHole(idx, id) => "TyVarHole " ++ string_of_int(idx) ++ " " ++ id
+  | Hole => "hole"
+  | Int => "int"
+  | Float => "float"
+  | Bool => "bool"
+  | Arrow(t1, t2) => "Arrow(" ++ print(t1) ++ ", " ++ print(t2) ++ ")"
+  | Sum(t1, t2) => "Sum(" ++ print(t1) ++ ", " ++ print(t2) ++ ")"
+  | Prod(_) => "prod"
+  | List(t) => "List(" ++ print(t) ++ ")"
+  };

@@ -24,7 +24,7 @@ let rec syn = (ctx: Contexts.t, ty: HTyp.t): option(Kind.t) =>
 and ana = (ctx: Contexts.t, ty: HTyp.t, k: Kind.t): bool =>
   switch (syn(ctx, ty)) {
   | None => false
-  | Some(syn_k) => Kind.consistent(k, syn_k)
+  | Some(syn_k) => KindUtil.consistent(ctx, k, syn_k)
   };
 
 let rec fix_holes =

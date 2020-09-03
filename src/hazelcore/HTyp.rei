@@ -62,3 +62,5 @@ let complete: t => bool;
 let join: (join, t, t) => option(t);
 
 let join_all: (join, list(t)) => option(t);
+
+let print: t => string;

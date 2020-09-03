@@ -389,7 +389,7 @@ and ana_cursor_info_skel =
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(ty)) {
+      switch (HTypUtil.matched_list(ctx, ty)) {
       | None => None
       | Some(ty_elt) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {
@@ -516,7 +516,7 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTypUtil.matched_sum(ctx, ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty_body = InjSide.pick(position, tyL, tyR);

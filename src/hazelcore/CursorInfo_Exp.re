@@ -315,7 +315,7 @@ and syn_cursor_info_line =
       | None => None
       | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
       | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
-        switch (HTyp.matched_arrow(ty1)) {
+        switch (HTypUtil.matched_arrow(ctx, ty1)) {
         | None => deferrable
         | Some(_) =>
           let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, def);
@@ -478,7 +478,7 @@ and syn_cursor_info_skel =
             ) {
             | None => None
             | Some(ty) =>
-              HTyp.matched_arrow(ty)
+              HTypUtil.matched_arrow(ctx, ty)
               |> OptUtil.map(((ty1, ty2)) =>
                    mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
                  )
@@ -489,7 +489,7 @@ and syn_cursor_info_skel =
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some(ty) =>
-          switch (HTyp.matched_arrow(ty)) {
+          switch (HTypUtil.matched_arrow(ctx, ty)) {
           | None => None
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
@@ -503,7 +503,7 @@ and syn_cursor_info_skel =
         switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some(ty) =>
-          switch (HTyp.matched_arrow(ty)) {
+          switch (HTypUtil.matched_arrow(ctx, ty)) {
           | None => None
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
@@ -799,7 +799,7 @@ and ana_cursor_info_skel =
         "Exp.ana_cursor_info_skel: expected commas too be handled at opseq level",
       )
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (HTyp.matched_list(ty)) {
+      switch (HTypUtil.matched_list(ctx, ty)) {
       | None => None
       | Some(ty_elt) =>
         switch (ana_go(skel1, ty_elt)) {
@@ -906,14 +906,14 @@ and ana_cursor_info_zoperand =
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
     | Lam(NotInHole, _, ann, _) =>
-      switch (HTyp.matched_arrow(ty)) {
+      switch (HTypUtil.matched_arrow(ctx, ty)) {
       | None => None
       | Some((ty1, ty2)) =>
         switch (ann) {
         | None => Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
         | Some(ann) =>
           let ann_ty = UHTyp.expand(Contexts.tyvars(ctx), ann);
-          HTyp.consistent(ann_ty, ty1)
+          HTypUtil.consistent(ctx, ann_ty, ty1)
             ? Some(
                 CursorInfo_common.mk(
                   AnaAnnotatedLambda(ty, Arrow(ann_ty, ty2)),
@@ -951,7 +951,7 @@ and ana_cursor_info_zoperand =
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, body) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => None
     | Some((ty1_given, _)) =>
       let ty1 =
@@ -972,7 +972,7 @@ and ana_cursor_info_zoperand =
   | LamZA(NotInHole, _, zann, _) =>
     CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
   | LamZE(NotInHole, p, ann, zbody) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
       let ty1 =
@@ -986,7 +986,7 @@ and ana_cursor_info_zoperand =
       };
     }
   | InjZ(NotInHole, position, zbody) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTypUtil.matched_sum(ctx, ty)) {
     | None => None
     | Some((ty1, ty2)) =>
       ana_cursor_info(

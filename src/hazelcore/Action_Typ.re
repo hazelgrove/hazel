@@ -32,7 +32,9 @@ let mk_syn_result =
     : ActionOutcome.t(syn_success) => {
   let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
   switch (Statics_Typ.syn(ctx, hty)) {
-  | None => Failed
+  | None =>
+    print_endline("syn kind failed");
+    Failed;
   | Some(kind) => Succeeded((zty, kind, u_gen))
   };
 };
@@ -292,7 +294,7 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zty, k', u_gen)) =>
-      if (Kind.consistent(k, k')) {
+      if (KindUtil.consistent(ctx, k, k')) {
         Succeeded((zty, u_gen));
       } else {
         Failed;
@@ -506,13 +508,16 @@ and syn_perform_opseq =
     let _ = print_endline("-------");
     syn_perform_operand(ctx, a, (zoperand, k, u_gen));
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
+    let _ = print_endline("typ double perform_operand");
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
     switch (Statics_Typ.syn(ctx, hty)) {
     | None => Failed
     | Some(kind) =>
       switch (syn_perform_operand(ctx, a, (zoperand, kind, u_gen))) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("inside failed");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,
@@ -520,6 +525,7 @@ and syn_perform_opseq =
           (zopseq, k, u_gen),
         )
       | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
+        let _ = print_endline("inside succeeded");
         switch (zseq) {
         | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
           let new_prefix = Seq.affix_affix(inner_prefix, prefix);
@@ -537,7 +543,7 @@ and syn_perform_opseq =
             u_gen,
             ZTyp.mk_ZOpSeq(ZOperator(zoperator, (new_prefix, new_suffix))),
           );
-        }
+        };
       }
     };
   }

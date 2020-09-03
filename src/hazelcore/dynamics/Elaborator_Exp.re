@@ -577,7 +577,7 @@ and syn_elab_skel =
     switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
     | None => DoesNotElaborate
     | Some(ty1) =>
-      switch (HTyp.matched_arrow(ty1)) {
+      switch (HTypUtil.matched_arrow(ctx, ty1)) {
       | None => DoesNotElaborate
       | Some((ty2, ty)) =>
         let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
@@ -1067,7 +1067,7 @@ and ana_elab_skel =
       Elaborates(d, Hole, delta);
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTypUtil.matched_list(ctx, ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
@@ -1102,7 +1102,7 @@ and ana_elab_skel =
     switch (syn_elab_skel(ctx, delta, skel, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty', delta) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTypUtil.consistent(ctx, ty, ty')) {
         Elaborates(d, ty', delta);
       } else {
         DoesNotElaborate;
@@ -1169,13 +1169,13 @@ and ana_elab_operand =
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
   | Lam(NotInHole, p, ann, body) =>
-    switch (HTyp.matched_arrow(ty)) {
+    switch (HTypUtil.matched_arrow(ctx, ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
         let ty1_ann = UHTyp.expand(Contexts.tyvars(ctx), uty1);
-        switch (HTyp.consistent(ty1_ann, ty1_given)) {
+        switch (HTypUtil.consistent(ctx, ty1_ann, ty1_given)) {
         | false => DoesNotElaborate
         | true =>
           switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
@@ -1205,7 +1205,7 @@ and ana_elab_operand =
       }
     }
   | Inj(NotInHole, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTypUtil.matched_sum(ctx, ty)) {
     | None => DoesNotElaborate
     | Some((ty1, ty2)) =>
       let e1ty = InjSide.pick(side, ty1, ty2);
@@ -1233,7 +1233,7 @@ and ana_elab_operand =
       }
     }
   | ListNil(NotInHole) =>
-    switch (HTyp.matched_list(ty)) {
+    switch (HTypUtil.matched_list(ctx, ty)) {
     | None => DoesNotElaborate
     | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
     }
