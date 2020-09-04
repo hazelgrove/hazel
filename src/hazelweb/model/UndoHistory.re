@@ -832,8 +832,6 @@ let get_new_action_group =
           }
         }
 
-      | SUnop(_) => failwith("not implemented.")
-
       | SApPalette(_) => failwith("ApPalette is not implemented")
       }
     | SwapUp => Some(SwapEdit(Up))

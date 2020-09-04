@@ -18,10 +18,6 @@ type operator_shape =
   | SOr;
 
 [@deriving sexp]
-type unop_shape =
-  | SUnaryMinus;
-
-[@deriving sexp]
 type shape =
   | SList
   | SParenthesized
@@ -34,7 +30,6 @@ type shape =
   | SLine
   | SCase
   | SOp(operator_shape)
-  | SUnop(unop_shape)
   | SApPalette(PaletteName.t);
 
 [@deriving sexp]
@@ -70,10 +65,6 @@ let shape_to_string = (shape: shape): string => {
   | SLet => "let binding"
   | SLine => "new line"
   | SCase => "case expression"
-  | SUnop(unop_shape) =>
-    switch (unop_shape) {
-    | SUnaryMinus => "-"
-    }
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"

@@ -291,7 +291,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | SSpace => indicate_words_view("space")
       | _ => code_view(Action_common.shape_to_string(shape))
       }
-    | SUnop(_) => code_view(Action_common.shape_to_string(shape))
     | SApPalette(_) => failwith("ApPalette not implemented")
     };
   };

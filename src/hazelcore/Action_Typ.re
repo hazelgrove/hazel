@@ -310,9 +310,6 @@ and perform_operand =
     | Some(op) => Succeeded(construct_operator(op, zoperand, (E, E)))
     }
 
-  /* No unary operators for types */
-  | (Construct(SUnop(_)), _) => Failed
-
   /* Invalid SwapLeft and SwapRight actions */
   | (SwapLeft | SwapRight, CursorT(_)) => Failed
 

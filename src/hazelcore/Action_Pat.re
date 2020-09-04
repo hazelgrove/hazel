@@ -748,9 +748,6 @@ and syn_perform_operand =
       Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
     }
 
-  /* No unary operators for patterns now */
-  | (Construct(SUnop(_)), _) => Failed
-
   /* Invalid SwapLeft and SwapRight actions */
   | (SwapLeft | SwapRight, CursorP(_)) => Failed
 
@@ -1110,9 +1107,6 @@ and ana_perform_operand =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, _, u_gen)) => ana_perform(ctx, u_gen, a, zp, ty)
     }
-
-  /* No unary operators for patterns now */
-  | (Construct(SUnop(_)), _) => Failed
 
   // TODO consider relaxing guards and
   // merging with regular op construction

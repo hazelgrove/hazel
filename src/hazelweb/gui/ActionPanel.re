@@ -511,5 +511,4 @@ let check_actions = (a: Action_common.t) =>
   | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
-  | Construct(SUnop(SUnaryMinus)) => failwith("Unimplemented")
   };

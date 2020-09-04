@@ -17,11 +17,6 @@ let operator_of_shape =
   | SVBar => None
   };
 
-let unop_of_shape = (os: Action_common.unop_shape): option(UHExp.unop) =>
-  switch (os) {
-  | SUnaryMinus => Some(UnaryMinus)
-  };
-
 let shape_of_operator =
     (op: UHExp.binop): option(Action_common.operator_shape) =>
   switch (op) {
@@ -1237,16 +1232,25 @@ and syn_perform_opseq =
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, surround);
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    switch (os) {
+    | SMinus when ZExp.is_before_zoperand(zoperand) =>
+      switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+      | None => Failed
+      | Some(ty_zoperand) =>
+        syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
+      }
+    | _ =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZExp.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, surround);
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+      }
     }
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
@@ -1524,32 +1528,6 @@ and syn_perform_operand =
       ),
     )
 
-  | (Construct(SUnop(sop)), CursorE(OnText(_), _))
-      when ZExp.is_before_zoperand(zoperand) =>
-    switch (unop_of_shape(sop)) {
-    | None => Failed
-    | Some(unop) =>
-      let zunop = (CursorPosition.OnOp(After), unop);
-      let ty_u: HTyp.t =
-        switch (unop) {
-        | UnaryMinus => Int
-        | FUnaryMinus => Float
-        };
-      let (new_operand, u_gen) =
-        Statics_Exp.ana_fix_holes_operand(
-          ctx,
-          u_gen,
-          ZExp.erase_zoperand(zoperand),
-          ty_u,
-        );
-      let new_ze =
-        ZExp.ZBlock.wrap(
-          ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
-        );
-      Succeeded(SynDone((new_ze, ty_u, u_gen)));
-    }
-  | (Construct(SUnop(_)), _) => Failed
-
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
     let new_ze =
@@ -1684,16 +1662,39 @@ and syn_perform_operand =
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
 
   | (Construct(SOp(os)), CursorE(_)) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, (E, E));
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    switch (os) {
+    | SMinus =>
+      let unop = UnaryOperators_Exp.UnaryMinus;
+      let zunop = (CursorPosition.OnOp(After), unop);
+      let ty_u: HTyp.t =
+        switch (unop) {
+        | UnaryMinus => Int
+        | FUnaryMinus => Float
+        };
+      let (new_operand, u_gen) =
+        Statics_Exp.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZExp.erase_zoperand(zoperand),
+          ty_u,
+        );
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
+        );
+      Succeeded(SynDone((new_ze, ty_u, u_gen)));
+    | _ =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZExp.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+      }
     }
 
   | (Construct(_), CursorE(OnDelim(_, side), _))
@@ -2696,16 +2697,21 @@ and ana_perform_opseq =
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, surround);
-      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+    switch (os) {
+    | SMinus when ZExp.is_before_zoperand(zoperand) =>
+      ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+    | _ =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZExp.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, surround);
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+      }
     }
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
@@ -3015,47 +3021,6 @@ and ana_perform_operand =
       mk_AnaExpandsToLet(~u_gen, ~def=UHExp.Block.wrap(operand), ()),
     )
 
-  | (Construct(SUnop(sop)), CursorE(OnText(_), _))
-      when ZExp.is_before_zoperand(zoperand) =>
-    switch (unop_of_shape(sop)) {
-    | None => Failed
-    | Some(unop) =>
-      let zunop = (CursorPosition.OnOp(After), unop);
-      let ty_u: HTyp.t =
-        switch (unop) {
-        | UnaryMinus => Int
-        | FUnaryMinus => Float
-        };
-      let (new_operand, u_gen) =
-        Statics_Exp.ana_fix_holes_operand(
-          ctx,
-          u_gen,
-          ZExp.erase_zoperand(zoperand),
-          ty_u,
-        );
-      HTyp.consistent(ty, ty_u)
-        ? {
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
-            );
-          Succeeded(AnaDone((new_ze, u_gen)));
-        }
-        : {
-          let (u, u_gen) = u_gen |> MetaVarGen.next;
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              ZExp.UnaryOpZU(
-                ErrStatus.InHole(TypeInconsistent, u),
-                zunop,
-                new_operand,
-              ),
-            );
-          Succeeded(AnaDone((new_ze, u_gen)));
-        };
-    }
-  | (Construct(SUnop(_)), _) => Failed
-
   // TODO consider relaxing guards and
   // merging with regular op construction
   | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
@@ -3155,17 +3120,55 @@ and ana_perform_operand =
     ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), ty)
 
   | (Construct(SOp(os)), CursorE(_)) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, (E, E));
-      ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty))
-      |> wrap_in_AnaDone;
+    switch (os) {
+    | SMinus =>
+      let unop = UnaryOperators_Exp.UnaryMinus;
+      let zunop = (CursorPosition.OnOp(After), unop);
+      let ty_u: HTyp.t =
+        switch (unop) {
+        | UnaryMinus => Int
+        | FUnaryMinus => Float
+        };
+      let (new_operand, u_gen) =
+        Statics_Exp.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZExp.erase_zoperand(zoperand),
+          ty_u,
+        );
+      HTyp.consistent(ty, ty_u)
+        ? {
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
+            );
+          Succeeded(AnaDone((new_ze, u_gen)));
+        }
+        : {
+          let (u, u_gen) = u_gen |> MetaVarGen.next;
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              ZExp.UnaryOpZU(
+                ErrStatus.InHole(TypeInconsistent, u),
+                zunop,
+                new_operand,
+              ),
+            );
+          Succeeded(AnaDone((new_ze, u_gen)));
+        };
+    | _ =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZExp.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        ActionOutcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty))
+        |> wrap_in_AnaDone;
+      }
     }
 
   // TODO: consider how this interacts with subsumption case below
