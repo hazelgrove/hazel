@@ -105,7 +105,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
-  | Label(_) => failwith("unimplemented")
+  // ecd todo: do we need an additional cursor length to account for the dot in a label?
+  | Label(_, l) => CursorPosition.text_cursors(Label.length(l))
   | Prj(_) => failwith("unimplemented");
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
@@ -161,7 +162,8 @@ and is_before_zoperand =
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
-  | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
+  | CursorE(cursor, BoolLit(_))
+  | CursorE(cursor, Label(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
@@ -175,7 +177,6 @@ and is_before_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Label(_)) => failwith("unimplemented")
   | CursorE(_, Prj(_)) => failwith("unimplemented");
 let is_before_zrule =
   fun
@@ -224,7 +225,7 @@ and is_after_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Label(_))
+  | CursorE(cursor, Label(_, l)) => cursor == OnText(Label.length(l))
   | CursorE(_, Prj(_)) => failwith("unimplemented");
 let is_after_zrule =
   fun
@@ -264,7 +265,8 @@ and is_outer_zoperand =
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_))
-  | CursorE(_, ApPalette(_)) => true
+  | CursorE(_, ApPalette(_))
+  | CursorE(_, Label(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | LamZP(_)
   | LamZA(_)
@@ -273,7 +275,6 @@ and is_outer_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Label(_))
   | CursorE(_, Prj(_)) => failwith("unimplemented");
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
@@ -300,13 +301,13 @@ and place_before_operand = operand =>
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
-  | BoolLit(_) => CursorE(OnText(0), operand)
+  | BoolLit(_)
+  | Label(_) => CursorE(OnText(0), operand)
   | Lam(_)
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
-  | Label(_)
   | Prj(_) => failwith("unimplemented")
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>

@@ -17,10 +17,11 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Unit
   | Int
   | Float
-  | Bool
-  | Label(_) => CursorPosition.delim_cursors(1)
+  | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | List(_) => CursorPosition.delim_cursors(2);
+  | List(_) => CursorPosition.delim_cursors(2)
+  // ecd todo: do we need an additional cursor length to account for the dot in a label?
+  | Label(l) => CursorPosition.text_cursors(Label.length(l));
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun
@@ -62,8 +63,8 @@ and is_before_zoperand =
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, List(_))
-  | CursorT(cursor, Label(_)) => cursor == OnDelim(0, Before)
+  | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
+  | CursorT(cursor, Label(_)) => cursor == OnText(0)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
 let is_before_zoperator: zoperator => bool =
@@ -79,8 +80,8 @@ and is_after_zoperand =
   | CursorT(cursor, Unit)
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
-  | CursorT(cursor, Bool)
-  | CursorT(cursor, Label(_)) => cursor == OnDelim(0, After)
+  | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
+  | CursorT(cursor, Label(l)) => cursor == OnText(Label.length(l))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false

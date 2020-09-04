@@ -159,6 +159,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | Label(_) => failwith("unimplemented")
   };
 
 let associate = (seq: seq) => {

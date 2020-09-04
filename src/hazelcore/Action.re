@@ -338,6 +338,28 @@ module Typ = {
       ) =>
       Failed
 
+    // Label Text Positions
+    | (Backspace, CursorT(OnText(j), Label(l))) =>
+      Succeeded(
+        ZOpSeq.wrap(
+          ZTyp.place_after_operand(
+            Label(Label.sub(l, 0, Label.length(l) - 2)),
+          ),
+        ),
+      )
+    | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
+      failwith("unimplemented") //TODO ECD: How to create a labeled element type
+    | (_, CursorT(OnDelim(_), Label(_))) => Failed
+    | (Construct(SChar(".")), CursorT(_, Hole)) =>
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
+    //TODO ECD: how to change label when edited in the middle (ie: .[]hat => .[t]hat => .that)
+    | (Construct(SChar(s)), CursorT(OnText(j), Label(l))) =>
+      if (s == ".") {
+        Failed;
+      } else {
+        Suceeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(l ++ s))))
+      }
+
     /* Invalid cursor positions */
     | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
     | (_, CursorT(cursor, operand))
@@ -366,10 +388,7 @@ module Typ = {
     | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
-    | (
-        Backspace,
-        CursorT(OnDelim(_, After), Unit | Int | Float | Bool | Label(_)),
-      ) =>
+    | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
     /* ( _ )<|  ==>  _| */
@@ -385,6 +404,7 @@ module Typ = {
 
     | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
       perform_operand(MoveRight, zoperand)
+
     | (Construct(_) as a, CursorT(OnDelim(_, side), _))
         when
           !ZTyp.is_before_zoperand(zoperand)
@@ -400,13 +420,6 @@ module Typ = {
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
-    | (Construct(SChar(".")), CursorT(_, Hole)) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(""))))
-    | (Construct(SChar(" ")), CursorT(OnDelim(_, After), Label(_))) =>
-      failwith("unimplemented") //TODO ECD: How to create a labeled element type
-    //TODO ECD: how to change label when edited in the middle (ie: .[]hat => .[t]hat => .that)
-    | (Construct(SChar(char)), CursorT(OnDelim(_, After), Label(id))) =>
-      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(id ++ char))))
     | (Construct(SChar(_)), CursorT(_)) => Failed
     | (Construct(SList), CursorT(_)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
@@ -2234,7 +2247,7 @@ module Exp = {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
       } else if
-        /* TODO: this should be changed once InvalidVar holes are finished */
+        /* ECD TODO: this should be changed once InvalidVar holes are finished */
         (text == ".") {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), HTyp.Hole, u_gen)));
@@ -2250,6 +2263,9 @@ module Exp = {
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
+    | Some(Label(l)) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(l)));
+      Succeeded(SynDone((ze, HTyp.Label(l), u_gen)));
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
@@ -3364,6 +3380,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, f)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+    | (Delete, CursorE(OnText(j), Label(_, l))) =>
+      syn_delete_text(ctx, u_gen, j, l)
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
     | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
@@ -3374,11 +3392,10 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
     | (Backspace, CursorE(OnText(j), Label(_, l))) =>
       // ECD TODO: test if there is a bug with allowing labels wiht an empty string
-      // if(String.length(l) == 0){
+      // if(Label.length(l) == 0){
       //   Outcome.Suceeded()
       // }
       syn_backspace_text(ctx, u_gen, j, l)
-    //ecd you are here
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
       let (p, body_ctx, u_gen) =
@@ -3472,10 +3489,9 @@ module Exp = {
         ZExp.ZBlock.wrap(LamZA(err, zp |> ZPat.erase, new_zann, body));
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
-
-    /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-       TODO: remove once we have InvalidVar holes */
-    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
+    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(".")));
+      Succeeded(SynDone((ze, HTyp.Label("."), u_gen))); // ECD TODO: This may not be needed if syn_insert text works as expected
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -3486,8 +3502,9 @@ module Exp = {
       syn_insert_text(ctx, u_gen, (j, s), f)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+    | Construct(SChar(s), CursorE(OnText(j), Label(_, l))) =>
+      syn_insert_text(ctx, u_gen, (j, s), l)
     | (Construct(SChar(_)), CursorE(_)) => Failed
-
     | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
       let new_ze =
         UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;

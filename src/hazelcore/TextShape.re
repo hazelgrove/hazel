@@ -7,7 +7,8 @@ type t =
   | FloatLit(string)
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
-  | Var(Var.t);
+  | Var(Var.t)
+  | Label(Label.t);
 
 /* Eventually replace Ocaml's ___of_string_opt with our own rules */
 /* Ocaml accepts _1 as a float */
@@ -43,6 +44,8 @@ let of_text = (text: string): option(t) => {
       Some(Underscore);
     } else if (text |> Var.is_valid) {
       Some(Var(text));
+    } else if (text.[0] == '.') {
+      Some(Label(text));
     } else {
       None;
     }

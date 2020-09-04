@@ -74,6 +74,9 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
+let label = (~err: ErrStatus.t=NotInHole, l: Label.t): operand =>
+  Label(err, l);
+
 let lam =
     (
       ~err: ErrStatus.t=NotInHole,
@@ -313,6 +316,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | Label(l) => (label(l), u_gen)
   };
 
 let associate = (seq: seq) => {
