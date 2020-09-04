@@ -186,7 +186,7 @@ and syn_cursor_info_zoperand =
     )
     : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
   switch (zoperand) {
-  | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
+  | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) => 
     Some(
       CursorNotOnDeferredVarPat(
         CursorInfo_common.mk(
