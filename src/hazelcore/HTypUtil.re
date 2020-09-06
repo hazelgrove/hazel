@@ -1,3 +1,4 @@
+// This function is wrong, need to revise. need to look at PFPL chapter 43
 let rec eq = (ctx: Contexts.t, x: HTyp.t, y: HTyp.t): bool =>
   switch (x, y) {
   | (TyVar(id1, _), TyVar(id2, _)) =>

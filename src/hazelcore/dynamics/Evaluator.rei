@@ -29,7 +29,7 @@ let grounded_Prod: int => ground_cases;
 
 let grounded_List: ground_cases;
 
-let ground_cases_of: HTyp.t => ground_cases;
+let ground_cases_of: (Contexts.t, HTyp.t) => ground_cases;
 
 let eval_bin_bool_op: (DHExp.BinBoolOp.t, bool, bool) => DHExp.t;
 

@@ -42,7 +42,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Lam(_) => DHDoc_common.precedence_const
-  | Cast(d1, _, _) =>
+  | Cast(_, d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
   | FixF(_)
@@ -161,7 +161,7 @@ let rec mk =
     );
     let cast =
       switch (d) {
-      | Cast(_, _, ty) => Some(ty)
+      | Cast(_, _, _, ty) => Some(ty)
       | _ => None
       };
     let fdoc = (~enforce_inline) =>
@@ -220,7 +220,7 @@ let rec mk =
       | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
-      | Cast(d, _, _) =>
+      | Cast(_, d, _, _) =>
         let (doc, _) = go'(d);
         doc;
       | Let(dp, ddef, dbody) =>
@@ -244,7 +244,9 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+      // do we need teh ctx in FailedCast
+      | FailedCast(_, Cast(ctx, d, ty1, ty2), ty2', ty3)
+          when HTypUtil.eq(ctx, ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
@@ -258,7 +260,7 @@ let rec mk =
           ])
           |> annot(DHAnnot.FailedCastDecoration);
         hcats([d_doc, cast_decoration]);
-      | FailedCast(_d, _ty1, _ty2) =>
+      | FailedCast(_ctx, _d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
         switch (err) {
