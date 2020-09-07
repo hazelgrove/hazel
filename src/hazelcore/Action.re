@@ -341,11 +341,7 @@ module Typ = {
     // Label Text Positions
     | (Backspace, CursorT(OnText(j), Label(l))) =>
       Succeeded(
-        ZOpSeq.wrap(
-          ZTyp.place_after_operand(
-            Label(Label.sub(l, 0, Label.length(l) - 2)),
-          ),
-        ),
+        ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.delete(l, j)))),
       )
     | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
       failwith("unimplemented") //TODO ECD: How to create a labeled element type
@@ -354,11 +350,11 @@ module Typ = {
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
     //TODO ECD: how to change label when edited in the middle (ie: .[]hat => .[t]hat => .that)
     | (Construct(SChar(s)), CursorT(OnText(j), Label(l))) =>
-      if (s == ".") {
-        Failed;
-      } else {
-        Suceeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label(l ++ s))))
-      }
+      Succeeded(
+        ZOpSeq.wrap(
+          ZTyp.place_after_operand(Label(Label.insert(l, s, j))),
+        ),
+      )
 
     /* Invalid cursor positions */
     | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
@@ -837,6 +833,7 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    | Some(Label(_)) => failwith("unimplemented")
     };
   };
 
@@ -888,6 +885,7 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, ctx, u_gen));
+    | Some(Label(_)) => failwith("unimplemented")
     };
   };
 
@@ -2326,7 +2324,9 @@ module Exp = {
         );
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(
+        IntLit(_) | FloatLit(_) | BoolLit(_) | Underscore | Var(_) | Label(_),
+      ) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -3490,7 +3490,7 @@ module Exp = {
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
     | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) =>
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(".")));
+      let ze = ZExp.ZBlock.wrap(CursorE(OnText(1), UHExp.label(".")));
       Succeeded(SynDone((ze, HTyp.Label("."), u_gen))); // ECD TODO: This may not be needed if syn_insert text works as expected
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
@@ -3502,7 +3502,7 @@ module Exp = {
       syn_insert_text(ctx, u_gen, (j, s), f)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
-    | Construct(SChar(s), CursorE(OnText(j), Label(_, l))) =>
+    | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
       syn_insert_text(ctx, u_gen, (j, s), l)
     | (Construct(SChar(_)), CursorE(_)) => Failed
     | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
