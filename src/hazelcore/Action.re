@@ -348,7 +348,6 @@ module Typ = {
     | (_, CursorT(OnDelim(_), Label(_))) => Failed
     | (Construct(SChar(".")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
-    //TODO ECD: how to change label when edited in the middle (ie: .[]hat => .[t]hat => .that)
     | (Construct(SChar(s)), CursorT(OnText(j), Label(l))) =>
       Succeeded(
         ZOpSeq.wrap(
@@ -865,7 +864,8 @@ module Pat = {
       Succeeded((zp, ctx, u_gen));
     | Some(IntLit(_))
     | Some(FloatLit(_))
-    | Some(BoolLit(_)) =>
+    | Some(BoolLit(_))
+    | Some(Label(_)) =>
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zp, ty', ctx, u_gen)) =>
@@ -885,7 +885,6 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, ctx, u_gen));
-    | Some(Label(_)) => failwith("unimplemented")
     };
   };
 
@@ -3317,7 +3316,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+          Label(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -3392,9 +3392,6 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
     | (Backspace, CursorE(OnText(j), Label(_, l))) =>
       // ECD TODO: test if there is a bug with allowing labels wiht an empty string
-      // if(Label.length(l) == 0){
-      //   Outcome.Suceeded()
-      // }
       syn_backspace_text(ctx, u_gen, j, l)
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -3489,9 +3486,9 @@ module Exp = {
         ZExp.ZBlock.wrap(LamZA(err, zp |> ZPat.erase, new_zann, body));
       Succeeded(SynDone((new_ze, ty, u_gen)));
     | (Construct(SAsc), CursorE(_)) => Failed
-    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) =>
-      let ze = ZExp.ZBlock.wrap(CursorE(OnText(1), UHExp.label(".")));
-      Succeeded(SynDone((ze, HTyp.Label("."), u_gen))); // ECD TODO: This may not be needed if syn_insert text works as expected
+    // | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) =>
+    //   let ze = ZExp.ZBlock.wrap(CursorE(OnText(1), UHExp.label(".")));
+    //   Succeeded(SynDone((ze, HTyp.Label("."), u_gen))); // ECD TODO: This may not be needed if syn_insert text works as expected
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -3829,7 +3826,6 @@ module Exp = {
         }
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorE(_, Label(_))) => failwith("unimplemented")
     | (_, CursorE(_, Prj(_))) => failwith("unimplemented")
     };
   }
@@ -4676,7 +4672,8 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_),
+          Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) | ApPalette(_) |
+          Label(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
@@ -4782,6 +4779,8 @@ module Exp = {
       ana_delete_text(ctx, u_gen, j, f, ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Delete, CursorE(OnText(j), Label(_, l))) =>
+      ana_delete_text(ctx, u_gen, j, l, ty)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -4791,6 +4790,8 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, f, ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Backspace, CursorE(OnText(j), Label(_, l))) =>
+      ana_backspace_text(ctx, u_gen, j, l, ty)
 
     /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -4841,7 +4842,6 @@ module Exp = {
 
     /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
        TODO: remove once we have InvalidVar holes */
-    | (Construct(SChar(".")), CursorE(_, EmptyHole(_))) => Failed
     | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)
     | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -4852,6 +4852,8 @@ module Exp = {
       ana_insert_text(ctx, u_gen, (j, s), f, ty)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
+      ana_insert_text(ctx, u_gen, (j, s), l, ty)
     | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (Construct(SCase), CursorE(_, operand)) =>
@@ -4885,7 +4887,11 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, f, ty)
-
+    | (Construct(SOp(sop)), CursorE(OnText(j), Label(_, l)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, l, ty)
     | (Construct(SAsc), LamZP(err, zp, None, body)) =>
       let new_zann = UHTyp.Hole |> ZTyp.place_before_operand |> ZOpSeq.wrap;
       let new_ze =
@@ -5166,7 +5172,6 @@ module Exp = {
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     /* Invalid actions at the expression level */
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorE(_, Label(_))) => failwith("unimplemented")
     | (_, CursorE(_, Prj(_))) => failwith("unimplemented")
     }
   and ana_perform_subsume =
