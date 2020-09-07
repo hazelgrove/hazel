@@ -1,17 +1,47 @@
 // This function is wrong, need to revise. need to look at PFPL chapter 43
+/* equality */
 let rec eq = (ctx: Contexts.t, x: HTyp.t, y: HTyp.t): bool =>
   switch (x, y) {
-  | (TyVar(id1, _), TyVar(id2, _)) =>
-    switch (
-      TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, id1),
-      TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, id2),
-    ) {
-    | ((_, Singleton(h1)), (_, Singleton(h2))) => eq(ctx, h1, h2)
-    | _ => failwith(__LOC__)
+  | (TyVar(idx1, _), ty2) =>
+    switch (TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, idx1)) {
+    | (_, Singleton(ty1)) => eq(ctx, ty1, ty2)
+    | (_, _) => failwith("impossible for bounded type variables")
     }
-  | (_, _) => x == y
+  | (ty1, TyVar(idx2, _)) =>
+    switch (TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, idx2)) {
+    | (_, Singleton(ty2)) => eq(ctx, ty1, ty2)
+    | (_, _) => failwith("impossible for bounded type variables")
+    }
+  | (TyVarHole(_, id1), TyVarHole(_, id2)) => TyId.eq(id1, id2)
+  | (Hole, Hole)
+  | (Int, Int)
+  | (Bool, Bool)
+  | (Float, Float) => true
+  | (Arrow(ty1, ty2), Arrow(ty3, ty4))
+  | (Sum(ty1, ty2), Sum(ty3, ty4)) =>
+    eq(ctx, ty1, ty3) && eq(ctx, ty2, ty4)
+  | (Prod(lst1), Prod(lst2)) =>
+    List.fold_left(
+      (b, pair) => {
+        let (ty1, ty2) = pair;
+        b && eq(ctx, ty1, ty2);
+      },
+      true,
+      List.combine(lst1, lst2),
+    )
+  | (List(ty1), List(ty2)) => eq(ctx, ty1, ty2)
+  | (
+      Hole | Int | Bool | Float | Arrow(_, _) | Sum(_, _) | Prod(_) | List(_),
+      _,
+    )
+  | (
+      _,
+      Hole | Int | Bool | Float | Arrow(_, _) | Sum(_, _) | Prod(_) | List(_),
+    ) =>
+    false
   };
 
+/* type consistency */
 let rec consistent = (ctx: Contexts.t, x: HTyp.t, y: HTyp.t): bool => {
   let _ = print_endline("consisten begin");
   let _ = print_endline(x |> HTyp.print);
@@ -133,3 +163,103 @@ let has_matched_list = (ctx: Contexts.t, ty: HTyp.t): bool =>
   | List(_) => true
   | _ => false
   };
+
+/* complete (i.e. does not have any holes) */
+let rec complete = (ctx: Contexts.t, ty: HTyp.t): bool =>
+  switch (ty) {
+  | TyVar(idx, _) =>
+    switch (TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, idx)) {
+    | (_, Singleton(ty)) => complete(ctx, ty)
+    | (_, _) => failwith("impossible for bounded type variables")
+    }
+  | Hole
+  | TyVarHole(_) => false
+  | Int
+  | Float
+  | Bool => true
+  | Arrow(ty1, ty2)
+  | Sum(ty1, ty2) => complete(ctx, ty1) && complete(ctx, ty2)
+  | Prod(tys) => tys |> List.for_all(complete(ctx))
+  | List(ty) => complete(ctx, ty)
+  };
+
+let rec join =
+        (ctx: Contexts.t, j: HTyp.join, ty1: HTyp.t, ty2: HTyp.t)
+        : option(HTyp.t) =>
+  switch (ty1, ty2) {
+  | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+  | (_, Hole)
+  | (_, TyVarHole(_, _)) =>
+    switch (j) {
+    | GLB => Some(Hole)
+    | LUB => Some(ty1)
+    }
+  | (Hole, _)
+  | (TyVarHole(_, _), _) =>
+    switch (j) {
+    | GLB => Some(Hole)
+    | LUB => Some(ty2)
+    }
+  | (TyVar(idx1, _), ty2) =>
+    switch (TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, idx1)) {
+    | (_, Singleton(ty1)) => join(ctx, j, ty1, ty2)
+    | (_, _) => failwith("impossible for bounded type variables")
+    }
+  | (ty1, TyVar(idx2, _)) =>
+    switch (TyVarCtx.tyvar_with_idx(ctx |> Contexts.tyvars, idx2)) {
+    | (_, Singleton(ty2)) => join(ctx, j, ty1, ty2)
+    | (_, _) => failwith("impossible for bounded type variables")
+    }
+  | (Int, Int) => Some(ty1)
+  | (Int, _) => None
+  | (Float, Float) => Some(ty1)
+  | (Float, _) => None
+  | (Bool, Bool) => Some(ty1)
+  | (Bool, _) => None
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    switch (join(ctx, j, ty1, ty1'), join(ctx, j, ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+    | _ => None
+    }
+  | (Arrow(_), _) => None
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    switch (join(ctx, j, ty1, ty1'), join(ctx, j, ty2, ty2')) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
+  | (Sum(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    ListUtil.map2_opt(join(ctx, j), tys1, tys2)
+    |> Option.map(OptUtil.sequence)
+    |> Option.join
+    |> Option.map(joined_types => HTyp.Prod(joined_types))
+  | (Prod(_), _) => None
+  | (List(ty), List(ty')) =>
+    switch (join(ctx, j, ty, ty')) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
+  | (List(_), _) => None
+  };
+
+let join_all =
+    (ctx: Contexts.t, j: HTyp.join, types: list(HTyp.t)): option(HTyp.t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    if (!consistent_all(ctx, types)) {
+      None;
+    } else {
+      List.fold_left(
+        (common_opt, ty) =>
+          switch (common_opt) {
+          | None => None
+          | Some(common_ty) => join(ctx, j, common_ty, ty)
+          },
+        Some(hd),
+        tl,
+      );
+    }
+  };
+};

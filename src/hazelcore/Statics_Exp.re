@@ -256,7 +256,7 @@ and syn_rules =
     );
   switch (clause_types) {
   | None => None
-  | Some(types) => HTyp.join_all(GLB, types)
+  | Some(types) => HTypUtil.join_all(ctx, GLB, types)
   };
 }
 and syn_rule =
@@ -1057,7 +1057,7 @@ and syn_fix_holes_rules =
       ([], u_gen, []),
       rules,
     );
-  let common_type = HTyp.join_all(GLB, rule_types);
+  let common_type = HTypUtil.join_all(ctx, GLB, rule_types);
   (List.rev(rev_fixed_rules), u_gen, List.rev(rule_types), common_type);
 }
 and syn_fix_holes_rule =

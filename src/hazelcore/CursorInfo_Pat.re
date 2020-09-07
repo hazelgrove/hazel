@@ -43,6 +43,7 @@ and get_zoperand_from_zpat_operand =
   | InjZ(_, _, zpat) => get_zoperand_from_zpat(zpat)
   };
 };
+
 let rec syn_cursor_info =
         (~steps=[], ctx: Contexts.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo_common.t)) =>
