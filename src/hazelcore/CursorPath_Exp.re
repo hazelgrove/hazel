@@ -289,7 +289,18 @@ and of_steps_line =
     | 2 => def |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
     | _ => None
     }
-  | ([_, ..._], DefineLine(_, _)) => None // TODO
+  | ([x, ...xs], DefineLine(tp, ty)) =>
+    switch (x) {
+    | 0 =>
+      tp
+      |> CursorPath_TPat.of_steps(xs, ~side)
+      |> OptUtil.map(path => cons'(0, path))
+    | 1 =>
+      ty
+      |> CursorPath_Typ.of_steps(xs, ~side)
+      |> OptUtil.map(path => cons'(1, path))
+    | _ => None
+    }
   }
 and of_steps_opseq =
     (steps: CursorPath_common.steps, ~side: Side.t, opseq: UHExp.opseq)
@@ -460,8 +471,8 @@ and holes_line =
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
   | DefineLine(tp, ty) =>
     hs
-    |> CursorPath_TPat.holes(tp, [0, ...rev_steps])
     |> CursorPath_Typ.holes(ty, [1, ...rev_steps])
+    |> CursorPath_TPat.holes(tp, [0, ...rev_steps])
   | ExpLine(opseq) =>
     hs
     |> CursorPath_common.holes_opseq(

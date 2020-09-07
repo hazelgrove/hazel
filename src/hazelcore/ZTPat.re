@@ -7,16 +7,18 @@ let erase =
   fun
   | CursorP(_, tpat) => tpat;
 
-let place_after = (tp: TPat.t): t =>
-  switch (tp) {
-  | EmptyHole(_) => CursorP(OnDelim(0, After), tp)
-  | TyVar(_, id) => CursorP(OnText(TyId.length(id)), tp)
+let rec place_after = (tp: TPat.t): t => place_after_operand(tp)
+and place_after_operand = (operand: TPat.operand): zoperand =>
+  switch (operand) {
+  | EmptyHole(_) => CursorP(OnDelim(0, After), operand)
+  | TyVar(_, id) => CursorP(OnText(TyId.length(id)), operand)
   };
 
-let place_before = (tp: TPat.t): t =>
-  switch (tp) {
-  | EmptyHole(_) => CursorP(OnDelim(0, Before), tp)
-  | TyVar(_, _) => CursorP(OnText(0), tp)
+let rec place_before = (tp: TPat.t): t => place_before_operand(tp)
+and place_before_operand = (operand: TPat.operand): zoperand =>
+  switch (operand) {
+  | EmptyHole(_) => CursorP(OnDelim(0, Before), operand)
+  | TyVar(_, _) => CursorP(OnText(0), operand)
   };
 
 let valid_cursors: TPat.t => list(CursorPosition.t) =

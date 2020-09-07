@@ -1,6 +1,6 @@
-let move =
-    (a: Action_common.t, ztp: ZTPat.t, u_gen: MetaVarGen.t)
-    : ActionOutcome.t((ZTPat.t, MetaVarGen.t)) =>
+let rec move =
+        (a: Action_common.t, ztp: ZTPat.t, u_gen: MetaVarGen.t)
+        : ActionOutcome.t((ZTPat.t, MetaVarGen.t)) =>
   switch (a) {
   | MoveTo(path) =>
     switch (CursorPath_TPat.follow(path, ztp |> ZTPat.erase)) {
@@ -12,13 +12,23 @@ let move =
       CursorPath_common.(prev_hole_steps(CursorPath_TPat.holes_z(ztp, [])))
     ) {
     | None => Failed
-    | Some(_) => Failed
-    /*switch (CursorPath_TPat.of_steps(steps, ztp |> ZTPat.erase)) {
+    | Some(steps) =>
+      switch (CursorPath_TPat.of_steps(steps, ztp |> ZTPat.erase)) {
       | None => Failed
       | Some(path) => move(MoveTo(path), ztp, u_gen)
-      }*/
+      }
     }
-  | MoveToNextHole => Failed
+  | MoveToNextHole =>
+    switch (
+      CursorPath_common.(next_hole_steps(CursorPath_TPat.holes_z(ztp, [])))
+    ) {
+    | None => Failed
+    | Some(steps) =>
+      switch (CursorPath_TPat.of_steps(steps, ztp |> ZTPat.erase)) {
+      | None => Failed
+      | Some(path) => move(MoveTo(path), ztp, u_gen)
+      }
+    }
   | MoveLeft =>
     ztp
     |> ZTPat.move_cursor_left
