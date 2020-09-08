@@ -149,20 +149,14 @@ let move_to_hole = (u, program) => {
     let e = ZExp.erase(ze);
     switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)
-    | Some(hole_path) => program |> perform_edit_action(MoveTo(hole_path))
+    | Some(hole_path) => Action_common.MoveTo(hole_path)
     };
   };
 };
 
-let move_to_case_branch =
-    (steps_to_case, branch_index, program): (t, Action_common.t) => {
+let move_to_case_branch = (steps_to_case, branch_index): Action_common.t => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
-  let new_program =
-    perform_edit_action(
-      MoveTo((steps_to_branch, OnDelim(1, After))),
-      program,
-    );
-  (new_program, MoveTo((steps_to_branch, OnDelim(1, After))));
+  Action_common.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
