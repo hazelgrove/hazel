@@ -99,7 +99,7 @@ and syn_operand =
       Some((ty, ctx));
     }
   | Parenthesized(p) => syn(ctx, p)
-  | TypeAnn(NotInHole, op, ann) => 
+  | TypeAnn(NotInHole, op, ann) =>
     let ty1_ann = UHTyp.expand(ann);
     switch (ana_operand(ctx, op, ty1_ann)) {
     | None => None
@@ -426,7 +426,7 @@ and syn_fix_holes_operand =
   | Wild(_) => (operand_nih, Hole, ctx, u_gen)
   | InvalidText(_) => (operand_nih, Hole, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen) 
+  | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, Hole, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     (operand_nih, Hole, ctx, u_gen);
@@ -453,7 +453,7 @@ and syn_fix_holes_operand =
     let (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
     // what about the annotation? do I need to 'fix holes' there too?
-    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen)
+    (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
   };
 }
 and ana_fix_holes =
@@ -727,20 +727,20 @@ and ana_fix_holes_operand =
   | TypeAnn(_, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     if (HTyp.consistent(ty, ty_ann)) {
-      let (op, ctx, u_gen) = ana_fix_holes_operand(
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        op,
-        ty_ann
-      );
-    (TypeAnn(NotInHole, op, ann), ctx, u_gen)
+      let (op, ctx, u_gen) =
+        ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
+      (TypeAnn(NotInHole, op, ann), ctx, u_gen);
     } else {
       // not sure this makes sense
-      let (op, _, _, u_gen) = syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
+      let (op, _, _, u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op), ctx, u_gen)
-    }
+      (
+        UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
+        ctx,
+        u_gen,
+      );
+    };
   };
 };
 

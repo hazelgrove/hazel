@@ -26,6 +26,7 @@ let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
  * produces a new context with bindings introduced by `p` if successful
  */
 let ana: (Contexts.t, UHPat.t, HTyp.t) => option(Contexts.t);
+let ana_operand: (Contexts.t, UHPat.operand, HTyp.t) => option(Contexts.t);
 let ana_skel:
   (Contexts.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Contexts.t);
 
