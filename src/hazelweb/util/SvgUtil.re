@@ -164,11 +164,12 @@ module OrthogonalPolygon = {
   };
 
   /**
-   * Merge coinciding vertical edges that point in the same direction
-   * TODO figure out if there's a cleaner + more efficient method for this pass
+   * Merge coinciding vertical edges that point in the same direction.
    */
   let merge_coinciding_vertical_edges =
       (edges: list(linked_edge)): list(linked_edge) => {
+    // there may be a cleaner + more efficient method for this pass
+    // but good enough for now
     let (left_edges, right_edges) = List.partition(is_left_side, edges);
     let merged_left_edges =
       left_edges
