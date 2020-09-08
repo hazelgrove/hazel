@@ -235,41 +235,46 @@ let key_handlers =
   ];
 };
 
+let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
   Vdom.(
-    switch (box) {
-    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-    | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
-    | VBox(boxes) =>
-      let vs =
-        boxes
-        |> List.map(view_of_box)
-        |> ListUtil.join([Node.br([])])
-        |> List.flatten;
-      [Node.div([Attr.classes(["VBox"])], vs)];
-    | Annot(annot, box) =>
-      let vs = view_of_box(box);
-      switch (annot) {
-      | Token({shape, _}) =>
-        let clss =
-          switch (shape) {
-          | Text => ["code-text"]
-          | Op => ["code-op"]
-          | Delim(_) => ["code-delim"]
-          };
-        [Node.span([Attr.classes(clss)], vs)];
-      | HoleLabel({len}) =>
-        let width = Css_gen.width(`Ch(float_of_int(len)));
-        [
-          Node.span(
-            [Attr.style(width), Attr.classes(["HoleLabel"])],
-            [Node.span([Attr.classes(["HoleNumber"])], vs)],
-          ),
-        ];
-      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-      | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-      | _ => vs
-      };
+    switch (WeakMap.get(box_table, box)) {
+    | Some(vs) => vs
+    | None =>
+      switch (box) {
+      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+      | VBox(boxes) =>
+        let vs =
+          boxes
+          |> List.map(view_of_box)
+          |> ListUtil.join([Node.br([])])
+          |> List.flatten;
+        [Node.div([Attr.classes(["VBox"])], vs)];
+      | Annot(annot, box) =>
+        let vs = view_of_box(box);
+        switch (annot) {
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | HoleLabel({len}) =>
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | _ => vs
+        };
+      }
     }
   );
 };
