@@ -148,6 +148,7 @@ let view =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
+  let ctx = ci.ctx;
   let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
@@ -157,7 +158,7 @@ let view =
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        HTypUtil.eq(ctx, expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
@@ -190,7 +191,7 @@ let view =
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        HTypUtil.eq(ctx, expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
@@ -270,7 +271,7 @@ let view =
       let (ind2, err_state_b) =
         switch (join, typed) {
         | (JoinTy(ty), Synthesized(got_ty)) =>
-          switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+          switch (HTypUtil.consistent(ctx, ty, got_ty), HTypUtil.eq(ctx, ty, got_ty)) {
           | (true, true) => (got_as_expected_ty_indicator(got_ty), OK)
           | (true, false) => (got_consistent_indicator(got_ty), OK)
           | (false, _) => (
@@ -338,7 +339,7 @@ let view =
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty)
+        HTypUtil.eq(ctx, expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
