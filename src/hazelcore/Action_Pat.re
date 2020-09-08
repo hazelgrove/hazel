@@ -556,7 +556,8 @@ and syn_perform_operand =
       _,
       CursorP(
         OnText(_),
-        EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
+        EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_) |
+        TypeAnn(_),
       ) |
       CursorP(
         OnDelim(_),
