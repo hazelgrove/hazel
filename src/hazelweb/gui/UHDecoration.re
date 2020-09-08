@@ -375,7 +375,7 @@ module CurrentTerm = {
                  ~overflow_left=true,
                )
              | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
-               // TODO may need to revisit above when guard
+               // may need to revisit above `when` guard
                // to support layouts like
                // let _ = \x.{
                //   _
