@@ -47,6 +47,9 @@ module Path: {
     (~attrs: list(Virtual_dom.Vdom.Attr.t), t) => Virtual_dom.Vdom.Node.t;
 };
 
+/**
+ * An orthogonal polygon is a polygon whose edges intersect at right angles
+ */
 module OrthogonalPolygon: {
   type t = Path.t;
 
