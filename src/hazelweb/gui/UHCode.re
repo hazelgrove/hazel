@@ -283,6 +283,12 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
   );
 };
 
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -331,8 +337,6 @@ let view =
               ~cursor_info=Program.get_cursor_info(program),
             )
           : [];
-
-      let root_id = "code-root";
 
       let click_handler = evt => {
         let container_rect =
