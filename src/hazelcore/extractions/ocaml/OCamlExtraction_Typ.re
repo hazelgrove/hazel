@@ -15,34 +15,30 @@ let rec extract = (t: HTyp.t): t =>
   | Bool => OCamlTyp("bool")
   // add parenthesis is necessary
   | Arrow(t1, t2) =>
-    switch (extract(t1), extract(t2)) {
-    | (OCamlTyp(typ1), OCamlTyp(typ2)) =>
-      OCamlTyp("(" ++ typ1 ++ " -> " ++ typ2 ++ ")")
-    }
+    let OCamlTyp(typ1) = extract(t1);
+    let OCamlTyp(typ2) = extract(t2);
+    OCamlTyp("(" ++ typ1 ++ " -> " ++ typ2 ++ ")");
   // use Polymorphic Variants to encode sum, i.e. 'Left of t1, 'Right of t2, and easier for injection
   // the type is "[ `Left of t1 | `Right of t2]"
   // so the expression should be `Left e1, `Right e2 to match this design
   | Sum(t1, t2) =>
-    switch (extract(t1), extract(t2)) {
-    | (OCamlTyp(typ1), OCamlTyp(typ2)) =>
-      OCamlTyp(
-        "[ " ++ "`Left of " ++ typ1 ++ " | " ++ "`Right of " ++ typ2 ++ " ]",
-      )
-    }
+    let OCamlTyp(typ1) = extract(t1);
+    let OCamlTyp(typ2) = extract(t2);
+    OCamlTyp(
+      "[ " ++ "`Left of " ++ typ1 ++ " | " ++ "`Right of " ++ typ2 ++ " ]",
+    );
   // explicit parenthesize, i.e. a*b*c = (a*b)*c
   | Prod(tl) => list_prod(~tl)
   | List(t) =>
-    switch (extract(t)) {
-    | OCamlTyp(typ) => OCamlTyp(typ ++ " list")
-    }
+    let OCamlTyp(typ) = extract(t);
+    OCamlTyp(typ ++ " list");
   }
 and list_prod = (~tl: list(HTyp.t)): t =>
   switch (tl) {
   | [] => OCamlTyp("unit")
   | [h] => extract(h)
   | [h, ...t] =>
-    switch (extract(h), list_prod(~tl=t)) {
-    | (OCamlTyp(typ_hd), OCamlTyp(typ_tl)) =>
-      OCamlTyp("(" ++ typ_hd ++ " * " ++ typ_tl ++ ")")
-    }
+    let OCamlTyp(typ_hd) = extract(h);
+    let OCamlTyp(typ_tl) = list_prod(~tl=t);
+    OCamlTyp("(" ++ typ_hd ++ " * " ++ typ_tl ++ ")");
   };

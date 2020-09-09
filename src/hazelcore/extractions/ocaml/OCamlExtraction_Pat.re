@@ -32,30 +32,25 @@ let rec extract = (dp: DHPat.t): t =>
   // As the type design, we encode it as "|`Left l | `Right r"
   // injection in pattern is used in pattern matching, injL matches the left side of type
   | Inj(side, t) =>
-    switch (extract(t)) {
-    | OCamlPat(pat) =>
-      switch (side) {
-      | L => OCamlPat("(`Left " ++ pat ++ ")")
-      | R => OCamlPat("(`Right " ++ pat ++ ")")
-      }
-    }
+    let OCamlPat(pat) = extract(t);
+    switch (side) {
+    | L => OCamlPat("(`Left " ++ pat ++ ")")
+    | R => OCamlPat("(`Right " ++ pat ++ ")")
+    };
   | ListNil => OCamlPat("[]")
   | Cons(dp1, dp2) =>
-    switch (extract(dp1), extract(dp2)) {
-    | (OCamlPat(pat1), OCamlPat(pat2)) =>
-      OCamlPat("(" ++ pat1 ++ "::" ++ pat2 ++ ")")
-    }
+    let OCamlPat(pat1) = extract(dp1);
+    let OCamlPat(pat2) = extract(dp2);
+    OCamlPat("(" ++ pat1 ++ "::" ++ pat2 ++ ")");
   | Pair(dp1, dp2) =>
-    switch (extract(dp1), extract(dp2)) {
-    | (OCamlPat(pat1), OCamlPat(pat2)) =>
-      OCamlPat("(" ++ pat1 ++ ", " ++ pat2 ++ ")")
-    }
+    let OCamlPat(pat1) = extract(dp1);
+    let OCamlPat(pat2) = extract(dp2);
+    OCamlPat("(" ++ pat1 ++ ", " ++ pat2 ++ ")");
   | Triv => OCamlPat("()")
   | Ap(dp1, dp2) =>
-    switch (extract(dp1), extract(dp2)) {
-    | (OCamlPat(pat1), OCamlPat(pat2)) =>
-      OCamlPat("(" ++ pat1 ++ " " ++ pat2 ++ ")")
-    }
+    let OCamlPat(pat1) = extract(dp1);
+    let OCamlPat(pat2) = extract(dp2);
+    OCamlPat("(" ++ pat1 ++ " " ++ pat2 ++ ")");
   };
 
 //a pattern is not valid in updating
@@ -88,6 +83,7 @@ let rec update_pattern =
     | _ => raise(OCamlExtraction_Typ.Typ_NotMatch("injection", "sum"))
     }
   | Cons(dp1, dp2) =>
+    // update the h,t to context for [h,...t]
     switch (pat_t) {
     | List(t) =>
       // Recursively add sub-patterns.
@@ -96,10 +92,13 @@ let rec update_pattern =
     | _ => raise(OCamlExtraction_Typ.Typ_NotMatch("cons", "list"))
     }
   | Pair(dp1, dp2) =>
+    // update the p1, p2 to context for (p1, p2)
     switch (pat_t) {
+    // the base case, only two elements in a pair
     | Prod([h, t]) =>
       let ctx' = update_pattern(dp1, h, ctx);
       update_pattern(dp2, t, ctx');
+    // nested pairs
     | Prod([h, m, ...t]) =>
       let ctx' = update_pattern(dp1, h, ctx);
       update_pattern(dp2, Prod([m, ...t]), ctx');

@@ -50,16 +50,12 @@ let extract = (ctx: Contexts.t, exp: DHExp.t): t =>
       ++ ExpandingKeyword.to_string(keyword)
       ++ " is not allowed",
     )
-  | exception (OCamlExtraction_Exp.Exp_Invalid(err)) =>
-    switch (err) {
-    | Some(err_s) =>
-      ExtractionFailed(
-        "Expression exception: "
-        ++ err_s
-        ++ " is invalid in OCaml, unable to extract",
-      )
-    | None => ExtractionFailed("Expression exception: Invalid Operation")
-    }
+  | exception (OCamlExtraction_Exp.Exp_Invalid(err_s)) =>
+    ExtractionFailed(
+      "Expression exception: "
+      ++ err_s
+      ++ " is invalid in OCaml, unable to extract",
+    )
   | exception (OCamlExtraction_Exp.Exp_Fixpoint(s)) =>
     ExtractionFailed(
       "Expression exception: Fixpoint \""
