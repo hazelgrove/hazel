@@ -121,7 +121,7 @@ let decoration_views =
         let height = lazy(MeasuredLayout.height(m));
         let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
-          UHDecorationPaths.current(sort, shape, dpaths)
+          UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let (cls, decoration) =
                  UHDecoration.(
@@ -138,7 +138,7 @@ let decoration_views =
                        "var-use",
                        VarUse.view(~corner_radii, ~offset, m),
                      )
-                   | CurrentTerm(_) => (
+                   | CurrentTerm => (
                        "current-term",
                        CurrentTerm.view(
                          ~corner_radii,
