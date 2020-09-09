@@ -1,6 +1,7 @@
 open Pretty;
 
 type t = MeasuredLayout.t(UHAnnot.t);
+type with_offset = MeasuredLayout.with_offset(UHAnnot.t);
 
 let mk: Layout.t(UHAnnot.t) => t;
 

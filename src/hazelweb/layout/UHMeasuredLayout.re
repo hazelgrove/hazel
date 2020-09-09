@@ -3,6 +3,7 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 
 [@deriving sexp]
 type t = MeasuredLayout.t(UHAnnot.t);
+type with_offset = MeasuredLayout.with_offset(UHAnnot.t);
 include MeasuredLayout.Make(WeakMap);
 
 let caret_position_of_path =
