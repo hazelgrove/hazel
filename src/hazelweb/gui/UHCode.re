@@ -6,6 +6,11 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+/**
+ * A buffered container for SVG elements so that strokes along
+ * the bounding box of the elements do not get clipped by the
+ * viewBox boundaries
+ */
 let decoration_container =
     (
       ~font_metrics: FontMetrics.t,
@@ -13,7 +18,7 @@ let decoration_container =
       ~height: int,
       ~width: int,
       ~cls: string,
-      vs: list(Vdom.Node.t),
+      svgs: list(Vdom.Node.t),
     )
     : Vdom.Node.t => {
   let buffered_height = height + 1;
@@ -65,7 +70,7 @@ let decoration_container =
             ),
             Attr.create("preserveAspectRatio", "none"),
           ],
-          vs,
+          svgs,
         ),
       ],
     )
@@ -83,10 +88,10 @@ let decoration_views =
 
   let rec go =
           (
-            ~tl: list(Vdom.Node.t)=[],
-            ~indent=0,
-            ~start=MeasuredPosition.zero,
-            dpaths: UHDecorationPaths.t,
+            ~tl: list(Vdom.Node.t)=[], // tail-recursive
+            ~indent=0, // indentation level of `m`
+            ~start=MeasuredPosition.zero, // start position of `m`
+            dpaths: UHDecorationPaths.t, // paths to decorations within `m`
             m: UHMeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
@@ -328,37 +333,38 @@ let view =
             )
           : [];
 
-      let id = "code-root";
+      let root_id = "code-root";
+
+      let click_handler = evt => {
+        let container_rect =
+          JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+        let (target_x, target_y) = (
+          float_of_int(evt##.clientX),
+          float_of_int(evt##.clientY),
+        );
+        let caret_pos =
+          MeasuredPosition.{
+            row:
+              Float.to_int(
+                (target_y -. container_rect##.top) /. font_metrics.row_height,
+              ),
+            col:
+              Float.to_int(
+                Float.round(
+                  (target_x -. container_rect##.left) /. font_metrics.col_width,
+                ),
+              ),
+          };
+        inject(ModelAction.MoveAction(Click(caret_pos)));
+      };
+
       Node.div(
         [
-          Attr.id(id),
+          Attr.id(root_id),
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler
-          Attr.on_mousedown(evt => {
-            let container_rect =
-              JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
-            let (target_x, target_y) = (
-              float_of_int(evt##.clientX),
-              float_of_int(evt##.clientY),
-            );
-            let caret_pos =
-              MeasuredPosition.{
-                row:
-                  Float.to_int(
-                    (target_y -. container_rect##.top)
-                    /. font_metrics.row_height,
-                  ),
-                col:
-                  Float.to_int(
-                    Float.round(
-                      (target_x -. container_rect##.left)
-                      /. font_metrics.col_width,
-                    ),
-                  ),
-              };
-            inject(ModelAction.MoveAction(Click(caret_pos)));
-          }),
+          Attr.on_mousedown(click_handler),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
