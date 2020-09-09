@@ -12,14 +12,15 @@ type t = {
 let is_empty: t => bool;
 
 /**
- * Given `dpaths` containing the decoration paths for
- * some UH-term, `take_step(n, dpaths)` returns the
- * decoration paths within the UH-term's `n`th child.
+ * Given the decoration paths `dpaths` for some UH-term,
+ * `take_step(n, dpaths)` returns the decoration paths
+ * within the UH-term's `n`th child
  */
 let take_step: (int, t) => t;
 
 /**
- * `current(shape, dpaths)` returns the shapes of decorations
- * adorning the root of the current UH-term
+ * Given the decoration paths `dpaths` for some UH-term of
+ * shape `s`, `current(s, dpaths)` returns the shapes of
+ * decorations adorning the UH-term root
  */
 let current: (TermShape.t, t) => list(UHDecorationShape.t);
