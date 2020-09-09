@@ -38,6 +38,11 @@ and t'('annot) =
   | Cat(t('annot), t('annot))
   | Annot('annot, t('annot));
 
+/**
+ * A measured layout coupled with the offset of its head box
+ */
+type with_offset('annot) = (int, t('annot));
+
 let height: t(_) => int;
 let width: (~offset: int=?, t(_)) => int;
 

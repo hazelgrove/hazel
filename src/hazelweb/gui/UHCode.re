@@ -133,24 +133,23 @@ let decoration_views =
                    switch (dshape) {
                    | ErrHole => (
                        "err-hole",
-                       ErrHole.view(~corner_radii, ~offset, m),
+                       ErrHole.view(~corner_radii, (offset, m)),
                      )
                    | VarErrHole => (
                        "var-err-hole",
-                       VarErrHole.view(~corner_radii, ~offset, m),
+                       VarErrHole.view(~corner_radii, (offset, m)),
                      )
                    | VarUse => (
                        "var-use",
-                       VarUse.view(~corner_radii, ~offset, m),
+                       VarUse.view(~corner_radii, (offset, m)),
                      )
                    | CurrentTerm => (
                        "current-term",
                        CurrentTerm.view(
                          ~corner_radii,
-                         ~offset,
                          ~sort,
                          ~shape,
-                         m,
+                         (offset, m),
                        ),
                      )
                    }
