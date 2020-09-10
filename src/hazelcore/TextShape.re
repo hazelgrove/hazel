@@ -29,6 +29,7 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
   };
 
 let of_text = (text: string): option(t) => {
+  print_endline(text);
   switch (
     int_of_string_opt(text),
     hazel_float_of_string_opt(text),
@@ -42,10 +43,10 @@ let of_text = (text: string): option(t) => {
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
       Some(Underscore);
+    } else if (text |> Label.is_valid) {
+      Some(Label(text));
     } else if (text |> Var.is_valid) {
       Some(Var(text));
-    } else if (text.[0] == '.') {
-      Some(Label(text));
     } else {
       None;
     }

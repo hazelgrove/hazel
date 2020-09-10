@@ -118,6 +118,10 @@ let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
 
+let mk_Label = l => Doc.text(l);
+
+let mk_Label_Elt = (doc1, doc2) => Doc.(hcats([doc1, text(" "), doc2]));
+
 module Typ = {
   let promote_annot =
     fun
@@ -230,7 +234,9 @@ module Exp = {
     | Triv
     | FailedCast(_)
     | InvalidOperation(_)
-    | Lam(_) => precedence_const
+    | Lam(_)
+    | Label(_)
+    | Label_Elt(_, _) => precedence_const
     | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
     | FixF(_)
@@ -243,8 +249,6 @@ module Exp = {
     | Cons(_) => precedence_Cons
     | Pair(_) => precedence_Comma
     | NonEmptyHole(_, _, _, _, d) => precedence'(d)
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_, _) => failwith("unimplemented")
     };
   };
 
@@ -513,8 +517,9 @@ module Exp = {
           } else {
             annot(DHAnnot.Collapsed, text("<fn>"));
           }
-        | Label(_) => failwith("unimplemented")
-        | Label_Elt(_) => failwith("unimplemented")
+        | Label(label) => mk_Label(label)
+        | Label_Elt(d1, d2) =>
+          mk_Label_Elt(mk_cast(go'(d1)), mk_cast(go'(d2)))
         };
       let doc =
         parenthesize

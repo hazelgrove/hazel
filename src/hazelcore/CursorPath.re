@@ -442,7 +442,8 @@ module Typ = {
       | Unit
       | Int
       | Float
-      | Bool => None
+      | Bool
+      | Label(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -459,7 +460,6 @@ module Typ = {
           |> OptUtil.map(zbody => ZTyp.ListZ(zbody))
         | _ => None
         }
-      | Label(_) => failwith("unimplemented")
       }
     }
   and follow_operator =
@@ -497,7 +497,8 @@ module Typ = {
       | Unit
       | Int
       | Float
-      | Bool => None
+      | Bool
+      | Label(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -510,7 +511,6 @@ module Typ = {
           body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(0, path))
         | _ => None
         }
-      | Label(_) => failwith("unimplemented")
       }
     }
   and of_steps_operator =
@@ -542,10 +542,10 @@ module Typ = {
     | Unit
     | Int
     | Float
-    | Bool => hs
+    | Bool
+    | Label(_) => hs
     | Parenthesized(body)
     | List(body) => hs |> holes(body, [0, ...rev_steps])
-    | Label(_) => failwith("unimplemented")
     };
 
   let rec holes_z = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list =>
@@ -565,7 +565,7 @@ module Typ = {
     switch (zoperand) {
     | CursorT(_, Hole) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
-    | CursorT(_, Unit | Int | Float | Bool) => no_holes
+    | CursorT(_, Unit | Int | Float | Bool | Label(_)) => no_holes
     | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
       let holes = holes(body, [0, ...rev_steps], []);
       switch (k) {
@@ -578,7 +578,6 @@ module Typ = {
       no_holes
     | ParenthesizedZ(zbody)
     | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-    | CursorT(_, Label(_)) => failwith("unimplemented")
     };
 };
 
@@ -611,7 +610,8 @@ module Pat = {
       | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
-      | ListNil(_) => None
+      | ListNil(_)
+      | Label(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -628,7 +628,6 @@ module Pat = {
           |> OptUtil.map(zbody => ZPat.InjZ(err, side, zbody))
         | _ => None
         }
-      | Label(_) => failwith("unimplemented")
       }
     }
   and follow_operator =
@@ -668,7 +667,8 @@ module Pat = {
       | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
-      | ListNil(_) => None
+      | ListNil(_)
+      | Label(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -681,7 +681,6 @@ module Pat = {
           body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(0, path))
         | _ => None
         }
-      | Label(_) => failwith("unimplemented")
       }
     }
   and of_steps_operator =
@@ -721,7 +720,8 @@ module Pat = {
     | IntLit(InHole(_, u), _)
     | FloatLit(InHole(_, u), _)
     | BoolLit(InHole(_, u), _)
-    | ListNil(InHole(_, u)) => [
+    | ListNil(InHole(_, u))
+    | Label(InHole(_, u), _) => [
         (PatHole(u), rev_steps |> List.rev),
         ...hs,
       ]
@@ -730,7 +730,8 @@ module Pat = {
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ListNil(NotInHole) => hs
+    | ListNil(NotInHole)
+    | Label(NotInHole, _) => hs
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
     | Inj(err, _, body) =>
       let body_holes = hs |> holes(body, [0, ...rev_steps]);
@@ -741,7 +742,6 @@ module Pat = {
           ...body_holes,
         ]
       };
-    | Label(_) => failwith("unimplemented")
     };
 
   let rec holes_z = (zp: ZPat.t, rev_steps: rev_steps): zhole_list =>
@@ -940,7 +940,8 @@ module Exp = {
       | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
-      | ListNil(_) => None
+      | ListNil(_)
+      | Label(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -1005,7 +1006,6 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
-      | Label(_) => failwith("unimplemented")
       | Prj(_) => failwith("unimplemented")
       }
     }
@@ -1130,7 +1130,8 @@ module Exp = {
       | IntLit(_, _)
       | FloatLit(_, _)
       | BoolLit(_, _)
-      | ListNil(_) => None
+      | ListNil(_)
+      | Label(_) => None
       | Parenthesized(body) =>
         switch (x) {
         | 0 =>
@@ -1181,7 +1182,6 @@ module Exp = {
           let (_, e) = ty_e;
           e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path));
         };
-      | Label(_) => failwith("unimplemented")
       | Prj(_) => failwith("unimplemented")
       }
     }

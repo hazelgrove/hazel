@@ -229,7 +229,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
-    | Label(_) => failwith("unimplemented")
+    | Label(_, label) => Len(Label.length(label))
     | Prj(_) => failwith("unimplemented")
     }
   | Pat(_, operand) =>

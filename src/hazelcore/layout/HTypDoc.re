@@ -32,6 +32,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
     mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
   );
+  let mk_left_associative_operands = (precedence_op, ty1, ty2) => (
+    // ECD TODO: Am I doing this right?
+    mk'(~parenthesize=HTyp.precedence(ty2) <= precedence_op, ty2),
+    mk'(~parenthesize=HTyp.precedence(ty1) < precedence_op, ty1),
+  );
   let doc =
     switch (ty) {
     | Hole => annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
@@ -83,8 +88,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         hcats([choices([linebreak(), space()]), text("| ")]),
         d2,
       ]);
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_) => failwith("unimplemented")
+    | Label(label) => text(label)
+    | Label_Elt(ty1, ty2) =>
+      let (d1, d2) =
+        mk_left_associative_operands(HTyp.precedence_Label, ty1, ty2);
+      hcats([d1, text(" "), d2]);
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

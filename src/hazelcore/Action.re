@@ -343,8 +343,8 @@ module Typ = {
       Succeeded(
         ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.delete(l, j)))),
       )
-    | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
-      failwith("unimplemented") //TODO ECD: How to create a labeled element type
+    // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
+    //   failwith("unimplemented") //TODO ECD: How to create a labeled element type
     | (_, CursorT(OnDelim(_), Label(_))) => Failed
     | (Construct(SChar(".")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))

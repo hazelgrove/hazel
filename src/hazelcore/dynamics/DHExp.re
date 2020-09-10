@@ -171,7 +171,7 @@ and case =
 and rule =
   | Rule(DHPat.t, t);
 
-let constructor_string = (d: t): string =>
+let rec constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
@@ -198,8 +198,10 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
-  | Label(_) => failwith("unimplemented")
-  | Label_Elt(_, _) => failwith("unimplemented")
+  | Label(label) => label
+  | Label_Elt(elt1, elt2) =>
+    // ECD TODO: is this the right way, or should it be hardcoded?
+    constructor_string(elt1) ++ " " ++ constructor_string(elt2)
   };
 
 let rec mk_tuple: list(t) => t =

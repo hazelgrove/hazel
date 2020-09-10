@@ -1784,7 +1784,8 @@ module Exp = {
     | IntLit(_)
     | FloatLit(_)
     | ListNil(_)
-    | Triv => (d, hii)
+    | Triv
+    | Label(_) => (d, hii)
     | Let(dp, d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1853,8 +1854,10 @@ module Exp = {
     | InvalidOperation(d, err) =>
       let (d, hii) = renumber_result_only(path, hii, d);
       (InvalidOperation(d, err), hii);
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_, _) => failwith("unimplemented")
+    | Label_Elt(d1, d2) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (d2, hii) = renumber_result_only(path, hii, d2);
+      (Label_Elt(d1, d2), hii);
     }
   and renumber_result_only_rules =
       (
@@ -1886,7 +1889,8 @@ module Exp = {
     | IntLit(_)
     | FloatLit(_)
     | ListNil(_)
-    | Triv => (d, hii)
+    | Triv
+    | Label(_) => (d, hii)
     | Let(dp, d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1960,8 +1964,10 @@ module Exp = {
     | InvalidOperation(d, err) =>
       let (d, hii) = renumber_sigmas_only(path, hii, d);
       (InvalidOperation(d, err), hii);
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_, _) => failwith("unimplemented")
+    | Label_Elt(d1, d2) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+      (Pair(d1, d2), hii);
     }
   and renumber_sigmas_only_rules =
       (
