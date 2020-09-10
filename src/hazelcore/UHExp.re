@@ -387,7 +387,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   | Label(InHole(_), _) => false
   | Label(NotInHole, _) => true
-  | Prj(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented Label Projection")
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {

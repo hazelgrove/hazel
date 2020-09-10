@@ -29,7 +29,6 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
   };
 
 let of_text = (text: string): option(t) => {
-  print_endline(text);
   switch (
     int_of_string_opt(text),
     hazel_float_of_string_opt(text),

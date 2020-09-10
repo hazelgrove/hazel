@@ -2,7 +2,6 @@ open Sexplib.Std;
 [@deriving sexp]
 type t = string;
 
-// ECD TODO: This regex is not working
 let valid_regex = Re.Str.regexp({|^\.[_a-zA-Z]*[_a-zA-Z0-9']*$|});
 let is_valid = s => Re.Str.string_match(valid_regex, s, 0);
 

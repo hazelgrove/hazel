@@ -125,7 +125,7 @@ module Pat = {
         Some((ty, ctx));
       }
     | Parenthesized(p) => syn(ctx, p)
-    | Label(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     ana_opseq(ctx, p, ty)
@@ -237,7 +237,7 @@ module Pat = {
         ana(ctx, p1, ty1);
       }
     | Parenthesized(p) => ana(ctx, p, ty)
-    | Label(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
     };
 
   /**
@@ -476,7 +476,7 @@ module Pat = {
         | R => HTyp.Sum(Hole, ty1)
         };
       (p, ty, ctx, u_gen);
-    | Label(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
     };
   }
   and ana_fix_holes =
@@ -1841,7 +1841,7 @@ module Exp = {
         );
       };
     | Label(_, id) => (e_nih, Label(id), u_gen)
-    | Prj(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented Label Projection")
     };
   }
   and syn_fix_holes_rules =
@@ -2313,7 +2313,7 @@ module Exp = {
           u_gen,
         );
       };
-    | Prj(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplementedLabel Projection")
     };
 
   let syn_fix_holes_z =

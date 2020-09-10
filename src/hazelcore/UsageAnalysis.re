@@ -87,7 +87,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
-  | Prj(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented Label Projection")
   }
 and find_uses_rule =
     (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>

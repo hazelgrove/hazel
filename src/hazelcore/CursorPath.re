@@ -823,7 +823,7 @@ module Pat = {
           ],
         }
       };
-    | CursorP(_, Label(_)) => failwith("unimplemented")
+    | CursorP(_, Label(_)) => failwith("unimplemented Label Pattern")
     };
 };
 
@@ -1006,7 +1006,7 @@ module Exp = {
         | Some(zsplice_info) =>
           Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
         }
-      | Prj(_) => failwith("unimplemented")
+      | Prj(_) => failwith("unimplemented Label Projection")
       }
     }
   and follow_rules =
@@ -1182,7 +1182,7 @@ module Exp = {
           let (_, e) = ty_e;
           e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path));
         };
-      | Prj(_) => failwith("unimplemented")
+      | Prj(_) => failwith("unimplemented Label Projection")
       }
     }
   and of_steps_rule =
@@ -1253,7 +1253,8 @@ module Exp = {
     | IntLit(err, _)
     | FloatLit(err, _)
     | BoolLit(err, _)
-    | ListNil(err) => hs |> holes_err(err, rev_steps)
+    | ListNil(err)
+    | Label(err, _) => hs |> holes_err(err, rev_steps)
     | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
     | Inj(err, _, body) =>
       hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
@@ -1290,8 +1291,7 @@ module Exp = {
         hs,
       )
       |> holes_err(err, rev_steps);
-    | Label(_) => failwith("unimplemented")
-    | Prj(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented Label Projection Hole")
     }
   and holes_rule =
       (Rule(p, clause): UHExp.rule, rev_steps: rev_steps, hs: hole_list)
@@ -1436,7 +1436,8 @@ module Exp = {
     | CursorE(_, IntLit(err, _))
     | CursorE(_, FloatLit(err, _))
     | CursorE(_, BoolLit(err, _))
-    | CursorE(_, ListNil(err)) =>
+    | CursorE(_, ListNil(err))
+    | CursorE(_, Label(err, _)) =>
       switch (err) {
       | NotInHole => no_holes
       | InHole(_, u) =>
@@ -1693,8 +1694,7 @@ module Exp = {
         hole_selected,
         holes_after: holes_after @ holes_splices_after,
       };
-    | CursorE(_, Label(_))
-    | CursorE(_, Prj(_)) => failwith("unimplemented")
+    | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
     }
   and holes_zrule = (zrule: ZExp.zrule, rev_steps: rev_steps) =>
     switch (zrule) {

@@ -1612,7 +1612,7 @@ module Exp = {
               : None;
           }
         }
-      | Prj(NotInHole, _, _) => failwith("unimplemented")
+      | Prj(NotInHole, _, _) => failwith("unimplemented Label Projection")
       } /* zipper cases */
     | ParenthesizedZ(zbody) =>
       ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */

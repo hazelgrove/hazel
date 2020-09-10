@@ -172,7 +172,7 @@ module Pat = {
           };
         Expands(dp, ty, ctx, delta);
       }
-    | Label(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
     }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
@@ -390,7 +390,7 @@ module Pat = {
           Expands(Inj(side, dp1), ty, ctx, delta);
         };
       }
-    | Label(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
     };
 
   let rec renumber_result_only =
@@ -740,8 +740,8 @@ module Exp = {
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label_Elt(_) => failwith("unimplemented Label Elt Pattern")
     }
   and matches_cast_Pair =
       (
@@ -801,8 +801,8 @@ module Exp = {
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label_Elt(_, _) => failwith("unimplemented Label Elt Pattern")
     }
   and matches_cast_Cons =
       (
@@ -860,8 +860,8 @@ module Exp = {
     | NonEmptyHole(_, _, _, _, _) => Indet
     | FailedCast(_, _, _) => Indet
     | InvalidOperation(_) => Indet
-    | Label(_) => failwith("unimplemented")
-    | Label_Elt(_, _) => failwith("unimplemented")
+    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label_Elt(_, _) => failwith("unimplemented Label Elt Pattern")
     };
 
   type expand_result_lines =
@@ -1335,7 +1335,7 @@ module Exp = {
        | None -> ExpandResult.DoesNotExpand
        end */
     | Label(NotInHole, label) => Expands(Label(label), Label(label), delta)
-    | Prj(NotInHole, _, _) => failwith("unimplemented")
+    | Prj(NotInHole, _, _) => failwith("unimplemented Label Projection")
     }
   and syn_expand_rules =
       (
@@ -1728,7 +1728,7 @@ module Exp = {
       } else {
         ExpandResult.DoesNotExpand;
       }
-    | Prj(_) => failwith("unimplemented")
+    | Prj(_) => failwith("unimplemented Label Projection")
     }
   and ana_expand_rules =
       (

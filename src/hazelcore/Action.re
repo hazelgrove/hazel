@@ -832,7 +832,7 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    | Some(Label(_)) => failwith("unimplemented")
+    | Some(Label(_)) => failwith("unimplemented Label Pattern")
     };
   };
 
@@ -1492,7 +1492,7 @@ module Pat = {
         Succeeded((zp, ty, ctx, u_gen));
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorP(_, Label(_))) => failwith("unimplemented")
+    | (_, CursorP(_, Label(_))) => failwith("unimplemented Label Pattern")
     };
   }
   and ana_perform =
@@ -1943,7 +1943,7 @@ module Pat = {
         }
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorP(_, Label(_))) => failwith("unimplemented")
+    | (_, CursorP(_, Label(_))) => failwith("unimplemented Label Pattern")
     };
 };
 
@@ -3826,7 +3826,7 @@ module Exp = {
         }
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorE(_, Prj(_))) => failwith("unimplemented")
+    | (_, CursorE(_, Prj(_))) => failwith("unimplemented Label Projection")
     };
   }
   and syn_perform_rules =
@@ -5172,7 +5172,7 @@ module Exp = {
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     /* Invalid actions at the expression level */
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorE(_, Prj(_))) => failwith("unimplemented")
+    | (_, CursorE(_, Prj(_))) => failwith("unimplemented Label Projection")
     }
   and ana_perform_subsume =
       (

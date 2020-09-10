@@ -107,7 +107,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | ApPalette(_) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
   // ecd todo: do we need an additional cursor length to account for the dot in a label?
   | Label(_, l) => CursorPosition.text_cursors(Label.length(l))
-  | Prj(_) => failwith("unimplemented");
+  | Prj(_) => failwith("unimplemented Label Projection");
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -177,7 +177,7 @@ and is_before_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Prj(_)) => failwith("unimplemented");
+  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
 let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true
@@ -226,7 +226,7 @@ and is_after_zoperand =
   | CaseZR(_)
   | ApPaletteZ(_) => false
   | CursorE(cursor, Label(_, l)) => cursor == OnText(Label.length(l))
-  | CursorE(_, Prj(_)) => failwith("unimplemented");
+  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
@@ -275,7 +275,7 @@ and is_outer_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(_, Prj(_)) => failwith("unimplemented");
+  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
@@ -308,7 +308,7 @@ and place_before_operand = operand =>
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
-  | Prj(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented Label Projection")
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
@@ -346,7 +346,7 @@ and place_after_operand = operand =>
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   | ApPalette(_) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
   | Label(_)
-  | Prj(_) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented Label Projection")
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
@@ -750,7 +750,7 @@ and move_cursor_left_zoperand =
     }
   | ApPaletteZ(_, _, _, _) => None
   | CursorE(_, Label(_))
-  | CursorE(_, Prj(_)) => failwith("unimplemented")
+  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
 and move_cursor_left_zrules =
   fun
   | (prefix, zrule, suffix) =>
@@ -979,7 +979,7 @@ and move_cursor_right_zoperand =
     }
   | ApPaletteZ(_, _, _, _) => None
   | CursorE(_, Label(_))
-  | CursorE(_, Prj(_)) => failwith("unimplemented")
+  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
 and move_cursor_right_zrules =
   fun
   | (prefix, zrule, suffix) =>
