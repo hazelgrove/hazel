@@ -109,6 +109,8 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
+let mk_Unop = doc1 => Doc.(hcats([doc1]));
+
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
 

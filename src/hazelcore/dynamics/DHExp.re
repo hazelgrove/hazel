@@ -85,16 +85,16 @@ module BinIntOp = {
 module UnIntOp = {
   [@deriving sexp]
   type t =
-    | Minus;
-  // let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
-  //   switch (op) {
-  //   | Minus => Some((Minus, Int))
-  //   | _ => None
-  //   };
-  // let to_op = (bio: t): UHExp.unop =>
-  //   switch (bio) {
-  //   | Minus => Minus
-  //   };
+    | UnaryMinus;
+  let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
+    switch (op) {
+    | UnaryMinus => Some((UnaryMinus, Int))
+    | _ => None
+    };
+  let to_op = (bio: t): UHExp.unop =>
+    switch (bio) {
+    | UnaryMinus => UnaryMinus
+    };
 };
 
 module BinFloatOp = {
@@ -167,6 +167,7 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
+  | UnIntOp(UnIntOp.t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -200,6 +201,7 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
+  | UnIntOp(_, _) => "UnIntOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"

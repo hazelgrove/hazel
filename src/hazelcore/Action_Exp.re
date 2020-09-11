@@ -1682,6 +1682,7 @@ and syn_perform_operand =
         ZExp.ZBlock.wrap(
           ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
         );
+      print_endline("SYN PERFORM OPERAND");
       Succeeded(SynDone((new_ze, ty_u, u_gen)));
     | _ =>
       switch (operator_of_shape(os)) {
@@ -3122,6 +3123,7 @@ and ana_perform_operand =
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (os) {
     | SMinus =>
+      print_endline("ANA PERFORM OPERAND");
       let unop = UnaryOperators_Exp.UnaryMinus;
       let zunop = (CursorPosition.OnOp(After), unop);
       let ty_u: HTyp.t =

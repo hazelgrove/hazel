@@ -40,6 +40,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
+  | UnIntOp(_)
   | Lam(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
@@ -204,6 +205,9 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
+      | UnIntOp(_, d1) =>
+        let doc1 = go'(d1);
+        DHDoc_common.mk_Unop(mk_cast(doc1));
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);

@@ -69,6 +69,12 @@ let eval_bin_float_op =
   };
 };
 
+let eval_un_int_op = (op: DHExp.UnIntOp.t, n1: int): DHExp.t => {
+  switch (op) {
+  | UnaryMinus => IntLit(- n1)
+  };
+};
+
 let rec evaluate = (d: DHExp.t): result =>
   switch (d) {
   | BoundVar(_) => InvalidInput(1)
@@ -187,6 +193,13 @@ let rec evaluate = (d: DHExp.t): result =>
       | BoxedValue(d2')
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
+    }
+  | UnIntOp(op, d1) =>
+    switch (evaluate(d1)) {
+    | InvalidInput(msg) => InvalidInput(msg)
+    | BoxedValue(IntLit(n1)) => BoxedValue(eval_un_int_op(op, n1))
+    | BoxedValue(_) => InvalidInput(4)
+    | Indet(d1') => Indet(UnIntOp(op, d1'))
     }
   | Inj(ty, side, d1) =>
     switch (evaluate(d1)) {

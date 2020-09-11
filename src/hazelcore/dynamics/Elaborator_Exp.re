@@ -58,6 +58,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | UnIntOp(op, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    UnIntOp(op, d3);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -282,6 +285,7 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | UnIntOp(_, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -341,6 +345,7 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | UnIntOp(_, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -398,6 +403,7 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | UnIntOp(_, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -796,16 +802,16 @@ and syn_elab_operand =
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
     };
-  | UnaryOp(NotInHole, unop, operand) =>
-    switch (syn_elab_operand(ctx, delta, operand)) {
+  | UnaryOp(NotInHole, UnaryMinus, operand) =>
+    switch (ana_elab_operand(ctx, delta, operand, HTyp.Int)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      switch (d1, unop) {
-      | (IntLit(i), UnaryMinus) => Elaborates(IntLit(- i), ty1, delta)
-      | (FloatLit(f), FUnaryMinus) => Elaborates(FloatLit(-. f), ty1, delta)
-      | (_, _) => DoesNotElaborate
-      }
+      let dc1 = DHExp.cast(d1, ty1, Int);
+      let d = DHExp.UnIntOp(UnaryMinus, dc1);
+      Elaborates(d, Int, delta);
     }
+  | UnaryOp(NotInHole, FUnaryMinus, _) =>
+    failwith("unary float minus not implemented")
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1314,6 +1320,9 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | UnIntOp(op, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (UnIntOp(op, d1), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1411,6 +1420,9 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | UnIntOp(op, d1) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    (UnIntOp(op, d1), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
