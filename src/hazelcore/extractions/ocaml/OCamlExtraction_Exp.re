@@ -37,20 +37,20 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
   // Recursive functions can only declear by Let, this design is to keep the invariant
   | FixF(s, _ht, _d) => raise(Exp_Fixpoint(s))
   | Let(dp, d1, d2) =>
-    let OCamlPat(pat_str) = OCamlExtraction_Pat.extract(dp);
     // if d1 is a resursive function, should first update itself to context
     let OCamlExp(exp1_str, exp1_typ) =
       switch (d1) {
       | FixF(s, ht, d) =>
         //fixpoint function name should be added into the context to evaluate itself
         let ctx_fix = Contexts.extend_gamma(ctx, (s, ht));
-        switch (extract(ctx_fix, d)) {
-        | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str, ht)
-        };
+        let OCamlExp(exp_str, _exp_typ) = extract(ctx_fix, d);
+        OCamlExp(exp_str, ht);
       | _ => extract(ctx, d1)
       };
     //let can support various pattern declaration besides variable
-    let ctx' = OCamlExtraction_Pat.update_pattern(dp, exp1_typ, ctx);
+    // extract and update the pattern
+    let OCamlPat(pat_str, ctx') =
+      OCamlExtraction_Pat.extract(dp, exp1_typ, ctx);
     let OCamlExp(exp2_str, exp2_typ) = extract(ctx', d2);
     let OCamlTyp(typ_str) = OCamlExtraction_Typ.extract(exp1_typ);
     //using "let x:t = d1 in d2" ocaml format, if d1 is a recursive function, use "let rec" instead
@@ -62,10 +62,9 @@ let rec extract = (ctx: Contexts.t, de: DHExp.t): t =>
     };
   | Lam(dp, ht, d) =>
     //Htyp.t is the expected type of pattern
-    let OCamlPat(pat_str) = OCamlExtraction_Pat.extract(dp);
+    // lambda can declear various patterns besides variable
+    let OCamlPat(pat_str, ctx') = OCamlExtraction_Pat.extract(dp, ht, ctx);
     let OCamlTyp(typ_str) = OCamlExtraction_Typ.extract(ht);
-    // lambda can also declear various patterns besides variable
-    let ctx' = OCamlExtraction_Pat.update_pattern(dp, ht, ctx);
     let OCamlExp(exp_str, exp_typ) = extract(ctx', d);
     OCamlExp(
       "(fun (" ++ pat_str ++ " : " ++ typ_str ++ ") -> (" ++ exp_str ++ "))",
@@ -210,8 +209,7 @@ and rules_extract =
   }
 and rule_extract = (~ctx: Contexts.t, ~rule: DHExp.rule, ~pat_t: HTyp.t): t => {
   let Rule(pat, exp) = rule;
-  let ctx' = OCamlExtraction_Pat.update_pattern(pat, pat_t, ctx);
-  let OCamlPat(pat_str) = OCamlExtraction_Pat.extract(pat);
+  let OCamlPat(pat_str, ctx') = OCamlExtraction_Pat.extract(pat, pat_t, ctx);
   let OCamlExp(exp_str, exp_typ) = extract(ctx', exp);
   OCamlExp("\t| " ++ pat_str ++ " -> " ++ exp_str, exp_typ);
 };
