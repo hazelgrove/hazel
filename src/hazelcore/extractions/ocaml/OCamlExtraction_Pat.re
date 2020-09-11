@@ -47,6 +47,7 @@ let rec extract = (dp: DHPat.t): t =>
     let OCamlPat(pat2) = extract(dp2);
     OCamlPat("(" ++ pat1 ++ ", " ++ pat2 ++ ")");
   | Triv => OCamlPat("()")
+  // The apply case only exists syntactically, but will become a hole, so this code will never run
   | Ap(dp1, dp2) =>
     let OCamlPat(pat1) = extract(dp1);
     let OCamlPat(pat2) = extract(dp2);
