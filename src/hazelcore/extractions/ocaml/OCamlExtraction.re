@@ -6,10 +6,7 @@ type t =
 let extract = (ctx: Contexts.t, exp: DHExp.t): t =>
   switch (OCamlExtraction_Exp.extract(ctx, exp)) {
   // normal return value
-  | item =>
-    switch (item) {
-    | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str)
-    }
+  | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str)
   // Exception handling
   //TODO: make the exceptions more human readable
   // type extraction exceptions
