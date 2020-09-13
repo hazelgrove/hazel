@@ -9,6 +9,4 @@ let update_environment: (t, HoleInstance.t, Environment.t) => t;
 
 let num_instances: (t, MetaVar.t) => int;
 
-let default_instance: (t, MetaVar.t) => option((MetaVar.t, int));
-
 let lookup: (t, HoleInstance.t) => option((Environment.t, InstancePath.t));

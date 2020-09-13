@@ -42,6 +42,9 @@ let labeled_checkbox =
   );
 };
 
+let details = Vdom.Node.create("details");
+let summary = Vdom.Node.create("summary");
+
 let view =
     (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let compute_results_checkbox =
@@ -174,5 +177,8 @@ let view =
         ],
       )
     );
-  compute_results_checkbox;
+  details(
+    [],
+    [summary([], [Vdom.Node.text("Options")]), compute_results_checkbox],
+  );
 };

@@ -28,8 +28,6 @@ type binding = ((Row.t, Col.t), CursorPath_common.rev_t);
  */
 let mk: UHLayout.t => (t, option(binding));
 
-let num_rows: t => int;
-
 /**
  * All movement functions will throw {!exception:Not_found}
  * if the given {!type:Row.t} is not present in the map.
