@@ -1,7 +1,4 @@
-[@deriving sexp]
-type t = Pretty.Doc.t(DHAnnot.t);
-
-type formattable_child = (~enforce_inline: bool) => t;
+type formattable_child = (~enforce_inline: bool) => DHDoc.t;
 
 let precedence_const: int;
 let precedence_Ap: int;
@@ -24,42 +21,42 @@ let pad_child:
     ~enforce_inline: bool,
     formattable_child
   ) =>
-  t;
+  DHDoc.t;
 
 module Delim: {
-  let mk: string => t;
+  let mk: string => DHDoc.t;
 
-  let empty_hole: HoleInstance.t => t;
+  let empty_hole: HoleInstance.t => DHDoc.t;
 
-  let list_nil: t;
-  let triv: t;
-  let wild: t;
+  let list_nil: DHDoc.t;
+  let triv: DHDoc.t;
+  let wild: DHDoc.t;
 
-  let open_Parenthesized: t;
-  let close_Parenthesized: t;
+  let open_Parenthesized: DHDoc.t;
+  let close_Parenthesized: DHDoc.t;
 
-  let sym_Lam: t;
-  let colon_Lam: t;
-  let open_Lam: t;
-  let close_Lam: t;
+  let sym_Lam: DHDoc.t;
+  let colon_Lam: DHDoc.t;
+  let open_Lam: DHDoc.t;
+  let close_Lam: DHDoc.t;
 
-  let fix_FixF: t;
-  let colon_FixF: t;
-  let open_FixF: t;
-  let close_FixF: t;
+  let fix_FixF: DHDoc.t;
+  let colon_FixF: DHDoc.t;
+  let open_FixF: DHDoc.t;
+  let close_FixF: DHDoc.t;
 
-  let open_Inj: InjSide.t => t;
-  let close_Inj: t;
+  let open_Inj: InjSide.t => DHDoc.t;
+  let close_Inj: DHDoc.t;
 
-  let open_Case: t;
-  let close_Case: t;
+  let open_Case: DHDoc.t;
+  let close_Case: DHDoc.t;
 
-  let bar_Rule: t;
-  let arrow_Rule: t;
+  let bar_Rule: DHDoc.t;
+  let arrow_Rule: DHDoc.t;
 
-  let open_Cast: t;
-  let arrow_Cast: t;
-  let close_Cast: t;
+  let open_Cast: DHDoc.t;
+  let arrow_Cast: DHDoc.t;
+  let close_Cast: DHDoc.t;
 
   let open_FailedCast: Pretty.Doc.t(DHAnnot.t);
   let arrow_FailedCast: Pretty.Doc.t(DHAnnot.t);
