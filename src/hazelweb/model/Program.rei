@@ -1,19 +1,19 @@
 /**
  * A Hazel program ready for user interaction.
- * Contains, in addition to `Statics_common.edit_state`,
+ * Contains, in addition to `Statics.edit_state`,
  * user interface state such as the current width of
  * the editor, whether the editor is focused, etc.
  */
 [@deriving sexp]
 type t =
   pri {
-    edit_state: Statics_common.edit_state,
+    edit_state: Statics.edit_state,
     width: int,
     start_col_of_vertical_movement: option(int),
     is_focused: bool,
   };
 
-let mk: (~width: int, ~is_focused: bool=?, Statics_common.edit_state) => t;
+let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
 
 let focus: t => t;
 let blur: t => t;

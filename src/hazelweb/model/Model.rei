@@ -58,7 +58,7 @@ let init: unit => t;
 
 let get_program: t => Program.t;
 
-let get_edit_state: t => Statics_common.edit_state;
+let get_edit_state: t => Statics.edit_state;
 
 let get_card: t => ZCard.t;
 let get_cardstack: t => Cardstack.t;

@@ -1,12 +1,4 @@
-[@deriving sexp]
-type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
-
-/**
- * The typing mode for some subexpression in the program
- */
-type type_mode =
-  | Syn
-  | Ana(HTyp.t);
+open Statics;
 
 /**
  * Given a `skel` in analytic position against type `ty`,
