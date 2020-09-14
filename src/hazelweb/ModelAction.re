@@ -1,4 +1,7 @@
-module EditAction = Action_common;
+module EditAction = {
+  include Action;
+  include Action_common;
+};
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 

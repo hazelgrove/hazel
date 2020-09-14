@@ -289,7 +289,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let action_shape_view = (shape: Action_common.shape) => {
+  let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
     | SLam => indicate_words_view("function")
     | SInj(side) =>

@@ -51,7 +51,7 @@ let get_result: t => Result.t;
  */
 exception FailedAction;
 exception CursorEscaped;
-let perform_edit_action: (Action_common.t, t) => t;
+let perform_edit_action: (Action.t, t) => t;
 let move_via_key:
   (
     ~measure_program_get_doc: bool,
@@ -60,7 +60,7 @@ let move_via_key:
     MoveKey.t,
     t
   ) =>
-  (t, Action_common.t);
+  (t, Action.t);
 let move_via_click:
   (
     ~measure_program_get_doc: bool,
@@ -69,10 +69,10 @@ let move_via_click:
     (CursorMap.Row.t, CursorMap.Col.t),
     t
   ) =>
-  (t, Action_common.t);
+  (t, Action.t);
 
 exception HoleNotFound;
-let move_to_hole: (MetaVar.t, t) => Action_common.t;
+let move_to_hole: (MetaVar.t, t) => Action.t;
 
 /**
  * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
@@ -80,7 +80,7 @@ let move_to_hole: (MetaVar.t, t) => Action_common.t;
  * clicks on a branch type in the error message for a case expression with
  * inconsistent branches)
  */
-let move_to_case_branch: (CursorPath.steps, int) => Action_common.t;
+let move_to_case_branch: (CursorPath.steps, int) => Action.t;
 
 let get_layout:
   (
