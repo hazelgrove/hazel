@@ -161,7 +161,7 @@ let decorate_cursor = (steps, l) =>
   l
   |> UHLayout.find_and_decorate_cursor(~steps)
   |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
-let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
+let decorate_var_uses = (ci: CursorInfo.t, l: UHLayout.t): UHLayout.t =>
   switch (ci.uses) {
   | None => l
   | Some(uses) =>

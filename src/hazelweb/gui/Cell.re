@@ -8,7 +8,7 @@ open ViewUtil;
 open Sexplib.Std;
 
 /** maps key combos to actions contextually, depending on cursor info */
-let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action.t) =
+let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
   [
     (HazelKeyCombos.Backspace, _ => Action.Backspace),
     (Delete, _ => Action.Delete),
@@ -17,8 +17,7 @@ let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action.t) =
     (
       HazelKeyCombos.GT,
       fun
-      | {CursorInfo_common.typed: OnType, _} =>
-        Action.Construct(SOp(SArrow))
+      | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
       | _ => Action.Construct(SOp(SGreaterThan)),
     ),
     (Ampersand, _ => Action.Construct(SOp(SAnd))),
@@ -36,7 +35,7 @@ let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action.t) =
     (
       Space,
       fun
-      | {CursorInfo_common.cursor_term: Line(_, CommentLine(_)), _} =>
+      | {CursorInfo.cursor_term: Line(_, CommentLine(_)), _} =>
         Action.Construct(SChar(" "))
       | _ => Action.Construct(SOp(SSpace)),
     ),
@@ -44,7 +43,7 @@ let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action.t) =
     (
       LeftBracket,
       fun
-      | {CursorInfo_common.typed: OnType, _} => Action.Construct(SList)
+      | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
       | _ => Action.Construct(SListNil),
     ),
     (Semicolon, _ => Action.Construct(SOp(SCons))),

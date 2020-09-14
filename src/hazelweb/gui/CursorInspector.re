@@ -146,7 +146,7 @@ let view =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
   let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
+  let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);

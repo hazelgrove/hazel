@@ -130,7 +130,7 @@ let get_edit_state = (model: t): Statics_common.edit_state => {
   program.edit_state;
 };
 
-let get_cursor_info = (model: t): CursorInfo_common.t =>
+let get_cursor_info = (model: t): CursorInfo.t =>
   model |> get_program |> Program.get_cursor_info;
 
 let put_program = (program: Program.t, model: t): t => {

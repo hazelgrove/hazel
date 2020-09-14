@@ -29,7 +29,7 @@ let get_steps: t => CursorPath.steps;
  * because Action needs to return a well-typed edit state)
  */
 exception MissingCursorInfo;
-let get_cursor_info: t => CursorInfo_common.t;
+let get_cursor_info: t => CursorInfo.t;
 
 /**
  * Raised when edit state does not elaborate

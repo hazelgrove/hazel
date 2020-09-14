@@ -1,4 +1,4 @@
-let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action.t);
+let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t);
 
 let focus: unit => unit;
 

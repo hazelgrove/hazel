@@ -1,5 +1,5 @@
 [@deriving sexp]
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
