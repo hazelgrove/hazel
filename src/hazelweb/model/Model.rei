@@ -90,7 +90,7 @@ let move_via_click: ((CursorMap.Row.t, CursorMap.Col.t), t) => t;
 /**
  * See `Program.move_to_case_branch`
  */
-let select_case_branch: (CursorPath_common.steps, int, t) => t;
+let select_case_branch: (CursorPath.steps, int, t) => t;
 
 /**
  * Show/hide sidebars

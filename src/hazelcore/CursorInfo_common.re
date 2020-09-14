@@ -4,7 +4,7 @@ open Sexplib.Std;
 type join_of_branches =
   | NoBranches
   // steps to the case
-  | InconsistentBranchTys(list(HTyp.t), CursorPath_common.steps)
+  | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
 [@deriving sexp]
@@ -56,7 +56,7 @@ type typed =
   | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
   // cursor is on a case with inconsistent branch types
   // in the function position of an ap
-  | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath_common.steps)
+  | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath.steps)
   // cursor is on invalid text in the fuction position of an ap
   | SynInvalidArrow(HTyp.t)
   // cursor is on invalid text
@@ -77,7 +77,7 @@ type typed =
       )
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
-  | SynInconsistentBranches(list(HTyp.t), CursorPath_common.steps)
+  | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */

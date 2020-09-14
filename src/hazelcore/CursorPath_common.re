@@ -1,12 +1,10 @@
 open Sexplib.Std;
 
-[@deriving sexp]
-type steps = list(ChildIndex.t);
+open CursorPath;
+
 [@deriving sexp]
 type rev_steps = steps;
 
-[@deriving sexp]
-type t = (steps, CursorPosition.t);
 [@deriving sexp]
 type rev_t = (CursorPosition.t, rev_steps);
 

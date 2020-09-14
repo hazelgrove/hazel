@@ -35,7 +35,7 @@ type shape =
 
 [@deriving sexp]
 type t =
-  | MoveTo(CursorPath_common.t)
+  | MoveTo(CursorPath.t)
   | MoveLeft
   | MoveRight
   | MoveToNextHole
