@@ -8,57 +8,55 @@ open ViewUtil;
 open Sexplib.Std;
 
 /** maps key combos to actions contextually, depending on cursor info */
-let kc_actions:
-  Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
+let kc_actions: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action.t) =
   [
-    (HazelKeyCombos.Backspace, _ => Action_common.Backspace),
-    (Delete, _ => Action_common.Delete),
-    (ShiftTab, _ => Action_common.MoveToPrevHole),
-    (Tab, _ => Action_common.MoveToNextHole),
+    (HazelKeyCombos.Backspace, _ => Action.Backspace),
+    (Delete, _ => Action.Delete),
+    (ShiftTab, _ => Action.MoveToPrevHole),
+    (Tab, _ => Action.MoveToNextHole),
     (
       HazelKeyCombos.GT,
       fun
       | {CursorInfo_common.typed: OnType, _} =>
-        Action_common.Construct(SOp(SArrow))
-      | _ => Action_common.Construct(SOp(SGreaterThan)),
+        Action.Construct(SOp(SArrow))
+      | _ => Action.Construct(SOp(SGreaterThan)),
     ),
-    (Ampersand, _ => Action_common.Construct(SOp(SAnd))),
-    (VBar, _ => Action_common.Construct(SOp(SOr))),
-    (LeftParen, _ => Action_common.Construct(SParenthesized)),
-    (Colon, _ => Action_common.Construct(SAsc)),
-    (Equals, _ => Action_common.Construct(SOp(SEquals))),
-    (Enter, _ => Action_common.Construct(SLine)),
-    (Backslash, _ => Action_common.Construct(SLam)),
-    (Plus, _ => Action_common.Construct(SOp(SPlus))),
-    (Minus, _ => Action_common.Construct(SOp(SMinus))),
-    (Asterisk, _ => Action_common.Construct(SOp(STimes))),
-    (Slash, _ => Action_common.Construct(SOp(SDivide))),
-    (LT, _ => Action_common.Construct(SOp(SLessThan))),
+    (Ampersand, _ => Action.Construct(SOp(SAnd))),
+    (VBar, _ => Action.Construct(SOp(SOr))),
+    (LeftParen, _ => Action.Construct(SParenthesized)),
+    (Colon, _ => Action.Construct(SAsc)),
+    (Equals, _ => Action.Construct(SOp(SEquals))),
+    (Enter, _ => Action.Construct(SLine)),
+    (Backslash, _ => Action.Construct(SLam)),
+    (Plus, _ => Action.Construct(SOp(SPlus))),
+    (Minus, _ => Action.Construct(SOp(SMinus))),
+    (Asterisk, _ => Action.Construct(SOp(STimes))),
+    (Slash, _ => Action.Construct(SOp(SDivide))),
+    (LT, _ => Action.Construct(SOp(SLessThan))),
     (
       Space,
       fun
       | {CursorInfo_common.cursor_term: Line(_, CommentLine(_)), _} =>
-        Action_common.Construct(SChar(" "))
-      | _ => Action_common.Construct(SOp(SSpace)),
+        Action.Construct(SChar(" "))
+      | _ => Action.Construct(SOp(SSpace)),
     ),
-    (Comma, _ => Action_common.Construct(SOp(SComma))),
+    (Comma, _ => Action.Construct(SOp(SComma))),
     (
       LeftBracket,
       fun
-      | {CursorInfo_common.typed: OnType, _} =>
-        Action_common.Construct(SList)
-      | _ => Action_common.Construct(SListNil),
+      | {CursorInfo_common.typed: OnType, _} => Action.Construct(SList)
+      | _ => Action.Construct(SListNil),
     ),
-    (Semicolon, _ => Action_common.Construct(SOp(SCons))),
-    (Alt_L, _ => Action_common.Construct(SInj(L))),
-    (Alt_R, _ => Action_common.Construct(SInj(R))),
-    (Alt_C, _ => Action_common.Construct(SCase)),
-    (Pound, _ => Action_common.Construct(SCommentLine)),
-    (Shift_Enter, _ => Action_common.Construct(SCommentLine)),
-    (Ctrl_Alt_I, _ => Action_common.SwapUp),
-    (Ctrl_Alt_K, _ => Action_common.SwapDown),
-    (Ctrl_Alt_J, _ => Action_common.SwapLeft),
-    (Ctrl_Alt_L, _ => Action_common.SwapRight),
+    (Semicolon, _ => Action.Construct(SOp(SCons))),
+    (Alt_L, _ => Action.Construct(SInj(L))),
+    (Alt_R, _ => Action.Construct(SInj(R))),
+    (Alt_C, _ => Action.Construct(SCase)),
+    (Pound, _ => Action.Construct(SCommentLine)),
+    (Shift_Enter, _ => Action.Construct(SCommentLine)),
+    (Ctrl_Alt_I, _ => Action.SwapUp),
+    (Ctrl_Alt_K, _ => Action.SwapDown),
+    (Ctrl_Alt_J, _ => Action.SwapLeft),
+    (Ctrl_Alt_L, _ => Action.SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

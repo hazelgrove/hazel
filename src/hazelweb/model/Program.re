@@ -116,14 +116,14 @@ let move_to_hole = (u, program) => {
     let e = ZExp.erase(ze);
     switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)
-    | Some(hole_path) => Action_common.MoveTo(hole_path)
+    | Some(hole_path) => Action.MoveTo(hole_path)
     };
   };
 };
 
-let move_to_case_branch = (steps_to_case, branch_index): Action_common.t => {
+let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
-  Action_common.MoveTo((steps_to_branch, OnDelim(1, After)));
+  Action.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
@@ -248,7 +248,7 @@ let move_via_click =
       row_col,
       program,
     )
-    : (t, Action_common.t) => {
+    : (t, Action.t) => {
   let (_, rev_path) =
     program
     |> get_cursor_map(
@@ -271,7 +271,7 @@ let move_via_key =
       move_key: MoveKey.t,
       program,
     )
-    : (t, Action_common.t) => {
+    : (t, Action.t) => {
   let (cmap, ((row, col), _) as z) =
     program
     |> get_cursor_map_z(

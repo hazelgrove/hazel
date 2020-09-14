@@ -33,8 +33,8 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action_common.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
+  | ConstructEdit(Action.shape)
+  /* SLine in Action.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
