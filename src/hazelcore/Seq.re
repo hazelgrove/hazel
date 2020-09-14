@@ -137,6 +137,12 @@ let update_nth_operand =
   | Some(seq) => seq
   };
 
+let update_last_operand =
+    (f: 'operand => 'operand, seq: t('operand, 'operator))
+    : t('operand, 'operator) => {
+  update_nth_operand(length(seq), f(nth_operand(length(seq), seq)), seq);
+};
+
 [@deriving sexp]
 type operand_surround('operand, 'operator) = (
   affix('operand, 'operator),
