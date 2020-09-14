@@ -1162,13 +1162,13 @@ and ana_perform_operand =
     Succeeded(
       Statics_Pat.ana_fix_holes_z(ctx, u_gen, body |> place_cursor, ty),
     );
-    | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
+  | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.ana_fix_holes_z(
         ctx,
         u_gen,
         op |> ZPat.place_after_operand |> ZOpSeq.wrap,
-        ty
+        ty,
       ),
     )
   /* Construct */
