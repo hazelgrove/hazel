@@ -1,6 +1,5 @@
 open Pretty;
-
-type t = Doc.t(UHAnnot.t);
+open UHDoc;
 
 type memoization_value('a) = {
   mutable inline_true: option('a),
