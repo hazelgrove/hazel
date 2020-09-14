@@ -21,7 +21,7 @@ let blur: t => t;
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
-let get_steps: t => CursorPath_common.steps;
+let get_steps: t => CursorPath.steps;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
@@ -80,7 +80,7 @@ let move_to_hole: (MetaVar.t, t) => Action_common.t;
  * clicks on a branch type in the error message for a case expression with
  * inconsistent branches)
  */
-let move_to_case_branch: (CursorPath_common.steps, int) => Action_common.t;
+let move_to_case_branch: (CursorPath.steps, int) => Action_common.t;
 
 let get_layout:
   (

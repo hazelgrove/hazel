@@ -174,9 +174,7 @@ let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
                 failwith(
                   __LOC__
                   ++ ": could not find var use"
-                  ++ Sexplib.Sexp.to_string(
-                       CursorPath_common.sexp_of_steps(use),
-                     ),
+                  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
                 )
               }),
          l,

@@ -1,11 +1,11 @@
 let cons' = CursorPath_common.cons';
-let rec of_z = (ze: ZExp.t): CursorPath_common.t => of_zblock(ze)
-and of_zblock = (zblock: ZExp.zblock): CursorPath_common.t => {
+let rec of_z = (ze: ZExp.t): CursorPath.t => of_zblock(ze)
+and of_zblock = (zblock: ZExp.zblock): CursorPath.t => {
   let prefix_len = ZList.prefix_length(zblock);
   let zline = ZList.prj_z(zblock);
   cons'(prefix_len, of_zline(zline));
 }
-and of_zline = (zline: ZExp.zline): CursorPath_common.t =>
+and of_zline = (zline: ZExp.zline): CursorPath.t =>
   switch (zline) {
   | CursorL(cursor, _) => ([], cursor)
   | LetLineZP(zp, _, _) => cons'(0, CursorPath_Pat.of_z(zp))
@@ -13,9 +13,9 @@ and of_zline = (zline: ZExp.zline): CursorPath_common.t =>
   | LetLineZE(_, _, zdef) => cons'(2, of_z(zdef))
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
   }
-and of_zopseq = (zopseq: ZExp.zopseq): CursorPath_common.t =>
+and of_zopseq = (zopseq: ZExp.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
-and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
+and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
@@ -33,27 +33,26 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
     cons'(n, of_z(ze));
   }
-and of_zoperator = (zoperator: ZExp.zoperator): CursorPath_common.t => {
+and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
   ([], cursor);
 }
-and of_zrules = (zrules: ZExp.zrules): CursorPath_common.t => {
+and of_zrules = (zrules: ZExp.zrules): CursorPath.t => {
   let prefix_len = List.length(ZList.prj_prefix(zrules));
   let zrule = ZList.prj_z(zrules);
   cons'(prefix_len, of_zrule(zrule));
 }
-and of_zrule = (zrule: ZExp.zrule): CursorPath_common.t =>
+and of_zrule = (zrule: ZExp.zrule): CursorPath.t =>
   switch (zrule) {
   | CursorR(cursor, _) => ([], cursor)
   | RuleZP(zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | RuleZE(_, zclause) => cons'(1, of_z(zclause))
   };
 
-let rec follow = (path: CursorPath_common.t, e: UHExp.t): option(ZExp.t) =>
+let rec follow = (path: CursorPath.t, e: UHExp.t): option(ZExp.t) =>
   follow_block(path, e)
 and follow_block =
-    ((steps, cursor): CursorPath_common.t, block: UHExp.block)
-    : option(ZExp.zblock) =>
+    ((steps, cursor): CursorPath.t, block: UHExp.block): option(ZExp.zblock) =>
   switch (steps) {
   | [] => None // no block level cursor
   | [x, ...xs] =>
@@ -64,7 +63,7 @@ and follow_block =
     }
   }
 and follow_line =
-    ((steps, cursor) as path: CursorPath_common.t, line: UHExp.line)
+    ((steps, cursor) as path: CursorPath.t, line: UHExp.line)
     : option(ZExp.zline) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
@@ -94,7 +93,7 @@ and follow_line =
     }
   }
 and follow_opseq =
-    (path: CursorPath_common.t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
+    (path: CursorPath.t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
   CursorPath_common.follow_opseq_(
     ~follow_operand,
     ~follow_operator,
@@ -102,14 +101,14 @@ and follow_opseq =
     opseq,
   )
 and follow_operator =
-    ((steps, cursor): CursorPath_common.t, operator: UHExp.operator)
+    ((steps, cursor): CursorPath.t, operator: UHExp.operator)
     : option(ZExp.zoperator) =>
   switch (steps) {
   | [] => operator |> ZExp.place_cursor_operator(cursor)
   | [_, ..._] => None
   }
 and follow_operand =
-    ((steps, cursor): CursorPath_common.t, operand: UHExp.operand)
+    ((steps, cursor): CursorPath.t, operand: UHExp.operand)
     : option(ZExp.zoperand) =>
   switch (steps) {
   | [] => operand |> ZExp.place_cursor_operand(cursor)
@@ -189,8 +188,7 @@ and follow_operand =
     }
   }
 and follow_rules =
-    ((steps, cursor): CursorPath_common.t, rules: UHExp.rules)
-    : option(ZExp.zrules) =>
+    ((steps, cursor): CursorPath.t, rules: UHExp.rules): option(ZExp.zrules) =>
   switch (steps) {
   | [] => None
   | [x, ...xs] =>
@@ -201,10 +199,7 @@ and follow_rules =
     }
   }
 and follow_rule =
-    (
-      (steps, cursor): CursorPath_common.t,
-      Rule(p, clause) as rule: UHExp.rule,
-    )
+    ((steps, cursor): CursorPath.t, Rule(p, clause) as rule: UHExp.rule)
     : option(ZExp.zrule) =>
   switch (steps) {
   | [] => rule |> ZExp.place_cursor_rule(cursor)
@@ -223,12 +218,12 @@ and follow_rule =
   };
 
 let rec of_steps =
-        (steps: CursorPath_common.steps, ~side: Side.t=Before, e: UHExp.t)
-        : option(CursorPath_common.t) =>
+        (steps: CursorPath.steps, ~side: Side.t=Before, e: UHExp.t)
+        : option(CursorPath.t) =>
   of_steps_block(steps, ~side, e)
 and of_steps_block =
-    (steps: CursorPath_common.steps, ~side: Side.t, block: UHExp.block)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, block: UHExp.block)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -246,8 +241,8 @@ and of_steps_block =
     }
   }
 and of_steps_line =
-    (steps: CursorPath_common.steps, ~side: Side.t, line: UHExp.line)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, line: UHExp.line)
+    : option(CursorPath.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
   | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
@@ -277,8 +272,8 @@ and of_steps_line =
     }
   }
 and of_steps_opseq =
-    (steps: CursorPath_common.steps, ~side: Side.t, opseq: UHExp.opseq)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, opseq: UHExp.opseq)
+    : option(CursorPath.t) =>
   CursorPath_common.of_steps_opseq_(
     ~of_steps_operand,
     ~of_steps_operator,
@@ -287,8 +282,8 @@ and of_steps_opseq =
     opseq,
   )
 and of_steps_operator =
-    (steps: CursorPath_common.steps, ~side: Side.t, operator: UHExp.operator)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, operator: UHExp.operator)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [_, ..._] => None
   | [] =>
@@ -303,8 +298,8 @@ and of_steps_operator =
     };
   }
 and of_steps_operand =
-    (steps: CursorPath_common.steps, ~side: Side.t, operand: UHExp.operand)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, operand: UHExp.operand)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -374,8 +369,8 @@ and of_steps_operand =
     }
   }
 and of_steps_rule =
-    (steps: CursorPath_common.steps, ~side: Side.t, rule: UHExp.rule)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, rule: UHExp.rule)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -1020,22 +1015,20 @@ and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath_common.rev_steps) =>
     {...zholes_clause, holes_before: holes_p @ zholes_clause.holes_before};
   };
 
-let prev_hole_steps_z = (ze: ZExp.t): option(CursorPath_common.steps) => {
+let prev_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
   let holes = holes_z(ze, []);
   CursorPath_common.prev_hole_steps(holes);
 };
-let prev_hole_steps_zline =
-    (zline: ZExp.zline): option(CursorPath_common.steps) => {
+let prev_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) => {
   let holes = holes_zline(zline, []);
   CursorPath_common.prev_hole_steps(holes);
 };
 
-let next_hole_steps_z = (ze: ZExp.t): option(CursorPath_common.steps) => {
+let next_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
   let holes = holes_z(ze, []);
   CursorPath_common.next_hole_steps(holes);
 };
-let next_hole_steps_zline =
-    (zline: ZExp.zline): option(CursorPath_common.steps) => {
+let next_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) => {
   let holes = holes_zline(zline, []);
   CursorPath_common.next_hole_steps(holes);
 };

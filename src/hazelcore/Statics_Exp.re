@@ -1454,7 +1454,7 @@ let syn_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, ty, u_gen);
@@ -1471,7 +1471,7 @@ let syn_fix_holes_zlines =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes_lines did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zlines, ctx, u_gen);
@@ -1494,7 +1494,7 @@ let syn_fix_holes_zrules =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes_rules did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zrules, rule_types, common_type, u_gen);
@@ -1510,7 +1510,7 @@ let ana_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "ana_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, u_gen);
@@ -1530,7 +1530,7 @@ let fix_and_renumber_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "fix_and_renumber_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, ty, u_gen);

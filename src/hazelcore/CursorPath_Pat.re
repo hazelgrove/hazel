@@ -1,5 +1,5 @@
-let rec of_z = (zp: ZPat.t): CursorPath_common.t => of_zopseq(zp)
-and of_zopseq = (zopseq: ZPat.zopseq): CursorPath_common.t =>
+let rec of_z = (zp: ZPat.t): CursorPath.t => of_zopseq(zp)
+and of_zopseq = (zopseq: ZPat.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand =
   fun
@@ -10,10 +10,10 @@ and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
 
-let rec follow = (path: CursorPath_common.t, p: UHPat.t): option(ZPat.t) =>
+let rec follow = (path: CursorPath.t, p: UHPat.t): option(ZPat.t) =>
   follow_opseq(path, p)
 and follow_opseq =
-    (path: CursorPath_common.t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
+    (path: CursorPath.t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
   CursorPath_common.follow_opseq_(
     ~follow_operand,
     ~follow_operator,
@@ -21,7 +21,7 @@ and follow_opseq =
     opseq,
   )
 and follow_operand =
-    ((steps, cursor): CursorPath_common.t, operand: UHPat.operand)
+    ((steps, cursor): CursorPath.t, operand: UHPat.operand)
     : option(ZPat.zoperand) =>
   switch (steps) {
   | [] => operand |> ZPat.place_cursor_operand(cursor)
@@ -54,7 +54,7 @@ and follow_operand =
     }
   }
 and follow_operator =
-    ((steps, cursor): CursorPath_common.t, operator: UHPat.operator)
+    ((steps, cursor): CursorPath.t, operator: UHPat.operator)
     : option(ZPat.zoperator) =>
   switch (steps) {
   | [] => operator |> ZPat.place_cursor_operator(cursor)
@@ -62,12 +62,12 @@ and follow_operator =
   };
 
 let rec of_steps =
-        (steps: CursorPath_common.steps, ~side: Side.t=Before, p: UHPat.t)
-        : option(CursorPath_common.t) =>
+        (steps: CursorPath.steps, ~side: Side.t=Before, p: UHPat.t)
+        : option(CursorPath.t) =>
   of_steps_opseq(steps, ~side, p)
 and of_steps_opseq =
-    (steps: CursorPath_common.steps, ~side: Side.t, opseq: UHPat.opseq)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, opseq: UHPat.opseq)
+    : option(CursorPath.t) =>
   CursorPath_common.of_steps_opseq_(
     ~of_steps_operand,
     ~of_steps_operator,
@@ -76,8 +76,8 @@ and of_steps_opseq =
     opseq,
   )
 and of_steps_operand =
-    (steps: CursorPath_common.steps, ~side: Side.t, operand: UHPat.operand)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, operand: UHPat.operand)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =
@@ -115,8 +115,8 @@ and of_steps_operand =
     }
   }
 and of_steps_operator =
-    (steps: CursorPath_common.steps, ~side: Side.t, operator: UHPat.operator)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, operator: UHPat.operator)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [] =>
     let place_cursor =

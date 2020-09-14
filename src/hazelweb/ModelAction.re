@@ -44,7 +44,7 @@ type t =
   //
   | ToggleMemoizeDoc
   | SelectHoleInstance(HoleInstance.t)
-  | SelectCaseBranch(CursorPath_common.steps, int)
+  | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
   | FocusCell
   | BlurCell
