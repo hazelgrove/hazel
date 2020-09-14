@@ -4,14 +4,13 @@ module Memo = Core_kernel.Memo;
 
 [@deriving sexp]
 type t = {
-  edit_state: Statics_common.edit_state,
+  edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
 };
 
-let mk =
-    (~width: int, ~is_focused=false, edit_state: Statics_common.edit_state): t => {
+let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,

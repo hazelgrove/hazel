@@ -125,7 +125,7 @@ let init = (): t => {
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics_common.edit_state => {
+let get_edit_state = (model: t): Statics.edit_state => {
   let program = get_program(model);
   program.edit_state;
 };
