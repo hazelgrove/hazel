@@ -1,5 +1,3 @@
-open Statics;
-
 /**
  * Given a `skel` in analytic position against type `ty`,
  * `tuple_zip(~get_tuple_elements, skel, ty)` attempts to
