@@ -63,7 +63,7 @@ let get_edit_state: t => Statics_common.edit_state;
 let get_card: t => ZCard.t;
 let get_cardstack: t => Cardstack.t;
 
-let get_cursor_info: t => CursorInfo_common.t;
+let get_cursor_info: t => CursorInfo.t;
 
 let get_undo_history: t => UndoHistory.t;
 let put_undo_history: (UndoHistory.t, t) => t;
