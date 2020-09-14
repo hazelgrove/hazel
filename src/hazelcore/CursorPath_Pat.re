@@ -158,7 +158,10 @@ and of_steps_operator =
   | [_, ..._] => None
   };
 
-let hole_sort = (u: MetaVar.t): CursorPath_common.hole_sort => PatHole(u);
+let hole_sort = (shape, u: MetaVar.t): CursorPath_common.hole_sort =>
+  PatHole(u, shape);
+let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
+let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =
         (
@@ -170,7 +173,7 @@ let rec holes =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
-       ~hole_sort,
+       ~hole_sort=hole_sort(TypeErr),
        ~is_space=Operators_Pat.is_Space,
        ~rev_steps,
        p,
@@ -184,42 +187,28 @@ and holes_operand =
     : CursorPath_common.hole_list =>
   switch (operand) {
   | EmptyHole(u) => [
-      {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true},
+      {sort: PatHole(u, Empty), steps: List.rev(rev_steps)},
       ...hs,
     ]
-  | InvalidText(u, _)
-  | Wild(InHole(_, u))
-  | Var(InHole(_, u), _, _)
-  | Var(_, InVarHole(_, u), _)
-  | IntLit(InHole(_, u), _)
-  | FloatLit(InHole(_, u), _)
-  | BoolLit(InHole(_, u), _)
-  | ListNil(InHole(_, u)) => [
-      {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
-      ...hs,
+  | Var(err, verr, _) =>
+    hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
+  | Wild(err)
+  | IntLit(err, _)
+  | FloatLit(err, _)
+  | BoolLit(err, _)
+  | ListNil(err) => hs |> holes_err(err, rev_steps)
+  | InvalidText(u, _) => [
+      {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
     ]
-  | Var(NotInHole, NotInVarHole, _)
-  | Wild(NotInHole)
-  | IntLit(NotInHole, _)
-  | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _)
-  | ListNil(NotInHole) => hs
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
-    let body_holes = hs |> holes(body, [0, ...rev_steps]);
-    switch (err) {
-    | NotInHole => body_holes
-    | InHole(_, u) => [
-        {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
-        ...body_holes,
-      ]
-    };
+    hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
   | TypeAnn(err, op, ann) =>
     hs
     |> holes_operand(op, [0, ...rev_steps])
     |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
     |> CursorPath_common.holes_err(
-         ~hole_sort=u => PatHole(u),
+         ~hole_sort=u => PatHole(u, Empty),
          err,
          rev_steps,
        )
@@ -235,7 +224,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_sort,
+    ~hole_sort=hole_sort(TypeErr),
     ~is_space=Operators_Pat.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZPat.erase_zopseq,
@@ -249,35 +238,28 @@ and holes_zoperand =
   | CursorP(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({
-          sort: PatHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: true,
-        }),
+        Some({sort: PatHole(u, Empty), steps: List.rev(rev_steps)}),
       (),
     )
   | CursorP(_, InvalidText(u, _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
-        Some({
-          sort: PatHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: false,
-        }),
+        Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
   | CursorP(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
-    | (InHole(_, u), _)
+    | (InHole(_, u), _) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)}),
+        (),
+      )
     | (_, InVarHole(_, u)) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({
-            sort: PatHole(u),
-            steps: List.rev(rev_steps),
-            is_empty: false,
-          }),
+          Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
         (),
       )
     }
@@ -291,11 +273,7 @@ and holes_zoperand =
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
-          Some({
-            sort: PatHole(u),
-            steps: List.rev(rev_steps),
-            is_empty: false,
-          }),
+          Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)}),
         (),
       )
     }
@@ -322,11 +300,7 @@ and holes_zoperand =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some({
-          sort: PatHole(u),
-          steps: List.rev(rev_steps),
-          is_empty: false,
-        })
+        Some({sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     switch (k) {
     | 0 =>
@@ -350,7 +324,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...zbody_holes,
         holes_before: [
-          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: true}, //bug, fix
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
           ...zbody_holes.holes_before,
         ],
       }
@@ -367,7 +341,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...all_holes,
         holes_before: [
-          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
           ...all_holes.holes_before,
         ],
       }
@@ -384,7 +358,7 @@ and holes_zoperand =
     | InHole(_, u) => {
         ...all_holes,
         holes_before: [
-          {sort: PatHole(u), steps: List.rev(rev_steps), is_empty: false},
+          {sort: PatHole(u, TypeErr), steps: List.rev(rev_steps)},
           ...all_holes.holes_before,
         ],
       }
