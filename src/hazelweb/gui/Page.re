@@ -221,7 +221,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           Attr.on_click(_ => {
                             let e = program |> Program.get_uhexp;
                             JSUtil.log(
-                              Js.string(Serialize.string_of_exp(e)),
+                              Js.string(Serialization.string_of_exp(e)),
                             );
                             Event.Ignore;
                           }),
