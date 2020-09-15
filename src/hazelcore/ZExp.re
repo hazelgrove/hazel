@@ -345,7 +345,7 @@ and place_after_operand = operand =>
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   | ApPalette(_) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
-  | Label(_)
+  | Label(_, l) => CursorE(OnText(Label.length(l)), operand)
   | Prj(_) => failwith("unimplemented Label Projection")
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
@@ -697,7 +697,10 @@ and move_cursor_left_zoperand =
       )
     }
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
+  | CursorE(
+      OnDelim(_),
+      Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) | Label(_),
+    ) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -749,7 +752,6 @@ and move_cursor_left_zoperand =
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
   | ApPaletteZ(_, _, _, _) => None
-  | CursorE(_, Label(_))
   | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
 and move_cursor_left_zrules =
   fun
@@ -906,7 +908,10 @@ and move_cursor_right_zoperand =
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
   | CursorE(_, ApPalette(_)) => None
-  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_)) =>
+  | CursorE(
+      OnDelim(_),
+      Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) | Label(_),
+    ) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
@@ -978,7 +983,6 @@ and move_cursor_right_zoperand =
       )
     }
   | ApPaletteZ(_, _, _, _) => None
-  | CursorE(_, Label(_))
   | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
 and move_cursor_right_zrules =
   fun
