@@ -268,7 +268,12 @@ module Pat = {
             go(skel1);
           } else {
             switch (HTyp.matched_arrow(ty1)) {
-            | None => None
+            | None =>
+              switch (HTyp.matched_label(ty1), syn_skel(ctx, skel2, seq)) {
+              | (Some(_), Some(_)) => failwith("Unimplemented label pattern")
+              | (None, _)
+              | (_, None) => None
+              }
             | Some((ty2, _)) => ana_go(skel2, ty2)
             };
           }
@@ -903,11 +908,11 @@ module Exp = {
         switch (HTyp.matched_arrow(ty1)) {
         | None =>
           // TODO For simplicity, if skel1 is a hole then Hazel only expects a fxn expression.  Need to change it to also expect a Labeled tuple.
-          switch (ty1) {
-          | Label(_) =>
+          switch (HTyp.matched_label(ty1)) {
+          | Some(label_ty) =>
             syn_skel(ctx, skel2, seq)
-            |> OptUtil.map(ty2 => HTyp.Label_Elt(ty1, ty2))
-          | _ => None
+            |> OptUtil.map(ty2 => HTyp.Label_Elt(label_ty, ty2))
+          | None => None
           }
         | Some((ty2, ty)) =>
           ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
@@ -1336,7 +1341,11 @@ module Exp = {
             go(skel1);
           } else {
             switch (HTyp.matched_arrow(ty1)) {
-            | None => None
+            | None =>
+              switch (HTyp.matched_label(ty1)) {
+              | Some(_) => go(skel2)
+              | None => None
+              }
             | Some((ty2, _)) => ana_go(skel2, ty2)
             };
           }
@@ -1682,7 +1691,6 @@ module Exp = {
     | BinOp(_, Space, skel1, skel2) =>
       let (skel1, seq, ty1, u_gen) =
         syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-      // TODO: May need to come back here to add labeled tuple implementation
       switch (HTyp.matched_arrow(ty1)) {
       | Some((ty2, ty)) =>
         let (skel2, seq, u_gen) =
@@ -1696,18 +1704,30 @@ module Exp = {
           );
         (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
       | None =>
-        let (skel2, seq, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel2,
+        switch (HTyp.matched_label(ty1)) {
+        | Some(ty) =>
+          let (skel2, seq, ty2, u_gen) =
+            syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+          (
+            BinOp(NotInHole, Space, skel1, skel2),
             seq,
-            HTyp.Hole,
+            Label_Elt(ty, ty2),
+            u_gen,
           );
-        let (OpSeq(skel1, seq), u_gen) =
-          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+        | None =>
+          let (skel2, seq, u_gen) =
+            ana_fix_holes_skel(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              skel2,
+              seq,
+              HTyp.Hole,
+            );
+          let (OpSeq(skel1, seq), u_gen) =
+            UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
+          (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+        }
       };
     | BinOp(_, Comma, _, _) =>
       let ((u_gen, seq), pairs) =

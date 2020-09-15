@@ -136,6 +136,12 @@ let has_matched_list =
   | List(_) => true
   | _ => false;
 
+let matched_label =
+  fun
+  | Hole => Some(Hole)
+  | Label(label) => Some(Label(label))
+  | _ => None;
+
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun

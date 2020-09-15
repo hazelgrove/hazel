@@ -1109,6 +1109,7 @@ module Exp = {
       syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq);
     };
   }
+  // ECD TODO: Add label checking to this matched_arrow
   and syn_cursor_info_skel =
       (
         ~steps: CursorPath.steps,
