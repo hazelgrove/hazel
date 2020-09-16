@@ -200,6 +200,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
+    | TypeAnn(_, _, _) => indicate_words_view("type annotation")
     };
   };
 

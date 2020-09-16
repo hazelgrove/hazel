@@ -101,6 +101,8 @@ module Delim = {
   let in_LetLine = (): t => mk(~index=3, "in");
 
   let open_CommentLine = (): t => mk(~index=0, "#");
+
+  let colon_ann = (): t => mk(~index=0, ":");
 };
 
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
@@ -389,6 +391,17 @@ let mk_LetLine =
     def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
     close_group,
   ]);
+};
+
+let mk_PatternAnnotation =
+    (~sort: TermSort.t, op: formatted_child, ann: formatted_child): t => {
+  let annotation_operator = Delim.colon_ann() |> annot_Tessera;
+  Doc.hcats([
+    op |> pad_closed_child(~sort=Pat),
+    annotation_operator,
+    ann |> pad_closed_child(~sort=Typ),
+  ])
+  |> annot_Operand(~sort);
 };
 
 let pad_operator =

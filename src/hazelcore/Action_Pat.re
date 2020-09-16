@@ -1036,6 +1036,7 @@ and ana_perform_operand =
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
   /* Invalid cursor positions */
+
   | (
       _,
       CursorP(
@@ -1057,8 +1058,7 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
-        SCommentLine,
+        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -1174,6 +1174,13 @@ and ana_perform_operand =
   /* Construct */
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
     ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
+  | (Construct(SAsc), CursorP(_)) =>
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
+    let new_zp =
+      ZOpSeq.wrap(
+        ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
+      );
+    mk_ana_result(ctx, u_gen, new_zp, ty);
   | (Construct(_) as a, CursorP(OnDelim(_, side), _))
       when
         !ZPat.is_before_zoperand(zoperand)
