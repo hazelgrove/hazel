@@ -1019,18 +1019,18 @@ module Exp = {
         switch (HTyp.matched_arrow(ty1)) {
         // TODO: Asummes hole is arrow type before assuming that it is a label type, need to check if that is the right behavior
         | None =>
-          switch (ty1) {
-          | Label(label) =>
-            switch (syn_expand_skel(ctx, delta, skel2, seq)) {
+          switch (HTyp.matched_label(ty1)) {
+          | Some(ty) =>
+            switch (ana_expand_skel(ctx, delta, skel1, seq, ty)) {
             | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
-            | Expands(d2, ty2', delta) =>
-              Expands(
-                Label_Elt(Label(label), d2),
-                Label_Elt(Label(label), ty2'),
-                delta,
-              )
+            | Expands(d1, ty1', delta) =>
+              switch (syn_expand_skel(ctx, delta, skel2, seq)) {
+              | ExpandResult.DoesNotExpand => ExpandResult.DoesNotExpand
+              | Expands(d2, ty2', delta) =>
+                Expands(Label_Elt(d1, d2), Label_Elt(ty1', ty2'), delta)
+              }
             }
-          | _ => ExpandResult.DoesNotExpand
+          | None => ExpandResult.DoesNotExpand
           }
         | Some((ty2, ty)) =>
           let ty2_arrow_ty = HTyp.Arrow(ty2, ty);

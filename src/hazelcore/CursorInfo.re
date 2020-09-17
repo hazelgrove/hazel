@@ -1109,7 +1109,6 @@ module Exp = {
       syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq);
     };
   }
-  // ECD TODO: Add label checking to this matched_arrow
   and syn_cursor_info_skel =
       (
         ~steps: CursorPath.steps,
@@ -1198,10 +1197,15 @@ module Exp = {
             ) {
             | None => None
             | Some(ty) =>
-              HTyp.matched_arrow(ty)
-              |> OptUtil.map(((ty1, ty2)) =>
-                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-                 )
+              switch (HTyp.matched_arrow(ty)) {
+              | Some((ty1, ty2)) =>
+                Some(mk(SynMatchingArrow(ty, Arrow(ty1, ty2))))
+              | None =>
+                switch (HTyp.matched_label(ty)) {
+                | Some(ty) => Some(mk(Synthesized(ty)))
+                | None => None
+                }
+              }
             }
           };
         } else {
@@ -1209,7 +1213,24 @@ module Exp = {
           | None => None
           | Some(ty) =>
             switch (HTyp.matched_arrow(ty)) {
-            | None => None
+            | None =>
+              switch (HTyp.matched_label(ty)) {
+              // ECD TODO: This may not be right
+              | Some(ty1) =>
+                switch (Statics.Exp.syn_skel(ctx, skel2, seq)) {
+                // mk(typed, ctx, extract_from_zexp_zseq(zseq)
+                | Some(ty2) =>
+                  Some(
+                    mk(
+                      Synthesized(Label_Elt(ty1, ty2)),
+                      ctx,
+                      extract_from_zexp_zseq(zseq),
+                    ),
+                  )
+                | None => None
+                }
+              | None => None
+              }
             | Some((ty1, _)) =>
               ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
             }
@@ -1219,6 +1240,7 @@ module Exp = {
         switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
         | Some(_) as result => result
         | None =>
+          // TODO ECD: Investiage if we need a label case for this fxn
           switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
           | None => None
           | Some(ty) =>
@@ -1227,7 +1249,7 @@ module Exp = {
             | Some((ty1, _)) =>
               ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
             }
-          }
+          };
         }
       | BinOp(_, Cons, skel1, skel2) =>
         switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
