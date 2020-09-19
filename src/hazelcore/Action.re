@@ -220,6 +220,8 @@ module Typ = {
         SwapDown,
         _,
       )
+      
+    /* Label Text Postiions */ 
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
@@ -248,6 +250,10 @@ module Typ = {
       Succeeded(
         ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
       );
+
+    // ECD YOU ARE HERE: Things I am problem solving
+    // 1. Cannot enter label type from frontend
+    // 2. Label types are formatted like (Int) (.label), need to figure out why
 
     /* Construction */
     /* construction on operators becomes movement... */

@@ -106,8 +106,10 @@ and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool | Label(_)) as operand =>
+  | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
+  | Label(label) as operand =>
+    CursorT(OnText(Label.length(label)))
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
