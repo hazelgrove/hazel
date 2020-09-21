@@ -84,10 +84,10 @@ and mk_operand =
           mk_Inj(~inj_side, body);
         | TypeAnn(_, op, ann) =>
           let ann_child =
-            UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=0, ann);
+            UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=1, ann);
           let formattable = (~enforce_inline: bool) =>
             Lazy.force(mk_operand, ~memoize, ~enforce_inline, op)
-            |> UHDoc_common.annot_Step(1);
+            |> UHDoc_common.annot_Step(0);
           let op_child =
             enforce_inline
               ? UHDoc_common.EnforcedInline(formattable(~enforce_inline))

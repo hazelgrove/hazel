@@ -452,7 +452,6 @@ and syn_fix_holes_operand =
     let ty = UHTyp.expand(ann);
     let (op, ctx, u_gen) =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty);
-    // what about the annotation? do I need to 'fix holes' there too?
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, u_gen);
   };
 }
@@ -731,12 +730,18 @@ and ana_fix_holes_operand =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
       (TypeAnn(NotInHole, op, ann), ctx, u_gen);
     } else {
-      // not sure this makes sense
       let (op, _, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
+      // Should error be on whole annotation here or on the operand?
+      //(TypeAnn(InHole(TypeInconsistent, u), op, ann), ctx, u_gen);
       (
-        UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
+        TypeAnn(
+          InHole(TypeInconsistent, u),
+          UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
+          ann,
+        ),
+        //UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
         ctx,
         u_gen,
       );
