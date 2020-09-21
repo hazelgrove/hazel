@@ -823,7 +823,13 @@ module Pat = {
           ],
         }
       };
-    | CursorP(_, Label(_)) => failwith("unimplemented Label Pattern")
+    | CursorP(_, Label(_)) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
 };
 

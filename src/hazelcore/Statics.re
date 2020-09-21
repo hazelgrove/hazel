@@ -125,7 +125,13 @@ module Pat = {
         Some((ty, ctx));
       }
     | Parenthesized(p) => syn(ctx, p)
-    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label(_) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     }
   and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     ana_opseq(ctx, p, ty)
@@ -237,7 +243,13 @@ module Pat = {
         ana(ctx, p1, ty1);
       }
     | Parenthesized(p) => ana(ctx, p, ty)
-    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label(_) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
 
   /**
@@ -481,7 +493,13 @@ module Pat = {
         | R => HTyp.Sum(Hole, ty1)
         };
       (p, ty, ctx, u_gen);
-    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label(_) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
   }
   and ana_fix_holes =

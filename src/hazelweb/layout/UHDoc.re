@@ -242,6 +242,9 @@ let mk_Bool = (): t =>
 
 let mk_Int = (): t => Delim.mk(~index=0, "Int") |> annot_Operand(~sort=Typ);
 
+let mk_LabelTyp = (label: Label.t): t =>
+  Delim.mk(~index=0, label) |> annot_Operand(~sort=Typ);
+
 let mk_Float = (): t =>
   Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
 
@@ -268,7 +271,7 @@ let mk_FloatLit = (~sort: TermSort.t, ~err: ErrStatus.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, ~err: ErrStatus.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Operand(~sort, ~err);
 
-let mk_Label = (~sort: TermSort.t, ~err: ErrStatus.t, l: Label.t) =>
+let mk_LabelExp = (~sort: TermSort.t, ~err: ErrStatus.t, l: Label.t) =>
   mk_text(l) |> annot_Operand(~sort, ~err);
 
 let mk_ListNil = (~sort: TermSort.t, ~err: ErrStatus.t, ()): t =>
@@ -561,7 +564,7 @@ module Typ = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_List(body);
-          | Label(_) => failwith("unimplemented Label Pattern")
+          | Label(label) => mk_LabelTyp(label)
           }: t
         )
       )
@@ -651,7 +654,13 @@ module Pat = {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             mk_Inj(~err, ~inj_side, body);
-          | Label(_) => failwith("unimplemented Label Pattern")
+          | Label(_) =>
+            failwith(
+              __FILE__
+              ++ __MODULE__
+              ++ string_of_int(__LINE__)
+              ++ "unimplemented Label Pattern",
+            )
           }: t
         )
       )
@@ -695,7 +704,7 @@ module Exp = {
   let mk_FloatLit: (~err: ErrStatus.t, string) => t = mk_FloatLit(~sort=Exp);
   let mk_BoolLit: (~err: ErrStatus.t, bool) => t = mk_BoolLit(~sort=Exp);
   let mk_ListNil: (~err: ErrStatus.t, unit) => t = mk_ListNil(~sort=Exp);
-  let mk_Label: (~err: ErrStatus.t, Label.t) => t = mk_Label(~sort=Exp);
+  let mk_Label: (~err: ErrStatus.t, Label.t) => t = mk_LabelExp(~sort=Exp);
   let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => t =
     mk_Var(~sort=Exp);
   let mk_Parenthesized: formatted_child => t = mk_Parenthesized(~sort=Exp);

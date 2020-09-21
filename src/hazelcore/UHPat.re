@@ -159,7 +159,13 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | Label(_) => failwith("unimplemented Label Pattern")
+  | Label(_) =>
+    failwith(
+      __FILE__
+      ++ __MODULE__
+      ++ string_of_int(__LINE__)
+      ++ "unimplemented Label Pattern",
+    )
   };
 
 let associate = (seq: seq) => {

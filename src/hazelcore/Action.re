@@ -220,8 +220,7 @@ module Typ = {
         SwapDown,
         _,
       )
-      
-    /* Label Text Postiions */ 
+    /* Label Text Postiions */
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
@@ -838,7 +837,13 @@ module Pat = {
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    | Some(Label(_)) => failwith("unimplemented Label Pattern")
+    | Some(Label(_)) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
   };
 
@@ -1498,7 +1503,13 @@ module Pat = {
         Succeeded((zp, ty, ctx, u_gen));
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorP(_, Label(_))) => failwith("unimplemented Label Pattern")
+    | (_, CursorP(_, Label(_))) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
   }
   and ana_perform =
@@ -1949,7 +1960,13 @@ module Pat = {
         }
       }
     | (Init, _) => failwith("Init action should not be performed.")
-    | (_, CursorP(_, Label(_))) => failwith("unimplemented Label Pattern")
+    | (_, CursorP(_, Label(_))) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
 };
 

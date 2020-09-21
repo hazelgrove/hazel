@@ -193,7 +193,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
-    | Label(_) => failwith("unimplemented Label Pattern")
+    | Label(_) =>
+      failwith(
+        __FILE__
+        ++ __MODULE__
+        ++ string_of_int(__LINE__)
+        ++ "unimplemented Label Pattern",
+      )
     };
   };
 

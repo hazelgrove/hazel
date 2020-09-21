@@ -1249,7 +1249,7 @@ module Exp = {
             | Some((ty1, _)) =>
               ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
             }
-          };
+          }
         }
       | BinOp(_, Cons, skel1, skel2) =>
         switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {

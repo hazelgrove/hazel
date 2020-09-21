@@ -109,7 +109,7 @@ and place_after_operand =
   | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
   | Label(label) as operand =>
-    CursorT(OnText(Label.length(label)))
+    CursorT(OnText(Label.length(label)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
