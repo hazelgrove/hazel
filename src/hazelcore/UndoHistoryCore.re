@@ -162,7 +162,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | BoolLit(_, _)
     | ListNil(_)
     | Parenthesized(_)
-    | TypeAnn(_) // not sure what this does
+    | TypeAnn(_)
     | Inj(_, _, _) => MaxLen
     }
   | Typ(_, operand) =>

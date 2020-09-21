@@ -108,7 +108,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
-  | TypeAnn(_, p, a) => TypeAnn(err, p, a)
+  | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -208,7 +208,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Parenthesized(body) => is_complete(body)
-  | TypeAnn(_, p, a) => is_complete_operand(p) && UHTyp.is_complete(a)
+  | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };

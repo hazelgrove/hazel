@@ -935,7 +935,9 @@ and ana_perform_opseq =
     | None => Failed
     | Some(zp) => ana_perform(ctx, u_gen, a, zp, ty)
     };
-
+  | (Construct(SOp(SComma)), ZOperand(TypeAnnZA(_), _)) =>
+    print_endline("BZZZZZZ");
+    Failed;
   | (Construct(SOp(SComma)), _)
       when
         ZPat.is_after_zopseq(zopseq)
@@ -951,7 +953,6 @@ and ana_perform_opseq =
       );
     let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
     Succeeded((new_zopseq, ctx, u_gen));
-
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
