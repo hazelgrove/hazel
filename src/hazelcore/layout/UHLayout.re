@@ -3,10 +3,14 @@ open Pretty;
 [@deriving sexp]
 type annot = UHAnnot.t;
 
+// ECD TODO: remove the sexp
+[@deriving sexp]
 type t = Layout.t(annot);
 
 // TODO shouldn't need this, refactor to use option
 module QueryResult = {
+  // ECD TODO: remove the sexp
+  [@deriving sexp]
   type t('a) =
     | Stop
     | Skip
@@ -78,9 +82,15 @@ let rec find_and_decorate_Annot =
     }
   | Annot(annot, l1) =>
     switch (decorate(annot, l1)) {
-    | Stop => None
-    | Skip => go(l1) |> OptUtil.map(l1 => Layout.Annot(annot, l1))
-    | Return(l) => Some(l)
+    | Stop =>
+      print_endline("Stop");
+      None;
+    | Skip =>
+      print_endline("Skip");
+      go(l1) |> OptUtil.map(l1 => Layout.Annot(annot, l1));
+    | Return(l) =>
+      print_endline("Return");
+      Some(l);
     }
   };
 };
@@ -130,7 +140,11 @@ let find_and_decorate_caret =
                )
              | EmptyLine
              | Term(_) => Skip
-             | _ => Stop
+             | _ =>
+               print_endline(
+                 "OnText" ++ Sexplib.Sexp.to_string(UHAnnot.sexp_of_t(annot)),
+               );
+               Stop;
              }
            )
          | OnOp(side) =>
@@ -166,7 +180,12 @@ let find_and_decorate_caret =
              | Term(_)
              | DelimGroup
              | LetLine => Skip
-             | _ => Stop
+             | _ =>
+               print_endline(
+                 "OnDelim"
+                 ++ Sexplib.Sexp.to_string(UHAnnot.sexp_of_t(annot)),
+               );
+               Stop;
              }
            )
          },
