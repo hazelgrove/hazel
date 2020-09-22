@@ -211,6 +211,36 @@ let pad_closed_child =
   };
 };
 
+let pad_left_delimited_closed_child =
+    (~inline_padding: t=empty_, ~sort: TermSort.t, child: formatted_child): t => {
+  open Doc;
+  let inline_choice = child_doc => {
+    let left = inline_padding;
+    let lpadding = left == empty_ ? [] : [left];
+    hcats(
+      List.concat([
+        lpadding,
+        [annot_ClosedChild(~is_inline=true, ~sort, child_doc)],
+      ]),
+    );
+  };
+  let para_choice = child_doc =>
+    indent_and_align(annot_ClosedChild(~is_inline=false, ~sort, child_doc));
+  switch (child) {
+  | EnforcedInline(child_doc) => inline_choice(child_doc)
+  | UserNewline(child_doc) =>
+    hcats([user_newline, linebreak(), para_choice(child_doc)])
+  | Unformatted(formattable_child) =>
+    choices([
+      inline_choice(formattable_child(~enforce_inline=true)),
+      hcats([
+        linebreak(),
+        para_choice(formattable_child(~enforce_inline=false)),
+      ]),
+    ])
+  };
+};
+
 let pad_left_delimited_open_child =
     (~inline_padding: t=empty_, child: formatted_child): t => {
   open Doc;
@@ -231,6 +261,31 @@ let pad_left_delimited_open_child =
       hcats([
         linebreak(),
         para_choice(formattable_child(~enforce_inline=false)),
+      ]),
+    ])
+  };
+};
+
+let pad_right_delimited_open_child =
+    (~inline_padding: t=empty_, child: formatted_child): t => {
+  open Doc;
+  let inline_choice = child_doc => {
+    let rpadding = inline_padding == empty_ ? [] : [inline_padding];
+    hcats([child_doc] @ rpadding)
+    |> annot(UHAnnot.OpenChild(InlineWithoutBorder));
+  };
+  let para_choice = child_doc =>
+    child_doc |> indent_and_align |> annot(UHAnnot.OpenChild(Multiline));
+  switch (child) {
+  | EnforcedInline(child_doc) => inline_choice(child_doc)
+  | UserNewline(child_doc) =>
+    hcats([user_newline, para_choice(child_doc), linebreak()])
+  | Unformatted(formattable_child) =>
+    choices([
+      inline_choice(formattable_child(~enforce_inline=true)),
+      hcats([
+        para_choice(formattable_child(~enforce_inline=false)),
+        linebreak(),
       ]),
     ])
   };
@@ -396,10 +451,11 @@ let mk_LetLine =
 let mk_PatternAnnotation =
     (~sort: TermSort.t, op: formatted_child, ann: formatted_child): t => {
   Doc.hcats([
-    op |> pad_bidelimited_open_child(~inline_padding=(empty_, space_)),
+    op |> pad_right_delimited_open_child(~inline_padding=space_),
     Doc.hcats([
       Delim.colon_Ann(),
-      ann |> pad_closed_child(~inline_padding=(space_, empty_), ~sort=Typ),
+      ann
+      |> pad_left_delimited_closed_child(~inline_padding=space_, ~sort=Typ),
     ])
     |> annot_Tessera,
   ])
