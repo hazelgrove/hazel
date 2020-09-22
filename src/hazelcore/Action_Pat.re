@@ -598,8 +598,7 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
-        SCommentLine,
+        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
       ) |
       UpdateApPalette(_) |
       SwapUp |
@@ -786,6 +785,14 @@ and syn_perform_operand =
       Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
     }
 
+  | (Construct(SAsc), CursorP(_)) =>
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
+    let new_zp =
+      ZOpSeq.wrap(
+        ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
+      );
+    mk_syn_result(ctx, u_gen, new_zp);
+
   /* Invalid SwapLeft and SwapRight actions */
   | (SwapLeft | SwapRight, CursorP(_)) => Failed
 
@@ -935,9 +942,23 @@ and ana_perform_opseq =
     | None => Failed
     | Some(zp) => ana_perform(ctx, u_gen, a, zp, ty)
     };
-  | (Construct(SOp(SComma)), ZOperand(TypeAnnZA(_), _)) =>
-    print_endline("BZZZZZZ");
-    Failed;
+  | (
+      Construct(SOp(SComma)),
+      ZOperand(TypeAnnZA(err, op, zann), (prefix, suffix)),
+    )
+      when ZTyp.is_after(zann) =>
+    /* This case ensures commas entered at the end of an annotation
+        are treated as delimiter for pattern tuples rather than type
+       tuples; insert parentheses to enter a product type. */
+    let new_prefix =
+      Seq.S(UHPat.TypeAnn(err, op, ZTyp.erase(zann)), prefix);
+    let new_suffix = Seq.S(UHPat.EmptyHole(u_gen), suffix);
+    let new_zseq =
+      ZSeq.ZOperator(
+        (CursorPosition.OnOp(After), Operators_Pat.Comma),
+        (new_prefix, new_suffix),
+      );
+    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
   | (Construct(SOp(SComma)), _)
       when
         ZPat.is_after_zopseq(zopseq)
