@@ -396,9 +396,12 @@ let mk_LetLine =
 let mk_PatternAnnotation =
     (~sort: TermSort.t, op: formatted_child, ann: formatted_child): t => {
   Doc.hcats([
-    op |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
-    Delim.colon_Ann() |> annot_Tessera,
-    ann |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Typ),
+    op |> pad_bidelimited_open_child(~inline_padding=(empty_, space_)),
+    Doc.hcats([
+      Delim.colon_Ann(),
+      ann |> pad_closed_child(~inline_padding=(space_, empty_), ~sort=Typ),
+    ])
+    |> annot_Tessera,
   ])
   |> annot_Operand(~sort);
 };

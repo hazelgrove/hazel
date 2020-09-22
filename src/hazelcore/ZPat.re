@@ -142,8 +142,8 @@ and is_after_zoperand =
   | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
   | ParenthesizedZ(_) => false
-  | TypeAnnZP(_, zop, _) => is_after_zoperand(zop)
-  | TypeAnnZA(_) => false;
+  | TypeAnnZP(_) => false
+  | TypeAnnZA(_, _, zann) => ZTyp.is_after(zann);
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
