@@ -114,10 +114,16 @@ let rec normalize = (ctx: Contexts.t, ty: HTyp.t): HTyp.t =>
   };
 
 /* matched arrow types */
-let matched_arrow = (ctx: Contexts.t, ty: HTyp.t): option((HTyp.t, HTyp.t)) =>
-  switch (normalize(ctx, ty)) {
+let rec matched_arrow =
+        (ctx: Contexts.t, ty: HTyp.t): option((HTyp.t, HTyp.t)) =>
+  switch (ty) {
   | Hole
   | TyVarHole(_) => Some((Hole, Hole))
+  | TyVar(idx, _) =>
+    switch (TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx)) {
+    | (_, Singleton(hty)) => matched_arrow(ctx, hty)
+    | _ => failwith("impossible for bounded variables")
+    }
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None
   };
@@ -131,10 +137,16 @@ let has_matched_arrow = (ctx: Contexts.t, ty: HTyp.t): bool =>
   };
 
 /* matched sum types */
-let matched_sum = (ctx: Contexts.t, ty: HTyp.t): option((HTyp.t, HTyp.t)) =>
-  switch (normalize(ctx, ty)) {
+let rec matched_sum =
+        (ctx: Contexts.t, ty: HTyp.t): option((HTyp.t, HTyp.t)) =>
+  switch (ty) {
   | Hole
   | TyVarHole(_) => Some((Hole, Hole))
+  | TyVar(idx, _) =>
+    switch (TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx)) {
+    | (_, Singleton(hty)) => matched_sum(ctx, hty)
+    | _ => failwith("impossible for bounded variables")
+    }
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None
   };
@@ -148,10 +160,15 @@ let has_matched_sum = (ctx: Contexts.t, ty: HTyp.t): bool =>
   };
 
 /* matched list types */
-let matched_list = (ctx: Contexts.t, ty: HTyp.t): option(HTyp.t) =>
-  switch (normalize(ctx, ty)) {
+let rec matched_list = (ctx: Contexts.t, ty: HTyp.t): option(HTyp.t) =>
+  switch (ty) {
   | Hole
   | TyVarHole(_) => Some(Hole)
+  | TyVar(idx, _) =>
+    switch (TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx)) {
+    | (_, Singleton(hty)) => matched_list(ctx, hty)
+    | _ => failwith("impossible for bounded variables")
+    }
   | List(ty) => Some(ty)
   | _ => None
   };
