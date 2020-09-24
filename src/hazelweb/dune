@@ -18,7 +18,7 @@
  ;; This library ensures that all modules are type checked even if they are not used.
  (name hazelweb)
  (modules :standard \ Main)
- (libraries hazelcore incr_dom)
+ (libraries hazelcore incr_dom menhirtest)
  (wrapped false)
  (js_of_ocaml
   (flags

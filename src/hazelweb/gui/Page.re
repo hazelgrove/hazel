@@ -98,6 +98,49 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   );
 };
 
+let parse_test =
+  Vdom.(
+    Node.div(
+      [],
+      [
+        Node.input(
+          [
+            Attr.id("parse_test"),
+            Attr.classes(["page"]),
+            Attr.value(""),
+            Attr.on_change((_, s) => {
+              let t = JSUtil.force_get_elem_by_id("parse_test");
+              t##setAttribute(
+                Js_of_ocaml.Js.string("value"),
+                JSUtil.Js.string(s),
+              );
+              Event.Ignore;
+            }),
+          ],
+          [],
+        ),
+        Node.button(
+          [
+            Attr.on_click(_ => {
+              //let l = TestLex.read;
+              //let p = TestParse.main(l);
+              let e = JSUtil.force_get_elem_by_id("parse_test");
+              let s = JSUtil.force_get_attr("value", e);
+              //let v = Types.string_of_expr(p(Lexing.from_string(s)));
+
+              let l = Lexing.from_string(s);
+              let test =
+                Incr.incr(l, TestParse.Incremental.main(l.lex_curr_p));
+              JSUtil.log(Types.string_of_expr(test));
+              Event.Ignore;
+            }),
+          ],
+          [Node.text("Parse")],
+        ),
+      ],
+    )
+  );
+
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
@@ -133,6 +176,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                           cell_status,
                         ],
                       ),
+                      parse_test,
                       div(
                         [
                           Attr.style(
