@@ -71,6 +71,7 @@ let has_para_OpenChild =
 let rec find_and_decorate_Annot =
         (decorate: (annot, t) => QueryResult.t(t), l: t): option(t) => {
   let go = find_and_decorate_Annot(decorate);
+  print_endline(Sexplib.Sexp.to_string(sexp_of_t(l)) ++ __LOC__);
   switch (l) {
   | Linebreak
   | Text(_) => None
@@ -129,6 +130,12 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
+           print_endline(
+             "OnText"
+             ++ string_of_int(j)
+             ++ " "
+             ++ Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(cursor)),
+           );
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
              | Token({shape: Text, _} as token_data) =>
@@ -140,13 +147,9 @@ let find_and_decorate_caret =
                )
              | EmptyLine
              | Term(_) => Skip
-             | _ =>
-               print_endline(
-                 "OnText" ++ Sexplib.Sexp.to_string(UHAnnot.sexp_of_t(annot)),
-               );
-               Stop;
+             | _ => Stop
              }
-           )
+           );
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {

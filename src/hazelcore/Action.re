@@ -345,12 +345,13 @@ module Typ = {
 
     // Label Text Positions
     | (Backspace, CursorT(OnText(j), Label(l))) =>
-      Succeeded(
-        ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.delete(l, j)))),
-      )
-    // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
-    //   failwith("unimplemented") //TODO ECD: How to create a labeled element type
-    | (_, CursorT(OnDelim(_), Label(_))) => Failed
+      if (Label.length(l) == 1) {
+        Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)));
+      } else {
+        Succeeded(
+          ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.delete(l, j)))),
+        );
+      }
     | (Construct(SChar(".")), CursorT(_, Hole)) =>
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
     | (Construct(SChar(s)), CursorT(OnText(j), Label(l))) =>
@@ -361,6 +362,7 @@ module Typ = {
       )
 
     /* Invalid cursor positions */
+    | (_, CursorT(OnDelim(_), Label(_))) => Failed
     | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
     | (_, CursorT(cursor, operand))
         when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
