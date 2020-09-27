@@ -51,6 +51,10 @@ let first: list('a) => option('a);
 
 let last: list('a) => option('a);
 
+let split_first: list('a) => ('a, list('a));
+let split_first_opt: list('a) => option(('a, list('a)));
+
+let split_last: list('a) => (list('a), 'a);
 let split_last_opt: list('a) => option((list('a), 'a));
 
 let elem_before: ('a, list('a)) => option('a);
@@ -96,3 +100,12 @@ let map_with_accumulator:
 let map_with_accumulator_opt:
   (('acc, 'x) => option(('acc, 'y)), 'acc, list('x)) =>
   option(('acc, list('y)));
+
+/**
+ * `disjoint_pairs(xs)` returns a list of disjoint pairs
+ * of consecutive elements in `xs`. If `xs` has an odd
+ * number of elements, the last element is dropped.
+ */
+let disjoint_pairs: list('x) => list(('x, 'x));
+
+let rotate: list('x) => list('x);

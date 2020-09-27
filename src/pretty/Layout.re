@@ -73,29 +73,6 @@ let string_of_layout: 'annot. t('annot) => string =
     mk_of_layout(record, layout);
   };
 
-/* TODO got weird type inference error, see specialized instance in UHLayout
-   let rec find_and_decorate_Annot =
-           (decorate: ('annot, t('annot)) => decorate_result('annot), l: t('annot))
-           : option(t('annot)) => {
-     let go = find_and_decorate_Annot(decorate);
-     switch (l) {
-     | Linebreak
-     | Text(_) => None
-     | Align(l) => l |> go |> Option.map(align)
-     | Cat(l1, l2) =>
-       switch (l1 |> go) {
-       | Some(l1) => Some(Cat(l1, l2))
-       | None => l2 |> go |> Option.map(l2 => Cat(l1, l2))
-       }
-     | Annot(tg, l) =>
-       switch (decorate(annot, l)) {
-       | Failed => None
-       | Skipped => l |> go |> Option.map(annot(tg))
-       | Decorated(l) => Some(l)
-       }
-     };
-   };
-   */
 let strings_of_layout: 'annot. t('annot) => list((int, string)) =
   layout => {
     let record:
