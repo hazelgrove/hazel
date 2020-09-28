@@ -1878,8 +1878,11 @@ module Exp = {
           u_gen,
         );
       };
-    | Label(_, id) => (e_nih, Label(id), u_gen)
-    | Prj(_) => failwith("unimplemented Label Projection")
+    | Label(_, label) => (e_nih, Label(label), u_gen)
+    | Prj(_, e, label) =>
+      let (block, ty, u_gen) =
+        syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
+      (block, Label_Elt(Label(label), ty), u_gen);
     };
   }
   and syn_fix_holes_rules =

@@ -1382,8 +1382,17 @@ module Exp = {
          ana_expand_exp ctx bound_expansion expansion_ty
        | None -> ExpandResult.DoesNotExpand
        end */
-    | Label(NotInHole, label) => Expands(Label(label), Label(label), delta)
-    | Prj(NotInHole, _, _) => failwith("unimplemented Label Projection")
+    | Label(NotInHole, label) => 
+      if(Label.is_valid_label(label)){
+        Expands(Label(label), Label(label), delta)
+      }
+      else {
+        DoesNotExpand
+      }
+    | Prj(NotInHole, e, label) => 
+      if(Label.is_valid_label(label)){
+        
+      }
     }
   and syn_expand_rules =
       (

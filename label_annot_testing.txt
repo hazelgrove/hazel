@@ -1,3 +1,4 @@
+Return to this after implementing patterns
 Label
 
 1. SAME
@@ -188,4 +189,72 @@ Annot Return
 
 
 
-(Annot(Term((has_cursor false)(shape(SubBlock(hd_index 0)))(sort Exp)))(Cat(Annot(Step 0)(Annot LetLine(Cat(Cat(Annot DelimGroup(Cat(Cat(Cat(Cat(Annot(Token(shape(Delim 0))(len 3)(has_cursor()))(Text let))(Annot(ClosedChild(is_inline true))(Cat(Cat(Annot Padding(Text"\194\160"))(Annot(Step 0)(Annot(Step 0)(Annot(Term((has_cursor false)(shape(Var(err NotInHole)(verr NotInVarHole)(show_use false)))(sort Pat)))(Annot(Token(shape Text)(len 1)(has_cursor()))(Text x))))))(Annot Padding(Text"\194\160")))))(Annot(Token(shape(Delim 1))(len 1)(has_cursor()))(Text :)))(Annot(ClosedChild(is_inline true))(Cat(Cat(Annot Padding(Text"\194\160"))(Annot(Step 1)(Annot(Step 0)(Annot(Term((has_cursor false)(shape(Operand(err NotInHole)))(sort Typ)))(Annot(Token(shape(Delim 0))(len 3)(has_cursor()))(Text Int))))))(Annot Padding(Text"\194\160")))))(Annot(Token(shape(Delim 2))(len 1)(has_cursor()))(Text =))))(Annot(OpenChild(is_inline true))(Cat(Cat(Annot Padding(Text"\194\160"))(Annot(Step 2)(Annot(Term((has_cursor false)(shape(SubBlock(hd_index 0)))(sort Exp)))(Annot(Step 0)(Annot(Step 0)(Annot(Term((has_cursor false)(shape(Operand(err NotInHole)))(sort Exp)))(Annot(Token(shape(Delim 0))(len 1)(has_cursor()))(Annot(HoleLabel(len 1))(Text 5)))))))))(Annot Padding(Text"\194\160")))))(Annot DelimGroup(Annot(Token(shape(Delim 3))(len 2)(has_cursor()))(Text in))))))(Cat Linebreak(Annot(Term((has_cursor false)(shape(SubBlock(hd_index 1)))(sort Exp)))(Annot(Step 1)(Annot(Step 0)(Annot(Term((has_cursor false)(shape(Operand(err NotInHole)))(sort Exp)))(Annot(Token(shape(Delim 0))(len 1)(has_cursor()))(Annot(HoleLabel(len 1))(Text 7))))))))))File "src/hazelcore/layout/UHLayout.re", line 74, characters 56-63
+(
+    Annot
+        (Term((has_cursor false)(shape(Operand(err NotInHole)))(sort Typ))) // annot
+        (
+            Annot
+                (Token
+                    (shape(Delim 0))
+                    (len 1)
+                    (has_cursor())
+                )
+                (Text .)
+        ) // l1
+)
+
+
+
+// Try again
+Int
+l values for find_and_decorate_Annot
+(
+    Annot
+        (Step 1) // annot
+        ( //l1
+            Annot
+                (Step 0)
+                (
+                    Annot
+                        (Term((has_cursor false)(shape(Operand(err NotInHole)))(sort Typ)))
+                        (Annot(Token(shape(Delim 0))(len 3)(has_cursor(3)))(Text Int))
+                )
+        )
+)
+
+(
+    Annot
+        (Step 0) // annot
+        ( // l1
+            Annot
+                (Term((has_cursor false)(shape(Operand(err NotInHole)))(sort Typ)))
+                (Annot(Token(shape(Delim 0))(len 3)(has_cursor(3)))(Text Int))
+        )
+)
+
+(
+    Annot
+        (Term
+            ((has_cursor false)(shape(Operand(err NotInHole)))(sort Typ))
+        )
+        (Annot
+            (Token(shape(Delim 0))(len 3)(has_cursor(3)))
+            (Text Int)
+        )
+)
+// This is returned
+
+// TODO: get this output for "."
+
+(
+    Annot
+        (Term
+            ((has_cursor false)(shape(Operand(err NotInHole)))(sort Typ))
+        )
+        (Annot
+            (Token(shape(Delim 0))(len 1)(has_cursor()))
+            (Text .)
+        )
+)
+
+// This is skipped

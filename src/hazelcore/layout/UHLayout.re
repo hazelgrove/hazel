@@ -71,10 +71,14 @@ let has_para_OpenChild =
 let rec find_and_decorate_Annot =
         (decorate: (annot, t) => QueryResult.t(t), l: t): option(t) => {
   let go = find_and_decorate_Annot(decorate);
-  print_endline(Sexplib.Sexp.to_string(sexp_of_t(l)) ++ __LOC__);
+  // print_endline(
+  //   "find_decorate_annot " ++ Sexplib.Sexp.to_string(sexp_of_t(l)),
+  // );
   switch (l) {
-  | Linebreak
-  | Text(_) => None
+  | Linebreak => None
+  | Text(_) =>
+    // print_endline(t);
+    None
   | Align(l1) => go(l1) |> OptUtil.map(l1 => Layout.Align(l1))
   | Cat(l1, l2) =>
     switch (go(l1)) {
@@ -84,14 +88,14 @@ let rec find_and_decorate_Annot =
   | Annot(annot, l1) =>
     switch (decorate(annot, l1)) {
     | Stop =>
-      print_endline("Stop");
-      None;
+      // print_endline("Stop");
+      None
     | Skip =>
-      print_endline("Skip");
-      go(l1) |> OptUtil.map(l1 => Layout.Annot(annot, l1));
+      // print_endline("Skip");
+      go(l1) |> OptUtil.map(l1 => Layout.Annot(annot, l1))
     | Return(l) =>
-      print_endline("Return");
-      Some(l);
+      // print_endline("Return");
+      Some(l)
     }
   };
 };
@@ -100,6 +104,7 @@ let rec follow_steps_and_decorate =
         (~steps: CursorPath.steps, ~decorate: t => option(t), l: t)
         : option(t) => {
   let go = follow_steps_and_decorate(~decorate);
+  // print_endline("follow_steps " ++ Sexplib.Sexp.to_string(sexp_of_t(l)));
   switch (steps) {
   | [] => decorate(l)
   | [next_step, ...rest] =>
@@ -130,12 +135,7 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
-           print_endline(
-             "OnText"
-             ++ string_of_int(j)
-             ++ " "
-             ++ Sexplib.Sexp.to_string(CursorPosition.sexp_of_t(cursor)),
-           );
+           //  print_endline(string_of_int(j) ++ "On Text j val");
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
              | Token({shape: Text, _} as token_data) =>
@@ -149,7 +149,7 @@ let find_and_decorate_caret =
              | Term(_) => Skip
              | _ => Stop
              }
-           );
+           )
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
@@ -183,12 +183,7 @@ let find_and_decorate_caret =
              | Term(_)
              | DelimGroup
              | LetLine => Skip
-             | _ =>
-               print_endline(
-                 "OnDelim"
-                 ++ Sexplib.Sexp.to_string(UHAnnot.sexp_of_t(annot)),
-               );
-               Stop;
+             | _ => Stop
              }
            )
          },
