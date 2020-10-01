@@ -141,6 +141,7 @@ type t =
   // TODO rename to ExpandingKeyword
   | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
@@ -177,6 +178,7 @@ let rec constructor_string = (d: t): string =>
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
   | Keyword(_, _, _, _) => "Keyword"
   | FreeVar(_, _, _, _) => "FreeVar"
+  | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"

@@ -1,4 +1,4 @@
-open Pretty;
+module Doc = Pretty.Doc;
 
 type t = Doc.t(HTypAnnot.t);
 
@@ -91,7 +91,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Label(label) => text(label)
     | Label_Elt(ty1, ty2) =>
       let (d1, d2) =
-        mk_left_associative_operands(HTyp.precedence_Label, ty1, ty2);
+        mk_left_associative_operands(HTyp.precedence_Space, ty1, ty2);
       hcats([d1, text(" "), d2]);
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;

@@ -18,16 +18,12 @@ type join =
   | GLB
   | LUB;
 
-let is_Prod =
-  fun
-  | Prod(_) => true
-  | _ => false;
+let precedence_Prod = Operators_Typ.precedence(Prod);
+let precedence_Arrow = Operators_Typ.precedence(Arrow);
+let precedence_Sum = Operators_Typ.precedence(Sum);
+let precedence_Space = Operators_Typ.precedence(Space);
+let precedence_const = Operators_Typ.precedence_const;
 
-let precedence_Prod = 1;
-let precedence_Arrow = 2;
-let precedence_Sum = 3;
-let precedence_const = 4;
-let precedence_Label = 5;
 let precedence = (ty: t): int =>
   switch (ty) {
   | Int
@@ -36,11 +32,11 @@ let precedence = (ty: t): int =>
   | Hole
   | Prod([])
   | List(_)
-  | Label(_) => precedence_const
+  | Label(_)
+  | Label_Elt(_, _) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
-  | Label_Elt(_, _) => precedence_Label
   };
 
 /* equality
@@ -97,12 +93,6 @@ let matched_arrow =
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
-let has_matched_arrow =
-  fun
-  | Hole => true
-  | Arrow(_) => true
-  | _ => false;
-
 let get_prod_elements: t => list(t) =
   fun
   | Prod(tys) => tys
@@ -117,24 +107,12 @@ let matched_sum =
   | Sum(tyL, tyR) => Some((tyL, tyR))
   | _ => None;
 
-let has_matched_sum =
-  fun
-  | Hole => true
-  | Sum(_) => true
-  | _ => false;
-
 /* matched list types */
 let matched_list =
   fun
   | Hole => Some(Hole)
   | List(ty) => Some(ty)
   | _ => None;
-
-let has_matched_list =
-  fun
-  | Hole => true
-  | List(_) => true
-  | _ => false;
 
 let matched_label =
   fun

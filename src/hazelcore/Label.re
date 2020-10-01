@@ -9,8 +9,6 @@ let length: t => int = label => String.length(label);
 
 let sub: (t, int, int) => t = (label, s, e) => String.sub(label, s, e);
 
-//ECD TODO: add "is valid" function to check if an inserted value is valid char
-
 let insert: (t, string, int) => t =
   (label, s, i) => {
     let _start = String.sub(label, 0, i);
