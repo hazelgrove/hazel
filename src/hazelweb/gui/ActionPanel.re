@@ -185,8 +185,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let combo_element = (is_allowed_action, combo, description) => {
-    let action = Hashtbl.find(Cell.kc_actions, combo);
-    let action = action(cursor_info);
+    let action = KeyComboAction.get(cursor_info, combo);
     action_button(
       is_allowed_action,
       inject,
@@ -224,7 +223,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
     let actions =
       List.map(
         combo => {
-          let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
+          let action = KeyComboAction.get(cursor_info, combo);
           (HazelKeyCombos.get_details(combo), action);
         },
         combos,
@@ -234,7 +233,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let keyboard_button = combo => {
-    let action = Hashtbl.find(Cell.kc_actions, combo, cursor_info);
+    let action = KeyComboAction.get(cursor_info, combo);
     let combo = HazelKeyCombos.get_details(combo);
     keyboard_button(is_action_allowed, ~inject, ~combo, ~action);
   };
@@ -292,6 +291,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
         ),
         combo(Enter, simple("Create new line ")),
+        single_line_multiple_actions(
+          "Create new comment line",
+          [keyboard_button(Pound), keyboard_button(Shift_Enter)],
+        ),
         combo(LeftParen, simple("Parenthesize")),
       ],
     ),
@@ -467,8 +470,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 type ack_checkin =
   | Added;
 
-[@warning "-32"]
-let check_actions = (a: Action_common.t) =>
+let _check_actions = (a: Action_common.t) =>
   switch (a) {
   /* Used */
   | Backspace => Added
@@ -483,6 +485,7 @@ let check_actions = (a: Action_common.t) =>
   | Construct(SAsc) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
+  | Construct(SCommentLine) => Added
   | Construct(SLam) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added

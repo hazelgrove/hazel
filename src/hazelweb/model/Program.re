@@ -2,6 +2,9 @@ open Sexplib.Std;
 
 module Memo = Core_kernel.Memo;
 
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
+
 [@deriving sexp]
 type t = {
   edit_state: Statics_common.edit_state,
@@ -46,11 +49,6 @@ let get_steps = program => {
   steps;
 };
 
-let get_u_gen = program => {
-  let (_, _, u_gen) = program.edit_state;
-  u_gen;
-};
-
 exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
@@ -62,6 +60,36 @@ let get_cursor_info = (program: t) => {
   |> get_zexp
   |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
+};
+
+let get_decoration_paths = (program: t): UHDecorationPaths.t => {
+  let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let (err_holes, var_err_holes) =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+         switch (sort) {
+         | TypHole => None
+         | PatHole(_, shape)
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | VarErr
+           | TypeErr => Some((shape, steps))
+           }
+         }
+       )
+    |> List.partition(
+         fun
+         | (CursorPath_common.TypeErr, _) => true
+         | (_var_err, _) => false,
+       )
+    |> TupleUtil.map2(List.map(snd));
+  let var_uses =
+    switch (get_cursor_info(program)) {
+    | {uses: Some(uses), _} => uses
+    | _ => []
+    };
+  {current_term, err_holes, var_uses, var_err_holes};
 };
 
 exception DoesNotElaborate;
@@ -121,20 +149,14 @@ let move_to_hole = (u, program) => {
     let e = ZExp.erase(ze);
     switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)
-    | Some(hole_path) => program |> perform_edit_action(MoveTo(hole_path))
+    | Some(hole_path) => Action_common.MoveTo(hole_path)
     };
   };
 };
 
-let move_to_case_branch =
-    (steps_to_case, branch_index, program): (t, Action_common.t) => {
+let move_to_case_branch = (steps_to_case, branch_index): Action_common.t => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
-  let new_program =
-    perform_edit_action(
-      MoveTo((steps_to_branch, OnDelim(1, After))),
-      program,
-    );
-  (new_program, MoveTo((steps_to_branch, OnDelim(1, After))));
+  Action_common.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 
 let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
@@ -164,113 +186,64 @@ let get_layout =
   |> OptUtil.get(() => failwith("unimplemented: layout failure"));
 };
 
-let decorate_caret = (path, l) =>
-  l
-  |> UHLayout.find_and_decorate_caret(~path)
-  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find caret"));
-let decorate_cursor = (steps, l) =>
-  l
-  |> UHLayout.find_and_decorate_cursor(~steps)
-  |> OptUtil.get(() => failwith(__LOC__ ++ ": could not find cursor"));
-let decorate_var_uses = (ci: CursorInfo_common.t, l: UHLayout.t): UHLayout.t =>
-  switch (ci.uses) {
-  | None => l
-  | Some(uses) =>
-    uses
-    |> List.fold_left(
-         (l: UHLayout.t, use) =>
-           l
-           |> UHLayout.find_and_decorate_var_use(~steps=use)
-           |> OptUtil.get(() => {
-                failwith(
-                  __LOC__
-                  ++ ": could not find var use"
-                  ++ Sexplib.Sexp.to_string(
-                       CursorPath_common.sexp_of_steps(use),
-                     ),
-                )
-              }),
-         l,
-       )
-  };
-
-let get_decorated_layout =
+let get_measured_layout =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
       program,
-    ) => {
-  let (steps, _) as path = program |> get_path;
-  let ci = program |> get_cursor_info;
+    )
+    : UHMeasuredLayout.t => {
   program
   |> get_layout(
        ~measure_program_get_doc,
        ~measure_layoutOfDoc_layout_of_doc,
        ~memoize_doc,
      )
-  |> decorate_caret(path)
-  |> decorate_cursor(steps)
-  |> decorate_var_uses(ci);
+  |> UHMeasuredLayout.mk;
 };
 
-let get_cursor_map_z =
+let get_caret_position =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
       program,
-    ) => {
-  let path = program |> get_path;
-  // TODO figure out how to consolidate decoration
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> decorate_caret(path)
-  |> CursorMap.mk
-  |> (
-    fun
-    | (_, None) => failwith(__LOC__ ++ ": no cursor found")
-    | (map, Some(z)) => (map, z)
-  );
-};
-
-let get_cursor_map =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
+    )
+    : MeasuredPosition.t => {
+  let m =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
       program,
-    ) =>
-  program
-  |> get_cursor_map_z(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> fst;
+    );
+  let path = get_path(program);
+  UHMeasuredLayout.caret_position_of_path(path, m)
+  |> OptUtil.get(() => failwith("could not find caret"));
+};
 
 let move_via_click =
     (
       ~measure_program_get_doc: bool,
       ~measure_layoutOfDoc_layout_of_doc: bool,
       ~memoize_doc: bool,
-      row_col,
+      target: MeasuredPosition.t,
       program,
     )
     : (t, Action_common.t) => {
-  let (_, rev_path) =
-    program
-    |> get_cursor_map(
-         ~measure_program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc,
-         ~memoize_doc,
-       )
-    |> CursorMap.find_nearest_within_row(row_col);
-  let path = CursorPath_common.rev(rev_path);
+  let m =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let path =
+    UHMeasuredLayout.nearest_path_within_row(target, m)
+    |> OptUtil.get(() => failwith("row with no caret positions"))
+    |> fst
+    |> CursorPath_common.rev;
   let new_program =
     program |> focus |> clear_start_col |> perform_edit_action(MoveTo(path));
   (new_program, MoveTo(path));
@@ -285,37 +258,76 @@ let move_via_key =
       program,
     )
     : (t, Action_common.t) => {
-  let (cmap, ((row, col), _) as z) =
-    program
-    |> get_cursor_map_z(
-         ~measure_program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc,
-         ~memoize_doc,
-       );
+  let caret_position =
+    get_caret_position(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
+  let m =
+    get_measured_layout(
+      ~measure_program_get_doc,
+      ~measure_layoutOfDoc_layout_of_doc,
+      ~memoize_doc,
+      program,
+    );
   let (from_col, put_col_on_start) =
     switch (program.start_col_of_vertical_movement) {
-    | None => (col, put_start_col(col))
+    | None =>
+      let col = caret_position.col;
+      (col, put_start_col(col));
     | Some(col) => (col, (p => p))
     };
   let (new_z, update_start_col) =
     switch (move_key) {
-    | ArrowUp => (
-        cmap |> CursorMap.move_up((row, from_col)),
+    | ArrowUp =>
+      let up_target =
+        MeasuredPosition.{row: caret_position.row - 1, col: from_col};
+      (
+        UHMeasuredLayout.nearest_path_within_row(up_target, m),
         put_col_on_start,
-      )
-    | ArrowDown => (
-        cmap |> CursorMap.move_down((row, from_col)),
+      );
+    | ArrowDown =>
+      let down_target =
+        MeasuredPosition.{row: caret_position.row + 1, col: from_col};
+      (
+        UHMeasuredLayout.nearest_path_within_row(down_target, m),
         put_col_on_start,
+      );
+    | ArrowLeft => (
+        switch (UHMeasuredLayout.prev_path_within_row(caret_position, m)) {
+        | Some(_) as found => found
+        | None =>
+          caret_position.row > 0
+            ? UHMeasuredLayout.last_path_in_row(caret_position.row - 1, m)
+            : None
+        },
+        clear_start_col,
       )
-    | ArrowLeft => (cmap |> CursorMap.move_left(z), clear_start_col)
-    | ArrowRight => (cmap |> CursorMap.move_right(z), clear_start_col)
-    | Home => (Some(cmap |> CursorMap.move_sol(row)), clear_start_col)
-    | End => (Some(cmap |> CursorMap.move_eol(row)), clear_start_col)
+    | ArrowRight => (
+        switch (UHMeasuredLayout.next_path_within_row(caret_position, m)) {
+        | Some(_) as found => found
+        | None =>
+          caret_position.row < MeasuredLayout.height(m) - 1
+            ? UHMeasuredLayout.first_path_in_row(caret_position.row + 1, m)
+            : None
+        },
+        clear_start_col,
+      )
+    | Home => (
+        UHMeasuredLayout.first_path_in_row(caret_position.row, m),
+        clear_start_col,
+      )
+    | End => (
+        UHMeasuredLayout.last_path_in_row(caret_position.row, m),
+        clear_start_col,
+      )
     };
 
   switch (new_z) {
   | None => raise(CursorEscaped)
-  | Some((_, rev_path)) =>
+  | Some((rev_path, _)) =>
     let path = CursorPath_common.rev(rev_path);
     let new_program =
       program |> update_start_col |> perform_edit_action(MoveTo(path));

@@ -15,11 +15,12 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SArrow
   | SVBar => None;
 
-let shape_of_operator: UHPat.operator => Action_common.operator_shape =
-  fun
+let shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>
+  switch (op) {
   | Comma => SComma
   | Space => SSpace
-  | Cons => SCons;
+  | Cons => SCons
+  };
 
 let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   zseq
@@ -62,31 +63,28 @@ let mk_syn_text =
     : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
-  | None =>
+  | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
-      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, u_gen));
     } else {
-      Failed;
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+      Succeeded((zp, HTyp.Hole, ctx, u_gen));
     }
-  | Some(Underscore) =>
+  | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
-  | Some(IntLit(n)) =>
+  | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
     Succeeded((zp, HTyp.Int, ctx, u_gen));
-  | Some(FloatLit(f)) =>
+  | FloatLit(f) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
     Succeeded((zp, HTyp.Float, ctx, u_gen));
-  | Some(BoolLit(b)) =>
+  | BoolLit(b) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.Bool, ctx, u_gen));
-  | Some(ExpandingKeyword(k)) =>
+  | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
       UHPat.var(
@@ -95,7 +93,7 @@ let mk_syn_text =
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
-  | Some(Var(x)) =>
+  | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
@@ -113,24 +111,21 @@ let mk_ana_text =
     : ActionOutcome.t(ana_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
-  | None =>
+  | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
-    } else if
-      /* TODO: this should be changed once InvalidVar holes are finished */
-      (text == ".") {
-      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
     } else {
-      Failed;
+      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
+      Succeeded((zp, ctx, u_gen));
     }
-  | Some(Underscore) =>
+  | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
     Succeeded((zp, ctx, u_gen));
-  | Some(IntLit(_))
-  | Some(FloatLit(_))
-  | Some(BoolLit(_)) =>
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_) =>
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
@@ -141,12 +136,12 @@ let mk_ana_text =
         Succeeded((zp, ctx, u_gen));
       }
     }
-  | Some(ExpandingKeyword(k)) =>
+  | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
-  | Some(Var(x)) =>
+  | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
@@ -175,10 +170,8 @@ let syn_split_text =
     operator_of_shape(sop),
     TextShape.of_text(r),
   ) {
-  | (None, _, _)
-  | (_, None, _)
-  | (_, _, None) => Failed
-  | (Some(lshape), Some(op), Some(rshape)) =>
+  | (_, None, _) => Failed
+  | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
     let new_ze = {
@@ -204,10 +197,8 @@ let ana_split_text =
     operator_of_shape(sop),
     TextShape.of_text(r),
   ) {
-  | (None, _, _)
-  | (_, None, _)
-  | (_, _, None) => Failed
-  | (Some(lshape), Some(op), Some(rshape)) =>
+  | (_, None, _) => Failed
+  | (lshape, Some(op), rshape) =>
     let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
     let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
     let new_ze = {
@@ -567,7 +558,10 @@ and syn_perform_operand =
         OnText(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
       ) |
-      CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
+      CursorP(
+        OnDelim(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+      ) |
       CursorP(OnOp(_), _),
     ) =>
     Failed
@@ -577,7 +571,10 @@ and syn_perform_operand =
 
   /* Invalid actions */
   | (
-      Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
+      Construct(
+        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
+        SCommentLine,
+      ) |
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
@@ -622,6 +619,8 @@ and syn_perform_operand =
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, Hole, ctx, u_gen));
 
+  | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
+    syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
@@ -631,6 +630,8 @@ and syn_perform_operand =
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
 
+  | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
+    syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
@@ -667,6 +668,11 @@ and syn_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
+  | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(_, t)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, t)
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -688,9 +694,6 @@ and syn_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -700,6 +703,8 @@ and syn_perform_operand =
       | After => 1
       };
     syn_insert_text(ctx, u_gen, (index, s), "_");
+  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
+    syn_insert_text(ctx, u_gen, (j, s), t)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
@@ -978,7 +983,10 @@ and ana_perform_operand =
         OnText(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
       ) |
-      CursorP(OnDelim(_), Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_)) |
+      CursorP(
+        OnDelim(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+      ) |
       CursorP(OnOp(_), _),
     ) =>
     Failed
@@ -988,7 +996,10 @@ and ana_perform_operand =
 
   /* Invalid actions */
   | (
-      Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
+      Construct(
+        SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase |
+        SCommentLine,
+      ) |
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
@@ -1059,6 +1070,8 @@ and ana_perform_operand =
     let zp = ZOpSeq.wrap(zhole);
     Succeeded((zp, ctx, u_gen));
 
+  | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
+    ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
@@ -1068,6 +1081,8 @@ and ana_perform_operand =
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
 
+  | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
+    ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
@@ -1110,6 +1125,11 @@ and ana_perform_operand =
 
   // TODO consider relaxing guards and
   // merging with regular op construction
+  | (Construct(SOp(sop)), CursorP(OnText(j), InvalidText(_, t)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, t, ty)
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1131,9 +1151,6 @@ and ana_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
 
-  /* Temporary fix so that a new hole isn't created when a dot is inputted by itself (cf mk_[syn|ana]_text)
-     TODO: remove once we have InvalidVar holes */
-  | (Construct(SChar(".")), CursorP(_, EmptyHole(_))) => Failed
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1143,6 +1160,8 @@ and ana_perform_operand =
       | After => 1
       };
     ana_insert_text(ctx, u_gen, (index, s), "_", ty);
+  | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
+    ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>

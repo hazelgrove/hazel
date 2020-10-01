@@ -35,11 +35,8 @@ let unwrap_parentheses = (operand: operand): t =>
   | Parenthesized(p) => p
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Typ.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
-};
+let associate =
+  Skel.mk(Operators_Typ.precedence, Operators_Typ.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
@@ -47,12 +44,12 @@ let contract = (ty: HTyp.t): t => {
   let rec mk_seq_operand = (precedence_op, op, ty1, ty2) =>
     Seq.seq_op_seq(
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty1) <= precedence_op,
+        ~parenthesize=HTyp.precedence(ty1) > precedence_op,
         ty1,
       ),
       op,
       contract_to_seq(
-        ~parenthesize=HTyp.precedence(ty2) < precedence_op,
+        ~parenthesize=HTyp.precedence(ty2) >= precedence_op,
         ty2,
       ),
     )
@@ -71,14 +68,14 @@ let contract = (ty: HTyp.t): t => {
         |> List.map(elementType =>
              contract_to_seq(
                ~parenthesize=
-                 HTyp.precedence(elementType) <= HTyp.precedence_Prod,
+                 HTyp.precedence(elementType) > HTyp.precedence_Prod,
                elementType,
              )
            )
         |> List.fold_left(
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
+               ~parenthesize=HTyp.precedence(head) > HTyp.precedence_Prod,
                head,
              ),
            )

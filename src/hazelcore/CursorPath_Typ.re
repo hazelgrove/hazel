@@ -31,7 +31,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZTyp.ParenthesizedZ(zbody))
+        |> Option.map(zbody => ZTyp.ParenthesizedZ(zbody))
       | _ => None
       }
     | List(body) =>
@@ -39,7 +39,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZTyp.ListZ(zbody))
+        |> Option.map(zbody => ZTyp.ListZ(zbody))
       | _ => None
       }
     }
@@ -96,7 +96,7 @@ and of_steps_operand =
       | 0 =>
         body
         |> of_steps(xs, ~side)
-        |> OptUtil.map(path => CursorPath_common.cons'(0, path))
+        |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
     }
@@ -118,7 +118,7 @@ and of_steps_binop =
     };
   };
 
-let hole_desc = _ => CursorPath_common.TypHole;
+let hole_sort = _ => CursorPath_common.TypHole;
 let is_space = _ => false;
 
 let rec holes =
@@ -131,7 +131,7 @@ let rec holes =
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
-       ~hole_desc,
+       ~hole_sort,
        ~is_space,
        ~rev_steps,
        uty,
@@ -144,7 +144,7 @@ and holes_operand =
     )
     : CursorPath_common.hole_list =>
   switch (operand) {
-  | Hole => [(TypHole, rev_steps |> List.rev), ...hs]
+  | Hole => [{sort: TypHole, steps: List.rev(rev_steps)}, ...hs]
   | Unit
   | Int
   | Float
@@ -163,7 +163,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_desc,
+    ~hole_sort,
     ~is_space,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zopseq,
@@ -175,7 +175,7 @@ and holes_zoperand =
   switch (zoperand) {
   | CursorT(_, Hole) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some((TypHole, rev_steps |> List.rev)),
+      ~hole_selected=Some({sort: TypHole, steps: List.rev(rev_steps)}),
       (),
     )
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes

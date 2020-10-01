@@ -74,28 +74,28 @@ and follow_line =
     : option(ZExp.zline) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
-    follow_opseq(path, opseq) |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
-  | ([], EmptyLine | LetLine(_, _, _)) =>
+    follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
+  | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
     line |> ZExp.place_cursor_line(cursor)
-  | ([_, ..._], EmptyLine) => None
+  | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
     switch (x) {
     | 0 =>
       p
       |> CursorPath_Pat.follow((xs, cursor))
-      |> OptUtil.map(zp => ZExp.LetLineZP(zp, ann, def))
+      |> Option.map(zp => ZExp.LetLineZP(zp, ann, def))
     | 1 =>
       switch (ann) {
       | None => None
       | Some(ann) =>
         ann
         |> CursorPath_Typ.follow((xs, cursor))
-        |> OptUtil.map(zann => ZExp.LetLineZA(p, zann, def))
+        |> Option.map(zann => ZExp.LetLineZA(p, zann, def))
       }
     | 2 =>
       def
       |> follow((xs, cursor))
-      |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
+      |> Option.map(zdef => ZExp.LetLineZE(p, ann, zdef))
     | _ => None
     }
   }
@@ -124,6 +124,7 @@ and follow_operand =
   | [x, ...xs] =>
     switch (operand) {
     | EmptyHole(_)
+    | InvalidText(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -134,7 +135,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
+        |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
       | _ => None
       }
     | UnaryOp(err, unop, operand) =>
@@ -154,19 +155,19 @@ and follow_operand =
       | 0 =>
         p
         |> CursorPath_Pat.follow((xs, cursor))
-        |> OptUtil.map(zp => ZExp.LamZP(err, zp, ann, body))
+        |> Option.map(zp => ZExp.LamZP(err, zp, ann, body))
       | 1 =>
         switch (ann) {
         | None => None
         | Some(ann) =>
           ann
           |> CursorPath_Typ.follow((xs, cursor))
-          |> OptUtil.map(zann => ZExp.LamZA(err, p, zann, body))
+          |> Option.map(zann => ZExp.LamZA(err, p, zann, body))
         }
       | 2 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody))
+        |> Option.map(zbody => ZExp.LamZE(err, p, ann, zbody))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -174,7 +175,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZExp.InjZ(err, side, zbody))
+        |> Option.map(zbody => ZExp.InjZ(err, side, zbody))
       | _ => None
       }
     | Case(err, scrut, rules) =>
@@ -182,14 +183,14 @@ and follow_operand =
       | 0 =>
         scrut
         |> follow((xs, cursor))
-        |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
+        |> Option.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
       | _ =>
         switch (ZList.split_at(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
           split_rules
           |> ZList.optmap_z(follow_rule((xs, cursor)))
-          |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules))
+          |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
         }
       }
     | ApPalette(err, name, serialized_model, splice_info) =>
@@ -232,11 +233,11 @@ and follow_rule =
     | 0 =>
       p
       |> CursorPath_Pat.follow((xs, cursor))
-      |> OptUtil.map(zp => ZExp.RuleZP(zp, clause))
+      |> Option.map(zp => ZExp.RuleZP(zp, clause))
     | 1 =>
       clause
       |> follow((xs, cursor))
-      |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
+      |> Option.map(zclause => ZExp.RuleZE(p, zclause))
     | _ => None
     }
   };
@@ -261,7 +262,7 @@ and of_steps_block =
     | None => None
     | Some(split_lines) =>
       let (_, z, _) = split_lines;
-      z |> of_steps_line(xs, ~side) |> OptUtil.map(path => cons'(x, path));
+      z |> of_steps_line(xs, ~side) |> Option.map(path => cons'(x, path));
     }
   }
 and of_steps_line =
@@ -269,29 +270,29 @@ and of_steps_line =
     : option(CursorPath_common.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-  | ([], EmptyLine | LetLine(_, _, _)) =>
+  | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
     let place_cursor =
       switch (side) {
       | Before => ZExp.place_before_line
       | After => ZExp.place_after_line
       };
     Some(of_zline(place_cursor(line)));
-  | ([_, ..._], EmptyLine) => None
+  | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
     switch (x) {
     | 0 =>
       p
       |> CursorPath_Pat.of_steps(xs, ~side)
-      |> OptUtil.map(path => cons'(0, path))
+      |> Option.map(path => cons'(0, path))
     | 1 =>
       switch (ann) {
       | None => None
       | Some(ann) =>
         ann
         |> CursorPath_Typ.of_steps(xs, ~side)
-        |> OptUtil.map(path => cons'(1, path))
+        |> Option.map(path => cons'(1, path))
       }
-    | 2 => def |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
+    | 2 => def |> of_steps(xs, ~side) |> Option.map(path => cons'(2, path))
     | _ => None
     }
   }
@@ -351,6 +352,7 @@ and of_steps_operand =
   | [x, ...xs] =>
     switch (operand) {
     | EmptyHole(_)
+    | InvalidText(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
@@ -359,7 +361,7 @@ and of_steps_operand =
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
-        body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(0, path))
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
     | UnaryOp(_, unop, operand) =>
@@ -379,37 +381,35 @@ and of_steps_operand =
       | 0 =>
         p
         |> CursorPath_Pat.of_steps(xs, ~side)
-        |> OptUtil.map(path => cons'(0, path))
+        |> Option.map(path => cons'(0, path))
       | 1 =>
         switch (ann) {
         | None => None
         | Some(ann) =>
           ann
           |> CursorPath_Typ.of_steps(xs, ~side)
-          |> OptUtil.map(path => cons'(1, path))
+          |> Option.map(path => cons'(1, path))
         }
       | 2 =>
-        body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(2, path))
       | _ => None
       }
     | Inj(_, _, body) =>
       switch (x) {
       | 0 =>
-        body |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(2, path))
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(2, path))
       | _ => None
       }
     | Case(_, scrut, rules) =>
       switch (x) {
       | 0 =>
-        scrut |> of_steps(~side, xs) |> OptUtil.map(path => cons'(0, path))
+        scrut |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
       | _ =>
         switch (ZList.split_at(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
           let (_, z, _) = split_rules;
-          z
-          |> of_steps_rule(xs, ~side)
-          |> OptUtil.map(path => cons'(x, path));
+          z |> of_steps_rule(xs, ~side) |> Option.map(path => cons'(x, path));
         }
       }
     | ApPalette(_, _, _, splice_info) =>
@@ -417,7 +417,7 @@ and of_steps_operand =
       switch (IntMap.find_opt(x, splice_map)) {
       | None => None
       | Some((_, e)) =>
-        e |> of_steps(xs, ~side) |> OptUtil.map(path => cons'(x, path))
+        e |> of_steps(xs, ~side) |> Option.map(path => cons'(x, path))
       };
     }
   }
@@ -438,17 +438,19 @@ and of_steps_rule =
     | 0 =>
       p
       |> CursorPath_Pat.of_steps(~side, xs)
-      |> OptUtil.map(path => cons'(0, path))
+      |> Option.map(path => cons'(0, path))
     | 1 =>
-      clause |> of_steps(~side, xs) |> OptUtil.map(path => cons'(1, path))
+      clause |> of_steps(~side, xs) |> Option.map(path => cons'(1, path))
     | _ => None
     };
   };
 
-let hole_desc = (u: MetaVar.t): CursorPath_common.hole_desc => ExpHole(u);
-let holes_err = CursorPath_common.holes_err(~hole_desc);
-let holes_case_err = CursorPath_common.holes_case_err(~hole_desc);
-let holes_verr = CursorPath_common.holes_verr(~hole_desc);
+let hole_sort = (shape, u: MetaVar.t): CursorPath_common.hole_sort =>
+  ExpHole(u, shape);
+let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
+let holes_case_err =
+  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
+let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
 let rec holes =
         (
@@ -478,7 +480,8 @@ and holes_line =
     )
     : CursorPath_common.hole_list =>
   switch (line) {
-  | EmptyLine => hs
+  | EmptyLine
+  | CommentLine(_) => hs
   | LetLine(p, ann, def) =>
     hs
     |> holes(def, [2, ...rev_steps])
@@ -493,7 +496,7 @@ and holes_line =
     hs
     |> CursorPath_common.holes_opseq(
          ~holes_operand,
-         ~hole_desc,
+         ~hole_sort=hole_sort(TypeErr),
          ~is_space=Operators_Exp.is_Space,
          ~rev_steps,
          opseq,
@@ -507,7 +510,14 @@ and holes_operand =
     )
     : CursorPath_common.hole_list =>
   switch (operand) {
-  | EmptyHole(u) => [(ExpHole(u), rev_steps |> List.rev), ...hs]
+  | EmptyHole(u) => [
+      {sort: ExpHole(u, Empty), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  | InvalidText(u, _) => [
+      {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | IntLit(err, _)
@@ -602,6 +612,7 @@ and holes_zline =
   switch (zline) {
   | CursorL(OnOp(_), _) => CursorPath_common.no_holes
   | CursorL(_, EmptyLine) => CursorPath_common.no_holes
+  | CursorL(_, CommentLine(_)) => CursorPath_common.no_holes
   | CursorL(_, ExpLine(_)) => CursorPath_common.no_holes /* invalid cursor position */
   | CursorL(cursor, LetLine(p, ann, def)) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
@@ -685,7 +696,7 @@ and holes_zopseq =
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
-    ~hole_desc,
+    ~hole_sort=hole_sort(TypeErr),
     ~is_space=Operators_Exp.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZExp.erase_zopseq,
@@ -698,16 +709,29 @@ and holes_zoperand =
   | CursorE(OnOp(_), _) => CursorPath_common.no_holes
   | CursorE(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some((ExpHole(u), rev_steps |> List.rev)),
+      ~hole_selected=
+        Some({sort: ExpHole(u, Empty), steps: List.rev(rev_steps)}),
+      (),
+    )
+  | CursorE(_, InvalidText(u, _)) =>
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
   | CursorE(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
-    | (InHole(_, u), _)
+    | (InHole(_, u), _) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
+        (),
+      )
     | (_, InVarHole(_, u)) =>
       CursorPath_common.mk_zholes(
-        ~hole_selected=Some((ExpHole(u), rev_steps |> List.rev)),
+        ~hole_selected=
+          Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
         (),
       )
     }
@@ -719,7 +743,8 @@ and holes_zoperand =
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
-        ~hole_selected=Some((ExpHole(u), rev_steps |> List.rev)),
+        ~hole_selected=
+          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
         (),
       )
     }
@@ -731,11 +756,14 @@ and holes_zoperand =
     | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>
-    let hole_selected =
+    let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some((CursorPath_common.ExpHole(u), rev_steps |> List.rev))
+        Some({
+          sort: CursorPath_common.ExpHole(u, TypeErr),
+          steps: List.rev(rev_steps),
+        })
       };
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
@@ -750,11 +778,11 @@ and holes_zoperand =
     | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), Lam(err, p, ann, body)) =>
-    let hole_selected =
+    let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some((CursorPath_common.ExpHole(u), rev_steps |> List.rev))
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_ann =
@@ -787,12 +815,12 @@ and holes_zoperand =
     | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
-    let hole_selected =
+    let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => None
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) =>
-        Some((CursorPath_common.ExpHole(u), rev_steps |> List.rev))
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);
     let holes_rules =
@@ -861,11 +889,11 @@ and holes_zoperand =
       (),
     );
   | LamZP(err, zp, ann, body) =>
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
@@ -883,11 +911,11 @@ and holes_zoperand =
       (),
     );
   | LamZA(err, p, zann, body) =>
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
@@ -901,11 +929,11 @@ and holes_zoperand =
       (),
     );
   | LamZE(err, p, ann, zbody) =>
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
@@ -923,11 +951,11 @@ and holes_zoperand =
       (),
     );
   | InjZ(err, _, zbody) =>
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
@@ -939,12 +967,15 @@ and holes_zoperand =
       (),
     );
   | CaseZE(err, zscrut, rules) =>
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {
+            sort: CursorPath_common.ExpHole(u, TypeErr),
+            steps: List.rev(rev_steps),
+          },
         ]
       };
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
@@ -962,12 +993,12 @@ and holes_zoperand =
       (),
     );
   | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     let holes_scrut = holes(scrut, [0, ...rev_steps], []);

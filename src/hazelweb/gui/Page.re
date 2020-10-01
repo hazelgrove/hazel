@@ -125,6 +125,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       open Vdom;
       let card = model |> Model.get_card;
       let program = model |> Model.get_program;
+      let selected_instance = model |> Model.get_selected_hole_instance;
       let cell_status =
         if (!model.compute_results.compute_results) {
           Node.div([], []);
@@ -163,8 +164,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~show_fn_bodies=model.compute_results.show_fn_bodies,
                     ~show_case_clauses=model.compute_results.show_case_clauses,
                     ~show_casts=model.compute_results.show_casts,
-                    ~selected_instance=
-                      model |> Model.get_selected_hole_instance,
+                    ~selected_instance,
                     ~width=80,
                     model.compute_results.show_unevaluated_expansion
                       ? program |> Program.get_expansion
@@ -175,28 +175,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             ],
           );
         };
-      /*
-       let e = program |> Program.get_uhexp;
-       let doc =
-         lazy(
-           Lazy.force(
-             UHDoc_Exp.mk,
-             ~memoize=model.memoize_doc /*TODO:memoize*/,
-             ~enforce_inline=false,
-             e,
-           )
-         );
-       let layout =
-         lazy(
-           switch (
-             Pretty.LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)
-           ) {
-           | None => Pretty.Layout.Text("layout FAILED") // TODO
-           | Some(l) => l
-           }
-         );
-       let box = lazy(Pretty.BoxOfLayout.box_of_layout(Lazy.force(layout)));
-       */
       Node.div(
         [Attr.id("root")],
         [
@@ -216,7 +194,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           Node.div(
             [Attr.classes(["main-area"])],
             [
-              Sidebar.left(~inject, model, () =>
+              Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
                 [ActionPanel.view(~inject, model)]
               ),
               Node.div(
@@ -231,18 +209,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           Node.div(
                             [Attr.classes(["card-caption"])],
                             [card.info.caption],
-                            /* [
-                                 Node.text("Hazel is an experiment in "),
-                                 Node.strong(
-                                   [],
-                                   [Node.text("live functional programming")],
-                                 ),
-                                 Node.text(" with "),
-                                 Node.strong([], [Node.text("typed holes")]),
-                                 Node.text(
-                                   ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                                 ),
-                               ], */
                           ),
                           Cell.view(~inject, model),
                           cell_status,
@@ -271,22 +237,20 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           ),
                         ],
                         [],
-                        /*
-                         if (!model.show_presentation) {
-                           [];
-                         } else {
-                           [JSUtil.vdom_of_box(Lazy.force(box))];
-                         },
-                         */
                       ),
                     ],
                   ),
                 ],
               ),
-              Sidebar.right(~inject, model, () =>
+              Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
                   CursorInspector.view(~inject, model),
-                  ContextInspector.view(~inject, model),
+                  ContextInspector.view(
+                    ~inject,
+                    ~selected_instance,
+                    ~compute_results=model.compute_results,
+                    program,
+                  ),
                   UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
                 ]

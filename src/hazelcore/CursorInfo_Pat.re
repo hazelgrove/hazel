@@ -78,7 +78,7 @@ and syn_cursor_info_zopseq =
            },
          Some(([], ctx)),
        )
-    |> OptUtil.map(((rev_tys, _)) =>
+    |> Option.map(((rev_tys, _)) =>
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
              PatSynthesized(Prod(rev_tys |> List.rev)),
@@ -134,7 +134,7 @@ and syn_cursor_info_skel =
       )
     | ZOperator(_) =>
       Statics_Pat.syn_skel(ctx, skel, seq)
-      |> OptUtil.map(((ty, _)) =>
+      |> Option.map(((ty, _)) =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatSynthesized(ty),
@@ -194,7 +194,7 @@ and syn_cursor_info_zoperand =
     )
   | CursorP(_, Var(NotInHole, NotInVarHole, x) as p) =>
     Statics_Pat.syn_operand(ctx, p)
-    |> OptUtil.map(((ty, _)) =>
+    |> Option.map(((ty, _)) =>
          CursorInfo_common.CursorOnDeferredVarPat(
            uses =>
              CursorInfo_common.mk(
@@ -208,7 +208,7 @@ and syn_cursor_info_zoperand =
        )
   | CursorP(_, p) =>
     Statics_Pat.syn_operand(ctx, p)
-    |> OptUtil.map(((ty, _)) =>
+    |> Option.map(((ty, _)) =>
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
              PatSynthesized(ty),
@@ -344,7 +344,7 @@ and ana_cursor_info_skel =
       switch (err) {
       | NotInHole =>
         Statics_Pat.ana_skel(ctx, skel, seq, ty)
-        |> OptUtil.map(_ =>
+        |> Option.map(_ =>
              CursorInfo_common.CursorNotOnDeferredVarPat(
                CursorInfo_common.mk(
                  PatAnalyzed(ty),
@@ -459,6 +459,12 @@ and ana_cursor_info_zoperand =
         ),
       )
     // not in hole
+    | InvalidText(_) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaInvalid(ty), ctx, cursor_term),
+        ),
+      )
     | Var(NotInHole, _, x) =>
       Some(
         CursorOnDeferredVarPat(
@@ -500,7 +506,7 @@ and ana_cursor_info_zoperand =
       )
     | Parenthesized(body) =>
       Statics_Pat.ana(ctx, body, ty)
-      |> OptUtil.map(_ =>
+      |> Option.map(_ =>
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
            )

@@ -18,15 +18,10 @@ let mk: (~width: int, ~is_focused: bool=?, Statics_common.edit_state) => t;
 let focus: t => t;
 let blur: t => t;
 
-let put_edit_state: (Statics_common.edit_state, t) => t;
-
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
-let get_path: t => CursorPath_common.t;
 let get_steps: t => CursorPath_common.steps;
-
-let get_u_gen: t => MetaVarGen.t;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
@@ -35,6 +30,8 @@ let get_u_gen: t => MetaVarGen.t;
  */
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo_common.t;
+
+let get_decoration_paths: t => UHDecorationPaths.t;
 
 /**
  * Raised when edit state does not elaborate
@@ -71,24 +68,22 @@ let move_via_click:
     ~measure_program_get_doc: bool,
     ~measure_layoutOfDoc_layout_of_doc: bool,
     ~memoize_doc: bool,
-    (CursorMap.Row.t, CursorMap.Col.t),
+    Pretty.MeasuredPosition.t,
     t
   ) =>
   (t, Action_common.t);
 
 exception HoleNotFound;
-let move_to_hole: (MetaVar.t, t) => t;
+let move_to_hole: (MetaVar.t, t) => Action_common.t;
 
 /**
- * `select_case_branch(steps, n, program)` moves the cursor to the `n`th branch
- * in case expression found at `steps` (when the user clicks on a branch type
- * in the error message for a case expression with inconsistent branches)
+ * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
+ * the `n`th branch in case expression found at `steps` (when the user
+ * clicks on a branch type in the error message for a case expression with
+ * inconsistent branches)
  */
-let move_to_case_branch:
-  (CursorPath_common.steps, int, t) => (t, Action_common.t);
+let move_to_case_branch: (CursorPath_common.steps, int) => Action_common.t;
 
-let get_doc:
-  (~measure_program_get_doc: bool, ~memoize_doc: bool, t) => UHDoc_common.t;
 let get_layout:
   (
     ~measure_program_get_doc: bool,
@@ -97,34 +92,14 @@ let get_layout:
     t
   ) =>
   UHLayout.t;
-/**
- * Returns a `UHLayout.t` that has been decorated with the caret,
- * current term, and variable uses. (Will be refactored away.)
- */
-let get_decorated_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHLayout.t;
-
-let get_cursor_map:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  CursorMap.t;
-let get_cursor_map_z:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  (CursorMap.t, CursorMap.binding);
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
+
+let get_caret_position:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  Pretty.MeasuredPosition.t;

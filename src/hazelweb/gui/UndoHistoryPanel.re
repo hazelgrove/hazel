@@ -41,6 +41,18 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
 
+    | InvalidText(_, inv_str) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("invalid text: "), code_view(inv_str)],
+          )
+        );
+      } else {
+        code_view(inv_str);
+      }
+
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
         if (Var.is_case(var_str) || Var.is_let(var_str)) {
@@ -122,6 +134,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | EmptyHole(meta_var) =>
       indicate_words_view("hole: " ++ string_of_int(meta_var))
     | Wild(_) => indicate_words_view("wild card")
+    | InvalidText(_, inv_str) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("invalid text: "), code_view(inv_str)],
+          )
+        );
+      } else {
+        code_view(inv_str);
+      }
     | Var(_, _, var_str) =>
       if (show_indicate_word) {
         Vdom.(
@@ -237,6 +260,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
+      | CommentLine(comment) =>
+        if (comment == "") {
+          indicate_words_view("empty comment");
+        } else {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("comment "), code_view(comment)],
+            )
+          );
+        }
       | LetLine(_, _, _) =>
         Vdom.(
           Node.span(
@@ -282,6 +316,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SList
     | SListNil
     | SLine
+    | SCommentLine
     | SAsc
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))

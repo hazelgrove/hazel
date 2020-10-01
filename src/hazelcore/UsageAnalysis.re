@@ -10,6 +10,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_)
+  | InvalidText(_)
   | Var(_, InVarHole(_), _)
   | Var(InHole(_), _, _)
   | IntLit(_)
@@ -44,6 +45,7 @@ and find_uses_block =
 }
 and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
   switch (line) {
+  | CommentLine(_) => ([], false)
   | ExpLine(opseq) => (find_uses_opseq(~steps, x, opseq), false)
   | EmptyLine => ([], false)
   | LetLine(p, _, def) => (
@@ -62,6 +64,7 @@ and find_uses_opseq =
 and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   switch (operand) {
   | EmptyHole(_)
+  | InvalidText(_)
   | Var(_, InVarHole(_), _)
   | IntLit(_)
   | FloatLit(_)
@@ -69,7 +72,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | ListNil(_)
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
-  | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _)
+  | Case(StandardErrStatus(InHole(_)), _, _)
   | ApPalette(_) => []
   | UnaryOp(_, _, operand) =>
     find_uses_operand(~steps=steps @ [1], x, operand)
@@ -77,7 +80,11 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(NotInHole, p, _, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(
+      StandardErrStatus(NotInHole) | InconsistentBranches(_),
+      scrut,
+      rules,
+    ) =>
     let scrut_uses = find_uses(~steps=steps @ [0], x, scrut);
     let rules_uses =
       rules

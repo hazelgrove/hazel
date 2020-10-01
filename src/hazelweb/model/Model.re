@@ -45,7 +45,7 @@ let init = (): t => {
   let cardstacks = ZCardstacks.mk(~width=cell_width, cardstack_info);
   let undo_history: UndoHistory.t = {
     let cursor_term_info =
-      UndoHistory.get_cursor_info(
+      UndoHistory.get_cursor_term_info(
         ~new_cardstacks_after=cardstacks,
         ~new_cardstacks_before=cardstacks,
       );
@@ -185,7 +185,10 @@ let get_selected_hole_instance = model =>
 
 let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
-  |> map_program(Program.move_to_hole(u))
+  |> map_program(program => {
+       let action = Program.move_to_hole(u, program);
+       Program.perform_edit_action(action, program);
+     })
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
@@ -288,8 +291,8 @@ let move_via_click = (row_col, model) => {
 let select_case_branch =
     (path_to_case: CursorPath_common.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
-  let (new_program, action) =
-    Program.move_to_case_branch(path_to_case, branch_index, program);
+  let action = Program.move_to_case_branch(path_to_case, branch_index);
+  let new_program = Program.perform_edit_action(action, program);
   model
   |> put_program(new_program)
   |> update_program(action, new_program)
