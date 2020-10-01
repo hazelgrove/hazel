@@ -18,7 +18,10 @@ and node = {
   // invariant: unit intervals are leaves
   interval: (ordinal, ordinal),
   shape: node_shape,
-  // TODO factor out status and count
+  // status and count could be externalized in a more
+  // generic implementation of this data structure
+  // but we only need this data structure for a single
+  // purpose at the moment
   status,
   count: int,
 }

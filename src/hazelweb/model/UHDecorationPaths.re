@@ -30,11 +30,9 @@ let take_step = (step: int, dpaths: t): t => {
   {err_holes, var_err_holes, var_uses, current_term};
 };
 
-let current =
-    (term_sort: TermSort.t, term_shape: TermShape.t, dpaths: t)
-    : list(UHDecorationShape.t) => {
+let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let is_current = steps =>
-    switch (term_shape) {
+    switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
     | NTuple({comma_indices, _}) =>
       List.exists(n => steps == [n], comma_indices)
@@ -61,7 +59,7 @@ let current =
   let current_term =
     switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [
-        UHDecorationShape.CurrentTerm(term_sort, term_shape),
+        UHDecorationShape.CurrentTerm,
       ]
     | _ => []
     };

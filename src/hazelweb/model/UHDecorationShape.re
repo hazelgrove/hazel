@@ -3,4 +3,4 @@ type t =
   | ErrHole
   | VarErrHole
   | VarUse
-  | CurrentTerm(TermSort.t, TermShape.t);
+  | CurrentTerm;
