@@ -838,7 +838,7 @@ and ana_cursor_info_zoperand =
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _)
     | Label(InHole(TypeInconsistent, _), _)
-    | Prj(InHole(TypeInconsistent, _), _) =>
+    | Prj(InHole(TypeInconsistent, _), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -868,7 +868,7 @@ and ana_cursor_info_zoperand =
       )
     | ApPalette(InHole(WrongLength, _), _, _, _)
     | Label(InHole(WrongLength, _), _)
-    | Prj(InHole(WrongLength, _), _) => None
+    | Prj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)

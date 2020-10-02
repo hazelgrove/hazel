@@ -49,6 +49,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
+let label: (~err: ErrStatus.t=?, Label.t) => operand;
+
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;

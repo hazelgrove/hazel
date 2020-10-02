@@ -229,7 +229,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     };
   | Parenthesized(body) => syn(ctx, body)
   | Label(NotInHole, label) => Some(Label(label))
-  | Prj(NotInHole, e1, e2) =>
+  | Prj(NotInHole, _, _) =>
     failwith(__LOC__ ++ " unimplemented label projection")
   }
 and syn_rules =
@@ -378,7 +378,7 @@ and ana_operand =
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
   | Label(InHole(WrongLength, _), _)
-  | Prj(InHole(WrongLength, _), _) =>
+  | Prj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */

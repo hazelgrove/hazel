@@ -92,9 +92,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
-  | Label_Elt(d1, d2) =>
-    let d1' = subst_var(d1, x, d);
-    let d2' = subst_var(d2, x, d);
+  | Label_Elt(d1', d2') =>
+    let d1' = subst_var(d1, x, d1');
+    let d2' = subst_var(d2, x, d2');
     Label_Elt(d1', d2');
   }
 and subst_var_rules =
@@ -1138,7 +1138,9 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Label(InHole(TypeInconsistent as reason, u), _)
+  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1166,7 +1168,9 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _)
+  | Label(InHole(WrongLength, _), _)
+  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1263,9 +1267,12 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | ApPalette(NotInHole, _, _, _) =>
+  | ApPalette(NotInHole, _, _, _)
+  | Label(NotInHole, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
+  | Prj(NotInHole, _, _) =>
+    failwith(__LOC__ ++ " unimplemented label projection")
   }
 and ana_elab_rules =
     (
@@ -1322,7 +1329,8 @@ let rec renumber_result_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (d, hii)
+  | Triv
+  | Label(_) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1391,6 +1399,10 @@ let rec renumber_result_only =
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_result_only(path, hii, d);
     (InvalidOperation(d, err), hii);
+  | Label_Elt(d1, d2) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (Label_Elt(d1, d2), hii);
   }
 and renumber_result_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))
@@ -1420,7 +1432,8 @@ let rec renumber_sigmas_only =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (d, hii)
+  | Triv
+  | Label(_) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1494,6 +1507,10 @@ let rec renumber_sigmas_only =
   | InvalidOperation(d, err) =>
     let (d, hii) = renumber_sigmas_only(path, hii, d);
     (InvalidOperation(d, err), hii);
+  | Label_Elt(d1, d2) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (Label_Elt(d1, d2), hii);
   }
 and renumber_sigmas_only_rules =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, rules: list(DHExp.rule))

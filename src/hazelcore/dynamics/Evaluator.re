@@ -331,7 +331,7 @@ let rec evaluate = (d: DHExp.t): result =>
     // ECD you are here: need to see if this works
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
-    | BoxedValue(Label(label) as d1') =>
+    | BoxedValue(Label(_) as d1') =>
       switch (evaluate(d2)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d2) => BoxedValue(Label_Elt(d1', d2))

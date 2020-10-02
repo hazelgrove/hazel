@@ -32,6 +32,7 @@ let mk_FloatLit: string => UHDoc_common.t =
   UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc_common.t = UHDoc_common.mk_BoolLit(~sort=Exp);
 let mk_ListNil: unit => UHDoc_common.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_Label: Label.t => UHDoc_common.t = UHDoc_common.mk_Label(~sort=Exp);
 let mk_Var: string => UHDoc_common.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
@@ -191,6 +192,7 @@ and mk_operand =
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
         | ListNil(_) => mk_ListNil()
+        | Label(_, l) => mk_Label(l)
         | Lam(_, p, ann, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
@@ -227,6 +229,8 @@ and mk_operand =
             UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
+        | Prj(_, _, _) =>
+          failwith(__LOC__ ++ " unimplemented label projection")
         }: UHDoc_common.t
       )
     )

@@ -78,6 +78,7 @@ and mk_operand =
         | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Inj(~inj_side, body);
+        | Label(_, _) => failwith(__LOC__ ++ " unimplemented label pattern")
         }: UHDoc_common.t
       )
     )
