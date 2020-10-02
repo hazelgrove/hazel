@@ -144,7 +144,12 @@ type formatted_child =
   | Unformatted((~enforce_inline: bool) => t);
 
 let pad_bidelimited_open_child =
-    (~inline_padding: (t, t)=(empty_, empty_), child: formatted_child): t => {
+    (
+      ~with_border: bool=false,
+      ~inline_padding: (t, t)=(empty_, empty_),
+      child: formatted_child,
+    )
+    : t => {
   open Doc;
   let inline_choice = child_doc => {
     let (left, right) = inline_padding;
@@ -152,7 +157,11 @@ let pad_bidelimited_open_child =
     let rpadding = right == empty_ ? [] : [right];
     hcats([
       hcats(List.concat([lpadding, [child_doc], rpadding]))
-      |> annot(UHAnnot.OpenChild(InlineWithBorder)),
+      |> annot(
+           UHAnnot.OpenChild(
+             with_border ? InlineWithBorder : InlineWithoutBorder,
+           ),
+         ),
     ]);
   };
   let para_choice = child_doc =>
@@ -242,12 +251,21 @@ let pad_left_delimited_closed_child =
 };
 
 let pad_left_delimited_open_child =
-    (~inline_padding: t=empty_, child: formatted_child): t => {
+    (
+      ~with_border: bool=false,
+      ~inline_padding: t=empty_,
+      child: formatted_child,
+    )
+    : t => {
   open Doc;
   let inline_choice = child_doc => {
     let lpadding = inline_padding == empty_ ? [] : [inline_padding];
     hcats(lpadding @ [child_doc])
-    |> annot(UHAnnot.OpenChild(InlineWithoutBorder));
+    |> annot(
+         UHAnnot.OpenChild(
+           with_border ? InlineWithBorder : InlineWithoutBorder,
+         ),
+       );
   };
   let para_choice = child_doc =>
     child_doc |> indent_and_align |> annot(UHAnnot.OpenChild(Multiline));
@@ -267,12 +285,21 @@ let pad_left_delimited_open_child =
 };
 
 let pad_right_delimited_open_child =
-    (~inline_padding: t=empty_, child: formatted_child): t => {
+    (
+      ~with_border: bool=false,
+      ~inline_padding: t=empty_,
+      child: formatted_child,
+    )
+    : t => {
   open Doc;
   let inline_choice = child_doc => {
     let rpadding = inline_padding == empty_ ? [] : [inline_padding];
     hcats([child_doc] @ rpadding)
-    |> annot(UHAnnot.OpenChild(InlineWithoutBorder));
+    |> annot(
+         UHAnnot.OpenChild(
+           with_border ? InlineWithBorder : InlineWithoutBorder,
+         ),
+       );
   };
   let para_choice = child_doc =>
     child_doc |> indent_and_align |> annot(UHAnnot.OpenChild(Multiline));
@@ -451,7 +478,11 @@ let mk_LetLine =
 let mk_PatternAnnotation =
     (~sort: TermSort.t, op: formatted_child, ann: formatted_child): t => {
   Doc.hcats([
-    op |> pad_right_delimited_open_child(~inline_padding=space_),
+    op
+    |> pad_right_delimited_open_child(
+         ~with_border=true,
+         ~inline_padding=space_,
+       ),
     Doc.hcats([
       Delim.colon_Ann(),
       ann
