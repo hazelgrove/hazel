@@ -205,10 +205,10 @@ and holes_operand =
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
   | TypeAnn(err, op, ann) =>
     hs
-    |> holes_operand(op, [0, ...rev_steps])
     |> CursorPath_Typ.holes(ann, [1, ...rev_steps])
+    |> holes_operand(op, [0, ...rev_steps])
     |> CursorPath_common.holes_err(
-         ~hole_sort=u => PatHole(u, Empty),
+         ~hole_sort=u => PatHole(u, TypeErr),
          err,
          rev_steps,
        )

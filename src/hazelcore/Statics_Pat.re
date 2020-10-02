@@ -739,7 +739,7 @@ and ana_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
-  | TypeAnn(_, op, ann) =>
+  | TypeAnn(err, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     if (HTyp.consistent(ty, ty_ann)) {
       let (op, ctx, u_gen) =
@@ -750,14 +750,12 @@ and ana_fix_holes_operand =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
       // Should error be on whole annotation here or on the operand?
-      //(TypeAnn(InHole(TypeInconsistent, u), op, ann), ctx, u_gen);
       (
         TypeAnn(
-          InHole(TypeInconsistent, u),
+          err,
           UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
           ann,
         ),
-        //UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
         ctx,
         u_gen,
       );
