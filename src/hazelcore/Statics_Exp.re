@@ -105,7 +105,15 @@ and syn_skel =
     | None => None
     | Some(ty1) =>
       switch (HTyp.matched_arrow(ty1)) {
-      | None => None
+      | None =>
+        switch (HTyp.matched_label(ty1)) {
+        | Some(ty1') =>
+          switch (syn_skel(ctx, skel2, seq)) {
+          | Some(ty2) => Some(Label_Elt(ty1', ty2))
+          | None => None
+          }
+        | None => None
+        }
       | Some((ty2, ty)) =>
         ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
       }
@@ -501,7 +509,11 @@ and syn_nth_type_mode' =
           go(skel1);
         } else {
           switch (HTyp.matched_arrow(ty1)) {
-          | None => None
+          | None =>
+            switch (HTyp.matched_label(ty1)) {
+            | Some(_) => go(skel2)
+            | None => None
+            }
           | Some((ty2, _)) => ana_go(skel2, ty2)
           };
         }
@@ -857,18 +869,30 @@ and syn_fix_holes_skel =
         );
       (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
     | None =>
-      let (skel2, seq, u_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          skel2,
+      switch (HTyp.matched_label(ty1)) {
+      | Some(ty1') =>
+        let (skel2, seq, ty2', u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        (
+          BinOp(NotInHole, Space, skel1, skel2),
           seq,
-          HTyp.Hole,
+          Label_Elt(ty1', ty2'),
+          u_gen,
         );
-      let (OpSeq(skel1, seq), u_gen) =
-        UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-      (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+      | None =>
+        let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            HTyp.Hole,
+          );
+        let (OpSeq(skel1, seq), u_gen) =
+          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
+        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+      }
     };
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =

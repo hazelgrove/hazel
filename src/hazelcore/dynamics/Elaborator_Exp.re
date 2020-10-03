@@ -581,7 +581,24 @@ and syn_elab_skel =
     | None => DoesNotElaborate
     | Some(ty1) =>
       switch (HTyp.matched_arrow(ty1)) {
-      | None => DoesNotElaborate
+      | None =>
+        switch (HTyp.matched_label(ty1)) {
+        | Some(ty1') =>
+          switch (ana_elab_skel(ctx, delta, skel1, seq, ty1')) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(d1, ty1', delta) =>
+            switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+            | DoesNotElaborate => DoesNotElaborate
+            | Elaborates(d2, ty2', delta) =>
+              let dc1 = DHExp.cast(d1, ty1', ty1');
+              let dc2 = DHExp.cast(d2, ty2', ty2');
+              let d = DHExp.Label_Elt(dc1, dc2);
+              Elaborates(d, Label_Elt(ty1', ty2'), delta);
+            }
+          }
+
+        | None => DoesNotElaborate
+        }
       | Some((ty2, ty)) =>
         let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
         switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {

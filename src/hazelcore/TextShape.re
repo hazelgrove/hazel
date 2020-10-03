@@ -43,7 +43,7 @@ let of_text = (text: string): t =>
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
-    } else if (text |> Var.is_valid) {
+    } else if (text |> Label.is_valid) {
       Label(text);
     } else if (text |> Var.is_valid) {
       Var(text);

@@ -461,10 +461,19 @@ and syn_cursor_info_skel =
             ) {
             | None => None
             | Some(ty) =>
-              HTyp.matched_arrow(ty)
-              |> Option.map(((ty1, ty2)) =>
-                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-                 )
+              switch (HTyp.matched_arrow(ty)) {
+              | Some((ty1, ty2)) =>
+                Some(mk(SynMatchingArrow(ty, Arrow(ty1, ty2))))
+              | None =>
+                switch (HTyp.matched_label(ty)) {
+                | Some(ty') => Some(mk(Synthesized(ty')))
+                | None => None
+                }
+              }
+            // HTyp.matched_arrow(ty)
+            // |> Option.map(((ty1, ty2)) =>
+            //      mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+            //    );
             }
           };
         };
@@ -473,7 +482,11 @@ and syn_cursor_info_skel =
         | None => None
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
-          | None => None
+          | None =>
+            switch (HTyp.matched_label(ty)) {
+            | None => None
+            | Some(_) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+            }
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
           }
@@ -487,7 +500,11 @@ and syn_cursor_info_skel =
         | None => None
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
-          | None => None
+          | None =>
+            switch (HTyp.matched_label(ty)) {
+            | Some(_) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+            | None => None
+            }
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
           }
