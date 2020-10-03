@@ -603,7 +603,7 @@ and syn_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
-      _,
+      CursorP(_),
     ) =>
     Failed
 
@@ -1085,7 +1085,7 @@ and ana_perform_operand =
       UpdateApPalette(_) |
       SwapUp |
       SwapDown,
-      _,
+      CursorP(_),
     ) =>
     Failed
 
