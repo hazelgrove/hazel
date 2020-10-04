@@ -8,9 +8,8 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
   | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
-  | LetLineZA(_, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
-  | LetLineZE(_, _, zexp) => extract_cursor_term(zexp)
+  | LetLineZP(zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
+  | LetLineZE(_, zexp) => extract_cursor_term(zexp)
   };
 }
 and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
@@ -61,9 +60,8 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   switch (zline) {
   | CursorL(_, _) => None
   | ExpLineZ(zopseq) => get_zoperand_from_zexp_opseq(zopseq)
-  | LetLineZP(zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
-  | LetLineZA(_, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
-  | LetLineZE(_, _, zexp) => get_zoperand_from_zexp(zexp)
+  | LetLineZP(zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
+  | LetLineZE(_, zexp) => get_zoperand_from_zexp(zexp)
   };
 }
 and get_zoperand_from_zexp_opseq = (zopseq: ZExp.zopseq): option(zoperand) => {
@@ -113,9 +111,8 @@ and get_outer_zrules_from_zline =
   | CursorL(_, _) => outer_zrules
   | ExpLineZ(zopseq) =>
     get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
-  | LetLineZP(_, _, _)
-  | LetLineZA(_, _, _) => outer_zrules
-  | LetLineZE(_, _, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | LetLineZP(_) => outer_zrules
+  | LetLineZE(_, zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   };
 }
 and get_outer_zrules_from_zexp_opseq =
@@ -219,9 +216,8 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       switch (ZList.prj_z(exp)) {
       | ExpLineZ(zopseq) => ZExp.is_before_zopseq(zopseq)
       | CursorL(_, _)
-      | LetLineZP(_, _, _)
-      | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => true
+      | LetLineZP(_)
+      | LetLineZE(_) => true
       }
     | Some((_, _)) => false
     };
@@ -234,9 +230,8 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       switch (ZList.prj_z(exp)) {
       | ExpLineZ(zopseq) => ZExp.is_after_zopseq(zopseq)
       | CursorL(_, _)
-      | LetLineZP(_, _, _)
-      | LetLineZA(_, _, _)
-      | LetLineZE(_, _, _) => false
+      | LetLineZP(_)
+      | LetLineZE(_) => false
       }
     | _ => false
     };
@@ -289,43 +284,32 @@ and syn_cursor_info_line =
     | None => None
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
-  | LetLineZP(zp, ann, def) =>
-    let pat_ci = CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp);
-    switch (ann) {
-    | None =>
-      switch (Statics_Exp.syn(ctx, def)) {
-      | None => None
-      | Some(ty1) => pat_ci(ty1)
+  | LetLineZP(zp, def) =>
+    switch (
+      Statics_Pat.syn(ctx, ZPat.erase_zopseq(zp)),
+      CursorInfo_Pat.syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zp),
+    ) {
+    | (None, _)
+    | (_, None) => None
+    | (_, Some(CursorNotOnDeferredVarPat(_)) as deferrable) => deferrable
+    | (
+        Some((typ, _)),
+        Some(CursorOnDeferredVarPat(deferred, x)) as deferrable,
+      ) =>
+      switch (HTyp.matched_arrow(typ)) {
+      | None => deferrable
+      | Some(_) =>
+        let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
+        Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
       }
-    | Some(ann) =>
-      let ty1 = ann |> UHTyp.expand;
-      switch (pat_ci(ty1)) {
-      | None => None
-      | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
-      | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
-        switch (HTyp.matched_arrow(ty1)) {
-        | None => deferrable
-        | Some(_) =>
-          let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, def);
-          Some(
-            CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
-          );
-        }
-      };
-    };
-  | LetLineZA(_, zann, _) =>
-    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zann)
-    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-  | LetLineZE(p, ann, zdef) =>
-    switch (ann) {
-    | None =>
-      syn_cursor_info(~steps=steps @ [2], ctx, zdef)
-      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-    | Some(ann) =>
-      let ty = UHTyp.expand(ann);
+    }
+  | LetLineZE(p, zdef) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => None
+    | Some((ty, ctx)) =>
       let (ctx_def, _) =
         Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
-      ana_cursor_info(~steps=steps @ [2], ctx_def, zdef, ty)
+      ana_cursor_info(~steps=steps @ [1], ctx_def, zdef, ty)
       |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
     }
   }
@@ -634,7 +618,6 @@ and ana_cursor_info_zblock =
       switch (zline) {
       | CursorL(_)
       | LetLineZP(_)
-      | LetLineZA(_)
       | LetLineZE(_) => None
       | ExpLineZ(zopseq) =>
         ana_cursor_info_zopseq(

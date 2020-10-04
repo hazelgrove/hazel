@@ -270,7 +270,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
             )
           );
         }
-      | LetLine(_, _, _) =>
+      | LetLine(_) =>
         Vdom.(
           Node.span(
             [],

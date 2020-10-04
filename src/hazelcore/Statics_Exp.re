@@ -6,13 +6,15 @@ let ctx_for_let =
     : (Contexts.t, option(Var.t)) =>
   switch (p, e) {
   | (
-      OpSeq(_, S(Var(_, NotInVarHole, x), E)),
+      OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
     ) =>
+    print_endline("VAMPIRES!!!!");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
     | None => (ctx, None)
-    }
+    };
   | _ => (ctx, None)
   };
 
@@ -44,20 +46,15 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | ExpLine(opseq) => syn_opseq(ctx, opseq) |> Option.map(_ => ctx)
   | EmptyLine
   | CommentLine(_) => Some(ctx)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty) =>
-      let ty = UHTyp.expand(uty);
+  | LetLine(p, def) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => None
+    | Some((ty, ctx)) =>
       let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
       switch (ana(ctx_def, def, ty)) {
       | None => None
-      | Some(_) => Statics_Pat.ana(ctx, p, ty)
+      | Some(_) => Statics_Pat.ana(ctx_def, p, ty)
       };
-    | None =>
-      switch (syn(ctx, def)) {
-      | None => None
-      | Some(ty) => Statics_Pat.ana(ctx, p, ty)
-      }
     }
   }
 and syn_opseq =
@@ -681,22 +678,22 @@ and syn_fix_holes_line =
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let (ctx_def, _) = ctx_for_let(ctx, p, ty1, def);
-      let (def, u_gen) =
-        ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
-      let (p, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
-      (LetLine(p, ann, def), ctx, u_gen);
-    | None =>
+  | LetLine(p, def) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => (LetLine(p, def), ctx, u_gen)
+    | Some((ty, ctx)) =>
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
       let (def, ty1, u_gen) =
-        syn_fix_holes(~renumber_empty_holes, ctx, u_gen, def);
+        syn_fix_holes(~renumber_empty_holes, ctx_def, u_gen, def);
       let (p, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
-      (LetLine(p, ann, def), ctx, u_gen);
+        Statics_Pat.ana_fix_holes(
+          ctx_def,
+          u_gen,
+          ~renumber_empty_holes,
+          p,
+          ty1,
+        );
+      (LetLine(p, def), ctx, u_gen);
     }
   }
 and syn_fix_holes_opseq =

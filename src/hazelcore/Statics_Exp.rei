@@ -3,7 +3,7 @@ let tuple_zip: (UHExp.skel, HTyp.t) => option(list((UHExp.skel, HTyp.t)));
 /**
  * Currently we restrict recursive definitions to let lines with
  * type annotations that bind a function to a single variable.
- * Given a let line with a pattern `p`, type annotation `ty`,
+ * Given a let line with a pattern `p` annotated with type `ty`,
  * and a defining expression `e`, `ctx_for_let(ctx, p, ty, e)`
  * returns the context available to `e`. If the let line satifies
  * our conditions for recursion, then this function also returns

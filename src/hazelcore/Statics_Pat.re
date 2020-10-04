@@ -749,12 +749,10 @@ and ana_fix_holes_operand =
       let (op, _, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      // Should error be on whole annotation here or on the operand?
       (
-        TypeAnn(
-          err,
-          UHPat.set_err_status_operand(InHole(TypeInconsistent, u), op),
-          ann,
+        UHPat.set_err_status_operand(
+          InHole(TypeInconsistent, u),
+          TypeAnn(err, op, ann),
         ),
         ctx,
         u_gen,

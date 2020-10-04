@@ -6,9 +6,8 @@ and zblock = ZList.t(zline, UHExp.line)
 and zline =
   | CursorL(CursorPosition.t, UHExp.line)
   | ExpLineZ(zopseq)
-  | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
-  | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
-  | LetLineZE(UHPat.t, option(UHTyp.t), t)
+  | LetLineZP(ZPat.t, UHExp.t)
+  | LetLineZE(UHPat.t, t)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
@@ -48,7 +47,6 @@ let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)
   | LetLineZP(_)
-  | LetLineZA(_)
   | ExpLineZ(ZOpSeq(_, ZOperator(_)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
@@ -71,16 +69,10 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
     )
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
-  | LetLine(_, ann, _) =>
-    let ann_cursors =
-      switch (ann) {
-      | None => []
-      | Some(_) => CursorPosition.delim_cursors_k(1)
-      };
+  | LetLine(_) =>
     CursorPosition.delim_cursors_k(0)
-    @ ann_cursors
+    @ CursorPosition.delim_cursors_k(1)
     @ CursorPosition.delim_cursors_k(2)
-    @ CursorPosition.delim_cursors_k(3);
   };
 let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
   fun
@@ -131,7 +123,6 @@ module ZLine = {
     fun
     | CursorL(_)
     | LetLineZP(_)
-    | LetLineZA(_)
     | LetLineZE(_) => failwith("force_get_zopseq: expected ExpLineZ")
     | ExpLineZ(zopseq) => zopseq;
 };
@@ -152,11 +143,10 @@ and is_before_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_before_zopseq(zopseq)
   | LetLineZP(_)
-  | LetLineZA(_)
   | LetLineZE(_) => false
   }
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
@@ -235,12 +225,11 @@ and is_after_zline =
   | CursorL(cursor, CommentLine(comment)) =>
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
+  | CursorL(cursor, LetLine(_)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
-  | LetLineZP(_, _, _)
-  | LetLineZA(_, _, _)
-  | LetLineZE(_, _, _) => false
+  | LetLineZP(_)
+  | LetLineZE(_) => false
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -285,11 +274,10 @@ and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
   | CursorL(_, CommentLine(_))
-  | CursorL(_, LetLine(_, _, _)) => true
+  | CursorL(_, LetLine(_)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
   | LetLineZP(_)
-  | LetLineZA(_)
   | LetLineZE(_) => false
   }
 and is_outer_zopseq = zopseq => ZOpSeq.is_outer(~is_outer_zoperand, zopseq)
@@ -330,7 +318,7 @@ and place_before_line =
   fun
   | CommentLine(_) as line => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
+  | LetLine(_) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
@@ -413,7 +401,7 @@ let place_cursor_line =
     None
   | EmptyLine
   | CommentLine(_)
-  | LetLine(_, _, _) =>
+  | LetLine(_) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
 let place_cursor_rule =
@@ -426,7 +414,6 @@ let prune_empty_hole_line = (zli: zline): zline =>
     place_before_line(EmptyLine)
   | ExpLineZ(_)
   | LetLineZP(_)
-  | LetLineZA(_)
   | LetLineZE(_)
   | CursorL(_) => zli
   };
@@ -447,9 +434,8 @@ and erase_zline =
   fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
-  | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
-  | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
-  | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
+  | LetLineZP(zp, def) => LetLine(ZPat.erase(zp), def)
+  | LetLineZE(p, zdef) => LetLine(p, erase(zdef))
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
@@ -634,42 +620,27 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
-  | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
-    // k == 1 || k == 2 || k == 3
-    switch (k == 1, k == 2, ann) {
-    | (true, _, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, true, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, true, Some(ann)) =>
-      Some(LetLineZA(p, ZTyp.place_after(ann), def))
-    | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
+  | CursorL(OnDelim(k, Before), LetLine(p, def)) =>
+    // k == 1 || k == 2
+    switch (k == 1) {
+    | true => Some(LetLineZP(ZPat.place_after(p), def))
+    | _ => Some(LetLineZE(p, place_after(def)))
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
     | None => None
     | Some(zopseq) => Some(ExpLineZ(zopseq))
     }
-  | LetLineZP(zp, ann, def) =>
+  | LetLineZP(zp, def) =>
     switch (ZPat.move_cursor_left(zp)) {
-    | Some(zp) => Some(LetLineZP(zp, ann, def))
+    | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
-      Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), ann, def)))
+      Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), def)))
     }
-  | LetLineZA(p, zann, def) =>
-    switch (ZTyp.move_cursor_left(zann)) {
-    | Some(zann) => Some(LetLineZA(p, zann, def))
-    | None =>
-      Some(
-        CursorL(
-          OnDelim(1, After),
-          LetLine(p, Some(ZTyp.erase(zann)), def),
-        ),
-      )
-    }
-  | LetLineZE(p, ann, zdef) =>
+  | LetLineZE(p, zdef) =>
     switch (move_cursor_left(zdef)) {
-    | Some(zdef) => Some(LetLineZE(p, ann, zdef))
-    | None =>
-      Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase(zdef))))
+    | Some(zdef) => Some(LetLineZE(p, zdef))
+    | None => Some(CursorL(OnDelim(1, After), LetLine(p, erase(zdef))))
     }
   }
 and move_cursor_left_zopseq = zopseq =>
@@ -850,54 +821,35 @@ and move_cursor_right_zline =
     Some(CursorL(OnText(0), line))
 
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
-  | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
-    switch (k, ann) {
-    | (0, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
-    | (1, None) =>
-      // invalid cursor position
-      None
-    | (1, Some(ann)) => Some(LetLineZA(p, ZTyp.place_before(ann), def))
-    | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
-    | (_three, _) => None
+  | CursorL(OnDelim(k, After), LetLine(p, def)) =>
+    switch (k) {
+    | 0 => Some(LetLineZP(ZPat.place_before(p), def))
+    | 1 => Some(LetLineZE(p, place_before(def)))
+    | _ => None
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
     | None => None
     | Some(zopseq) => Some(ExpLineZ(zopseq))
     }
-  | LetLineZP(zp, ann, def) =>
+  | LetLineZP(zp, def) =>
     switch (ZPat.move_cursor_right(zp)) {
-    | Some(zp) => Some(LetLineZP(zp, ann, def))
+    | Some(zp) => Some(LetLineZP(zp, def))
     | None =>
       Some(
         CursorL(
           OnDelim(
-            switch (ann) {
-            | None => 2
-            | Some(_) => 1
-            },
+            1, // is this right??
             Before,
           ),
-          LetLine(ZPat.erase(zp), ann, def),
+          LetLine(ZPat.erase(zp), def),
         ),
       )
     }
-  | LetLineZA(p, zann, def) =>
-    switch (ZTyp.move_cursor_right(zann)) {
-    | Some(zann) => Some(LetLineZA(p, zann, def))
-    | None =>
-      Some(
-        CursorL(
-          OnDelim(2, Before),
-          LetLine(p, Some(ZTyp.erase(zann)), def),
-        ),
-      )
-    }
-  | LetLineZE(p, ann, zdef) =>
+  | LetLineZE(p, zdef) =>
     switch (move_cursor_right(zdef)) {
-    | Some(zdef) => Some(LetLineZE(p, ann, zdef))
-    | None =>
-      Some(CursorL(OnDelim(3, Before), LetLine(p, ann, erase(zdef))))
+    | Some(zdef) => Some(LetLineZE(p, zdef))
+    | None => Some(CursorL(OnDelim(2, Before), LetLine(p, erase(zdef))))
     }
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
@@ -1064,9 +1016,8 @@ and cursor_on_EmptyHole_zline =
   fun
   | CursorL(_) => None
   | ExpLineZ(zopseq) => cursor_on_EmptyHole_zopseq(zopseq)
-  | LetLineZP(_)
-  | LetLineZA(_) => None
-  | LetLineZE(_, _, ze) => cursor_on_EmptyHole(ze)
+  | LetLineZP(_) => None
+  | LetLineZE(_, ze) => cursor_on_EmptyHole(ze)
 and cursor_on_EmptyHole_zopseq =
   fun
   | ZOpSeq(_, ZOperator(_)) => None
