@@ -183,7 +183,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     switch (line) {
     | EmptyLine => MinLen
     | CommentLine(comment) => Len(String.length(comment))
-    | LetLine(_, _, _)
+    | LetLine(_)
     | ExpLine(_) => MaxLen
     }
   };
@@ -210,7 +210,7 @@ let has_typ_ann = (cursor_term: cursor_term): bool => {
     }
   | Line(_, line_content) =>
     switch (line_content) {
-    | LetLine(_, _, _) => true
+    | LetLine(_) => true
     | _ => false
     }
   | _ => false

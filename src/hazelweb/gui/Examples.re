@@ -85,21 +85,44 @@ let map_example: UHExp.t = {
   let letline_node =
     UHExp.(
       letline(
-        OpSeq.wrap(UHPat.var("map")),
-        ~ann=
-          Operators_Typ.(
-            UHTyp.(
-              Seq.mk(
-                Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
-                [
-                  (Arrow, List(OpSeq.wrap(Int))),
-                  (Arrow, List(OpSeq.wrap(Int))),
-                ],
+        OpSeq.wrap(
+          UHPat.TypeAnn(
+            NotInHole,
+            UHPat.var("map"),
+            Operators_Typ.(
+              UHTyp.(
+                Seq.mk(
+                  Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
+                  [
+                    (Arrow, List(OpSeq.wrap(Int))),
+                    (Arrow, List(OpSeq.wrap(Int))),
+                  ],
+                )
+                |> mk_OpSeq
               )
-              |> mk_OpSeq
-            )
+            ),
           ),
+        ),
         Block.wrap(lam_node),
+        /*
+         letline(
+           OpSeq.wrap(UHPat.var("map")),
+           ~ann=
+             Operators_Typ.(
+               UHTyp.(
+                 Seq.mk(
+                   Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
+                   [
+                     (Arrow, List(OpSeq.wrap(Int))),
+                     (Arrow, List(OpSeq.wrap(Int))),
+                   ],
+                 )
+                 |> mk_OpSeq
+               )
+             ),
+           Block.wrap(lam_node),
+         )
+         */
       )
     );
   UHExp.[letline_node, ExpLine(EmptyHole(0) |> OpSeq.wrap)];
@@ -155,24 +178,46 @@ let qsort_example: UHExp.t = {
   let append_letline =
     UHExp.(
       letline(
-        OpSeq.wrap(UHPat.var("append")),
-        ~ann=
-          UHTyp.(
+        OpSeq.wrap(
+          UHPat.TypeAnn(
+            NotInHole,
+            UHPat.var("append"),
             Operators_Typ.(
               Seq.mk(
-                List(OpSeq.wrap(Int)),
+                UHTyp.List(OpSeq.wrap(UHTyp.Int)),
                 [
-                  (Arrow, List(OpSeq.wrap(Int))),
-                  (Arrow, List(OpSeq.wrap(Int))),
+                  (Arrow, List(OpSeq.wrap(UHTyp.Int))),
+                  (Arrow, List(OpSeq.wrap(UHTyp.Int))),
                 ],
               )
-              |> mk_OpSeq
-            )
+              |> UHTyp.mk_OpSeq
+            ),
           ),
+        ),
         Block.wrap(append_lam),
       )
     );
-
+  /*
+     UHExp.(
+       letline(
+         OpSeq.wrap(UHPat.var("append")),
+         ~ann=
+           UHTyp.(
+             Operators_Typ.(
+               Seq.mk(
+                 List(OpSeq.wrap(Int)),
+                 [
+                   (Arrow, List(OpSeq.wrap(Int))),
+                   (Arrow, List(OpSeq.wrap(Int))),
+                 ],
+               )
+               |> mk_OpSeq
+             )
+           ),
+         Block.wrap(append_lam),
+       )
+     );
+   */
   let partition_case =
     UHExp.(
       Operators_Exp.(
@@ -271,29 +316,33 @@ let qsort_example: UHExp.t = {
   let partition_letline =
     UHExp.(
       letline(
-        OpSeq.wrap(UHPat.var("partition")),
-        ~ann=
-          UHTyp.(
-            Operators_Typ.(
-              Seq.mk(
-                Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq),
-                [
-                  (Arrow, List(OpSeq.wrap(Int))),
-                  (
-                    Arrow,
-                    Parenthesized(
-                      Seq.mk(
-                        List(OpSeq.wrap(Int)),
-                        [(Prod, List(OpSeq.wrap(Int)))],
-                      )
-                      |> mk_OpSeq,
+        OpSeq.wrap(
+          UHPat.TypeAnn(
+            NotInHole,
+            UHPat.var("partition"),
+            UHTyp.(
+              Operators_Typ.(
+                Seq.mk(
+                  Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq),
+                  [
+                    (Arrow, List(OpSeq.wrap(Int))),
+                    (
+                      Arrow,
+                      Parenthesized(
+                        Seq.mk(
+                          List(OpSeq.wrap(Int)),
+                          [(Prod, List(OpSeq.wrap(Int)))],
+                        )
+                        |> mk_OpSeq,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                )
+                |> mk_OpSeq
               )
-              |> mk_OpSeq
-            )
+            ),
           ),
+        ),
         Block.wrap(partition_lam),
       )
     );

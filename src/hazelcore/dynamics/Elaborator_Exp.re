@@ -501,10 +501,10 @@ and syn_elab_line =
     }
   | EmptyLine
   | CommentLine(_) => LinesExpand(d => d, ctx, delta)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
+  | LetLine(p, def) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => LinesDoNotExpand
+    | Some((ty1, ctx)) =>
       let (ctx1, is_recursive_fn) =
         Statics_Exp.ctx_for_let(ctx, p, ty1, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
@@ -528,17 +528,6 @@ and syn_elab_line =
           LinesExpand(prelude, ctx, delta);
         };
       };
-    | None =>
-      switch (syn_elab(ctx, delta, def)) {
-      | DoesNotElaborate => LinesDoNotExpand
-      | Elaborates(d1, ty1, delta) =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-        | DoesNotElaborate => LinesDoNotExpand
-        | Elaborates(dp, _, ctx, delta) =>
-          let prelude = d2 => DHExp.Let(dp, d1, d2);
-          LinesExpand(prelude, ctx, delta);
-        }
-      }
     }
   }
 and syn_elab_opseq =

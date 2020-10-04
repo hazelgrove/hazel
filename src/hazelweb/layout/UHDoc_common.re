@@ -97,9 +97,8 @@ module Delim = {
   let arrow_Rule = (): t => mk(~index=1, "=>");
 
   let let_LetLine = (): t => mk(~index=0, "let");
-  let colon_LetLine = (): t => mk(~index=1, ":");
-  let eq_LetLine = (): t => mk(~index=2, "=");
-  let in_LetLine = (): t => mk(~index=3, "in");
+  let eq_LetLine = (): t => mk(~index=1, "=");
+  let in_LetLine = (): t => mk(~index=2, "in");
 
   let open_CommentLine = (): t => mk(~index=0, "#");
 
@@ -399,32 +398,16 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
 };
 
-let mk_LetLine =
-    (p: formatted_child, ann: option(formatted_child), def: formatted_child)
-    : t => {
+let mk_LetLine = (p: formatted_child, def: formatted_child): t => {
   let open_group = {
     let let_delim = Delim.let_LetLine();
     let eq_delim = Delim.eq_LetLine();
-    let doc =
-      switch (ann) {
-      | None =>
-        Doc.hcats([
-          let_delim,
-          p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
-          eq_delim,
-        ])
-      | Some(ann) =>
-        let colon_delim = Delim.colon_LetLine();
-        Doc.hcats([
-          let_delim,
-          p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
-          colon_delim,
-          ann
-          |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Typ),
-          eq_delim,
-        ]);
-      };
-    doc |> annot_Tessera;
+    Doc.hcats([
+      let_delim,
+      p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
+      eq_delim,
+    ])
+    |> annot_Tessera;
   };
   let close_group = Delim.in_LetLine() |> annot_Tessera;
   Doc.hcats([

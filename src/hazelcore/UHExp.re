@@ -9,7 +9,7 @@ and block = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
-  | LetLine(UHPat.t, option(UHTyp.t), t)
+  | LetLine(UHPat.t, t)
   | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -38,8 +38,7 @@ type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
 
-let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
-  LetLine(p, ann, def);
+let letline = (p: UHPat.t, def: t): line => LetLine(p, def);
 
 let var =
     (
@@ -305,15 +304,9 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
   | EmptyLine
   | CommentLine(_) => true
-  | LetLine(pat, option_ty, body) =>
+  | LetLine(pat, body) =>
     if (check_type_holes) {
-      switch (option_ty) {
-      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-      | Some(ty) =>
-        UHPat.is_complete(pat)
-        && is_complete(body, check_type_holes)
-        && UHTyp.is_complete(ty)
-      };
+      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
     } else {
       UHPat.is_complete(pat) && is_complete(body, check_type_holes);
     }

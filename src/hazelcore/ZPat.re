@@ -74,7 +74,6 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), u_gen);
-  // ZA case here just copied from ZP... doesn't really make sense I think?
   | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
   | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
