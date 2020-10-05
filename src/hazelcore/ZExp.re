@@ -112,7 +112,6 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
-  // ecd todo: do we need an additional cursor length to account for the dot in a label?
   | Label(_, l) => CursorPosition.text_cursors(Label.length(l))
   | Prj(_) => failwith("unimplemented Label Projection");
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
