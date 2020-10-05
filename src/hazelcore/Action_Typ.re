@@ -240,7 +240,7 @@ and perform_operand =
   | (_, CursorT(OnDelim(_), Label(_))) => Failed
   | (Backspace, CursorT(OnText(j), Label(l))) =>
     Succeeded(
-      ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.delete(l, j)))),
+      ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.backspace(j, l)))),
     )
   // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
   //   failwith("unimplemented") //TODO ECD: How to create a labeled element type
@@ -248,7 +248,7 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
   | (Construct(SChar(s)), CursorT(OnText(j), Label(l))) =>
     Succeeded(
-      ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.insert(l, s, j)))),
+      ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.insert(j, s, l)))),
     )
 
   /* Invalid cursor positions */

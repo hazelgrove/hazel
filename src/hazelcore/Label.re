@@ -7,18 +7,19 @@ let is_valid = s => Re.Str.string_match(valid_regex, s, 0);
 
 let length: t => int = label => String.length(label);
 
-let sub: (t, int, int) => t = (label, s, e) => String.sub(label, s, e);
+// let sub: (t, int, int) => t = String.sub(label, s, e);
 
-let insert: (t, string, int) => t =
-  (label, s, i) => {
-    let _start = String.sub(label, 0, i);
-    let _end = String.sub(label, i, length(label));
-    String.concat(s, [_start, _end]);
+let insert: (int, string, t) => t =
+  (caret_index, insert_l, label) => {
+    StringUtil.insert(caret_index, insert_l, label);
   };
 
-let delete: (t, int) => t =
-  (label, i) => {
-    let _start = String.sub(label, 0, i - 1);
-    let _end = String.sub(label, i + 1, length(label));
-    _start ++ _end;
+let delete: (int, t) => t =
+  (caret_index, label) => {
+    StringUtil.delete(caret_index, label);
+  };
+
+let backspace: (int, t) => t =
+  (caret_index, label) => {
+    StringUtil.backspace(caret_index, label);
   };
