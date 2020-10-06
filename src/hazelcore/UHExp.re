@@ -20,7 +20,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+  | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -58,15 +58,8 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
-let lam =
-    (
-      ~err: ErrStatus.t=NotInHole,
-      p: UHPat.t,
-      ~ann: option(UHTyp.t)=?,
-      body: t,
-    )
-    : operand =>
-  Lam(err, p, ann, body);
+let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
+  Lam(err, p, body);
 
 let case =
     (
@@ -190,7 +183,7 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
-  | Lam(err, _, _, _)
+  | Lam(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
@@ -215,7 +208,7 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-  | Lam(_, p, ann, def) => Lam(err, p, ann, def)
+  | Lam(_, p, def) => Lam(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
@@ -249,7 +242,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
+  | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
@@ -259,7 +252,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
+  | Lam(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -341,19 +334,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | BoolLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
-  | Lam(InHole(_), _, _, _) => false
-  | Lam(NotInHole, pat, option_ty, body) =>
-    if (check_type_holes) {
-      switch (option_ty) {
-      | None => UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-      | Some(ty) =>
-        UHPat.is_complete(pat)
-        && is_complete(body, check_type_holes)
-        && UHTyp.is_complete(ty)
-      };
-    } else {
-      UHPat.is_complete(pat) && is_complete(body, check_type_holes);
-    }
+  | Lam(InHole(_), _, _) => false
+  | Lam(NotInHole, pat, body) =>
+    UHPat.is_complete(pat) && is_complete(body, check_type_holes)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
