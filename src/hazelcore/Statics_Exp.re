@@ -201,7 +201,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       | R => Some(Sum(Hole, ty))
       }
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole), scrut, rules)
+  | Case(NotExhaustive, scrut, rules) =>
     switch (syn(ctx, scrut)) {
     | None => None
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
@@ -417,7 +418,7 @@ and ana_operand =
     | None => None
     | Some((ty1, ty2)) => ana(ctx, body, InjSide.pick(side, ty1, ty2))
     }
-  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive, scrut, rules) =>
     switch (syn(ctx, scrut)) {
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)

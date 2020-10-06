@@ -79,7 +79,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
   | Case(
-      StandardErrStatus(NotInHole) | InconsistentBranches(_),
+      StandardErrStatus(NotInHole) | InconsistentBranches(_) | NotExhaustive,
       scrut,
       rules,
     ) =>

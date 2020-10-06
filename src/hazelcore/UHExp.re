@@ -195,7 +195,8 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
-  | Case(InconsistentBranches(_), _, _) => NotInHole
+  | Case(InconsistentBranches(_), _, _)
+  | Case(NotExhaustive, _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -264,7 +265,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
+      InconsistentBranches(_, _) |
+      NotExhaustive,
       _,
       _,
     )
@@ -365,6 +367,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Inj(NotInHole, _, body) => is_complete(body, check_type_holes)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
     false
+  | Case(NotExhaustive, _, _) => false
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)

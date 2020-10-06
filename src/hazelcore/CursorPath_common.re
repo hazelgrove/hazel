@@ -190,6 +190,7 @@ let holes_case_err =
       {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
+  | NotExhaustive => hs
   };
 
 let holes_skel_ =

@@ -767,7 +767,8 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
     let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(NotInHole)
+      | NotExhaustive => None
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
@@ -881,7 +882,8 @@ and holes_zoperand =
   | CaseZE(err, zscrut, rules) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(NotInHole)
+      | NotExhaustive => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
           {
@@ -907,7 +909,8 @@ and holes_zoperand =
   | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(NotInHole)
+      | NotExhaustive => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
