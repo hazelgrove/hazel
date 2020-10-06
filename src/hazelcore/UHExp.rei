@@ -18,7 +18,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+  | Lam(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -47,7 +47,7 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
-let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
+let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
