@@ -349,6 +349,10 @@ let view =
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
       (ind1, ind2, OK);
+    | CaseNotExhaustive(ty) =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_indicator("Not Exhaustive Case", got_ty_indicator(ty));
+      (ind1, ind2, BindingError);
     };
 
   let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);

@@ -379,3 +379,10 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
 and is_complete = (exp: t, check_type_holes: bool): bool => {
   is_complete_block(exp, check_type_holes);
 };
+
+let get_pats = (rs: rules): list(UHPat.t) =>
+  List.map(
+    fun
+    | Rule(pat, _) => pat,
+    rs,
+  );

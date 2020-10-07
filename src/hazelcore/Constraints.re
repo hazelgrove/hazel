@@ -112,3 +112,10 @@ let unwrap_pair =
   fun
   | Pair(c1, c2) => (c1, c2)
   | _ => failwith("input can only be pair(_, _)");
+
+let rec or_constraints = (lst: list(t)): t =>
+  switch (lst) {
+  | [] => failwith("should have at least one constraint")
+  | [xi] => xi
+  | [xi, ...xis] => Or(xi, or_constraints(xis))
+  };
