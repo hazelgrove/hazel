@@ -90,6 +90,10 @@ let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
   | _ => false;
+let is_on_label_zoperand =
+  fun
+  | CursorT(_, Label(_)) => true
+  | _ => false;
 
 let rec place_before = (ty: UHTyp.t): t => ty |> place_before_opseq
 and place_before_opseq = opseq =>

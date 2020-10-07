@@ -160,7 +160,9 @@ and perform_opseq =
 
   /* Space becomes movement until we have proper type constructors */
   | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
-      when ZTyp.is_after_zoperand(zoperand) =>
+      when
+        ZTyp.is_after_zoperand(zoperand)
+        && !ZTyp.is_on_label_zoperand(zoperand) =>
     perform_opseq(MoveRight, zopseq)
 
   | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
@@ -248,11 +250,13 @@ and perform_operand =
         ),
       );
     }
-  // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(_))) =>
-  //   failwith("unimplemented") //TODO ECD: How to create a labeled element type
+  // ZOperand(CursorT(_) as zoperand, surround)
+  // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(label))) =>
+  //   Succeeded(construct_operator(Space, zoperand, (Label(label), SSpace))) //TODO ECD: How to create a labeled element type
   | (Construct(SChar(".")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
-  | (Construct(SChar(s)), CursorT(OnText(j), Label(l))) =>
+  | (Construct(SChar(s)), CursorT(OnText(j), Label(l)))
+      when Label.is_valid(Label.insert(j, s, l)) =>
     Succeeded(
       ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.insert(j, s, l)))),
     )
@@ -299,7 +303,8 @@ and perform_operand =
 
   /* Construction */
 
-  | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
+  | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), ty))
+      when !UHTyp.is_label(ty) =>
     perform_operand(MoveRight, zoperand)
   | (Construct(_) as a, CursorT(OnDelim(_, side), _))
       when

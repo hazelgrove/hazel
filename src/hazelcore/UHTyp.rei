@@ -32,3 +32,4 @@ let contract: HTyp.t => t;
 let expand: t => HTyp.t;
 
 let is_complete: t => bool;
+let is_label: operand => bool;

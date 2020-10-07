@@ -160,4 +160,11 @@ and is_complete = (ty: t) => {
   switch (ty) {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
+}
+
+and is_label = (op: operand) => {
+  switch (op) {
+  | Label(_) => true
+  | _ => false
+  };
 };
