@@ -117,11 +117,13 @@ and expand_skel = (skel, seq) =>
     let ty2 = expand_skel(skel2, seq);
     Sum(ty1, ty2);
   | BinOp(_, Space, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
+    let prod_list =
+      skel1 |> get_prod_elements |> List.map(skel => expand_skel(skel, seq));
+    let last_elt_ty = List.nth(prod_list, List.length(prod_list) - 1);
     let ty2 = expand_skel(skel2, seq);
-    switch (ty1) {
+    switch (last_elt_ty) {
     | Label(_)
-    | Hole => Label_Elt(ty1, ty2)
+    | Hole => Label_Elt(last_elt_ty, ty2)
     | _ => failwith("Expecting a Label Got a Type")
     };
   }
