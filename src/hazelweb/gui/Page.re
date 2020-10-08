@@ -99,8 +99,8 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
 };
 
 let get_ast = l =>
-  try(Some(Incr.incr(l, TestParse.Incremental.main(l.lex_curr_p)))) {
-  | Types.SyntaxError((pos, _)) =>
+  try(Some(Parse.parse(l, Hazel_parser.Incremental.main(l.lex_curr_p)))) {
+  | Parse.SyntaxError((pos, _)) =>
     switch (pos) {
     | Some((line, col)) =>
       JSUtil.log(Printf.sprintf("ERROR on line %d, column %d.", line, col));

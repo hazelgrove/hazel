@@ -3,9 +3,6 @@
 
 %token <string> INT
 %token PLUS
-(*
-%token GT LT EQ
-*)
 %token EOF
 
 %start main
@@ -13,7 +10,7 @@
 %%
 
 main:
-        e = expr EOF { [e] }
+  e = expr EOF { [e] }
 ;
 
 expr:
@@ -31,12 +28,9 @@ binary:
 ;
 
 arith:
-        | constant { Seq.S( $1, Seq.E) }
-        (*
-        | arith MINUS arith  { BinaryOp (Minus, $1, $3) }
-        *)
+  | constant { Seq.S( $1, Seq.E) }
 ;
 
 constant:
-        INT     { UHExp.IntLit(ErrStatus.NotInHole, $1) }
+  INT { UHExp.IntLit(ErrStatus.NotInHole, $1) }
 ;
