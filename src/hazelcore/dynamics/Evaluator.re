@@ -127,7 +127,8 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [a, ..._] =>
       switch (a) {
       | StringLit(s) =>
-        BoxedValue(IntLit(String.length(StringUtil.find_and_replace(s))))
+        let (s', _) = StringUtil.find_and_replace("", s, "OK");
+        BoxedValue(IntLit(String.length(s')));
       | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
