@@ -10,9 +10,11 @@ rule read =
         parse
         | white { read lexbuf }
         | "+" { PLUS }
+        (*
         | "-" { MINUS }
         | ">" { GT }
         | "<" { LT }
         | "=" { EQ }
-        | numlit { INT (int_of_string (Lexing.lexeme lexbuf)) }
+        *)
+        | numlit { INT (Lexing.lexeme lexbuf) }
         | eof { EOF }

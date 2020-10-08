@@ -2,7 +2,7 @@
 
 (library
  (name menhirtest)
- (libraries re sexplib camomile pretty menhirLib)
+ (libraries hazelcore re sexplib camomile pretty menhirLib)
  (wrapped false)
  (js_of_ocaml
   (flags

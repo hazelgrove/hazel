@@ -18,7 +18,7 @@ let rec incr lexbuf c =
                 let startp = lexbuf.lex_start_p in
                 let line = startp.pos_lnum in
                 let col = startp.pos_cnum + 1 in
-                Types.Error (Types.Int line, Types.Int col)
+                raise (Types.SyntaxError (Some (line, col), "Syntax error: "))
         | I.Accepted v -> v
         | I.Rejected ->
-                Types.Constant (Types.Int 4)
+                raise (Types.SyntaxError (None, "Rejected"))

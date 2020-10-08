@@ -98,6 +98,17 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   );
 };
 
+let get_ast = l =>
+  try(Some(Incr.incr(l, TestParse.Incremental.main(l.lex_curr_p)))) {
+  | Types.SyntaxError((pos, _)) =>
+    switch (pos) {
+    | Some((line, col)) =>
+      JSUtil.log(Printf.sprintf("ERROR on line %d, column %d.", line, col));
+      None;
+    | None => None
+    }
+  };
+
 let parse_test =
   Vdom.(
     Node.div(
@@ -122,17 +133,16 @@ let parse_test =
         Node.button(
           [
             Attr.on_click(_ => {
-              //let l = TestLex.read;
-              //let p = TestParse.main(l);
               let e = JSUtil.force_get_elem_by_id("parse_test");
               let s = JSUtil.force_get_attr("value", e);
-              //let v = Types.string_of_expr(p(Lexing.from_string(s)));
 
               let l = Lexing.from_string(s);
-              let test =
-                Incr.incr(l, TestParse.Incremental.main(l.lex_curr_p));
-              JSUtil.log(Types.string_of_expr(test));
-              Event.Ignore;
+              switch (get_ast(l)) {
+              | Some(ast) =>
+                JSUtil.log(Js.string(Serialization.string_of_exp(ast)));
+                Event.Ignore;
+              | None => Event.Ignore
+              };
             }),
           ],
           [Node.text("Parse")],

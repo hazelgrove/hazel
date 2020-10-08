@@ -1,39 +1,42 @@
 %{
-        open Types
 %}
 
-%token <int> INT
-%token PLUS MINUS
+%token <string> INT
+%token PLUS
+(*
 %token GT LT EQ
+*)
 %token EOF
 
-%left PLUS MINUS
-
 %start main
-%type <Types.expr> main
+%type <UHExp.t> main
 %%
 
 main:
-        e = expr EOF { e }
+        e = expr EOF { [e] }
 ;
 
 expr:
-        | e = binary { e }
+  | e = binary { UHExp.ExpLine e }
 ;
 
 binary:
-        | arith { $1 }
-        | arith LT arith  { BinaryOp (LT, $1, $3) }
-        | arith GT arith  { BinaryOp (GT, $1, $3) }
-        | arith EQ arith  { BinaryOp (EQ, $1, $3) }
+  | arith { OpSeq(Placeholder(0), $1) }
+  | arith PLUS arith  {
+    OpSeq(Skel.BinOp(NotInHole, Operators_Exp.Plus,
+      (Placeholder 0), (Placeholder 1)),
+      $1
+      )
+    }
 ;
 
 arith:
-        | constant { $1 }
-        | arith PLUS arith  { BinaryOp (Plus, $1, $3) }
+        | constant { Seq.S( $1, Seq.E) }
+        (*
         | arith MINUS arith  { BinaryOp (Minus, $1, $3) }
+        *)
 ;
 
 constant:
-        INT     { Constant (Int $1) }
+        INT     { UHExp.IntLit(ErrStatus.NotInHole, $1) }
 ;
