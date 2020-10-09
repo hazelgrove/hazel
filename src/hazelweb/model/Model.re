@@ -23,6 +23,11 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
+  type_assist: bool,
+  type_assist_lit: bool,
+  type_assist_var: bool,
+  type_assist_fun: bool,
+  type_assist_other: bool,
 };
 
 type t = {
@@ -132,6 +137,11 @@ let init = (): t => {
       show_expanded: false,
       term_novice_message_mode: false,
       type_novice_message_mode: false,
+      type_assist: false,
+      type_assist_lit: false,
+      type_assist_var: false,
+      type_assist_fun: false,
+      type_assist_other: false,
     },
   };
 };

@@ -61,4 +61,9 @@ type t =
   | ToggleCursorInspectorExpansion
   | ToggleTermNoviceMessageMode
   | ToggleTypeNoviceMessageMode
-  | ToggleNoviceMode;
+  | ToggleNoviceMode
+  | ToggleTypeAssist
+  | ToggleTypeAssistLit
+  | ToggleTypeAssistVar
+  | ToggleTypeAssistFun
+  | ToggleTypeAssistOther;

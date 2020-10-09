@@ -83,7 +83,8 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);
+  /*let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);*/
+  let sym_Lam = (): t => mk(~index=0, "fun ");
   let colon_Lam = (): t => mk(~index=1, ":");
   let open_Lam = (): t => mk(~index=2, ".{");
   let close_Lam = (): t => mk(~index=3, "}");

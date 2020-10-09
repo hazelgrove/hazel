@@ -83,7 +83,12 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleCursorInspectorExpansion
   | ToggleTermNoviceMessageMode
   | ToggleTypeNoviceMessageMode
-  | ToggleNoviceMode =>
+  | ToggleNoviceMode
+  | ToggleTypeAssist
+  | ToggleTypeAssistLit
+  | ToggleTypeAssistVar
+  | ToggleTypeAssistFun
+  | ToggleTypeAssistOther =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -353,6 +358,41 @@ let apply_action =
           },
         }
       | ToggleNoviceMode => Model.toggle_novice_mode(model)
+      | ToggleTypeAssist => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_assist: !model.cursor_inspector.type_assist,
+          },
+        }
+      | ToggleTypeAssistLit => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_assist_lit: !model.cursor_inspector.type_assist_lit,
+          },
+        }
+      | ToggleTypeAssistVar => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_assist_var: !model.cursor_inspector.type_assist_var,
+          },
+        }
+      | ToggleTypeAssistFun => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_assist_fun: !model.cursor_inspector.type_assist_fun,
+          },
+        }
+      | ToggleTypeAssistOther => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_assist_other: !model.cursor_inspector.type_assist_other,
+          },
+        }
       };
     },
   );

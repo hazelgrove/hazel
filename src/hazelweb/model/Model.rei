@@ -34,6 +34,11 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
+  type_assist: bool,
+  type_assist_lit: bool,
+  type_assist_var: bool,
+  type_assist_fun: bool,
+  type_assist_other: bool,
 };
 
 type t = {

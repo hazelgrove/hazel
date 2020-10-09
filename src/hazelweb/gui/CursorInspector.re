@@ -5,6 +5,316 @@ type err_state_b =
   | BindingError
   | OK;
 
+let type_driven_assist = (inject, lit_t, var_t, func_t, other_t) => {
+  let lit_t = lit_t || true;
+  let var_t = var_t || true;
+  let func_t = func_t || true;
+  let other_t = other_t || true;
+  let fill_hole_msg =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["title-bar", "panel-title-bar", "main-fill"])],
+        [
+          Node.div(
+            [Attr.classes(["words"])],
+            [
+              Node.text(
+                "Which of the following will have the intended behavior?",
+              ),
+            ],
+          ),
+        ],
+      )
+    );
+  let lit_arrow =
+    if (lit_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let lit =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleTypeAssistLit),
+            ])
+          ),
+        ],
+        [Node.text("Function Literal"), lit_arrow],
+      )
+    );
+  let lit_body_1 =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create new list : "),
+              HTypCode.view(List(Prod([Float, Bool]))),
+            ],
+          ),
+        ],
+      )
+    );
+  let lit_body_2 =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create new function : "),
+              HTypCode.view(Arrow(Prod([Float, Bool]), Float)),
+            ],
+          ),
+        ],
+      )
+    );
+  let _ = if (true) {lit_body_1} else {lit_body_2};
+
+  let var_arrow =
+    if (var_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let var =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleTypeAssistVar),
+            ])
+          ),
+        ],
+        [Node.text("Variable"), var_arrow],
+      )
+    );
+  let var_body_1 =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.div(
+                [Attr.classes(["code-font"])],
+                [Node.text("scores_and_bonuses : ")],
+              ),
+              HTypCode.view(List(Prod([Float, Bool]))),
+            ],
+          ),
+        ],
+      )
+    );
+  let var_body_2 =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.div(
+                [Attr.classes(["code-font"])],
+                [Node.text("bonus : ")],
+              ),
+              HTypCode.view(Float),
+            ],
+          ),
+        ],
+      )
+    );
+  let _ = if (true) {var_body_1} else {var_body_2};
+  let arrow_func =
+    if (func_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let func =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleTypeAssistFun),
+            ])
+          ),
+        ],
+        [Node.text("Function Application"), arrow_func],
+      )
+    );
+  let func_body_1 =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Apply "),
+              Node.div(
+                [Attr.classes(["code-font"])],
+                [Node.text("map : ")],
+              ),
+              HTypCode.view(
+                Arrow(
+                  Arrow(
+                    Arrow(Prod([Float, Bool]), Float),
+                    List(Prod([Float, Bool])),
+                  ),
+                  List(Float),
+                ),
+              ),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.text("Create and apply new function : "),
+              HTypCode.view(Arrow(Hole, Hole)),
+            ],
+          ),
+        ],
+      )
+    );
+  let arrow_other =
+    if (other_t) {
+      Icons.down_arrow(["fill-arrow"]);
+    } else {
+      Icons.left_arrow(["fill-arrow"]);
+    };
+  let other =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleTypeAssistOther),
+            ])
+          ),
+        ],
+        [Node.text("Other"), arrow_other],
+      )
+    );
+  let other_body_1 =
+    Vdom.(
+      Node.div(
+        [Attr.classes(["panel-title-bar", "body-bar"])],
+        [
+          Node.div(
+            [Attr.classes(["option"])],
+            [
+              Node.div(
+                [Attr.classes([])],
+                [
+                  Node.text("Branch on..."),
+                  Node.div(
+                    [Attr.classes(["mini-option"])],
+                    [Node.text("Empty Hole : "), HTypCode.view(Hole)],
+                  ),
+                  Node.div(
+                    [Attr.classes(["mini-option"])],
+                    [
+                      Node.div(
+                        [Attr.classes(["code-font"])],
+                        [Node.text("raw_score : ")],
+                      ),
+                      HTypCode.view(Float),
+                    ],
+                  ),
+                  Node.div(
+                    [Attr.classes(["mini-option"])],
+                    [
+                      Node.div(
+                        [Attr.classes(["code-font"])],
+                        [Node.text("bonus_question : ")],
+                      ),
+                      HTypCode.view(Bool),
+                    ],
+                  ),
+                  Node.div(
+                    [Attr.classes(["mini-option"])],
+                    [
+                      Node.div(
+                        [Attr.classes(["code-font"])],
+                        [Node.text("scores_and_bonuses : ")],
+                      ),
+                      HTypCode.view(List(Prod([Float, Bool]))),
+                    ],
+                  ),
+                  Node.div(
+                    [Attr.classes(["mini-option"])],
+                    [
+                      Node.div(
+                        [Attr.classes(["code-font"])],
+                        [Node.text("bonus : ")],
+                      ),
+                      HTypCode.view(Float),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [Node.text("Arithmetic operation")],
+          ),
+          Node.div(
+            [Attr.classes(["option"])],
+            [Node.text("New let binding")],
+          ),
+        ],
+      )
+    );
+  let body =
+    if (lit_t) {
+      List.append([fill_hole_msg], [lit, lit_body_1]);
+    } else {
+      List.append([fill_hole_msg], [lit]);
+    };
+  let body =
+    if (var_t) {
+      List.append(body, [var, var_body_1]);
+    } else {
+      List.append(body, [var]);
+    };
+  let body =
+    if (func_t) {
+      List.append(body, [func, func_body_1]);
+    } else {
+      List.append(body, [func]);
+    };
+  let body =
+    if (other_t) {
+      List.append(body, [other, other_body_1]);
+    } else {
+      List.append(body, [other]);
+    };
+  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+};
+
 let inconsistent_symbol =
   Vdom.Node.div(
     [
@@ -12,15 +322,6 @@ let inconsistent_symbol =
       Vdom.Attr.create("title", "Inconsistent"),
     ],
     [Vdom.Node.text(UnicodeConstants.inconsistent)],
-  );
-
-let consistent_symbol =
-  Vdom.Node.div(
-    [
-      Vdom.Attr.classes(["consistent-symbol", "colon"]),
-      Vdom.Attr.create("title", "Of Consistent Type"),
-    ],
-    [Vdom.Node.text(":"), Vdom.Node.text("~")],
   );
 
 let emphasize_text = (~only_right=false, msg: string) => {
@@ -50,13 +351,8 @@ let advanced_summary =
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty, HTyp.eq(expected_ty, got_ty)) {
-      | (HTyp.Hole, true) => ([colon], [HTypCode.view(expected_ty)])
-      | (HTyp.Hole, false) => (
-          [consistent_symbol],
-          [HTypCode.view(expected_ty)],
-        )
-      | (_, false) => ([consistent_symbol], [HTypCode.view(got_ty)])
+      switch (got_ty) {
+      | HTyp.Hole => ([colon], [HTypCode.view(expected_ty)])
       | _ => ([colon], [HTypCode.view(got_ty)])
       }
     | AnaTypeInconsistent(expected_ty, got_ty)
@@ -208,30 +504,14 @@ let novice_summary =
     | AnaAnnotatedLambda(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
-      switch (got_ty, HTyp.eq(expected_ty, got_ty)) {
-      | (HTyp.Hole, true) => (
+      switch (got_ty) {
+      | HTyp.Hole => (
           [
             Vdom.Node.text("Expecting " ++ article),
             term_tag,
             Vdom.Node.text("of type"),
           ],
           [HTypCode.view(expected_ty)],
-        )
-      | (HTyp.Hole, false) => (
-          [
-            Vdom.Node.text("Expecting " ++ article),
-            term_tag,
-            Vdom.Node.text("of type consistent with"),
-          ],
-          [HTypCode.view(expected_ty)],
-        )
-      | (_, false) => (
-          [
-            Vdom.Node.text("Got " ++ article),
-            term_tag,
-            Vdom.Node.text("of consistent type"),
-          ],
-          [HTypCode.view(got_ty)],
         )
       | _ => (
           [
@@ -405,7 +685,7 @@ let novice_summary =
             [
               Vdom.Node.text("Got " ++ article),
               term_tag,
-              Vdom.Node.text("consistent with type"),
+              Vdom.Node.text("of type"),
             ],
             [HTypCode.view(ty)],
           );
@@ -465,6 +745,7 @@ let summary_bar =
       ~inject: ModelAction.t => Vdom.Event.t,
       ci: CursorInfo_common.t,
       err_state_b: err_state_b,
+      show: bool,
       show_expanded: bool,
       term_novice_message_mode: bool,
       type_novice_message_mode: bool,
@@ -524,6 +805,26 @@ let summary_bar =
         ],
       )
     );
+  let fill_icon =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["cursor-inspector-arrow"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleTypeAssist),
+            ])
+          ),
+        ],
+        [Node.text("💡")],
+      )
+    );
+  let body =
+    show
+      ? [summary, arrow, fill_icon, err_icon]
+      : [summary, fill_icon, err_icon];
   Vdom.(
     Node.div(
       [
@@ -536,7 +837,7 @@ let summary_bar =
           ])
         ),
       ],
-      [summary, arrow, err_icon],
+      body,
     )
   );
 };
@@ -705,19 +1006,19 @@ let view =
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | AnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       let ind1 = expected_ty_indicator_diff(expected_diff);
       let ind2 = got_inconsistent_indicator_diff(got_diff);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -731,46 +1032,46 @@ let view =
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | AnaInvalid(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | SynInvalid =>
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -782,7 +1083,7 @@ let view =
           )
         | _ => got_indicator("Got", typebar(syn_ty))
         };
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | SynKeywordArrow(matched_ty, _k) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -790,7 +1091,7 @@ let view =
           "Got a keyword ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynInvalidArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -798,7 +1099,7 @@ let view =
           "Got invalid text ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -806,9 +1107,9 @@ let view =
           "Got a free variable ▶ matched to",
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | SynBranchClause(join, typed, branch_index) =>
-      let (ind1, ind2, err_state_b) = get_indicator_info(typed);
+      let (ind1, ind2, err_state_b, _) = get_indicator_info(typed);
       let ind1 =
         switch (join) {
         | NoBranches => ind1
@@ -823,42 +1124,58 @@ let view =
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
         switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
-        | (true, true) => (ind1, got_as_expected_ty_indicator(got_ty), OK)
-        | (true, false) => (ind1, got_consistent_indicator(got_ty), OK)
+        | (true, true) => (
+            ind1,
+            got_as_expected_ty_indicator(got_ty),
+            OK,
+            false,
+          )
+        | (true, false) => (
+            ind1,
+            got_consistent_indicator(got_ty),
+            OK,
+            false,
+          )
         | (false, _) =>
           let (expected_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           (
             expected_ty_indicator_consistent_diff(expected_diff),
             got_inconsistent_indicator_diff(got_diff),
             TypeInconsistency,
+            false,
           );
         }
-      | (InconsistentBranchTys(_), _) => (ind1, ind2, TypeInconsistency)
-      | _ => (ind1, ind2, err_state_b)
+      | (InconsistentBranchTys(_), _) => (
+          ind1,
+          ind2,
+          TypeInconsistency,
+          true,
+        )
+      | _ => (ind1, ind2, err_state_b, false)
       };
     | SynInconsistentBranches(rule_types, path_to_case) =>
       let ind1 = expected_any_indicator;
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, true);
     | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_inconsistent_branches_indicator(rule_types, path_to_case);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       let ind1 = expected_ty_indicator_pat_diff(expected_diff);
       let ind2 = got_inconsistent_indicator_diff(got_diff);
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
@@ -872,43 +1189,43 @@ let view =
           "Got tuple of the wrong length",
           special_msg_bar(got_msg),
         );
-      (ind1, ind2, TypeInconsistency);
+      (ind1, ind2, TypeInconsistency, false);
     | PatAnaInvalid(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_invalid_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty)
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
-      (ind1, ind2, BindingError);
+      (ind1, ind2, BindingError, false);
     | OnLine =>
       /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     | OnRule =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
+      (ind1, ind2, OK, false);
     };
 
-  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
+  let (ind1, ind2, err_state_b, show) = get_indicator_info(ci.typed);
 
   // this determines the color
   let cls_of_err_state_b =
@@ -935,16 +1252,46 @@ let view =
       ~inject,
       ci,
       err_state_b,
+      show,
       model.cursor_inspector.show_expanded,
       model.cursor_inspector.term_novice_message_mode,
       model.cursor_inspector.type_novice_message_mode,
     );
   let content =
-    if (model.cursor_inspector.show_expanded) {
+    if (model.cursor_inspector.show_expanded && show) {
       [summary, ind1, ind2];
     } else {
       [summary];
     };
+  let content =
+    /*if (model.cursor_inspector.type_assist) {
+        List.append(
+          content,
+          [
+            type_driven_assist(
+              inject,
+              model.cursor_inspector.type_assist_lit,
+              model.cursor_inspector.type_assist_var,
+              model.cursor_inspector.type_assist_fun,
+              model.cursor_inspector.type_assist_other,
+            ),
+          ],
+        );
+      } else {
+        content;
+      };*/
+    List.append(
+      content,
+      [
+        type_driven_assist(
+          inject,
+          model.cursor_inspector.type_assist_lit,
+          model.cursor_inspector.type_assist_var,
+          model.cursor_inspector.type_assist_fun,
+          model.cursor_inspector.type_assist_other,
+        ),
+      ],
+    );
   Vdom.(
     Node.div(
       [Attr.classes(["cursor-inspector-outer", above_or_below]), pos_attr],
