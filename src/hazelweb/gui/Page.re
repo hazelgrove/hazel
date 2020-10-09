@@ -231,23 +231,28 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       Node.button(
                         [
                           Attr.on_click(_ => {
-                            Printf.printf(
-                              "%s\n%!",
-                              switch (
-                                OCamlExtraction.extract(
-                                  Contexts.empty,
-                                  model
-                                  |> Model.get_program
-                                  |> Program.get_expansion,
-                                )
-                              ) {
+                            let extract_result =
+                              OCamlExtraction.extract(
+                                Contexts.empty,
+                                model
+                                |> Model.get_program
+                                |> Program.get_expansion,
+                              );
+                            let msg_str =
+                              switch (extract_result) {
                               | ExtractionFailed(err) =>
                                 "An Error Occurs in the extraction: \n" ++ err
                               | OCamlExp(str) =>
                                 "The extraction result is: \n" ++ str
-                              },
-                            );
-                            Event.Ignore;
+                              };
+                            Printf.printf("%s\n%!", msg_str);
+                            // Event.Ignore;
+                            Vdom.Event.Many([
+                              Event.Prevent_default,
+                              Event.Stop_propagation,
+                              inject(ModelAction.Extraction(extract_result)),
+                              inject(FocusCell),
+                            ]);
                           }),
                         ],
                         [Node.text("Extraction to Ocaml")],
@@ -264,6 +269,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ),
                     ],
                   ),
+                  ExtractionResult.view(model),
                 ],
               ),
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
@@ -281,6 +287,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               ),
             ],
           ),
+          // ExtractionResult.view(model),
         ],
       );
     },

@@ -45,6 +45,7 @@ type t = {
    * Recording mouse_position can retrive elements under mouse
    * to realize preview when scrolling.
    */
+  extraction: OCamlExtraction.result,
   mouse_position: ref(MousePosition.t),
 };
 

@@ -1,6 +1,12 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t =
   | OCamlExp(string)
   | ExtractionFailed(string);
+
+// The type used to display on page
+type result = (bool, t);
 
 //TODO: test exception handling (seems good now)
 let extract = (ctx: Contexts.t, exp: DHExp.t): t =>
@@ -8,7 +14,6 @@ let extract = (ctx: Contexts.t, exp: DHExp.t): t =>
   // normal return value
   | OCamlExp(exp_str, _exp_typ) => OCamlExp(exp_str)
   // Exception handling
-  //TODO: make the exceptions more human readable
   // type extraction exceptions
   | exception OCamlExtraction_Typ.Typ_Hole =>
     ExtractionFailed("Type exception: Hole exists in program")

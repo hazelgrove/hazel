@@ -1660,3 +1660,30 @@ h1 {
 .panel-code-font{
   font-family: var(--code-font-family);
 }
+
+
+.extraction-result {
+  position: sticky;
+  bottom: 0;
+  width: auto;
+  height: fit-content;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: blueviolet;
+  color: white;
+  white-space: pre-wrap;
+}
+
+.extraction-error {
+  position: sticky;
+  bottom: 0;
+  width: auto;
+  height: fit-content;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: red;
+  color: white;
+  white-space: pre-wrap;
+}
