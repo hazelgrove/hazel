@@ -249,7 +249,7 @@ and syn_rules =
 }
 and syn_rule =
     (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
-  let Rule(p, clause) = rule;
+  let Rule(_, p, clause) = rule;
   switch (Statics_Pat.ana(ctx, p, pat_ty)) {
   | None => None
   | Some(ctx) => syn(ctx, clause)
@@ -450,7 +450,7 @@ and ana_rules =
 and ana_rule =
     (
       ctx: Contexts.t,
-      Rule(p, clause): UHExp.rule,
+      Rule(_, p, clause): UHExp.rule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
@@ -1027,12 +1027,12 @@ and syn_fix_holes_rule =
       pat_ty: HTyp.t,
     )
     : (UHExp.rule, MetaVarGen.t, HTyp.t) => {
-  let Rule(p, clause) = rule;
+  let Rule(err, p, clause) = rule;
   let (p, ctx, u_gen) =
     Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, pat_ty);
   let (clause, clause_ty, u_gen) =
     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause);
-  (Rule(p, clause), u_gen, clause_ty);
+  (Rule(err, p, clause), u_gen, clause_ty);
 }
 and ana_fix_holes_rules =
     (
@@ -1068,7 +1068,7 @@ and ana_fix_holes_rule =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
-      Rule(p, clause): UHExp.rule,
+      Rule(err, p, clause): UHExp.rule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
@@ -1077,7 +1077,7 @@ and ana_fix_holes_rule =
     Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, pat_ty);
   let (clause, u_gen) =
     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause, clause_ty);
-  (Rule(p, clause), u_gen);
+  (Rule(err, p, clause), u_gen);
 }
 and ana_fix_holes_splice_map =
     (
