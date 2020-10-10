@@ -818,7 +818,14 @@ and case_syn_operand =
     )
   | IntLit(NotInHole, n) => Some((Int, ctx, Int(int_of_string(n))))
   | FloatLit(NotInHole, n) => Some((Float, ctx, Float(float_of_string(n))))
-  | BoolLit(NotInHole, b) => Some((Bool, ctx, Bool(b)))
+  | BoolLit(NotInHole, b) =>
+    let c =
+      if (b) {
+        Constraints.InjL(Truth);
+      } else {
+        InjR(Truth);
+      };
+    Some((Bool, ctx, c));
   | ListNil(NotInHole) => Some((List(Hole), ctx, Truth)) // todo: fix when list constr is defined
   | Inj(NotInHole, inj_side, p1) =>
     switch (case_syn(ctx, p1)) {
@@ -859,6 +866,7 @@ and case_ana_opseq =
         skel_tys,
       )
     ) {
+    // really need to think how to do it here.
     | None => None
     | Some(ctx) =>
       let lst =
@@ -884,7 +892,27 @@ and case_ana_skel =
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
     case_ana_operand(ctx, pn, ty);
-  | _ => None
+  | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+    let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+    switch (syn_skel(ctx, skel_not_in_hole, seq)) {
+    | None => None
+    | Some((_, ctx)) => Some((ctx, Constraints.Hole))
+    };
+  | BinOp(NotInHole, Cons, skel1, skel2) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => None
+    | Some(ty_elt) =>
+      switch (case_ana_skel(ctx, skel1, seq, ty_elt)) {
+      | None => None
+      | Some((ctx, left_con)) =>
+        switch (case_ana_skel(ctx, skel2, seq, HTyp.List(ty_elt))) {
+        | None => None
+        | Some((ctx, right_con)) =>
+          Some((ctx, InjR(Pair(left_con, right_con))))
+        }
+      }
+    }
+  | BinOp(NotInHole, Space, _, _) => failwith("not implemented")
   }
 and case_ana_operand =
     (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t)
@@ -910,7 +938,8 @@ and case_ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) =>
-    failwith("not implemented wrong length")
+    ty |> HTyp.get_prod_elements |> List.length > 1
+      ? Some((ctx, Constraints.Hole)) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
@@ -945,13 +974,24 @@ and case_ana_operand =
     | None => None
     | Some((ty', ctx')) =>
       if (HTyp.consistent(ty, ty')) {
-        Some((ctx', Bool(b)));
+        let c =
+          if (b) {
+            Constraints.InjL(Truth);
+          } else {
+            InjR(Truth);
+          };
+        Some((ctx', c));
       } else {
         None;
       }
     }
-  | ListNil(NotInHole) => failwith("Not implemented listnil")
+  | ListNil(NotInHole) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => None
+    | Some(_) => Some((ctx, InjL(Truth)))
+    }
   | Inj(NotInHole, side, p1) =>
+    let _ = print_endline("enter inj");
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
@@ -964,7 +1004,7 @@ and case_ana_operand =
         | R => Some((ctx', InjR(con')))
         }
       };
-    }
+    };
   | Parenthesized(p) => case_ana(ctx, p, ty)
   };
 
