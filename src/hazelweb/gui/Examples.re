@@ -38,12 +38,12 @@ let map_example: UHExp.t = {
         Block.wrap(var("xs")),
         [
           Rule(
-            NotRedundent,
+            NotRedundant,
             OpSeq.wrap(UHPat.listnil()),
             Block.wrap(listnil()),
           ),
           Rule(
-            NotRedundent,
+            NotRedundant,
             UHPat.(
               Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
               |> mk_OpSeq
@@ -117,12 +117,12 @@ let qsort_example: UHExp.t = {
         Block.wrap(var("xs")),
         [
           Rule(
-            NotRedundent,
+            NotRedundant,
             OpSeq.wrap(UHPat.listnil()),
             Block.wrap(var("ys")),
           ),
           Rule(
-            NotRedundent,
+            NotRedundant,
             UHPat.(
               Seq.mk(var("z"), [(Operators_Pat.Cons, var("zs"))])
               |> mk_OpSeq
@@ -190,7 +190,7 @@ let qsort_example: UHExp.t = {
           Block.wrap(var("xs")),
           [
             Rule(
-              NotRedundent,
+              NotRedundant,
               OpSeq.wrap(UHPat.listnil()),
               Block.wrap(
                 Parenthesized(
@@ -201,7 +201,7 @@ let qsort_example: UHExp.t = {
               ),
             ),
             Rule(
-              NotRedundent,
+              NotRedundant,
               UHPat.(
                 Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
                 |> mk_OpSeq
@@ -234,7 +234,7 @@ let qsort_example: UHExp.t = {
                     ),
                     [
                       Rule(
-                        NotRedundent,
+                        NotRedundant,
                         OpSeq.wrap(UHPat.boollit(true)),
                         Block.wrap(
                           Parenthesized(
@@ -249,7 +249,7 @@ let qsort_example: UHExp.t = {
                         ),
                       ),
                       Rule(
-                        NotRedundent,
+                        NotRedundant,
                         OpSeq.wrap(UHPat.boollit(false)),
                         Block.wrap(
                           Parenthesized(

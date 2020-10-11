@@ -170,8 +170,30 @@ let rec is_inconsistent = (~may=false, xis: list(Constraints.t)): bool =>
 let is_redundant = (xi_cur: Constraints.t, xi_pre: Constraints.t): bool =>
   is_inconsistent(
     ~may=false,
-    Constraints.[And(truify(xi_cur), falsify(xi_pre))],
+    Constraints.[And(truify(xi_cur), dual(falsify(xi_pre)))],
   );
 
 let is_exhaustive = (xi: Constraints.t): bool =>
   is_inconsistent(~may=true, Constraints.[dual(truify(xi))]);
+
+let generate_redundancy_list = (xi_list: list(Constraints.t)): list(int) =>
+  switch (xi_list) {
+  | [] => failwith("not possible to have 0 xi")
+  | [xi, ...xis] =>
+    let (_, rev_list, _) =
+      List.fold_left(
+        ((cur_idx, idxs, xi_pre), xi_cur) =>
+          if (is_redundant(xi_cur, xi_pre)) {
+            (
+              cur_idx + 1,
+              [cur_idx, ...idxs],
+              Constraints.Or(xi_pre, xi_cur),
+            );
+          } else {
+            (cur_idx + 1, idxs, Constraints.Or(xi_pre, xi_cur));
+          },
+        (1, [], xi),
+        xis,
+      );
+    List.rev(rev_list);
+  };

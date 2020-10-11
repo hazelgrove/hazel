@@ -98,6 +98,10 @@ let set_err_status_opseq: (ErrStatus.t, opseq) => opseq;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
+let set_err_status_rules: (RuleErrStatus.t, int, rules) => rules;
+
+let set_err_status_rule: (RuleErrStatus.t, rule) => rule;
+
 let is_inconsistent: operand => bool;
 
 let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);

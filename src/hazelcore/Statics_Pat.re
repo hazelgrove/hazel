@@ -71,8 +71,7 @@ and syn_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
-  /* not in hole */
+  | Inj(InHole(WrongLength, _), _, _) => None /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
@@ -176,8 +175,7 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
-  /* not in hole */
+    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
@@ -801,8 +799,7 @@ and case_syn_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
-  /* not in hole */
+  | Inj(InHole(WrongLength, _), _, _) => None /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx, Truth))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) =>
@@ -939,8 +936,7 @@ and case_ana_operand =
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1
-      ? Some((ctx, Constraints.Hole)) : None
-  /* not in hole */
+      ? Some((ctx, Constraints.Hole)) : None /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ctx, Falsity))
   | Var(NotInHole, NotInVarHole, x) =>
