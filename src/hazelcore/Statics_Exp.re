@@ -102,14 +102,14 @@ and syn_skel =
     }
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
     switch (syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))) {
-      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) => 
-        let ana_t1 = ana_skel(ctx, skel1, seq, t1); 
-        let ana_t2 = ana_skel(ctx, skel2, seq, t2); 
-        switch (ana_t1, ana_t2) {
-          | (Some(_), Some(_)) => Some(tout)
-          | _ => None;
-        }
+    | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>
+      let ana_t1 = ana_skel(ctx, skel1, seq, t1);
+      let ana_t2 = ana_skel(ctx, skel2, seq, t2);
+      switch (ana_t1, ana_t2) {
+      | (Some(_), Some(_)) => Some(tout)
       | _ => None
+      };
+    | _ => None
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
@@ -551,11 +551,11 @@ and syn_nth_type_mode' =
     | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
       let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op));
       switch (op_type) {
-        | Some (HTyp.Arrow(t1, HTyp.Arrow(t2, _))) => 
-          n <= Skel.rightmost_tm_index(skel1)
-            ? ana_go(skel1, t1) : ana_go(skel2, t2)
-        | _ => None
-      }
+      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, _))) =>
+        n <= Skel.rightmost_tm_index(skel1)
+          ? ana_go(skel1, t1) : ana_go(skel2, t2)
+      | _ => None
+      };
     };
   go(skel);
 }
@@ -878,30 +878,21 @@ and syn_fix_holes_skel =
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
   | BinOp(_, UserOp(op), skel1, skel2) =>
-    let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op)); 
+    let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op));
     switch (op_type) {
-      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>       
-          let (skel1, seq, u_gen) =
-            ana_fix_holes_skel(
-              ctx,
-              u_gen,
-              ~renumber_empty_holes,
-              skel1,
-              seq,
-              t1,
-            );
-          let (skel2, seq, u_gen) =
-            ana_fix_holes_skel(
-              ctx,
-              u_gen,
-              ~renumber_empty_holes,
-              skel2,
-              seq,
-              t2,
-            );
-          (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
-      | _ => (BinOp(InHole(TypeInconsistent, u_gen), UserOp(op), skel1, skel2), seq, Hole, u_gen)
-  }
+    | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>
+      let (skel1, seq, u_gen) =
+        ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq, t1);
+      let (skel2, seq, u_gen) =
+        ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, t2);
+      (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
+    | _ => (
+        BinOp(InHole(TypeInconsistent, u_gen), UserOp(op), skel1, skel2),
+        seq,
+        Hole,
+        u_gen,
+      )
+    };
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =
       skel
@@ -1334,7 +1325,8 @@ and ana_fix_holes_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space,
+      Space |
+      UserOp(_),
       _,
       _,
     ) =>
