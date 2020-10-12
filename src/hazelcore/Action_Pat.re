@@ -13,6 +13,7 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SGreaterThan
   | SEquals
   | SArrow
+  | SUserOp(_)
   | SVBar => None;
 
 let shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>

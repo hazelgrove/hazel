@@ -14,6 +14,7 @@ let operator_of_shape =
   | SGreaterThan
   | SEquals
   | SSpace
+  | SUserOp(_)
   | SCons => None
   };
 
