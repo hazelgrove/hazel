@@ -610,7 +610,7 @@ let rec syn_perform =
         (
           ctx: Contexts.t,
           a: Action_common.t,
-          (ze: ZExp.t, ty: HTyp.t, id_gen: IDGen.t),
+          (ze: ZExp.t, ty: HTyp.t, id_gen: IDGen.t): Statics_common.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
   switch (syn_perform_block(ctx, a, (ze, ty, id_gen))) {
@@ -1482,7 +1482,7 @@ and syn_perform_operand =
 
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
-  | (Construct(SList), _) => Failed
+  | (Construct(SList), CursorE(_)) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -2942,7 +2942,7 @@ and ana_perform_operand =
     ana_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), id_gen), ty)
 
   /* Invalid actions at the expression level */
-  | (Construct(SList), _) => Failed
+  | (Construct(SList), CursorE(_)) => Failed
 
   /* Backspace & Delete */
 

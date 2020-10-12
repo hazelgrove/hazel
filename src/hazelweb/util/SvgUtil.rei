@@ -1,13 +1,15 @@
-[@deriving sexp]
-type point = {
-  x: float,
-  y: float,
+module Point: {
+  [@deriving sexp]
+  type t = {
+    x: float,
+    y: float,
+  };
 };
 
 module Rect: {
   [@deriving sexp]
   type t = {
-    min: point,
+    min: Point.t,
     width: float,
     height: float,
   };
@@ -24,7 +26,7 @@ module Path: {
    * suffix correspond to lower-case variants.
    */
   and cmd =
-    | M(point)
+    | M(Point.t)
     | M_({
         dx: float,
         dy: float,
@@ -45,6 +47,9 @@ module Path: {
     (~attrs: list(Virtual_dom.Vdom.Attr.t), t) => Virtual_dom.Vdom.Node.t;
 };
 
+/**
+ * An orthogonal polygon is a polygon whose edges intersect at right angles
+ */
 module OrthogonalPolygon: {
   type t = Path.t;
 

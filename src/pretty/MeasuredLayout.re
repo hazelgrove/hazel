@@ -18,6 +18,8 @@ and t'('annot) =
   | Cat(t('annot), t('annot))
   | Annot('annot, t('annot));
 
+type with_offset('annot) = (int, t('annot));
+
 let height = (m: t(_)) =>
   m.metrics |> List.map(box => box.height) |> List.fold_left((+), 0);
 

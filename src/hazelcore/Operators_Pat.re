@@ -24,4 +24,5 @@ let precedence =
 let associativity =
   fun
   | Comma => Associativity.Right
-  | _ => Associativity.Left;
+  | Cons => Associativity.Right
+  | Space => Associativity.Left;

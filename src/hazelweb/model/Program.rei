@@ -75,15 +75,15 @@ let move_via_click:
   (t, Action_common.t);
 
 exception HoleNotFound;
-let move_to_hole: (MetaVar.t, t) => t;
+let move_to_hole: (MetaVar.t, t) => Action_common.t;
 
 /**
- * `select_case_branch(steps, n, program)` moves the cursor to the `n`th branch
- * in case expression found at `steps` (when the user clicks on a branch type
- * in the error message for a case expression with inconsistent branches)
+ * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
+ * the `n`th branch in case expression found at `steps` (when the user
+ * clicks on a branch type in the error message for a case expression with
+ * inconsistent branches)
  */
-let move_to_case_branch:
-  (CursorPath_common.steps, int, t) => (t, Action_common.t);
+let move_to_case_branch: (CursorPath_common.steps, int) => Action_common.t;
 
 let get_layout:
   (
