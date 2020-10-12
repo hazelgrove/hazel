@@ -15,7 +15,8 @@ type operator_shape =
   | SVBar
   | SCons
   | SAnd
-  | SOr;
+  | SOr
+  | SUserOp(string);
 
 [@deriving sexp]
 type shape =
@@ -83,6 +84,7 @@ let shape_to_string = (shape: shape): string => {
     | SCons => "::"
     | SAnd => "&&"
     | SOr => "||"
+    | SUserOp(op) => op
     }
   | SApPalette(_) => failwith("ApPalette not implemented")
   };

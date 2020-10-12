@@ -13,6 +13,7 @@ let operator_of_shape =
   | SCons => Some(Cons)
   | SAnd => Some(And)
   | SOr => Some(Or)
+  | SUserOp(op) => Some(UserOp(op))
   | SArrow
   | SVBar => None
   };
@@ -32,6 +33,7 @@ let shape_of_operator =
   | Cons => Some(SCons)
   | And => Some(SAnd)
   | Or => Some(SOr)
+  | UserOp(op) => Some(SUserOp(op))
   | FPlus
   | FMinus
   | FTimes
