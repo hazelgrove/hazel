@@ -965,20 +965,6 @@ h1 {
   line-height: var(--code-line-height);
   cursor: text;
 }
-.contenteditable {
-  background-color: lightgray;
-}
-.hiddencontenteditable {
-  /* TODO consolidate #contenteditable vs .contenteditable */
-  position: fixed;
-  top: 0;
-  left: 100%;
-  padding: 10px;
-  color: transparent;
-}
-.hiddencontenteditable:focus {
-  outline: 0px;
-}
 
 #font-specimen {
   position: fixed;

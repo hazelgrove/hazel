@@ -38,52 +38,11 @@ let rects =
   |> snd;
 };
 
-module ErrHole = {
-  let view =
-      (
-        ~corner_radii: (float, float),
-        ~offset: int,
-        subject: UHMeasuredLayout.t,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects({row: 0, col: offset})
-    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.Path.view(
-         ~attrs=
-           Vdom.Attr.[
-             classes(["err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
-};
-
-module VarErrHole = {
-  let view =
-      (
-        ~corner_radii: (float, float),
-        ~offset: int,
-        subject: UHMeasuredLayout.t,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects({row: 0, col: offset})
-    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.Path.view(
-         ~attrs=
-           Vdom.Attr.[
-             classes(["var-err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
-};
-
 module VarUse = {
   let view =
       (
         ~corner_radii: (float, float),
-        ~offset: int,
-        subject: UHMeasuredLayout.t,
+        (offset, subject): UHMeasuredLayout.with_offset,
       )
       : Vdom.Node.t =>
     subject
@@ -238,7 +197,8 @@ module CurrentTerm = {
 
   // highlighted tesserae (ignoring closed children)
   let current_term_tessera_rects =
-      (~shape: TermShape.t, ~offset: int, subject: UHMeasuredLayout.t): rects =>
+      (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
+      : rects =>
     subject
     |> MeasuredLayout.pos_fold(
          ~start={row: 0, col: offset},
@@ -258,7 +218,7 @@ module CurrentTerm = {
 
   // closed child "cutouts" from highlighted tesserae
   let current_term_closed_child_rects =
-      (~shape: TermShape.t, ~offset: int, subject: UHMeasuredLayout.t)
+      (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
       : list((TermSort.t, rects)) =>
     subject
     |> MeasuredLayout.pos_fold(
@@ -284,7 +244,8 @@ module CurrentTerm = {
 
   // highlighted borders of open children
   let current_term_open_child_rects =
-      (~shape: TermShape.t, ~offset: int, subject: UHMeasuredLayout.t): rects => {
+      (~shape: TermShape.t, (offset, subject): UHMeasuredLayout.with_offset)
+      : rects => {
     let has_multiline_open_child =
       subject
       |> MeasuredLayout.fold(
@@ -375,7 +336,7 @@ module CurrentTerm = {
                  ~overflow_left=true,
                )
              | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
-               // TODO may need to revisit above when guard
+               // may need to revisit above `when` guard
                // to support layouts like
                // let _ = \x.{
                //   _
@@ -395,16 +356,15 @@ module CurrentTerm = {
   let view =
       (
         ~corner_radii: (float, float),
-        ~offset: int,
         ~sort: TermSort.t,
         ~shape: TermShape.t,
-        subject: UHMeasuredLayout.t,
+        (offset, subject): UHMeasuredLayout.with_offset,
       )
       : Vdom.Node.t => {
     let highlighted = {
-      let tesserae = current_term_tessera_rects(~shape, ~offset, subject);
+      let tesserae = current_term_tessera_rects(~shape, (offset, subject));
       let open_child_borders =
-        current_term_open_child_rects(~shape, ~offset, subject);
+        current_term_open_child_rects(~shape, (offset, subject));
       tesserae
       @ open_child_borders
       |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
@@ -414,8 +374,8 @@ module CurrentTerm = {
          );
     };
     let closed_children =
-      subject
-      |> current_term_closed_child_rects(~shape, ~offset)
+      (offset, subject)
+      |> current_term_closed_child_rects(~shape)
       |> List.map(((sort, rs)) =>
            rs
            |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
@@ -461,6 +421,56 @@ module CurrentTerm = {
       )
     );
   };
+};
+
+module ErrHole = {
+  let view =
+      (
+        ~contains_current_term: bool,
+        ~corner_radii: (float, float),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Vdom.Node.t =>
+    subject
+    |> rects(
+         ~vtrim=
+           contains_current_term
+             ? 0.0 : CurrentTerm.inline_open_child_border_height,
+         {row: 0, col: offset},
+       )
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Vdom.Attr.[
+             classes(["err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
+};
+
+module VarErrHole = {
+  let view =
+      (
+        ~contains_current_term: bool,
+        ~corner_radii: (float, float),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Vdom.Node.t =>
+    subject
+    |> rects(
+         ~vtrim=
+           contains_current_term
+             ? 0.0 : CurrentTerm.inline_open_child_border_height,
+         {row: 0, col: offset},
+       )
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Vdom.Attr.[
+             classes(["var-err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
 };
 
 module Caret = {

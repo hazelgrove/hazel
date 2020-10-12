@@ -6,6 +6,11 @@ module Vdom = Virtual_dom.Vdom;
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+/**
+ * A buffered container for SVG elements so that strokes along
+ * the bounding box of the elements do not get clipped by the
+ * viewBox boundaries
+ */
 let decoration_container =
     (
       ~font_metrics: FontMetrics.t,
@@ -13,7 +18,7 @@ let decoration_container =
       ~height: int,
       ~width: int,
       ~cls: string,
-      vs: list(Vdom.Node.t),
+      svgs: list(Vdom.Node.t),
     )
     : Vdom.Node.t => {
   let buffered_height = height + 1;
@@ -65,7 +70,7 @@ let decoration_container =
             ),
             Attr.create("preserveAspectRatio", "none"),
           ],
-          vs,
+          svgs,
         ),
       ],
     )
@@ -83,10 +88,10 @@ let decoration_views =
 
   let rec go =
           (
-            ~tl: list(Vdom.Node.t)=[],
-            ~indent=0,
-            ~start=MeasuredPosition.zero,
-            dpaths: UHDecorationPaths.t,
+            ~tl: list(Vdom.Node.t)=[], // tail-recursive
+            ~indent=0, // indentation level of `m`
+            ~start=MeasuredPosition.zero, // start position of `m`
+            dpaths: UHDecorationPaths.t, // paths to decorations within `m`
             m: UHMeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
@@ -121,31 +126,40 @@ let decoration_views =
         let height = lazy(MeasuredLayout.height(m));
         let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
-          UHDecorationPaths.current(sort, shape, dpaths)
+          UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let (cls, decoration) =
                  UHDecoration.(
                    switch (dshape) {
                    | ErrHole => (
                        "err-hole",
-                       ErrHole.view(~corner_radii, ~offset, m),
+                       ErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
                      )
                    | VarErrHole => (
                        "var-err-hole",
-                       VarErrHole.view(~corner_radii, ~offset, m),
+                       VarErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
                      )
                    | VarUse => (
                        "var-use",
-                       VarUse.view(~corner_radii, ~offset, m),
+                       VarUse.view(~corner_radii, (offset, m)),
                      )
-                   | CurrentTerm(_) => (
+                   | CurrentTerm => (
                        "current-term",
                        CurrentTerm.view(
                          ~corner_radii,
-                         ~offset,
                          ~sort,
                          ~shape,
-                         m,
+                         (offset, m),
                        ),
                      )
                    }
@@ -235,68 +249,79 @@ let key_handlers =
   ];
 };
 
+let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box = (program: Program.t, box: UHBox.t): list(Vdom.Node.t) => {
   Vdom.(
-    switch (box) {
-    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-    | HBox(boxes) => boxes |> List.map(view_of_box(program)) |> List.flatten
-    | VBox(boxes) =>
-      let vs =
-        boxes
-        |> List.map(view_of_box(program))
-        |> ListUtil.join([Node.br([])])
-        |> List.flatten;
-      [Node.div([Attr.classes(["VBox"])], vs)];
-    | Annot(annot, box) =>
-      let vs = view_of_box(program, box);
-      switch (annot) {
-      | Token({shape, _}) =>
-        let clss =
-          switch (shape) {
-          | Text => ["code-text"]
-          | Op => ["code-op"]
-          | Delim(_) => ["code-delim"]
-          };
-        [Node.span([Attr.classes(clss)], vs)];
-      | HoleLabel({len}) =>
-        let width = Css_gen.width(`Ch(float_of_int(len)));
-        [
-          Node.span(
-            [Attr.style(width), Attr.classes(["HoleLabel"])],
-            [Node.span([Attr.classes(["HoleNumber"])], vs)],
-          ),
-        ];
-      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-      | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-      | AssertNum({num}) =>
-        let assert_map = snd(Program.get_result(program));
-        switch (AssertMap.lookup(num, assert_map)) {
-        | Some(a) =>
-          switch (AssertMap.check(a)) {
-          | Pass => [
-              Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
-            ]
+    switch (WeakMap.get(box_table, box)) {
+    | Some(vs) => vs
+    | None =>
+      switch (box) {
+      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+      | HBox(boxes) =>
+        boxes |> List.map(view_of_box(program)) |> List.flatten
+      | VBox(boxes) =>
+        let vs =
+          boxes
+          |> List.map(view_of_box(program))
+          |> ListUtil.join([Node.br([])])
+          |> List.flatten;
+        [Node.div([Attr.classes(["VBox"])], vs)];
+      | Annot(annot, box) =>
+        let vs = view_of_box(program, box);
+        switch (annot) {
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | HoleLabel({len}) =>
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | AssertNum({num}) =>
+          let assert_map = snd(Program.get_result(program));
+          switch (AssertMap.lookup(num, assert_map)) {
+          | Some(a) =>
+            switch (AssertMap.check(a)) {
+            | Pass => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
+              ]
 
-          | Fail => [
-              Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
-            ]
+            | Fail => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
+              ]
 
-          | Comp => [
-              Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
-            ]
+            | Comp => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
+              ]
 
-          | Indet => [
+            | Indet => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+              ]
+            }
+          | None => [
               Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
             ]
-          }
-        | None => [
-            Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
-          ]
+          };
+        | _ => vs
         };
-      | _ => vs
-      };
+      }
     }
   );
+};
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
 };
 
 let view =
@@ -347,37 +372,36 @@ let view =
             )
           : [];
 
-      let id = "code-root";
+      let click_handler = evt => {
+        let container_rect =
+          JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+        let (target_x, target_y) = (
+          float_of_int(evt##.clientX),
+          float_of_int(evt##.clientY),
+        );
+        let caret_pos =
+          MeasuredPosition.{
+            row:
+              Float.to_int(
+                (target_y -. container_rect##.top) /. font_metrics.row_height,
+              ),
+            col:
+              Float.to_int(
+                Float.round(
+                  (target_x -. container_rect##.left) /. font_metrics.col_width,
+                ),
+              ),
+          };
+        inject(ModelAction.MoveAction(Click(caret_pos)));
+      };
+
       Node.div(
         [
-          Attr.id(id),
+          Attr.id(root_id),
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler
-          Attr.on_mousedown(evt => {
-            let container_rect =
-              JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
-            let (target_x, target_y) = (
-              float_of_int(evt##.clientX),
-              float_of_int(evt##.clientY),
-            );
-            let caret_pos =
-              MeasuredPosition.{
-                row:
-                  Float.to_int(
-                    (target_y -. container_rect##.top)
-                    /. font_metrics.row_height,
-                  ),
-                col:
-                  Float.to_int(
-                    Float.round(
-                      (target_x -. container_rect##.left)
-                      /. font_metrics.col_width,
-                    ),
-                  ),
-              };
-            inject(ModelAction.MoveAction(Click(caret_pos)));
-          }),
+          Attr.on_mousedown(click_handler),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),

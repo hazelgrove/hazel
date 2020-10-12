@@ -2,16 +2,18 @@ open Sexplib.Std;
 
 module Vdom = Virtual_dom.Vdom;
 
-[@deriving sexp]
-type point = {
-  x: float,
-  y: float,
+module Point = {
+  [@deriving sexp]
+  type t = {
+    x: float,
+    y: float,
+  };
 };
 
 module Rect = {
   [@deriving sexp]
   type t = {
-    min: point,
+    min: Point.t,
     width: float,
     height: float,
   };
@@ -20,7 +22,7 @@ module Rect = {
 module Path = {
   type t = list(cmd)
   and cmd =
-    | M(point)
+    | M(Point.t)
     | M_({
         dx: float,
         dy: float,
@@ -82,8 +84,8 @@ module OrthogonalPolygon = {
 
   [@deriving sexp]
   type linked_edge = {
-    src: point,
-    dst: point,
+    src: Point.t,
+    dst: Point.t,
     mutable next: [@sexp.opaque] option(linked_edge),
   };
 
@@ -162,11 +164,12 @@ module OrthogonalPolygon = {
   };
 
   /**
-   * Merge coinciding vertical edges that point in the same direction
-   * TODO figure out if there's a cleaner + more efficient method for this pass
+   * Merge coinciding vertical edges that point in the same direction.
    */
   let merge_coinciding_vertical_edges =
       (edges: list(linked_edge)): list(linked_edge) => {
+    // there may be a cleaner + more efficient method for this pass
+    // but good enough for now
     let (left_edges, right_edges) = List.partition(is_left_side, edges);
     let merged_left_edges =
       left_edges
@@ -229,9 +232,9 @@ module OrthogonalPolygon = {
       |> List.map((Rect.{min, width, height}) => {
            let max_x = min.x +. width;
            let max_y = min.y +. height;
-           let max = {x: max_x, y: max_y};
-           let min_max = {x: min.x, y: max_y};
-           let max_min = {x: max_x, y: min.y};
+           let max = Point.{x: max_x, y: max_y};
+           let min_max = Point.{x: min.x, y: max_y};
+           let max_min = Point.{x: max_x, y: min.y};
            [
              // left sides point in negative direction
              {src: min_max, dst: min, next: None},
@@ -273,8 +276,8 @@ module OrthogonalPolygon = {
            let x = v.src.x;
            let ys = (v.src.y, v.dst.y);
            let mk_contour_edge = ((y_src, y_dst)) => {
-             let src = {x, y: y_src};
-             let dst = {x, y: y_dst};
+             let src = Point.{x, y: y_src};
+             let dst = Point.{x, y: y_dst};
              {src, dst, next: None};
            };
            if (is_left_side(v)) {
@@ -339,8 +342,8 @@ module OrthogonalPolygon = {
            is_src1 ? (pt2.x, pt1.x, v2, v1) : (pt1.x, pt2.x, v1, v2);
 
          let h = {
-           let src = {x: x_src, y};
-           let dst = {x: x_dst, y};
+           let src = Point.{x: x_src, y};
+           let dst = Point.{x: x_dst, y};
            {src, dst, next: Some(next)};
          };
          prev.next = Some(h);

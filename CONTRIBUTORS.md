@@ -16,7 +16,6 @@
 - Colin de Roos
 - Utkarsh Mehta
 - Hannah Potter
-- Zoe Pan
 
 # Theory Contributors 
 (helped develop theory, but no code contributions to Hazel)
