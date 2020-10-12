@@ -616,7 +616,8 @@ and ana_nth_type_mode' =
         FLessThan |
         FGreaterThan |
         FEquals |
-        Space,
+        Space |
+        UserOp(_),
         _,
         _,
       ) =>
@@ -876,6 +877,31 @@ and syn_fix_holes_skel =
         UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
+  | BinOp(_, UserOp(op), skel1, skel2) =>
+    let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op)); 
+    switch (op_type) {
+      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>       
+          let (skel1, seq, u_gen) =
+            ana_fix_holes_skel(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              skel1,
+              seq,
+              t1,
+            );
+          let (skel2, seq, u_gen) =
+            ana_fix_holes_skel(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              skel2,
+              seq,
+              t2,
+            );
+          (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
+      | _ => (BinOp(InHole(TypeInconsistent, u_gen), UserOp(op), skel1, skel2), seq, Hole, u_gen)
+  }
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =
       skel
