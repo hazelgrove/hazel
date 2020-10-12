@@ -8,7 +8,13 @@ let eq = String.equal;
 let length = String.length;
 
 let valid_regex = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
-let is_valid = s => Re.Str.string_match(valid_regex, s, 0);
+
+let operator_regex = Re.Str.regexp("^[_][&*+-./:;<=>?@^|~]+[_]$");
+
+let is_valid = s => {
+  Re.Str.string_match(valid_regex, s, 0)
+  || Re.Str.string_match(operator_regex, s, 0);
+};
 
 /* helper function for guarding options with is_valid */
 let check_valid = (s, result) =>
