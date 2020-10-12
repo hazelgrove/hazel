@@ -59,6 +59,20 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | BinUserOp(op, d3, d4) =>
+    switch(op) {
+    | UserOp(var) => 
+      if (Var.eq(var, x)) {
+        Ap(d1, 
+          Ap(subst_var(d1, x, d3), 
+             subst_var(d1, x, d4)));
+      } else {
+        let d3 = subst_var(d1, x, d3);
+        let d4 = subst_var(d1, x, d4);
+        BinUserOp(op, d3, d4);
+      }
+    }
+    
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -152,6 +166,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
+  | (_, BinUserOp(_, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -286,6 +301,7 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -346,6 +362,7 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -404,6 +421,7 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinUserOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -661,6 +679,29 @@ and syn_elab_skel =
           let d = DHExp.BinFloatOp(op, dc1, dc2);
           Elaborates(d, ty, delta);
         };
+      }
+    }
+  | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+    switch (Statics_Exp.syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))) {
+    | None => DoesNotElaborate
+    | Some(ty_op) =>
+      switch (HTyp.matched_arrow(ty_op)) {
+      | None => DoesNotElaborate
+      | Some((ty1, HTyp.Arrow(ty2, tyout))) =>
+        let arrow_ty = HTyp.Arrow(ty1, HTyp.Arrow(ty2, tyout));
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d1, ty1', delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(d2, ty2', delta) =>
+            let dc1 = DHExp.cast(d1, ty1', ty1);
+            let dc2 = DHExp.cast(d2, ty2', ty2);
+            let d = DHExp.BinUserOp(UserOp(op), dc1, dc2);
+            Elaborates(d, arrow_ty, delta);
+          }
+        }
+      | _ => DoesNotElaborate
       }
     }
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
