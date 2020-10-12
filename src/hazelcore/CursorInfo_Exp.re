@@ -399,6 +399,17 @@ and syn_cursor_info_skel =
       failwith(
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
+    | BinOp(_, UserOp(op), skel1, skel2) =>
+      switch (
+        Statics_Exp.syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))
+      ) {
+      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, _))) =>
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, t1)) {
+        | Some(_) as result => result
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, t2)
+        }
+      | _ => None
+      }
     | BinOp(
         _,
         Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
@@ -801,7 +812,8 @@ and ana_cursor_info_skel =
         FEquals |
         And |
         Or |
-        Space,
+        Space |
+        UserOp(_),
         _,
         _,
       ) =>
