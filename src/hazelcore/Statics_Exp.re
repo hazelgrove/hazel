@@ -100,6 +100,17 @@ and syn_skel =
     | Some(_) =>
       ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
     }
+  | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+    switch (syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))) {
+      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) => 
+        let ana_t1 = ana_skel(ctx, skel1, seq, t1); 
+        let ana_t2 = ana_skel(ctx, skel2, seq, t2); 
+        switch (ana_t1, ana_t2) {
+          | (Some(_), Some(_)) => Some(tout)
+          | _ => None;
+        }
+      | _ => None
+    }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
     | None => None
