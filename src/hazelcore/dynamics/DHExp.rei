@@ -41,6 +41,16 @@ module BinFloatOp: {
   let to_op: t => UHExp.operator;
 };
 
+module BinUserOp: {
+  [@deriving sexp]
+  type t =
+    | UserOp(string);
+
+  let of_op: UHExp.operator => option(t);
+
+  let to_op: t => UHExp.operator;
+};
+
 [@deriving sexp]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
