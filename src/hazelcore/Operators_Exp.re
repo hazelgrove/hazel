@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type t =
   | Space
@@ -18,7 +20,8 @@ type t =
   | Comma
   | Cons
   | And
-  | Or;
+  | Or
+  | UserOp(string);
 
 let to_string =
   fun
@@ -40,14 +43,38 @@ let to_string =
   | Comma => ","
   | Cons => "::"
   | And => "&&"
-  | Or => "||";
+  | Or => "||"
+  | UserOp(op) => op;
 
 let is_Space =
   fun
   | Space => true
   | _ => false;
 
-let precedence =
+let operator_of_char =
+  fun
+  | '+' => Plus
+  | '-' => Minus
+  | '*' => Times
+  | '=' => Equals
+  | '&' => And
+  | '|' => Or
+  | '<' => LessThan
+  | '>' => GreaterThan
+  | _ =>
+    failwith("Error: Create user defined operator with an invalid symbol.");
+
+let first_op_of_user_op = (op: string) => {
+  switch (String.length(op)) {
+  | 0 =>
+    failwith(
+      "Error: invalid operator symbol provided to user defined operator.",
+    )
+  | _ => operator_of_char(op.[0])
+  };
+};
+
+let rec precedence =
   fun
   | Comma => 2
   | Or => 3
@@ -67,15 +94,19 @@ let precedence =
   | Divide => 8
   | FTimes => 8
   | FDivide => 8
-  | Space => 9;
+  | Space => 9
+  | UserOp(op) => {
+      precedence(first_op_of_user_op(op));
+    };
 
 let precedence_const = 0;
 let precedence_Ap = 1;
 let precedence_max = 10;
 
-let associativity =
+let rec associativity =
   fun
   | Cons => Associativity.Right
   | And => Associativity.Right
   | Or => Associativity.Right
+  | UserOp(op) => associativity(first_op_of_user_op(op))
   | _ => Associativity.Left;
