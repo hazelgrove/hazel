@@ -25,6 +25,11 @@ let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   | FLessThan => DHDoc_common.precedence_LessThan
   | FGreaterThan => DHDoc_common.precedence_GreaterThan
   };
+let precedence_bin_user_op = (bfo: DHExp.BinUserOp.t) =>
+  switch (bfo) {
+  // Figure out how to move this in dhdoc common
+  | UserOp(op) => Operators_Exp.precedence(UserOp(op))
+  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
@@ -51,6 +56,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
+  | BinUserOp(op, _, _) => precedence_bin_user_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
@@ -89,6 +95,13 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc_common.t =>
     | FLessThan => "<."
     | FGreaterThan => ">."
     | FEquals => "==."
+    },
+  );
+
+let mk_bin_user_op = (op: DHExp.BinUserOp.t): DHDoc_common.t =>
+  Doc.text(
+    switch (op) {
+    | UserOp(op) => op
     },
   );
 
@@ -197,6 +210,26 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | BinUserOp(op, d1, d2) =>
+        switch (op) {
+        | UserOp(sym) =>
+          let (doc1, doc2) =
+            switch (Operators_Exp.associativity(UserOp(sym))) {
+            | Left =>
+              mk_left_associative_operands(
+                precedence_bin_user_op(op),
+                d1,
+                d2,
+              )
+            | Right =>
+              mk_right_associative_operands(
+                precedence_bin_user_op(op),
+                d1,
+                d2,
+              )
+            };
+          hseps([mk_cast(doc1), mk_bin_user_op(op), mk_cast(doc2)]);
+        }
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
