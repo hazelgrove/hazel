@@ -60,19 +60,17 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
   | BinUserOp(op, d3, d4) =>
-    switch(op) {
-    | UserOp(var) => 
+    switch (op) {
+    | UserOp(var) =>
       if (Var.eq(var, x)) {
-        Ap(d1, 
-          Ap(subst_var(d1, x, d3), 
-             subst_var(d1, x, d4)));
+        Ap(d1, Ap(subst_var(d1, x, d3), subst_var(d1, x, d4)));
       } else {
         let d3 = subst_var(d1, x, d3);
         let d4 = subst_var(d1, x, d4);
         BinUserOp(op, d3, d4);
       }
     }
-    
+
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -682,7 +680,9 @@ and syn_elab_skel =
       }
     }
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-    switch (Statics_Exp.syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))) {
+    switch (
+      Statics_Exp.syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))
+    ) {
     | None => DoesNotElaborate
     | Some(ty_op) =>
       switch (HTyp.matched_arrow(ty_op)) {
@@ -700,7 +700,7 @@ and syn_elab_skel =
             let d = DHExp.BinUserOp(UserOp(op), dc1, dc2);
             Elaborates(d, arrow_ty, delta);
           }
-        }
+        };
       | _ => DoesNotElaborate
       }
     }
@@ -1128,7 +1128,8 @@ and ana_elab_skel =
       FEquals |
       And |
       Or |
-      Space,
+      Space |
+      UserOp(_),
       _,
       _,
     ) =>
@@ -1366,6 +1367,10 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | BinUserOp(op, d1, d2) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (BinUserOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1464,6 +1469,10 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
+  | BinUserOp(op, d1, d2) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (BinUserOp(op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);

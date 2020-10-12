@@ -188,8 +188,7 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
     }
-  | BinUserOp(op, d1, d2) =>
-    Indet(BinUserOp(op, d1, d2));
+  | BinUserOp(op, d1, d2) => Indet(BinUserOp(op, d1, d2))
   | Inj(ty, side, d1) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
