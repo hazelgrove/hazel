@@ -341,7 +341,8 @@ and ana_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space,
+      Space |
+      UserOp(_),
       _,
       _,
     ) =>
@@ -546,6 +547,14 @@ and syn_nth_type_mode' =
         | None => None
         | Some(ty1) => ana_go(skel2, ty1)
         };
+      }
+    | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
+      let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op));
+      switch (op_type) {
+        | Some (HTyp.Arrow(t1, HTyp.Arrow(t2, _))) => 
+          n <= Skel.rightmost_tm_index(skel1)
+            ? ana_go(skel1, t1) : ana_go(skel2, t2)
+        | _ => None
       }
     };
   go(skel);
