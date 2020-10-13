@@ -284,22 +284,23 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
 let mk_Unop =
     (
       ~sort: TermSort.t,
-      ~err: ErrStatus.t,
       unop: UHExp.unop,
       operand: UHExp.operand,
       ~mk_operand: 'operand => t,
-      ~inline_padding_of_operator: 'operator => (t, t),
     )
     : t => {
-  let op_doc = mk_op(UnaryOperators_Exp.to_string(unop)) |> annot_DelimGroup;
+  let op_doc =
+    mk_op(UnaryOperators_Exp.to_string(unop))
+    |> annot_Step(0)
+    |> annot_Tessera;
   Doc.hcats([
-    op_doc
-    |> pad_operator(
-         ~inline_padding=inline_padding_of_operator(Operators_Exp.Minus),
-       ),
-    mk_operand(operand) |> annot_OpenChild(~is_inline=true),
+    op_doc,
+    // |> pad_operator(
+    //      ~inline_padding=inline_padding_of_operator(Operators_Exp.Minus),
+    //    )
+    mk_operand(operand) |> annot_Step(1),
   ])
-  |> annot_Operand(~sort, ~err);
+  |> annot_Operand(~sort);
 };
 
 let mk_List = (body: formatted_child): t => {

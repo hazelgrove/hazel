@@ -143,11 +143,11 @@ and follow_operand =
       | 0 =>
         unop
         |> follow_unop((xs, cursor))
-        |> OptUtil.map(zunop => ZExp.UnaryOpZU(err, zunop, operand))
+        |> Option.map(zunop => ZExp.UnaryOpZU(err, zunop, operand))
       | 1 =>
         operand
         |> follow_operand((xs, cursor))
-        |> OptUtil.map(zoperand => ZExp.UnaryOpZN(err, unop, zoperand))
+        |> Option.map(zoperand => ZExp.UnaryOpZN(err, unop, zoperand))
       | _ => None
       }
     | Lam(err, p, ann, body) =>
@@ -369,11 +369,11 @@ and of_steps_operand =
       | 0 =>
         unop
         |> of_steps_unop(xs, ~side)
-        |> OptUtil.map(path => cons'(0, path))
+        |> Option.map(path => cons'(0, path))
       | 1 =>
         operand
         |> of_steps_operand(xs, ~side)
-        |> OptUtil.map(path => cons'(1, path))
+        |> Option.map(path => cons'(1, path))
       | _ => None
       }
     | Lam(_, p, ann, body) =>
@@ -858,11 +858,11 @@ and holes_zoperand =
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | UnaryOpZU(err, _, operand) =>
     let operand_holes = holes_operand(operand, [1, ...rev_steps], []);
-    let hole_err =
+    let hole_err: option(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some((CursorPath_common.ExpHole(u), rev_steps |> List.rev))
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     /* TODO */
     CursorPath_common.mk_zholes(
@@ -874,11 +874,11 @@ and holes_zoperand =
   | UnaryOpZN(err, _, zoperand) =>
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
       holes_zoperand(zoperand, [1, ...rev_steps]);
-    let holes_err =
+    let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          (CursorPath_common.ExpHole(u), rev_steps |> List.rev),
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
     /* TODO */

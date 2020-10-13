@@ -114,7 +114,7 @@ let follow_opseq_ =
     | (_, Some((operator, surround))) =>
       operator
       |> follow_binop((xs, cursor))
-      |> OptUtil.map(zoperator =>
+      |> Option.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
     }
@@ -143,7 +143,7 @@ let of_steps_opseq_ =
     | (_, Some((operator, _))) =>
       operator
       |> of_steps_binop(xs, ~side)
-      |> OptUtil.map(path => cons'(x, path))
+      |> Option.map(path => cons'(x, path))
     }
   };
 

@@ -103,7 +103,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  | UnaryOp(_) => [] // cursor handled by zunop/zoperand fields
+  | UnaryOp(_, unop, _) => valid_cursors_unop(unop)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =

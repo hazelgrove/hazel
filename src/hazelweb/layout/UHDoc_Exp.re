@@ -212,12 +212,10 @@ and mk_operand =
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | UnaryOp(err, unop, operand) =>
+        | UnaryOp(_, unop, operand) =>
           UHDoc_common.mk_Unop(
             ~sort=Exp,
             ~mk_operand=Lazy.force(mk_operand, ~memoize, ~enforce_inline),
-            ~inline_padding_of_operator,
-            ~err,
             unop,
             operand,
           )

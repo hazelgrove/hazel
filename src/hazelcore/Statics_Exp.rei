@@ -112,6 +112,15 @@ let ana_fix_holes_rules:
     HTyp.t
   ) =>
   (UHExp.rules, MetaVarGen.t);
+let ana_fix_holes_operand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHExp.operand,
+    HTyp.t
+  ) =>
+  (UHExp.operand, MetaVarGen.t);
 
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);

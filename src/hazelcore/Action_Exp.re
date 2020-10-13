@@ -1451,7 +1451,8 @@ and syn_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_), UnaryOp(_),
+        ApPalette(_) |
+        UnaryOp(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),

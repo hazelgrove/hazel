@@ -17,10 +17,10 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
   | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
-  | UnaryOpZU(_, unop, _) =>
-    let (cursor_pos, uop) = unop;
+  | UnaryOpZU(_, zunop, _) =>
+    let (cursor_pos, uop) = zunop;
     ExpUnop(cursor_pos, uop);
-  | UnaryOpZN(_, _, operand) => extract_from_zexp_operand(operand)
+  | UnaryOpZN(_, _, zoperand) => extract_from_zexp_operand(zoperand)
   | LamZP(_, zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZA(_, _, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
   | LamZE(_, _, _, zexp)
