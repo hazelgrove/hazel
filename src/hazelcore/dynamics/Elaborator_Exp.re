@@ -92,9 +92,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
-  | Label_Elt(d1', d2') =>
-    let d1' = subst_var(d1, x, d1');
-    let d2' = subst_var(d2, x, d2');
+  | Label_Elt(d3, d4) =>
+    let d1' = subst_var(d1, x, d3);
+    let d2' = subst_var(d2, x, d4);
     Label_Elt(d1', d2');
   }
 and subst_var_rules =
@@ -1187,7 +1187,7 @@ and ana_elab_operand =
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
   | Label(InHole(WrongLength, _), _)
-  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */
+  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);

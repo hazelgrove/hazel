@@ -20,7 +20,6 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2)
-  // ecd todo: do we need an additional cursor length to account for the dot in a label?
   | Label(l) => CursorPosition.text_cursors(Label.length(l));
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
@@ -100,10 +99,14 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_) | Label(_)) as operand =>
-    CursorT(OnDelim(0, Before), operand);
+  | (Hole | Unit | Int | Float | Bool | Parenthesized(_) | List(_)) as operand =>
+    CursorT(OnDelim(0, Before), operand)
+  | Label(_) as operand => CursorT(OnText(0), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
-  Some((OnOp(Before), op));
+  switch (op) {
+  | Space => None
+  | _ => Some((OnOp(Before), op))
+  };
 
 let rec place_after = (ty: UHTyp.t): t => ty |> place_after_opseq
 and place_after_opseq = opseq =>
@@ -117,7 +120,10 @@ and place_after_operand =
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
-  Some((OnOp(After), op));
+  switch (op) {
+  | Space => None
+  | _ => Some((OnOp(After), op))
+  };
 
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHTyp.operand): option(zoperand) =>
@@ -149,6 +155,8 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
+  | CursorT(OnText(j), Label(label)) =>
+    Some(CursorT(OnText(j - 1), Label(label)))
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
@@ -191,7 +199,10 @@ and move_cursor_right_zopseq = zopseq =>
   )
 and move_cursor_right_zoperand =
   fun
+  //   Some(CursorT(OnDelim(1, Before), Hole))
   | z when is_after_zoperand(z) => None
+  | CursorT(OnText(j), Label(label)) =>
+    Some(CursorT(OnText(j + 1), Label(label)))
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))

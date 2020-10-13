@@ -119,12 +119,24 @@ and expand_skel = (skel, seq) =>
   | BinOp(_, Space, skel1, skel2) =>
     let prod_list =
       skel1 |> get_prod_elements |> List.map(skel => expand_skel(skel, seq));
-    let last_elt_ty = List.nth(prod_list, List.length(prod_list) - 1);
     let ty2 = expand_skel(skel2, seq);
-    switch (last_elt_ty) {
-    | Label(_)
-    | Hole => Label_Elt(last_elt_ty, ty2)
-    | _ => failwith("Expecting a Label Got a Type")
+    let rec make_new_prod =
+            (prod_list: list(HTyp.t), ty: HTyp.t): list(HTyp.t) => {
+      switch (prod_list) {
+      | [] => []
+      | [hd] =>
+        switch (hd) {
+        | Label(_)
+        | Hole => [Label_Elt(hd, ty2)]
+        | _ => failwith("Expecting a Label Got a Type")
+        }
+      | [hd, ...tl] => [hd, ...make_new_prod(tl, ty)]
+      };
+    };
+    switch (make_new_prod(prod_list, ty2)) {
+    | [] => Hole
+    | [hd] => hd
+    | [hd, ...tl] => Prod([hd, ...tl])
     };
   }
 and expand_operand =
