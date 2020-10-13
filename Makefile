@@ -27,6 +27,12 @@ win-chrome:
 win-firefox:
 	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
 
+mac-firefox:
+	/Applications/Firefox.app/Contents/MacOS/firefox "file://$(shell pwd)/$(HTML_FILE)" &
+
+mac-chrome:
+	/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome "$(HTML_FILE)" &
+
 firefox:
 	firefox "$(HTML_FILE)" &
 
