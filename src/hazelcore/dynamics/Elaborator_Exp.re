@@ -820,7 +820,7 @@ and syn_elab_operand =
         };
       Elaborates(d, ty, delta);
     }
-  | Case(StandardErrStatus(NotInHole) | NotExhaustive, scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
@@ -1214,7 +1214,7 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       };
     }
-  | Case(StandardErrStatus(NotInHole) | NotExhaustive, scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole) | NotExhaustive(_), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>

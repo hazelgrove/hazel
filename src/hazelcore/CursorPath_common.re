@@ -34,16 +34,28 @@ let of_zopseq_ =
   };
 
 [@deriving sexp]
-type hole_shape =
+type pat_hole_shape =
   | TypeErr
   | VarErr
   | Empty;
 
 [@deriving sexp]
+type case_hole_shape =
+  | InconsistentBranches
+  | NotExhaustive;
+
+[@deriving sexp]
+type exp_hole_shape =
+  | TypeErr
+  | VarErr
+  | Empty
+  | CaseErr(case_hole_shape);
+
+[@deriving sexp]
 type hole_sort =
   | TypHole
-  | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape);
+  | PatHole(MetaVar.t, pat_hole_shape)
+  | ExpHole(MetaVar.t, exp_hole_shape);
 
 [@deriving sexp]
 type hole_info = {
@@ -190,7 +202,10 @@ let holes_case_err =
       {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
-  | NotExhaustive => hs
+  | NotExhaustive(u) => [
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
   };
 
 let holes_skel_ =
