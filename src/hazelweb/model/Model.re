@@ -18,6 +18,13 @@ type measurements = {
   update_apply_action: bool,
 };
 
+type cursor_inspector = {
+  visible: bool,
+  show_expanded: bool,
+  term_novice_message_mode: bool,
+  type_novice_message_mode: bool,
+};
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -31,6 +38,7 @@ type t = {
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
+  cursor_inspector,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -119,6 +127,28 @@ let init = (): t => {
       },
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
+    cursor_inspector: {
+      visible: true,
+      show_expanded: false,
+      term_novice_message_mode: false,
+      type_novice_message_mode: false,
+    },
+  };
+};
+
+let get_novice_mode = (model: t): bool =>
+  model.cursor_inspector.term_novice_message_mode
+  && model.cursor_inspector.type_novice_message_mode;
+
+let toggle_novice_mode = (model: t): t => {
+  let toggle = get_novice_mode(model);
+  {
+    ...model,
+    cursor_inspector: {
+      ...model.cursor_inspector,
+      term_novice_message_mode: !toggle,
+      type_novice_message_mode: !toggle,
+    },
   };
 };
 

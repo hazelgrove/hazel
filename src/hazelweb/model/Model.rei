@@ -26,6 +26,16 @@ type measurements = {
   update_apply_action: bool,
 };
 
+/**
+ * Flags for the display of the cursor inspector
+ */
+type cursor_inspector = {
+  visible: bool,
+  show_expanded: bool,
+  term_novice_message_mode: bool,
+  type_novice_message_mode: bool,
+};
+
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -46,6 +56,7 @@ type t = {
    * to realize preview when scrolling.
    */
   mouse_position: ref(MousePosition.t),
+  cursor_inspector,
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -55,6 +66,9 @@ let cardstack_info: list(CardstackInfo.t);
  */
 let cutoff: (t, t) => bool;
 let init: unit => t;
+
+let get_novice_mode: t => bool;
+let toggle_novice_mode: t => t;
 
 let get_program: t => Program.t;
 

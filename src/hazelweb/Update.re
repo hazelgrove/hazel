@@ -78,7 +78,12 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | ToggleShowCursorInspector
+  | ToggleCursorInspectorExpansion
+  | ToggleTermNoviceMessageMode
+  | ToggleTypeNoviceMessageMode
+  | ToggleNoviceMode =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -317,6 +322,37 @@ let apply_action =
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
+      | ToggleShowCursorInspector => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            visible: !model.cursor_inspector.visible,
+          },
+        }
+      | ToggleCursorInspectorExpansion => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            show_expanded: !model.cursor_inspector.show_expanded,
+          },
+        }
+      | ToggleTermNoviceMessageMode => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            term_novice_message_mode:
+              !model.cursor_inspector.term_novice_message_mode,
+          },
+        }
+      | ToggleTypeNoviceMessageMode => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_novice_message_mode:
+              !model.cursor_inspector.type_novice_message_mode,
+          },
+        }
+      | ToggleNoviceMode => Model.toggle_novice_mode(model)
       };
     },
   );
