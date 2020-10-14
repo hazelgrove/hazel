@@ -45,6 +45,8 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
+let label = (~err: ErrStatus.t=NotInHole, l: Label.t) => Label(err, l);
+
 let rec get_tuple_elements: skel => list(skel) =
   fun
   | BinOp(_, Comma, skel1, skel2) =>
@@ -169,13 +171,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
-  | Label(_) =>
-    failwith(
-      __FILE__
-      ++ __MODULE__
-      ++ string_of_int(__LINE__)
-      ++ "unimplemented Label Pattern",
-    )
+  | Label(l) => (label(l), u_gen)
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 

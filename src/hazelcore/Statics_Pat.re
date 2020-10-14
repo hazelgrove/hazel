@@ -30,14 +30,26 @@ and syn_skel =
        )
     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
-    | None => None
-    | Some(ctx) =>
-      switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
+    switch (syn_skel(ctx, skel1, seq)) {
+    | Some((ty, ctx1)) =>
+      switch (HTyp.matched_label(ty)) {
+      | Some(ty1) =>
+        switch (syn_skel(ctx1, skel2, seq)) {
+        | Some((ty2, ctx2)) => Some((Label_Elt(ty1, ty2), ctx2))
+        | None => None
+        }
       | None => None
-      | Some(ctx) => Some((Hole, ctx))
       }
+    | None => None
     }
+  // switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
+  // | None => None
+  // | Some(ctx) =>
+  //   switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
+  //   | None => None
+  //   | Some(ctx) => Some((Hole, ctx))
+  //   }
+  // }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
     | None => None
@@ -61,7 +73,8 @@ and syn_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | Label(InHole(TypeInconsistent, _), _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand')
     |> Option.map(((_, gamma)) => (HTyp.Hole, gamma));
@@ -71,7 +84,8 @@ and syn_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
+  | Inj(InHole(WrongLength, _), _, _)
+  | Label(InHole(WrongLength, _), _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -97,7 +111,7 @@ and syn_operand =
       Some((ty, ctx));
     }
   | Parenthesized(p) => syn(ctx, p)
-  | Label(_, _) => failwith(__LOC__ ++ "unimplemented Label Pattern")
+  | Label(NotInHole, label) => Some((Label(label), ctx))
   }
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
@@ -167,7 +181,8 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | Label(InHole(TypeInconsistent, _), _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(((_, ctx)) => ctx);
   | Wild(InHole(WrongLength, _))
@@ -176,7 +191,8 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) =>
+  | Inj(InHole(WrongLength, _), _, _)
+  | Label(InHole(WrongLength, _), _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -186,7 +202,8 @@ and ana_operand =
   | Wild(NotInHole) => Some(ctx)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
+  | BoolLit(NotInHole, _)
+  | Label(NotInHole, _) =>
     switch (syn_operand(ctx, operand)) {
     | None => None
     | Some((ty', ctx')) =>
@@ -209,7 +226,6 @@ and ana_operand =
       ana(ctx, p1, ty1);
     }
   | Parenthesized(p) => ana(ctx, p, ty)
-  | Label(_, _) => failwith(__LOC__ ++ "unimplemented Label Pattern")
   };
 
 let rec syn_nth_type_mode =
@@ -447,7 +463,7 @@ and syn_fix_holes_operand =
       | R => HTyp.Sum(Hole, ty1)
       };
     (p, ty, ctx, u_gen);
-  | Label(_, _) => failwith(__LOC__ ++ " unimplemented label pattern")
+  | Label(_, label) => (operand_nih, Label(label), ctx, u_gen)
   };
 }
 and ana_fix_holes =
@@ -689,7 +705,8 @@ and ana_fix_holes_operand =
     (operand_nih, ctx, u_gen);
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) =>
+  | BoolLit(_, _)
+  | Label(_, _) =>
     let (operand', ty', ctx, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
     if (HTyp.consistent(ty, ty')) {
@@ -726,7 +743,6 @@ and ana_fix_holes_operand =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
-  | Label(_, _) => failwith(__LOC__ ++ " unimplemented label pattern")
   };
 };
 

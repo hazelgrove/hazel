@@ -897,7 +897,7 @@ and syn_elab_operand =
       DoesNotElaborate;
     }
   | Prj(NotInHole, _, _) =>
-    failwith(__LOC__ ++ " Unimplemented Label Pattern")
+    failwith(__LOC__ ++ " Unimplemented Label projection")
   }
 and syn_elab_rules =
     (

@@ -78,12 +78,15 @@ and syn_elab_skel =
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_elab_skel(ctx, delta, skel1, seq)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp1, _, ctx, delta) =>
+    | Elaborates(dp1, ty1, ctx, delta) =>
       switch (syn_elab_skel(ctx, delta, skel2, seq)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp2, _, ctx, delta) =>
-        let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Hole, ctx, delta);
+      | Elaborates(dp2, ty2, ctx, delta) =>
+        switch (HTyp.matched_label(ty1)) {
+        | Some(ty) =>
+          Elaborates(Label_Elt(dp1, dp2), Label_Elt(ty, ty2), ctx, delta)
+        | None => Elaborates(DHPat.Ap(dp1, dp2), Hole, ctx, delta)
+        }
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -109,7 +112,8 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Inj(InHole(TypeInconsistent as reason, u), _, _)
+  | Label(InHole(TypeInconsistent as reason, u), _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -125,7 +129,8 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Inj(InHole(WrongLength, _), _, _)
+  | Label(InHole(WrongLength, _), _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
@@ -170,7 +175,7 @@ and syn_elab_operand =
         };
       Elaborates(dp, ty, ctx, delta);
     }
-  | Label(_, _) => failwith(__LOC__ ++ " unimplemented label pattern")
+  | Label(NotInHole, l) => Elaborates(Label(l), Label(l), ctx, delta)
   }
 and ana_elab =
     (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
@@ -328,7 +333,8 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Inj(InHole(TypeInconsistent as reason, u), _, _)
+  | Label(InHole(TypeInconsistent as reason, u), _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -344,7 +350,8 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Inj(InHole(WrongLength, _), _, _)
+  | Label(InHole(WrongLength, _), _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
@@ -360,7 +367,8 @@ and ana_elab_operand =
   | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
+  | BoolLit(NotInHole, _)
+  | Label(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
@@ -383,7 +391,6 @@ and ana_elab_operand =
         Elaborates(Inj(side, dp1), ty, ctx, delta);
       };
     }
-  | Label(_, _) => failwith(__LOC__ ++ "Unimplemented Label Pattern")
   };
 
 let rec renumber_result_only =
@@ -397,7 +404,8 @@ let rec renumber_result_only =
   | InvalidText(_)
   | BoolLit(_)
   | ListNil
-  | Triv => (dp, hii)
+  | Triv
+  | Label(_) => (dp, hii)
   | EmptyHole(u, _) =>
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
@@ -428,4 +436,8 @@ let rec renumber_result_only =
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     let (dp2, hii) = renumber_result_only(path, hii, dp2);
     (Pair(dp1, dp2), hii);
+  | Label_Elt(dp1, dp2) =>
+    let (dp1, hii) = renumber_result_only(path, hii, dp1);
+    let (dp2, hii) = renumber_result_only(path, hii, dp2);
+    (Label_Elt(dp1, dp2), hii)
   };
