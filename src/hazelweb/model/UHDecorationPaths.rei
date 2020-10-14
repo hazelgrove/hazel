@@ -3,6 +3,10 @@
  */
 [@deriving sexp]
 type t = {
+  case_err_holes: (
+    list(CursorPath_common.steps),
+    list(CursorPath_common.steps),
+  ),
   err_holes: list(CursorPath_common.steps),
   var_err_holes: list(CursorPath_common.steps),
   var_uses: list(CursorPath_common.steps),
