@@ -177,7 +177,12 @@ let advanced_summary =
       )
     | OnType => ([], [])
     | OnLine => ([], [emphasize_text("Line")])
-    | OnRule => ([], [emphasize_text("Rule")])
+    | OnRule(NotRedundant) => ([], [emphasize_text("Rule")])
+    | OnRule(Redundant(_)) => ([], [emphasize_text("Redundant Rule")])
+    | CaseNotExhaustive(_) => (
+        [],
+        [emphasize_text("Case is not exhaustive")],
+      )
     };
   };
   let (colon_message, type_message) = message(typed);
@@ -451,9 +456,17 @@ let novice_summary =
         [Vdom.Node.text("Got " ++ article), term_tag],
         [emphasize_text(~only_right=true, "Line")],
       )
-    | OnRule => (
+    | OnRule(NotRedundant) => (
         [Vdom.Node.text("Got " ++ article), term_tag],
         [emphasize_text(~only_right=true, "Rule")],
+      )
+    | OnRule(Redundant(_)) => (
+        [Vdom.Node.text("Got " ++ article), term_tag],
+        [emphasize_text(~only_right=true, "Redundant Rule")],
+      )
+    | CaseNotExhaustive(_) => (
+        [Vdom.Node.text("Got " ++ article), term_tag],
+        [emphasize_text(~only_right=true, "case")],
       )
     };
   };
