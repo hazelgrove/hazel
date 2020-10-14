@@ -43,21 +43,21 @@ module CaseErrHole = {
       (
         ~corner_radii: (float, float),
         (offset, subject): UHMeasuredLayout.with_offset,
-        _reason,
+        reason,
       )
       : Vdom.Node.t => {
-    // let class_str =
-    //   switch (reason) {
-    //   | UHDecorationShape.CaseReason.InconsistentBranches => "case-err-hole-inconsistentbranches"
-    //   | NotExhaustive => "case-err-hole-notexhaustive"
-    //   };
+    let class_str =
+      switch (reason) {
+      | UHDecorationShape.CaseReason.InconsistentBranches => "case-err-hole-inconsistentbranches"
+      | NotExhaustive => "case-err-hole-notexhaustive"
+      };
     subject
     |> rects({row: 0, col: offset})
     |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
     |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
-             classes(["err-hole"]),
+             classes([class_str]),
              create("vector-effect", "non-scaling-stroke"),
            ],
        );
@@ -77,7 +77,7 @@ module RuleErrHole = {
     |> SvgUtil.Path.view(
          ~attrs=
            Vdom.Attr.[
-             classes(["err-hole"]),
+             classes(["rule-err-hole"]),
              create("vector-effect", "non-scaling-stroke"),
            ],
        );
