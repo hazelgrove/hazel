@@ -64,6 +64,25 @@ module CaseErrHole = {
   };
 };
 
+module RuleErrHole = {
+  let view =
+      (
+        ~corner_radii: (float, float),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Vdom.Node.t =>
+    subject
+    |> rects({row: 0, col: offset})
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Vdom.Attr.[
+             classes(["err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
+};
+
 module ErrHole = {
   let view =
       (

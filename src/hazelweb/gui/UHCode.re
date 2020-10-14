@@ -147,6 +147,10 @@ let decoration_views =
                        "case-err-hole-inconsistentbranches",
                        CaseErrHole.view(~corner_radii, (offset, m), r),
                      )
+                   | RuleErrHole => (
+                       "rule-err-hole",
+                       RuleErrHole.view(~corner_radii, (offset, m)),
+                     )
                    | VarUse => (
                        "var-use",
                        VarUse.view(~corner_radii, (offset, m)),

@@ -49,7 +49,8 @@ type exp_hole_shape =
   | TypeErr
   | VarErr
   | Empty
-  | CaseErr(case_hole_shape);
+  | CaseErr(case_hole_shape)
+  | RedundantRule;
 
 [@deriving sexp]
 type hole_sort =
@@ -203,6 +204,21 @@ let holes_case_err =
       ...hs,
     ]
   | NotExhaustive(u) => [
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  };
+
+let holes_rule_err =
+    (
+      ~hole_sort: MetaVar.t => hole_sort,
+      rerr: RuleErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (rerr) {
+  | NotRedundant => hs
+  | Redundant(u) => [
       {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
