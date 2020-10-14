@@ -142,6 +142,8 @@ let view =
     got_indicator("Got", special_msg_bar("a line item"));
   let got_a_rule_indicator =
     got_indicator("Got", special_msg_bar("a case rule"));
+  let got_a_redundant_rule_indicator =
+    got_indicator("Got", special_msg_bar("a redundant case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
@@ -344,11 +346,15 @@ let view =
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
       (ind1, ind2, OK);
-    | OnRule =>
+    | OnRule(rerr) =>
       /* TODO */
       let ind1 = expected_a_rule_indicator;
-      let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
+      let (ind2, err) =
+        switch (rerr) {
+        | Redundant(_) => (got_a_redundant_rule_indicator, BindingError)
+        | NotRedundant => (got_a_rule_indicator, OK)
+        };
+      (ind1, ind2, err);
     | CaseNotExhaustive(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_indicator("Not Exhaustive Case", got_ty_indicator(ty));
