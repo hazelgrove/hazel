@@ -41,8 +41,8 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | BoolLit(_)
   | Triv
   | ListNil
-  | Keyword(_, _, _) 
-  | Label(_)=> false
+  | Keyword(_, _, _)
+  | Label(_) => false
   | Var(y) => Var.eq(x, y)
   | Inj(_, dp1) => binds_var(x, dp1)
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)

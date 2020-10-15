@@ -439,5 +439,5 @@ let rec renumber_result_only =
   | Label_Elt(dp1, dp2) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     let (dp2, hii) = renumber_result_only(path, hii, dp2);
-    (Label_Elt(dp1, dp2), hii)
+    (Label_Elt(dp1, dp2), hii);
   };

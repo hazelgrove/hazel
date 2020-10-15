@@ -34,7 +34,8 @@ and follow_operand =
     | IntLit(_)
     | FloatLit(_)
     | BoolLit(_)
-    | ListNil(_) => None
+    | ListNil(_)
+    | Label(_, _) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -51,7 +52,6 @@ and follow_operand =
         |> Option.map(zbody => ZPat.InjZ(err, side, zbody))
       | _ => None
       }
-    | Label(_, _) => failwith(__LOC__ ++ " unimplemented Label Pattern")
     }
   }
 and follow_operator =
@@ -96,7 +96,8 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListNil(_)
+    | Label(_, _) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -113,7 +114,6 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
-    | Label(_, _) => failwith(__LOC__ ++ " unimplemented Label Pattern")
     }
   }
 and of_steps_operator =
@@ -171,14 +171,14 @@ and holes_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
-  | ListNil(err) => hs |> holes_err(err, rev_steps)
+  | ListNil(err)
+  | Label(err, _) => hs |> holes_err(err, rev_steps)
   | InvalidText(u, _) => [
       {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
     ]
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])
-  | Label(_, _) => failwith(__LOC__ ++ "unimplemented Label Pattern")
   };
 
 let rec holes_z =
@@ -234,7 +234,8 @@ and holes_zoperand =
   | CursorP(_, IntLit(err, _))
   | CursorP(_, FloatLit(err, _))
   | CursorP(_, BoolLit(err, _))
-  | CursorP(_, ListNil(err)) =>
+  | CursorP(_, ListNil(err))
+  | CursorP(_, Label(err, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -286,6 +287,4 @@ and holes_zoperand =
         ],
       }
     };
-  | CursorP(_, Label(_, _)) =>
-    failwith(__LOC__ ++ " Unimplemented Label Pattern")
   };

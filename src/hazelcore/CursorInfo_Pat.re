@@ -430,7 +430,8 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
-    | Inj(InHole(TypeInconsistent, _), _, _) =>
+    | Inj(InHole(TypeInconsistent, _), _, _)
+    | Label(InHole(TypeInconsistent, _), _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
@@ -451,7 +452,8 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _) => None
+    | Inj(InHole(WrongLength, _), _, _)
+    | Label(InHole(WrongLength, _), _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
@@ -511,7 +513,16 @@ and ana_cursor_info_zoperand =
              CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
            )
          )
-    | Label(_, _) => failwith(__LOC__ ++ " unimplemented Label Pattern")
+    | Label(_, l) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(
+            PatAnaSubsumed(ty, Label(l)),
+            ctx,
+            cursor_term,
+          ),
+        ),
+      )
     }
   | InjZ(InHole(WrongLength, _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>

@@ -247,6 +247,29 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
+  | (Label(lp), Label(l)) =>
+    if (lp == l) {
+      // ECD TODO: should not be able to have singleton label, but matching may not work w/o this check
+      Matches(
+        Environment.empty,
+      );
+    } else {
+      DoesNotMatch;
+    }
+  | (Label(_), _) => DoesNotMatch
+  | (Label_Elt(Label(lp), dp2), Label_Elt(Label(l), d2)) =>
+    if (lp == l) {
+      matches(dp2, d2);
+    } else {
+      DoesNotMatch;
+    }
+  | (Label_Elt(Label(lp), dp2), Cast(d, ty, Label_Elt(Label(l), ty'))) =>
+    if (lp == l && HTyp.consistent(ty, ty')) {
+      matches(dp2, d);
+    } else {
+      DoesNotMatch;
+    } // ECD TOD: How do casts work?
+  | (Label_Elt(_, _), _) => DoesNotMatch
   }
 and matches_cast_Inj =
     (

@@ -97,7 +97,9 @@ let mk_syn_text =
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
-  | Label(_) => failwith(__LOC__ ++ " unimplemented label pattern")
+  | Label(l) =>
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(l)));
+    Succeeded((zp, HTyp.Label(l), ctx, u_gen));
   };
 };
 
@@ -126,7 +128,8 @@ let mk_ana_text =
     Succeeded((zp, ctx, u_gen));
   | IntLit(_)
   | FloatLit(_)
-  | BoolLit(_) =>
+  | BoolLit(_)
+  | Label(_) =>
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
@@ -146,7 +149,6 @@ let mk_ana_text =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
-  | Label(_) => failwith(__LOC__ ++ " unimplemented label pattern")
   };
 };
 
@@ -562,7 +564,8 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Label(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -631,6 +634,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+  | (Delete, CursorP(OnText(j), Label(_, l))) =>
+    syn_delete_text(ctx, u_gen, j, l)
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
@@ -642,6 +647,8 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, f)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+  | (Backspace, CursorP(OnText(j), Label(_, l))) =>
+    syn_backspace_text(ctx, u_gen, j, l)
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -695,6 +702,11 @@ and syn_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
+  | (Construct(SOp(sop)), CursorP(OnText(j), Label(_, l)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, l)
 
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
@@ -715,6 +727,8 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), f)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+  | (Construct(SChar(s)), CursorP(OnText(j), Label(_, l))) =>
+    syn_insert_text(ctx, u_gen, (j, s), l)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
@@ -782,8 +796,6 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  | (_, CursorP(_, Label(_, _))) =>
-    failwith(__LOC__ ++ " unimplemented label pattern")
   };
 }
 and ana_perform =
@@ -989,7 +1001,8 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Label(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -1084,6 +1097,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorP(OnText(j), Label(_, l))) =>
+    ana_delete_text(ctx, u_gen, j, l, ty)
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -1095,6 +1110,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorP(OnText(j), Label(_, l))) =>
+    ana_backspace_text(ctx, u_gen, j, l, ty)
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -1154,6 +1171,11 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
+  | (Construct(SOp(sop)), CursorP(OnText(j), Label(_, l)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, l, ty)
 
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
@@ -1174,6 +1196,8 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+  | (Construct(SChar(s)), CursorP(OnText(j), Label(_, l))) =>
+    ana_insert_text(ctx, u_gen, (j, s), l, ty)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
@@ -1273,6 +1297,4 @@ and ana_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  | (_, CursorP(_, Label(_, _))) =>
-    failwith(__LOC__ ++ " unimplemented label pattern")
   };

@@ -33,6 +33,7 @@ let mk_NTuple:
     ~get_tuple_elements=UHPat.get_tuple_elements,
     ~inline_padding_of_operator,
   );
+let mk_Label: Label.t => UHDoc_common.t = UHDoc_common.mk_Label(~sort=Pat);
 
 let rec mk =
   lazy(
@@ -78,7 +79,7 @@ and mk_operand =
         | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Inj(~inj_side, body);
-        | Label(_, _) => failwith(__LOC__ ++ " unimplemented label pattern")
+        | Label(_, l) => mk_Label(l)
         }: UHDoc_common.t
       )
     )

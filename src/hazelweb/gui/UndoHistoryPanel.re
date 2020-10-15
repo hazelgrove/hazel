@@ -216,13 +216,21 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | L => indicate_words_view("left injection")
       | R => indicate_words_view("right injection")
       }
-    | Label(_) =>
-      failwith(
-        __FILE__
-        ++ __MODULE__
-        ++ string_of_int(__LINE__)
-        ++ "unimplemented Label Pattern",
-      )
+    | Label(_, l) =>
+      if (show_indicate_word) {
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("Label"),
+              indicate_words_view(l),
+              code_view(l),
+            ],
+          )
+        );
+      } else {
+        code_view(l);
+      }
     };
   };
 

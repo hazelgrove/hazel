@@ -37,6 +37,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
+let label: (~err: ErrStatus.t=?, Label.t) => operand;
+
 let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
