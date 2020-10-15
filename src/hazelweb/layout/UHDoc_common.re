@@ -103,7 +103,7 @@ module Delim = {
   let open_CommentLine = (): t => mk(~index=0, "#");
 };
 
-let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
+let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera(false));
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
@@ -348,8 +348,7 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
       p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
       Delim.arrow_Rule(),
     ])
-    |> annot_Tessera
-    |> Doc.annot(UHAnnot.RuleTessera);
+    |> Doc.annot(UHAnnot.Tessera(true));
   Doc.hcats([
     delim_group,
     clause |> pad_left_delimited_open_child(~inline_padding=space_),

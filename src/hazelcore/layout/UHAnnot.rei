@@ -30,8 +30,7 @@ type t =
       is_inline: bool,
       sort: TermSort.t,
     })
-  | Tessera
-  | RuleTessera
+  | Tessera(bool)
   | CommentLine
   | Step(int)
   | Term(term_data);

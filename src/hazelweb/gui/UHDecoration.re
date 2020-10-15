@@ -294,7 +294,7 @@ module CurrentTerm = {
              switch (shape, annot) {
              | (Case | SubBlock(_), Step(_))
              | (Case, Term({shape: Rule, _})) => go(m)
-             | (_, Tessera) => rects(~vtrim=tessera_margin, start, m)
+             | (_, Tessera(_)) => rects(~vtrim=tessera_margin, start, m)
              | _ => []
              },
        );
@@ -317,7 +317,7 @@ module CurrentTerm = {
              // TODO remove when we have tiles
              | (Case | SubBlock(_), Step(_))
              | (Case, Term({shape: Rule, _})) => go(m)
-             | (_, Tessera) => go(m)
+             | (_, Tessera(_)) => go(m)
              | (_, ClosedChild({sort, _})) => [
                  (sort, rects(~vtrim=0.1, start, m)),
                ]
@@ -393,19 +393,19 @@ module CurrentTerm = {
                  start,
                  m,
                )
-             | (Case, Tessera) =>
+             | (Case, Tessera(_)) =>
                tessera_padding(
                  ~vtrim_top=start.row == 0,
                  ~vtrim_bot=start.row == subject_height - 1,
                  ~overflow_left=false,
                )
-             | (BinOp(_), Tessera) when has_multiline_open_child =>
+             | (BinOp(_), Tessera(_)) when has_multiline_open_child =>
                tessera_padding(
                  ~vtrim_top=false,
                  ~vtrim_bot=true,
                  ~overflow_left=true,
                )
-             | (NTuple({comma_indices}), Tessera)
+             | (NTuple({comma_indices}), Tessera(_))
                  when has_multiline_open_child =>
                tessera_padding(
                  ~vtrim_top=
@@ -418,7 +418,7 @@ module CurrentTerm = {
                  ~vtrim_bot=true,
                  ~overflow_left=true,
                )
-             | (_, Tessera) when has_multiline_open_child && start.col == 0 =>
+             | (_, Tessera(_)) when has_multiline_open_child && start.col == 0 =>
                // may need to revisit above `when` guard
                // to support layouts like
                // let _ = \x.{

@@ -117,6 +117,30 @@ let decoration_views =
     | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
     | Annot(annot, m) =>
       switch (annot) {
+      | Tessera(true) =>
+        let offset = start.col - indent;
+        let origin = MeasuredPosition.{row: start.row, col: indent};
+        let height = lazy(MeasuredLayout.height(m));
+        let width = lazy(MeasuredLayout.width(~offset, m));
+        let current_vs =
+          dpaths.rule_err_holes
+          |> List.find_opt((==)([]))
+          |> Option.map(_ => {
+               let (cls, decoration) = (
+                 "rule-err-hole",
+                 UHDecoration.RuleErrHole.view(~corner_radii, (offset, m)),
+               );
+               decoration_container(
+                 ~font_metrics,
+                 ~height=Lazy.force(height),
+                 ~width=Lazy.force(width),
+                 ~origin,
+                 ~cls,
+                 [decoration],
+               );
+             })
+          |> Option.to_list;
+        go'(~tl=current_vs @ tl, dpaths, m);
       | Step(step) =>
         let stepped = UHDecorationPaths.take_step(step, dpaths);
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
@@ -177,30 +201,6 @@ let decoration_views =
                  [decoration],
                );
              });
-        go'(~tl=current_vs @ tl, dpaths, m);
-      | RuleTessera =>
-        let offset = start.col - indent;
-        let origin = MeasuredPosition.{row: start.row, col: indent};
-        let height = lazy(MeasuredLayout.height(m));
-        let width = lazy(MeasuredLayout.width(~offset, m));
-        let current_vs =
-          dpaths.rule_err_holes
-          |> List.find_opt((==)([]))
-          |> Option.map(_ => {
-               let (cls, decoration) = (
-                 "rule-err-hole",
-                 UHDecoration.RuleErrHole.view(~corner_radii, (offset, m)),
-               );
-               decoration_container(
-                 ~font_metrics,
-                 ~height=Lazy.force(height),
-                 ~width=Lazy.force(width),
-                 ~origin,
-                 ~cls,
-                 [decoration],
-               );
-             })
-          |> Option.to_list;
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
