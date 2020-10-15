@@ -127,6 +127,11 @@ let decoration_views =
         let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
           UHDecorationPaths.current(shape, dpaths)
+          |> List.filter(
+               fun
+               | UHDecorationShape.RuleErrHole => false
+               | _ => true,
+             )
           |> List.map((dshape: UHDecorationShape.t) => {
                let (cls, decoration) =
                  UHDecoration.(
@@ -147,10 +152,7 @@ let decoration_views =
                        "case-err-hole-inconsistentbranches",
                        CaseErrHole.view(~corner_radii, (offset, m), r),
                      )
-                   | RuleErrHole => (
-                       "rule-err-hole",
-                       RuleErrHole.view(~corner_radii, (offset, m)),
-                     )
+                   | RuleErrHole => assert(false)
                    | VarUse => (
                        "var-use",
                        VarUse.view(~corner_radii, (offset, m)),
@@ -181,20 +183,24 @@ let decoration_views =
         let origin = MeasuredPosition.{row: start.row, col: indent};
         let height = lazy(MeasuredLayout.height(m));
         let width = lazy(MeasuredLayout.width(~offset, m));
-        let (cls, decoration) = (
-          "rule-err-hole",
-          UHDecoration.RuleErrHole.view(~corner_radii, (offset, m)),
-        );
-        let current_vs = [
-          decoration_container(
-            ~font_metrics,
-            ~height=Lazy.force(height),
-            ~width=Lazy.force(width),
-            ~origin,
-            ~cls,
-            [decoration],
-          ),
-        ];
+        let current_vs =
+          dpaths.rule_err_holes
+          |> List.find_opt((==)([]))
+          |> Option.map(_ => {
+               let (cls, decoration) = (
+                 "rule-err-hole",
+                 UHDecoration.RuleErrHole.view(~corner_radii, (offset, m)),
+               );
+               decoration_container(
+                 ~font_metrics,
+                 ~height=Lazy.force(height),
+                 ~width=Lazy.force(width),
+                 ~origin,
+                 ~cls,
+                 [decoration],
+               );
+             })
+          |> Option.to_list;
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }

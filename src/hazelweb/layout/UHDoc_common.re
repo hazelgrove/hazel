@@ -348,12 +348,12 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
       p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
       Delim.arrow_Rule(),
     ])
-    |> annot_Tessera;
+    |> annot_Tessera
+    |> Doc.annot(UHAnnot.RuleTessera);
   Doc.hcats([
     delim_group,
     clause |> pad_left_delimited_open_child(~inline_padding=space_),
-  ])
-  |> Doc.annot(UHAnnot.RuleTessera);
+  ]);
 };
 
 let mk_LetLine =
