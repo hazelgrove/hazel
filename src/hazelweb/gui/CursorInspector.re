@@ -181,7 +181,7 @@ let advanced_summary =
     | OnRule(Redundant(_)) => ([], [emphasize_text("Redundant Rule")])
     | CaseNotExhaustive(_) => (
         [],
-        [emphasize_text("Case is not exhaustive")],
+        [emphasize_text("Cases are not exhaustive")],
       )
     };
   };

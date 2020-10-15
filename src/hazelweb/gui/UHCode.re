@@ -176,6 +176,26 @@ let decoration_views =
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
+      | RuleTessera =>
+        let offset = start.col - indent;
+        let origin = MeasuredPosition.{row: start.row, col: indent};
+        let height = lazy(MeasuredLayout.height(m));
+        let width = lazy(MeasuredLayout.width(~offset, m));
+        let (cls, decoration) = (
+          "rule-err-hole",
+          UHDecoration.RuleErrHole.view(~corner_radii, (offset, m)),
+        );
+        let current_vs = [
+          decoration_container(
+            ~font_metrics,
+            ~height=Lazy.force(height),
+            ~width=Lazy.force(width),
+            ~origin,
+            ~cls,
+            [decoration],
+          ),
+        ];
+        go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
     };

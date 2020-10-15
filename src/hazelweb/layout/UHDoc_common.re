@@ -353,7 +353,7 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
     delim_group,
     clause |> pad_left_delimited_open_child(~inline_padding=space_),
   ])
-  |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
+  |> Doc.annot(UHAnnot.RuleTessera);
 };
 
 let mk_LetLine =
