@@ -123,7 +123,7 @@ let rec mk =
           : (DHDoc_common.t, option(HTyp.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
-    let go_case = (dscrut, drs) =>
+    let go_case = (dscrut, drs, current_rule_index) =>
       if (enforce_inline) {
         fail();
       } else {
@@ -135,16 +135,29 @@ let rec mk =
               indent_and_align(mk_cast(go(~enforce_inline=false, dscrut))),
             ]),
           ]);
+        let (unmatched, future) =
+          ListUtil.split_first_n(current_rule_index, drs);
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs
+            unmatched
             |> List.map(
                  mk_rule(
                    ~show_fn_bodies,
                    ~show_case_clauses,
                    ~show_casts,
                    ~selected_instance,
+                   ~unmatched=true,
+                 ),
+               ),
+            future
+            |> List.map(
+                 mk_rule(
+                   ~show_fn_bodies,
+                   ~show_case_clauses,
+                   ~show_casts,
+                   ~selected_instance,
+                   ~unmatched=false,
                  ),
                ),
             [DHDoc_common.Delim.close_Case],
@@ -217,9 +230,10 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, idx)) =>
+        go_case(dscrut, drs, idx)
+        |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | ConsistentCase(Case(dscrut, drs, idx)) => go_case(dscrut, drs, idx)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
@@ -340,6 +354,7 @@ and mk_rule =
       ~show_fn_bodies,
       ~show_case_clauses,
       ~selected_instance,
+      ~unmatched,
       Rule(dp, dclause): DHExp.rule,
     )
     : DHDoc_common.t => {
@@ -358,14 +373,20 @@ and mk_rule =
           ]),
         ])
       : hcat(space(), hidden_clause);
-  hcats([
-    DHDoc_common.Delim.bar_Rule,
-    DHDoc_Pat.mk(dp)
-    |> DHDoc_common.pad_child(
-         ~inline_padding=(space(), space()),
-         ~enforce_inline=false,
-       ),
-    DHDoc_common.Delim.arrow_Rule,
-    clause_doc,
-  ]);
+  let normal_rule =
+    hcats([
+      DHDoc_common.Delim.bar_Rule,
+      DHDoc_Pat.mk(dp)
+      |> DHDoc_common.pad_child(
+           ~inline_padding=(space(), space()),
+           ~enforce_inline=false,
+         ),
+      DHDoc_common.Delim.arrow_Rule,
+      clause_doc,
+    ]);
+  if (unmatched) {
+    annot(DHAnnot.UnmatchedRule, normal_rule);
+  } else {
+    normal_rule;
+  };
 };

@@ -964,6 +964,10 @@ h1 {
   font-size: 75%;
   top: -10px;
 }
+.DHCode .UnmatchedRule {
+  text-decoration: line-through;
+  color: #C0C0C0;
+}
 .DHCode .FailedCastDelim {
   color: red;
 }

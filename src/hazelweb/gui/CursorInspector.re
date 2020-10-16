@@ -181,7 +181,7 @@ let advanced_summary =
     | OnRule(Redundant(_)) => ([], [emphasize_text("Redundant Rule")])
     | CaseNotExhaustive(_) => (
         [],
-        [emphasize_text("Cases are not exhaustive")],
+        [emphasize_text("Rules are not exhaustive")],
       )
     };
   };
@@ -927,7 +927,7 @@ let view =
       (ind1, ind2, err);
     | CaseNotExhaustive(ty) =>
       let ind1 = expected_any_indicator_pat;
-      let ind2 = got_indicator("Not Exhaustive Case", got_ty_indicator(ty));
+      let ind2 = got_indicator("Not Exhaustive Rules", got_ty_indicator(ty));
       (ind1, ind2, BindingError);
     };
 
