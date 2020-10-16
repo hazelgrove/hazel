@@ -3386,10 +3386,33 @@ and ana_perform_operand =
       | Succeeded((zscrut, ty1, u_gen)) =>
         let (rules, u_gen) =
           Statics_Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+        let pats = UHExp.get_pats(rules);
+        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty);
+        let flags = Incon.generate_redundancy_list(cons);
+        let con = Statics_Pat.generate_one_constraints(ctx, pats, ty);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let new_rules =
+          List.map2(
+            (rule, flag) => {
+              let err =
+                if (flag == 1) {
+                  RuleErrStatus.Redundant(u);
+                } else {
+                  NotRedundant;
+                };
+              UHExp.set_err_status_rule(err, rule);
+            },
+            rules,
+            flags,
           );
+        let (case_err, u_gen) =
+          if (Incon.is_exhaustive(con)) {
+            (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+          } else {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            (NotExhaustive(u), u_gen);
+          };
+        let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }
@@ -3407,10 +3430,33 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded((new_zrules, u_gen)) =>
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+        let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
+        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
+        let flags = Incon.generate_redundancy_list(cons);
+        let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let (new_zrules, _) =
+          List.fold_left(
+            ((rs, idx), flag) => {
+              let err =
+                if (flag == 1) {
+                  RuleErrStatus.Redundant(u);
+                } else {
+                  NotRedundant;
+                };
+              (ZExp.set_err_status_zrules(err, idx, rs), idx + 1);
+            },
+            (new_zrules, 0),
+            flags,
           );
+        let (case_err, u_gen) =
+          if (Incon.is_exhaustive(con)) {
+            (CaseErrStatus.StandardErrStatus(NotInHole), u_gen);
+          } else {
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            (NotExhaustive(u), u_gen);
+          };
+        let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
         Succeeded(AnaDone((new_ze, u_gen)));
       }
     }

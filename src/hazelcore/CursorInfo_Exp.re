@@ -921,14 +921,12 @@ and ana_cursor_info_zoperand =
   | LamZE(InHole(WrongLength, _), _, _, _)
   | InjZ(InHole(WrongLength, _), _, _)
   | CaseZE(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _) |
-      NotExhaustive(_),
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
       _,
     )
   | CaseZR(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _) |
-      NotExhaustive(_),
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
       _,
     )
@@ -987,9 +985,13 @@ and ana_cursor_info_zoperand =
         InjSide.pick(position, ty1, ty2),
       )
     }
-  | CaseZE(StandardErrStatus(NotInHole), zscrut, _) =>
+  | CaseZE(StandardErrStatus(NotInHole) | NotExhaustive(_), zscrut, _) =>
     syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
-  | CaseZR(StandardErrStatus(NotInHole), scrut, (prefix, zrule, _)) =>
+  | CaseZR(
+      StandardErrStatus(NotInHole) | NotExhaustive(_),
+      scrut,
+      (prefix, zrule, _),
+    ) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
     | Some(ty1) =>
