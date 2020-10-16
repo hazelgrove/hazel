@@ -965,10 +965,9 @@ and syn_fix_holes_operand =
       );
     | Some(common_type) =>
       let pats = UHExp.get_pats(rules);
-      let cons =
-        Statics_Pat.generate_rules_constraints(ctx, pats, common_type);
+      let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
       let flags = Incon.generate_redundancy_list(cons);
-      let con = Statics_Pat.generate_one_constraints(ctx, pats, common_type);
+      let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let new_rules =
         List.map2(

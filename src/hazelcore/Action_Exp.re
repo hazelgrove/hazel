@@ -3387,9 +3387,9 @@ and ana_perform_operand =
         let (rules, u_gen) =
           Statics_Exp.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
         let pats = UHExp.get_pats(rules);
-        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty);
+        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
         let flags = Incon.generate_redundancy_list(cons);
-        let con = Statics_Pat.generate_one_constraints(ctx, pats, ty);
+        let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let new_rules =
           List.map2(

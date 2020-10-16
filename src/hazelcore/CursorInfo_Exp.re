@@ -867,8 +867,7 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
-        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_) |
-        NotExhaustive(_),
+        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
         _,
         _,
       )
@@ -889,6 +888,8 @@ and ana_cursor_info_zoperand =
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+    | Case(NotExhaustive(_), _, _) =>
+      Some(CursorInfo_common.mk(CaseNotExhaustive(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
       |> Option.map(_ =>
