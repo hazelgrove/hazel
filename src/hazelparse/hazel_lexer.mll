@@ -11,5 +11,7 @@ rule read =
   | white { read lexbuf }
   | "+" { PLUS }
   | "-" { MINUS }
+  | "*" { MULT }
+  | "/" { DIV }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }

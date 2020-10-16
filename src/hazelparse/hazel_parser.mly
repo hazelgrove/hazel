@@ -10,9 +10,11 @@
 
 %token <string> INT
 %token PLUS MINUS
+%token MULT DIV
 %token EOF
 
 %left PLUS MINUS
+%left MULT DIV
 
 %start main
 %type <UHExp.t> main
@@ -28,9 +30,14 @@ expr:
 
 expr_:
   | constant { UHExp.mk_OpSeq $1 }
-  | expr_ PLUS expr_ { mk_binop $1 Operators_Exp.Plus $3 }
-  | expr_ MINUS expr_ { mk_binop $1 Operators_Exp.Minus $3 }
+  | expr_ op expr_ { mk_binop $1 $2 $3 }
 ;
+
+%inline op:
+  | PLUS { Operators_Exp.Plus }
+  | MINUS { Operators_Exp.Minus }
+  | MULT { Operators_Exp.Times }
+  | DIV { Operators_Exp.Divide }
 
 constant:
   | constant_ { Seq.S($1, Seq.E) }
