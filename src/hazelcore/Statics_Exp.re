@@ -9,12 +9,10 @@ let ctx_for_let =
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
     ) =>
-    print_endline("VAMPIRES!!!!");
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
     | None => (ctx, None)
-    };
+    }
   | _ => (ctx, None)
   };
 
@@ -47,14 +45,22 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | EmptyLine
   | CommentLine(_) => Some(ctx)
   | LetLine(p, def) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => None
-    | Some((ty, ctx)) =>
-      let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
-      switch (ana(ctx_def, def, ty)) {
+    switch (syn(ctx, def)) {
+    | Some(ty0) =>
+      switch (Statics_Pat.syn(ctx, p)) {
       | None => None
-      | Some(_) => Statics_Pat.ana(ctx_def, p, ty)
-      };
+      | Some((ty1, p_ctx)) =>
+        // ensure we leverage type information from both p and def
+        switch (HTyp.join(LUB, ty0, ty1)) {
+        | None => None
+        | Some(ty) => Statics_Pat.ana(p_ctx, p, ty)
+        }
+      }
+    | None =>
+      switch (Statics_Pat.syn(ctx, p)) {
+      | None => None
+      | Some((ty, p_ctx)) => ana(ctx, def, ty) |> Option.map(_ => p_ctx)
+      }
     }
   }
 and syn_opseq =
