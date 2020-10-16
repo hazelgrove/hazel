@@ -12,7 +12,7 @@ type t =
   | Prod(list(t))
   | List(t)
   | Label(Label.t)
-  | Label_Elt(t, t);
+  | Label_Elt(Label.t, t);
 [@deriving sexp]
 type join =
   | GLB
@@ -116,7 +116,7 @@ let matched_list =
 
 let matched_label =
   fun
-  | Hole => Some(Hole)
+  | Hole => Some(Label(""))
   | Label(label) => Some(Label(label))
   | _ => None;
 

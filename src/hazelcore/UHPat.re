@@ -19,7 +19,7 @@ and operand =
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t)
-  | Label(ErrStatus.t, Label.t);
+  | Label(LabelErrStatus.t, Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -45,7 +45,7 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
-let label = (~err: ErrStatus.t=NotInHole, l: Label.t) => Label(err, l);
+let label = (~err: LabelErrStatus.t=NotInHole, l: Label.t) => Label(err, l);
 
 let rec get_tuple_elements: skel => list(skel) =
   fun
@@ -92,7 +92,7 @@ and get_err_status_operand =
   | ListNil(err)
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status(p)
-  | Label(err, _) => err;
+  | Label(_, _) => NotInHole;
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
   p |> set_err_status_opseq(err)
@@ -110,7 +110,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
-  | Label(_, id) => Label(err, id)
+  | Label(_, _) => operand
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -137,8 +137,7 @@ and mk_inconsistent_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Label(InHole(TypeInconsistent, _), _) => (operand, u_gen)
+  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -146,8 +145,7 @@ and mk_inconsistent_operand =
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
-  | Label(NotInHole | InHole(WrongLength, _), _) =>
+  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -213,7 +211,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Parenthesized(body) => is_complete(body)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
-  | Label(InHole(_), _) => false
-  | Label(NotInHole, _) => true
+  | Label(InLabelHole(_), _) => false
+  | Label(NotInLabelHole, _) => true
   };
 };

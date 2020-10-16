@@ -893,7 +893,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _)
-    | Label(NotInHole, _) =>
+    | Label(NotInLabelHole, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>

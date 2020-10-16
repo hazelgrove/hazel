@@ -101,23 +101,30 @@ and syn_skel =
       ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (syn_skel(ctx, skel1, seq)) {
-    | None => None
-    | Some(ty1) =>
-      switch (HTyp.matched_arrow(ty1)) {
-      | None =>
-        switch (HTyp.matched_label(ty1)) {
-        | Some(ty1') =>
-          switch (syn_skel(ctx, skel2, seq)) {
-          | Some(ty2) => Some(Label_Elt(ty1', ty2))
-          | None => None
+    // check if skel1 is a label without running syn on it
+    switch (skel1) {
+      | Placeholder(n) => 
+        switch(Seq.nth_operand(n, seq)) {
+          | Label(l) => Some(Label_Elt(l, ty2))
+          // Skel1 is not a label, so continue wiht matching on arrow
+          // ECD TOD: Check for parentheses
+          | _ => switch(syn_skel(ctx, skel1, seq)) {
+            | None => None
+            | Some(ty1) => switch(HTyp.matched_arrow(ty1)){
+              | None => None
+              | Some((ty2, ty)) => ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
+            }
           }
-        | None => None
-        }
-      | Some((ty2, ty)) =>
-        ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
       }
-    }
+    // Skel1 is not a label, so continue wiht matching on arrow
+    | _ => switch(syn_skel(ctx, skel1, seq)) {
+          | None => None
+          | Some(ty1) => switch(HTyp.matched_arrow(ty1)){
+            | None => None
+            | Some((ty2, ty)) => ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
+          }
+        }
+    };
   | BinOp(NotInHole, Comma, _, _) =>
     skel
     |> UHExp.get_tuple_elements
@@ -236,7 +243,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       }
     };
   | Parenthesized(body) => syn(ctx, body)
-  | Label(NotInHole, label) => Some(Label(label))
+  | Label(_, label) => Some(Hole)
   | Prj(NotInHole, _, _) =>
     failwith(__LOC__ ++ " unimplemented label projection")
   }
@@ -360,6 +367,7 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some()
   | InvalidText(_) => Some()
+  | Label(_, l) => Some() // ECD TODO: May need to change this to be consistent with labeled Tuple exp
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -369,7 +377,6 @@ and ana_operand =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Label(InHole(TypeInconsistent, _), _)
   | Prj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
@@ -385,7 +392,6 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Label(InHole(WrongLength, _), _)
   | Prj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
@@ -398,8 +404,7 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _)
-  | Label(NotInHole, _) =>
+  | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -502,21 +507,37 @@ and syn_nth_type_mode' =
     | BinOp(NotInHole, Comma, skel1, skel2) =>
       n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (syn_skel(ctx, skel1, seq)) {
-      | None => None
-      | Some(ty1) =>
-        if (n <= Skel.rightmost_tm_index(skel1)) {
-          go(skel1);
-        } else {
-          switch (HTyp.matched_arrow(ty1)) {
-          | None =>
-            switch (HTyp.matched_label(ty1)) {
-            | Some(_) => go(skel2)
-            | None => None
-            }
-          | Some((ty2, _)) => ana_go(skel2, ty2)
-          };
-        }
+      switch (skel1) {
+          | Placeholder(n) => 
+            switch(Seq.nth_operand(n, seq)) {
+              | Label(l) => go(skel2)
+              // Skel1 is not a label, so continue wiht matching on arrow
+              // ECD TOD: Check for parentheses
+              | _ => switch(syn_skel(ctx, skel1, seq)) {
+                | None => None
+                | Some(ty1) => 
+                if (n <= Skel.rightmost_tm_index(skel1)) {
+                  go(skel1);
+                } else {
+                  switch (HTyp.matched_arrow(ty1)) {
+                    | None => None
+                    | Some((ty2, ty)) => ana_go(skel2, ty2)
+                  }
+              }
+          }
+        // Skel1 is not a label, so continue wiht matching on arrow
+        | _ => switch(syn_skel(ctx, skel1, seq)) {
+                | None => None
+                | Some(ty1) => 
+                if (n <= Skel.rightmost_tm_index(skel1)) {
+                  go(skel1);
+                } else {
+                  switch (HTyp.matched_arrow(ty1)) {
+                    | None => None
+                    | Some((ty2, ty)) => ana_go(skel2, ty2)
+                  }
+              }
+          }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
@@ -869,17 +890,34 @@ and syn_fix_holes_skel =
         );
       (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
     | None =>
-      switch (HTyp.matched_label(ty1)) {
-      | Some(ty1') =>
-        let (skel2, seq, ty2', u_gen) =
-          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
-        (
-          BinOp(NotInHole, Space, skel1, skel2),
-          seq,
-          Label_Elt(ty1', ty2'),
-          u_gen,
-        );
-      | None =>
+      switch (skel1) {
+      | Placeholder(n) =>
+        let en = seq |> Seq.nth_operand(n);
+        switch(en) {
+          | Label(l) => 
+            let (skel2, seq, ty2', u_gen) =
+            syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+            (
+              BinOp(NotInHole, Space, skel1, skel2),
+              seq,
+              Label_Elt(l, ty2'),
+              u_gen,
+            );
+          | _ => 
+          let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
+            u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            HTyp.Hole,
+          );
+        let (OpSeq(skel1, seq), u_gen) =
+          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
+        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+        }
+      | _ => 
         let (skel2, seq, u_gen) =
           ana_fix_holes_skel(
             ctx,
@@ -941,6 +979,7 @@ and syn_fix_holes_operand =
       (e, Hole, u_gen);
     }
   | InvalidText(_) => (e, Hole, u_gen)
+  | Label(_, _) => (e, Hole, u_gen)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -1026,7 +1065,6 @@ and syn_fix_holes_operand =
         u_gen,
       );
     };
-  | Label(_, label) => (e_nih, Label(label), u_gen)
   | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented Label projection")
   };
 }
@@ -1360,11 +1398,11 @@ and ana_fix_holes_operand =
       (e, u_gen);
     }
   | InvalidText(_) => (e, u_gen)
+  | Label(_, _) => (e, u_gen)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _)
-  | Label(_, _) =>
+  | BoolLit(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {

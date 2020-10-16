@@ -25,8 +25,8 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-  | Label(ErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, t, t)
+  | Label(LabelErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, t, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -61,7 +61,7 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
-let label = (~err: ErrStatus.t=NotInHole, l: Label.t): operand =>
+let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t): operand =>
   Label(err, l);
 
 let lam =
@@ -200,9 +200,9 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _)
-  | Label(err, _)
   | Prj(err, _, _) => err
-  | Case(InconsistentBranches(_), _, _) => NotInHole
+  | Case(InconsistentBranches(_), _, _)
+  | Label(_, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -228,7 +228,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Label(_, label) => Label(err, label)
+  | Label(label_err, label) => Label(label_err, label)
   | Prj(_, exp, label) => Prj(err, exp, label)
   };
 
@@ -263,7 +263,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Label(InHole(TypeInconsistent, _), _)
   | Prj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -280,7 +279,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
     )
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Label(NotInHole | InHole(WrongLength, _), _)
   | Prj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
@@ -290,6 +288,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
+  | Label(_, _) => (operand, u_gen)
   };
 
 let text_operand =
@@ -385,7 +384,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Label(InHole(_), _) => false
+  | Label(InLabelHole(_), _) => false
   | Label(NotInHole, _) => true
   | Prj(_) => failwith("unimplemented Label Projection")
   };

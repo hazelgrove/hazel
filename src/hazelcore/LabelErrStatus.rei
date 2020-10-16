@@ -3,7 +3,6 @@ module HoleReason = {
   type t =
     | Standalone
     | Duplicate
-    | Empty
 };
 
 [@deriving sexp]

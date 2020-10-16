@@ -23,8 +23,8 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-  | Label(ErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, t, t)
+  | Label(LabelErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, t, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
