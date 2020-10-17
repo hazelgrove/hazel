@@ -113,6 +113,7 @@ let mk_ana_text =
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
+    print_endline("invalid mk ana text shape");
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
       Succeeded((ZOpSeq.wrap(zhole), ctx, u_gen));
@@ -120,7 +121,7 @@ let mk_ana_text =
       let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
       Succeeded((zp, ctx, u_gen));
-    }
+    };
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
     Succeeded((zp, ctx, u_gen));
@@ -898,7 +899,12 @@ and ana_perform_opseq =
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None =>
+      print_endline("operator shape causes fail");
+      // Failed
+      let success_status = ana_perform_operand(ctx, u_gen, a, zoperand, ty);
+      print_endline("ana perform operand complete");
+      success_status;
     | Some(operator) =>
       let construct_operator =
         ZPat.is_before_zoperand(zoperand)
@@ -1151,16 +1157,17 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
-
-  | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
-    ana_insert_text(ctx, u_gen, (0, s), "", ty)
-  | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
+  | (Construct(SOp(os)), CursorP(OnDelim(_, side), Wild(_))) =>
+    print_endline("ana perform operand -- add operator after wildcard 2");
     let index =
       switch (side) {
       | Before => 0
       | After => 1
       };
-    ana_insert_text(ctx, u_gen, (index, s), "_", ty);
+    let operator_char = Action_common.shape_to_string(SOp(os));
+    ana_insert_text(ctx, u_gen, (index, operator_char), "_", ty);
+  | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
+    ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
