@@ -63,7 +63,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     switch (op) {
     | UserOp(var) =>
       if (Var.eq(var, x)) {
-        Ap(d1, Ap(subst_var(d1, x, d3), subst_var(d1, x, d4)));
+        Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
       } else {
         let d3 = subst_var(d1, x, d3);
         let d4 = subst_var(d1, x, d4);
