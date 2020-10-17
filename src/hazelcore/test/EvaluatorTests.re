@@ -1,3 +1,5 @@
+open Sexplib;
+
 let mvar = MetaVarGen.init;
 
 let%test "sample addition test" = {
@@ -33,7 +35,11 @@ let%test "sample user op" = {
       DHExp.IntLit(1),
     );
 
-  let let_expr = DHExp.Let(DHPat.Var("_++_"), lam, body);
+  let let_expr = DHExp.Let(DHPat.Var(func_sym), lam, body);
 
-  Evaluator.evaluate(let_expr) == Evaluator.BoxedValue(DHExp.IntLit(101));
+  let result = Evaluator.evaluate(let_expr);
+  print_endline(Sexp.to_string(DHExp.sexp_of_t(let_expr)));
+  print_endline(Sexp.to_string(Evaluator.sexp_of_result(result)));
+
+  result == Evaluator.BoxedValue(DHExp.IntLit(101));
 };
