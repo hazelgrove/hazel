@@ -1479,7 +1479,8 @@ and syn_perform_operand =
   /* Backspace & Deletion */
 
   | (Backspace, _) when ZExp.is_before_zoperand(zoperand) =>
-    CursorEscaped(Before)
+    print_endline("cursor escaped before");
+    CursorEscaped(Before);
   | (Delete, _) when ZExp.is_after_zoperand(zoperand) =>
     CursorEscaped(After)
 
@@ -1861,6 +1862,7 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, UnaryOpZU(_, zunop, operand)) =>
+    print_endline("syn UnaryOpZU zipper");
     switch (a, zunop) {
     /* invalid cursor positions */
     | (_, (OnText(_) | OnDelim(_, _), _)) => Failed
@@ -1886,8 +1888,9 @@ and syn_perform_operand =
     | (Construct(_), _) => failwith("not implemented")
     | (UpdateApPalette(_), _) => failwith("not implemented")
     | (Init, _) => failwith("Init action should not be performed.")
-    }
+    };
   | (_, UnaryOpZN(_, unop, zoperand)) =>
+    print_endline("syn UnaryOpZN zipper");
     /* TODO ANAND ask cyrus about this in OH, specifically the unwrapping nonsense */
     let ty_u: HTyp.t =
       switch (unop) {
@@ -1897,8 +1900,7 @@ and syn_perform_operand =
     switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
     | Failed => Failed
     | CursorEscaped(_) => failwith("not implemented")
-    | Succeeded(AnaExpands(_)) =>
-      failwith("unary operator's operand should not be expanding")
+    | Succeeded(AnaExpands(_)) => failwith("not implemented")
     | Succeeded(AnaDone((ze, u_gen))) =>
       /* unwrap ze to the operand */
       switch (ze) {
@@ -3359,6 +3361,7 @@ and ana_perform_operand =
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, UnaryOpZU(_, zunop, operand)) =>
+    print_endline("ana UnaryOpZU zipper case");
     switch (a, zunop) {
     /* invalid cursor positions */
     | (_, (OnText(_) | OnDelim(_, _), _)) => Failed
@@ -3384,8 +3387,23 @@ and ana_perform_operand =
     | (Construct(_), _) => failwith("not implemented")
     | (UpdateApPalette(_), _) => failwith("not implemented")
     | (Init, _) => failwith("Init action should not be performed.")
-    }
-  | (_, UnaryOpZN(_, unop, _)) =>
+    };
+  | (_, UnaryOpZN(_, unop, zoperand) as whole) =>
+    let unwrap_zblock_to_zoperand = (ze: ZExp.t) => {
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(zoperand, _) => zoperand
+          | _ => failwith("failed to unwrap ExpLineZ to zopseq of ZOperand")
+          }
+        }
+      | _ => failwith("failed to unwrap zblock to ExpLineZ")
+      };
+    };
+
+    print_endline("ana UnaryOpZN zipper case");
     /* TODO ANAND Ask cyrus about this in OH */
     let ty_u: HTyp.t =
       switch (unop) {
@@ -3394,35 +3412,43 @@ and ana_perform_operand =
       };
     switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_u)) {
     | Failed
-    | CursorEscaped(_)
-    | Succeeded(AnaExpands(_)) => Failed
+    | Succeeded(AnaExpands(_)) => failwith("not implemented")
+    | CursorEscaped(Before) =>
+      switch (ana_perform_operand(ctx, MoveLeft, (whole, u_gen), ty_u)) {
+      | Failed
+      | CursorEscaped(_) =>
+        print_endline("failed step 1");
+        Failed;
+      | Succeeded(AnaExpands(_)) => failwith("not implemented")
+      | Succeeded(AnaDone((ze, u_gen))) =>
+        let ze = unwrap_zblock_to_zoperand(ze);
+        switch (ana_perform_operand(ctx, Backspace, (ze, u_gen), ty_u)) {
+        | Failed
+        | CursorEscaped(_) =>
+          print_endline("failed step 2");
+          Failed;
+        | Succeeded(AnaExpands(_)) => failwith("not implemented")
+        | Succeeded(AnaDone(_)) as result => result
+        };
+      }
+    | CursorEscaped(After) => failwith("not implemented")
     | Succeeded(AnaDone((ze, u_gen))) =>
       /* unwrap ze to the operand */
-      switch (ze) {
-      | (_, ExpLineZ(zopseq), _) =>
-        switch (zopseq) {
-        | ZOpSeq(_, seq) =>
-          switch (seq) {
-          | ZOperand(zoperand, _) =>
-            HTyp.consistent(ty, ty_u)
-              ? {
-                let new_ze =
-                  ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, zoperand));
-                Succeeded(AnaDone((new_ze, u_gen)));
-              }
-              : {
-                let (u, u_gen) = u_gen |> MetaVarGen.next;
-                let new_ze =
-                  ZExp.ZBlock.wrap(
-                    UnaryOpZN(InHole(TypeInconsistent, u), unop, zoperand),
-                  );
-                Succeeded(AnaDone((new_ze, u_gen)));
-              }
-          | _ => Failed
-          }
+      let zoperand = unwrap_zblock_to_zoperand(ze);
+      HTyp.consistent(ty, ty_u)
+        ? {
+          let new_ze =
+            ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, zoperand));
+          Succeeded(AnaDone((new_ze, u_gen)));
         }
-      | _ => Failed
-      }
+        : {
+          let (u, u_gen) = u_gen |> MetaVarGen.next;
+          let new_ze =
+            ZExp.ZBlock.wrap(
+              UnaryOpZN(InHole(TypeInconsistent, u), unop, zoperand),
+            );
+          Succeeded(AnaDone((new_ze, u_gen)));
+        };
     };
   | (_, LamZP(_, zp, ann, body)) =>
     switch (HTyp.matched_arrow(ty)) {
