@@ -8,6 +8,7 @@ type t =
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
+  | UserOp(Var.t)
   | InvalidTextShape(string);
 
 /* Eventually replace Ocaml's ___of_string_opt with our own rules */
@@ -42,6 +43,8 @@ let of_text = (text: string): t =>
   | (None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
+    } else if (text |> Var.is_operator) {
+      UserOp(text);
     } else if (text |> Var.is_valid) {
       Var(text);
     } else {
