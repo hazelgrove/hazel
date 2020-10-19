@@ -9,16 +9,27 @@ let length = String.length;
 
 let valid_regex = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
 
-let operator_regex = Re.Str.regexp("^[_][&*+-./:;<=>?@^|~]+[_]$");
+let operator_regex = Re.Str.regexp("^[_]*[&*+-./:;<=>?@^|~]+[_]*$");
 
 let is_valid = s => {
-  Re.Str.string_match(valid_regex, s, 0)
-  || Re.Str.string_match(operator_regex, s, 0);
+  Re.Str.string_match(valid_regex, s, 0);
+};
+
+let is_valid_operator = s => {
+  Re.Str.string_match(operator_regex, s, 0);
 };
 
 /* helper function for guarding options with is_valid */
 let check_valid = (s, result) =>
   if (is_valid(s)) {
+    result;
+  } else {
+    None;
+  };
+
+/* helper function for guarding options with is_valid */
+let check_valid_operator = (s, result) =>
+  if (is_valid_operator(s)) {
     result;
   } else {
     None;
@@ -33,6 +44,8 @@ let is_let = eq("let");
 let is_case = eq("case");
 
 let is_wild = eq("_");
+
+let is_operator = s => Re.Str.string_match(operator_regex, s, 0);
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);

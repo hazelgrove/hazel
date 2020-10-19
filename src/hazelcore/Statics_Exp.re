@@ -141,6 +141,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | EmptyHole(_) => Some(Hole)
   | InvalidText(_) => Some(Hole)
   | Var(InHole(TypeInconsistent, _), _, _)
+  | UserOp(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
@@ -152,6 +153,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
   | Var(InHole(WrongLength, _), _, _)
+  | UserOp(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
@@ -185,6 +187,9 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)
+  | UserOp(NotInHole, NotInVarHole, x) =>
+    VarMap.lookup(Contexts.gamma(ctx), x)
+  | UserOp(NotInHole, InVarHole(_), _) => Some(Hole)
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
@@ -358,6 +363,7 @@ and ana_operand =
   | EmptyHole(_) => Some()
   | InvalidText(_) => Some()
   | Var(InHole(TypeInconsistent, _), _, _)
+  | UserOp(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
@@ -372,6 +378,7 @@ and ana_operand =
     | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
     };
   | Var(InHole(WrongLength, _), _, _)
+  | UserOp(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
@@ -389,6 +396,7 @@ and ana_operand =
     | Some(_) => Some()
     }
   | Var(NotInHole, _, _)
+  | UserOp(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
@@ -878,7 +886,10 @@ and syn_fix_holes_skel =
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
   | BinOp(_, UserOp(op), skel1, skel2) =>
-    let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op));
+    // TODO: edits on userop dont syn types, this might be causing that issue.
+    print_endline("syn fix holes, userop case");
+    let op_type =
+      syn_operand(ctx, UHExp.UserOp(NotInHole, NotInVarHole, op));
     switch (op_type) {
     | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>
       let (skel1, seq, u_gen) =
@@ -956,6 +967,25 @@ and syn_fix_holes_operand =
           | _ => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
+      }
+    };
+  | UserOp(_, var_err_status, x) =>
+    // TODO: This case was copied just to shut-up opam, needs to be worked on.
+    let gamma = Contexts.gamma(ctx);
+    switch (VarMap.lookup(gamma, x)) {
+    | Some(ty) => (UHExp.UserOp(NotInHole, NotInVarHole, x), ty, u_gen)
+    | None =>
+      switch (var_err_status) {
+      | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
+      | NotInVarHole =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let reason: VarErrStatus.HoleReason.t =
+          switch (Var.is_let(x), Var.is_case(x)) {
+          | (true, _) => Keyword(Let)
+          | (_, true) => Keyword(Case)
+          | _ => Free
+          };
+        (UserOp(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
     };
   | IntLit(_, _) => (e_nih, Int, u_gen)
@@ -1359,6 +1389,7 @@ and ana_fix_holes_operand =
     }
   | InvalidText(_) => (e, u_gen)
   | Var(_, _, _)
+  | UserOp(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) =>
