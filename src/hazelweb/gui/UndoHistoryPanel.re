@@ -75,12 +75,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | UserOp(_, _, var_str) =>
       if (show_indicate_word) {
-          Vdom.(
-            Node.span(
-              [],
-              [indicate_words_view("user op: "), code_view(var_str)],
-            )
-          );
+        Vdom.(
+          Node.span(
+            [],
+            [indicate_words_view("user op: "), code_view(var_str)],
+          )
+        );
       } else {
         code_view(var_str);
       }
