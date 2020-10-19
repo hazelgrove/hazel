@@ -3,6 +3,7 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SComma => Some(Comma)
   | SSpace => Some(Space)
   | SCons => Some(Cons)
+  | SUserOp(_)
   | SAnd
   | SOr
   | SMinus
@@ -13,7 +14,6 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SGreaterThan
   | SEquals
   | SArrow
-  | SUserOp(_)
   | SVBar => None;
 
 let shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>
@@ -98,6 +98,10 @@ let mk_syn_text =
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | UserOp(x) =>
+    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userOp(x)));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };
 };
 
@@ -144,8 +148,14 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
+    print_endline("grow var");
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
+    Succeeded((zp, ctx, u_gen));
+  | UserOp(x) =>
+    print_endline("grow op");
+    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userOp(x)));
     Succeeded((zp, ctx, u_gen));
   };
 };
@@ -562,7 +572,8 @@ and syn_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | UserOp(_) | IntLit(_) | FloatLit(_) |
+        BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -625,6 +636,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
+  | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
+    syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -635,6 +648,8 @@ and syn_perform_operand =
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
+    syn_backspace_text(ctx, u_gen, j, x)
+  | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
@@ -676,6 +691,11 @@ and syn_perform_operand =
         && !ZPat.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, t)
   | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
+      when
+        !ZPat.is_before_zoperand(zoperand)
+        && !ZPat.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, x)
+  | (Construct(SOp(sop)), CursorP(OnText(j), UserOp(_, _, x)))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
@@ -992,7 +1012,8 @@ and ana_perform_operand =
       ) |
       CursorP(
         OnDelim(_),
-        InvalidText(_, _) | Var(_) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        InvalidText(_, _) | Var(_) | UserOp(_) | IntLit(_) | FloatLit(_) |
+        BoolLit(_),
       ) |
       CursorP(OnOp(_), _),
     ) =>
@@ -1081,6 +1102,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
+  | (Delete, CursorP(OnText(j), UserOp(_, _, x))) =>
+    ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
     ana_delete_text(ctx, u_gen, j, n, ty)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
@@ -1091,6 +1114,8 @@ and ana_perform_operand =
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
+    ana_backspace_text(ctx, u_gen, j, x, ty)
+  | (Backspace, CursorP(OnText(j), UserOp(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
     ana_backspace_text(ctx, u_gen, j, n, ty)
@@ -1142,6 +1167,9 @@ and ana_perform_operand =
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, x, ty)
+  | (Construct(SOp(_) as op), CursorP(OnText(j), UserOp(_, _, x))) =>
+    let operator_string = Action_common.shape_to_string(op);
+    ana_insert_text(ctx, u_gen, (j, operator_string), x, ty);
   | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
       when
         !ZPat.is_before_zoperand(zoperand)
@@ -1172,6 +1200,11 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
+  /* This is the case of closing a user defined operator */
+  | (Construct(SChar(s)), CursorP(OnText(j), UserOp(_, _, x)))
+      when s == "_" =>
+    print_endline("mark 6");
+    ana_insert_text(ctx, u_gen, (j, s), x, ty);
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)
   | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
