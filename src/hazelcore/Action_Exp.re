@@ -41,6 +41,12 @@ let shape_of_operator =
   | FEquals => None
   };
 
+let shape_is_of_unop = (os: Action_common.operator_shape): bool =>
+  switch (os) {
+  | SMinus => true
+  | _ => false
+  };
+
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
   zseq
   |> ZExp.erase_zseq
@@ -1306,26 +1312,19 @@ and syn_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    switch (os) {
-    | SMinus when ZExp.is_before_zoperand(zoperand) =>
-      switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
-      | None => Failed
-      | Some(ty_zoperand) =>
-        syn_perform_operand(ctx, a, (zoperand, ty_zoperand, u_gen))
-      }
-    | _ =>
-      switch (operator_of_shape(os)) {
-      | None => Failed
-      | Some(operator) =>
-        let construct_operator =
-          ZExp.is_before_zoperand(zoperand)
-            ? construct_operator_before_zoperand
-            : construct_operator_after_zoperand;
-        let (zseq, u_gen) =
-          construct_operator(u_gen, operator, zoperand, surround);
-        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-      }
+        ZExp.is_before_zoperand(zoperand)
+        && !shape_is_of_unop(os)
+        || ZExp.is_after_zoperand(zoperand) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        construct_operator(u_gen, operator, zoperand, surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
@@ -1358,9 +1357,11 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
+    print_endline("ZOperand(zoperand, (E, E))");
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
+    print_endline("ZOperand(zoperand, (prefix, suffix) as surround)");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
@@ -2799,22 +2800,19 @@ and ana_perform_opseq =
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    switch (os) {
-    | SMinus when ZExp.is_before_zoperand(zoperand) =>
-      ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
-    | _ =>
-      switch (operator_of_shape(os)) {
-      | None => Failed
-      | Some(operator) =>
-        let construct_operator =
-          ZExp.is_before_zoperand(zoperand)
-            ? construct_operator_before_zoperand
-            : construct_operator_after_zoperand;
-        let (zseq, u_gen) =
-          construct_operator(u_gen, operator, zoperand, surround);
-        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
-      }
+        ZExp.is_before_zoperand(zoperand)
+        && !shape_is_of_unop(os)
+        || ZExp.is_after_zoperand(zoperand) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        construct_operator(u_gen, operator, zoperand, surround);
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
     }
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
@@ -2850,7 +2848,6 @@ and ana_perform_opseq =
 
   | (_, ZOperand(zoperand, (E, E))) =>
     ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
-
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
     switch (
