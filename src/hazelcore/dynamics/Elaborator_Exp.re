@@ -728,6 +728,7 @@ and syn_elab_operand =
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
+  | UserOp(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
@@ -747,6 +748,7 @@ and syn_elab_operand =
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
   | Var(InHole(WrongLength, _), _, _)
+  | UserOp(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
@@ -808,6 +810,24 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let delta =
+      MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+    let d =
+      switch (reason) {
+      | Free => DHExp.FreeVar(u, 0, sigma, x)
+      | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      };
+    Elaborates(d, Hole, delta);
+
+  | UserOp(NotInHole, NotInVarHole, x) =>
+    let gamma = Contexts.gamma(ctx);
+    switch (VarMap.lookup(gamma, x)) {
+    | Some(ty) => Elaborates(BoundVar(x), ty, delta)
+    | None => DoesNotElaborate
+    };
+  | UserOp(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let delta =
@@ -1149,6 +1169,7 @@ and ana_elab_operand =
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
+  | UserOp(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
@@ -1177,6 +1198,7 @@ and ana_elab_operand =
       Elaborates(d, e_ty, delta);
     }
   | Var(InHole(WrongLength, _), _, _)
+  | UserOp(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
@@ -1192,6 +1214,16 @@ and ana_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, InVarHole(reason, u), x) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = id_env(gamma);
+    let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+    let d: DHExp.t =
+      switch (reason) {
+      | Free => FreeVar(u, 0, sigma, x)
+      | Keyword(k) => Keyword(u, 0, sigma, k)
+      };
+    Elaborates(d, ty, delta);
+  | UserOp(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
@@ -1278,6 +1310,7 @@ and ana_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, _)
+  | UserOp(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
