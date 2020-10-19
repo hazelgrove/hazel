@@ -100,7 +100,7 @@ let mk_syn_text =
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | UserOp(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userOp(x)));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };
 };
@@ -155,7 +155,7 @@ let mk_ana_text =
   | UserOp(x) =>
     print_endline("grow op");
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userOp(x)));
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     Succeeded((zp, ctx, u_gen));
   };
 };

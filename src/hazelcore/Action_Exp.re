@@ -317,6 +317,22 @@ let mk_syn_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+  | UserOp(_) as shape =>
+    let x =
+      switch (shape) {
+      | UserOp(x) => x
+      | _ => "_"
+      };
+    switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
+    | Some(ty) =>
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.userop(x)));
+      Succeeded(SynDone((ze, ty, u_gen)));
+    | None =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var = UHExp.userop(~var_err=InVarHole(Free, u), x);
+      let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
+      Succeeded(SynDone((new_ze, Hole, u_gen)));
+    };
   | Underscore as shape
   | Var(_) as shape =>
     let x =
@@ -370,6 +386,7 @@ let mk_ana_text =
   | FloatLit(_)
   | BoolLit(_)
   | Underscore
+  | UserOp(_)
   | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
@@ -1244,11 +1261,22 @@ and syn_perform_opseq =
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
       when ZExp.is_after_zoperator(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
-  /* ...while other construction is applied after movement */
+  /* ...while construction of operators creates user defined operator symbols,...*/
+  | (Construct(SOp(os)), ZOperator((pos, oper), seq)) =>
+    // TODO this is the next section that needs scrutiny
+    print_endline("construct operator on top of operator");
+    let oper_to_string = Operators_Exp.to_string(oper);
+    let os_to_string = Action_common.shape_to_string(SOp(os));
+    let new_operator = Operators_Exp.UserOp(oper_to_string ++ os_to_string);
+    let new_zoperator = (pos, new_operator);
+    let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+  /* ...and construction of operands is applied after movement.*/
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
       ZExp.is_before_zoperator(zoperator)
         ? ZExp.move_cursor_left_zopseq : ZExp.move_cursor_right_zopseq;
+    print_endline("operator movement");
     switch (zopseq |> move_cursor) {
     | None => Failed
     | Some(zopseq) => syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))
@@ -1443,7 +1471,8 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Var(_) | UserOp(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) |
+        BoolLit(_) |
         ApPalette(_),
       ) |
       CursorE(
@@ -1503,6 +1532,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, t)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     syn_delete_text(ctx, u_gen, j, x)
+  | (Delete, CursorE(OnText(j), UserOp(_, _, x))) =>
+    syn_delete_text(ctx, u_gen, j, x)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
     syn_delete_text(ctx, u_gen, j, n)
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
@@ -1512,6 +1543,8 @@ and syn_perform_operand =
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
+    syn_backspace_text(ctx, u_gen, j, x)
+  | (Backspace, CursorE(OnText(j), UserOp(_, _, x))) =>
     syn_backspace_text(ctx, u_gen, j, x)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
     syn_backspace_text(ctx, u_gen, j, n)
@@ -2841,7 +2874,8 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Var(_) | UserOp(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) |
+        BoolLit(_) |
         ApPalette(_),
       ) |
       CursorE(
@@ -2941,6 +2975,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, t, ty)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
     ana_delete_text(ctx, u_gen, j, x, ty)
+  | (Delete, CursorE(OnText(j), UserOp(_, _, x))) =>
+    ana_delete_text(ctx, u_gen, j, x, ty)
   | (Delete, CursorE(OnText(j), IntLit(_, n))) =>
     ana_delete_text(ctx, u_gen, j, n, ty)
   | (Delete, CursorE(OnText(j), FloatLit(_, f))) =>
@@ -2951,6 +2987,8 @@ and ana_perform_operand =
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
+    ana_backspace_text(ctx, u_gen, j, x, ty)
+  | (Backspace, CursorE(OnText(j), UserOp(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
     ana_backspace_text(ctx, u_gen, j, n, ty)
@@ -3023,6 +3061,8 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     ana_insert_text(ctx, u_gen, (j, s), x, ty)
+  | (Construct(SChar(s)), CursorE(OnText(j), UserOp(_, _, x))) =>
+    ana_insert_text(ctx, u_gen, (j, s), x, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
     ana_insert_text(ctx, u_gen, (j, s), n, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), FloatLit(_, f))) =>
@@ -3048,6 +3088,11 @@ and ana_perform_operand =
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, t, ty)
   | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, x, ty)
+  | (Construct(SOp(sop)), CursorE(OnText(j), UserOp(_, _, x)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
