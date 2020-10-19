@@ -13,6 +13,7 @@ and operand =
   | Wild(ErrStatus.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | UserOp(ErrStatus.t, VarErrStatus.t, string)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
@@ -33,6 +34,15 @@ let var =
     )
     : operand =>
   Var(err, var_err, x);
+
+let userop =
+    (
+      ~err: ErrStatus.t=NotInHole,
+      ~var_err: VarErrStatus.t=NotInVarHole,
+      x: Var.t,
+    )
+    : operand =>
+  UserOp(err, var_err, x);
 
 let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
@@ -83,6 +93,7 @@ and get_err_status_operand =
   | InvalidText(_, _) => NotInHole
   | Wild(err)
   | Var(err, _, _)
+  | UserOp(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
@@ -100,6 +111,7 @@ and set_err_status_operand = (err, operand) =>
   | InvalidText(_, _) => operand
   | Wild(_) => Wild(err)
   | Var(_, var_err, x) => Var(err, var_err, x)
+  | UserOp(_, var_err, x) => UserOp(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
@@ -128,6 +140,7 @@ and mk_inconsistent_operand =
   | InvalidText(_, _)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
+  | UserOp(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
@@ -136,6 +149,7 @@ and mk_inconsistent_operand =
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
+  | UserOp(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
@@ -158,6 +172,7 @@ let text_operand =
   | FloatLit(n) => (floatlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
+  | UserOp(x) => (userop(x), u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (
@@ -194,6 +209,9 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
+  | UserOp(InHole(_), _, _) => false
+  | UserOp(NotInHole, InVarHole(_), _) => false
+  | UserOp(NotInHole, NotInVarHole, _) => true
   | IntLit(InHole(_), _) => false
   | IntLit(NotInHole, _) => true
   | FloatLit(InHole(_), _) => false
