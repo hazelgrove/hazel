@@ -118,6 +118,7 @@ and follow_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
+    | UserOp(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -318,6 +319,7 @@ and of_steps_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
+    | UserOp(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -471,6 +473,8 @@ and holes_operand =
       ...hs,
     ]
   | Var(err, verr, _) =>
+    hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
+  | UserOp(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -670,6 +674,22 @@ and holes_zoperand =
       (),
     )
   | CursorE(_, Var(err, verr, _)) =>
+    switch (err, verr) {
+    | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
+    | (InHole(_, u), _) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
+        (),
+      )
+    | (_, InVarHole(_, u)) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
+        (),
+      )
+    }
+  | CursorE(_, UserOp(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
     | (InHole(_, u), _) =>

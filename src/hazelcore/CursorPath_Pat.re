@@ -31,6 +31,7 @@ and follow_operand =
     | Wild(_)
     | InvalidText(_)
     | Var(_)
+    | UserOp(_)
     | IntLit(_)
     | FloatLit(_)
     | BoolLit(_)
@@ -92,6 +93,7 @@ and of_steps_operand =
     | Wild(_)
     | InvalidText(_)
     | Var(_, _, _)
+    | UserOp(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -165,6 +167,8 @@ and holes_operand =
     ]
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
+  | UserOp(err, verr, _) =>
+    hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | Wild(err)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -211,6 +215,7 @@ and holes_zoperand =
         Some({sort: PatHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
+  | CursorP(_, UserOp(err, verr, _))
   | CursorP(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes

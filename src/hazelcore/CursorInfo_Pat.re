@@ -426,6 +426,7 @@ and ana_cursor_info_zoperand =
       )
     | Wild(InHole(TypeInconsistent, _))
     | Var(InHole(TypeInconsistent, _), _, _)
+    | UserOp(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
@@ -447,12 +448,19 @@ and ana_cursor_info_zoperand =
       };
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
+    | UserOp(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
+        ),
+      )
+    | UserOp(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
@@ -466,6 +474,14 @@ and ana_cursor_info_zoperand =
         ),
       )
     | Var(NotInHole, _, x) =>
+      Some(
+        CursorOnDeferredVarPat(
+          uses =>
+            CursorInfo_common.mk(~uses, PatAnalyzed(ty), ctx, cursor_term),
+          x,
+        ),
+      )
+    | UserOp(NotInHole, _, x) =>
       Some(
         CursorOnDeferredVarPat(
           uses =>
