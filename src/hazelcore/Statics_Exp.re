@@ -46,14 +46,15 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | CommentLine(_) => Some(ctx)
   | LetLine(p, def) =>
     switch (syn(ctx, def)) {
-    | Some(ty0) =>
+    | Some(ty_def) =>
       switch (Statics_Pat.syn(ctx, p)) {
       | None => None
-      | Some((ty1, p_ctx)) =>
+      | Some((ty_p, _)) =>
         // ensure we leverage type information from both p and def
-        switch (HTyp.join(LUB, ty0, ty1)) {
+        switch (HTyp.join(LUB, ty_def, ty_p)) {
         | None => None
-        | Some(ty) => Statics_Pat.ana(p_ctx, p, ty)
+        | Some(ty) =>
+          Statics_Pat.ana(ctx, p, ty);
         }
       }
     | None =>
@@ -685,22 +686,32 @@ and syn_fix_holes_line =
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
   | LetLine(p, def) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => (LetLine(p, def), ctx, u_gen)
-    | Some((ty, ctx)) =>
+    let (def, ty_def, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, def);
+    let (p, ty_p, _, u_gen) =
+      Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+    switch (HTyp.join(LUB, ty_def, ty_p)) {
+    | None =>
+      let (p, ty, _, u_gen) =
+        Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
       let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
-      let (def, ty1, u_gen) =
-        syn_fix_holes(~renumber_empty_holes, ctx_def, u_gen, def);
+      let (def, u_gen) =
+        ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty);
+      (LetLine(p, def), ctx, u_gen);
+    | Some(ty) =>
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
       let (p, ctx, u_gen) =
         Statics_Pat.ana_fix_holes(
           ctx_def,
           u_gen,
           ~renumber_empty_holes,
           p,
-          ty1,
+          ty,
         );
+      let (def, u_gen) =
+        ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty);
       (LetLine(p, def), ctx, u_gen);
-    }
+    };
   }
 and syn_fix_holes_opseq =
     (

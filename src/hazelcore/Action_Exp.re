@@ -1027,20 +1027,31 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, def)) =>
-    switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-    | None => Failed
-    | Some((ty, ctx)) =>
+    //switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
+    //| None => Failed
+    //| Some((_, ctx)) =>
+    switch (Action_Pat.syn_perform(ctx, u_gen, a, zp)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((zp, ty_p, _, u_gen)) =>
       let (recursive_ctx, _) =
-        Statics_Exp.ctx_for_let(ctx, ZPat.erase(zp), ty, def);
-      switch (Action_Pat.syn_perform(recursive_ctx, u_gen, a, zp)) {
-      | Failed => Failed
-      | CursorEscaped(side) => escape(u_gen, side)
-      | Succeeded((new_zp, ty_p, new_ctx, u_gen)) =>
+        Statics_Exp.ctx_for_let(ctx, ZPat.erase(zp), ty_p, def);
+      switch (Statics_Exp.syn(recursive_ctx, def)) {
+      | None => Failed // ??? what do
+      | Some(ty_def) =>
+        let ty =
+          switch (HTyp.join(LUB, ty_def, ty_p)) {
+          | None => ty_p
+          | Some(ty) => ty
+          };
         let (new_def, u_gen) =
-          Statics_Exp.ana_fix_holes(ctx, u_gen, def, ty_p);
+          Statics_Exp.ana_fix_holes(ctx, u_gen, def, ty);
+        let (new_zp, ctx_body, u_gen) =
+          Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty);
         let new_zline = ZExp.LetLineZP(new_zp, new_def);
-        Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
+        Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
       };
+    //}
     }
 
   | (_, LetLineZE(p, zdef)) =>
@@ -1053,8 +1064,21 @@ and syn_perform_line =
       | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zdef, u_gen)) =>
-        let new_zline = ZExp.LetLineZE(p, new_zdef);
-        Succeeded(LineDone((([], new_zline, []), recursive_ctx, u_gen)));
+        switch (Statics_Exp.syn(recursive_ctx, ZExp.erase(new_zdef))) {
+        | None => ActionOutcome.Failed // ??? what do
+        | Some(ty_def) =>
+          let ty =
+            switch (HTyp.join(LUB, ty_def, ty_p)) {
+            | None => ty_p
+            | Some(ty) => ty
+            };
+          let (new_zdef, u_gen) =
+            Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zdef, ty);
+          let (new_p, ctx_body, u_gen) =
+            Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty);
+          let new_zline = ZExp.LetLineZE(new_p, new_zdef);
+          Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
+        }
       };
     }
   | (Init, _) => failwith("Init action should not be performed.")
