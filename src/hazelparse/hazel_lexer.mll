@@ -27,5 +27,10 @@ rule read =
   | "-" { MINUS }
   | "*" { MULT }
   | "/" { DIV }
+  | "=" { EQUAL }
+  | ":" { COLON }
+  | "(" { LPAREN }
+  | ")" { RPAREN }
+  | "\\" { LAMBDA }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }
