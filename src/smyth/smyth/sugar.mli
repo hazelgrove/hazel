@@ -6,8 +6,8 @@ open Lang
 
 val nat : exp -> int option
 (** [nat] deconstructs the expression [S (... S (Z ()) ...)] into the integer
-    [n], where the [S] constructor is nested [n] times (i.e., [S]{^
-    [n]}[(Z ())]). *)
+    [n], where the [S] constructor is nested [n] times (i.e.,
+    [S]{^ [n]}[(Z ())]). *)
 
 val listt : exp -> (exp list * typ list) option
 (** [listt] deconstructs the expression

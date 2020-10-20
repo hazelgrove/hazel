@@ -51,8 +51,8 @@ val bind_spec : type_ctx -> exp -> bind_spec
 val sub_bind_spec : bind_spec -> bind_spec
 (** [sub_bind_spec b] "decreases" the binding specification [b]. In
     particular, if [b] is a binding specification for the argument of some
-    function, then [sub_bind_spec b] will be a binding specification for {i
-    decreasing} on that function. *)
+    function, then [sub_bind_spec b] will be a binding specification for
+    {i decreasing} on that function. *)
 
 val structurally_decreasing_bind_spec :
   head_spec:bind_spec -> arg_spec:bind_spec -> bool
