@@ -96,6 +96,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
+  | AssertLit(_, _) => CursorPosition.text_cursors(6)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
       let colon_positions =
@@ -168,6 +169,7 @@ and is_before_zoperand =
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
+  | CursorE(cursor, AssertLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
@@ -253,6 +255,7 @@ and is_after_zoperand =
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
+  | CursorE(cursor, AssertLit(_)) => cursor == OnText(6)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
@@ -302,6 +305,7 @@ and is_outer_zoperand =
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
+  | CursorE(_, AssertLit(_))
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
@@ -342,6 +346,7 @@ and place_before_operand = operand =>
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
+  | AssertLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Lam(_)
   | Inj(_)
@@ -382,6 +387,7 @@ and place_after_operand = operand =>
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
+  | AssertLit(_) => CursorE(OnText(6), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
@@ -526,33 +532,32 @@ and set_err_status_zoperand = (err, zoperand) =>
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
-let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
-  ze |> mk_inconsistent_zblock(u_gen)
+let rec mk_inconsistent = (id_gen: IDGen.t, ze: t): (t, IDGen.t) =>
+  ze |> mk_inconsistent_zblock(id_gen)
 and mk_inconsistent_zblock =
-    (u_gen: MetaVarGen.t, (prefix, zline, suffix): zblock)
-    : (zblock, MetaVarGen.t) =>
+    (id_gen: IDGen.t, (prefix, zline, suffix): zblock): (zblock, IDGen.t) =>
   switch (suffix |> ListUtil.split_last_opt) {
   | None =>
-    let (zconclusion, u_gen) =
-      zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(u_gen);
-    ((prefix, ExpLineZ(zconclusion), []), u_gen);
+    let (zconclusion, id_gen) =
+      zline |> ZLine.force_get_zopseq |> mk_inconsistent_zopseq(id_gen);
+    ((prefix, ExpLineZ(zconclusion), []), id_gen);
   | Some((suffix_leading, suffix_last)) =>
-    let (conclusion, u_gen) =
+    let (conclusion, id_gen) =
       suffix_last
       |> UHExp.Line.force_get_opseq
-      |> UHExp.mk_inconsistent_opseq(u_gen);
-    ((prefix, zline, suffix_leading @ [ExpLine(conclusion)]), u_gen);
+      |> UHExp.mk_inconsistent_opseq(id_gen);
+    ((prefix, zline, suffix_leading @ [ExpLine(conclusion)]), id_gen);
   }
-and mk_inconsistent_zopseq = (u_gen, zopseq) =>
-  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, u_gen, zopseq)
-and mk_inconsistent_zoperand = (u_gen, zoperand) =>
+and mk_inconsistent_zopseq = (id_gen, zopseq) =>
+  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, id_gen, zopseq)
+and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   switch (zoperand) {
   | CursorE(cursor, operand) =>
-    let (operand, u_gen) = operand |> UHExp.mk_inconsistent_operand(u_gen);
-    (CursorE(cursor, operand), u_gen);
+    let (operand, id_gen) = operand |> UHExp.mk_inconsistent_operand(id_gen);
+    (CursorE(cursor, operand), id_gen);
   | ParenthesizedZ(zbody) =>
-    let (zbody, u_gen) = mk_inconsistent(u_gen, zbody);
-    (ParenthesizedZ(zbody), u_gen);
+    let (zbody, id_gen) = mk_inconsistent(id_gen, zbody);
+    (ParenthesizedZ(zbody), id_gen);
   /* already in hole */
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
@@ -560,7 +565,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, u_gen)
+  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (zoperand, id_gen)
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -579,21 +584,21 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       _,
     )
   | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
-    (zoperand, u_gen);
+    (zoperand, id_gen);
   };
-let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-  (place_before_operand(hole), u_gen);
+let new_EmptyHole = (id_gen: IDGen.t): (zoperand, IDGen.t) => {
+  let (hole, id_gen) = UHExp.new_EmptyHole(id_gen);
+  (place_before_operand(hole), id_gen);
 };
 
-let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
-  let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-  let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
+let empty_zrule = (id_gen: IDGen.t): (zrule, IDGen.t) => {
+  let (zp, id_gen) = ZPat.new_EmptyHole(id_gen);
+  let (clause, id_gen) = UHExp.new_EmptyHole(id_gen);
   let zrule = RuleZP(ZOpSeq.wrap(zp), UHExp.Block.wrap(clause));
-  (zrule, u_gen);
+  (zrule, id_gen);
 };
 
 let is_inconsistent = zoperand =>
@@ -728,7 +733,8 @@ and move_cursor_left_zoperand =
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
+      AssertLit(_),
     ) =>
     // invalid cursor position
     None
@@ -944,7 +950,8 @@ and move_cursor_right_zoperand =
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
+      AssertLit(_),
     ) =>
     // invalid cursor position
     None

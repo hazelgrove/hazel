@@ -33,7 +33,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidText(_)
   | Keyword(_)
   | BoolLit(_)
+  | FailedAssert(_)
+  | AssertLit(_)
   | IntLit(_)
+  | Sequence(_, _)
   | FloatLit(_)
   | ListNil(_)
   | Inj(_)
@@ -100,6 +103,7 @@ let rec mk =
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
+          map: AssertMap.t,
           d: DHExp.t,
         )
         : DHDoc_common.t => {
@@ -184,6 +188,20 @@ let rec mk =
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+      | AssertLit(n) =>
+        switch (AssertMap.lookup(n, map)) {
+        | Some(a) =>
+          switch (AssertMap.check(a)) {
+          | Pass => Doc.text("assert") |> Doc.annot(DHAnnot.AssertPass)
+          | Fail => Doc.text("assert") |> Doc.annot(DHAnnot.AssertFail)
+          | Indet => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
+          | Comp => Doc.text("assert") |> Doc.annot(DHAnnot.AssertComp)
+          }
+        | None => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
+        }
+      | Sequence(d1, d2) =>
+        let (doc1, doc2) = (go'(d1), go'(d2));
+        DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
@@ -223,6 +241,14 @@ let rec mk =
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
+      | FailedAssert(_, x) =>
+        //let (d_doc, _) = go'(x);
+        let (d_doc, _) = go'(x);
+        let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
+        /*let decoration =
+          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);*/
+        //hcats([d_doc2, _]);
+        d_doc2;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
           mk_cast(go(~enforce_inline, ddef));
@@ -345,7 +371,13 @@ and mk_rule =
     : DHDoc_common.t => {
   open Doc;
   let mk' =
-    mk(~show_casts, ~show_fn_bodies, ~show_case_clauses, ~selected_instance);
+    mk(
+      ~show_casts,
+      ~show_fn_bodies,
+      ~show_case_clauses,
+      ~selected_instance,
+      AssertMap.empty,
+    );
   let hidden_clause =
     annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
   let clause_doc =

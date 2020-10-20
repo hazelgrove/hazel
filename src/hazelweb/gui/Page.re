@@ -167,8 +167,15 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~selected_instance,
                     ~width=80,
                     model.compute_results.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
+                      ? program |> Program.get_expansion  // change expansion
                       : program |> Program.get_result |> Result.get_dhexp,
+                    model.compute_results.show_unevaluated_expansion
+                      ? AssertMap.empty
+                      : snd(
+                          program
+                          |> Program.get_result
+                          |> Result.get_dhexp_assert,
+                        ),
                   ),
                 ],
               ),

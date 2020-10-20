@@ -250,23 +250,24 @@ let key_handlers =
 };
 
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
-let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
+let rec view_of_box = (program: Program.t, box: UHBox.t): list(Vdom.Node.t) => {
   Vdom.(
     switch (WeakMap.get(box_table, box)) {
     | Some(vs) => vs
     | None =>
       switch (box) {
       | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+      | HBox(boxes) =>
+        boxes |> List.map(view_of_box(program)) |> List.flatten
       | VBox(boxes) =>
         let vs =
           boxes
-          |> List.map(view_of_box)
+          |> List.map(view_of_box(program))
           |> ListUtil.join([Node.br([])])
           |> List.flatten;
         [Node.div([Attr.classes(["VBox"])], vs)];
       | Annot(annot, box) =>
-        let vs = view_of_box(box);
+        let vs = view_of_box(program, box);
         switch (annot) {
         | Token({shape, _}) =>
           let clss =
@@ -286,13 +287,37 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
           ];
         | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
         | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | AssertNum({num}) =>
+          let assert_map = snd(Program.get_result(program));
+          switch (AssertMap.lookup(num, assert_map)) {
+          | Some(a) =>
+            switch (AssertMap.check(a)) {
+            | Pass => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
+              ]
+
+            | Fail => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
+              ]
+
+            | Comp => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
+              ]
+
+            | Indet => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+              ]
+            }
+          | None => [
+              Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+            ]
+          };
         | _ => vs
         };
       }
     }
   );
 };
-
 let root_id = "code-root";
 
 let focus = () => {
@@ -313,7 +338,6 @@ let view =
     measure,
     () => {
       open Vdom;
-
       let l =
         Program.get_layout(
           ~measure_program_get_doc=false,
@@ -322,7 +346,7 @@ let view =
           program,
         );
 
-      let code_text = view_of_box(UHBox.mk(l));
+      let code_text = view_of_box(program, UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(~font_metrics, dpaths, l);

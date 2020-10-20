@@ -48,6 +48,10 @@ let get_steps = program => {
   let (steps, _) = program |> get_path;
   steps;
 };
+let get_id_gen = program => {
+  let (_, _, id_gen) = program.edit_state;
+  id_gen;
+};
 
 exception MissingCursorInfo;
 let cursor_info =
@@ -61,6 +65,36 @@ let get_cursor_info = (program: t) => {
   |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
+
+exception DoesNotElaborate;
+let expand =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
+  );
+let get_expansion = (program: t): DHExp.t =>
+  switch (program |> get_uhexp |> expand) {
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
+  };
+
+exception InvalidInput;
+
+let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+
+let get_result = (program: t): (Result.t, AssertMap.t) =>
+  //check if map is resetted here
+  switch (AssertMap.empty |> evaluate(get_expansion(program))) {
+  | (InvalidInput(_), _) => raise(InvalidInput)
+  | (BoxedValue(d), assert_map) =>
+    let (d_renumbered, hii) =
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+    ((d_renumbered, hii, BoxedValue(d_renumbered)), assert_map);
+  | (Indet(d), assert_map) =>
+    let (d_renumbered, hii) =
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+    ((d_renumbered, hii, Indet(d_renumbered)), assert_map);
+  };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
@@ -92,34 +126,6 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   {current_term, err_holes, var_uses, var_err_holes};
 };
 
-exception DoesNotElaborate;
-let expand =
-  Memo.general(
-    ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
-  );
-let get_expansion = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand) {
-  | DoesNotElaborate => raise(DoesNotElaborate)
-  | Elaborates(d, _, _) => d
-  };
-
-exception InvalidInput;
-
-let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
-  switch (program |> get_expansion |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) =>
-    let (d_renumbered, hii) =
-      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, BoxedValue(d_renumbered));
-  | Indet(d) =>
-    let (d_renumbered, hii) =
-      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, Indet(d_renumbered));
-  };
-
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
@@ -128,12 +134,13 @@ let perform_edit_action = (a, program) => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (ze, ty, u_gen) = new_edit_state;
+    let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze), false)) {
-        (ze, ty, MetaVarGen.init);
+        print_endline("hit here2");
+        (ze, ty, IDGen.init_hole(id_gen));
       } else {
-        (ze, ty, u_gen);
+        (ze, ty, id_gen);
       };
     program |> put_edit_state(new_edit_state);
   };

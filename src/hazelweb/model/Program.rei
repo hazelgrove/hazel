@@ -23,6 +23,7 @@ let get_uhexp: t => UHExp.t;
 
 let get_steps: t => CursorPath_common.steps;
 
+let get_id_gen: t => IDGen.t;
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
  * (indicates a bug, either in that function or in Action
@@ -46,7 +47,7 @@ let get_expansion: t => DHExp.t;
  * because Action needs to return a well-typed edit state)
  */
 exception InvalidInput;
-let get_result: t => Result.t;
+let get_result: t => (Result.t, AssertMap.t);
 
 /**
  * Raised when an attempted edit action does not succeed
