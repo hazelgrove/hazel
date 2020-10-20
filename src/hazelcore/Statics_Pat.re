@@ -218,7 +218,7 @@ and ana_operand =
       ana(ctx, p1, ty1);
     }
   | Parenthesized(p) => ana(ctx, p, ty)
-  | TypeAnn(NotInHole, op, ann) => ana_operand(ctx, op, UHTyp.expand(ann))
+  | TypeAnn(NotInHole, op, _ann) => ana_operand(ctx, op, ty)
   };
 
 let rec syn_nth_type_mode =
