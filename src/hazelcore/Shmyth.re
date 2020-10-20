@@ -62,3 +62,35 @@ let rec styp_to_htyp: Smyth.Lang.typ => option(HTyp.t) =
       let%map.Option t2' = styp_to_htyp(t2);
       HTyp.Arrow(t1', t2');
     };
+
+[@warning "-32"]
+[@warning "-27"]
+let smexp_to_operand: Smyth.Lang.exp => option(UHExp.operand) =
+  fun
+  | EFix(name_opt, param, body) => failwith(__LOC__)
+  | EApp(special, head, arg) => failwith(__LOC__)
+  | EVar(name) => {
+      let in_hole = /* NotInHole */ failwith(__LOC__);
+      let in_var_hole = /* NotInVarHole */ failwith(__LOC__);
+      Some(Var(in_hole, in_var_hole, name));
+    }
+  | ETuple(args) => failwith(__LOC__)
+  | EProj(n, i, arg) => failwith(__LOC__)
+  | ECtor(name, type_args, arg) => failwith(__LOC__)
+  | ECase(scrutinee, branches) => failwith(__LOC__)
+  | EHole(name) => Some(EmptyHole(name))
+  | EAssert(lhs, rhs) => failwith(__LOC__)
+  | ETypeAnnotation(an_exp, a_typ) => failwith(__LOC__);
+
+[@warning "-32"]
+[@warning "-27"]
+let smres_to_operand: Smyth.Lang.res => option(UHExp.operand) =
+  fun
+  | RFix(env, name_opt, param, body) => failwith(__LOC__)
+  | RTuple(args) => failwith(__LOC__)
+  | RCtor(name, arg) => failwith(__LOC__)
+  | RHole(_env, name) => Some(EmptyHole(name))
+  | RApp(head, arg) => failwith(__LOC__)
+  | RProj(n, i, arg) => failwith(__LOC__)
+  | RCase(env, scrutinee, branches) => failwith(__LOC__)
+  | RCtorInverse(name, arg) => failwith(__LOC__);
