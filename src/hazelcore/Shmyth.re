@@ -17,6 +17,8 @@ let htyp_to_styp: HTyp.t => Smyth.Lang.typ = (
   failwith(__LOC__): HTyp.t => Smyth.Lang.typ
 );
 
+// d: disable error on inexhaustive match for now
+[@warning "-8"]
 let rec styp_to_htyp: Smyth.Lang.typ => option(HTyp.t) =
   fun
   | TArr(t1, t2) => {
