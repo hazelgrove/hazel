@@ -792,3 +792,9 @@ let ana_fix_holes_z =
        );
   (zp, ctx, u_gen);
 };
+
+let syn_and_join = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(HTyp.t) =>
+  switch (syn(ctx, p)) {
+  | None => Some(ty)
+  | Some((ty1_p, _)) => HTyp.join(LUB, ty, ty1_p)
+  };

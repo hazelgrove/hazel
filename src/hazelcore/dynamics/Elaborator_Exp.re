@@ -782,21 +782,20 @@ and syn_elab_operand =
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Lam(NotInHole, p, body) =>
-    let ty1 =
-      switch (Statics_Pat.syn(ctx, p)) {
-      | Some((ty, _)) => ty
-      | None => HTyp.Hole // shouldn't happen?
-      };
-    switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, _, ctx, delta) =>
-      switch (syn_elab(ctx, delta, body)) {
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => DoesNotElaborate
+    | Some((ty1, _)) =>
+      switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Lam(dp, ty1, d1);
-        Elaborates(d, Arrow(ty1, ty2), delta);
+      | Elaborates(dp, _, ctx, delta) =>
+        switch (syn_elab(ctx, delta, body)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d1, ty2, delta) =>
+          let d = DHExp.Lam(dp, ty1, d1);
+          Elaborates(d, Arrow(ty1, ty2), delta);
+        }
       }
-    };
+    }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1153,34 +1152,17 @@ and ana_elab_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
-      // TODO (andrew): join here instead of doing consistency check
-      // large branch can be eliminated
-      switch (Statics_Pat.syn(ctx, p)) {
-      | Some((ty1_ann, ctx)) =>
-        switch (HTyp.consistent(ty1_ann, ty1_given)) {
-        | false => DoesNotElaborate
-        | true =>
-          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(dp, ty1p, ctx, delta) =>
-            switch (ana_elab(ctx, delta, body, ty2)) {
-            | DoesNotElaborate => DoesNotElaborate
-            | Elaborates(d1, ty2, delta) =>
-              let ty = HTyp.Arrow(ty1p, ty2);
-              let d = DHExp.Lam(dp, ty1p, d1);
-              Elaborates(d, ty, delta);
-            }
-          }
-        }
-      | None =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_given)) {
+      switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
+      | None => DoesNotElaborate
+      | Some(ty1_join) =>
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_join)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(dp, ty1p, ctx, delta) =>
+        | Elaborates(dp, ty1_p, ctx, delta) =>
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Lam(dp, ty1p, d1);
+            let ty = HTyp.Arrow(ty1_p, ty2);
+            let d = DHExp.Lam(dp, ty1_p, d1);
             Elaborates(d, ty, delta);
           }
         }

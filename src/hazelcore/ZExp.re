@@ -34,16 +34,6 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
-// no longer necessary? - andrew
-let prune_type_annotation: zoperand => zoperand = x => x;
-/*
-   fun
-   | CursorE(OnDelim(k, _) as cursor, Lam(err, p, Some(_), body)) when k != 1 =>
-     CursorE(cursor, Lam(err, p, None, body))
-   | LamZP(err, zp, Some(_), body) => LamZP(err, zp, None, body)
-   | LamZE(err, p, Some(_), zbody) => LamZE(err, p, None, zbody)
-   | zoperand => zoperand;
- */
 let line_can_be_swapped = (line: zline): bool =>
   switch (line) {
   | CursorL(_)
