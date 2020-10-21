@@ -873,14 +873,13 @@ and ana_cursor_info_zoperand =
       |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
-    | Lam(NotInHole, _, _) =>
+    | Lam(NotInHole, p, _) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => None
       | Some((ty1, ty2)) =>
-        switch (ann) {
+        switch (Statics_Pat.syn(ctx, p)) {
         | None => Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
-        | Some(ann) =>
-          let ann_ty = ann |> UHTyp.expand;
+        | Some((ann_ty, _)) =>
           HTyp.consistent(ann_ty, ty1)
             ? Some(
                 CursorInfo_common.mk(
@@ -889,7 +888,7 @@ and ana_cursor_info_zoperand =
                   cursor_term,
                 ),
               )
-            : None;
+            : None
         }
       }
     } /* zipper cases */
@@ -921,8 +920,8 @@ and ana_cursor_info_zoperand =
     | None => None
     | Some((ty1_given, _)) =>
       let ty1 =
-        switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
+        | Some((ty_zp, _)) => ty_zp
         | None => ty1_given
         };
       switch (
@@ -940,8 +939,8 @@ and ana_cursor_info_zoperand =
     | None => None
     | Some((ty1_given, ty2)) =>
       let ty1 =
-        switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        switch (Statics_Pat.syn(ctx, p)) {
+        | Some((ty_p, _)) => ty_p
         | None => ty1_given
         };
       switch (Statics_Pat.ana(ctx, p, ty1)) {

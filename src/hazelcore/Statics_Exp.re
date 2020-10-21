@@ -53,8 +53,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
         // ensure we leverage type information from both p and def
         switch (HTyp.join(LUB, ty_def, ty_p)) {
         | None => None
-        | Some(ty) =>
-          Statics_Pat.ana(ctx, p, ty);
+        | Some(ty) => Statics_Pat.ana(ctx, p, ty)
         }
       }
     | None =>
@@ -138,7 +137,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
+  | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
@@ -149,7 +148,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
@@ -182,10 +181,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
-  | Lam(NotInHole, p, ann, body) =>
+  | Lam(NotInHole, p, body) =>
     let ty1 =
-      switch (ann) {
-      | Some(uty) => UHTyp.expand(uty)
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty, _)) => ty
       | None => HTyp.Hole
       };
     switch (Statics_Pat.ana(ctx, p, ty1)) {
@@ -354,7 +353,7 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
+  | Lam(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
@@ -368,7 +367,7 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
@@ -394,13 +393,12 @@ and ana_operand =
         None;
       }
     };
-  | Lam(NotInHole, p, ann, body) =>
+  | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty1_ann, _)) =>
         switch (HTyp.consistent(ty1_ann, ty1_given)) {
         | false => None
         | true =>
@@ -408,7 +406,7 @@ and ana_operand =
           | None => None
           | Some(ctx) => ana(ctx, body, ty2)
           }
-        };
+        }
       | None =>
         switch (Statics_Pat.ana(ctx, p, ty1_given)) {
         | None => None
@@ -943,17 +941,17 @@ and syn_fix_holes_operand =
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
-  | Lam(_, p, ann, body) =>
+  | Lam(_, p, body) =>
     let ty1 =
-      switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty, _)) => ty
       | None => HTyp.Hole
       };
     let (p, ctx, u_gen) =
       Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
     let (body, ty2, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
-    (Lam(NotInHole, p, ann, body), Arrow(ty1, ty2), u_gen);
+    (Lam(NotInHole, p, body), Arrow(ty1, ty2), u_gen);
   | Inj(_, side, body) =>
     let (body, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1357,12 +1355,11 @@ and ana_fix_holes_operand =
     let (body, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), u_gen);
-  | Lam(_, p, ann, def) =>
+  | Lam(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty1_ann, _)) =>
         if (HTyp.consistent(ty1_ann, ty1_given)) {
           let (p, ctx, u_gen) =
             Statics_Pat.ana_fix_holes(
@@ -1374,7 +1371,7 @@ and ana_fix_holes_operand =
             );
           let (def, u_gen) =
             ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-          (UHExp.Lam(NotInHole, p, ann, def), u_gen);
+          (UHExp.Lam(NotInHole, p, def), u_gen);
         } else {
           let (e', _, u_gen) =
             syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -1383,7 +1380,7 @@ and ana_fix_holes_operand =
             UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
             u_gen,
           );
-        };
+        }
       | None =>
         let (p, ctx, u_gen) =
           Statics_Pat.ana_fix_holes(
@@ -1395,7 +1392,7 @@ and ana_fix_holes_operand =
           );
         let (def, u_gen) =
           ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-        (UHExp.Lam(NotInHole, p, ann, def), u_gen);
+        (UHExp.Lam(NotInHole, p, def), u_gen);
       }
     | None =>
       let (e', _, u_gen) =

@@ -10,7 +10,6 @@ let holey_lambda: UHExp.t = {
         Block.wrap(
           lam(
             OpSeq.wrap(UHPat.EmptyHole(0)),
-            ~ann=OpSeq.wrap(UHTyp.Hole),
             Block.wrap(UHExp.EmptyHole(1)),
           ),
         ),

@@ -680,7 +680,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -699,7 +699,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
@@ -781,11 +781,11 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | Lam(NotInHole, p, ann, body) =>
+  | Lam(NotInHole, p, body) =>
     let ty1 =
-      switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
-      | None => HTyp.Hole
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty, _)) => ty
+      | None => HTyp.Hole // shouldn't happen?
       };
     switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1100,7 +1100,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+  | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
@@ -1128,7 +1128,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _, _)
+  | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
@@ -1149,13 +1149,14 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | Lam(NotInHole, p, ann, body) =>
+  | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+      // TODO (andrew): join here instead of doing consistency check
+      // large branch can be eliminated
+      switch (Statics_Pat.syn(ctx, p)) {
+      | Some((ty1_ann, ctx)) =>
         switch (HTyp.consistent(ty1_ann, ty1_given)) {
         | false => DoesNotElaborate
         | true =>
@@ -1170,16 +1171,16 @@ and ana_elab_operand =
               Elaborates(d, ty, delta);
             }
           }
-        };
+        }
       | None =>
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_given)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(dp, ty1, ctx, delta) =>
+        | Elaborates(dp, ty1p, ctx, delta) =>
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1, ty2);
-            let d = DHExp.Lam(dp, ty1, d1);
+            let ty = HTyp.Arrow(ty1p, ty2);
+            let d = DHExp.Lam(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }
