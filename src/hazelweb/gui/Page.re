@@ -114,7 +114,7 @@ let parse_test =
     Node.div(
       [],
       [
-        Node.input(
+        Node.textarea(
           [
             Attr.id("parse_test"),
             Attr.classes(["page"]),

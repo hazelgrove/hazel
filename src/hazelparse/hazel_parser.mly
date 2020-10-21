@@ -42,7 +42,7 @@
 main:
   | e = expr EOF { [e] }
   | l = let_binding EOF { [l] }
-  | l = let_binding expr+ EOF { List.append [l] $2 }
+  | l = let_binding main EOF { List.append [l] $2 }
 ;
 
 let_binding:

@@ -10,12 +10,14 @@ let _ =
 }
 
 let white = [' ']+
+let newline = ['\n']
 let digit = ['0'-'9']
 let numlit = digit+
 let lowercase_ident = ['a'-'z' '_']+
 
 rule read =
   parse
+  | newline
   | white { read lexbuf }
   | lowercase_ident as id {
     try
