@@ -25,9 +25,11 @@
 %token MULT DIV
 %token COLON
 %token EQUAL
+%token PERIOD
 %token EOF
 %token <string> IDENT
 %token LPAREN RPAREN
+%token LBRACE RBRACE
 %token LAMBDA
 
 %left PLUS MINUS
@@ -63,7 +65,13 @@ expr_:
   | expr_variable { UHExp.mk_OpSeq $1 }
   | LPAREN expr RPAREN { mk_parenthesized $2 }
   | expr_ op expr_ { mk_binop $1 $2 $3 }
+  | fn { UHExp.mk_OpSeq $1 }
 ;
+
+fn:
+  | LAMBDA p = pat PERIOD LBRACE e = expr RBRACE {
+    mk_seq (UHExp.Lam(ErrStatus.NotInHole, p, None, [e]))
+  }
 
 %inline op:
   | PLUS { Operators_Exp.Plus }

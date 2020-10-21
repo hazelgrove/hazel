@@ -28,9 +28,12 @@ rule read =
   | "*" { MULT }
   | "/" { DIV }
   | "=" { EQUAL }
+  | "." { PERIOD }
   | ":" { COLON }
   | "(" { LPAREN }
   | ")" { RPAREN }
+  | "{" { LBRACE }
+  | "}" { RBRACE }
   | "\\" { LAMBDA }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }
