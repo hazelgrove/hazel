@@ -1027,9 +1027,6 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, def)) =>
-    //switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-    //| None => Failed
-    //| Some((_, ctx)) =>
     switch (Action_Pat.syn_perform(ctx, u_gen, a, zp)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
@@ -1037,7 +1034,7 @@ and syn_perform_line =
       let (recursive_ctx, _) =
         Statics_Exp.ctx_for_let(ctx, ZPat.erase(zp), ty_p, def);
       switch (Statics_Exp.syn(recursive_ctx, def)) {
-      | None => Failed // ??? what do
+      | None => Failed // TODO(andrew): is this right?
       | Some(ty_def) =>
         let ty =
           switch (HTyp.join(LUB, ty_def, ty_p)) {
@@ -1051,7 +1048,6 @@ and syn_perform_line =
         let new_zline = ZExp.LetLineZP(new_zp, new_def);
         Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
       };
-    //}
     }
 
   | (_, LetLineZE(p, zdef)) =>
@@ -1514,7 +1510,7 @@ and syn_perform_operand =
       | Lam(_) =>
         switch (k) {
         | 0
-        | 1 => ZExp.place_before // TODO(andrew): does this make sense?
+        | 1 => ZExp.place_before
         | _two => ZExp.place_after
         }
       | _ =>
@@ -1778,38 +1774,13 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, LamZP(_, zp, body)) =>
-    let ty1 =
-      switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-      | Some((ty, _)) => ty
-      | None => HTyp.Hole
-      };
-    switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(
-        ctx,
-        Action_common.escape(side),
-        (zoperand, ty, u_gen),
-      )
-    | Succeeded((zp, ctx, u_gen)) =>
-      let (body, ty2, u_gen) = Statics_Exp.syn_fix_holes(ctx, u_gen, body);
-      let new_ty = HTyp.Arrow(ty1, ty2);
-      let new_ze = ZExp.ZBlock.wrap(LamZP(NotInHole, zp, body));
-      Succeeded(SynDone((new_ze, new_ty, u_gen)));
-    };
-  | (_, LamZE(_, p, zbody)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
-    | Some((_, ty2)) =>
-      let ty1 =
-        switch (Statics_Pat.syn(ctx, p)) {
-        | Some((ty, _)) => ty
-        | None => HTyp.Hole
-        };
-      switch (Statics_Pat.ana(ctx, p, ty1)) {
+    | Some((ty1_given, _)) =>
+      switch (Statics_Pat.syn_and_join(ctx, ZPat.erase(zp), ty1_given)) {
       | None => Failed
-      | Some(ctx_body) =>
-        switch (syn_perform(ctx_body, a, (zbody, ty2, u_gen))) {
+      | Some(ty1) =>
+        switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
         | Failed => Failed
         | CursorEscaped(side) =>
           syn_perform_operand(
@@ -1817,11 +1788,39 @@ and syn_perform_operand =
             Action_common.escape(side),
             (zoperand, ty, u_gen),
           )
-        | Succeeded((zbody, ty2, u_gen)) =>
-          let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
-          Succeeded(SynDone((new_ze, Arrow(ty1, ty2), u_gen)));
+        | Succeeded((zp, ctx, u_gen)) =>
+          let (body, ty2, u_gen) =
+            Statics_Exp.syn_fix_holes(ctx, u_gen, body);
+          let new_ty = HTyp.Arrow(ty1, ty2);
+          let new_ze = ZExp.ZBlock.wrap(LamZP(NotInHole, zp, body));
+          Succeeded(SynDone((new_ze, new_ty, u_gen)));
         }
-      };
+      }
+    }
+  | (_, LamZE(_, p, zbody)) =>
+    switch (HTyp.matched_arrow(ty)) {
+    | None => Failed
+    | Some((ty1_given, ty2)) =>
+      switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
+      | None => Failed
+      | Some(ty1) =>
+        switch (Statics_Pat.ana(ctx, p, ty1)) {
+        | None => Failed
+        | Some(ctx_body) =>
+          switch (syn_perform(ctx_body, a, (zbody, ty2, u_gen))) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            syn_perform_operand(
+              ctx,
+              Action_common.escape(side),
+              (zoperand, ty, u_gen),
+            )
+          | Succeeded((zbody, ty2, u_gen)) =>
+            let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
+            Succeeded(SynDone((new_ze, Arrow(ty1, ty2), u_gen)));
+          }
+        }
+      }
     }
   | (_, InjZ(_, side, zbody)) =>
     switch (ty) {
@@ -2816,12 +2815,7 @@ and ana_perform_operand =
                 [] as suffix,
               ) => (
                 prefix,
-                ZExp.ExpLineZ(
-                  ZOpSeq(
-                    skel,
-                    ZOperand(ZExp.prune_type_annotation(zoperand), surround),
-                  ),
-                ),
+                ZExp.ExpLineZ(ZOpSeq(skel, ZOperand(zoperand, surround))),
                 suffix,
               )
             | _ => ze'
@@ -2920,7 +2914,7 @@ and ana_perform_operand =
       | Lam(_) =>
         switch (k) {
         | 0
-        | 1 => ZExp.place_before // TODO (andrew): does this make sense?
+        | 1 => ZExp.place_before
         | _two => ZExp.place_after
         }
       | _ =>
