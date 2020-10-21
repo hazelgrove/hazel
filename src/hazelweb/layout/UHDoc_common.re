@@ -85,9 +85,8 @@ module Delim = {
   let close_Inj = (): t => mk(~index=1, ")");
 
   let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);
-  let colon_Lam = (): t => mk(~index=1, ":");
-  let open_Lam = (): t => mk(~index=2, ".{");
-  let close_Lam = (): t => mk(~index=3, "}");
+  let open_Lam = (): t => mk(~index=1, ".{");
+  let close_Lam = (): t => mk(~index=2, "}");
 
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
@@ -338,27 +337,12 @@ let mk_Inj =
   |> annot_Operand(~sort);
 };
 
-let mk_Lam =
-    (p: formatted_child, ann: option(formatted_child), body: formatted_child)
-    : t => {
+let mk_Lam = (p: formatted_child, body: formatted_child): t => {
   let open_group = {
     let lam_delim = Delim.sym_Lam();
     let open_delim = Delim.open_Lam();
-    let doc =
-      switch (ann) {
-      | None =>
-        Doc.hcats([lam_delim, p |> pad_closed_child(~sort=Pat), open_delim])
-      | Some(ann) =>
-        let colon_delim = Delim.colon_Lam();
-        Doc.hcats([
-          lam_delim,
-          p |> pad_closed_child(~sort=Pat),
-          colon_delim,
-          ann |> pad_closed_child(~sort=Typ),
-          open_delim,
-        ]);
-      };
-    doc |> annot_Tessera;
+    Doc.hcats([lam_delim, p |> pad_closed_child(~sort=Pat), open_delim])
+    |> annot_Tessera;
   };
   let close_group = Delim.close_Lam() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
