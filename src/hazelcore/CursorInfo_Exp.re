@@ -974,30 +974,49 @@ and syn_cursor_info_rule =
   | CursorR(_) =>
     Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
   | RuleZP(zp, clause) =>
-    switch (
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
-    ) {
+    // andrew -------
+    switch (Statics_Pat.syn_and_join(ctx, ZPat.erase(zp), pat_ty)) {
     | None => None
-    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-    | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
-      Some(deferred_ci(uses));
+    | Some(join_ty) =>
+      // ----------
+      switch (
+        CursorInfo_Pat.ana_cursor_info(
+          ~steps=steps @ [0],
+          ctx,
+          zp,
+          join_ty /*pat_ty*/,
+        )
+      ) {
+      | None => None
+      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
+        let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
+        Some(deferred_ci(uses));
+      }
     }
+
   | RuleZE(p, zclause) =>
-    switch (Statics_Pat.ana(ctx, p, pat_ty)) {
+    // andrew -------
+    switch (Statics_Pat.syn_and_join(ctx, p, pat_ty)) {
     | None => None
-    | Some(ctx) =>
-      let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause);
-      /* Check if the cursor is on the outermost form of the clause */
-      let is_outer = ZExp.is_outer(zclause);
-      switch (is_outer, cursor_info) {
-      | (_, None) => None
-      | (false, _) => cursor_info
-      | (true, Some({typed, ctx, uses, _})) =>
-        let typed = CursorInfo_common.SynBranchClause(lub, typed, rule_index);
-        let cursor_term = extract_from_zrule(zrule);
-        Some({cursor_term, typed, ctx, uses});
-      };
+    | Some(join_ty) =>
+      // ----------
+      switch (Statics_Pat.ana(ctx, p, join_ty /*pat_ty*/)) {
+      | None => None
+      | Some(ctx) =>
+        let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause);
+        /* Check if the cursor is on the outermost form of the clause */
+        let is_outer = ZExp.is_outer(zclause);
+        switch (is_outer, cursor_info) {
+        | (_, None) => None
+        | (false, _) => cursor_info
+        | (true, Some({typed, ctx, uses, _})) =>
+          let typed =
+            CursorInfo_common.SynBranchClause(lub, typed, rule_index);
+          let cursor_term = extract_from_zrule(zrule);
+          Some({cursor_term, typed, ctx, uses});
+        };
+      }
     }
   }
 and ana_cursor_info_rule =
@@ -1013,19 +1032,36 @@ and ana_cursor_info_rule =
   | CursorR(_) =>
     Some(CursorInfo_common.mk(OnRule, ctx, extract_from_zrule(zrule)))
   | RuleZP(zp, clause) =>
-    switch (
-      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, pat_ty)
-    ) {
+    // andrew -------
+    switch (Statics_Pat.syn_and_join(ctx, ZPat.erase(zp), pat_ty)) {
     | None => None
-    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-    | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
-      Some(deferred_ci(uses));
+    | Some(join_ty) =>
+      // ----------
+      switch (
+        CursorInfo_Pat.ana_cursor_info(
+          ~steps=steps @ [0],
+          ctx,
+          zp,
+          join_ty /*pat_ty*/,
+        )
+      ) {
+      | None => None
+      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
+        let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, clause);
+        Some(deferred_ci(uses));
+      }
     }
   | RuleZE(p, zclause) =>
-    switch (Statics_Pat.ana(ctx, p, pat_ty)) {
+    // andrew -------
+    switch (Statics_Pat.syn_and_join(ctx, p, pat_ty)) {
     | None => None
-    | Some(ctx) =>
-      ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty)
+    | Some(join_ty) =>
+      // ----------
+      switch (Statics_Pat.ana(ctx, p, join_ty /*pat_ty*/)) {
+      | None => None
+      | Some(ctx) =>
+        ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty)
+      }
     }
   };

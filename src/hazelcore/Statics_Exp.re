@@ -1012,8 +1012,23 @@ and syn_fix_holes_rule =
     )
     : (UHExp.rule, MetaVarGen.t, HTyp.t) => {
   let Rule(p, clause) = rule;
+  // andrew:
+  let (p, ty_p, ctx, u_gen) =
+    Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+  let ty_join =
+    switch (HTyp.join(LUB, pat_ty, ty_p)) {
+    | None => pat_ty
+    | Some(ty) => ty
+    };
+  //----
   let (p, ctx, u_gen) =
-    Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, pat_ty);
+    Statics_Pat.ana_fix_holes(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      p,
+      ty_join /*pat_ty*/,
+    );
   let (clause, clause_ty, u_gen) =
     syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause);
   (Rule(p, clause), u_gen, clause_ty);
@@ -1057,8 +1072,23 @@ and ana_fix_holes_rule =
       clause_ty: HTyp.t,
     )
     : (UHExp.rule, MetaVarGen.t) => {
+  // andrew:
+  let (p, ty_p, ctx, u_gen) =
+    Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+  let ty_join =
+    switch (HTyp.join(LUB, pat_ty, ty_p)) {
+    | None => pat_ty
+    | Some(ty) => ty
+    };
+  //----
   let (p, ctx, u_gen) =
-    Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, pat_ty);
+    Statics_Pat.ana_fix_holes(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      p,
+      ty_join /*pat_ty*/,
+    );
   let (clause, u_gen) =
     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause, clause_ty);
   (Rule(p, clause), u_gen);
