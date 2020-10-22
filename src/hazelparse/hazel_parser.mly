@@ -1,5 +1,8 @@
 %{
 
+  let mk_expline e =
+    UHExp.ExpLine e
+
   let mk_binop l op r : (UHExp.operand, Operators_Exp.t) OpSeq.t =
     let OpSeq.OpSeq(_, l) = l in
     let OpSeq.OpSeq(_, r) = r in
@@ -7,6 +10,7 @@
     UHExp.mk_OpSeq seq
 
   let mk_parenthesized e =
+    let e = mk_expline e in
     let seq = Seq.S(UHExp.Parenthesized([e]), Seq.E) in
     UHExp.mk_OpSeq seq
 
@@ -40,55 +44,49 @@
 %%
 
 main:
-  | e = expr EOF { [e] }
+  | e = expr EOF { [mk_expline e] }
   | l = let_binding EOF { [l] }
   | l = let_binding main EOF { List.append [l] $2 }
 ;
 
 let_binding:
-  | LET pat EQUAL expr IN { UHExp.LetLine($2, None, [$4]) }
+  | LET pat EQUAL expr IN { UHExp.LetLine($2, None, [mk_expline $4]) }
 
 pat:
   | pat_variable { UHPat.mk_OpSeq $1 }
+;
 
 pat_variable:
   | IDENT {
     mk_seq (UHPat.Var(ErrStatus.NotInHole, VarErrStatus.NotInVarHole, $1))
   }
-
-expr:
-  | e = expr_ { UHExp.ExpLine(e) }
 ;
 
-expr_:
+expr:
   | constant { UHExp.mk_OpSeq $1 }
   | expr_variable { UHExp.mk_OpSeq $1 }
   | LPAREN expr RPAREN { mk_parenthesized $2 }
-  | expr_ op expr_ { mk_binop $1 $2 $3 }
+  | expr op expr { mk_binop $1 $2 $3 }
   | fn { UHExp.mk_OpSeq $1 }
 ;
 
 fn:
   | LAMBDA p = pat PERIOD LBRACE e = expr RBRACE {
-    mk_seq (UHExp.Lam(ErrStatus.NotInHole, p, None, [e]))
+    mk_seq (UHExp.Lam(ErrStatus.NotInHole, p, None, [mk_expline e]))
   }
+;
 
 %inline op:
   | PLUS { Operators_Exp.Plus }
   | MINUS { Operators_Exp.Minus }
   | MULT { Operators_Exp.Times }
   | DIV { Operators_Exp.Divide }
-
-expr_variable:
-  | expr_variable_ { mk_seq $1 }
-
-expr_variable_:
-  | IDENT { mk_exp_var $1 }
-
-constant:
-  | constant_ { mk_seq $1 }
 ;
 
-constant_:
-  INT { UHExp.IntLit(ErrStatus.NotInHole, $1) }
+expr_variable:
+  | IDENT { mk_seq (mk_exp_var $1) }
+;
+
+constant:
+  | INT { mk_seq (UHExp.IntLit(ErrStatus.NotInHole, $1)) }
 ;
