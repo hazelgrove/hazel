@@ -33,6 +33,9 @@ mac-firefox:
 mac-chrome:
 	/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome "$(HTML_FILE)" &
 
+safari:
+	open -a Safari "$(HTML_FILE)"	
+
 firefox:
 	firefox "$(HTML_FILE)" &
 

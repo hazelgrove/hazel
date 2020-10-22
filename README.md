@@ -39,6 +39,9 @@ corresponding command immediately (see INSTALL.md):
  - `make win-firefox`
  - `make xdg-open`
  - `make open`
+ - `make safari`
+ - `make mac-firefox`
+ - `make mac-chrome`
 
 ### Long Version
 
