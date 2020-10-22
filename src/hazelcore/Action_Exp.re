@@ -1769,7 +1769,6 @@ and syn_perform_operand =
     switch (os) {
     | SMinus =>
       let unop = UnaryOperators_Exp.UnaryMinus;
-      let zunop = (CursorPosition.OnOp(After), unop);
       let ty_u: HTyp.t =
         switch (unop) {
         | UnaryMinus => Int
@@ -1782,9 +1781,10 @@ and syn_perform_operand =
           ZExp.erase_zoperand(zoperand),
           ty_u,
         );
+      let new_zoperand = ZExp.place_before_operand(new_operand);
       let new_ze =
         ZExp.ZBlock.wrap(
-          ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
+          ZExp.UnaryOpZN(ErrStatus.NotInHole, unop, new_zoperand),
         );
       print_endline("SYN PERFORM OPERAND");
       Succeeded(SynDone((new_ze, ty_u, u_gen)));
@@ -3252,7 +3252,6 @@ and ana_perform_operand =
     | SMinus =>
       print_endline("ANA PERFORM OPERAND");
       let unop = UnaryOperators_Exp.UnaryMinus;
-      let zunop = (CursorPosition.OnOp(After), unop);
       let ty_u: HTyp.t =
         switch (unop) {
         | UnaryMinus => Int
@@ -3265,11 +3264,12 @@ and ana_perform_operand =
           ZExp.erase_zoperand(zoperand),
           ty_u,
         );
+      let new_zoperand = ZExp.place_before_operand(new_operand);
       HTyp.consistent(ty, ty_u)
         ? {
           let new_ze =
             ZExp.ZBlock.wrap(
-              ZExp.UnaryOpZU(ErrStatus.NotInHole, zunop, new_operand),
+              ZExp.UnaryOpZN(ErrStatus.NotInHole, unop, new_zoperand),
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         }
@@ -3277,10 +3277,10 @@ and ana_perform_operand =
           let (u, u_gen) = u_gen |> MetaVarGen.next;
           let new_ze =
             ZExp.ZBlock.wrap(
-              ZExp.UnaryOpZU(
+              ZExp.UnaryOpZN(
                 ErrStatus.InHole(TypeInconsistent, u),
-                zunop,
-                new_operand,
+                unop,
+                new_zoperand,
               ),
             );
           Succeeded(AnaDone((new_ze, u_gen)));
@@ -3389,6 +3389,7 @@ and ana_perform_operand =
     | (Init, _) => failwith("Init action should not be performed.")
     };
   | (_, UnaryOpZN(_, unop, zoperand) as whole) =>
+    // TODO ANAND: this needs to handle other stuff to, like Let expressions. Make sure it works for everything, not just zblocks, as long as it wraps a zoperand
     let unwrap_zblock_to_zoperand = (ze: ZExp.t) => {
       switch (ze) {
       | (_, ExpLineZ(zopseq), _) =>
@@ -3416,17 +3417,13 @@ and ana_perform_operand =
     | CursorEscaped(Before) =>
       switch (ana_perform_operand(ctx, MoveLeft, (whole, u_gen), ty_u)) {
       | Failed
-      | CursorEscaped(_) =>
-        print_endline("failed step 1");
-        Failed;
+      | CursorEscaped(_) => Failed
       | Succeeded(AnaExpands(_)) => failwith("not implemented")
       | Succeeded(AnaDone((ze, u_gen))) =>
         let ze = unwrap_zblock_to_zoperand(ze);
         switch (ana_perform_operand(ctx, Backspace, (ze, u_gen), ty_u)) {
         | Failed
-        | CursorEscaped(_) =>
-          print_endline("failed step 2");
-          Failed;
+        | CursorEscaped(_) => Failed
         | Succeeded(AnaExpands(_)) => failwith("not implemented")
         | Succeeded(AnaDone(_)) as result => result
         };
