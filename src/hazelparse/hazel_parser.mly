@@ -4,7 +4,8 @@
     UHExp.ExpLine e
 
   let mk_letline pat exp =
-    UHExp.LetLine(pat, None, [mk_expline exp])
+    let block = [mk_expline exp] in
+    UHExp.letline pat block
 
   let mk_binop l op r : (UHExp.operand, Operators_Exp.t) OpSeq.t =
     let OpSeq.OpSeq(_, l) = l in
@@ -14,27 +15,30 @@
 
   let mk_exp_parenthesized e =
     let e = mk_expline e in
-    let seq = Seq.S(UHExp.Parenthesized([e]), Seq.E) in
+    let operand = UHExp.Parenthesized([e]) in
+    let seq = Seq.mk operand [] in
     UHExp.mk_OpSeq seq
 
   let mk_pat_parenthesized e =
-    let seq = Seq.S(UHPat.Parenthesized(e), Seq.E) in
+    let operand = UHPat.Parenthesized(e) in
+    let seq = Seq.mk operand [] in
     UHPat.mk_OpSeq seq
 
   let mk_exp_var id =
-    UHExp.Var(ErrStatus.NotInHole, VarErrStatus.NotInVarHole, id)
+    UHExp.var id
 
   let mk_pat_var id =
-    UHPat.Var(ErrStatus.NotInHole, VarErrStatus.NotInVarHole, id)
+    UHPat.var id
 
   let mk_lambda pat expr =
-    UHExp.Lam(ErrStatus.NotInHole, pat, None, [mk_expline expr])
+    let block = [mk_expline expr] in
+    UHExp.lam pat block
 
   let mk_intlit v =
-    UHExp.IntLit(ErrStatus.NotInHole, v)
+    UHExp.intlit v
 
   let mk_seq operand =
-    Seq.S(operand, Seq.E)
+    Seq.mk operand []
 
 %}
 
