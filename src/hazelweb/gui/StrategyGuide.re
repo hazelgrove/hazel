@@ -16,8 +16,20 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
  * Return a VarCtx.t
  */
 let branch_vars = (ctx: Contexts.t) => {
-  let _ = ctx;
-  failwith("unimplemented");
+  let (vars, _) = ctx;
+  let can_branch_on = ((_, ty: HTyp.t)) => {
+    switch (ty) {
+    | Int
+    | Float
+    | Bool
+    | Sum(_, _)
+    | Prod(_)
+    | List(_) => true
+    | _ => false
+    };
+  };
+  let branchable_vars = vars |> VarMap.filter(can_branch_on);
+  branchable_vars;
 };
 
 /**
