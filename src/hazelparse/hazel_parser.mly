@@ -12,10 +12,14 @@
     let seq = Seq.seq_op_seq l op r in
     UHExp.mk_OpSeq seq
 
-  let mk_parenthesized e =
+  let mk_exp_parenthesized e =
     let e = mk_expline e in
     let seq = Seq.S(UHExp.Parenthesized([e]), Seq.E) in
     UHExp.mk_OpSeq seq
+
+  let mk_pat_parenthesized e =
+    let seq = Seq.S(UHPat.Parenthesized(e), Seq.E) in
+    UHPat.mk_OpSeq seq
 
   let mk_exp_var id =
     UHExp.Var(ErrStatus.NotInHole, VarErrStatus.NotInVarHole, id)
@@ -65,6 +69,7 @@ let_binding:
   | LET pat EQUAL expr IN { mk_letline $2 $4 }
 
 pat:
+  | LPAREN pat RPAREN { mk_pat_parenthesized $2 }
   | pat_variable { UHPat.mk_OpSeq $1 }
 ;
 
@@ -75,7 +80,7 @@ pat_variable:
 expr:
   | constant { UHExp.mk_OpSeq $1 }
   | expr_variable { UHExp.mk_OpSeq $1 }
-  | LPAREN expr RPAREN { mk_parenthesized $2 }
+  | LPAREN expr RPAREN { mk_exp_parenthesized $2 }
   | expr op expr { mk_binop $1 $2 $3 }
   | fn { UHExp.mk_OpSeq $1 }
 ;
