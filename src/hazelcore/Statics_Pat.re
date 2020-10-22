@@ -30,26 +30,23 @@ and syn_skel =
        )
     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (syn_skel(ctx, skel1, seq)) {
-    | Some((ty, ctx1)) =>
-      switch (HTyp.matched_label(ty)) {
-      | Some(ty1) =>
-        switch (syn_skel(ctx1, skel2, seq)) {
-        | Some((ty2, ctx2)) => Some((Label_Elt(ty1, ty2), ctx2))
-        | None => None
-        }
+    switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
       | None => None
-      }
-    | None => None
+      | Some(ctx) =>
+        switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
+        | None => None
+        | Some(ctx) => 
+          switch(skel1) {
+            | Placeholder(n) => let pn = seq |> Seq.nth_operand(n);
+              switch (pn) {
+                | Label(l) => Some((Label_Elt(l, HTyp.Hole), ctx))
+                | _ => Some((Hole, ctx))
+              }
+            | _ => Some((Hole, ctx))
+          }
+          
+        }
     }
-  // switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
-  // | None => None
-  // | Some(ctx) =>
-  //   switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
-  //   | None => None
-  //   | Some(ctx) => Some((Hole, ctx))
-  //   }
-  // }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
     | None => None
@@ -67,14 +64,14 @@ and syn_operand =
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
   | InvalidText(_) => Some((Hole, ctx))
+  | Label(_) => Some((Hole, ctx))
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Label(InHole(TypeInconsistent, _), _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand')
     |> Option.map(((_, gamma)) => (HTyp.Hole, gamma));
@@ -85,7 +82,6 @@ and syn_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _)
-  | Label(InHole(WrongLength, _), _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -111,7 +107,6 @@ and syn_operand =
       Some((ty, ctx));
     }
   | Parenthesized(p) => syn(ctx, p)
-  | Label(NotInHole, label) => Some((Label(label), ctx))
   }
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
@@ -175,14 +170,14 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some(ctx)
   | InvalidText(_) => Some(ctx)
+  | Label(_) => Some(ctx)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Label(InHole(TypeInconsistent, _), _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(((_, ctx)) => ctx);
   | Wild(InHole(WrongLength, _))
@@ -191,8 +186,7 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _)
-  | Label(InHole(WrongLength, _), _) =>
+  | Inj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
@@ -203,16 +197,6 @@ and ana_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _)
-  | Label(NotInHole, _) =>
-    switch (syn_operand(ctx, operand)) {
-    | None => None
-    | Some((ty', ctx')) =>
-      if (HTyp.consistent(ty, ty')) {
-        Some(ctx');
-      } else {
-        None;
-      }
-    }
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
@@ -463,7 +447,7 @@ and syn_fix_holes_operand =
       | R => HTyp.Sum(Hole, ty1)
       };
     (p, ty, ctx, u_gen);
-  | Label(_, label) => (operand_nih, Label(label), ctx, u_gen)
+  | Label(_, label) => (operand_nih, Hole, ctx, u_gen)
   };
 }
 and ana_fix_holes =
@@ -594,6 +578,7 @@ and ana_fix_holes_skel =
       ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, pn, ty);
     let seq = seq |> Seq.update_nth_operand(n, pn);
     (skel, seq, ctx, u_gen);
+  // ECD TODO: Add support for labels here
   | BinOp(_, Space, skel1, skel2) =>
     let (skel1, seq, ctx, u_gen) = {
       let (skel1, seq, ty, ctx, u_gen) =
@@ -698,6 +683,7 @@ and ana_fix_holes_operand =
     }
   | Wild(_) => (operand_nih, ctx, u_gen)
   | InvalidText(_) => (operand_nih, ctx, u_gen)
+  | Label(_, _) => (operand_nih, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
@@ -705,8 +691,7 @@ and ana_fix_holes_operand =
     (operand_nih, ctx, u_gen);
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _)
-  | Label(_, _) =>
+  | BoolLit(_, _) =>
     let (operand', ty', ctx, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, operand);
     if (HTyp.consistent(ty, ty')) {

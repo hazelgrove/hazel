@@ -333,8 +333,16 @@ let mk_syn_text =
       Succeeded(SynDone((new_ze, Hole, u_gen)));
     };
   | Label(label) =>
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(label)));
-    Succeeded(SynDone((ze, HTyp.Label(label), u_gen)));
+    if(label.is_valid(label)){
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(label)));
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    }
+    else{
+      // May never get here-invalid characters are handled at the action level
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(LabelErrStatus.InLabelHole(Invalid, u_gen), label)));
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    }
+    
   };
 };
 
@@ -367,12 +375,14 @@ let mk_ana_text =
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
     Succeeded(AnaDone((ze, u_gen)));
+  | Label(l) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(l)));
+    Succeeded(AnaDone((ze, u_gen)));
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
   | Underscore
-  | Var(_)
-  | Label(_) =>
+  | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err

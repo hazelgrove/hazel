@@ -67,7 +67,7 @@ let rec consistent = (x, y) =>
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
   | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
-    consistent(label, label') && consistent(ty, ty')
+    label == label' && consistent(ty, ty')
   | (Label_Elt(_), _) => false
   | (Label(id), Label(id')) => id == id'
   | (Label(_), _) => false
@@ -116,7 +116,7 @@ let matched_list =
 
 let matched_label =
   fun
-  | Hole => Some(Label(""))
+  | Hole => Hole
   | Label(label) => Some(Label(label))
   | _ => None;
 
@@ -130,7 +130,7 @@ let rec complete =
   | Label(_) => true
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2)
-  | Label_Elt(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Label_Elt(ty1, ty2) => complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
   | List(ty) => complete(ty);
 
@@ -176,10 +176,10 @@ let rec join = (j, ty1, ty2) =>
     | None => None
     }
   | (List(_), _) => None
-  | (Label_Elt(Label(id), ty), Label_Elt(Label(id'), ty')) =>
-    if (id == id') {
+  | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
+    if (label == label') {
       switch (join(j, ty, ty')) {
-      | Some(ty) => Some(Label_Elt(Label(id), ty))
+      | Some(ty) => Some(Label_Elt(label, ty))
       | None => None
       };
     } else {

@@ -455,26 +455,18 @@ and syn_cursor_info_skel =
             |> UHExp.set_err_status_operand(NotInHole);
           switch (operand_nih) {
           | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
+          | Label(err, l) => Some(mk(SynLabel(err, l)))
           | _ =>
             switch (
               Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
             ) {
             | None => None
             | Some(ty) =>
-              switch (HTyp.matched_arrow(ty)) {
-              | Some((ty1, ty2)) =>
-                Some(mk(SynMatchingArrow(ty, Arrow(ty1, ty2))))
-              | None =>
-                switch (HTyp.matched_label(ty)) {
-                | Some(ty') => Some(mk(Synthesized(ty')))
-                | None => None
-                }
+              HTyp.matched_arrow(ty)
+              |> Option.map(((ty1, ty2)) =>
+                  mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+                );
               }
-            // HTyp.matched_arrow(ty)
-            // |> Option.map(((ty1, ty2)) =>
-            //      mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-            //    );
-            }
           };
         };
       } else {
@@ -482,10 +474,9 @@ and syn_cursor_info_skel =
         | None => None
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
-          | None =>
-            switch (HTyp.matched_label(ty)) {
-            | None => None
-            | Some(_) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+          | None => switch(seq |> Seq.nth_operand(n)){
+              | Label(l) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+              | _ => None
             }
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
@@ -500,11 +491,7 @@ and syn_cursor_info_skel =
         | None => None
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
-          | None =>
-            switch (HTyp.matched_label(ty)) {
-            | Some(_) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
-            | None => None
-            }
+          | None => None
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
           }
@@ -547,6 +534,8 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, Label(_, l)) => 
+    Some(CursorInfo_common.mk(SynLabel(l), ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -845,6 +834,8 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
+    | Label(_, _) =>
+      Some(CursorInfo.common.mk(AnaLabel(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -854,7 +845,6 @@ and ana_cursor_info_zoperand =
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-    | Label(InHole(TypeInconsistent, _), _)
     | Prj(InHole(TypeInconsistent, _), _, _) =>
       let operand' =
         zoperand
@@ -884,7 +874,6 @@ and ana_cursor_info_zoperand =
         _,
       )
     | ApPalette(InHole(WrongLength, _), _, _, _)
-    | Label(InHole(WrongLength, _), _)
     | Prj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | EmptyHole(_)
@@ -892,8 +881,7 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ApPalette(NotInHole, _, _, _)
-    | Label(NotInLabelHole, _) =>
+    | ApPalette(NotInHole, _, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>

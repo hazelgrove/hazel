@@ -158,8 +158,8 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
-  | Label(Label.t)
-  | Label_Elt(t, t)
+  | Label(LabelErrStatus.t, Label.t)
+  | Label_Elt(Label.t, t)
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
@@ -201,9 +201,9 @@ let rec constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   | Label(label) => label
-  | Label_Elt(elt1, elt2) =>
+  | Label_Elt(l, elt2) =>
     // ECD TODO: is this the right way, or should it be hardcoded?
-    constructor_string(elt1) ++ " " ++ constructor_string(elt2)
+    l ++ " " ++ constructor_string(elt2)
   };
 
 let rec mk_tuple: list(t) => t =

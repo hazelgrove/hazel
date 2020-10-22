@@ -135,6 +135,9 @@ let view =
   let got_invalid_indicator =
     got_indicator("Got invalid text", typebar(HTyp.Hole));
 
+  let got_label_indicator(l) = 
+    got_indicator("Got a label " ++ l, typebar(HTyp.Hole));
+
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
@@ -196,6 +199,10 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
+    | AnaLabel(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_label_indicator;
+      (ind1, ind2, BindingError)
     | Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -204,6 +211,29 @@ let view =
       let ind1 = expected_any_indicator;
       let ind2 = got_invalid_indicator;
       (ind1, ind2, BindingError);
+    | SynLabel(err, l) =>
+      switch(err){
+        | NotInLabelHole => 
+          let ind1 = expected_label;
+          let ind2 = got_label_indicator(l);
+          (ind1, ind2, OK);
+        | InLabelHole(Standalone) =>
+          let ind1 = expected_indicator("Expecting ", special_msg_bar("a type"));
+          let ind2 = got_indicator("Got a standalone label", typebar(HTyp.Hole));
+          (ind1, ind2, BindingError);
+        | InLabelHole(Duplicate) =>
+          let ind1 = expected_indicator("Expecting ", special_msg_bar("a unique label"));
+          let ind2 = got_indicator("Got a duplicate label, " ++ l, typebar(HTyp.Hole));
+          (ind1, ind2, BindingError);
+        | InLabelHole(Empty) =>
+          let ind1 = expected_any_indicator;
+          let ind2 = got_indicator("Got Empty Label", typebar(HTyp.Hole));
+          (ind1, ind2, BindingError);
+        | InLabelHole(Invalid) =>
+          let ind1 = expected_any_indicator;
+          let ind2 = got_indicator("Got Invalid Label", typebar(HTyp.Hole));
+          (ind1, ind2, BindingError)
+      }
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
