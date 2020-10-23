@@ -19,3 +19,8 @@ module Let_syntax = {
   let map = (x, ~f) => Option.map(f, x);
   let bind = (x, ~f) => Option.bind(x, f);
 };
+
+module Syntax = {
+  let (let+) = (o, f) => Option.map(f, o);
+  let ( let* ) = Option.bind;
+};
