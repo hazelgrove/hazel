@@ -34,8 +34,18 @@ let get_type = (model: Model.t) => {
  * Return list of Node.t
  */
 let list_vars_view = (vars: VarCtx.t) => {
-  let _ = vars;
-  failwith("unimplemented");
+  VarMap.map(
+    ((var, ty)) => {
+      Vdom.(
+        Node.div(
+          [Attr.classes(["list of divs"])],
+          [Node.text(var ++ " : ")],
+        ),
+        HTypCode.view(ty),
+      )
+    },
+    vars,
+  );
 };
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
