@@ -31,6 +31,8 @@ type solve_result =
   ; time_taken: float
         (** The time taken to produce the valid hole fillings. *) }
 
+val solve_program : Desugar.program -> solve_result response
+
 val solve : sketch:string -> solve_result response
 (** [solve sketch] tries to return a {!solve_result} that satisfies the
     assertions in [sketch]. *)
