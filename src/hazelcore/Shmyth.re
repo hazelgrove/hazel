@@ -13,9 +13,28 @@ module Option = {
   };
 };
 
+let datatype_prelude: Smyth.Lang.datatype_ctx = [
+  ("Bool", (["true", "false"], [])),
+  ("Nat", (["Z"], [("S", Smyth.Lang.TData("Nat", []))])),
+  // TODO: type parameter?
+  ("List", (["nil"], [("cons", Smyth.Lang.TData("List", []))])),
+];
+
 [@warning "-32"]
-let htyp_to_styp = (_ty: UHTyp.t): Smyth.Lang.typ => {
-  failwith(__LOC__);
+let rec htyp_to_styp = (h_ty: HTyp.t): option(Smyth.Lang.typ) => {
+  switch (h_ty) {
+  | Hole
+  | Float
+  | Sum(_, _) => None
+  | Arrow(h_t1, h_t2) =>
+    let s_t1 = htyp_to_styp(h_t1);
+    let s_t2 = htyp_to_styp(h_t2);
+    Some(TArr(s_t1, s_t2));
+  //| Prod(ts) => OptUtil.sequence(htyp_to_styp) |> Option.Map(TTuple)
+  //| Int => Some() // gotta be int type we declare in prelude
+  //| Bool => Some() // likewise
+  //| List(t) => Some() // likewise
+  };
 };
 
 [@warning "-32"]
