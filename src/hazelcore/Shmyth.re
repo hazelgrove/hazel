@@ -13,12 +13,66 @@ module Option = {
   };
 };
 
+/*
+
+ The following datatype declarations:
+
+ type Bool
+   = True ()
+   | False ()
+
+ type Nat
+   = Z ()
+   | S Nat
+
+ type NatList
+   = Nil ()
+   | Cons (Nat, NatList)
+
+ Get translated into the following datatype_ctx:
+
+ (
+   (NatList
+     (()
+      ((Nil (TTuple ())) (Cons (TTuple ((TData Nat ()) (TData NatList ())))))))
+  (Nat (() ((Z (TTuple ())) (S (TData Nat ())))))
+  (Bool (() ((True (TTuple ())) (False (TTuple ())))))
+ )
+
+ */
 [@warning "-32"]
 let datatype_prelude: Smyth.Lang.datatype_ctx = [
-  ("Bool", (["true", "false"], [])),
-  ("Nat", (["Z"], [("S", Smyth.Lang.TData("Nat", []))])),
+  (
+    "Bool",
+    (
+      [],
+      [("True", Smyth.Lang.TTuple([])), ("False", Smyth.Lang.TTuple([]))],
+    ),
+  ),
+  (
+    "Nat",
+    (
+      [],
+      [("Z", Smyth.Lang.TTuple([])), ("S", Smyth.Lang.TData("Nat", []))],
+    ),
+  ),
   // TODO: type parameter?
-  ("List", (["nil"], [("cons", Smyth.Lang.TData("List", []))])),
+  (
+    "NatList",
+    (
+      [],
+      [
+        ("Nil", Smyth.Lang.TTuple([])),
+        (
+          "Cons",
+          Smyth.Lang.TTuple([
+            Smyth.Lang.TData("Nat", []),
+            Smyth.Lang.TData("NatList", []),
+          ]),
+        ),
+      ],
+    ),
+  ),
 ];
 
 [@warning "-8"]
