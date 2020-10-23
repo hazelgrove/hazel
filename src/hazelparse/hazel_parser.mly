@@ -24,6 +24,9 @@
     let seq = Seq.mk operand [] in
     UHPat.mk_OpSeq seq
 
+  let mk_application e arg =
+    mk_binop e Operators_Exp.Space arg
+
   let mk_exp_var id =
     UHExp.var id
 
@@ -82,11 +85,20 @@ pat_variable:
 ;
 
 expr:
+  | expr op expr { mk_binop $1 $2 $3 }
+  | expr_ { $1 }
+;
+
+expr_:
+  | fn { UHExp.mk_OpSeq $1 }
+  | expr_ simple_expr { mk_application $1 $2 }
+  | simple_expr { $1 }
+;
+
+simple_expr:
   | constant { UHExp.mk_OpSeq $1 }
   | expr_variable { UHExp.mk_OpSeq $1 }
   | LPAREN expr RPAREN { mk_exp_parenthesized $2 }
-  | expr op expr { mk_binop $1 $2 $3 }
-  | fn { UHExp.mk_OpSeq $1 }
 ;
 
 fn:
