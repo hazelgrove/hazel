@@ -13,6 +13,8 @@ module Option = {
   };
 };
 
+open OptUtil.Syntax;
+
 /*
 
  The following datatype declarations:
@@ -56,7 +58,6 @@ let datatype_prelude: Smyth.Lang.datatype_ctx = [
       [("Z", Smyth.Lang.TTuple([])), ("S", Smyth.Lang.TData("Nat", []))],
     ),
   ),
-  // TODO: type parameter?
   (
     "NatList",
     (
@@ -75,32 +76,50 @@ let datatype_prelude: Smyth.Lang.datatype_ctx = [
   ),
 ];
 
-[@warning "-8"]
 [@warning "-32"]
-let rec htyp_to_styp = (h_ty: HTyp.t): option(Smyth.Lang.typ) => {
-  OptUtil.Syntax.(
-    switch (h_ty) {
+let rec htyp_to_styp = (h_t: HTyp.t): option(Smyth.Lang.typ) =>
+  Smyth.Lang.(
+    switch (h_t) {
     | Hole
     | Float
-    | Sum(_, _) => None
+    | Sum(_) => None
+    | Int => Some(TData("Nat", []))
+    | Bool => Some(TData("Bool", []))
+    | List(Int) => Some(TData("NatList", []))
+    | List(_t) => None
+    | Prod(h_ts) =>
+      let* s_ts = List.map(htyp_to_styp, h_ts) |> OptUtil.sequence;
+      Some(TTuple(s_ts));
     | Arrow(h_t1, h_t2) =>
       let* s_t1 = htyp_to_styp(h_t1);
       let* s_t2 = htyp_to_styp(h_t2);
-      Some(Smyth.Lang.TArr(s_t1, s_t2));
-    | Prod(ts) =>
-      let* x = List.map(htyp_to_styp, ts) |> OptUtil.sequence;
-      Some(Smyth.Lang.TTuple(x));
-    //| Int => Some() // gotta be int type we declare in prelude
-    //| Bool => Some() // likewise
-    //| List(t) => Some() // likewise
+      Some(TArr(s_t1, s_t2));
     }
   );
-};
 
 [@warning "-32"]
-let hexp_to_smexp = (_uhexp: UHExp.t): option(Smyth.Lang.exp) => {
+let hpat_to_smpat = (_h_p: UHPat.t): option(Smyth.Lang.pat) => {
   failwith(__LOC__);
-};
+}
+[@warning "-32"]
+and pat_opseq_to_smpat = (_opseq: UHPat.opseq): option(Smyth.Lang.pat) => {
+  failwith(__LOC__);
+}
+[@warning "-32"]
+and pat_operand_to_smpat = (operand: UHPat.operand): option(Smyth.Lang.pat) =>
+  // TODO: special case constructors
+  switch (operand) {
+  | EmptyHole(_) // TODO: does smyth support hole patterns?
+  | FloatLit(_)
+  | InvalidText(_)
+  | Inj(_) => None
+  | Wild(_) => Some(PWildcard)
+  | Var(_, _, name) => Some(PVar(name))
+  | IntLit(_, _string) => None // TODO: where are the smyth literal patterns??
+  | BoolLit(_, _bool) => None // TODO: above
+  | ListNil(_) => None // TODO: above
+  | Parenthesized(_t) => None // TODO: ???
+  };
 
 [@warning "-32"]
 let str_to_smint = (_str: string): Smyth.Lang.exp => {
@@ -108,9 +127,13 @@ let str_to_smint = (_str: string): Smyth.Lang.exp => {
 };
 
 [@warning "-32"]
-let rec opseq_to_smexp =
-        (opseq: UHExp.opseq)
-        : option((Smyth.Lang.exp, list((Smyth.Lang.exp, Smyth.Lang.exp)))) => {
+let rec hexp_to_smexp = (_op: UHExp.t): option(Smyth.Lang.exp) => {
+  failwith(__LOC__);
+}
+[@warning "-32"]
+and opseq_to_smexp =
+    (opseq: UHExp.opseq)
+    : option((Smyth.Lang.exp, list((Smyth.Lang.exp, Smyth.Lang.exp)))) => {
   open OptUtil.Syntax;
   let OpSeq(skel, seq) = opseq;
   switch (skel) {
@@ -127,15 +150,15 @@ and operand_to_smexp = (operand: UHExp.operand): option(Smyth.Lang.exp) =>
   | FloatLit(_)
   | BoolLit(_)
   | ApPalette(_)
+  | Inj(_, _, _)
   | InvalidText(_) => None
   | EmptyHole(number) => Some(EHole(number))
   | Var(_, _, name) => Some(EVar(name))
   | IntLit(_, str) => Some(str_to_smint(str))
-  | ListNil(_) => failwith(__LOC__)
+  | ListNil(_) => Some(ECtor("Nil", [], ETuple([]))) // TODO: check last arg makes sense
   | Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
   // separate non/annotated cases?
   // need seperate letline case to capture non-anonymous function
-  | Inj(_, _side, _v) => failwith(__LOC__)
   | Case(_, _scrut, _rules) => failwith(__LOC__)
   | Parenthesized(expr) => hexp_to_smexp(expr) // hmmm
   };
