@@ -74,12 +74,7 @@ let solve_program : Desugar.program -> solve_result response =
                 |> Nondet.collapse_option |> Nondet.to_list
             ; time_taken } )
 
-let solve ?(datatype_ctx = []) ~sketch =
-  sketch |> parse_program
-  |> Result2.map (fun p ->
-         let open Desugar in
-         {p with datatypes= p.datatypes @ datatype_ctx})
-  |> Result2.and_then solve_program
+let solve ~sketch = sketch |> parse_program |> Result2.and_then solve_program
 
 (* Test *)
 

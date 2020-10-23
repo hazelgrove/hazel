@@ -94,3 +94,23 @@ let smres_to_operand: Smyth.Lang.res => option(UHExp.operand) =
   | RProj(n, i, arg) => failwith(__LOC__)
   | RCase(env, scrutinee, branches) => failwith(__LOC__)
   | RCtorInverse(name, arg) => failwith(__LOC__);
+
+type solve_result = list(list((MetaVar.t, UHExp.opseq)));
+
+[@warning "-32"]
+let solve = (e: UHExp.t): option(solve_result) => {
+  switch (
+    Smyth.Endpoint.solve_program(
+      Smyth.Desugar.{
+        // TODO
+        datatypes: [],
+        definitions: [],
+        assertions: [],
+        main_opt: hexp_to_smexp(e),
+      },
+    )
+  ) {
+  | Error(_) => None
+  | Ok(_) => failwith("todo")
+  };
+};
