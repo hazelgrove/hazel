@@ -24,18 +24,26 @@ let hexp_to_smexp = (_uhexp: UHExp.t): option(Smyth.Lang.exp) => {
 };
 
 [@warning "-32"]
-let opseq_to_smexp = (_opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
-  failwith(__LOC__);
-};
-
-[@warning "-32"]
 let str_to_smint = (_str: string): Smyth.Lang.exp => {
   failwith(__LOC__);
 };
 
 [@warning "-32"]
+let rec opseq_to_smexp =
+        (opseq: UHExp.opseq)
+        : option((Smyth.Lang.exp, list((Smyth.Lang.exp, Smyth.Lang.exp)))) => {
+  open OptUtil.Syntax;
+  let OpSeq(skel, seq) = opseq;
+  switch (skel) {
+  | Placeholder(n) =>
+    let+ sme = operand_to_smexp(Seq.nth_operand(n, seq));
+    (sme, []);
+  | BinOp(_) => failwith(__LOC__)
+  };
+}
+[@warning "-32"]
 [@warning "-8"]
-let operand_to_smexp = (operand: UHExp.operand): option(Smyth.Lang.exp) =>
+and operand_to_smexp = (operand: UHExp.operand): option(Smyth.Lang.exp) =>
   switch (operand) {
   | FloatLit(_)
   | BoolLit(_)
