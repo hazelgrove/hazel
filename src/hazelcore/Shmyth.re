@@ -43,43 +43,26 @@ open OptUtil.Syntax;
 
  */
 [@warning "-32"]
-let datatype_prelude: Smyth.Lang.datatype_ctx = [
-  (
-    "Bool",
+let datatype_prelude: Smyth.Lang.datatype_ctx =
+  Smyth.Lang.[
+    ("Bool", ([], [("True", TTuple([])), ("False", TTuple([]))])),
+    ("Nat", ([], [("Z", TTuple([])), ("S", TData("Nat", []))])),
     (
-      [],
-      [("True", Smyth.Lang.TTuple([])), ("False", Smyth.Lang.TTuple([]))],
+      "NatList",
+      (
+        [],
+        [
+          ("Nil", TTuple([])),
+          ("Cons", TTuple([TData("Nat", []), TData("NatList", [])])),
+        ],
+      ),
     ),
-  ),
-  (
-    "Nat",
-    (
-      [],
-      [("Z", Smyth.Lang.TTuple([])), ("S", Smyth.Lang.TData("Nat", []))],
-    ),
-  ),
-  (
-    "NatList",
-    (
-      [],
-      [
-        ("Nil", Smyth.Lang.TTuple([])),
-        (
-          "Cons",
-          Smyth.Lang.TTuple([
-            Smyth.Lang.TData("Nat", []),
-            Smyth.Lang.TData("NatList", []),
-          ]),
-        ),
-      ],
-    ),
-  ),
-];
+  ];
 
 [@warning "-32"]
-let rec htyp_to_styp = (h_t: HTyp.t): option(Smyth.Lang.typ) =>
+let rec htyp_to_styp: HTyp.t => option(Smyth.Lang.typ) =
   Smyth.Lang.(
-    switch (h_t) {
+    fun
     | Hole
     | Float
     | Sum(_) => None
@@ -87,49 +70,48 @@ let rec htyp_to_styp = (h_t: HTyp.t): option(Smyth.Lang.typ) =>
     | Bool => Some(TData("Bool", []))
     | List(Int) => Some(TData("NatList", []))
     | List(_t) => None
-    | Prod(h_ts) =>
-      let* s_ts = List.map(htyp_to_styp, h_ts) |> OptUtil.sequence;
-      Some(TTuple(s_ts));
-    | Arrow(h_t1, h_t2) =>
-      let* s_t1 = htyp_to_styp(h_t1);
-      let* s_t2 = htyp_to_styp(h_t2);
-      Some(TArr(s_t1, s_t2));
-    }
+    | Prod(h_ts) => {
+        let* s_ts = List.map(htyp_to_styp, h_ts) |> OptUtil.sequence;
+        Some(TTuple(s_ts));
+      }
+    | Arrow(h_t1, h_t2) => {
+        let* s_t1 = htyp_to_styp(h_t1);
+        let* s_t2 = htyp_to_styp(h_t2);
+        Some(TArr(s_t1, s_t2));
+      }
   );
 
-[@warning "-32"]
-let hpat_to_smpat = (_h_p: UHPat.t): option(Smyth.Lang.pat) => {
-  failwith(__LOC__);
-}
-[@warning "-32"]
-and pat_opseq_to_smpat = (_opseq: UHPat.opseq): option(Smyth.Lang.pat) => {
-  failwith(__LOC__);
-}
-[@warning "-32"]
-and pat_operand_to_smpat = (operand: UHPat.operand): option(Smyth.Lang.pat) =>
-  // TODO: special case constructors
-  switch (operand) {
-  | EmptyHole(_) // TODO: does smyth support hole patterns?
-  | FloatLit(_)
-  | InvalidText(_)
-  | Inj(_) => None
-  | Wild(_) => Some(PWildcard)
-  | Var(_, _, name) => Some(PVar(name))
-  | IntLit(_, _string) => None // TODO: where are the smyth literal patterns??
-  | BoolLit(_, _bool) => None // TODO: above
-  | ListNil(_) => None // TODO: above
-  | Parenthesized(_t) => None // TODO: ???
-  };
+open Smyth.Lang;
 
+type sm_pat = (string, Smyth.Lang.pat);
+type sm_rule = (sm_pat, Smyth.Lang.exp);
+
+let sm_ctor = (name, arg) => ECtor(name, [], arg);
+let sm_null_ctor = name => sm_ctor(name, ETuple([]));
+let sm_zero = sm_null_ctor("Z"); // ECtor("Z", [], ETuple([]))
+let sm_true = sm_null_ctor("True");
+let sm_false = sm_null_ctor("False");
+let sm_nil = sm_null_ctor("Nil");
+
+let rec sm_succ =
+  fun
+  | 0 => sm_zero
+  | n => sm_ctor("S", sm_succ(n - 1));
+
+let rec unsucc: Smyth.Lang.exp => int =
+  fun
+  | ECtor("S", _, smexp_1) => 1 + unsucc(smexp_1)
+  | _ => 0; // in a perfect world this is ECtor("Z", [], _)
+
+let str_to_smint = str => str |> int_of_string |> sm_succ;
 [@warning "-32"]
-let str_to_smint = (_str: string): Smyth.Lang.exp => {
-  failwith(__LOC__);
-};
+let smint_to_string = smexp => smexp |> unsucc |> string_of_int;
 
 [@warning "-32"]
 let rec hexp_to_smexp = (_op: UHExp.t): option(Smyth.Lang.exp) => {
   failwith(__LOC__);
 }
+
 [@warning "-32"]
 and opseq_to_smexp =
     (opseq: UHExp.opseq)
@@ -143,25 +125,78 @@ and opseq_to_smexp =
   | BinOp(_) => failwith(__LOC__)
   };
 }
+
 [@warning "-32"]
-[@warning "-8"]
-and operand_to_smexp = (operand: UHExp.operand): option(Smyth.Lang.exp) =>
-  switch (operand) {
+and operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
+  fun
   | FloatLit(_)
-  | BoolLit(_)
   | ApPalette(_)
-  | Inj(_, _, _)
+  | Inj(_)
   | InvalidText(_) => None
   | EmptyHole(number) => Some(EHole(number))
   | Var(_, _, name) => Some(EVar(name))
   | IntLit(_, str) => Some(str_to_smint(str))
-  | ListNil(_) => Some(ECtor("Nil", [], ETuple([]))) // TODO: check last arg makes sense
+  | ListNil(_) => Some(sm_nil)
+  | BoolLit(_, true) => Some(sm_true)
+  | BoolLit(_, false) => Some(sm_false)
+  | AssertLit(_) => failwith(__LOC__)
   | Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
   // separate non/annotated cases?
   // need seperate letline case to capture non-anonymous function
-  | Case(_, _scrut, _rules) => failwith(__LOC__)
+  | Case(_, scrut, rules) => {
+      let* sm_scrut = hexp_to_smexp(scrut);
+      let* handled_rules = List.map(handle_rule, rules) |> OptUtil.sequence;
+      Some(
+        ECase(
+          sm_scrut,
+          List.map((((s, p), e)) => (s, (p, e)), handled_rules),
+        ),
+      );
+    }
   | Parenthesized(expr) => hexp_to_smexp(expr) // hmmm
-  };
+
+[@warning "-32"]
+and hpat_to_smpat = (_h_p: UHPat.t): option(sm_pat) => {
+  // need from opseqs: cons pattern. that's it i think?
+  failwith(__LOC__);
+}
+
+[@warning "-32"]
+and hpat_opseq_to_smpat = (_opseq: UHPat.opseq): option(sm_pat) => {
+  failwith(__LOC__);
+}
+
+[@warning "-32"]
+and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
+  fun
+  | EmptyHole(_)
+  | FloatLit(_)
+  | InvalidText(_)
+  | Inj(_) => None
+  | Parenthesized(p) => hpat_to_smpat(p) // irrelevant?
+  | Wild(_) => Some(("", PWildcard)) // is "" correct?
+  | Var(_, _, name) => Some(("", PVar(name)))
+  | BoolLit(_, true) => Some(("True", PTuple([]))) // is PTuple correct?
+  | BoolLit(_, false) => Some(("False", PTuple([])))
+  | ListNil(_) => Some(("Nil", PTuple([])))
+  | IntLit(_, n) =>
+    switch (n) {
+    | "0" => Some(("Z", PTuple([])))
+    | _ => None /* for now */
+    }
+
+[@warning "-32"]
+and handle_rule: UHExp.rule => option(sm_rule) =
+  fun
+  | Rule(pat, exp) => {
+      let* smp = hpat_to_smpat(pat);
+      // TODO: special case for when exp begins with let n_1 = n-1 in ...
+      // i guess this will be the only supported let for now?
+      // could rewrite lets into lambda generally
+      // does the naive desugaring strategy work in the other direction?
+      let* sme = hexp_to_smexp(exp);
+      Some((smp, sme));
+    };
 
 // d: disable error on inexhaustive match for now
 [@warning "-8"]
