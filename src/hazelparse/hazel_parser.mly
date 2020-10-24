@@ -3,8 +3,7 @@
   let mk_expline e =
     UHExp.ExpLine e
 
-  let mk_letline pat exp =
-    let block = [mk_expline exp] in
+  let mk_letline pat block =
     UHExp.letline pat block
 
   let mk_binop l op r : (UHExp.operand, Operators_Exp.t) OpSeq.t =
@@ -14,8 +13,7 @@
     UHExp.mk_OpSeq seq
 
   let mk_exp_parenthesized e =
-    let e = mk_expline e in
-    let operand = UHExp.Parenthesized([e]) in
+    let operand = UHExp.Parenthesized(e) in
     let seq = Seq.mk operand [] in
     UHExp.mk_OpSeq seq
 
@@ -24,8 +22,17 @@
     let seq = Seq.mk operand [] in
     UHPat.mk_OpSeq seq
 
-  let mk_application e arg =
-    mk_binop e Operators_Exp.Space arg
+  let mk_application e args =
+    let rec mk_app e args =
+      match args with
+      | [] -> e
+      | [x] -> mk_binop e Operators_Exp.Space x
+      | _::xs -> (
+        let opseq = mk_app e xs in
+        mk_binop e Operators_Exp.Space opseq
+      )
+    in
+    mk_app e args
 
   let mk_exp_var id =
     UHExp.var id
@@ -61,44 +68,67 @@
 
 %left PLUS MINUS
 %left MULT DIV
+%nonassoc LET LPAREN LAMBDA INT IDENT IN
 
 %start main
 %type <UHExp.t> main
 %%
 
 main:
-  | e = expr EOF { [mk_expline e] }
-  | l = let_binding EOF { [l] }
-  | l = let_binding main EOF { List.append [l] $2 }
+  block EOF { $1 }
 ;
 
-let_binding:
-  | LET pat EQUAL expr IN { mk_letline $2 $4 }
+block:
+  exp_line { [$1] }
+  | let_line line* exp_line {
+      List.concat [[$1]; $2; [$3]]
+  }
+;
+
+line:
+  let_line { $1 }
+;
+
+let_line:
+  LET pat EQUAL block IN { mk_letline $2 $4 }
+;
+
+exp_line:
+  expr { mk_expline $1 }
+;
 
 pat:
-  | LPAREN pat RPAREN { mk_pat_parenthesized $2 }
+  LPAREN pat RPAREN { mk_pat_parenthesized $2 }
   | pat_variable { UHPat.mk_OpSeq $1 }
 ;
 
 pat_variable:
-  | IDENT { mk_seq (mk_pat_var $1) }
+  IDENT { mk_seq (mk_pat_var $1) }
 ;
 
 expr:
-  | expr op expr { mk_binop $1 $2 $3 }
+  simple_expr {  $1 }
   | expr_ { $1 }
 ;
 
 expr_:
-  | fn { UHExp.mk_OpSeq $1 }
-  | expr_ simple_expr { mk_application $1 $2 }
-  | simple_expr { $1 }
+  | simple_expr args { mk_application $1 $2 }
+  | expr op expr { mk_binop $1 $2 $3 }
+;
+
+args:
+  | simple_expr+ { $1 }
 ;
 
 simple_expr:
+  | LPAREN block RPAREN { mk_exp_parenthesized $2 }
+  | simple_expr_ { $1 }
+;
+
+simple_expr_:
+  | fn { UHExp.mk_OpSeq $1 }
   | constant { UHExp.mk_OpSeq $1 }
   | expr_variable { UHExp.mk_OpSeq $1 }
-  | LPAREN expr RPAREN { mk_exp_parenthesized $2 }
 ;
 
 fn:
