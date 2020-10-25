@@ -48,6 +48,7 @@
   --verr-hole-z: 1;
   --code-text-z: 2;
   --caret-z: 5;
+  --extraction-window-z: 2;
 }
 
 /* general */
@@ -1322,27 +1323,56 @@ h1 {
 
 
 .extraction-result {
-  position: sticky;
+  position: relative;
   bottom: 0;
   width: auto;
   height: fit-content;
-  max-height: 400px;
+  max-height: 150px;
   overflow-y: auto;
   padding: 10px;
-  background-color: blueviolet;
-  color: white;
+  /* background-color: blueviolet; */
+  background-color: #f0fff3;
+  color: black;
   white-space: pre-wrap;
 }
 
 .extraction-error {
-  position: sticky;
+  position: relative;
   bottom: 0;
   width: auto;
   height: fit-content;
-  max-height: 400px;
+  max-height: 150px;
   overflow-y: auto;
   padding: 10px;
   background-color: red;
   color: white;
   white-space: pre-wrap;
+}
+
+.extraction-header {
+  position: sticky;
+  bottom: 0;
+  width: auto;
+  height: fit-content;
+  /* max-height: 400px; */
+  white-space: pre-wrap;
+  background-color: black;
+  color: white;
+  z-index: var(--extraction-window-z);
+  /* margin-right: -10px;
+  margin-left: -10px;
+  margin-top: -10px; */
+
+}
+
+.extraction-header-text {
+  font-size: 12pt;
+  font-weight: bold;
+  padding: 5px;
+}
+
+.extraction-close {
+  position: absolute;
+  right: 0;
+  top: 0;
 }

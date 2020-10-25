@@ -269,7 +269,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       ),
                     ],
                   ),
-                  ExtractionResult.view(model),
+                  ExtractionResult.view(~inject, model),
                 ],
               ),
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>

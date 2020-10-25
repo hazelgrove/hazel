@@ -57,4 +57,5 @@ type t =
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
   | UpdateIsMac(bool)
-  | Extraction(OCamlExtraction.t);
+  | Extraction(OCamlExtraction.t)
+  | CloseExtraction;
