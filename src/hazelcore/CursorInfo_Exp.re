@@ -301,13 +301,17 @@ and syn_cursor_info_line =
       }
     }
   | LetLineZE(p, zdef) =>
-    switch (Statics_Pat.syn(ctx, p)) {
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zdef))) {
     | None => None
-    | Some((ty, _)) =>
-      let (ctx_def, _) =
-        Statics_Exp.ctx_for_let(ctx, p, ty, zdef |> ZExp.erase);
-      ana_cursor_info(~steps=steps @ [1], ctx_def, zdef, ty)
-      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+    | Some(ty_def) =>
+      switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
+      | None => None
+      | Some(ty_join) =>
+        let (ctx_def, _) =
+          Statics_Exp.ctx_for_let(ctx, p, ty_join, zdef |> ZExp.erase);
+        ana_cursor_info(~steps=steps @ [1], ctx_def, zdef, ty_join)
+        |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
+      }
     }
   }
 and syn_cursor_info_zopseq =
