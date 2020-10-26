@@ -1051,31 +1051,32 @@ and syn_perform_line =
     }
 
   | (_, LetLineZE(p, zdef)) =>
-    switch (Statics_Pat.syn(ctx, p)) {
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zdef))) {
     | None => Failed
-    | Some((ty_p, ctx)) =>
-      let (recursive_ctx, _) =
-        Statics_Exp.ctx_for_let(ctx, p, ty_p, zdef |> ZExp.erase);
-      switch (ana_perform(recursive_ctx, a, (zdef, u_gen), ty_p)) {
-      | Failed => Failed
-      | CursorEscaped(side) => escape(u_gen, side)
-      | Succeeded((new_zdef, u_gen)) =>
-        switch (Statics_Exp.syn(recursive_ctx, ZExp.erase(new_zdef))) {
-        | None => ActionOutcome.Failed // ??? what do
-        | Some(ty_def) =>
-          let ty =
-            switch (HTyp.join(LUB, ty_def, ty_p)) {
-            | None => ty_p
-            | Some(ty) => ty
-            };
-          let (new_zdef, u_gen) =
-            Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zdef, ty);
-          let (new_p, ctx_body, u_gen) =
-            Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty);
-          let new_zline = ZExp.LetLineZE(new_p, new_zdef);
-          Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
-        }
-      };
+    | Some(ty_def) =>
+      switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
+      | None => Failed
+      | Some(ty_join) =>
+        let (recursive_ctx, _) =
+          Statics_Exp.ctx_for_let(ctx, p, ty_join, zdef |> ZExp.erase);
+        switch (ana_perform(recursive_ctx, a, (zdef, u_gen), ty_join)) {
+        | Failed => Failed
+        | CursorEscaped(side) => escape(u_gen, side)
+        | Succeeded((new_zdef, u_gen)) =>
+          switch (Statics_Exp.syn(recursive_ctx, ZExp.erase(new_zdef))) {
+          | None => Failed
+          | Some(ty_def) =>
+            switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
+            | None => Failed
+            | Some(ty_join) =>
+              let (new_p, ctx_body, u_gen) =
+                Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty_join);
+              let new_zline = ZExp.LetLineZE(new_p, new_zdef);
+              Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
+            }
+          }
+        };
+      }
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
