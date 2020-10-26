@@ -1067,7 +1067,7 @@ and syn_perform_line =
         print_endline("syn perform opseq succeeded");
         Succeeded(LineDone((ze, ctx, u_gen)));
       }
-    };
+    }
 
   | (_, LetLineZP(zp, None, def)) =>
     switch (Statics_Exp.syn(ctx, def)) {
