@@ -807,9 +807,15 @@ and syn_perform_block =
           switch (
             Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
           ) {
-          | None => Failed
+          | None =>
+            print_endline("syn block causes case to fail");
+            Failed;
           | Some(new_ty) =>
             let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
+            print_endline("syn perform block succeed");
+            print_endline(
+              Sexplib.Sexp.to_string(ZExp.sexp_of_zline(new_zline)),
+            );
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
           }
         | [_, ..._] =>
@@ -1048,15 +1054,20 @@ and syn_perform_line =
 
   | (_, ExpLineZ(zopseq)) =>
     switch (Statics_Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
-    | None => Failed
+    | None =>
+      print_endline("statics do not syn type");
+      Failed;
     | Some(ty) =>
       switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
-      | (Failed | CursorEscaped(_)) as err => err
+      | (Failed | CursorEscaped(_)) as err =>
+        print_endline("failed syn perform in expline");
+        err;
       | Succeeded(SynExpands(r)) => Succeeded(LineExpands(r))
       | Succeeded(SynDone((ze, _, u_gen))) =>
-        Succeeded(LineDone((ze, ctx, u_gen)))
+        print_endline("syn perform opseq succeeded");
+        Succeeded(LineDone((ze, ctx, u_gen)));
       }
-    }
+    };
 
   | (_, LetLineZP(zp, None, def)) =>
     switch (Statics_Exp.syn(ctx, def)) {
@@ -1266,11 +1277,16 @@ and syn_perform_opseq =
     // TODO this is the next section that needs scrutiny
     print_endline("construct operator on top of operator");
     let oper_to_string = Operators_Exp.to_string(oper);
-    let os_to_string = Action_common.shape_to_string(SOp(os));
-    let new_operator = Operators_Exp.UserOp(oper_to_string ++ os_to_string);
-    let new_zoperator = (pos, new_operator);
+    let new_operator_string =
+      oper_to_string ++ Action_common.shape_to_string(SOp(os));
+
+    let new_zoperator = (pos, Operators_Exp.UserOp(new_operator_string));
     let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
-    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    // syn_perform(ctx, Construct(SOp(UserOp()), )
+    let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+    print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_t(exp)));
+
+    Succeeded(SynDone((exp, ty, meta_var)));
   /* ...and construction of operands is applied after movement.*/
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
@@ -1278,7 +1294,9 @@ and syn_perform_opseq =
         ? ZExp.move_cursor_left_zopseq : ZExp.move_cursor_right_zopseq;
     print_endline("operator movement");
     switch (zopseq |> move_cursor) {
-    | None => Failed
+    | None =>
+      print_endline("operator movemnet failed");
+      Failed;
     | Some(zopseq) => syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))
     };
 
