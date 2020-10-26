@@ -196,7 +196,10 @@ and ana_operand =
   | UserOp(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | UserOp(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | UserOp(NotInHole, NotInVarHole, x) =>
-    Var.check_valid_operator(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
+    Var.check_valid_operator(
+      x,
+      Some(Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty))),
+    )
   | Wild(NotInHole) => Some(ctx)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)

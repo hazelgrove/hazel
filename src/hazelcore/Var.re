@@ -9,14 +9,17 @@ let length = String.length;
 
 let valid_regex = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
 
-let operator_regex = Re.Str.regexp("^[_]*[&*+-./:;<=>?@^|~]+[_]*$");
+let operator_regex_pat = Re.Str.regexp("^[_]?[&*+-./:;<=>?@^|~]+[_]?$");
+let operator_regex_exp = Re.Str.regexp("^[&*+-./:;<=>?@^|~]*$");
+let operator_regex_pat_complete =
+  Re.Str.regexp("^[_][&*+-./:;<=>?@^|~]+[_]$");
 
 let is_valid = s => {
   Re.Str.string_match(valid_regex, s, 0);
 };
 
 let is_valid_operator = s => {
-  Re.Str.string_match(operator_regex, s, 0);
+  Re.Str.string_match(operator_regex_pat, s, 0);
 };
 
 /* helper function for guarding options with is_valid */
@@ -45,10 +48,23 @@ let is_case = eq("case");
 
 let is_wild = eq("_");
 
-let is_operator = s => Re.Str.string_match(operator_regex, s, 0);
+let is_operator = s => Re.Str.string_match(operator_regex_pat, s, 0);
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);
   let right_var = String.sub(name, pos, String.length(name) - pos);
   (left_var, right_var);
 };
+
+/* return the user op w/out underscores if the pattern is valid
+   i.e. matches _<some ops>_ */
+let extract_op_exp = s =>
+  if (Re.Str.string_match(operator_regex_pat_complete, s, 0)) {
+    // Trim off the underscores
+    String.sub(s, 1, String.length(s) - 2);
+  } else if (Re.Str.string_match(operator_regex_pat, s, 0)) {
+    // Return same string if valid
+    Re.Str.matched_string(s);
+  } else {
+    failwith("invalid user op definition");
+  };
