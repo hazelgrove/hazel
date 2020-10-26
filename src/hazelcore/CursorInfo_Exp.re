@@ -400,16 +400,21 @@ and syn_cursor_info_skel =
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, UserOp(op), skel1, skel2) =>
-      switch (
-        Statics_Exp.syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))
-      ) {
-      | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, _))) =>
-        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, t1)) {
+      print_endline(Sexplib.Sexp.to_string(Contexts.sexp_of_t(ctx)));
+      let op_ty =
+        switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+        | Some(ty) => ty
+        | None => Hole
+        };
+
+      switch (HTyp.matched_two_ary_arrow(op_ty)) {
+      | Some((ty1, (ty2, _))) =>
+        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
         | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, t2)
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
         }
       | _ => None
-      }
+      };
     | BinOp(
         _,
         Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,

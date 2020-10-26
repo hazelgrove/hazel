@@ -101,16 +101,23 @@ and syn_skel =
       ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-    switch (syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))) {
-    | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>
-      let ana_t1 = ana_skel(ctx, skel1, seq, t1);
-      let ana_t2 = ana_skel(ctx, skel2, seq, t2);
+    let ty =
+      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+      | Some(ty) => ty
+      | None => HTyp.Hole
+      };
+
+    switch (HTyp.matched_two_ary_arrow(ty)) {
+    | Some((ty1, (ty2, ty3))) =>
+      print_endline("matched two ary arrow works");
+      let ana_t1 = ana_skel(ctx, skel1, seq, ty1);
+      let ana_t2 = ana_skel(ctx, skel2, seq, ty2);
       switch (ana_t1, ana_t2) {
-      | (Some(_), Some(_)) => Some(tout)
+      | (Some(_), Some(_)) => Some(ty3)
       | _ => None
       };
     | _ => None
-    }
+    };
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
     | None => None
@@ -188,7 +195,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)
   | UserOp(NotInHole, NotInVarHole, x) =>
-    VarMap.lookup(Contexts.gamma(ctx), x)
+    print_endline("variable lookup for user op");
+    VarMap.lookup(Contexts.gamma(ctx), x);
   | UserOp(NotInHole, InVarHole(_), _) => Some(Hole)
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
@@ -887,7 +895,8 @@ and syn_fix_holes_skel =
     };
   | BinOp(_, UserOp(op), skel1, skel2) =>
     // TODO: edits on userop dont syn types, this might be causing that issue.
-    print_endline("syn fix holes, userop case");
+    print_endline("syn fix holes, user op case");
+    print_endline(op);
     let op_type =
       syn_operand(ctx, UHExp.UserOp(NotInHole, NotInVarHole, op));
     switch (op_type) {
@@ -897,12 +906,29 @@ and syn_fix_holes_skel =
       let (skel2, seq, u_gen) =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, t2);
       (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
-    | _ => (
-        BinOp(InHole(TypeInconsistent, u_gen), UserOp(op), skel1, skel2),
-        seq,
-        Hole,
-        u_gen,
-      )
+    | _ =>
+      print_endline("fail typeinconsistent");
+      // TODO (colaban) - figure out what types the lhs and rhs should be, if
+      // the type of the user defined operator can't be synthesized.
+      let (skel1, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel1,
+          seq,
+          Hole,
+        );
+      let (skel2, seq, u_gen) =
+        ana_fix_holes_skel(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          skel2,
+          seq,
+          Hole,
+        );
+      (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, Hole, u_gen);
     };
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =

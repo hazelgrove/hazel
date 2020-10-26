@@ -28,6 +28,7 @@ let consistent: (t, t) => bool;
 let get_prod_elements: t => list(t);
 let get_prod_arity: t => int;
 
+let matched_two_ary_arrow: t => option((t, (t, t)));
 let matched_arrow: t => option((t, t));
 let matched_sum: t => option((t, t));
 let matched_list: t => option(t);

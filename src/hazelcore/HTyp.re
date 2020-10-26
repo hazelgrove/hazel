@@ -83,6 +83,13 @@ let matched_arrow =
   | Arrow(ty1, ty2) => Some((ty1, ty2))
   | _ => None;
 
+/* used when type checking user-defined binary operators */
+let matched_two_ary_arrow =
+  fun
+  | Hole => Some((Hole, (Hole, Hole)))
+  | Arrow(ty1, Arrow(ty2, ty3)) => Some((ty1, (ty2, ty3)))
+  | _ => None;
+
 let get_prod_elements: t => list(t) =
   fun
   | Prod(tys) => tys

@@ -13,7 +13,7 @@ and operand =
   | Wild(ErrStatus.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | UserOp(ErrStatus.t, VarErrStatus.t, string)
+  | UserOp(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)

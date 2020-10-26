@@ -478,13 +478,19 @@ let rec syn_elab =
 and syn_elab_block =
     (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
-  | None => DoesNotElaborate
+  | None =>
+    print_endline("block split bad");
+    DoesNotElaborate;
   | Some((leading, conclusion)) =>
     switch (syn_elab_lines(ctx, delta, leading)) {
-    | LinesDoNotExpand => DoesNotElaborate
+    | LinesDoNotExpand =>
+      print_endline("lines dont expand");
+      DoesNotElaborate;
     | LinesExpand(prelude, ctx, delta) =>
       switch (syn_elab_opseq(ctx, delta, conclusion)) {
-      | DoesNotElaborate => DoesNotElaborate
+      | DoesNotElaborate =>
+        print_endline("opseq does not expand");
+        DoesNotElaborate;
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
       }
     }
@@ -680,30 +686,28 @@ and syn_elab_skel =
       }
     }
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-    switch (
-      Statics_Exp.syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op))
-    ) {
-    | None => DoesNotElaborate
-    | Some(ty_op) =>
-      switch (HTyp.matched_arrow(ty_op)) {
-      | None => DoesNotElaborate
-      | Some((ty1, HTyp.Arrow(ty2, tyout))) =>
-        let arrow_ty = HTyp.Arrow(ty1, HTyp.Arrow(ty2, tyout));
-        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+    let op_ty =
+      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+      | Some(ty) => ty
+      | None => Hole
+      };
+
+    switch (HTyp.matched_two_ary_arrow(op_ty)) {
+    | Some((ty1, (ty2, ty3))) =>
+      switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d1, ty1', delta) =>
+        switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty1', delta) =>
-          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty1);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
-            let d = DHExp.BinUserOp(UserOp(op), dc1, dc2);
-            Elaborates(d, arrow_ty, delta);
-          }
-        };
-      | _ => DoesNotElaborate
+        | Elaborates(d2, ty2', delta) =>
+          let dc1 = DHExp.cast(d1, ty1', ty1);
+          let dc2 = DHExp.cast(d2, ty2', ty2);
+          let d = DHExp.BinUserOp(UserOp(op), dc1, dc2);
+          Elaborates(d, ty3, delta);
+        }
       }
-    }
+    | _ => DoesNotElaborate
+    };
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
