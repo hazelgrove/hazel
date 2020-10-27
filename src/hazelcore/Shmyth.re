@@ -134,7 +134,19 @@ and hexp_opseq_to_smexp =
   | Placeholder(n) =>
     let+ sme = hexp_operand_to_smexp(Seq.nth_operand(n, seq));
     (sme, []);
-  | BinOp(_) => failwith(__LOC__)
+  | BinOp(_, Comma, _, _) =>
+    let* tuple_es =
+      UHExp.get_tuple_elements(skel)
+      |> List.map(sk => OpSeq.OpSeq(sk, seq))
+      |> List.map(hexp_opseq_to_smexp)
+      |> OptUtil.sequence;
+    let sm_tuple_es = List.map(((e, _)) => e, tuple_es);
+    Some((ECtor("Cons", [], ETuple(sm_tuple_es)), []));
+  | BinOp(_, Cons, e1n, e2n) =>
+    let* (s_e1, _) = hexp_opseq_to_smexp(OpSeq.OpSeq(e1n, seq));
+    let* (s_e2, _) = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
+    Some((ECtor("Cons", [], ETuple([s_e1, s_e2])), []));
+  | BinOp(_) => None
   };
 }
 
@@ -161,7 +173,7 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
     }
   // TODO?: annotated lambdas?
   //| Lam(_, pat, Some(_ty), body) => failwith(__LOC__)
-  | Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
+  //| Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
   | Case(_, scrut, rules) => {
       let* sm_scrut = hexp_to_smexp(scrut);
       let* handled_rules = List.map(handle_rule, rules) |> OptUtil.sequence;
@@ -224,14 +236,16 @@ and handle_rule: UHExp.rule => option(sm_rule) =
       Some((smp, sme));
     };
 
-[@warning "-8"]
-let rec styp_to_htyp: Smyth.Lang.typ => option(HTyp.t) =
-  fun
-  | TArr(t1, t2) => {
-      let%bind.Option t1' = styp_to_htyp(t1);
-      let%map.Option t2' = styp_to_htyp(t2);
-      HTyp.Arrow(t1', t2');
-    };
+/*
+ [@warning "-8"]
+ let rec styp_to_htyp: Smyth.Lang.typ => option(HTyp.t) =
+   fun
+   | TArr(t1, t2) => {
+       let%bind.Option t1' = styp_to_htyp(t1);
+       let%map.Option t2' = styp_to_htyp(t2);
+       HTyp.Arrow(t1', t2');
+     };
+ */
 
 [@warning "-32"]
 [@warning "-27"]
