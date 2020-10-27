@@ -1,18 +1,3 @@
-module Option = {
-  /* Note that references to `Option` in this module refer to ocaml's option */
-  module Let_syntax = {
-    module Let_syntax = {
-      /* let return = (o: 'a): option('a) => Some(o); */
-
-      let map = (~f: 'a => 'b, o: option('a)): option('b) =>
-        Option.map(f, o);
-
-      let bind = (o: option('a), ~f: 'a => option('b)): option('b) =>
-        Option.bind(o, f);
-    };
-  };
-};
-
 open OptUtil.Syntax;
 
 /*
