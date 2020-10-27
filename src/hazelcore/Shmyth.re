@@ -166,6 +166,7 @@ and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
 }
 
 [@warning "-32"]
+[@warning "-11"]
 and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   fun
   | AssertLit(_) // assertions are top-level only for now
@@ -254,48 +255,84 @@ and handle_rule: UHExp.rule => option(sm_rule) =
       Some((smp, sme));
     };
 
-/*
- [@warning "-8"]
- let rec styp_to_htyp: Smyth.Lang.typ => option(HTyp.t) =
-   fun
-   | TArr(t1, t2) => {
-       let%bind.Option t1' = styp_to_htyp(t1);
-       let%map.Option t2' = styp_to_htyp(t2);
-       HTyp.Arrow(t1', t2');
-     };
- */
+/******************************************************************************/
 
-[@warning "-32"]
-[@warning "-27"]
-let smexp_to_operand: Smyth.Lang.exp => option(UHExp.operand) =
+let rec smpat_to_uhpat: Smyth.Lang.pat => option(UHPat.t) =
   fun
-  | EFix(name_opt, param, body) => failwith(__LOC__)
-  | EApp(special, head, arg) => failwith(__LOC__)
-  | EVar(name) => {
-      let in_hole = /* NotInHole */ failwith(__LOC__);
-      let in_var_hole = /* NotInVarHole */ failwith(__LOC__);
-      Some(Var(in_hole, in_var_hole, name));
+  | PVar(name) => Some(OpSeq.wrap(UHPat.var(name)))
+  | PTuple(ps) => {
+      let* ps = List.map(smpat_to_uhpat, ps) |> OptUtil.sequence;
+      let seqs = List.map((OpSeq.OpSeq(_skel, seq)) => seq, ps);
+      let* comma_seq =
+        switch (seqs) {
+        | [] => assert(false)
+        | [seq0, ...seqs'] =>
+          Some(
+            List.fold_right(
+              (seq, acc) => Seq.seq_op_seq(seq, Operators_Pat.Comma, acc),
+              seqs',
+              seq0,
+            ),
+          )
+        };
+      Some(UHPat.mk_OpSeq(comma_seq));
     }
-  | ETuple(args) => failwith(__LOC__)
-  | EProj(n, i, arg) => failwith(__LOC__)
-  | ECtor(name, type_args, arg) => failwith(__LOC__)
-  | ECase(scrutinee, branches) => failwith(__LOC__)
-  | EHole(name) => Some(EmptyHole(name))
-  | EAssert(lhs, rhs) => failwith(__LOC__)
-  | ETypeAnnotation(an_exp, a_typ) => failwith(__LOC__);
+  | PWildcard => Some(OpSeq.wrap(UHPat.wild()));
 
-[@warning "-32"]
-[@warning "-27"]
-let smres_to_operand: Smyth.Lang.res => option(UHExp.operand) =
+let rec smexp_to_uhexp = (e: Smyth.Lang.exp): option(UHExp.t) => {
+  let+ line = smexp_to_uhexp_line(e);
+  [line];
+}
+
+and smexp_to_uhexp_line = (e: Smyth.Lang.exp): option(UHExp.line) => {
+  let+ h_e = smexp_to_uhexp_opseq(e);
+  UHExp.ExpLine(h_e);
+}
+
+and smexp_to_uhexp_opseq = (e: Smyth.Lang.exp): option(UHExp.opseq) => {
+  let+ h_e = smexp_to_uhexp_operand(e);
+  OpSeq.wrap(h_e);
+}
+
+/* [@warning "-32"] */
+/* [@warning "-27"] */
+and smexp_to_uhexp_operand: Smyth.Lang.exp => option(UHExp.operand) =
   fun
-  | RFix(env, name_opt, param, body) => failwith(__LOC__)
-  | RTuple(args) => failwith(__LOC__)
-  | RCtor(name, arg) => failwith(__LOC__)
-  | RHole(_env, name) => Some(EmptyHole(name))
-  | RApp(head, arg) => failwith(__LOC__)
-  | RProj(n, i, arg) => failwith(__LOC__)
-  | RCase(env, scrutinee, branches) => failwith(__LOC__)
-  | RCtorInverse(name, arg) => failwith(__LOC__);
+  | EFix(Some(_name), _param, _body) =>
+    /* turns into a let? */
+    failwith(__LOC__)
+  | EFix(None, PatParam(p), body) => {
+      let* h_p = smpat_to_uhpat(p);
+      let+ body_uhexp = smexp_to_uhexp(body);
+      UHExp.lam(h_p, body_uhexp);
+    }
+  | EFix(None, TypeParam(_), _) => {
+      failwith(__LOC__);
+    }
+  | EApp(_special, _head, _arg) => failwith(__LOC__)
+  | EVar(name) => Some(UHExp.var(name))
+  | ETuple(_args) => failwith(__LOC__)
+  | EProj(_n, _i, _arg) => failwith(__LOC__)
+  | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
+  | ECase(_scrutinee, _branches) => failwith(__LOC__)
+  | EHole(_name) => failwith(__LOC__)
+  | EAssert(_lhs, _rhs) => failwith(__LOC__)
+  | ETypeAnnotation(_an_exp, _a_typ) => failwith(__LOC__);
+
+/* [@warning "-32"] */
+/* [@warning "-27"] */
+/* let smres_to_operand: Smyth.Lang.res => option(UHExp.operand) = */
+/*   fun */
+/*   | RFix(env, name_opt, param, body) => failwith(__LOC__) */
+/*   | RTuple(args) => failwith(__LOC__) */
+/*   | RCtor(name, arg) => failwith(__LOC__) */
+/*   | RHole(_env, name) => Some(EmptyHole(name)) */
+/*   | RApp(head, arg) => failwith(__LOC__) */
+/*   | RProj(n, i, arg) => failwith(__LOC__) */
+/*   | RCase(env, scrutinee, branches) => failwith(__LOC__) */
+/*   | RCtorInverse(name, arg) => failwith(__LOC__); */
+
+/******************************************************************************/
 
 type solve_result = list(list((MetaVar.t, UHExp.t)));
 
