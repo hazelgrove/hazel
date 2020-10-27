@@ -1,5 +1,5 @@
 open OptUtil.Syntax;
-
+open Option;
 /*
 
    The following datatype declarations:
@@ -128,20 +128,19 @@ let rec hexp_to_smexp = (_op: UHExp.t): option(Smyth.Lang.exp) => {
 and hexp_opseq_to_smexp =
     (opseq: UHExp.opseq)
     : option((Smyth.Lang.exp, list((Smyth.Lang.exp, Smyth.Lang.exp)))) => {
-  // TODO: cons, tuples
   let OpSeq(skel, seq) = opseq;
   switch (skel) {
   | Placeholder(n) =>
     let+ sme = hexp_operand_to_smexp(Seq.nth_operand(n, seq));
     (sme, []);
   | BinOp(_, Comma, _, _) =>
-    let* tuple_es =
+    let* sm_es =
       UHExp.get_tuple_elements(skel)
       |> List.map(sk => OpSeq.OpSeq(sk, seq))
       |> List.map(hexp_opseq_to_smexp)
-      |> OptUtil.sequence;
-    let sm_tuple_es = List.map(((e, _)) => e, tuple_es);
-    Some((ECtor("Cons", [], ETuple(sm_tuple_es)), []));
+      |> OptUtil.sequence
+      |> Option.map(List.map(((e, _)) => e));
+    Some((ECtor("Cons", [], ETuple(sm_es)), []));
   | BinOp(_, Cons, e1n, e2n) =>
     let* (s_e1, _) = hexp_opseq_to_smexp(OpSeq.OpSeq(e1n, seq));
     let* (s_e2, _) = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
@@ -188,21 +187,26 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
 
 [@warning "-32"]
 and hpat_opseq_to_smpat: UHPat.opseq => option(sm_pat) =
-  // TODO: do this recursively, from skel I guess?
   fun
-  | OpSeq(_skel, S(p, E)) => hpat_operand_to_smpat(p)
-  | OpSeq(_skel, S(p1, A(op, S(p2, E)))) => {
-      // HACK: note how we're assuming p1 & p2 aren't contructor patterns
-      let* (_, sp1) = hpat_operand_to_smpat(p1);
-      let* (_, sp2) = hpat_operand_to_smpat(p2);
-      let tuple = PTuple([sp1, sp2]);
-      switch (op) {
-      | Space => None
-      | Cons => Some(("Cons", tuple))
-      | Comma => Some(("", tuple))
-      };
+  | OpSeq(skel, seq) =>
+    switch (skel) {
+    | Placeholder(n) => hpat_operand_to_smpat(Seq.nth_operand(n, seq))
+    | BinOp(_, Comma, _, _) =>
+      let* sm_ps =
+        UHPat.get_tuple_elements(skel)
+        |> List.map(sk => OpSeq.OpSeq(sk, seq))
+        |> List.map(hpat_opseq_to_smpat)
+        |> OptUtil.sequence
+        // HACK: note how we're assuming contained ps aren't contructor patterns
+        |> Option.map(List.map(((_, p)) => p));
+      Some(("Cons", PTuple(sm_ps)));
+    | BinOp(_, Cons, p1n, p2n) =>
+      // HACK: See above
+      let* (_, s_p1) = hpat_opseq_to_smpat(OpSeq.OpSeq(p1n, seq));
+      let* (_, s_p2) = hpat_opseq_to_smpat(OpSeq.OpSeq(p2n, seq));
+      Some(("Cons", PTuple([s_p1, s_p2])));
+    | BinOp(_) => None
     }
-  | OpSeq(_skel, S(_a, _)) => None
 
 [@warning "-32"]
 and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
