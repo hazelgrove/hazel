@@ -84,6 +84,8 @@ let next_card: t => t;
 
 let perform_edit_action: (Action_common.t, t) => t;
 
+let synthesize: t => t;
+
 let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
 

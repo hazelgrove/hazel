@@ -297,7 +297,7 @@ let smres_to_operand: Smyth.Lang.res => option(UHExp.operand) =
   | RCase(env, scrutinee, branches) => failwith(__LOC__)
   | RCtorInverse(name, arg) => failwith(__LOC__);
 
-type solve_result = list(list((MetaVar.t, UHExp.opseq)));
+type solve_result = list(list((MetaVar.t, UHExp.t)));
 
 [@warning "-32"]
 let solve = (e: UHExp.t): option(solve_result) => {

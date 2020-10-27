@@ -25,6 +25,7 @@ type t =
   | LoadCardstack(int)
   | NextCard
   | PrevCard
+  | Synthesize
   // Result computation toggles
   | ToggleComputeResults
   | ToggleShowCaseClauses

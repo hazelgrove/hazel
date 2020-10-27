@@ -255,6 +255,24 @@ let perform_edit_action = (a: Action_common.t, model: t): t => {
   );
 };
 
+let synthesize = (model: t): t => {
+  switch (Shmyth.solve(Program.get_uhexp(get_program(model)))) {
+  | None =>
+    print_endline("synth error");
+    model;
+  | Some([]) =>
+    print_endline("no synth results");
+    model;
+  | Some([synthesized, ..._]) =>
+    synthesized
+    |> List.fold_left(
+         (model, (u, synthesized)) =>
+           perform_edit_action(FillExpHole(u, synthesized), model),
+         model,
+       )
+  };
+};
+
 let move_via_key = (move_key, model) => {
   let (new_program, action) =
     model

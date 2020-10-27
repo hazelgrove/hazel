@@ -48,7 +48,8 @@ type t =
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init;
+  | Init
+  | FillExpHole(MetaVar.t, UHExp.t);
 
 let shape_to_string = (shape: shape): string => {
   switch (shape) {

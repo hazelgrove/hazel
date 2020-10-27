@@ -235,6 +235,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         ],
                         [Node.text("Serialize to console")],
                       ),
+                      Node.button(
+                        [Attr.on_click(_ => inject(ModelAction.Synthesize))],
+                        [Node.text("Shmythesize")],
+                      ),
                       Node.div(
                         [
                           Attr.style(

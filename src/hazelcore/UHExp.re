@@ -388,3 +388,108 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
 and is_complete = (exp: t, check_type_holes: bool): bool => {
   is_complete_block(exp, check_type_holes);
 };
+
+let fill_hole = (u: MetaVar.t, filler: t, e: t) => {
+  open OptUtil.Syntax;
+  let rec go_block = (block: block): option(block) => {
+    let (filled, block) =
+      List.fold_right(
+        (line, (filled, lines)) =>
+          filled
+            ? (true, [line, ...lines])
+            : (
+              switch (go_line(line)) {
+              | None => (false, [line, ...lines])
+              | Some(filled_line) => (true, [filled_line, ...lines])
+              }
+            ),
+        block,
+        (false, []),
+      );
+    filled ? Some(block) : None;
+  }
+  and go_line = line =>
+    switch (line) {
+    | EmptyLine
+    | CommentLine(_) => None
+    | LetLine(p, ann, def) =>
+      let+ filled_def = go_block(def);
+      LetLine(p, ann, filled_def);
+    | ExpLine(OpSeq(_, seq)) =>
+      let+ filled_seq = go_seq(seq);
+      ExpLine(mk_OpSeq(filled_seq));
+    }
+  and go_seq: seq => option(seq) =
+    fun
+    | S(operand, affix) =>
+      switch (go_operand(operand)) {
+      | None =>
+        let+ filled_affix = go_affix(affix);
+        Seq.S(operand, filled_affix);
+      | Some(filled_operand) => Some(S(filled_operand, affix))
+      }
+  and go_affix: affix => option(affix) =
+    fun
+    | E => None
+    | A(op, seq) => {
+        let+ filled_seq = go_seq(seq);
+        Seq.A(op, filled_seq);
+      }
+  and go_operand = (operand: operand): option(operand) =>
+    switch (operand) {
+    | InvalidText(_)
+    | Var(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_)
+    | ListNil(_)
+    | AssertLit(_)
+    | ApPalette(_) => None
+    | EmptyHole(u') =>
+      if (u == u') {
+        switch (filler) {
+        | [ExpLine(OpSeq(_, S(operand, E)))] => Some(operand)
+        | _ => Some(Parenthesized(filler))
+        };
+      } else {
+        None;
+      }
+    | Parenthesized(body) =>
+      let+ filled_body = go_block(body);
+      Parenthesized(filled_body);
+    | Inj(err, side, body) =>
+      let+ filled_body = go_block(body);
+      Inj(err, side, filled_body);
+    | Lam(err, p, ann, def) =>
+      let+ filled_def = go_block(def);
+      Lam(err, p, ann, filled_def);
+    | Case(err, scrut, rules) =>
+      switch (go_block(scrut)) {
+      | Some(filled_scrut) => Some(Case(err, filled_scrut, rules))
+      | None =>
+        let (filled, rules) =
+          List.fold_right(
+            (rule, (filled, rules)) =>
+              filled
+                ? (true, [rule, ...rules])
+                : (
+                  switch (go_rule(rule)) {
+                  | None => (false, [rule, ...rules])
+                  | Some(filled_rule) => (true, [filled_rule, ...rules])
+                  }
+                ),
+            rules,
+            (false, []),
+          );
+        filled ? Some(Case(err, scrut, rules)) : None;
+      }
+    }
+  and go_rule = (Rule(p, clause): rule) => {
+    let+ filled_clause = go_block(clause);
+    Rule(p, filled_clause);
+  };
+  switch (go_block(e)) {
+  | None => e
+  | Some(filled) => filled
+  };
+};

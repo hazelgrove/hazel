@@ -514,4 +514,5 @@ let _check_actions = (a: Action_common.t) =>
   | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
+  | FillExpHole(_) => Added
   };
