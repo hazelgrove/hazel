@@ -126,8 +126,14 @@ let rec hexp_to_smexp = (_op: UHExp.t): option(Smyth.Lang.exp) => {
 }
 
 [@warning "-32"]
-and hexp_opseq_to_smprog =
-    (opseq: UHExp.opseq): option(Smyth.Desugar.program) => {
+and hexp_to_smprog = (opseq: UHExp.opseq): option(Smyth.Desugar.program) => {
+  // plan:
+  // switch this from opseq to uhexp
+  // this will be a block (list) of lines
+  // filter these into three lists; letlines (definitions)
+  // explines which begin with assertlits (assertions), and explines which dont
+  // looks like definitions need to have a type, so we will require they are annotated
+  // throw away all but the last expline, which will become main
   let* main = hexp_opseq_to_smexp(opseq);
   Smyth.Desugar.(
     Some({
@@ -162,6 +168,7 @@ and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
 [@warning "-32"]
 and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   fun
+  | AssertLit(_) // assertions are top-level only for now
   | FloatLit(_)
   | ApPalette(_)
   | Inj(_)
@@ -172,16 +179,13 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   | ListNil(_) => Some(sm_nil)
   | BoolLit(_, true) => Some(sm_true)
   | BoolLit(_, false) => Some(sm_false)
-  | AssertLit(_) => failwith(__LOC__)
-  // TODO: assertions?? somewhere else i guess?
   | Lam(_, pat, _ /* None */, body) => {
       // precondition: this lambda is not immediately named in a let
       let* (_, smp) = hpat_opseq_to_smpat(pat);
       let* smbody = hexp_to_smexp(body);
       Some(EFix(None, PatParam(smp), smbody));
     }
-  // TODO?: annotated lambdas?
-  //| Lam(_, pat, Some(_ty), body) => failwith(__LOC__)
+  // TODO: named fixes: rewrite into a let returning a lambda
   //| Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
   | Case(_, scrut, rules) => {
       let* sm_scrut = hexp_to_smexp(scrut);
@@ -193,7 +197,7 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
         ),
       );
     }
-  | Parenthesized(expr) => hexp_to_smexp(expr) // TODO: does this make sense?
+  | Parenthesized(expr) => hexp_to_smexp(expr) // does this make sense?
 
 [@warning "-32"]
 and hpat_opseq_to_smpat: UHPat.opseq => option(sm_pat) =
@@ -225,7 +229,7 @@ and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
   | FloatLit(_)
   | InvalidText(_)
   | Inj(_) => None
-  | Parenthesized(p) => hpat_opseq_to_smpat(p) // irrelevant?
+  | Parenthesized(p) => hpat_opseq_to_smpat(p) // correct?
   | Wild(_) => Some(("", PWildcard)) // is "" correct?
   | Var(_, _, name) => Some(("", PVar(name)))
   | BoolLit(_, true) => Some(("True", PTuple([]))) // is PTuple correct?
