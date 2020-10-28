@@ -706,7 +706,6 @@ and syn_elab_operand =
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
-    // andrew: should this case change? does failure to syn_elab correspond to failure to syn?
     | Elaborates(d1, pat_ty, delta) =>
       let elab_rules =
         List.fold_left2(
