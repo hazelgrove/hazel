@@ -130,3 +130,5 @@ let fix_and_renumber_holes:
 
 let fix_and_renumber_holes_z:
   (Contexts.t, ZExp.t) => Statics_common.edit_state;
+
+let joint_pattern_type: (Contexts.t, list(UHExp.rule)) => option(HTyp.t);
