@@ -1,6 +1,16 @@
 type cursor_term = CursorInfo_common.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
+let join_rule_pattern_types = (rules, ctx) => {
+  let tys =
+    rules
+    |> List.map((UHExp.Rule(p, _)) => p)
+    |> List.map(Statics_Pat.syn(ctx))
+    |> OptUtil.sequence
+    |> Option.map(List.map(((ty, _)) => ty));
+  Option.bind(tys, HTyp.join_all(LUB));
+};
+
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));
 }
@@ -542,7 +552,14 @@ and syn_cursor_info_zoperand =
     | Some((ty, ctx)) => ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty)
     }
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | CaseZE(_, zscrut, _) => syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
+  | CaseZE(_, zscrut, rules) =>
+    let ty_join =
+      switch (join_rule_pattern_types(rules, ctx)) {
+      | Some(ty) => ty
+      | _ => HTyp.Hole
+      };
+    ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
+  //syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
   | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None
