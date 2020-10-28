@@ -1034,17 +1034,17 @@ and syn_perform_line =
       let (recursive_ctx, _) =
         Statics_Exp.ctx_for_let(ctx, ZPat.erase(zp), ty_p, def);
       switch (Statics_Exp.syn(recursive_ctx, def)) {
-      | None => Failed // TODO(andrew): is this right?
+      | None => Failed
       | Some(ty_def) =>
-        let ty =
+        let ty_join =
           switch (HTyp.join(LUB, ty_def, ty_p)) {
           | None => ty_p
           | Some(ty) => ty
           };
         let (new_def, u_gen) =
-          Statics_Exp.ana_fix_holes(ctx, u_gen, def, ty);
+          Statics_Exp.ana_fix_holes(ctx, u_gen, def, ty_join);
         let (new_zp, ctx_body, u_gen) =
-          Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty);
+          Statics_Pat.ana_fix_holes_z(ctx, u_gen, zp, ty_join);
         let new_zline = ZExp.LetLineZP(new_zp, new_def);
         Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
       };
@@ -1066,14 +1066,15 @@ and syn_perform_line =
           switch (Statics_Exp.syn(recursive_ctx, ZExp.erase(new_zdef))) {
           | None => Failed
           | Some(ty_def) =>
-            switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
-            | None => Failed
-            | Some(ty_join) =>
-              let (new_p, ctx_body, u_gen) =
-                Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty_join);
-              let new_zline = ZExp.LetLineZE(new_p, new_zdef);
-              Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
-            }
+            let ty_join =
+              switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
+              | None => ty_def
+              | Some(ty) => ty
+              };
+            let (new_p, ctx_body, u_gen) =
+              Statics_Pat.ana_fix_holes(ctx, u_gen, p, ty_join);
+            let new_zline = ZExp.LetLineZE(new_p, new_zdef);
+            Succeeded(LineDone((([], new_zline, []), ctx_body, u_gen)));
           }
         };
       }
