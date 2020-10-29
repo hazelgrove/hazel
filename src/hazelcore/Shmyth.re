@@ -1,5 +1,6 @@
 open OptUtil.Syntax;
 open Option;
+open Smyth.Lang;
 
 /*
 
@@ -50,22 +51,81 @@ open Option;
    ]
  */
 
-[@warning "-32"]
-let datatype_prelude: Smyth.Lang.datatype_ctx =
-  Smyth.Lang.[
-    ("Bool", ([], [("True", TTuple([])), ("False", TTuple([]))])),
-    ("Nat", ([], [("Z", TTuple([])), ("S", TData("Nat", []))])),
+let datatype_prelude: Smyth.Lang.datatype_ctx = [
+  ("Bool", ([], [("True", TTuple([])), ("False", TTuple([]))])),
+  ("Nat", ([], [("Z", TTuple([])), ("S", TData("Nat", []))])),
+  (
+    "NatList",
     (
-      "NatList",
-      (
-        [],
-        [
-          ("Nil", TTuple([])),
-          ("Cons", TTuple([TData("Nat", []), TData("NatList", [])])),
-        ],
-      ),
+      [],
+      [
+        ("Nil", TTuple([])),
+        ("Cons", TTuple([TData("Nat", []), TData("NatList", [])])),
+      ],
     ),
-  ];
+  ),
+];
+
+type sm_pat = (string, Smyth.Lang.pat);
+type sm_rule = (sm_pat, Smyth.Lang.exp);
+type sm_def = (string, (Smyth.Lang.typ, Smyth.Lang.exp));
+type sm_assert = (Smyth.Lang.exp, Smyth.Lang.exp);
+
+let sm_ctor = (name, arg) => ECtor(name, [], arg);
+let sm_null_ctor = name => sm_ctor(name, ETuple([]));
+let sm_zero = sm_null_ctor("Z");
+let sm_true = sm_null_ctor("True");
+let sm_false = sm_null_ctor("False");
+let sm_nil = sm_null_ctor("Nil");
+
+let rec sm_succ =
+  fun
+  | 0 => sm_zero
+  | n => sm_ctor("S", sm_succ(n - 1));
+
+let rec unsucc: Smyth.Lang.exp => int =
+  fun
+  | ECtor("S", _, smexp_1) => 1 + unsucc(smexp_1)
+  | _ => 0; // in a perfect world this is ECtor("Z", [], _)
+
+let str_to_smint = str => str |> int_of_string |> sm_succ;
+[@warning "-32"]
+let smint_to_string = smexp => smexp |> unsucc |> string_of_int;
+
+let is_letline: UHExp.line => bool =
+  fun
+  | LetLine(_) => true
+  | _ => false;
+
+let is_assert: UHExp.line => bool =
+  // Only directly specified equality comparisons are allowed
+  fun
+  | ExpLine(
+      OpSeq(
+        _,
+        S(
+          AssertLit(_, _),
+          A(
+            Space,
+            S(
+              Parenthesized([
+                ExpLine(OpSeq(_, S(_, A(Equals, S(_, E))))),
+              ]),
+              E,
+            ),
+          ),
+        ),
+      ),
+    ) =>
+    true
+  | _ => false;
+
+let is_expr: UHExp.line => bool =
+  fun
+  // Remember to skip asserts:
+  | ExpLine(OpSeq(_, S(AssertLit(_), _))) => false
+  | ExpLine(_) => true
+  | _ => false;
 
 [@warning "-32"]
 let rec htyp_to_styp: HTyp.t => option(Smyth.Lang.typ) =
@@ -89,61 +149,73 @@ let rec htyp_to_styp: HTyp.t => option(Smyth.Lang.typ) =
       }
   );
 
-open Smyth.Lang;
-
-type sm_pat = (string, Smyth.Lang.pat);
-type sm_rule = (sm_pat, Smyth.Lang.exp);
-
-let sm_ctor = (name, arg) => ECtor(name, [], arg);
-let sm_null_ctor = name => sm_ctor(name, ETuple([]));
-let sm_zero = sm_null_ctor("Z");
-let sm_true = sm_null_ctor("True");
-let sm_false = sm_null_ctor("False");
-let sm_nil = sm_null_ctor("Nil");
-
-let rec sm_succ =
-  fun
-  | 0 => sm_zero
-  | n => sm_ctor("S", sm_succ(n - 1));
-
-let rec unsucc: Smyth.Lang.exp => int =
-  fun
-  | ECtor("S", _, smexp_1) => 1 + unsucc(smexp_1)
-  | _ => 0; // in a perfect world this is ECtor("Z", [], _)
-
-let str_to_smint = str => str |> int_of_string |> sm_succ;
-[@warning "-32"]
-let smint_to_string = smexp => smexp |> unsucc |> string_of_int;
-
-[@warning "-32"]
-let rec hexp_to_smexp = (_op: UHExp.t): option(Smyth.Lang.exp) => {
-  // need this level for two? reasons:
-  // capture top-level lets to turn into definitions
-  // ??capture internal let-defined functions to turn into fixs??
-  failwith(
-    __LOC__,
-  );
-}
-
-[@warning "-32"]
-and hexp_to_smprog = (opseq: UHExp.opseq): option(Smyth.Desugar.program) => {
-  // plan:
-  // switch this from opseq to uhexp
-  // this will be a block (list) of lines
-  // filter these into three lists; letlines (definitions)
-  // explines which begin with assertlits (assertions), and explines which dont
-  // looks like definitions need to have a type, so we will require they are annotated
-  // throw away all but the last expline, which will become main
-  let* main = hexp_opseq_to_smexp(opseq);
+let rec top_hexp_to_smprog = (lines: UHExp.t): option(Smyth.Desugar.program) => {
+  let sm_main =
+    switch (List.filter_map(h_expline_to_sm_exp, lines)) {
+    // take first expression as main
+    | [e, ..._es] => Some(e)
+    | _ => None
+    };
   Smyth.Desugar.(
     Some({
       datatypes: datatype_prelude,
-      definitions: [], // TODO: top-level defs: string * (typ * exp)) list
-      assertions: [], // TODO: assertions: (exp * exp) list,
-      main_opt: Some(main),
+      definitions: List.filter_map(h_letline_to_sm_def, lines),
+      assertions: List.filter_map(h_assert_to_sm_assert, lines),
+      main_opt: sm_main,
     })
   );
 }
+
+and non_top_hexp_to_smexp = (hexp: UHExp.t): option(Smyth.Lang.exp) => {
+  /* Non-top-level case:
+     For now, assume there are no non-top letlines
+     or commmentlines, or emptylines, or asserts */
+  switch (hexp) {
+  | [ExpLine(opseq), ..._es] => hexp_opseq_to_smexp(opseq)
+  | _ => None
+  };
+}
+
+and h_expline_to_sm_exp: UHExp.line => option(Smyth.Lang.exp) =
+  fun
+  // Remember to skip asserts!
+  | ExpLine(OpSeq(_, S(AssertLit(_), _))) => None
+  | ExpLine(opseq) => hexp_opseq_to_smexp(opseq)
+  | _ => None
+
+and h_letline_to_sm_def: UHExp.line => option(sm_def) =
+  fun
+  | LetLine(OpSeq(_, S(Var(_, _, name), E)), Some(h_ty), h_body) => {
+      let* sm_ty = h_ty |> UHTyp.expand |> htyp_to_styp;
+      let* sm_body = non_top_hexp_to_smexp(h_body);
+      Some((name, (sm_ty, sm_body)));
+    }
+  | _ => None
+
+and h_assert_to_sm_assert: UHExp.line => option(sm_assert) =
+  fun
+  | ExpLine(
+      OpSeq(
+        _,
+        S(
+          AssertLit(_, _number),
+          A(
+            Space,
+            S(
+              Parenthesized([
+                ExpLine(OpSeq(_, S(h_e1, A(Equals, S(h_e2, E))))),
+              ]),
+              E,
+            ),
+          ),
+        ),
+      ),
+    ) => {
+      let* sm_e1 = hexp_operand_to_smexp(h_e1);
+      let* sm_e2 = hexp_operand_to_smexp(h_e2);
+      Some((sm_e1, sm_e2));
+    }
+  | _ => None
 
 [@warning "-32"]
 and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
@@ -174,6 +246,7 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   | ApPalette(_)
   | Inj(_)
   | InvalidText(_) => None
+  | Parenthesized(expr) => non_top_hexp_to_smexp(expr)
   | EmptyHole(num) => Some(EHole(num))
   | Var(_, _, name) => Some(EVar(name))
   | IntLit(_, str) => Some(str_to_smint(str))
@@ -183,13 +256,13 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   | Lam(_, pat, _ /* None */, body) => {
       // precondition: this lambda is not immediately named in a let
       let* (_, smp) = hpat_opseq_to_smpat(pat);
-      let* smbody = hexp_to_smexp(body);
+      let* smbody = non_top_hexp_to_smexp(body);
       Some(EFix(None, PatParam(smp), smbody));
     }
   // TODO: named fixes: rewrite into a let returning a lambda
   //| Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
   | Case(_, scrut, rules) => {
-      let* sm_scrut = hexp_to_smexp(scrut);
+      let* sm_scrut = non_top_hexp_to_smexp(scrut);
       let* handled_rules = List.map(handle_rule, rules) |> OptUtil.sequence;
       Some(
         ECase(
@@ -198,7 +271,6 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
         ),
       );
     }
-  | Parenthesized(expr) => hexp_to_smexp(expr) // does this make sense?
 
 [@warning "-32"]
 and hpat_opseq_to_smpat: UHPat.opseq => option(sm_pat) =
@@ -230,9 +302,9 @@ and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
   | FloatLit(_)
   | InvalidText(_)
   | Inj(_) => None
-  | Parenthesized(p) => hpat_opseq_to_smpat(p) // correct?
-  | Wild(_) => Some(("", PWildcard)) // is "" correct?
+  | Parenthesized(p) => hpat_opseq_to_smpat(p)
   | Var(_, _, name) => Some(("", PVar(name)))
+  | Wild(_) => Some(("", PWildcard)) // is "" correct?
   | BoolLit(_, true) => Some(("True", PTuple([]))) // is PTuple correct?
   | BoolLit(_, false) => Some(("False", PTuple([])))
   | ListNil(_) => Some(("Nil", PTuple([])))
@@ -251,7 +323,7 @@ and handle_rule: UHExp.rule => option(sm_rule) =
       // i guess this will be the only supported let for now?
       // could rewrite lets into lambda generally
       // does the naive desugaring strategy work in the other direction?
-      let* sme = hexp_to_smexp(exp);
+      let* sme = non_top_hexp_to_smexp(exp);
       Some((smp, sme));
     };
 
@@ -338,17 +410,8 @@ type solve_result = list(list((MetaVar.t, UHExp.t)));
 
 [@warning "-32"]
 let solve = (e: UHExp.t): option(solve_result) => {
-  switch (
-    Smyth.Endpoint.solve_program(
-      Smyth.Desugar.{
-        // TODO
-        datatypes: [],
-        definitions: [],
-        assertions: [],
-        main_opt: hexp_to_smexp(e),
-      },
-    )
-  ) {
+  let* sm_prog = top_hexp_to_smprog(e);
+  switch (Smyth.Endpoint.solve_program(sm_prog)) {
   | Error(_) => None
   | Ok(_) => failwith("todo")
   };
