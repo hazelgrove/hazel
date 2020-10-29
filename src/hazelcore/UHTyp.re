@@ -84,9 +84,9 @@ let contract = (ty: HTyp.t): t => {
       | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
       | List(ty1) =>
         Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
-      | Label(id) => Seq.wrap(Label(id))
+      | Label(label) => Seq.wrap(Label(NotInLabelHole, label))
       | Label_Elt(label, ty) =>
-        mk_seq_operand(HTyp.precedence_Space, Space, label, ty)
+        mk_seq_operand(HTyp.precedence_Space, Space, Label(label), ty)
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -126,8 +126,7 @@ and expand_skel = (skel, seq) =>
       | [] => []
       | [hd] =>
         switch (hd) {
-        | Label(_)
-        | Hole => [Label_Elt(hd, ty2)]
+        | Label(l) => [Label_Elt(l, ty2)]
         | _ => failwith("Expecting a Label Got a Type")
         }
       | [hd, ...tl] => [hd, ...make_new_prod(tl, ty)]
@@ -148,18 +147,23 @@ and expand_operand =
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq))
-  | Label(id) => Label(id);
+  | Label(err, id) =>
+    switch (err) {
+    // ECD TODO: May need to add error status to htyp labels
+    | NotInLabelHole => Label(id)
+    | InLabelHole(_, _) => Hole
+    };
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
+  | Label(_) => false
   | Unit => true
   | Int => true
   | Float => true
   | Bool => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
-  | Label(_) => true
   };
 }
 and is_complete_skel = (sk: skel, sq: seq) => {

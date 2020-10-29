@@ -62,7 +62,7 @@ let rec mk =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);
       DHDoc_common.mk_Ap(doc1, doc2);
     | Label(l) => DHDoc_common.mk_Label(l)
-    | Label_Elt(dp1, dp2) => DHDoc_common.mk_Label_Elt(mk'(dp1), mk'(dp2))
+    | Label_Elt(l, dp) => DHDoc_common.mk_Label_Elt(l, mk'(dp))
     };
   parenthesize
     ? Doc.hcats([

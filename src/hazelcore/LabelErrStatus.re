@@ -4,7 +4,7 @@ module HoleReason = {
     | Standalone
     | Duplicate
     | Empty
-    | Invalid
+    | NotValid;
 };
 
 [@deriving sexp]

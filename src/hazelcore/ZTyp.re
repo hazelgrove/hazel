@@ -20,7 +20,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2)
-  | Label(l) => CursorPosition.text_cursors(Label.length(l));
+  | Label(_, l) => CursorPosition.text_cursors(Label.length(l));
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
   fun
@@ -80,7 +80,7 @@ and is_after_zoperand =
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
-  | CursorT(cursor, Label(l)) => cursor == OnText(Label.length(l))
+  | CursorT(cursor, Label(_, l)) => cursor == OnText(Label.length(l))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -115,7 +115,7 @@ and place_after_operand =
   fun
   | (Hole | Unit | Int | Float | Bool) as operand =>
     CursorT(OnDelim(0, After), operand)
-  | Label(label) as operand =>
+  | Label(_, label) as operand =>
     CursorT(OnText(Label.length(label)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
@@ -155,8 +155,8 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorT(OnText(j), Label(label)) =>
-    Some(CursorT(OnText(j - 1), Label(label)))
+  | CursorT(OnText(j), Label(lerr, l)) =>
+    Some(CursorT(OnText(j - 1), Label(lerr, l)))
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
@@ -201,8 +201,8 @@ and move_cursor_right_zoperand =
   fun
   //   Some(CursorT(OnDelim(1, Before), Hole))
   | z when is_after_zoperand(z) => None
-  | CursorT(OnText(j), Label(label)) =>
-    Some(CursorT(OnText(j + 1), Label(label)))
+  | CursorT(OnText(j), Label(lerr, label)) =>
+    Some(CursorT(OnText(j + 1), Label(lerr, label)))
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))

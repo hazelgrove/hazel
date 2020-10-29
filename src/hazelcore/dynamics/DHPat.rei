@@ -17,7 +17,7 @@ type t =
   | Triv
   | Ap(t, t)
   | Label(Label.t)
-  | Label_Elt(t, t);
+  | Label_Elt(Label.t, t);
 
 let mk_tuple: list(t) => t;
 

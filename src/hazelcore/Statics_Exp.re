@@ -103,28 +103,38 @@ and syn_skel =
   | BinOp(NotInHole, Space, skel1, skel2) =>
     // check if skel1 is a label without running syn on it
     switch (skel1) {
-      | Placeholder(n) => 
-        switch(Seq.nth_operand(n, seq)) {
-          | Label(l) => Some(Label_Elt(l, ty2))
-          // Skel1 is not a label, so continue wiht matching on arrow
-          // ECD TOD: Check for parentheses
-          | _ => switch(syn_skel(ctx, skel1, seq)) {
-            | None => None
-            | Some(ty1) => switch(HTyp.matched_arrow(ty1)){
-              | None => None
-              | Some((ty2, ty)) => ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
-            }
-          }
-      }
-    // Skel1 is not a label, so continue wiht matching on arrow
-    | _ => switch(syn_skel(ctx, skel1, seq)) {
+    | Placeholder(n) =>
+      switch (Seq.nth_operand(n, seq)) {
+      | Label(_, l) =>
+        switch (syn_skel(ctx, skel2, seq)) {
+        | Some(ty) => Some(Label_Elt(l, ty))
+        | None => None
+        }
+      // Skel1 is not a label, so continue wiht matching on arrow
+      // ECD TOD: Check for parentheses
+      | _ =>
+        switch (syn_skel(ctx, skel1, seq)) {
+        | None => None
+        | Some(ty1) =>
+          switch (HTyp.matched_arrow(ty1)) {
           | None => None
-          | Some(ty1) => switch(HTyp.matched_arrow(ty1)){
-            | None => None
-            | Some((ty2, ty)) => ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
+          | Some((ty2, ty)) =>
+            ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
           }
         }
-    };
+      }
+    // Skel1 is not a label, so continue wiht matching on arrow
+    | _ =>
+      switch (syn_skel(ctx, skel1, seq)) {
+      | None => None
+      | Some(ty1) =>
+        switch (HTyp.matched_arrow(ty1)) {
+        | None => None
+        | Some((ty2, ty)) =>
+          ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
+        }
+      }
+    }
   | BinOp(NotInHole, Comma, _, _) =>
     skel
     |> UHExp.get_tuple_elements
@@ -144,6 +154,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   /* in hole */
   | EmptyHole(_) => Some(Hole)
   | InvalidText(_) => Some(Hole)
+  | Label(_, _) => Some(Hole)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -153,7 +164,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Label(InHole(TypeInconsistent, _), _)
   | Prj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
@@ -166,7 +176,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Label(InHole(WrongLength, _), _)
   | Prj(InHole(WrongLength, _), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     switch (syn(ctx, scrut)) {
@@ -243,7 +252,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       }
     };
   | Parenthesized(body) => syn(ctx, body)
-  | Label(_, label) => Some(Hole)
   | Prj(NotInHole, _, _) =>
     failwith(__LOC__ ++ " unimplemented label projection")
   }
@@ -367,7 +375,7 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some()
   | InvalidText(_) => Some()
-  | Label(_, l) => Some() // ECD TODO: May need to change this to be consistent with labeled Tuple exp
+  | Label(_, _) => Some() // ECD TODO: May need to change this to be consistent with labeled Tuple exp
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -508,36 +516,39 @@ and syn_nth_type_mode' =
       n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (skel1) {
-          | Placeholder(n) => 
-            switch(Seq.nth_operand(n, seq)) {
-              | Label(l) => go(skel2)
-              // Skel1 is not a label, so continue wiht matching on arrow
-              // ECD TOD: Check for parentheses
-              | _ => switch(syn_skel(ctx, skel1, seq)) {
-                | None => None
-                | Some(ty1) => 
-                if (n <= Skel.rightmost_tm_index(skel1)) {
-                  go(skel1);
-                } else {
-                  switch (HTyp.matched_arrow(ty1)) {
-                    | None => None
-                    | Some((ty2, ty)) => ana_go(skel2, ty2)
-                  }
-              }
-          }
+      | Placeholder(n) =>
+        switch (Seq.nth_operand(n, seq)) {
+        | Label(_, _) => go(skel2)
         // Skel1 is not a label, so continue wiht matching on arrow
-        | _ => switch(syn_skel(ctx, skel1, seq)) {
-                | None => None
-                | Some(ty1) => 
-                if (n <= Skel.rightmost_tm_index(skel1)) {
-                  go(skel1);
-                } else {
-                  switch (HTyp.matched_arrow(ty1)) {
-                    | None => None
-                    | Some((ty2, ty)) => ana_go(skel2, ty2)
-                  }
-              }
+        // ECD TOD: Check for parentheses
+        | _ =>
+          switch (syn_skel(ctx, skel1, seq)) {
+          | None => None
+          | Some(ty1) =>
+            if (n <= Skel.rightmost_tm_index(skel1)) {
+              go(skel1);
+            } else {
+              switch (HTyp.matched_arrow(ty1)) {
+              | None => None
+              | Some((ty2, _)) => ana_go(skel2, ty2)
+              };
+            }
           }
+        }
+      // Skel1 is not a label, so continue with matching on arrow
+      | _ =>
+        switch (syn_skel(ctx, skel1, seq)) {
+        | None => None
+        | Some(ty1) =>
+          if (n <= Skel.rightmost_tm_index(skel1)) {
+            go(skel1);
+          } else {
+            switch (HTyp.matched_arrow(ty1)) {
+            | None => None
+            | Some((ty2, _)) => ana_go(skel2, ty2)
+            };
+          }
+        }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
@@ -893,31 +904,31 @@ and syn_fix_holes_skel =
       switch (skel1) {
       | Placeholder(n) =>
         let en = seq |> Seq.nth_operand(n);
-        switch(en) {
-          | Label(l) => 
-            let (skel2, seq, ty2', u_gen) =
+        switch (en) {
+        | Label(_, l) =>
+          let (skel2, seq, ty2', u_gen) =
             syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
-            (
-              BinOp(NotInHole, Space, skel1, skel2),
-              seq,
-              Label_Elt(l, ty2'),
-              u_gen,
-            );
-          | _ => 
-          let (skel2, seq, u_gen) =
-          ana_fix_holes_skel(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            skel2,
+          (
+            BinOp(NotInHole, Space, skel1, skel2),
             seq,
-            HTyp.Hole,
+            Label_Elt(l, ty2'),
+            u_gen,
           );
-        let (OpSeq(skel1, seq), u_gen) =
-          UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
-        }
-      | _ => 
+        | _ =>
+          let (skel2, seq, u_gen) =
+            ana_fix_holes_skel(
+              ctx,
+              u_gen,
+              ~renumber_empty_holes,
+              skel2,
+              seq,
+              HTyp.Hole,
+            );
+          let (OpSeq(skel1, seq), u_gen) =
+            UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
+          (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
+        };
+      | _ =>
         let (skel2, seq, u_gen) =
           ana_fix_holes_skel(
             ctx,

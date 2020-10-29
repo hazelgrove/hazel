@@ -70,7 +70,7 @@ let rec consistent = (x, y) =>
     label == label' && consistent(ty, ty')
   | (Label_Elt(_), _) => false
   | (Label(id), Label(id')) => id == id'
-  | (Label(_), _) => false
+  | (Label(_), _) => true // Labels are holes
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
@@ -114,12 +114,6 @@ let matched_list =
   | List(ty) => Some(ty)
   | _ => None;
 
-let matched_label =
-  fun
-  | Hole => Hole
-  | Label(label) => Some(Label(label))
-  | _ => None;
-
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
@@ -127,21 +121,21 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
-  | Label(_) => true
+  | Label(_) => false // ECD TODO: Unsure of if this should be true or false, as labels act as holes now
   | Arrow(ty1, ty2)
-  | Sum(ty1, ty2)
-  | Label_Elt(ty1, ty2) => complete(ty2)
+  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
-  | List(ty) => complete(ty);
+  | List(ty)
+  | Label_Elt(_, ty) => complete(ty);
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (_, Hole | Label(_)) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole | Label(_), _) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty2)
@@ -186,13 +180,13 @@ let rec join = (j, ty1, ty2) =>
       None;
     }
   | (Label_Elt(_, _), _) => None
-  | (Label(id), Label(id')) =>
-    if (id == id') {
-      Some(Label(id));
-    } else {
-      None;
-    }
-  | (Label(_), _) => None
+  // | (Label(id), Label(id')) =>
+  //   if (id == id') {
+  //     Some(Label(id));
+  //   } else {
+  //     None;
+  //   }
+  // | (Label(_), _) => None ECD TODO: May not need b/c labels by themselves are treated as holes
   };
 
 let join_all = (j: join, types: list(t)): option(t) => {

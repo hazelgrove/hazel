@@ -17,7 +17,7 @@ and operand =
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t)
-  | Label(ErrStatus.t, Label.t);
+  | Label(LabelErrStatus.t, Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -37,7 +37,7 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
-let label: (~err: ErrStatus.t=?, Label.t) => operand;
+let label: (~err: LabelErrStatus.t=?, Label.t) => operand;
 
 let get_tuple_elements: skel => list(skel);
 

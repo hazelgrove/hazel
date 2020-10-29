@@ -101,6 +101,8 @@ type typed =
   | PatAnaInvalid(HTyp.t)
   // cursor is on a keyword
   | PatAnaKeyword(HTyp.t, ExpandingKeyword.t)
+  // cursor is on label
+  | PatAnaLabel(HTyp.t)
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption

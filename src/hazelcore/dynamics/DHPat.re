@@ -19,7 +19,7 @@ type t =
   | Triv /* unit intro */
   | Ap(t, t)
   | Label(Label.t)
-  | Label_Elt(t, t);
+  | Label_Elt(Label.t, t);
 
 let rec mk_tuple: list(t) => t =
   fun
@@ -47,6 +47,6 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Inj(_, dp1) => binds_var(x, dp1)
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
-  | Label_Elt(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
+  | Label_Elt(_, dp) => binds_var(x, dp)
   | Ap(_, _) => false
   };

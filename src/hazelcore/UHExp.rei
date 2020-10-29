@@ -49,7 +49,7 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
-let label: (~err: ErrStatus.t=?, Label.t) => operand;
+let label: (~err: LabelErrStatus.t=?, Label.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 

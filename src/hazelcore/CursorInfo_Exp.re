@@ -464,9 +464,9 @@ and syn_cursor_info_skel =
             | Some(ty) =>
               HTyp.matched_arrow(ty)
               |> Option.map(((ty1, ty2)) =>
-                  mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
-                );
-              }
+                   mk(SynMatchingArrow(ty, Arrow(ty1, ty2)))
+                 )
+            }
           };
         };
       } else {
@@ -474,9 +474,10 @@ and syn_cursor_info_skel =
         | None => None
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
-          | None => switch(seq |> Seq.nth_operand(n)){
-              | Label(l) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
-              | _ => None
+          | None =>
+            switch (seq |> Seq.nth_operand(n)) {
+            | Label(_, _) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+            | _ => None
             }
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
@@ -534,8 +535,8 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
-  | CursorE(_, Label(_, l)) => 
-    Some(CursorInfo_common.mk(SynLabel(l), ctx, cursor_term))
+  | CursorE(_, Label(lerr, l)) =>
+    Some(CursorInfo_common.mk(SynLabel(lerr, l), ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -835,7 +836,7 @@ and ana_cursor_info_zoperand =
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Label(_, _) =>
-      Some(CursorInfo.common.mk(AnaLabel(ty), ctx, cursor_term))
+      Some(CursorInfo_common.mk(AnaLabel(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)

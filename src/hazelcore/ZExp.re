@@ -270,7 +270,7 @@ and is_after_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(cursor, Label(_, l)) => cursor == OnText(Label.length(l) + 1)
+  | CursorE(cursor, Label(_, l)) => cursor == OnText(Label.length(l))
   | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
 let is_after_zrule =
   fun

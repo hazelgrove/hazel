@@ -430,8 +430,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
-    | Inj(InHole(TypeInconsistent, _), _, _)
-    | Label(InHole(TypeInconsistent, _), _) =>
+    | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
@@ -452,8 +451,7 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _)
-    | Label(InHole(WrongLength, _), _) => None
+    | Inj(InHole(WrongLength, _), _, _) => None
     | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
@@ -465,6 +463,12 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaInvalid(ty), ctx, cursor_term),
+        ),
+      )
+    | Label(_, _) =>
+      Some(
+        CursorNotOnDeferredVarPat(
+          CursorInfo_common.mk(PatAnaLabel(ty), ctx, cursor_term),
         ),
       )
     | Var(NotInHole, _, x) =>
@@ -513,16 +517,6 @@ and ana_cursor_info_zoperand =
              CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
            )
          )
-    | Label(_, l) =>
-      Some(
-        CursorNotOnDeferredVarPat(
-          CursorInfo_common.mk(
-            PatAnaSubsumed(ty, Label(l)),
-            ctx,
-            cursor_term,
-          ),
-        ),
-      )
     }
   | InjZ(InHole(WrongLength, _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>

@@ -94,7 +94,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     InvalidOperation(d', err);
   | Label_Elt(l, d) =>
     let d' = subst_var(d1, x, d);
-    Label_Elt(l, d2');
+    Label_Elt(l, d');
   }
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
@@ -246,16 +246,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
   | (Cons(_, _), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
-  | (Label(lp), Label(l)) =>
-    if (lp == l) {
-      // ECD TODO: should not be able to have singleton label, but matching may not work w/o this check
-      Matches(
-        Environment.empty,
-      );
-    } else {
-      Indet;
-    }
-  | (Label(_), _) => DoesNotMatch
+  | (Label(_), _) => Indet
+  | (_, Label(_)) => Indet
   | (Label_Elt(lp, dp2), Label_Elt(l, d2)) =>
     if (lp == l) {
       matches(dp2, d2);
@@ -600,26 +592,26 @@ and syn_elab_skel =
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
     // ECD YOU are here: fix this
-    
 
     switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
     | None => DoesNotElaborate
     | Some(ty1) =>
       switch (HTyp.matched_arrow(ty1)) {
       | None =>
-        switch(skel1) {
-        | Placeholder(n) => 
+        switch (skel1) {
+        | Placeholder(n) =>
           let en = seq |> Seq.nth_operand(n);
-          switch(en) {
-            | Label(_, l) => switch(syn_elab_skel(ctx, delta, skel2, seq)) {
-              | DoesNotElaborate => DoesNotElaborate
-              | Elaborates(d2, ty2', delta) => 
-                let dc = DHExp.cast(d2, ty2', ty2');
-                let d = DHExp.Label_Elt(l, dc);
-                Elaborates(d, Label_Elt(l, ty2'), delta);
+          switch (en) {
+          | Label(_, l) =>
+            switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+            | DoesNotElaborate => DoesNotElaborate
+            | Elaborates(d2, ty2', delta) =>
+              let dc = DHExp.cast(d2, ty2', ty2');
+              let d = DHExp.Label_Elt(l, dc);
+              Elaborates(d, Label_Elt(l, ty2'), delta);
             }
-            | _ => DoesNotElaborate
-          }
+          | _ => DoesNotElaborate
+          };
         | _ => DoesNotElaborate
         }
       | Some((ty2, ty)) =>
@@ -813,16 +805,26 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  | Label(err, l) => 
-    if(Label.is_valid(l)){
-      let d = DHExp.Label(err, l);
-      let ty = HTyp.Hole;
-      Elaborates(d, ty, delta);
-    }
-    else{
-      DoesNotElaborate
-    }
-    
+  | Label(err, l) =>
+    if (Label.is_valid(l)) {
+      switch (err) {
+      | NotInLabelHole =>
+        let d = DHExp.Label(l);
+        let ty = HTyp.Hole;
+        Elaborates(d, ty, delta);
+      | InLabelHole(_, u) =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = id_env(gamma);
+        let d = DHExp.EmptyHole(u, 0, sigma);
+        let ty = HTyp.Hole;
+        let delta =
+          MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+        Elaborates(d, ty, delta);
+      };
+    } else {
+      DoesNotElaborate;
+    } // ECD TODO: May need to change to account for not valid labels evaluating as holes
+
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -920,6 +922,7 @@ and syn_elab_operand =
        ana_elab_exp ctx bound_expansion expansion_ty
      | None -> DoesNotElaborate
      end */ /* TODO fix me */
+
   | Prj(NotInHole, _, _) =>
     failwith(__LOC__ ++ " Unimplemented Label projection")
   }
@@ -1306,16 +1309,18 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | ApPalette(NotInHole, _, _, _)
-  | Label(err, l) =>
-    if(Label.is_valid(l)){
-      let d = DHExp.Label(err, l);
+  | ApPalette(NotInHole, _, _, _) =>
+    /* subsumption */
+    syn_elab_operand(ctx, delta, operand)
+
+  | Label(_, l) =>
+    if (Label.is_valid(l)) {
+      let d = DHExp.Label(l);
       Elaborates(d, ty, delta);
+    } else {
+      DoesNotElaborate;
     }
-    else{
-      DoesNotElaborate
-    }
-    
+
   | Prj(NotInHole, _, _) =>
     failwith(__LOC__ ++ " unimplemented label projection")
   }
@@ -1375,7 +1380,7 @@ let rec renumber_result_only =
   | FloatLit(_)
   | ListNil(_)
   | Triv
-  | Label(_, _) => (d, hii)
+  | Label(_) => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);

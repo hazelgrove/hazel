@@ -64,7 +64,8 @@ and mk_operand =
         | List(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           UHDoc_common.mk_List(body);
-        | Label(label) => UHDoc_common.mk_Label(~sort=Typ, label)
+        // ECD TODO: Show the label error in this case
+        | Label(_, label) => UHDoc_common.mk_Label(~sort=Typ, label)
         }: UHDoc_common.t
       )
     )

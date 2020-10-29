@@ -158,7 +158,7 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
-  | Label(LabelErrStatus.t, Label.t)
+  | Label(Label.t)
   | Label_Elt(Label.t, t)
   /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)

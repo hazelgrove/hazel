@@ -92,4 +92,4 @@ let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Label: Label.t => Pretty.Doc.t('a);
 
-let mk_Label_Elt: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+let mk_Label_Elt: (Label.t, Pretty.Doc.t('a)) => Pretty.Doc.t('a);

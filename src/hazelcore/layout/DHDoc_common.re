@@ -124,4 +124,5 @@ let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
 
 let mk_Label = label => Doc.text(label);
 
-let mk_Label_Elt = (doc1, doc2) => Doc.(hcats([doc1, text(" "), doc2]));
+let mk_Label_Elt = (label, doc2) =>
+  Doc.(hcats([text(label), text(" "), doc2]));

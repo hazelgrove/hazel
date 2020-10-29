@@ -31,21 +31,21 @@ and syn_skel =
     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
+    | None => None
+    | Some(ctx) =>
+      switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
       | None => None
       | Some(ctx) =>
-        switch (ana_skel(ctx, skel2, seq, HTyp.Hole)) {
-        | None => None
-        | Some(ctx) => 
-          switch(skel1) {
-            | Placeholder(n) => let pn = seq |> Seq.nth_operand(n);
-              switch (pn) {
-                | Label(l) => Some((Label_Elt(l, HTyp.Hole), ctx))
-                | _ => Some((Hole, ctx))
-              }
-            | _ => Some((Hole, ctx))
-          }
-          
+        switch (skel1) {
+        | Placeholder(n) =>
+          let pn = seq |> Seq.nth_operand(n);
+          switch (pn) {
+          | Label(_, l) => Some((Label_Elt(l, HTyp.Hole), ctx))
+          | _ => Some((Hole, ctx))
+          };
+        | _ => Some((Hole, ctx))
         }
+      }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (syn_skel(ctx, skel1, seq)) {
@@ -447,7 +447,7 @@ and syn_fix_holes_operand =
       | R => HTyp.Sum(Hole, ty1)
       };
     (p, ty, ctx, u_gen);
-  | Label(_, label) => (operand_nih, Hole, ctx, u_gen)
+  | Label(_, _) => (operand_nih, Hole, ctx, u_gen)
   };
 }
 and ana_fix_holes =

@@ -72,7 +72,7 @@ type t =
   | Pair(t, t)
   | Triv
   | Label(Label.t)
-  | Label_Elt(t, t)
+  | Label_Elt(Label.t, t)
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)

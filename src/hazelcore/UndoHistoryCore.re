@@ -176,7 +176,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Bool
     | Parenthesized(_)
     | List(_) => MaxLen
-    | Label(label) => Len(Label.length(label))
+    | Label(_, label) => Len(Label.length(label))
     }
   | ExpOp(_, _)
   | PatOp(_, _)

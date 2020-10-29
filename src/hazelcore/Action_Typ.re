@@ -240,13 +240,13 @@ and perform_operand =
     Failed
   // Label Text Positions
   | (_, CursorT(OnDelim(_), Label(_))) => Failed
-  | (Backspace, CursorT(OnText(j), Label(l))) =>
+  | (Backspace, CursorT(OnText(j), Label(lerr, l))) =>
     if (Label.length(l) == 1) {
       Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Hole)));
     } else {
       Succeeded(
         ZOpSeq.wrap(
-          ZTyp.place_after_operand(Label(Label.backspace(j, l))),
+          ZTyp.place_after_operand(Label(lerr, Label.backspace(j, l))),
         ),
       );
     }
@@ -254,11 +254,15 @@ and perform_operand =
   // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(label))) =>
   //   Succeeded(construct_operator(Space, zoperand, (Label(label), SSpace))) //TODO ECD: How to create a labeled element type
   | (Construct(SChar(".")), CursorT(_, Hole)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Label("."))))
-  | (Construct(SChar(s)), CursorT(OnText(j), Label(l)))
+    Succeeded(
+      ZOpSeq.wrap(ZTyp.place_after_operand(Label(NotInLabelHole, "."))),
+    )
+  | (Construct(SChar(s)), CursorT(OnText(j), Label(lerr, l)))
       when Label.is_valid(Label.insert(j, s, l)) =>
     Succeeded(
-      ZOpSeq.wrap(ZTyp.place_after_operand(Label(Label.insert(j, s, l)))),
+      ZOpSeq.wrap(
+        ZTyp.place_after_operand(Label(lerr, Label.insert(j, s, l))),
+      ),
     )
 
   /* Invalid cursor positions */

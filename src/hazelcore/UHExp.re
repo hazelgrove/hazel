@@ -191,6 +191,7 @@ and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
   | InvalidText(_, _) => NotInHole
+  | Label(_, _) => NotInHole
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -201,8 +202,7 @@ and get_err_status_operand =
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _)
   | Prj(err, _, _) => err
-  | Case(InconsistentBranches(_), _, _)
-  | Label(_, _) => NotInHole
+  | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -351,6 +351,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
   | Var(InHole(_), _, _) => false
+  | Label(_, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
   | IntLit(InHole(_), _) => false
@@ -384,8 +385,6 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Label(InLabelHole(_), _) => false
-  | Label(NotInHole, _) => true
   | Prj(_) => failwith("unimplemented Label Projection")
   };
 }

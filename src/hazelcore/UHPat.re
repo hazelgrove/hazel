@@ -45,7 +45,8 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
-let label = (~err: LabelErrStatus.t=NotInHole, l: Label.t) => Label(err, l);
+let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t) =>
+  Label(err, l);
 
 let rec get_tuple_elements: skel => list(skel) =
   fun
@@ -137,7 +138,8 @@ and mk_inconsistent_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | Label(_, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -195,6 +197,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
+  | Label(_, _) => false
   | Wild(InHole(_)) => false
   | Wild(NotInHole) => true
   | Var(InHole(_), _, _) => false
@@ -211,7 +214,5 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Parenthesized(body) => is_complete(body)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
-  | Label(InLabelHole(_), _) => false
-  | Label(NotInLabelHole, _) => true
   };
 };

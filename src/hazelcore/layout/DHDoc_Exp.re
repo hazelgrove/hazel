@@ -324,10 +324,7 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       | Label(label) => DHDoc_common.mk_Label(label)
-      | Label_Elt(d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(DHDoc_common.precedence_Label, d1, d2);
-        DHDoc_common.mk_Label_Elt(mk_cast(doc1), mk_cast(doc2));
+      | Label_Elt(l, d) => DHDoc_common.mk_Label_Elt(l, mk_cast(go'(d)))
       };
     let doc =
       parenthesize

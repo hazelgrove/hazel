@@ -12,7 +12,7 @@ and operand =
   | Bool
   | Parenthesized(t)
   | List(t)
-  | Label(Label.t);
+  | Label(LabelErrStatus.t, Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

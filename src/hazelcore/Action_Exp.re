@@ -333,16 +333,8 @@ let mk_syn_text =
       Succeeded(SynDone((new_ze, Hole, u_gen)));
     };
   | Label(label) =>
-    if(label.is_valid(label)){
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(label)));
-      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-    }
-    else{
-      // May never get here-invalid characters are handled at the action level
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(LabelErrStatus.InLabelHole(Invalid, u_gen), label)));
-      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
-    }
-    
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(label)));
+    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   };
 };
 

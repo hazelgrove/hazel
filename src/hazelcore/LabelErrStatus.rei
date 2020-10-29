@@ -1,10 +1,10 @@
-module HoleReason = {
+module HoleReason: {
   [@deriving sexp]
   type t =
     | Standalone
     | Duplicate
     | Empty
-    | NotValid
+    | NotValid;
 };
 
 [@deriving sexp]

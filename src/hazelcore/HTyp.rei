@@ -10,7 +10,7 @@ type t =
   | Prod(list(t))
   | List(t)
   | Label(Label.t)
-  | Label_Elt(t, t);
+  | Label_Elt(Label.t, t);
 
 type join =
   | GLB
@@ -34,7 +34,6 @@ let get_prod_arity: t => int;
 let matched_arrow: t => option((t, t));
 let matched_sum: t => option((t, t));
 let matched_list: t => option(t);
-let matched_label: t => option(t);
 
 let complete: t => bool;
 

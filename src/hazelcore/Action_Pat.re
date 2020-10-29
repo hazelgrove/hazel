@@ -98,15 +98,19 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | Label(l) =>
-    if(Label.is_valid(l)){
+    if (Label.is_valid(l)) {
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(l)));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    }
-    else {
-      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(InLabelHole(Invalid, u_gen), l)));
+    } else {
+      let zp =
+        ZOpSeq.wrap(
+          ZPat.CursorP(
+            text_cursor,
+            UHPat.label(l, ~err=InLabelHole(NotValid, u_gen)),
+          ),
+        );
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
     }
-    
   };
 };
 
@@ -130,13 +134,18 @@ let mk_ana_text =
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
       Succeeded((zp, ctx, u_gen));
     }
+  | Label(l) =>
+    let zp =
+      ZOpSeq.wrap(
+        ZPat.CursorP(text_cursor, UHPat.Label(NotInLabelHole, l)),
+      );
+    Succeeded((zp, ctx, u_gen));
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
     Succeeded((zp, ctx, u_gen));
   | IntLit(_)
   | FloatLit(_)
-  | BoolLit(_)
-  | Label(_) =>
+  | BoolLit(_) =>
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>

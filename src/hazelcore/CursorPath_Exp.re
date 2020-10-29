@@ -407,6 +407,8 @@ let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_case_err =
   CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
+let holes_lerr =
+  CursorPath_common.holes_lerr(~hole_sort=hole_sort(LabelErr));
 
 let rec holes =
         (
@@ -474,13 +476,13 @@ and holes_operand =
       {sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)},
       ...hs,
     ]
+  | Label(lerr, _) => hs |> holes_lerr(lerr, rev_steps)
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
-  | ListNil(err)
-  | Label(err, _) => hs |> holes_err(err, rev_steps)
+  | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
@@ -675,6 +677,16 @@ and holes_zoperand =
         Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
       (),
     )
+  | CursorE(_, Label(lerr, _)) =>
+    switch (lerr) {
+    | NotInLabelHole => CursorPath_common.no_holes
+    | InLabelHole(_, u) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some({sort: ExpHole(u, LabelErr), steps: List.rev(rev_steps)}),
+        (),
+      )
+    }
   | CursorE(_, Var(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
@@ -694,8 +706,7 @@ and holes_zoperand =
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
   | CursorE(_, BoolLit(err, _))
-  | CursorE(_, ListNil(err))
-  | CursorE(_, Label(err, _)) =>
+  | CursorE(_, ListNil(err)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -806,6 +817,8 @@ and holes_zoperand =
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
+  | CursorE(_, Prj(_)) =>
+    failwith(__LOC__ ++ " Unimplemented Label Projection")
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, ann, body) =>
     let holes_err: list(CursorPath_common.hole_info) =
@@ -978,8 +991,6 @@ and holes_zoperand =
       hole_selected,
       holes_after: holes_after @ holes_splices_after,
     };
-  | CursorE(_, Prj(_, _, _)) =>
-    failwith(__LOC__ ++ " unimplemented label projection")
   }
 and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath_common.rev_steps) =>
   switch (zrule) {
