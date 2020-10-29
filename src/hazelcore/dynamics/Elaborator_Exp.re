@@ -830,7 +830,7 @@ and syn_elab_operand =
       let d = DHExp.UnIntOp(UnaryMinus, dc1);
       Elaborates(d, Int, delta);
     }
-  | UnaryOp(NotInHole, FUnaryMinus, _) =>
+  | UnaryOp(NotInHole, FUnaryMinus, operand) =>
     switch (ana_elab_operand(ctx, delta, operand, HTyp.Float)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>

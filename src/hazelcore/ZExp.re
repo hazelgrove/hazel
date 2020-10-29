@@ -91,7 +91,7 @@ let valid_cursors_binop: UHExp.binop => list(CursorPosition.t) =
   | _ => [OnOp(Before), OnOp(After)];
 let valid_cursors_unop: UHExp.unop => list(CursorPosition.t) =
   fun
-  | _ => [OnOp(Before), OnOp(After)];
+  | _ => [OnOp(Before)];
 let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   fun
   /* outer nodes - delimiter */
