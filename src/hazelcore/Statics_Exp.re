@@ -16,18 +16,15 @@ let ctx_for_let =
   | _ => (ctx, None)
   };
 
-
 let get_pattern_type = (ctx, rule) =>
   rule
-  |> (UHExp.Rule(p, _)) => p
-  |> Statics_Pat.syn(ctx)
-  |> Option.map(((ty, _)) => ty);
+  |> (
+    (UHExp.Rule(p, _)) =>
+      p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty)
+  );
 
 let joint_pattern_type = (ctx, rules) => {
-  let tys =
-    rules
-    |> List.map(get_pattern_type(ctx))
-    |> OptUtil.sequence;
+  let tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
   Option.bind(tys, HTyp.join_all(LUB));
 };
 
