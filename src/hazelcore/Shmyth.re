@@ -73,6 +73,7 @@ type sm_assert = (Smyth.Lang.exp, Smyth.Lang.exp);
 
 let sm_ctor = (name, arg) => ECtor(name, [], arg);
 let sm_null_ctor = name => sm_ctor(name, ETuple([]));
+let sm_cons = (e1, e2) => sm_ctor("Cons", ETuple([e1, e2]));
 let sm_zero = sm_null_ctor("Z");
 let sm_true = sm_null_ctor("True");
 let sm_false = sm_null_ctor("False");
@@ -114,9 +115,9 @@ let rec htyp_to_styp: HTyp.t => option(Smyth.Lang.typ) =
   );
 
 let rec top_hexp_to_smprog = (lines: UHExp.t): option(Smyth.Desugar.program) => {
+  // take first expression as entry point
   let sm_main =
     switch (List.filter_map(h_expline_to_sm_exp, lines)) {
-    // take first expression as main
     | [e, ..._] => Some(e)
     | _ => None
     };
@@ -146,17 +147,16 @@ and non_top_hexp_to_smexp = (hexp: UHExp.t): option(Smyth.Lang.exp) => {
 
 and h_expline_to_sm_exp: UHExp.line => option(Smyth.Lang.exp) =
   fun
-  // Remember to skip asserts!
-  | ExpLine(OpSeq(_, S(AssertLit(_), _))) => None
+  | ExpLine(OpSeq(_, S(AssertLit(_), _))) => None // skip asserts
   | ExpLine(opseq) => hexp_opseq_to_smexp(opseq)
   | _ => None
 
 and h_letline_to_sm_def: UHExp.line => option(sm_def) =
   fun
-  | LetLine(OpSeq(_, S(Var(_, _, name), E)), Some(h_ty), h_body) => {
+  | LetLine(OpSeq(_, S(Var(_, _, name), E)), Some(h_ty), h_exp) => {
       let* sm_ty = h_ty |> UHTyp.expand |> htyp_to_styp;
-      let* sm_body = non_top_hexp_to_smexp(h_body);
-      Some((name, (sm_ty, sm_body)));
+      let* sm_exp = non_top_hexp_to_smexp(h_exp);
+      Some((name, (sm_ty, sm_exp)));
     }
   | _ => None
 
@@ -190,23 +190,23 @@ and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
   switch (skel) {
   | Placeholder(n) => hexp_operand_to_smexp(Seq.nth_operand(n, seq))
   | BinOp(_, Comma, _, _) =>
-    let* sm_es =
+    let* sm_exps =
       UHExp.get_tuple_elements(skel)
       |> List.map(sk => OpSeq.OpSeq(sk, seq))
       |> List.map(hexp_opseq_to_smexp)
       |> OptUtil.sequence;
-    Some(ETuple(sm_es));
+    Some(ETuple(sm_exps));
   | BinOp(_, Cons, e1n, e2n) =>
     let* s_e1 = hexp_opseq_to_smexp(OpSeq.OpSeq(e1n, seq));
     let* s_e2 = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
-    Some(ECtor("Cons", [], ETuple([s_e1, s_e2])));
+    Some(sm_cons(s_e1, s_e2));
   | BinOp(_) => None
   };
 }
 
 and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   fun
-  | AssertLit(_) // assertions are top-level only for now
+  | AssertLit(_) // assertions are top-level only
   | FloatLit(_)
   | ApPalette(_)
   | Inj(_)
@@ -218,19 +218,16 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   | ListNil(_) => Some(sm_nil)
   | BoolLit(_, true) => Some(sm_true)
   | BoolLit(_, false) => Some(sm_false)
-  | Lam(_, pat, None, body) => {
-      // non-type-annotated nonrecursive lambda
-      // these would need to be dealt with at the UHExp block level
-      let* (_, smp) = hpat_opseq_to_smpat(pat);
-      let* smbody = non_top_hexp_to_smexp(body);
-      Some(EFix(None, PatParam(smp), smbody));
+  | Lam(_, h_pat, None, h_exp) => {
+      let* (_, sm_pat) = hpat_opseq_to_smpat(h_pat);
+      let* sm_exp = non_top_hexp_to_smexp(h_exp);
+      Some(EFix(None, PatParam(sm_pat), sm_exp));
     }
-  | Lam(_, pat, Some(h_ty), body) => {
-      // type annotated nonrecursive lambda
+  | Lam(_, h_pat, Some(h_ty), h_exp) => {
       let* sm_ty = h_ty |> UHTyp.expand |> htyp_to_styp;
-      let* (_, smp) = hpat_opseq_to_smpat(pat);
-      let* smbody = non_top_hexp_to_smexp(body);
-      Some(ETypeAnnotation(EFix(None, PatParam(smp), smbody), sm_ty));
+      let* (_, sm_pat) = hpat_opseq_to_smpat(h_pat);
+      let* sm_exp = non_top_hexp_to_smexp(h_exp);
+      Some(ETypeAnnotation(EFix(None, PatParam(sm_pat), sm_exp), sm_ty));
     }
   | Case(_, scrut, rules) => {
       let* sm_scrut = non_top_hexp_to_smexp(scrut);
@@ -256,9 +253,9 @@ and hpat_opseq_to_smpat: UHPat.opseq => option(sm_pat) =
         |> OptUtil.sequence
         // HACK: note how we're assuming contained ps aren't contructor patterns
         |> Option.map(List.map(((_, p)) => p));
-      Some(("", PTuple(sm_ps))); // check this is properly constructed
+      Some(("", PTuple(sm_ps))); // is this properly constructed?
     | BinOp(_, Cons, p1n, p2n) =>
-      // HACK: See above
+      // HACK: see above
       let* (_, s_p1) = hpat_opseq_to_smpat(OpSeq.OpSeq(p1n, seq));
       let* (_, s_p2) = hpat_opseq_to_smpat(OpSeq.OpSeq(p2n, seq));
       Some(("Cons", PTuple([s_p1, s_p2])));
@@ -271,9 +268,9 @@ and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
   | FloatLit(_)
   | InvalidText(_)
   | Inj(_) => None
-  | Parenthesized(p) => hpat_opseq_to_smpat(p)
+  | Parenthesized(h_p) => hpat_opseq_to_smpat(h_p)
   | Var(_, _, name) => Some(("", PVar(name)))
-  | Wild(_) => Some(("", PWildcard)) // is "" correct?
+  | Wild(_) => Some(("", PWildcard)) // is this properly constructed?
   | BoolLit(_, true) => Some(("True", PTuple([]))) // is PTuple correct?
   | BoolLit(_, false) => Some(("False", PTuple([])))
   | ListNil(_) => Some(("Nil", PTuple([])))
@@ -285,10 +282,9 @@ and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
 
 and handle_rule: UHExp.rule => option(sm_rule) =
   fun
-  /* Special case for rules of form:
-     | N => let M = N-1 in body ...
-     These get rewritten into:
-     | S(M) =>  body ... */
+  /* Special case :
+     Rewrite | N    => let M = N-1 in body ...
+     Into    | S(M) =>  body ... */
   | Rule(
       OpSeq(_, S(Var(_, _, case_name), E)),
       [
@@ -318,32 +314,7 @@ and handle_rule: UHExp.rule => option(sm_rule) =
       let* sm_pat = hpat_opseq_to_smpat(h_pat);
       let* sm_exp = non_top_hexp_to_smexp(h_exp);
       Some((sm_pat, sm_exp));
-    }
-
-and special_handle_rule: UHExp.rule => option(sm_rule) =
-  fun
-  | Rule(
-      OpSeq(_, S(Wild(_), E)),
-      [
-        LetLine(
-          _,
-          _,
-          [
-            ExpLine(
-              OpSeq(
-                _,
-                S(Var(_, _, name), A(Minus, S(IntLit(_, "1"), E))),
-              ),
-            ),
-          ],
-        ),
-        let_body,
-      ],
-    ) => {
-      let* sm_body = non_top_hexp_to_smexp([let_body]);
-      Some((("S", PTuple([PVar(name)])), sm_body));
-    }
-  | _ => None;
+    };
 
 /******************************************************************************/
 
