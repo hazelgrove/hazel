@@ -331,14 +331,25 @@ let rec smpat_tuple_to_opseq =
     | [] => assert(false)
     | [seq0, ...seqs'] =>
       Some(
-        List.fold_right(
+        List.fold_left(
           (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Pat.Comma, seq2),
-          seqs',
           seq0,
+          seqs',
         ),
       )
     };
   Some(UHPat.mk_OpSeq(comma_seq));
+}
+
+and smpat_ctor_to_opseq =
+    (head: Smyth.Lang.exp, arg: Smyth.Lang.exp_arg): option(UHExp.opseq) => {
+  switch (arg) {
+  | EAType(_) => failwith(__LOC__)
+  | EAExp(arg_exp) =>
+    let* OpSeq.OpSeq(_, hz_head) = smexp_to_uhexp_opseq(head);
+    let+ OpSeq.OpSeq(_, hz_arg) = smexp_to_uhexp_opseq(arg_exp);
+    UHExp.mk_OpSeq(Seq.seq_op_seq(hz_head, Operators_Exp.Space, hz_arg));
+  };
 }
 
 and smpat_to_uhpat: Smyth.Lang.pat => option(UHPat.t) =
@@ -355,10 +366,10 @@ and smexp_tuple_to_opseq = (args: list(Smyth.Lang.exp)): option(UHExp.opseq) => 
     | [] => assert(false)
     | [seq0, ...seqs'] =>
       Some(
-        List.fold_right(
+        List.fold_left(
           (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Exp.Comma, seq2),
-          seqs',
           seq0,
+          seqs',
         ),
       )
     };
@@ -385,6 +396,44 @@ and smexp_to_uhexp_line = (e: Smyth.Lang.exp): option(UHExp.line) => {
   let+ h_e = smexp_to_uhexp_opseq(e);
   UHExp.ExpLine(h_e);
 }
+
+and smpat_ctor_to_uhpat_opseq =
+    (ctor_name: string /* , pat: UHPat.t */): option(UHPat.t) =>
+  switch (ctor_name) {
+  | "True" => Some(OpSeq.wrap(UHPat.boollit(true)))
+  | "False" => Some(OpSeq.wrap(UHPat.boollit(false)))
+  | "Z" => Some(OpSeq.wrap(UHPat.intlit("0")))
+  /* Special case :
+     Rewrite | S(M) => body ...
+     Into    | N    => let M = N-1 in body ... */
+  | "S" => Some(OpSeq.wrap(UHPat.intlit("1")))
+  | _ => assert(false)
+  }
+
+and smexp_branch_to_uhexp_rule =
+    (ctor_name: string /* , pat: Smyth.Lang.pat */, exp: Smyth.Lang.exp)
+    : option(UHExp.rule) => {
+  /* let* hz_pat = smpat_to_uhpat(pat); */
+  let* hz_exp = smexp_to_uhexp(exp);
+  let+ hz_ctor_pat = smpat_ctor_to_uhpat_opseq(ctor_name /* , hz_pat */);
+  UHExp.Rule(hz_ctor_pat, hz_exp);
+}
+
+and smexp_branches_to_uhexp_rules:
+  list((string, (Smyth.Lang.pat, Smyth.Lang.exp))) => option(UHExp.rules) =
+  fun
+  | [] => Some([])
+  | [(ctor_name, (_pat, exp)), ...rest] => {
+      let* rule = smexp_branch_to_uhexp_rule(ctor_name /* , pat */, exp);
+      let+ rules = smexp_branches_to_uhexp_rules(rest);
+      [rule, ...rules];
+    }
+
+and smexp_num_to_int: Smyth.Lang.exp => int =
+  fun
+  | ECtor("Z", _, ETuple([])) => 0
+  | ECtor("S", _, exp) => 1 + smexp_num_to_int(exp)
+  | _ => assert(false)
 
 /* [@warning "-32"] */
 /* [@warning "-27"] */
@@ -436,7 +485,26 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       );
     }
   | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
-  | ECase(_scrutinee, _branches) => failwith(__LOC__)
+  | ECase(ECtor("Z", _, ETuple([])) as snum, branches)
+  | ECase(ECtor("S", _, _) as snum, branches) => {
+      let num = smexp_num_to_int(snum);
+      let+ hz_branches = smexp_branches_to_uhexp_rules(branches);
+      OpSeq.wrap(
+        UHExp.Case(
+          StandardErrStatus(NotInHole),
+          [UHExp.ExpLine(OpSeq.wrap(UHExp.intlit(string_of_int(num))))],
+          hz_branches,
+        ),
+      );
+    }
+  | ECase(_, _) => failwith(__LOC__)
+  /* | ECase(scrutinee, branches) => { */
+  /*     let* hz_scrutinee = smexp_to_uhexp(scrutinee); */
+  /*     let+ hz_branches = smexp_branches_to_uhexp_rules(branches); */
+  /*     OpSeq.wrap( */
+  /*       UHExp.Case(StandardErrStatus(NotInHole), hz_scrutinee, hz_branches), */
+  /*     ); */
+  /*   } */
   | EHole(num) => Some(OpSeq.wrap(UHExp.EmptyHole(num)))
   | EAssert(_lhs, _rhs) => failwith(__LOC__)
   | ETypeAnnotation(_an_exp, _a_typ) => failwith(__LOC__);
