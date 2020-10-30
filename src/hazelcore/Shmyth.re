@@ -405,7 +405,36 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   | EApp(false, head, arg) => smexp_app_to_opseq(head, arg)
   | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
   | ETuple(args) => smexp_tuple_to_opseq(args)
-  | EProj(_n, _i, _arg) => failwith(__LOC__)
+  | EProj(n, i, arg) => {
+      let x = "x";
+      let p = {
+        let operands =
+          ListUtil.range(n)
+          |> List.map(j => j == i ? UHPat.var(x) : UHPat.wild())
+          |> List.map(Seq.wrap);
+        switch (operands) {
+        | [] => assert(false)
+        | [seq, ...seqs] =>
+          let seq =
+            seqs
+            |> List.fold_left(
+                 (seq1, seq2) =>
+                   Seq.seq_op_seq(seq1, Operators_Pat.Comma, seq2),
+                 seq,
+               );
+          UHPat.mk_OpSeq(seq);
+        };
+      };
+      let+ arg = smexp_to_uhexp_opseq(arg);
+      OpSeq.wrap(
+        UHExp.(
+          Parenthesized([
+            letline(p, Block.wrap'(arg)),
+            ExpLine(OpSeq.wrap(var(x))),
+          ])
+        ),
+      );
+    }
   | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
   | ECase(_scrutinee, _branches) => failwith(__LOC__)
   | EHole(num) => Some(OpSeq.wrap(UHExp.EmptyHole(num)))
