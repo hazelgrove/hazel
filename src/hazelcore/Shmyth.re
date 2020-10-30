@@ -481,7 +481,13 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         ),
       );
     }
-  | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
+  | ECtor("True", _, ETuple([])) => Some(OpSeq.wrap(UHExp.boollit(true)))
+  | ECtor("False", _, ETuple([])) => Some(OpSeq.wrap(UHExp.boollit(false)))
+  | ECtor("Z", _, _) as snum
+  | ECtor("S", _, _) as snum =>
+    Some(OpSeq.wrap(UHExp.intlit(string_of_int(smexp_num_to_int(snum)))))
+  | ECtor("IntList", _, _) => failwith(__LOC__)
+  | ECtor(_, _, _) => assert(false)
   | ECase(ECtor("Z", _, ETuple([])) as snum, branches)
   | ECase(ECtor("S", _, _) as snum, branches) => {
       let num = smexp_num_to_int(snum);
