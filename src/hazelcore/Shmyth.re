@@ -161,6 +161,10 @@ and h_letline_to_sm_def: UHExp.line => option(sm_def) =
   | _ => None
 
 and h_assert_to_sm_assert: UHExp.line => option(sm_assert) =
+  // Note: I've made the assumption below that we have operands on
+  // both sides of equals, so we need to potentially parenthesize both sides
+  // eg assert((add 2 3) == 5)
+  // TODO: match on skel instead to avoid this
   fun
   | ExpLine(
       OpSeq(

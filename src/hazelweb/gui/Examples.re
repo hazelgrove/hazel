@@ -348,6 +348,87 @@ let rec qsort_n = (n: int): UHExp.t =>
     ];
   };
 
+/*
+ ((LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole add)E))(
+   (OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Int(A Arrow(S Hole E)))))
+   ((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 5)E)))))
+   (ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S
+   (AssertLit NotInHole 1)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(Placeholder 3))(S(Var NotInHole NotInVarHole add)(A Space(S(IntLit NotInHole 2)(A Space(S(IntLit NotInHole 3)(A Equals(S(IntLit NotInHole 5)E)))))))))))E))))))
+
+  ((
+    ExpLine(
+      OpSeq(
+        BinOp NotInHole Space
+        (Placeholder 0)
+        (Placeholder 1)
+        )
+      (S
+        (AssertLit NotInHole 1)
+        (A Space
+          (S(Parenthesized(
+            (ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 4)(A Equals(S(IntLit NotInHole 2)E)))))))E))))))
+  */
+
+let add_stub: UHExp.line =
+  LetLine(
+    OpSeq.wrap(UHPat.var("add")),
+    Some(UHTyp.contract(Arrow(Int, Arrow(Int, Int)))),
+    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
+  );
+
+let assert_base = (n: int, bool_expr: UHExp.operand): UHExp.line =>
+  ExpLine(
+    UHExp.mk_OpSeq(
+      Seq.mk(
+        UHExp.AssertLit(NotInHole, n),
+        [(Operators_Exp.Space, bool_expr)],
+      ),
+    ),
+  );
+
+let binary_application_template =
+    (f: UHExp.operand, inputs: list(UHExp.operand)): UHExp.line =>
+  ExpLine(
+    UHExp.mk_OpSeq(
+      Seq.mk(f, List.map(a => (Operators_Exp.Space, a), inputs)),
+    ),
+  );
+
+let mk_app_equality_assert =
+    (n: int, f_name: string, inputs: list(UHExp.operand), out: UHExp.operand)
+    : UHExp.line =>
+  assert_base(
+    n,
+    Parenthesized([
+      ExpLine(
+        UHExp.mk_OpSeq(
+          Seq.mk(
+            UHExp.Parenthesized([
+              binary_application_template(UHExp.var(f_name), inputs),
+            ]),
+            [(Operators_Exp.Equals, out)],
+          ),
+        ),
+      ),
+    ]),
+  );
+
+let addition_template: UHExp.t = [
+  add_stub,
+  mk_app_equality_assert(
+    1,
+    "add",
+    [UHExp.intlit("0"), UHExp.intlit("1")],
+    UHExp.intlit("1"),
+  ),
+  mk_app_equality_assert(
+    2,
+    "add",
+    [UHExp.intlit("1"), UHExp.intlit("1")],
+    UHExp.intlit("2"),
+  ),
+];
+
 [@deriving sexp]
 type id = string;
 let examples =
@@ -362,48 +443,6 @@ let examples =
     |> add("qsort_example_10", qsort_n(10))
     |> add("qsort_example_30", qsort_n(30))
     |> add("qsort_example_100", qsort_n(100))
+    |> add("add_template", addition_template)
   );
 let get = id => StringMap.find(id, examples);
-
-let add_stub: UHExp.line =
-  LetLine(
-    OpSeq.wrap(UHPat.var("add")),
-    Some(UHTyp.contract(Arrow(Int, Arrow(Int, Int)))),
-    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
-  );
-
-let assert_template = (a: UHExp.operand, b: UHExp.operand): UHExp.line =>
-  ExpLine(
-    UHExp.mk_OpSeq(
-      Seq.mk(
-        UHExp.AssertLit(NotInHole, 0),
-        [
-          (
-            Operators_Exp.Space,
-            Parenthesized([
-              ExpLine(
-                UHExp.mk_OpSeq(Seq.mk(a, [(Operators_Exp.Equals, b)])),
-              ),
-            ]),
-          ),
-        ],
-      ),
-    ),
-  );
-
-/*
- ((
-   ExpLine(
-     OpSeq(
-       BinOp NotInHole Space
-       (Placeholder 0)
-       (Placeholder 1)
-       )
-     (S
-       (AssertLit NotInHole 1)
-       (A Space
-         (S(Parenthesized(
-           (ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 4)(A Equals(S(IntLit NotInHole 2)E)))))))E))))))
- */
-
-let addition_template: UHExp.t = [add_stub];
