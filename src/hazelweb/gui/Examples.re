@@ -364,3 +364,46 @@ let examples =
     |> add("qsort_example_100", qsort_n(100))
   );
 let get = id => StringMap.find(id, examples);
+
+let add_stub: UHExp.line =
+  LetLine(
+    OpSeq.wrap(UHPat.var("add")),
+    Some(UHTyp.contract(Arrow(Int, Arrow(Int, Int)))),
+    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
+  );
+
+let assert_template = (a: UHExp.operand, b: UHExp.operand): UHExp.line =>
+  ExpLine(
+    UHExp.mk_OpSeq(
+      Seq.mk(
+        UHExp.AssertLit(NotInHole, 0),
+        [
+          (
+            Operators_Exp.Space,
+            Parenthesized([
+              ExpLine(
+                UHExp.mk_OpSeq(Seq.mk(a, [(Operators_Exp.Equals, b)])),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    ),
+  );
+
+/*
+ ((
+   ExpLine(
+     OpSeq(
+       BinOp NotInHole Space
+       (Placeholder 0)
+       (Placeholder 1)
+       )
+     (S
+       (AssertLit NotInHole 1)
+       (A Space
+         (S(Parenthesized(
+           (ExpLine(OpSeq(BinOp NotInHole Equals(Placeholder 0)(Placeholder 1))(S(IntLit NotInHole 4)(A Equals(S(IntLit NotInHole 2)E)))))))E))))))
+ */
+
+let addition_template: UHExp.t = [add_stub];
