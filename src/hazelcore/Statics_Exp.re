@@ -515,39 +515,24 @@ and syn_nth_type_mode' =
     | BinOp(NotInHole, Comma, skel1, skel2) =>
       n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (skel1) {
-      | Placeholder(n) =>
-        switch (Seq.nth_operand(n, seq)) {
-        | Label(_, _) => go(skel2)
-        // Skel1 is not a label, so continue wiht matching on arrow
-        // ECD TOD: Check for parentheses
-        | _ =>
-          switch (syn_skel(ctx, skel1, seq)) {
-          | None => None
-          | Some(ty1) =>
-            if (n <= Skel.rightmost_tm_index(skel1)) {
-              go(skel1);
-            } else {
-              switch (HTyp.matched_arrow(ty1)) {
-              | None => None
-              | Some((ty2, _)) => ana_go(skel2, ty2)
-              };
+      switch (syn_skel(ctx, skel1, seq)) {
+      | None => None
+      | Some(ty1) =>
+        if (n <= Skel.rightmost_tm_index(skel1)) {
+          go(skel1);
+        } else {
+          switch (HTyp.matched_arrow(ty1)) {
+          | None =>
+            switch (skel1) {
+            | Placeholder(n) =>
+              switch (Seq.nth_operand(n, seq)) {
+              | Label(_, _) => go(skel2)
+              | _ => None
+              }
+            | _ => None
             }
-          }
-        }
-      // Skel1 is not a label, so continue with matching on arrow
-      | _ =>
-        switch (syn_skel(ctx, skel1, seq)) {
-        | None => None
-        | Some(ty1) =>
-          if (n <= Skel.rightmost_tm_index(skel1)) {
-            go(skel1);
-          } else {
-            switch (HTyp.matched_arrow(ty1)) {
-            | None => None
-            | Some((ty2, _)) => ana_go(skel2, ty2)
-            };
-          }
+          | Some((ty2, _)) => ana_go(skel2, ty2)
+          };
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>

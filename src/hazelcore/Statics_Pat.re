@@ -237,7 +237,15 @@ and syn_nth_type_mode' =
           go(skel1);
         } else {
           switch (HTyp.matched_arrow(ty1)) {
-          | None => None
+          | None =>
+            switch (skel1) {
+            | Placeholder(n) =>
+              switch (Seq.nth_operand(n, seq)) {
+              | Label(_, _) => go(skel2)
+              | _ => None
+              }
+            | _ => None
+            }
           | Some((ty2, _)) => ana_go(skel2, ty2)
           };
         }
