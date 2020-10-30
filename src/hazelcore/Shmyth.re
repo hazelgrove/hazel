@@ -361,6 +361,17 @@ and smexp_tuple_to_opseq = (args: list(Smyth.Lang.exp)): option(UHExp.opseq) => 
   Some(UHExp.mk_OpSeq(comma_seq));
 }
 
+and smexp_app_to_opseq =
+    (head: Smyth.Lang.exp, arg: Smyth.Lang.exp_arg): option(UHExp.opseq) => {
+  switch (arg) {
+  | EAType(_) => failwith(__LOC__)
+  | EAExp(arg_exp) =>
+    let* OpSeq.OpSeq(_, hz_head) = smexp_to_uhexp_opseq(head);
+    let+ OpSeq.OpSeq(_, hz_arg) = smexp_to_uhexp_opseq(arg_exp);
+    UHExp.mk_OpSeq(Seq.seq_op_seq(hz_head, Operators_Exp.Space, hz_arg));
+  };
+}
+
 and smexp_to_uhexp = (e: Smyth.Lang.exp): option(UHExp.t) => {
   let+ line = smexp_to_uhexp_line(e);
   [line];
@@ -386,13 +397,14 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   | EFix(None, TypeParam(_), _) => {
       failwith(__LOC__);
     }
-  | EApp(_special, _head, _arg) => failwith(__LOC__)
+  | EApp(true, _head, _arg) => failwith(__LOC__)
+  | EApp(false, head, arg) => smexp_app_to_opseq(head, arg)
   | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
   | ETuple(args) => smexp_tuple_to_opseq(args)
   | EProj(_n, _i, _arg) => failwith(__LOC__)
   | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
   | ECase(_scrutinee, _branches) => failwith(__LOC__)
-  | EHole(_name) => failwith(__LOC__)
+  | EHole(num) => Some(OpSeq.wrap(UHExp.EmptyHole(num)))
   | EAssert(_lhs, _rhs) => failwith(__LOC__)
   | ETypeAnnotation(_an_exp, _a_typ) => failwith(__LOC__);
 
