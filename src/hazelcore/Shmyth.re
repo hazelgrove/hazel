@@ -137,7 +137,7 @@ let rec htyp_to_styp: HTyp.t => option(Smyth.Lang.typ) =
     | Int => Some(TData("Nat", []))
     | Bool => Some(TData("Bool", []))
     | List(Int) => Some(TData("NatList", []))
-    | List(_t) => None
+    | List(_) => None
     | Prod(h_ts) => {
         let* s_ts = List.map(htyp_to_styp, h_ts) |> OptUtil.sequence;
         Some(TTuple(s_ts));
@@ -153,7 +153,7 @@ let rec top_hexp_to_smprog = (lines: UHExp.t): option(Smyth.Desugar.program) => 
   let sm_main =
     switch (List.filter_map(h_expline_to_sm_exp, lines)) {
     // take first expression as main
-    | [e, ..._es] => Some(e)
+    | [e, ..._] => Some(e)
     | _ => None
     };
   Smyth.Desugar.(
@@ -169,9 +169,13 @@ let rec top_hexp_to_smprog = (lines: UHExp.t): option(Smyth.Desugar.program) => 
 and non_top_hexp_to_smexp = (hexp: UHExp.t): option(Smyth.Lang.exp) => {
   /* Non-top-level case:
      For now, assume there are no non-top letlines
-     or commmentlines, or emptylines, or asserts */
+     or commmentlines, or emptylines, or asserts
+
+     TODO: non-top-level lets defining lambdas into fixes
+     TODO: could rewrite lets into lambdas
+     */
   switch (hexp) {
-  | [ExpLine(opseq), ..._es] => hexp_opseq_to_smexp(opseq)
+  | [ExpLine(opseq), ..._] => hexp_opseq_to_smexp(opseq)
   | _ => None
   };
 }
@@ -253,14 +257,20 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   | ListNil(_) => Some(sm_nil)
   | BoolLit(_, true) => Some(sm_true)
   | BoolLit(_, false) => Some(sm_false)
-  | Lam(_, pat, _ /* None */, body) => {
-      // precondition: this lambda is not immediately named in a let
+  | Lam(_, pat, None, body) => {
+      // non-type-annotated nonrecursive lambda
+      // these would need to be dealt with at the UHExp block level
       let* (_, smp) = hpat_opseq_to_smpat(pat);
       let* smbody = non_top_hexp_to_smexp(body);
       Some(EFix(None, PatParam(smp), smbody));
     }
-  // TODO: named fixes: rewrite into a let returning a lambda
-  //| Lam(_, _var /*Var(_, _, param_name)*/, _ty, _body) => failwith(__LOC__)
+  | Lam(_, pat, Some(h_ty), body) => {
+      // type annotated nonrecursive lambda
+      let* sm_ty = h_ty |> UHTyp.expand |> htyp_to_styp;
+      let* (_, smp) = hpat_opseq_to_smpat(pat);
+      let* smbody = non_top_hexp_to_smexp(body);
+      Some(ETypeAnnotation(EFix(None, PatParam(smp), smbody), sm_ty));
+    }
   | Case(_, scrut, rules) => {
       let* sm_scrut = non_top_hexp_to_smexp(scrut);
       let* handled_rules = List.map(handle_rule, rules) |> OptUtil.sequence;
@@ -317,15 +327,63 @@ and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
 [@warning "-32"]
 and handle_rule: UHExp.rule => option(sm_rule) =
   fun
-  | Rule(pat, exp) => {
-      let* smp = hpat_opseq_to_smpat(pat);
-      // TODO: special case for when exp begins with let n_1 = n-1 in ...
-      // i guess this will be the only supported let for now?
-      // could rewrite lets into lambda generally
-      // does the naive desugaring strategy work in the other direction?
-      let* sme = non_top_hexp_to_smexp(exp);
-      Some((smp, sme));
-    };
+  /* Special case for rules of form:
+     | N => let M = N-1 in ... */
+  | Rule(
+      OpSeq(_, S(Var(_, _, case_name), E)),
+      [
+        LetLine(
+          OpSeq(_, S(Var(_, _, let_name), E)),
+          _,
+          [
+            ExpLine(
+              OpSeq(
+                _,
+                S(
+                  Var(_, _, case_name_in_let),
+                  A(Minus, S(IntLit(_, "1"), E)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        let_body,
+      ],
+    )
+      when case_name == case_name_in_let => {
+      let* sm_body = non_top_hexp_to_smexp([let_body]);
+      Some((("S", PTuple([PVar(let_name)])), sm_body));
+    }
+  | Rule(h_pat, h_exp) => {
+      let* sm_pat = hpat_opseq_to_smpat(h_pat);
+      let* sm_exp = non_top_hexp_to_smexp(h_exp);
+      Some((sm_pat, sm_exp));
+    }
+
+and special_handle_rule: UHExp.rule => option(sm_rule) =
+  fun
+  | Rule(
+      OpSeq(_, S(Wild(_), E)),
+      [
+        LetLine(
+          _,
+          _,
+          [
+            ExpLine(
+              OpSeq(
+                _,
+                S(Var(_, _, name), A(Minus, S(IntLit(_, "1"), E))),
+              ),
+            ),
+          ],
+        ),
+        let_body,
+      ],
+    ) => {
+      let* sm_body = non_top_hexp_to_smexp([let_body]);
+      Some((("S", PTuple([PVar(name)])), sm_body));
+    }
+  | _ => None;
 
 /******************************************************************************/
 
