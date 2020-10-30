@@ -298,8 +298,6 @@ let mk_syn_text =
     Succeeded(SynDone((ze, HTyp.Bool, id_gen)));
   | AssertLit =>
     let (u, id_gen) = IDGen.next_assert(id_gen);
-    print_endline("hit here");
-    print_endline(Sexplib.Sexp.to_string(AssertNumber.sexp_of_t(u)));
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.assertlit(u)));
     Succeeded(SynDone((ze, HTyp.Arrow(Bool, Prod([])), id_gen)));
   | ExpandingKeyword(k) =>
