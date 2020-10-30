@@ -92,42 +92,6 @@ let str_to_smint = str => str |> int_of_string |> sm_succ;
 [@warning "-32"]
 let smint_to_string = smexp => smexp |> unsucc |> string_of_int;
 
-let is_letline: UHExp.line => bool =
-  fun
-  | LetLine(_) => true
-  | _ => false;
-
-let is_assert: UHExp.line => bool =
-  // Only directly specified equality comparisons are allowed
-  fun
-  | ExpLine(
-      OpSeq(
-        _,
-        S(
-          AssertLit(_, _),
-          A(
-            Space,
-            S(
-              Parenthesized([
-                ExpLine(OpSeq(_, S(_, A(Equals, S(_, E))))),
-              ]),
-              E,
-            ),
-          ),
-        ),
-      ),
-    ) =>
-    true
-  | _ => false;
-
-let is_expr: UHExp.line => bool =
-  fun
-  // Remember to skip asserts:
-  | ExpLine(OpSeq(_, S(AssertLit(_), _))) => false
-  | ExpLine(_) => true
-  | _ => false;
-
-[@warning "-32"]
 let rec htyp_to_styp: HTyp.t => option(Smyth.Lang.typ) =
   Smyth.Lang.(
     fun
@@ -221,7 +185,6 @@ and h_assert_to_sm_assert: UHExp.line => option(sm_assert) =
     }
   | _ => None
 
-[@warning "-32"]
 and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
   let OpSeq(skel, seq) = opseq;
   switch (skel) {
@@ -241,8 +204,6 @@ and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
   };
 }
 
-[@warning "-32"]
-[@warning "-11"]
 and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
   fun
   | AssertLit(_) // assertions are top-level only for now
@@ -282,7 +243,6 @@ and hexp_operand_to_smexp: UHExp.operand => option(Smyth.Lang.exp) =
       );
     }
 
-[@warning "-32"]
 and hpat_opseq_to_smpat: UHPat.opseq => option(sm_pat) =
   fun
   | OpSeq(skel, seq) =>
@@ -305,7 +265,6 @@ and hpat_opseq_to_smpat: UHPat.opseq => option(sm_pat) =
     | BinOp(_) => None
     }
 
-[@warning "-32"]
 and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
   fun
   | EmptyHole(_)
@@ -324,11 +283,12 @@ and hpat_operand_to_smpat: UHPat.operand => option(sm_pat) =
     | _ => None /* for now */
     }
 
-[@warning "-32"]
 and handle_rule: UHExp.rule => option(sm_rule) =
   fun
   /* Special case for rules of form:
-     | N => let M = N-1 in ... */
+     | N => let M = N-1 in body ...
+     These get rewritten into:
+     | S(M) =>  body ... */
   | Rule(
       OpSeq(_, S(Var(_, _, case_name), E)),
       [
