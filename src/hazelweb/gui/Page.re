@@ -259,7 +259,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               ),
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
-                  CursorInspector.view(~inject, model),
                   ContextInspector.view(
                     ~inject,
                     ~selected_instance,

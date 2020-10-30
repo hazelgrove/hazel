@@ -28,6 +28,7 @@ let view = (~inject, model: Model.t) => {
                   && model.measurements.uhcode_view,
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,
+                ~cursor_inspector=model.cursor_inspector,
                 program,
               ),
             ],

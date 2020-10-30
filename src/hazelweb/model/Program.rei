@@ -21,6 +21,7 @@ let blur: t => t;
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
+let get_path: t => CursorPath_common.t;
 let get_steps: t => CursorPath_common.steps;
 
 let get_id_gen: t => IDGen.t;
@@ -93,6 +94,15 @@ let get_layout:
     t
   ) =>
   UHLayout.t;
+
+let get_measured_layout:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  UHMeasuredLayout.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
 
