@@ -397,37 +397,48 @@ and smexp_to_uhexp_line = (e: Smyth.Lang.exp): option(UHExp.line) => {
   UHExp.ExpLine(h_e);
 }
 
-and smpat_ctor_to_uhpat_opseq =
-    (ctor_name: string /* , pat: UHPat.t */): option(UHPat.t) =>
-  switch (ctor_name) {
-  | "True" => Some(OpSeq.wrap(UHPat.boollit(true)))
-  | "False" => Some(OpSeq.wrap(UHPat.boollit(false)))
-  | "Z" => Some(OpSeq.wrap(UHPat.intlit("0")))
-  /* Special case :
-     Rewrite | S(M) => body ...
-     Into    | N    => let M = N-1 in body ... */
-  | "S" => Some(OpSeq.wrap(UHPat.intlit("1")))
-  | _ => assert(false)
-  }
-
 and smexp_branch_to_uhexp_rule =
-    (ctor_name: string /* , pat: Smyth.Lang.pat */, exp: Smyth.Lang.exp)
+    (ctor_name: string, pat: Smyth.Lang.pat, exp: Smyth.Lang.exp)
     : option(UHExp.rule) => {
-  /* let* hz_pat = smpat_to_uhpat(pat); */
-  let* hz_exp = smexp_to_uhexp(exp);
-  let+ hz_ctor_pat = smpat_ctor_to_uhpat_opseq(ctor_name /* , hz_pat */);
-  UHExp.Rule(hz_ctor_pat, hz_exp);
+  let+ clause = smexp_to_uhexp(exp);
+  switch (ctor_name, pat) {
+  | ("True", _) => UHExp.Rule(OpSeq.wrap(UHPat.boollit(true)), clause)
+  | ("False", _) => UHExp.Rule(OpSeq.wrap(UHPat.boollit(false)), clause)
+  | ("Z", _) => UHExp.Rule(OpSeq.wrap(UHPat.intlit("0")), clause)
+  | ("S", PVar(x)) =>
+    UHExp.Rule(
+      OpSeq.wrap(UHPat.var(x)),
+      [
+        UHExp.letline(
+          OpSeq.wrap(UHPat.var(x)),
+          [
+            ExpLine(
+              UHExp.mk_OpSeq(
+                Seq.mk(
+                  UHExp.var(x),
+                  [(Operators_Exp.Minus, UHExp.intlit("1"))],
+                ),
+              ),
+            ),
+          ],
+        ),
+        ...clause,
+      ],
+    )
+  | _ => failwith("todo")
+  };
 }
 
-and smexp_branches_to_uhexp_rules:
-  list((string, (Smyth.Lang.pat, Smyth.Lang.exp))) => option(UHExp.rules) =
-  fun
+and smexp_branches_to_uhexp_rules =
+    (branches: list((string, (Smyth.Lang.pat, Smyth.Lang.exp))))
+    : option(UHExp.rules) =>
+  switch (branches) {
   | [] => Some([])
-  | [(ctor_name, (_pat, exp)), ...rest] => {
-      let* rule = smexp_branch_to_uhexp_rule(ctor_name /* , pat */, exp);
-      let+ rules = smexp_branches_to_uhexp_rules(rest);
-      [rule, ...rules];
-    }
+  | [(ctor_name, (pat, exp)), ...rest] =>
+    let* rule = smexp_branch_to_uhexp_rule(ctor_name, pat, exp);
+    let+ rules = smexp_branches_to_uhexp_rules(rest);
+    [rule, ...rules];
+  }
 
 and smexp_num_to_int: Smyth.Lang.exp => int =
   fun
@@ -488,26 +499,11 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
     Some(OpSeq.wrap(UHExp.intlit(string_of_int(smexp_num_to_int(snum)))))
   | ECtor("IntList", _, _) => failwith(__LOC__)
   | ECtor(_, _, _) => assert(false)
-  | ECase(ECtor("Z", _, ETuple([])) as snum, branches)
-  | ECase(ECtor("S", _, _) as snum, branches) => {
-      let num = smexp_num_to_int(snum);
-      let+ hz_branches = smexp_branches_to_uhexp_rules(branches);
-      OpSeq.wrap(
-        UHExp.Case(
-          StandardErrStatus(NotInHole),
-          [UHExp.ExpLine(OpSeq.wrap(UHExp.intlit(string_of_int(num))))],
-          hz_branches,
-        ),
-      );
+  | ECase(scrut, branches) => {
+      let* scrut = smexp_to_uhexp(scrut);
+      let+ rules = smexp_branches_to_uhexp_rules(branches);
+      OpSeq.wrap(UHExp.case(scrut, rules));
     }
-  | ECase(_, _) => failwith(__LOC__)
-  /* | ECase(scrutinee, branches) => { */
-  /*     let* hz_scrutinee = smexp_to_uhexp(scrutinee); */
-  /*     let+ hz_branches = smexp_branches_to_uhexp_rules(branches); */
-  /*     OpSeq.wrap( */
-  /*       UHExp.Case(StandardErrStatus(NotInHole), hz_scrutinee, hz_branches), */
-  /*     ); */
-  /*   } */
   | EHole(num) => Some(OpSeq.wrap(UHExp.EmptyHole(num)))
   | EAssert(_lhs, _rhs) => failwith(__LOC__)
   | ETypeAnnotation(_an_exp, _a_typ) => failwith(__LOC__);
