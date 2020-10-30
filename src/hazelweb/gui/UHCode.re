@@ -456,8 +456,8 @@ let view =
           ...key_handlers,
         ],
         caret
-        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations]
-        @ cursor_inspector,
+        @ cursor_inspector
+        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
