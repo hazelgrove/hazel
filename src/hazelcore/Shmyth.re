@@ -404,7 +404,7 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   | EProj(_n, _i, _arg) => failwith(__LOC__)
   | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
   | ECase(_scrutinee, _branches) => failwith(__LOC__)
-  | EHole(_name) => failwith(__LOC__)
+  | EHole(num) => Some(OpSeq.wrap(UHExp.EmptyHole(num)))
   | EAssert(_lhs, _rhs) => failwith(__LOC__)
   | ETypeAnnotation(_an_exp, _a_typ) => failwith(__LOC__);
 
