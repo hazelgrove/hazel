@@ -1521,7 +1521,6 @@ let ana_fix_holes_z =
 let fix_and_renumber_holes =
     (ctx: Contexts.t, e: UHExp.t): (UHExp.t, HTyp.t, IDGen.t) =>
   syn_fix_holes(ctx, IDGen.init, ~renumber_empty_holes=true, e);
-print_endline("hit here");
 
 let fix_and_renumber_holes_z =
     (ctx: Contexts.t, ze: ZExp.t): Statics_common.edit_state => {
