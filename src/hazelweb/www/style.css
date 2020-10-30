@@ -327,7 +327,7 @@ body {
 }
 
 /* cursor inspector */
-.cursor-inspector-outer {
+.code.presentation .cursor-inspector-outer {
   z-index: var(--caret-z);
   position: absolute;
   width: max-content;
@@ -348,7 +348,7 @@ body {
 
 .type-info-summary {
   display: flex;
-  align-items: flex-start; 
+  align-items: flex-start;
   justify-content: space-between;
   color: white;
   padding: 2px;

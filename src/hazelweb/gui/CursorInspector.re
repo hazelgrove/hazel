@@ -544,8 +544,9 @@ let summary_bar =
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      model: Model.t,
       loc: (float, float),
+      cursor_inspector: Model.cursor_inspector,
+      cursor_info: CursorInfo_common.t,
     )
     : Vdom.Node.t => {
   let typebar = ty =>
@@ -699,7 +700,6 @@ let view =
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
-  let ci = model |> Model.get_program |> Program.get_cursor_info;
   let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
@@ -908,7 +908,7 @@ let view =
       (ind1, ind2, OK);
     };
 
-  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
+  let (ind1, ind2, err_state_b) = get_indicator_info(cursor_info.typed);
 
   // this determines the color
   let cls_of_err_state_b =
@@ -926,28 +926,33 @@ let view =
       ),
     );
   let above_or_below =
-    switch (ci.cursor_term) {
+    switch (cursor_info.cursor_term) {
     | Exp(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
   let summary =
     summary_bar(
       ~inject,
-      ci,
+      cursor_info,
       err_state_b,
-      model.cursor_inspector.show_expanded,
-      model.cursor_inspector.term_novice_message_mode,
-      model.cursor_inspector.type_novice_message_mode,
+      cursor_inspector.show_expanded,
+      cursor_inspector.term_novice_message_mode,
+      cursor_inspector.type_novice_message_mode,
     );
   let content =
-    if (model.cursor_inspector.show_expanded) {
+    if (cursor_inspector.show_expanded) {
       [summary, ind1, ind2];
     } else {
       [summary];
     };
   Vdom.(
     Node.div(
-      [Attr.classes(["cursor-inspector-outer", above_or_below]), pos_attr],
+      [
+        Attr.classes(["cursor-inspector-outer", above_or_below]),
+        // stop propagation to code click handler
+        Attr.on_mousedown(_ => Event.Stop_propagation),
+        pos_attr,
+      ],
       [
         Node.div(
           [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
