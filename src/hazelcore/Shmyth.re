@@ -474,13 +474,10 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
           UHPat.mk_OpSeq(seq);
         };
       };
-      let+ arg = smexp_to_uhexp_opseq(arg);
+      let+ arg = smexp_to_uhexp(arg);
       OpSeq.wrap(
         UHExp.(
-          Parenthesized([
-            letline(p, Block.wrap'(arg)),
-            ExpLine(OpSeq.wrap(var(x))),
-          ])
+          Parenthesized([letline(p, arg), ExpLine(OpSeq.wrap(var(x)))])
         ),
       );
     }
