@@ -137,7 +137,6 @@ let perform_edit_action = (a, program) => {
     let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze), false)) {
-        print_endline("hit here2");
         (ze, ty, IDGen.init_hole(id_gen));
       } else {
         (ze, ty, id_gen);
