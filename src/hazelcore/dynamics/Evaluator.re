@@ -250,9 +250,7 @@ let rec evaluate =
     | (BoxedValue(d1), map1) =>
       switch (evaluate(d2, map1)) {
       | (Indet(d2), map2) => (Indet(Pair(d1, d2)), map2)
-      | (BoxedValue(d2), map2) =>
-        print_endline(Sexplib.Sexp.to_string(AssertMap.sexp_of_t(map2)));
-        (BoxedValue(Pair(d1, d2)), map2);
+      | (BoxedValue(d2), map2) => (BoxedValue(Pair(d1, d2)), map2)
       | (InvalidInput(msg), _) => (InvalidInput(msg), map1)
       }
     //maybe need to be sequetial?
