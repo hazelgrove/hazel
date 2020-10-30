@@ -318,29 +318,50 @@ and handle_rule: UHExp.rule => option(sm_rule) =
 
 /******************************************************************************/
 
-let rec smpat_to_uhpat: Smyth.Lang.pat => option(UHPat.t) =
+let rec smpat_tuple_to_opseq =
+        (args: list(Smyth.Lang.pat)): option(UHPat.opseq) => {
+  let* hz_args = List.map(smpat_to_uhpat, args) |> OptUtil.sequence;
+  let seqs = List.map((OpSeq.OpSeq(_, seq)) => seq, hz_args);
+  let* comma_seq =
+    switch (seqs) {
+    | [] => assert(false)
+    | [seq0, ...seqs'] =>
+      Some(
+        List.fold_right(
+          (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Pat.Comma, seq2),
+          seqs',
+          seq0,
+        ),
+      )
+    };
+  Some(UHPat.mk_OpSeq(comma_seq));
+}
+
+and smpat_to_uhpat: Smyth.Lang.pat => option(UHPat.t) =
   fun
   | PVar(name) => Some(OpSeq.wrap(UHPat.var(name)))
-  | PTuple(ps) => {
-      let* ps = List.map(smpat_to_uhpat, ps) |> OptUtil.sequence;
-      let seqs = List.map((OpSeq.OpSeq(_skel, seq)) => seq, ps);
-      let* comma_seq =
-        switch (seqs) {
-        | [] => assert(false)
-        | [seq0, ...seqs'] =>
-          Some(
-            List.fold_right(
-              (seq, acc) => Seq.seq_op_seq(seq, Operators_Pat.Comma, acc),
-              seqs',
-              seq0,
-            ),
-          )
-        };
-      Some(UHPat.mk_OpSeq(comma_seq));
-    }
-  | PWildcard => Some(OpSeq.wrap(UHPat.wild()));
+  | PTuple(args) => smpat_tuple_to_opseq(args)
+  | PWildcard => Some(OpSeq.wrap(UHPat.wild()))
 
-let rec smexp_to_uhexp = (e: Smyth.Lang.exp): option(UHExp.t) => {
+and smexp_tuple_to_opseq = (args: list(Smyth.Lang.exp)): option(UHExp.opseq) => {
+  let* hz_args = List.map(smexp_to_uhexp_opseq, args) |> OptUtil.sequence;
+  let seqs = List.map((OpSeq.OpSeq(_, seq)) => seq, hz_args);
+  let* comma_seq =
+    switch (seqs) {
+    | [] => assert(false)
+    | [seq0, ...seqs'] =>
+      Some(
+        List.fold_right(
+          (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Exp.Comma, seq2),
+          seqs',
+          seq0,
+        ),
+      )
+    };
+  Some(UHExp.mk_OpSeq(comma_seq));
+}
+
+and smexp_to_uhexp = (e: Smyth.Lang.exp): option(UHExp.t) => {
   let+ line = smexp_to_uhexp_line(e);
   [line];
 }
@@ -350,14 +371,9 @@ and smexp_to_uhexp_line = (e: Smyth.Lang.exp): option(UHExp.line) => {
   UHExp.ExpLine(h_e);
 }
 
-and smexp_to_uhexp_opseq = (e: Smyth.Lang.exp): option(UHExp.opseq) => {
-  let+ h_e = smexp_to_uhexp_operand(e);
-  OpSeq.wrap(h_e);
-}
-
 /* [@warning "-32"] */
 /* [@warning "-27"] */
-and smexp_to_uhexp_operand: Smyth.Lang.exp => option(UHExp.operand) =
+and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   fun
   | EFix(Some(_name), _param, _body) =>
     /* turns into a let? */
@@ -365,33 +381,20 @@ and smexp_to_uhexp_operand: Smyth.Lang.exp => option(UHExp.operand) =
   | EFix(None, PatParam(p), body) => {
       let* h_p = smpat_to_uhpat(p);
       let+ body_uhexp = smexp_to_uhexp(body);
-      UHExp.lam(h_p, body_uhexp);
+      OpSeq.wrap(UHExp.lam(h_p, body_uhexp));
     }
   | EFix(None, TypeParam(_), _) => {
       failwith(__LOC__);
     }
   | EApp(_special, _head, _arg) => failwith(__LOC__)
-  | EVar(name) => Some(UHExp.var(name))
-  | ETuple(_args) => failwith(__LOC__)
+  | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
+  | ETuple(args) => smexp_tuple_to_opseq(args)
   | EProj(_n, _i, _arg) => failwith(__LOC__)
   | ECtor(_name, _type_args, _arg) => failwith(__LOC__)
   | ECase(_scrutinee, _branches) => failwith(__LOC__)
   | EHole(_name) => failwith(__LOC__)
   | EAssert(_lhs, _rhs) => failwith(__LOC__)
   | ETypeAnnotation(_an_exp, _a_typ) => failwith(__LOC__);
-
-/* [@warning "-32"] */
-/* [@warning "-27"] */
-/* let smres_to_operand: Smyth.Lang.res => option(UHExp.operand) = */
-/*   fun */
-/*   | RFix(env, name_opt, param, body) => failwith(__LOC__) */
-/*   | RTuple(args) => failwith(__LOC__) */
-/*   | RCtor(name, arg) => failwith(__LOC__) */
-/*   | RHole(_env, name) => Some(EmptyHole(name)) */
-/*   | RApp(head, arg) => failwith(__LOC__) */
-/*   | RProj(n, i, arg) => failwith(__LOC__) */
-/*   | RCase(env, scrutinee, branches) => failwith(__LOC__) */
-/*   | RCtorInverse(name, arg) => failwith(__LOC__); */
 
 /******************************************************************************/
 
