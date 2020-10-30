@@ -397,11 +397,20 @@ and smexp_to_uhexp_operand: Smyth.Lang.exp => option(UHExp.operand) =
 
 type solve_result = list(list((MetaVar.t, UHExp.t)));
 
-[@warning "-32"]
 let solve = (e: UHExp.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
   switch (Smyth.Endpoint.solve_program(sm_prog)) {
   | Error(_) => None
-  | Ok(_) => failwith("todo")
+  | Ok({hole_fillings, _}) =>
+    hole_fillings
+    |> List.map(hole_filling =>
+         hole_filling
+         |> List.map(((u, smexp)) => {
+              let+ e = smexp_to_uhexp(smexp);
+              (u, e);
+            })
+         |> OptUtil.sequence
+       )
+    |> OptUtil.sequence
   };
 };
