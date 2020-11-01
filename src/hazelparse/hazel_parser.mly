@@ -26,9 +26,8 @@
     let rec mk_app e args =
       match args with
       | [] -> e
-      | [x] -> mk_binop e Operators_Exp.Space x
-      | _::xs -> (
-        let opseq = mk_app e xs in
+      | x::xs -> (
+        let opseq = mk_app x xs in
         mk_binop e Operators_Exp.Space opseq
       )
     in
