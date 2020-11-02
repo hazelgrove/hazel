@@ -17,7 +17,15 @@ let lowercase_ident = ['a'-'z' '_']+
 
 rule read =
   parse
-  | newline
+  newline {
+    let curr_p = lexbuf.lex_curr_p in
+    let count = curr_p.pos_cnum - curr_p.pos_bol in
+    Lexing.new_line lexbuf;
+    if count = 1 then
+      EMPTY
+    else
+      read lexbuf
+  }
   | white { read lexbuf }
   | lowercase_ident as id {
     try
@@ -37,5 +45,6 @@ rule read =
   | "{" { LBRACE }
   | "}" { RBRACE }
   | "\\" { LAMBDA }
+  | "#" white* ( [^'\n']* as t) (newline | eof) { COMMENT t }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }

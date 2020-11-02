@@ -64,6 +64,8 @@
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LAMBDA
+%token <string> COMMENT
+%token EMPTY
 
 %left PLUS MINUS
 %left MULT DIV
@@ -78,17 +80,27 @@ main:
 ;
 
 block:
-  exp_line { [$1] }
-  | let_line line* exp_line {
-      List.concat [[$1]; $2; [$3]]
+  triv_line+ { $1 }
+  | triv_line* exp_line triv_line* {
+    List.concat [$1; [$2]; $3]
+  }
+  | triv_line* let_line line* exp_line triv_line* {
+    List.concat [$1; [$2]; $3; [$4]; $5]
   }
 ;
 
 line:
   let_line { $1 }
+  | triv_line { $1 }
+;
+
+triv_line:
+  COMMENT { UHExp.CommentLine $1 }
+  | EMPTY { UHExp.EmptyLine }
 ;
 
 let_line:
+  (* FIXME: Currently this accepts a block of just comments/empty lines *)
   LET pat EQUAL block IN { mk_letline $2 $4 }
 ;
 
