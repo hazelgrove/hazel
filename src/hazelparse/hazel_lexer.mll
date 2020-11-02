@@ -1,12 +1,14 @@
 {
 open Hazel_parser
 
-let keyword_table = Hashtbl.create 4
+let keyword_table = Hashtbl.create 8
 let _ =
   List.iter
     (fun (keyword, token) -> Hashtbl.add keyword_table keyword token)
     [ "let", LET;
-      "in", IN ]
+      "in", IN;
+      "case", CASE;
+      "end", END ]
 }
 
 let white = [' ']+
@@ -45,6 +47,8 @@ rule read =
   | "{" { LBRACE }
   | "}" { RBRACE }
   | "\\" { LAMBDA }
+  | "|" { BAR }
+  | "=>" { ARROW }
   | "#" white* ( [^'\n']* as t) (newline | eof) { COMMENT t }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }

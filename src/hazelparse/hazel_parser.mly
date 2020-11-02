@@ -43,6 +43,12 @@
     let block = [mk_expline expr] in
     UHExp.lam pat block
 
+  let mk_case block rules =
+    UHExp.case block rules
+
+  let mk_rule pat block =
+    UHExp.Rule(pat, block)
+
   let mk_intlit v =
     UHExp.intlit v
 
@@ -64,6 +70,10 @@
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LAMBDA
+%token CASE
+%token BAR
+%token ARROW
+%token END
 %token <string> COMMENT
 %token EMPTY
 
@@ -119,6 +129,7 @@ pat_variable:
 
 expr:
   simple_expr {  $1 }
+  | case { UHExp.mk_OpSeq (mk_seq $1) }
   | expr_ { $1 }
 ;
 
@@ -146,6 +157,14 @@ fn:
   | LAMBDA p = pat PERIOD LBRACE e = expr RBRACE {
     mk_seq (mk_lambda p e)
   }
+;
+
+case:
+  CASE block rule+ END { mk_case $2 $3 }
+;
+
+rule:
+  BAR pat ARROW block { mk_rule $2 $4 }
 ;
 
 %inline op:
