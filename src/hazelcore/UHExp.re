@@ -23,6 +23,7 @@ and operand =
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
+  | If(CaseErrStatus.t, t, t, t)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
@@ -194,8 +195,10 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
+  | If(StandardErrStatus(err), _, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
+  | If(InconsistentBranches(_), _, _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
@@ -219,6 +222,7 @@ and set_err_status_operand = (err, operand) =>
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
+  | If(_, t1, t2, t3) => If(StandardErrStatus(err), t1, t2, t3)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -253,6 +257,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -265,6 +270,13 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
+      _,
+      _,
+    )
+  | If(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
+      _,
       _,
       _,
     )
@@ -368,6 +380,12 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
+  | If(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _, _) =>
+    false
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
+    is_complete(t1, check_type_holes)
+    && is_complete(t2, check_type_holes)
+    && is_complete(t3, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")

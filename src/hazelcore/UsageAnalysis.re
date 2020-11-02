@@ -73,6 +73,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _)
+  | If(StandardErrStatus(InHole(_)), _, _, _)
   | ApPalette(_) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, body) =>
@@ -91,6 +92,11 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
          )
       |> List.concat;
     scrut_uses @ rules_uses;
+  | If(StandardErrStatus(NotInHole) | InconsistentBranches(_), t1, t2, t3) =>
+    let t1_rules = find_uses(~steps=steps @ [0], x, t1);
+    let t2_rules = find_uses(~steps=steps @ [0], x, t2);
+    let t3_rules = find_uses(~steps=steps @ [0], x, t3);
+    t1_rules @ t2_rules @ t3_rules;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   }
 and find_uses_rule =
