@@ -533,6 +533,19 @@ let solve = (e: UHExp.t): option(solve_result) => {
   switch (Smyth.Endpoint.solve_program(sm_prog)) {
   | Error(_) => None
   | Ok({hole_fillings, _}) =>
+    List.iter(
+      results =>
+        List.iter(
+          ((h, exp)) =>
+            Printf.printf(
+              "%d = %s\n",
+              h,
+              Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
+            ),
+          results,
+        ),
+      hole_fillings,
+    );
     hole_fillings
     |> List.map(hole_filling =>
          hole_filling
@@ -542,6 +555,6 @@ let solve = (e: UHExp.t): option(solve_result) => {
             })
          |> OptUtil.sequence
        )
-    |> OptUtil.sequence
+    |> OptUtil.sequence;
   };
 };
