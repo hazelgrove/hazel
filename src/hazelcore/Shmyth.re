@@ -78,6 +78,7 @@ type sm_assert = (Smyth.Lang.exp, Smyth.Lang.exp);
 let sm_ctor = (name, arg) => ECtor(name, [], arg);
 let sm_null_ctor = name => sm_ctor(name, ETuple([]));
 let sm_cons = (e1, e2) => sm_ctor("Cons", ETuple([e1, e2]));
+let sm_app = (e1, e2) => EApp(false, e1, e2);
 let sm_zero = sm_null_ctor("Z");
 let sm_true = sm_null_ctor("True");
 let sm_false = sm_null_ctor("False");
@@ -208,7 +209,11 @@ and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
     let* s_e1 = hexp_opseq_to_smexp(OpSeq.OpSeq(e1n, seq));
     let* s_e2 = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
     Some(sm_cons(s_e1, s_e2));
-  | BinOp(_) => None
+  | BinOp(_, Space, e1n, e2n) =>
+    let* s_e1 = hexp_opseq_to_smexp(OpSeq.OpSeq(e1n, seq));
+    let* s_e2 = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
+    Some(sm_app(s_e1, EAExp(s_e2)));
+  | BinOp(_) => failwith(__LOC__)
   };
 }
 
