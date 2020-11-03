@@ -1,6 +1,7 @@
 open OptUtil.Syntax;
 open Option;
 open Smyth.Lang;
+open Sexplib.Std;
 
 /*
 
@@ -65,10 +66,13 @@ let datatype_prelude: Smyth.Lang.datatype_ctx = [
     ),
   ),
 ];
-
+[@deriving sexp]
 type sm_pat = (string, Smyth.Lang.pat);
+[@deriving sexp]
 type sm_rule = (sm_pat, Smyth.Lang.exp);
+[@deriving sexp]
 type sm_def = (string, (Smyth.Lang.typ, Smyth.Lang.exp));
+[@deriving sexp]
 type sm_assert = (Smyth.Lang.exp, Smyth.Lang.exp);
 
 let sm_ctor = (name, arg) => ECtor(name, [], arg);
@@ -518,6 +522,8 @@ type solve_result = list(list((MetaVar.t, UHExp.t)));
 
 let solve = (e: UHExp.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
+  //let res = Smyth.Endpoint.solve_program(sm_prog);
+  //print_endline(res);
   switch (Smyth.Endpoint.solve_program(sm_prog)) {
   | Error(_) => None
   | Ok({hole_fillings, _}) =>

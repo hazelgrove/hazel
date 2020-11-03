@@ -1,18 +1,20 @@
+open Sexplib.Std
+
 (** The syntax of {e Core Smyth}, as defined in {b Figure 3} of the ICFP 2020
     paper. *)
 
 (** The type of hole "names," which is used to identify holes for synthesis. *)
-type hole_name = int
+type hole_name = int [@@deriving sexp]
 
 (** A map with domain {!hole_name}. *)
 module Hole_map = Map.Make (struct
-  type t = hole_name
+  type t = hole_name [@@deriving sexp]
 
   let compare = Int.compare
 end)
 
 (** An abbreviation for using {!Hole_map}s. *)
-type 'a hole_map = 'a Hole_map.t
+type 'a hole_map = 'a Hole_map.t [@@deriving sexp]
 
 (** Expression types. *)
 type typ =
@@ -21,18 +23,20 @@ type typ =
   | TData of string * typ list  (** Datatype *)
   | TForall of string * typ  (** Universal quantification *)
   | TVar of string  (** Type variable *)
+[@@deriving sexp]
 
 (** Patterns. *)
 type pat =
   | PVar of string  (** Variable pattern *)
   | PTuple of pat list  (** Tuple pattern *)
   | PWildcard  (** Wildcard pattern *)
+[@@deriving sexp]
 
 (** The types of valid parameters in a function signature. *)
-type param = PatParam of pat | TypeParam of string
+type param = PatParam of pat | TypeParam of string [@@deriving sexp]
 
 (** The types of valid arguments in a function application. *)
-type exp_arg = EAExp of exp | EAType of typ
+type exp_arg = EAExp of exp | EAType of typ [@@deriving sexp]
 
 (** Expressions.
 
@@ -60,7 +64,7 @@ and exp =
   | ETypeAnnotation of exp * typ  (** Type annotations *)
 
 (** The types of valid arguments in a result function application. *)
-type res_arg = RARes of res | RAType of typ
+type res_arg = RARes of res | RAType of typ [@@deriving sexp]
 
 (** Results.
 
@@ -75,9 +79,10 @@ and res =
   | RProj of int * int * res  (** Tuple projections *)
   | RCase of env * res * (string * (pat * exp)) list  (** Case results *)
   | RCtorInverse of string * res  (** Inverse constructors *)
+[@@deriving sexp]
 
 (** Environments: [(result bindings, type variable bindings)]. *)
-and env = (string * res) list * (string * typ) list
+and env = (string * res) list * (string * typ) list [@@deriving sexp]
 
 (** Binding specifications. *)
 type bind_spec =
@@ -85,6 +90,7 @@ type bind_spec =
   | Rec of string (* "Recursive" bindspec *)
   | Arg of string (* "Argument of" bindspec *)
   | Dec of string
+[@@deriving sexp]
 
 (* "Decreasing on" bindspec *)
 
@@ -100,6 +106,7 @@ type type_ctx = type_binding list * poly_binding list
 
 (** Datatype contexts. *)
 type datatype_ctx = (string * (string list * (string * typ) list)) list
+[@@deriving sexp]
 
 (** Hole contexts:
     [(hole name, type context, typ, decrease requirement, match depth)]. The
