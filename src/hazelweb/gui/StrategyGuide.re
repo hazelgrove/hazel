@@ -37,8 +37,28 @@ let branch_vars = (ctx: Contexts.t) => {
  * Return HTyp.t
  */
 let get_type = (model: Model.t) => {
-  let _ = model;
-  failwith("unimplemented");
+  let cursor_info = Model.get_cursor_info(model);
+  let my_type = () => {
+    switch (cursor_info.typed) {
+    | Analyzed(ty) => ty
+    | AnaAnnotatedLambda(expected_ty, _) => expected_ty
+    | AnaSubsumed(expected_ty, _) => expected_ty
+    | Synthesized(ty) => ty
+    | SynMatchingArrow(syn_ty, _) => syn_ty
+    | SynBranchClause(join, typed, _) =>
+      switch (join, typed) {
+      | (JoinTy(ty), Synthesized(got_ty)) =>
+        switch (HTyp.consistent(ty, got_ty), HTyp.eq(ty, got_ty)) {
+        | (true, true) => ty
+        | (true, false) => ty
+        | _ => None
+        }
+      | _ => None
+      }
+    | _ => None
+    };
+  };
+  my_type;
 };
 
 /**
