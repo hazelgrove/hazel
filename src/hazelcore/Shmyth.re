@@ -450,11 +450,14 @@ and smexp_branches_to_uhexp_rules =
     [rule, ...rules];
   }
 
-and smexp_num_to_int: Smyth.Lang.exp => int =
+and smexp_num_to_int: Smyth.Lang.exp => option(int) =
   fun
-  | ECtor("Z", _, ETuple([])) => 0
-  | ECtor("S", _, exp) => 1 + smexp_num_to_int(exp)
-  | _ => assert(false)
+  | ECtor("Z", _, ETuple([])) => Some(0)
+  | ECtor("S", _, exp) => {
+      let+ m = smexp_num_to_int(exp);
+      1 + m;
+    }
+  | _ => None
 
 and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   fun
@@ -507,9 +510,17 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
     }
   | ECtor("True", _, ETuple([])) => Some(OpSeq.wrap(UHExp.boollit(true)))
   | ECtor("False", _, ETuple([])) => Some(OpSeq.wrap(UHExp.boollit(false)))
-  | ECtor("Z", _, _) as snum
-  | ECtor("S", _, _) as snum =>
-    Some(OpSeq.wrap(UHExp.intlit(string_of_int(smexp_num_to_int(snum)))))
+  | ECtor("Z", _, ETuple([])) => Some(OpSeq.wrap(UHExp.intlit("0")))
+  | ECtor("Z" | "S", _, m) as snum => {
+      switch (smexp_to_uhexp_opseq(m)) {
+      | Some(OpSeq(_, h_m)) =>
+        let OpSeq.OpSeq(_, one) = OpSeq.wrap(UHExp.intlit("1"));
+        Some(UHExp.mk_OpSeq(Seq.seq_op_seq(one, Operators_Exp.Plus, h_m)));
+      | None =>
+        let+ num = smexp_num_to_int(snum);
+        OpSeq.wrap(UHExp.intlit(string_of_int(num)));
+      };
+    }
   | ECtor("IntList", _, _) => failwith(__LOC__)
   | ECtor(_, _, _) => assert(false)
   | ECase(scrut, branches) => {
