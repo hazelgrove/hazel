@@ -333,7 +333,14 @@ let mk_syn_text =
       Succeeded(SynDone((new_ze, Hole, u_gen)));
     };
   | Label(label) =>
-    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(label)));
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let ze =
+      ZExp.ZBlock.wrap(
+        CursorE(
+          text_cursor,
+          UHExp.label(label, ~err=InLabelHole(Standalone, u)),
+        ),
+      );
     Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   };
 };

@@ -98,19 +98,8 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
   | Label(l) =>
-    if (Label.is_valid(l)) {
-      let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(l)));
-      Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    } else {
-      let zp =
-        ZOpSeq.wrap(
-          ZPat.CursorP(
-            text_cursor,
-            UHPat.label(l, ~err=InLabelHole(NotValid, u_gen)),
-          ),
-        );
-      Succeeded((zp, HTyp.Hole, ctx, u_gen));
-    }
+    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(l)));
+    Succeeded((zp, HTyp.Hole, ctx, u_gen));
   };
 };
 

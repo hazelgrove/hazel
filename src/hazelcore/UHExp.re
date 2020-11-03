@@ -218,6 +218,7 @@ and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
   | InvalidText(_, _) => operand
+  | Label(_, _) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -228,7 +229,6 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Label(label_err, label) => Label(label_err, label)
   | Prj(_, exp, label) => Prj(err, exp, label)
   };
 
@@ -254,6 +254,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   /* already in hole */
   | EmptyHole(_)
   | InvalidText(_, _)
+  | Label(_, _)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -288,7 +289,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
-  | Label(_, _) => (operand, u_gen)
   };
 
 let text_operand =

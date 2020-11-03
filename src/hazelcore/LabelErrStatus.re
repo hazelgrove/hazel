@@ -3,8 +3,8 @@ module HoleReason = {
   type t =
     | Standalone
     | Duplicate
-    | Empty
-    | NotValid;
+    | Empty;
+  // | NotValid; Not valid labels prevented at the action level
 };
 
 [@deriving sexp]

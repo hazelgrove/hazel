@@ -161,7 +161,8 @@ and get_outer_zrules_from_zrule =
 type err_status_result =
   | StandardErr(ErrStatus.t)
   | VarErr(VarErrStatus.HoleReason.t)
-  | InconsistentBranchesErr(list(HTyp.t));
+  | InconsistentBranchesErr(list(HTyp.t))
+  | LabelErr(LabelErrStatus.HoleReason.t);
 
 let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
@@ -448,6 +449,10 @@ and syn_cursor_info_skel =
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
+        | Some(LabelErr(Standalone))
+        | Some(LabelErr(Duplicate))
+        | Some(LabelErr(Empty)) =>
+          failwith(__LOC__ ++ "Unimplemented Label Err Status")
         | Some(StandardErr(NotInHole)) =>
           let operand_nih =
             zoperand

@@ -105,11 +105,13 @@ and syn_skel =
     switch (skel1) {
     | Placeholder(n) =>
       switch (Seq.nth_operand(n, seq)) {
-      | Label(_, l) =>
+      | Label(NotInLabelHole, l)
+      | Label(InLabelHole(Standalone, _), l) =>
         switch (syn_skel(ctx, skel2, seq)) {
         | Some(ty) => Some(Label_Elt(l, ty))
         | None => None
         }
+      | Label(InLabelHole(_), _) => Some(Hole)
       // Skel1 is not a label, so continue wiht matching on arrow
       // ECD TOD: Check for parentheses
       | _ =>
@@ -871,49 +873,22 @@ and syn_fix_holes_skel =
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
   | BinOp(_, Space, skel1, skel2) =>
-    let (skel1, seq, ty1, u_gen) =
-      syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
-    switch (HTyp.matched_arrow(ty1)) {
-    | Some((ty2, ty)) =>
-      let (skel2, seq, u_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          skel2,
-          seq,
-          ty2,
-        );
-      (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
-    | None =>
-      switch (skel1) {
-      | Placeholder(n) =>
-        let en = seq |> Seq.nth_operand(n);
-        switch (en) {
-        | Label(_, l) =>
-          let (skel2, seq, ty2', u_gen) =
-            syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
-          (
-            BinOp(NotInHole, Space, skel1, skel2),
-            seq,
-            Label_Elt(l, ty2'),
+    let arrow_case = (): (UHExp.skel, UHExp.seq, HTyp.t, MetaVarGen.t) => {
+      let (skel1, seq, ty1, u_gen) =
+        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+      switch (HTyp.matched_arrow(ty1)) {
+      | Some((ty2, ty)) =>
+        let (skel2, seq, u_gen) =
+          ana_fix_holes_skel(
+            ctx,
             u_gen,
+            ~renumber_empty_holes,
+            skel2,
+            seq,
+            ty2,
           );
-        | _ =>
-          let (skel2, seq, u_gen) =
-            ana_fix_holes_skel(
-              ctx,
-              u_gen,
-              ~renumber_empty_holes,
-              skel2,
-              seq,
-              HTyp.Hole,
-            );
-          let (OpSeq(skel1, seq), u_gen) =
-            UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-          (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
-        };
-      | _ =>
+        (BinOp(NotInHole, Space, skel1, skel2), seq, ty, u_gen);
+      | None =>
         let (skel2, seq, u_gen) =
           ana_fix_holes_skel(
             ctx,
@@ -926,7 +901,41 @@ and syn_fix_holes_skel =
         let (OpSeq(skel1, seq), u_gen) =
           UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
         (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
-      }
+      };
+    };
+    switch (skel1) {
+    | Placeholder(n) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      | Label(NotInLabelHole, l) =>
+        let (skel2, seq, ty2', u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        (
+          BinOp(NotInHole, Space, skel1, skel2),
+          seq,
+          Label_Elt(l, ty2'),
+          u_gen,
+        );
+      | Label(InLabelHole(Standalone, _), l) =>
+        let seq =
+          seq |> Seq.update_nth_operand(n, UHExp.Label(NotInLabelHole, l));
+        let (skel2, seq, ty2', u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        (
+          BinOp(NotInHole, Space, skel1, skel2),
+          seq,
+          Label_Elt(l, ty2'),
+          u_gen,
+        );
+      | Label(InLabelHole(_, _), _) => (
+          BinOp(NotInHole, Space, skel1, skel2),
+          seq,
+          Hole,
+          u_gen,
+        )
+      | _ => arrow_case()
+      };
+    | _ => arrow_case()
     };
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =
@@ -975,7 +984,14 @@ and syn_fix_holes_operand =
       (e, Hole, u_gen);
     }
   | InvalidText(_) => (e, Hole, u_gen)
-  | Label(_, _) => (e, Hole, u_gen)
+  // all labels in a tuple should have their holes fixed in the skel case
+  // If reaching fix_holes_operand, then the label must be standalone
+  | Label(NotInLabelHole, l) => (
+      Label(InLabelHole(Standalone, u_gen), l),
+      Hole,
+      u_gen,
+    )
+  | Label(InLabelHole(_, _), _) => (e, Hole, u_gen)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {

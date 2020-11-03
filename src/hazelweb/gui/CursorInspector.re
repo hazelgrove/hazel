@@ -106,8 +106,8 @@ let view =
       ),
     );
 
-  let expected_label = l =>
-    expected_indicator("Expecting ", special_msg_bar("a label " ++ l));
+  let expected_label =
+    expected_indicator("Expecting ", special_msg_bar("a label "));
 
   let got_indicator = (title_text, type_div) =>
     Vdom.(
@@ -217,7 +217,7 @@ let view =
     | SynLabel(err, l) =>
       switch (err) {
       | NotInLabelHole =>
-        let ind1 = expected_label(l);
+        let ind1 = expected_label;
         let ind2 = got_label_indicator;
         (ind1, ind2, OK);
       | InLabelHole(Standalone, _) =>
@@ -239,10 +239,10 @@ let view =
         let ind1 = expected_any_indicator;
         let ind2 = got_indicator("Got Empty Label", typebar(HTyp.Hole));
         (ind1, ind2, BindingError);
-      | InLabelHole(NotValid, _) =>
-        let ind1 = expected_any_indicator;
-        let ind2 = got_indicator("Got Invalid Label", typebar(HTyp.Hole));
-        (ind1, ind2, BindingError);
+      // | InLabelHole(NotValid, _) =>
+      //   let ind1 = expected_any_indicator;
+      //   let ind2 = got_indicator("Got Invalid Label", typebar(HTyp.Hole));
+      //   (ind1, ind2, BindingError);
       }
     | SynFree =>
       let ind1 = expected_any_indicator;
