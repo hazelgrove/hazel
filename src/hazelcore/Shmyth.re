@@ -447,21 +447,23 @@ and smexp_num_to_int: Smyth.Lang.exp => int =
   | ECtor("S", _, exp) => 1 + smexp_num_to_int(exp)
   | _ => assert(false)
 
-/* [@warning "-32"] */
-/* [@warning "-27"] */
 and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   fun
-  | EFix(Some(_name), _param, _body) =>
-    /* turns into a let? */
-    failwith(__LOC__)
   | EFix(None, PatParam(p), body) => {
       let* h_p = smpat_to_uhpat(p);
       let+ body_uhexp = smexp_to_uhexp(body);
       OpSeq.wrap(UHExp.lam(h_p, body_uhexp));
     }
-  | EFix(None, TypeParam(_), _) => {
-      failwith(__LOC__);
+  | EFix(Some(name), PatParam(p), body) => {
+      let+ h_lam = smexp_to_uhexp(EFix(None, PatParam(p), body));
+      OpSeq.wrap(
+        UHExp.Parenthesized([
+          UHExp.letline(OpSeq.wrap(UHPat.var(name)), h_lam),
+        ]),
+      );
     }
+  | EFix(None, TypeParam(_), _) => failwith(__LOC__)
+  | EFix(Some(_), TypeParam(_), _) => failwith(__LOC__)
   | EApp(true, _head, _arg) => failwith(__LOC__)
   | EApp(false, head, arg) => smexp_app_to_opseq(head, arg)
   | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
