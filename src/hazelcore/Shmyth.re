@@ -468,6 +468,7 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       OpSeq.wrap(
         UHExp.Parenthesized([
           UHExp.letline(OpSeq.wrap(UHPat.var(name)), h_lam),
+          ExpLine(OpSeq.wrap(UHExp.var(name))),
         ]),
       );
     }
