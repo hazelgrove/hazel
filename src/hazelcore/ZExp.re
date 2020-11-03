@@ -19,6 +19,9 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
+  | IfZ1(CaseErrStatus.t, UHExp.t, t, t)
+  | IfZ2(CaseErrStatus.t, t, UHExp.t, t)
+  | IfZ3(CaseErrStatus.t, t, t, UHExp.t)
   | ApPaletteZ(
       ErrStatus.t,
       PaletteName.t,
@@ -58,6 +61,9 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(IfZ1(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(IfZ2(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(IfZ3(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ApPaletteZ(_), _))) => false
   };
@@ -110,6 +116,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
     }
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
+  | If(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
@@ -172,6 +179,7 @@ and is_before_zoperand =
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
+  | CursorE(cursor, If(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, ApPalette(_)) => cursor == OnDelim(0, Before) /* TODO[livelits] */
   | ParenthesizedZ(_)
@@ -181,6 +189,9 @@ and is_before_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | IfZ1(_)
+  | IfZ2(_)
+  | IfZ3(_)
   | ApPaletteZ(_) => false;
 
 // The following 2 functions are specifically for CommentLines!!
@@ -255,6 +266,7 @@ and is_after_zoperand =
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
+  | CursorE(cursor, If(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorE(_, ApPalette(_)) => false /* TODO[livelits] */
@@ -265,6 +277,9 @@ and is_after_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | IfZ1(_)
+  | IfZ2(_)
+  | IfZ3(_)
   | ApPaletteZ(_) => false;
 let is_after_zrule =
   fun
@@ -305,6 +320,7 @@ and is_outer_zoperand =
   | CursorE(_, Lam(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
+  | CursorE(_, If(_))
   | CursorE(_, Parenthesized(_))
   | CursorE(_, ApPalette(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
@@ -314,6 +330,9 @@ and is_outer_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
+  | IfZ1(_)
+  | IfZ2(_)
+  | IfZ3(_)
   | ApPaletteZ(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
@@ -346,6 +365,7 @@ and place_before_operand = operand =>
   | Lam(_)
   | Inj(_)
   | Case(_)
+  | If(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
   };
@@ -384,6 +404,7 @@ and place_after_operand = operand =>
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
+  | If(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   | ApPalette(_) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
@@ -465,6 +486,9 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
+  | IfZ1(err, t1, t2, t3) => If(err, t1, erase(t2), erase(t3))
+  | IfZ2(err, t1, t2, t3) => If(err, erase(t1), t2, erase(t3))
+  | IfZ3(err, t1, t2, t3) => If(err, erase(t1), erase(t2), t3)
   | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
       let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
       ApPalette(err, palette_name, serialized_model, psi);
