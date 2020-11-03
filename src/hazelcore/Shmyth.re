@@ -425,7 +425,8 @@ and smexp_branch_to_uhexp_rule =
         ...clause,
       ],
     )
-  | _ => failwith("todo")
+  | ("IntList", _) => failwith("todo")
+  | _ => assert(false)
   };
 }
 
