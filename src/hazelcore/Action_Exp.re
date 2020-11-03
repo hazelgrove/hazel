@@ -363,18 +363,10 @@ let mk_ana_text =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', id_gen))) =>
-      //print_endline("hit here");
       if (HTyp.consistent(ty, ty')) {
-        //let (_, id_gen) = id_gen |> IDGen.next_assert;
-        //print_endline(Sexplib.Sexp.to_string(IDVar.sexp_of_t(id_gen)));
-        Succeeded(
-          AnaDone((ze, id_gen)),
-        );
+        Succeeded(AnaDone((ze, id_gen)));
       } else {
-        //let (ze, id_gen) = ze |> ZExp.mk_inconsistent(id_gen);
-        Succeeded(
-          AnaDone((ze, id_gen)),
-        );
+        Succeeded(AnaDone((ze, id_gen)));
       }
     }
   | IntLit(_)
