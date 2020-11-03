@@ -7,11 +7,22 @@ open Sexplib.Std
 type hole_name = int [@@deriving sexp]
 
 (** A map with domain {!hole_name}. *)
-module Hole_map = Map.Make (struct
-  type t = hole_name [@@deriving sexp]
+module Hole_map = struct
+  module Key = struct
+    type t = hole_name [@@deriving sexp]
 
-  let compare = Int.compare
-end)
+    let compare = Int.compare
+  end
+
+  include Map.Make (Key)
+
+  let t_of_sexp _ = failwith "todo"
+
+  let sexp_of_t sexp_of_v map =
+    map |> to_seq |> List.of_seq
+    |> sexp_of_list (fun (k, v) ->
+           Sexplib.Sexp.List [Key.sexp_of_t k; sexp_of_v v])
+end
 
 (** An abbreviation for using {!Hole_map}s. *)
 type 'a hole_map = 'a Hole_map.t [@@deriving sexp]
