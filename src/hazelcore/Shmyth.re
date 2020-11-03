@@ -521,8 +521,9 @@ type solve_result = list(list((MetaVar.t, UHExp.t)));
 
 let solve = (e: UHExp.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
-  //let res = Smyth.Endpoint.solve_program(sm_prog);
-  //print_endline(res);
+  print_endline(
+    Sexplib.Sexp.to_string(Smyth.Desugar.sexp_of_program(sm_prog)),
+  );
   switch (Smyth.Endpoint.solve_program(sm_prog)) {
   | Error(_) => None
   | Ok({hole_fillings, _}) =>

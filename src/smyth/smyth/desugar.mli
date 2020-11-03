@@ -45,6 +45,7 @@ type program =
   ; definitions: (string * (typ * exp)) list
   ; assertions: (exp * exp) list
   ; main_opt: exp option }
+[@@deriving sexp]
 
 val program : program -> exp * datatype_ctx
 (** Desugars a {!program} value into the corresponding {!Lang.exp} value
