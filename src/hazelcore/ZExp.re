@@ -93,7 +93,6 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   /* outer nodes - text */
   | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
-  | UserOp(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
@@ -119,8 +118,10 @@ let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
 let is_valid_cursor_line = (cursor: CursorPosition.t, line: UHExp.line): bool =>
   valid_cursors_line(line) |> List.mem(cursor);
 let is_valid_cursor_operand =
-    (cursor: CursorPosition.t, operand: UHExp.operand): bool =>
+    (cursor: CursorPosition.t, operand: UHExp.operand): bool => {
+  print_endline("is not valid cursor operand");
   valid_cursors_operand(operand) |> List.mem(cursor);
+};
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHExp.operator): bool =>
   valid_cursors_operator(operator) |> List.mem(cursor);
@@ -167,7 +168,6 @@ and is_before_zoperand =
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, InvalidText(_, _))
   | CursorE(cursor, Var(_))
-  | CursorE(cursor, UserOp(_))
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
@@ -251,7 +251,6 @@ and is_after_zoperand =
   | CursorE(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
-  | CursorE(cursor, UserOp(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorE(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorE(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
@@ -302,7 +301,6 @@ and is_outer_zoperand =
   | CursorE(_, InvalidText(_, _))
   | CursorE(_, ListNil(_))
   | CursorE(_, Var(_))
-  | CursorE(_, UserOp(_))
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
@@ -344,7 +342,6 @@ and place_before_operand = operand =>
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_)
-  | UserOp(_)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
@@ -383,7 +380,6 @@ and place_after_operand = operand =>
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
   | InvalidText(_, t) => CursorE(OnText(String.length(t)), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
-  | UserOp(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorE(OnText(String.length(f)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
@@ -407,9 +403,15 @@ let place_cursor_operator =
   is_valid_cursor_operator(cursor, operator)
     ? Some((cursor, operator)) : None;
 let place_cursor_operand =
-    (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) =>
+    (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) => {
+  print_endline("place cursor operand");
   is_valid_cursor_operand(cursor, operand)
-    ? Some(CursorE(cursor, operand)) : None;
+    ? Some(CursorE(cursor, operand))
+    : {
+      print_endline("none");
+      None;
+    };
+};
 let place_cursor_line =
     (cursor: CursorPosition.t, line: UHExp.line): option(zline) =>
   switch (line) {
@@ -692,7 +694,15 @@ and move_cursor_left_zoperator =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
-  | (OnOp(After), op) => Some((OnOp(Before), op))
+  | (OnOp(After), op) =>
+    switch (op) {
+    | UserOp(sym) when String.length(sym) > 1 =>
+      print_endline("move left zoperator");
+      Some((OnText(String.length(sym) - 1), op));
+    | _ =>
+      print_endline("move left incorrect");
+      Some((OnOp(Before), op));
+    }
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
@@ -734,7 +744,7 @@ and move_cursor_left_zoperand =
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | UserOp(_) | BoolLit(_) | IntLit(_) |
+      InvalidText(_, _) | Var(_) | /*UserOp(_) |*/ BoolLit(_) | IntLit(_) |
       FloatLit(_),
     ) =>
     // invalid cursor position
@@ -951,7 +961,7 @@ and move_cursor_right_zoperand =
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | UserOp(_) | BoolLit(_) | IntLit(_) |
+      InvalidText(_, _) | Var(_) | /*UserOp(_) |*/ BoolLit(_) | IntLit(_) |
       FloatLit(_),
     ) =>
     // invalid cursor position

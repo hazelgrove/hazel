@@ -535,10 +535,8 @@ and syn_cursor_info_zoperand =
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
     Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
-  | CursorE(_, UserOp(_, InVarHole(Keyword(k), _), _))
   | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
-  | CursorE(_, UserOp(_, InVarHole(Free, _), _))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
   | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
@@ -846,14 +844,9 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
     | Var(_, InVarHole(Free, _), _) =>
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
-    | UserOp(_, InVarHole(Keyword(k), _), _) =>
-      Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
-    | UserOp(_, InVarHole(Free, _), _) =>
-      Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
-    | UserOp(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
@@ -878,7 +871,6 @@ and ana_cursor_info_zoperand =
         )
       };
     | Var(InHole(WrongLength, _), _, _)
-    | UserOp(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
@@ -894,7 +886,6 @@ and ana_cursor_info_zoperand =
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
-    | UserOp(NotInHole, NotInVarHole, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)

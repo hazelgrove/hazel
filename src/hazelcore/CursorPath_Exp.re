@@ -68,9 +68,12 @@ and follow_line =
     : option(ZExp.zline) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
-    follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
+    print_endline("failed in follow opseq");
+    follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq));
   | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
-    line |> ZExp.place_cursor_line(cursor)
+    print_endline("failed in line");
+
+    line |> ZExp.place_cursor_line(cursor);
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
     switch (x) {
@@ -106,7 +109,9 @@ and follow_operator =
     : option(ZExp.zoperator) =>
   switch (steps) {
   | [] => operator |> ZExp.place_cursor_operator(cursor)
-  | [_, ..._] => None
+  | [_, ..._] =>
+    print_endline("failed in follow operator >");
+    None;
   }
 and follow_operand =
     ((steps, cursor): CursorPath_common.t, operand: UHExp.operand)
@@ -118,11 +123,12 @@ and follow_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
-    | UserOp(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListNil(_) =>
+      print_endline("failed in follow operand");
+      None;
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -319,7 +325,6 @@ and of_steps_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
-    | UserOp(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -473,8 +478,6 @@ and holes_operand =
       ...hs,
     ]
   | Var(err, verr, _) =>
-    hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
-  | UserOp(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -674,22 +677,6 @@ and holes_zoperand =
       (),
     )
   | CursorE(_, Var(err, verr, _)) =>
-    switch (err, verr) {
-    | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
-    | (InHole(_, u), _) =>
-      CursorPath_common.mk_zholes(
-        ~hole_selected=
-          Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)}),
-        (),
-      )
-    | (_, InVarHole(_, u)) =>
-      CursorPath_common.mk_zholes(
-        ~hole_selected=
-          Some({sort: ExpHole(u, VarErr), steps: List.rev(rev_steps)}),
-        (),
-      )
-    }
-  | CursorE(_, UserOp(err, verr, _)) =>
     switch (err, verr) {
     | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
     | (InHole(_, u), _) =>

@@ -188,7 +188,6 @@ and mk_operand =
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
         | InvalidText(_, t) => mk_InvalidText(t)
         | Var(_, _, x) => mk_Var(x)
-        | UserOp(_, _, x) => mk_Var(x)
         | IntLit(_, n) => mk_IntLit(n)
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)

@@ -14,7 +14,6 @@ and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | UserOp(ErrStatus.t, VarErrStatus.t, Var.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
@@ -41,9 +40,6 @@ type affix = Seq.affix(operand, operator);
 let letline: (UHPat.t, ~ann: UHTyp.t=?, t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
-
-let userop:
-  (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
 let intlit: (~err: ErrStatus.t=?, string) => operand;
 
