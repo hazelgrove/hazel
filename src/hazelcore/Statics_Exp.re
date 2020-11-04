@@ -894,11 +894,10 @@ and syn_fix_holes_skel =
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
   | BinOp(_, UserOp(op), skel1, skel2) =>
-    // TODO: edits on userop dont syn types, this might be causing that issue.
     print_endline("syn fix holes, user op case");
-    print_endline(op);
     let op_type =
       syn_operand(ctx, UHExp.UserOp(NotInHole, NotInVarHole, op));
+
     switch (op_type) {
     | Some(HTyp.Arrow(t1, HTyp.Arrow(t2, tout))) =>
       let (skel1, seq, u_gen) =
@@ -907,9 +906,6 @@ and syn_fix_holes_skel =
         ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, t2);
       (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, tout, u_gen);
     | _ =>
-      print_endline("fail typeinconsistent");
-      // TODO (colaban) - figure out what types the lhs and rhs should be, if
-      // the type of the user defined operator can't be synthesized.
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,

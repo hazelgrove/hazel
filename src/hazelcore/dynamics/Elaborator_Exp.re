@@ -60,19 +60,16 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
   | BinUserOp(op, d3, d4) =>
-    print_endline("perform userop substitution");
     switch (op) {
     | UserOp(var) =>
-      print_endline(var);
-      print_endline(x);
       if (x |> Var.extract_op_exp |> Var.eq(var)) {
         Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
       } else {
         let d3 = subst_var(d1, x, d3);
         let d4 = subst_var(d1, x, d4);
         BinUserOp(op, d3, d4);
-      };
-    };
+      }
+    }
 
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);

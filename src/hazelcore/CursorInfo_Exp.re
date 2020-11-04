@@ -399,8 +399,7 @@ and syn_cursor_info_skel =
       failwith(
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
-    | BinOp(_, UserOp(op), skel1, skel2) =>
-      print_endline(Sexplib.Sexp.to_string(Contexts.sexp_of_t(ctx)));
+    | BinOp(_, UserOp(op), skel1, _ /*skel2*/) =>
       let op_ty =
         switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
         | Some(ty) => ty
@@ -408,11 +407,13 @@ and syn_cursor_info_skel =
         };
 
       switch (HTyp.matched_two_ary_arrow(op_ty)) {
-      | Some((ty1, (ty2, _))) =>
+      | Some((ty1, (_ /*ty2*/, _))) =>
+        let mk = typed =>
+          CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
         | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
-        }
+        | None => Some(mk(SynFreeArrow(Arrow(Hole, Hole)))) // ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
+        };
       | _ => None
       };
     | BinOp(
@@ -534,8 +535,10 @@ and syn_cursor_info_zoperand =
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
     Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
+  | CursorE(_, UserOp(_, InVarHole(Keyword(k), _), _))
   | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
+  | CursorE(_, UserOp(_, InVarHole(Free, _), _))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
   | CursorE(_, Case(InconsistentBranches(rule_types, _), _, _)) =>
