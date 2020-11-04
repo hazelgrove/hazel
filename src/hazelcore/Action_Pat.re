@@ -148,14 +148,11 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
-    print_endline("grow var");
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   | UserOp(x) =>
-    print_endline("grow op");
     let ctx = Contexts.extend_gamma(ctx, (Var.extract_op_exp(x), ty));
-    print_endline(Sexplib.Sexp.to_string(Contexts.sexp_of_t(ctx)));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.userop(x)));
     Succeeded((zp, ctx, u_gen));
   };
