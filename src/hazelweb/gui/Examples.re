@@ -418,14 +418,26 @@ let addition_template: UHExp.t = [
   mk_app_equality_assert(
     1,
     "add",
+    [UHExp.intlit("0"), UHExp.intlit("0")],
+    UHExp.intlit("0"),
+  ),
+  mk_app_equality_assert(
+    1,
+    "add",
     [UHExp.intlit("0"), UHExp.intlit("1")],
     UHExp.intlit("1"),
   ),
   mk_app_equality_assert(
     2,
     "add",
-    [UHExp.intlit("1"), UHExp.intlit("1")],
-    UHExp.intlit("2"),
+    [UHExp.intlit("1"), UHExp.intlit("0")],
+    UHExp.intlit("1"),
+  ),
+  mk_app_equality_assert(
+    3,
+    "add",
+    [UHExp.intlit("2"), UHExp.intlit("2")],
+    UHExp.intlit("4"),
   ),
 ];
 

@@ -477,7 +477,9 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
     }
   | EFix(None, TypeParam(_), _) => failwith(__LOC__)
   | EFix(Some(_), TypeParam(_), _) => failwith(__LOC__)
-  | EApp(true, _head, _arg) => failwith(__LOC__)
+  | EApp(true, head, arg) => smexp_app_to_opseq(head, arg)
+  //| EApp(true, _head, _arg) => failwith(__LOC__)
+  // ERIC LOOK AT ME (andrew)
   | EApp(false, head, arg) => smexp_app_to_opseq(head, arg)
   | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
   | ETuple(args) => smexp_tuple_to_opseq(args)
