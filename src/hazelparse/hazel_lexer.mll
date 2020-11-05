@@ -23,6 +23,8 @@ rule read =
     let curr_p = lexbuf.lex_curr_p in
     let count = curr_p.pos_cnum - curr_p.pos_bol in
     Lexing.new_line lexbuf;
+    (* FIXME: This is to handle empty lines,
+     * but does not work with whitespace in the line *)
     if count = 1 then
       EMPTY
     else
@@ -42,6 +44,7 @@ rule read =
   | "=" { EQUAL }
   | "." { PERIOD }
   | ":" { COLON }
+  | ";" { SEMICOLON }
   | "(" { LPAREN }
   | ")" { RPAREN }
   | "{" { LBRACE }
@@ -49,6 +52,6 @@ rule read =
   | "\\" { LAMBDA }
   | "|" { BAR }
   | "=>" { ARROW }
-  | "#" white* ( [^'\n']* as t) (newline | eof) { COMMENT t }
+  | "#" white* ( [^'\n']* as t) { COMMENT t }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }
