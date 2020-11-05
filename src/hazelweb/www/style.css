@@ -342,6 +342,10 @@ body {
   transform: translateY(-100%);
 }
 
+.cursor-inspector {
+  overflow: visible;
+}
+
 .cursor-inspector .title-bar {
   padding: 3px;
 }
