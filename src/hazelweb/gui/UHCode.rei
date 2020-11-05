@@ -11,6 +11,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~measure: bool,
     ~is_mac: bool,
+    ~cursor_inspector: Model.cursor_inspector,
     Program.t
   ) =>
   Vdom.Node.t;

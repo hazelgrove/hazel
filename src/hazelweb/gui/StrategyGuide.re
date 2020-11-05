@@ -36,8 +36,7 @@ let branch_vars = (ctx: Contexts.t) => {
  * Gets the type of the expression at the cursor.
  * Return HTyp.t
  */
-let get_type = (model: Model.t) => {
-  let cursor_info = Model.get_cursor_info(model);
+let get_type = (cursor_info: CursorInfo_common.t) => {
   let my_type = () => {
     switch (cursor_info.typed) {
     | Analyzed(ty) => Some(ty)
@@ -80,15 +79,17 @@ let list_vars_view = (vars: VarCtx.t) => {
   );
 };
 
-let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
-  let lit_t = model.cursor_inspector.type_assist_lit;
-  let var_t = model.cursor_inspector.type_assist_var;
-  let func_t = model.cursor_inspector.type_assist_fun;
-  let other_t = model.cursor_inspector.type_assist_other;
-  let lit_t = lit_t || true;
-  let var_t = var_t || true;
-  let func_t = func_t || true;
-  let other_t = other_t || true;
+let view =
+    (
+      ~inject: ModelAction.t => Vdom.Event.t,
+      cursor_inspector: Model.cursor_inspector,
+      cursor_info: CursorInfo_common.t,
+    ) => {
+  let _ = cursor_info;
+  let lit_t = cursor_inspector.type_assist_lit;
+  let var_t = cursor_inspector.type_assist_var;
+  let func_t = cursor_inspector.type_assist_fun;
+  let other_t = cursor_inspector.type_assist_other;
   let fill_hole_msg =
     Vdom.(
       Node.div(
@@ -285,13 +286,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       Node.div(
         [
           Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-          Attr.on_click(_ =>
+          Attr.on_click(_ => {
+            print_endline("Clicked");
             Vdom.Event.Many([
               Event.Prevent_default,
               Event.Stop_propagation,
               inject(ModelAction.ToggleTypeAssistOther),
-            ])
-          ),
+            ]);
+          }),
         ],
         [Node.text("Other"), arrow_other],
       )
@@ -397,5 +399,16 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let _ = get_type;
   let _ = list_vars_view;
 
-  Vdom.(Node.div([Attr.classes(["type-driven"])], body));
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes(["type-driven"]),
+        Attr.on_click(_ => {
+          print_endline("Clicked");
+          Event.Ignore;
+        }),
+      ],
+      body,
+    )
+  );
 };
