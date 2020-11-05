@@ -927,12 +927,11 @@ and syn_fix_holes_skel =
           Label_Elt(l, ty2'),
           u_gen,
         );
-      | Label(InLabelHole(_, _), _) => (
-          BinOp(NotInHole, Space, skel1, skel2),
-          seq,
-          Hole,
-          u_gen,
-        )
+      | Label(InLabelHole(_, _), _) =>
+        // ECD TODO: may not want to perform syn_fix_holes on the skel2 if this is already in a hole
+        let (skel2, seq, _, u_gen) =
+          syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
+        (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
       | _ => arrow_case()
       };
     | _ => arrow_case()
