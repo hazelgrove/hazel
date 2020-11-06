@@ -75,7 +75,7 @@ let list_vars_view = (vars: VarCtx.t) => {
     ((var, ty)) => {
       Vdom.(
         Node.div(
-          [Attr.classes(["list of divs"])],
+          [Attr.classes(["option"])],
           [Node.text(var ++ " : ")],
         ),
         HTypCode.view(ty),
@@ -91,11 +91,17 @@ let view =
       cursor_inspector: Model.cursor_inspector,
       cursor_info: CursorInfo_common.t,
     ) => {
-  let _ = cursor_info;
   let lit_t = cursor_inspector.type_assist_lit;
   let var_t = cursor_inspector.type_assist_var;
   let func_t = cursor_inspector.type_assist_fun;
   let other_t = cursor_inspector.type_assist_other;
+
+  let ty = get_type(cursor_info);
+  let ctx = cursor_info.ctx;
+
+  let _ = typ;
+  let _ = ctx;
+
   let fill_hole_msg =
     Vdom.(
       Node.div(
