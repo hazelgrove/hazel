@@ -9,6 +9,11 @@
     let seq = Seq.seq_op_seq l op r in
     seq
 
+  let mk_pat_binop l op r =
+    let OpSeq.OpSeq(_, l) = l in
+    let OpSeq.OpSeq(_, r) = r in
+    mk_binop l op r
+
   let mk_exp_parenthesized e =
     let operand = UHExp.Parenthesized(e) in
     operand
@@ -56,6 +61,7 @@
 %token PLUS MINUS
 %token MULT DIV
 %token COLON
+%token COLONCOLON
 %token SEMICOLON
 %token EQUAL
 %token PERIOD
@@ -63,6 +69,7 @@
 %token <string> IDENT
 %token LPAREN RPAREN
 %token LBRACE RBRACE
+%token LBRACK RBRACK
 %token LAMBDA
 %token CASE
 %token BAR
@@ -73,6 +80,7 @@
 
 %left PLUS MINUS
 %left MULT DIV
+%right COLONCOLON
 %nonassoc LET LPAREN LAMBDA INT IDENT IN
 
 %start main
@@ -91,6 +99,14 @@ let_binding:
 pat:
   LPAREN pat RPAREN { mk_pat_parenthesized $2 }
   | IDENT { UHPat.mk_OpSeq (mk_seq (mk_pat_var $1)) }
+  | LBRACK RBRACK {
+    let seq = mk_seq (UHPat.listnil ()) in
+    UHPat.mk_OpSeq seq
+  }
+  | pat COLONCOLON pat {
+    let seq = mk_pat_binop $1 Operators_Pat.Cons $3 in
+    UHPat.mk_OpSeq seq
+  }
 ;
 
 expr:
@@ -105,6 +121,12 @@ expr_:
   | case { mk_seq $1 }
   | simple_expr simple_expr+ { mk_application $1 $2 }
   | expr_ op expr_ { mk_binop $1 $2 $3 }
+  | expr_ COLONCOLON expr_ {
+    mk_binop $1 Operators_Exp.Cons $3
+  }
+  | LBRACK RBRACK {
+    mk_seq (UHExp.listnil ())
+  }
 ;
 
 simple_expr:

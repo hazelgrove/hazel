@@ -44,11 +44,14 @@ rule read =
   | "=" { EQUAL }
   | "." { PERIOD }
   | ":" { COLON }
+  | "::" { COLONCOLON }
   | ";" { SEMICOLON }
   | "(" { LPAREN }
   | ")" { RPAREN }
   | "{" { LBRACE }
   | "}" { RBRACE }
+  | "[" { LBRACK }
+  | "]" { RBRACK }
   | "\\" { LAMBDA }
   | "|" { BAR }
   | "=>" { ARROW }
