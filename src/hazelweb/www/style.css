@@ -327,7 +327,7 @@ body {
 }
 
 /* cursor inspector */
-.cursor-inspector-outer {
+.code.presentation .cursor-inspector-outer {
   z-index: var(--caret-z);
   position: absolute;
   width: max-content;
@@ -342,13 +342,17 @@ body {
   transform: translateY(-100%);
 }
 
+.cursor-inspector {
+  overflow: visible;
+}
+
 .cursor-inspector .title-bar {
   padding: 3px;
 }
 
 .type-info-summary {
   display: flex;
-  align-items: flex-start; 
+  align-items: flex-start;
   justify-content: space-between;
   color: white;
   padding: 2px;
