@@ -84,7 +84,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleTermNoviceMessageMode
   | ToggleTypeNoviceMessageMode
   | ToggleNoviceMode
-  | Synthesize =>
+  | SynthesizeHole(_)
+  | ScrollFilling(_)
+  | AcceptFilling(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -143,7 +145,9 @@ let apply_action =
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
-      | Synthesize => Model.synthesize(model)
+      | SynthesizeHole(u) => Model.synthesize(u, model)
+      | ScrollFilling(_) => failwith("todo scroll filling")
+      | AcceptFilling(_) => failwith("todo accept filling")
       //
       | ToggleComputeResults => {
           ...model,

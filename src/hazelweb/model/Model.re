@@ -39,6 +39,7 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   cursor_inspector,
+  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -133,6 +134,7 @@ let init = (): t => {
       term_novice_message_mode: false,
       type_novice_message_mode: false,
     },
+    synthesizing: None,
   };
 };
 
@@ -285,7 +287,15 @@ let perform_edit_action = (a: Action_common.t, model: t): t => {
   );
 };
 
-let synthesize = (model: t): t => {
+[@warning "-27"]
+let synthesize = (u: MetaVar.t, model: t): t => {
+  /*
+     Shmyth.fill
+     - will require a little more deconstruction of the current program
+       to get relevant contexts etc centered around the hole
+     - call Shmyth.fill
+     - populate model.synthesizing with results
+   */
   switch (Shmyth.solve(Program.get_uhexp(get_program(model)))) {
   | None =>
     print_endline("synth error");
@@ -301,6 +311,15 @@ let synthesize = (model: t): t => {
          model,
        )
   };
+};
+
+[@warning "-32"]
+let accept_filling = (_: t): t => {
+  /* just perform FillExpHole with selected filling
+     clear model.synthesizing */
+  failwith(
+    "todo",
+  );
 };
 
 let move_via_key = (move_key, model) => {

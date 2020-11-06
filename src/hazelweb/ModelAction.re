@@ -25,7 +25,9 @@ type t =
   | LoadCardstack(int)
   | NextCard
   | PrevCard
-  | Synthesize
+  | SynthesizeHole(MetaVar.t)
+  | ScrollFilling(int)
+  | AcceptFilling(int)
   // Result computation toggles
   | ToggleComputeResults
   | ToggleShowCaseClauses

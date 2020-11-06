@@ -57,6 +57,7 @@ type t = {
    */
   mouse_position: ref(MousePosition.t),
   cursor_inspector,
+  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -98,7 +99,7 @@ let next_card: t => t;
 
 let perform_edit_action: (Action_common.t, t) => t;
 
-let synthesize: t => t;
+let synthesize: (MetaVar.t, t) => t;
 
 let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;

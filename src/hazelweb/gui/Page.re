@@ -240,7 +240,12 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         [Node.text("Serialize to console")],
                       ),
                       Node.button(
-                        [Attr.on_click(_ => inject(ModelAction.Synthesize))],
+                        [
+                          Attr.on_click(_ => {
+                            let u = failwith("todo select u");
+                            inject(ModelAction.SynthesizeHole(u));
+                          }),
+                        ],
                         [Node.text("Shmythesize")],
                       ),
                       Node.div(
