@@ -242,8 +242,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                       Node.button(
                         [
                           Attr.on_click(_ => {
-                            let u = failwith("todo select u");
-                            inject(ModelAction.SynthesizeHole(u));
+                            let program = Model.get_program(model);
+                            let (ze, _, _) = program.edit_state;
+                            let holes_z = CursorPath_Exp.holes_z(ze, []);
+                            switch (holes_z.hole_selected) {
+                            | Some({sort: ExpHole(u, Empty), _}) =>
+                              inject(ModelAction.SynthesizeHole(u))
+                            | _ => Event.Many([])
+                            };
                           }),
                         ],
                         [Node.text("Shmythesize")],
