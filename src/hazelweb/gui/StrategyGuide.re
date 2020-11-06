@@ -38,7 +38,7 @@ let branch_vars = (ctx: Contexts.t) => {
  */
 let get_type = (model: Model.t) => {
   let cursor_info = Model.get_cursor_info(model);
-  let my_type = () => {
+  let my_type =
     switch (cursor_info.typed) {
     | Analyzed(ty) => Some(ty)
     | AnaAnnotatedLambda(expected_ty, _) => Some(expected_ty)
@@ -57,7 +57,6 @@ let get_type = (model: Model.t) => {
       }
     | _ => None
     };
-  };
   my_type;
 };
 
@@ -81,6 +80,7 @@ let list_vars_view = (vars: VarCtx.t) => {
 };
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
+  let _ = get_type(model);
   let lit_t = model.cursor_inspector.type_assist_lit;
   let var_t = model.cursor_inspector.type_assist_var;
   let func_t = model.cursor_inspector.type_assist_fun;
