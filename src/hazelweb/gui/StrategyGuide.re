@@ -6,9 +6,16 @@ module Vdom = Virtual_dom.Vdom;
  * Return a VarCtx.t
  */
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let _ = ctx;
-  let _ = typ;
-  failwith("unimplemented");
+  let (vars, _) = ctx;
+  let can_extract = ((_, ty: HTyp.t)) => {
+    if HTyp.consistent(ty, typ) {
+      true;
+    }
+    else {
+      false;
+    }
+  };
+  let extracted_vars = vars |> VarMap.filter(can_extract);
 };
 
 /**
