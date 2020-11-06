@@ -37,7 +37,7 @@ let branch_vars = (ctx: Contexts.t) => {
  * Return HTyp.t
  */
 let get_type = (cursor_info: CursorInfo_common.t) => {
-  let my_type = () => {
+  let my_type =
     switch (cursor_info.typed) {
     | Analyzed(ty) => Some(ty)
     | AnaAnnotatedLambda(expected_ty, _) => Some(expected_ty)
