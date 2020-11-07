@@ -1,26 +1,27 @@
-open Pretty;
+module Doc = Pretty.Doc;
 
 [@deriving sexp]
 type t = Doc.t(DHAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;
 
-let precedence_const = 0;
-let precedence_Ap = 1;
+let precedence_const = Operators_Exp.precedence_const;
+let precedence_Ap = Operators_Exp.precedence_Ap;
+// TODO make consistent with precedence system
 let precedence_Subscript = 1;
-let precedence_Times = 2;
-let precedence_Divide = 2;
-let precedence_Plus = 3;
-let precedence_Minus = 3;
-let precedence_Cons = 4;
-let precedence_Caret = 5;
-let precedence_Equals = 5;
-let precedence_LessThan = 5;
-let precedence_GreaterThan = 5;
-let precedence_And = 6;
-let precedence_Or = 7;
-let precedence_Comma = 8;
-let precedence_max = 9;
+let precedence_Times = Operators_Exp.precedence(Times);
+let precedence_Divide = Operators_Exp.precedence(Divide);
+let precedence_Plus = Operators_Exp.precedence(Plus);
+let precedence_Minus = Operators_Exp.precedence(Minus);
+let precedence_Cons = Operators_Exp.precedence(Cons);
+let precedence_Caret = Operators_Exp.precedence(Caret);
+let precedence_Equals = Operators_Exp.precedence(Equals);
+let precedence_LessThan = Operators_Exp.precedence(LessThan);
+let precedence_GreaterThan = Operators_Exp.precedence(GreaterThan);
+let precedence_And = Operators_Exp.precedence(And);
+let precedence_Or = Operators_Exp.precedence(Or);
+let precedence_Comma = Operators_Exp.precedence(Comma);
+let precedence_max = Operators_Exp.precedence_max;
 
 let pad_child =
     (

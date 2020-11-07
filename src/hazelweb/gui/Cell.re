@@ -6,10 +6,6 @@ module Sexp = Sexplib.Sexp;
 
 open ViewUtil;
 
-let focus = () => {
-  JSUtil.force_get_elem_by_id("cell")##focus;
-};
-
 let view = (~inject, ~sync_livelit, model: Model.t) => {
   TimeUtil.measure_time(
     "Cell.view",

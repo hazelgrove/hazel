@@ -21,15 +21,11 @@ let mk: (~width: int, ~is_focused: bool=?, Statics_common.edit_state) => t;
 let focus: t => t;
 let blur: t => t;
 
-let put_edit_state: (Statics_common.edit_state, t) => t;
-
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
 let get_path: t => CursorPath_common.t;
 let get_steps: t => CursorPath_common.steps;
-
-let get_u_gen: t => MetaVarGen.t;
 
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
@@ -39,7 +35,7 @@ let get_u_gen: t => MetaVarGen.t;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo_common.t;
 
-let get_decorations: t => Decorations.t;
+let get_decoration_paths: t => UHDecorationPaths.t;
 
 /**
  * Raised when edit state does not elaborate
@@ -77,21 +73,21 @@ let move_via_click:
     ~measure_layoutOfDoc_layout_of_doc: bool,
     ~memoize_doc: bool,
     option((MetaVar.t, SpliceName.t)),
-    CaretPosition.t,
+    Pretty.MeasuredPosition.t,
     t
   ) =>
   (t, Action_common.t);
 
 exception NodeNotFound;
-let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => t;
+let move_to_node: (TaggedNodeInstance.kind, MetaVar.t, t) => Action_common.t;
 
 /**
- * `select_case_branch(steps, n, program)` moves the cursor to the `n`th branch
- * in case expression found at `steps` (when the user clicks on a branch type
- * in the error message for a case expression with inconsistent branches)
+ * `move_to_case_branch(steps, n)` returns an action that moves the cursor to
+ * the `n`th branch in case expression found at `steps` (when the user
+ * clicks on a branch type in the error message for a case expression with
+ * inconsistent branches)
  */
-let move_to_case_branch:
-  (CursorPath_common.steps, int, t) => (t, Action_common.t);
+let move_to_case_branch: (CursorPath_common.steps, int) => Action_common.t;
 
 let get_doc:
   (~measure_program_get_doc: bool, ~memoize_doc: bool, t) =>
@@ -105,24 +101,6 @@ let get_layout:
   ) =>
   UHLayout.with_splices;
 
-let get_measured_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  MeasuredLayout.with_splices;
-
-let get_box:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHBox.with_splices;
-
 let get_caret_position:
   (
     ~measure_program_get_doc: bool,
@@ -130,7 +108,7 @@ let get_caret_position:
     ~memoize_doc: bool,
     t
   ) =>
-  (CaretPosition.t, current_splice);
+  (Pretty.MeasuredPosition.t, current_splice);
 
 let cursor_on_inst: t => option((TaggedNodeInstance.kind, MetaVar.t));
 let cursor_through_insts: t => list((TaggedNodeInstance.kind, MetaVar.t));

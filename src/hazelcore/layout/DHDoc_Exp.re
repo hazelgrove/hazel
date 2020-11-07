@@ -38,10 +38,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Keyword(_)
   | BoolLit(_)
   | IntLit(_)
-  | ApBuiltin(_, _)
-  | FailedAssert(_)
   | FloatLit(_)
   | StringLit(_)
+  | ApBuiltin(_, _)
+  | FailedAssert(_)
   | ListNil(_)
   | Inj(_)
   | EmptyHole(_)
@@ -206,6 +206,11 @@ let rec mk =
         DHDoc_common.mk_InvalidText(t, (u, i))
       | BoundVar(x) => text(x)
       | ApBuiltin(x, _) => text(x)
+      | FailedAssert(x) =>
+        let (d_doc, _) = go'(x);
+        let decoration =
+          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);
+        hcats([d_doc, decoration]);
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
@@ -222,15 +227,6 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
-      | Subscript(s, n1, n2) =>
-        hcats([
-          mk_cast(go(~enforce_inline=false, s)),
-          Doc.text("["),
-          mk_cast(go(~enforce_inline=false, n1)),
-          Doc.text(":"),
-          mk_cast(go(~enforce_inline=false, n2)),
-          Doc.text("]"),
-        ])
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
@@ -246,6 +242,15 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_str_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_str_op(op), mk_cast(doc2)]);
+      | Subscript(s, n1, n2) =>
+        hcats([
+          mk_cast(go(~enforce_inline=false, s)),
+          Doc.text("["),
+          mk_cast(go(~enforce_inline=false, n1)),
+          Doc.text(":"),
+          mk_cast(go(~enforce_inline=false, n2)),
+          Doc.text("]"),
+        ])
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
@@ -305,11 +310,25 @@ let rec mk =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.InvalidOpDecoration);
         hcats([d_doc, decoration]);
-      | FailedAssert(x) =>
-        let (d_doc, _) = go'(x);
-        let decoration =
-          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);
-        hcats([d_doc, decoration]);
+      /*
+       let (d_doc, d_cast) as dcast_doc = go'(d);
+       let cast_decoration =
+         hcats([
+           DHDoc_common.Delim.open_FailedCast,
+           hseps([
+             DHDoc_Typ.mk(~enforce_inline=true, ty1),
+             DHDoc_common.Delim.arrow_FailedCast,
+             DHDoc_Typ.mk(~enforce_inline=true, ty2),
+           ]),
+           DHDoc_common.Delim.close_FailedCast,
+         ])
+         |> annot(DHAnnot.FailedCastDecoration);
+       switch (d_cast) {
+       | Some(ty1') when HTyp.eq(ty1, ty1') =>
+         hcats([d_doc, cast_decoration])
+       | _ => hcats([mk_cast(dcast_doc), cast_decoration])
+       };
+       */
       | Lam(dp, ty, dbody) =>
         if (show_fn_bodies) {
           let body_doc = (~enforce_inline) =>

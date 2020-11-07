@@ -565,6 +565,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Line(_, line_content) =>
       switch (line_content) {
       | EmptyLine => indicate_words_view("empty line")
+      | CommentLine(comment) =>
+        if (comment == "") {
+          indicate_words_view("empty comment");
+        } else {
+          Vdom.(
+            Node.span(
+              [],
+              [indicate_words_view("comment "), code_view(comment)],
+            )
+          );
+        }
       | LetLine(_, _, _) =>
         Vdom.(
           Node.span(
@@ -632,6 +643,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SLeftBracket
     | SListNil
     | SLine
+    | SCommentLine
     | SAsc
     | SParenthesized =>
       indicate_words_view(Action_common.shape_to_string(shape))

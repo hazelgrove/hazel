@@ -39,7 +39,7 @@ let mk_timestamped_action = (a: ModelAction.t) => (
   a,
 );
 
-let log_action = (action: ModelAction.t, _: State.t): unit =>
+let log_action = (action: ModelAction.t, _: State.t): unit => {
   /* log interesting actions */
   switch (action) {
   | EditAction(_)
@@ -86,6 +86,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit =>
       ),
     )
   };
+};
 
 let apply_action =
     (
@@ -133,13 +134,15 @@ let apply_action =
       | MoveAction(Click(opt_splice, row_col)) =>
         model |> Model.move_via_click(opt_splice, row_col)
       | LivelitAction(llu, serialized_action) =>
-        let path = Program.get_path(Model.get_program(model));
+        let program = Model.get_program(model);
         model
-        |> Model.map_program(Program.move_to_node(Livelit, llu))
+        |> Model.perform_edit_action(
+             Program.move_to_node(Livelit, llu, program),
+           )
         |> Model.perform_edit_action(
              PerformLivelitAction(serialized_action),
            )
-        |> Model.perform_edit_action(MoveTo(path));
+        |> Model.perform_edit_action(MoveTo(Program.get_path(program)));
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))

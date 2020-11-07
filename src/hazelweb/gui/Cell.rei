@@ -1,5 +1,3 @@
-let focus: unit => unit;
-
 let view:
   (
     ~inject: ModelAction.t => Virtual_dom.Vdom.Event.t,

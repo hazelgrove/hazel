@@ -6,24 +6,11 @@ type result =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
-/*
-   0 = out of fuel
-   1 = free or invalid variable
-   2 = ap invalid boxed function val
-   3 = boxed value not a int literal 2
-   4 = boxed value not a int literal 1
-   5 = bad pattern match
-   6 = Cast BV Hole Ground
-   7 = boxed value not a float literal 1
-   8 = boxed value not a float literal 2
-   9 = boxed value not a string literal
- */
-
 [@deriving sexp]
 type ground_cases =
   | Hole
   | Ground
-  | NotGroundOrHole(HTyp.t); /* the argument is the corresponding ground type */
+  | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
@@ -58,7 +45,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   | Or => BoolLit(b1 || b2)
   };
 
-let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t =>
+let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   switch (op) {
   | Minus => IntLit(n1 - n2)
   | Plus => IntLit(n1 + n2)
@@ -68,9 +55,10 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t =>
   | GreaterThan => BoolLit(n1 > n2)
   | Equals => BoolLit(n1 == n2)
   };
+};
 
 let eval_bin_float_op =
-    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t =>
+    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
   switch (op) {
   | FPlus => FloatLit(f1 +. f2)
   | FMinus => FloatLit(f1 -. f2)
@@ -80,6 +68,7 @@ let eval_bin_float_op =
   | FGreaterThan => BoolLit(f1 > f2)
   | FEquals => BoolLit(f1 == f2)
   };
+};
 
 let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
   switch (op) {
@@ -126,7 +115,9 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
     | [] => Indet(ApBuiltin(x, l))
     | [a, ..._] =>
       switch (a) {
-      | StringLit(s) => BoxedValue(IntLit(String.length(s)))
+      | StringLit(s) =>
+        let (s', _) = StringUtil.find_and_replace("", s, "OK");
+        BoxedValue(IntLit(String.length(s')));
       | _ => Indet(Ap(ApBuiltin(x, l), a))
       }
     }
@@ -338,6 +329,13 @@ let rec evaluate = (~eval_livelit_holes, d: DHExp.t): result => {
       | Indet(d2') => Indet(Ap(d1', d2'))
       }
     }
+  | StringLit(s) =>
+    let (_, err) = StringUtil.find_and_replace("", s, "OK");
+    switch (err) {
+    | "OK" => BoxedValue(StringLit(s))
+    | "Illegal" => Indet(InvalidOperation(StringLit(s), IllegalEscape))
+    | _ => Indet(InvalidOperation(StringLit(s), StrNotTerminate))
+    };
   | Subscript(d1, d2, d3) =>
     switch (evaluate'(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -422,13 +420,6 @@ let rec evaluate = (~eval_livelit_holes, d: DHExp.t): result => {
   | IntLit(_)
   | FloatLit(_)
   | Triv => BoxedValue(d)
-  | StringLit(s) =>
-    let (_, err) = StringUtil.find_and_replace("", s, "OK");
-    switch (err) {
-    | "OK" => BoxedValue(StringLit(s))
-    | "Illegal" => Indet(InvalidOperation(StringLit(s), IllegalEscape))
-    | _ => Indet(InvalidOperation(StringLit(s), StrNotTerminate))
-    };
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate'(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)
@@ -597,7 +588,7 @@ let rec evaluate = (~eval_livelit_holes, d: DHExp.t): result => {
         dargs
         |> ListUtil.map_with_accumulator_opt(
              ((), (v, t, arg_opt)) =>
-               arg_opt |> OptUtil.map(arg => ((), (v, t, arg))),
+               arg_opt |> Option.map(arg => ((), (v, t, arg))),
              (),
            );
       switch (dargs_opt') {

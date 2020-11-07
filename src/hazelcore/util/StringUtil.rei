@@ -20,8 +20,8 @@ let backspace: (int, string) => string;
 
 let delete: (int, string) => string;
 
-let find_and_replace: (string, string, string) => (string, string);
-
 let escaped_enter: string => string;
 
 let utf8_length: CamomileLibrary.UTF8.t => int;
+
+let find_and_replace: (string, string, string) => (string, string);

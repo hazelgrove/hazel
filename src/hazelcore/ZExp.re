@@ -130,6 +130,12 @@ let line_can_be_swapped = (line: zline): bool =>
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
+  | CommentLine(comment) =>
+    CursorPosition.[OnDelim(0, Before), OnDelim(0, After)]
+    @ (
+      ListUtil.range(String.length(comment) + 1)
+      |> List.map(i => CursorPosition.OnText(i))
+    )
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
   | AbbrevLine(lln_new, _, lln_old, _) =>
@@ -189,6 +195,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
     CursorPosition.text_cursors(LivelitName.length(name))
   | FreeLivelit(_, name) =>
     CursorPosition.text_cursors(LivelitName.length(name));
+
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -228,6 +235,7 @@ and is_before_zblock = ((prefix, zline, _): zblock): bool =>
   }
 and is_before_zline = (zline: zline): bool =>
   switch (zline) {
+  | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_))
   | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(0, Before)
@@ -266,6 +274,39 @@ and is_before_zoperand =
   | SubscriptZE2(_)
   | SubscriptZE3(_)
   | ApLivelitZ(_) => false;
+
+// The following 2 functions are specifically for CommentLines!!
+// Check if the cursor at "OnDelim(After)" in a "CommentLine"
+/* For example:
+           # Comment1
+           #| Comment2
+
+   */
+let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
+  switch (zline) {
+  | CursorL(cursor, CommentLine(_)) =>
+    switch (prefix |> ListUtil.split_last_opt) {
+    | Some((_, CommentLine(_))) => cursor == OnDelim(0, After)
+    | _ => false
+    }
+  | _ => false
+  };
+// Check if the cursor at the end of a "CommentLine"
+/* For example:
+           # Comment1|
+           # Comment2
+
+   */
+let is_end_of_comment = ((_, zline, suffix): zblock): bool =>
+  switch (zline) {
+  | CursorL(cursor, CommentLine(comment)) =>
+    switch (suffix) {
+    | [CommentLine(_), ..._] => cursor == OnText(String.length(comment))
+    | _ => false
+    }
+  | _ => false
+  };
+
 let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true
@@ -283,12 +324,14 @@ and is_after_zblock = ((_, zline, suffix): zblock): bool =>
   }
 and is_after_zline =
   fun
+  | CursorL(cursor, CommentLine(comment)) =>
+    cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, AbbrevLine(_)) => cursor == OnDelim(2, After)
   | CursorL(cursor, LetLine(_)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_after_zopseq(zopseq)
-  | LetLineZP(_)
+  | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
   | LetLineZE(_, _, _)
   | AbbrevLineZL(_) => false
@@ -343,6 +386,7 @@ and is_outer_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(_, EmptyLine)
   | CursorL(_, AbbrevLine(_))
+  | CursorL(_, CommentLine(_))
   | CursorL(_, LetLine(_, _, _)) => true
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   | ExpLineZ(zopseq) => is_outer_zopseq(zopseq)
@@ -393,6 +437,7 @@ and place_before_block =
   | [first, ...rest] => ([], first |> place_before_line, rest)
 and place_before_line =
   fun
+  | CommentLine(_) as line => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_, _, _) as line
   | AbbrevLine(_) as line => CursorL(OnDelim(0, Before), line)
@@ -402,13 +447,13 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | ListNil(_)
-  | StringLit(_) => CursorE(OnDelim(0, Before), operand)
+  | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
+  | StringLit(_)
   | Lam(_)
   | Inj(_)
   | Case(_)
@@ -434,6 +479,8 @@ and place_after_block = (block: UHExp.block): zblock =>
   }
 and place_after_line =
   fun
+  | CommentLine(comment) as line =>
+    CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | AbbrevLine(_) as line => CursorL(OnDelim(2, After), line)
   | LetLine(_) as line => CursorL(OnDelim(3, After), line)
@@ -485,6 +532,7 @@ let place_cursor_line =
     None
   | EmptyLine
   | AbbrevLine(_)
+  | CommentLine(_)
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
@@ -587,6 +635,7 @@ let mk_ZOpSeq =
 let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
 let get_err_status_zblock = zblock =>
   zblock |> erase_zblock |> UHExp.get_err_status_block;
+
 let get_err_status_zopseq = zopseq =>
   zopseq |> erase_zopseq |> UHExp.get_err_status_opseq;
 let get_err_status_zoperand = zoperand =>
@@ -705,30 +754,6 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
   (place_before_operand(hole), u_gen);
 };
 
-let rec cursor_on_outer_expr =
-        (zoperand: zoperand): option((UHExp.t, CursorPosition.t)) =>
-  switch (zoperand) {
-  | CursorE(cursor, operand) =>
-    Some((UHExp.drop_outer_parentheses(operand), cursor))
-  | ParenthesizedZ((
-      [],
-      ExpLineZ(ZOpSeq(_, ZOperand(zoperand, (E, E)))),
-      [],
-    )) =>
-    cursor_on_outer_expr(zoperand)
-  | ParenthesizedZ(_)
-  | LamZP(_)
-  | LamZA(_)
-  | LamZE(_)
-  | InjZ(_)
-  | CaseZE(_)
-  | CaseZR(_)
-  | SubscriptZE1(_)
-  | SubscriptZE2(_)
-  | SubscriptZE3(_)
-  | ApLivelitZ(_) => None
-  };
-
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
   let (clause, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -741,7 +766,6 @@ let is_inconsistent = zoperand =>
 
 let rec move_cursor_left = (ze: t): option(t) =>
   ze |> move_cursor_left_zblock
-
 and move_cursor_left_zblock =
   fun
   | (prefix, zline, suffix) =>
@@ -762,10 +786,11 @@ and move_cursor_left_zblock =
 and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_zline(zline) => None
+
   | CursorL(OnOp(_), _) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
-  | CursorL(OnDelim(_), EmptyLine | ExpLine(_)) => None
+  | CursorL(OnDelim(_), EmptyLine | CommentLine(_) | ExpLine(_)) => None
   | CursorL(OnText(j), AbbrevLine(lln_new, _, _, _) as abl) =>
     let c: CursorPosition.t =
       if (j == 0) {
@@ -804,6 +829,14 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
         ),
       );
     }
+
+  | CursorL(OnText(_), EmptyLine) => None
+  | CursorL(OnText(0), CommentLine(_) as line) =>
+    Some(CursorL(OnDelim(0, After), line))
+  | CursorL(OnText(k), CommentLine(_) as line) =>
+    Some(CursorL(OnText(k - 1), line))
+  | CursorL(OnText(_), ExpLine(_) | LetLine(_)) => None
+
   | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
     // k == 1 || k == 2 || k == 3
     switch (k == 1, k == 2, ann) {
@@ -813,7 +846,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(LetLineZA(p, ZTyp.place_after(ann), def))
     | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
     }
-  | CursorL(OnText(_), _) => None
+
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
     | None => None
@@ -895,13 +928,8 @@ and move_cursor_left_zoperator =
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-
   | CursorE(OnOp(_), _) => None
-
-  | CursorE(OnText(0), StringLit(_) as operand) =>
-    Some(CursorE(OnDelim(0, After), operand))
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
-
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_one, Before), StringLit(_, s) as operand) =>
@@ -1094,8 +1122,15 @@ and move_cursor_right_zline =
   fun
   | z when is_after_zline(z) => None
   | CursorL(OnOp(_), _) => None
+  | CursorL(OnText(k), CommentLine(_) as line) =>
+    Some(CursorL(OnText(k + 1), line))
+  | CursorL(OnText(_), EmptyLine | ExpLine(_) | LetLine(_)) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
+
+  | CursorL(OnDelim(_, After), CommentLine(_) as line) =>
+    Some(CursorL(OnText(0), line))
+
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnText(j), AbbrevLine(lln_new, err_status, lln_old, args) as abl) => {
       let ret = c => Some(CursorL(c, abl));
@@ -1140,7 +1175,7 @@ and move_cursor_right_zline =
     | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
     | (_three, _) => None
     }
-  | CursorL(OnText(_), _) => None
+
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
     | None => None
@@ -1223,14 +1258,8 @@ and move_cursor_right_zoperator =
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-
   | CursorE(OnOp(_), _) => None
-
-  | CursorE(OnText(j), StringLit(_, s) as operand)
-      when j == String.length(s) =>
-    Some(CursorE(OnDelim(1, Before), operand))
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
-
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_zero, After), StringLit(_) as operand) =>

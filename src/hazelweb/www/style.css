@@ -13,7 +13,6 @@
 }
 
 :root {
-  --opseq-hover-color: rgba(255, 195, 0, 0.20);
   --empty-hole-color: #a040a0;
   --title-bar-color: #073f24;
   --page-padding: 15px;
@@ -25,9 +24,12 @@
 
   --err-hole-color: red;
   --verr-hole-color: #ce5f00;
+  --var-use-color: rgba(175, 175, 175, 0.3);
 
   --default-code-bg-color: transparent;
   --caret-color: red;
+
+  --code-radius: 4px;
 
   --exp-bg-color: rgb(197, 253, 197);
   --exp-shadow-color: rgb(135, 204, 135);
@@ -40,22 +42,9 @@
   --typ-shadow-color: rgb(173, 154, 202);
   --typ-bright-shadow-color: rgb(192, 159, 241);
 
-  --code-radius: 4px;
-  --child-border-thickness: 4px;
-  --code-shadow-thickness: 1.5px;
-  --closed-child-shadow-shape: inset 1px 1px 0.5px 0.5px;
-
   --matrix-cell-border-color: rgb(220, 220, 220);
 
   --livelit-border-thickness: 2px;
-
-  /* necessary for hiding portions of box shadows */
-  --err-hole-z: 0;
-  --para-border-z: 1;
-  --delim-group-z: 2;
-  --inline-border-z: 3;
-  --child-z: 4;
-  --caret-z: 5;
 
   --color-picker-modal-overlay-z: 6;
   --color-picker-z: 7;
@@ -80,6 +69,13 @@
   --grade-cutoffs-livelit-width:
     max(var(--grade-cutoffs-slider-width), var(--grade-cutoffs-scale-width));
   --grade-cutoffs-livelit-height: 85px;
+
+  --current-term-z: 0;
+  --var-use-z: 0;
+  --err-hole-z: 1;
+  --verr-hole-z: 1;
+  --code-text-z: 2;
+  --caret-z: 5;
 }
 
 /* general */
@@ -103,8 +99,16 @@ html, body {
   margin: 0px;
   padding: 0px;
   font-family: Montserrat, sans-serif;
+  width: 100%;
   height: 100%;
+}
+
+html {
   overflow: hidden;
+}
+
+body {
+  overflow-x: auto;
 }
 
 #container {
@@ -113,8 +117,10 @@ html, body {
 
 #root {
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  display: grid;
+  grid-template-rows: 1fr 200fr;
+  overflow-y: auto;
 }
 
 /* top bar */
@@ -129,6 +135,7 @@ html, body {
   font-weight: bold;
   font-size: 14pt;
   width: 100%;
+  height: min-content;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -173,6 +180,8 @@ html, body {
   background-color: wheat;
   display: flex;
   flex-direction: row;
+  width: 100%;
+  height: 100%;
 }
 
 .flex-wrapper {
@@ -184,7 +193,8 @@ html, body {
 #page-area {
   flex-grow: 1;
   /* enable scroll */
-  height: 0px;
+  height: 100%;
+  width: 100%;
   overflow-y: auto;
 
   padding-left: var(--page-padding);
@@ -219,8 +229,8 @@ html, body {
 }
 
 .sidebar {
-  width: 300px;
-  height: 100%; /* TODO: change back to 100% */
+  width: auto;
+  height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
   display: grid;
@@ -354,10 +364,6 @@ html, body {
   outline: 1px solid #8e0000;
 }
 
-.cursor-InvalidEscape.cursor-inspector {
-  outline: 1px solid #8e0000;
-}
-
 .cursor-BindingError.cursor-inspector {
   outline: 1px solid #ce5f00;
 }
@@ -371,10 +377,6 @@ html, body {
 }
 
 .cursor-TypeInconsistency .title-bar {
-  background-color: #8e0000;
-}
-
-.cursor-InvalidEscape .title-bar {
   background-color: #8e0000;
 }
 
@@ -404,24 +406,11 @@ html, body {
   min-height: 38px;
 }
 
-.code-bar {
-  font-family: var(--code-font-family);
-  font-size: 12pt;
-  display: flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 5px;
-}
-
 .cursor-OK .typebar, .cursor-OK .infobar {
   background-color: #FEFEEA;
 }
 
 .cursor-TypeInconsistency .typebar, .cursor-TypeInconsistency .infobar {
-  background-color: #ffe0e0;
-}
-
-.cursor-InvalidEscape .typebar, .cursor-InvalidEscape .infobar {
   background-color: #ffe0e0;
 }
 
@@ -630,13 +619,6 @@ html, body {
   padding-bottom: 5px;
 }
 
-.context-entry .SDoc {
-  display: inline-block;
-}
-
-.the-path-viewer {
-}
-
 .path-area-parent {
   min-height: 38px;
   display: flex;
@@ -744,12 +726,6 @@ html, body {
   align-items: center;
 }
 
-/* .path-summary { */
-/*   background-color: var(--title-bar-color); */
-/*   color: white; */
-/*   padding: 3px; */
-/* } */
-
 /* options panel */
 
 #OptionsPanel .labeled-checkbox {
@@ -772,12 +748,13 @@ html, body {
 
 .page {
   background-color: white;
+  width: 100%;
   padding: 0.25in;
   margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
   box-shadow: 3px 3px tan;
+  min-width: 450px;
   /* border: 1px solid tan; */
-  /*max-width: 10in;*/
-  width: max-content;
+  max-width: 100ch;
 }
 
 .card-caption {
@@ -803,9 +780,6 @@ h1 {
   padding-left: 25px;
   padding-bottom: 5px;
   background-color: #EEE;
-  width: 910px;
-  white-space: pre;
-  overflow-x: auto;
 }
 
 .type-indicator {
@@ -849,7 +823,7 @@ h1 {
 }
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
-.DHCode .InvalidOpDecoration {
+.DHCode .DivideByZero {
   display: inline-block;
   position: relative;
   font-size: 75%;
@@ -864,11 +838,9 @@ h1 {
 .DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.2);
 }
-.DHCode .InvalidOpDecoration {
+
+.DHCode .DivideByZero {
   background-color: rgba(255, 0, 0, 0.2);
-}
-.DHCode .String {
-  color: #1d5a5a;
 }
 
 .code {
@@ -880,24 +852,10 @@ h1 {
 .code.presentation * {
   position: relative;
 }
-.code.presentation .ValidSeq {
-  color: #409fa0;
-}
-.code.presentation .InvalidSeq {
-  --err-hole-color: red;
-  color: red;
-  border: 1px dotted var(--err-hole-color);
-  margin: -1px;
-}
-.code.presentation .String {
-  color: #1d5a5a;
-}
 .code.presentation .Term.Rule,
-.code.presentation .Term.Invalid,
 .code.presentation .Term.Case,
 .code.presentation .Term.Operand,
 .code.presentation .Term.SubBlock,
-.code.presentation .LetLine,
 .code.presentation .Tessera {
   display: inline-block;
 }
@@ -912,11 +870,6 @@ h1 {
 .code-delim {
   font-weight: bold;
   font-variant-ligatures: normal;
-}
-
-.code.presentation .code-err-hole {
-  position: absolute;
-  z-index: var(--err-hole-z);
 }
 
 .code-closed-child {
@@ -937,10 +890,13 @@ h1 {
   position: absolute;
 }
 #code-root .err-hole-container {
-  z-index: var(--err-hole-zz);
+  z-index: var(--err-hole-z);
 }
 #code-root .var-err-hole-container {
   z-index: var(--verr-hole-z);
+}
+#code-root .var-use-container {
+  z-index: var(--var-use-z);
 }
 #code-root .current-term-container {
   z-index: var(--current-term-z);
@@ -949,8 +905,50 @@ h1 {
   z-index: var(--livelit-exp-z);
 }
 
-#code-root .current-term {
+#code-root .current-term-drop-shadow.Exp {
+  flood-color: var(--exp-shadow-color);
+}
+#code-root .current-term-drop-shadow.Pat {
+  flood-color: var(--pat-shadow-color);
+}
+#code-root .current-term-drop-shadow.Typ {
+  flood-color: var(--typ-shadow-color);
+}
+
+#code-root .code-current-term {
+  filter: url(#outer-drop-shadow);
+}
+#code-root .code-current-term.Exp {
   fill: var(--exp-bg-color);
+}
+#code-root .code-current-term.Pat {
+  fill: var(--pat-bg-color);
+}
+#code-root .code-current-term.Typ {
+  fill: var(--typ-bg-color);
+}
+
+#code-root .closed-child-inset-shadow.Exp {
+  flood-color: var(--exp-shadow-color);
+}
+#code-root .closed-child-inset-shadow.Pat {
+  flood-color: var(--pat-bright-shadow-color);
+}
+#code-root .closed-child-inset-shadow.Typ {
+  flood-color: var(--typ-bright-shadow-color);
+}
+
+#code-root .closed-child-drop-shadow {
+  flood-color: var(--pat-bright-shadow-color);
+}
+#code-root .code-closed-child.Exp {
+  filter: url(#exp-closed-child-drop-shadow);
+}
+#code-root .code-closed-child.Pat {
+  filter: url(#pat-closed-child-drop-shadow);
+}
+#code-root .code-closed-child.Typ {
+  filter: url(#typ-closed-child-drop-shadow);
 }
 
 .code .VBox {
@@ -1546,22 +1544,7 @@ input.slider::-moz-range-track {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
-  width: 80ch;
   cursor: text;
-}
-.contenteditable {
-  background-color: lightgray;
-}
-.hiddencontenteditable {
-  /* TODO consolidate #contenteditable vs .contenteditable */
-  position: fixed;
-  top: 0;
-  left: 100%;
-  padding: 10px;
-  color: transparent;
-}
-.hiddencontenteditable:focus {
-  outline: 0px;
 }
 
 #font-specimen {
@@ -1635,23 +1618,6 @@ input.slider::-moz-range-track {
   }
 }
 
-/*
-.code {
-  box-sizing: border-box;
-}
-*/
-
-/*
-.Invalid {
-  border: 1px dashed var(--err-hole-color);
-  margin: -1px;
-}
-
-.InHole {
-  border: 1px dashed var(--err-hole-color);
-  margin: -1px;
-}
-*/
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
   margin: -1px;
@@ -1664,155 +1630,6 @@ input.slider::-moz-range-track {
 .DHCode .Collapsed {
   color: #999;
 }
-
-.OpenChild.Para {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: stretch;
-}
-
-.Cursor.Term::before {
-  /* set by each term sort */
-  --bg-color: transparent;
-  --shadow-color: transparent;
-  content: "";
-  position: absolute;
-  background-color: var(--bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
-}
-.Cursor.Term.has-Inline-OpenChild.Case::before,
-.Cursor.Term.has-Para-OpenChild.Case::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  border-radius: var(--code-radius) 0 0 var(--code-radius);
-  z-index: var(--para-border-z);
-}
-.Cursor.Term.has-Inline-OpenChild::before {
-  top: calc(100% - var(--child-border-thickness));
-  left: 0;
-  height: var(--child-border-thickness);
-  width: 100%;
-  border-radius: 0 0 var(--code-radius) var(--code-radius);
-  z-index: var(--inline-border-z);
-}
-.Cursor.Term.BinOp::before,
-.Cursor.Term.NTuple::before {
-  border-radius: var(--code-radius);
-  /* TODO Fix magic number. These elements
-   * have display:inline which causes them
-   * to have smaller heights than
-   * display:inline-block. Need to figure
-   * out cleaner solution, this is stopgap
-   * in the meantime. */
-  top: calc(100% - 1px);
-}
-.Cursor.Term.has-Para-OpenChild::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  border-radius: var(--code-radius) 0 0 var(--code-radius);
-  z-index: var(--para-border-z);
-}
-.Cursor.Term.SubBlock.has-Para-OpenChild::before,
-.Cursor.Term.SubBlock.has-Inline-OpenChild::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  z-index: var(--para-border-z);
-  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
-}
-.Cursor.Term.has-Para-OpenChild.Rule::before {
-  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
-}
-.Cursor.Term.has-Inline-OpenChild.Rule::before {
-  top: calc(100% - (var(--child-border-thickness) / 2));
-  border-radius: 0 var(--code-radius) var(--code-radius) var(--code-radius);
-}
-
-.Cursor.Term.SubBlock .LetLine::before {
-  content: "";
-  position: absolute;
-  background-color: var(--exp-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
-}
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine::before {
-  top: calc(100% - (var(--child-border-thickness) / 2));
-  left: 0;
-  height: var(--child-border-thickness);
-  width: 100%;
-  border-radius: 0 0 var(--code-radius) 0;
-  z-index: var(--inline-border-z);
-}
-.Cursor.Term.SubBlock.has-Para-OpenChild .LetLine::before {
-  top: 0;
-  left: calc(-1 * var(--child-border-thickness));
-  height: 100%;
-  width: var(--child-border-thickness);
-  border-radius: var(--code-radius) 0 0 var(--code-radius);
-  z-index: var(--para-border-z);
-}
-.Cursor.Term.SubBlock .Term .LetLine::before {
-  all: unset;
-}
-
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .Tessera:first-child {
-  border-radius: 0 var(--code-radius) 0 0;
-}
-.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .Tessera:last-child {
-  border-radius: var(--code-radius) var(--code-radius) 0 0;
-}
-
-.Cursor.Term.Rule.has-Para-OpenChild > .Tessera {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-
-.Cursor.Term.Exp::before {
-  --bg-color: var(--exp-bg-color);
-  --shadow-color: var(--exp-shadow-color);
-}
-.Cursor.Term.Pat::before {
-  --bg-color: var(--pat-bg-color);
-  --shadow-color: var(--pat-shadow-color);
-}
-.Cursor.Term.Typ::before {
-  --bg-color: var(--typ-bg-color);
-  --shadow-color: var(--typ-shadow-color);
-}
-
-.Term {
-  border-radius: var(--code-radius);
-}
-
-.Cursor.Term.Exp.Invalid.no-children {
-  background-color: var(--exp-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
-}
-.Cursor.Term.Exp.Operand.no-children {
-  background-color: var(--exp-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
-}
-.Cursor.Term.Pat.Invalid.no-children {
-  background-color: var(--pat-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
-}
-.Cursor.Term.Pat.Operand.no-children {
-  background-color: var(--pat-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
-}
-.Cursor.Term.Typ.Operand.no-children {
-  background-color: var(--typ-bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--typ-shadow-color);
-}
-/*
-.Cursor.Term.Operand.no-children {
-  top: calc(-1 * var(--code-shadow-thickness));
-  left: calc(-1 * var(--code-shadow-thickness));
-}
-*/
 
 .Var.show-use {
   background-color: rgba(175, 175, 175, 0.3);
@@ -1832,183 +1649,21 @@ input.slider::-moz-range-track {
   fill: none;
 }
 
-.Cursor .Tessera {
-  /* set by each term sort */
-  --bg-color: transparent;
-  --shadow-color: transparent;
-  background-color: var(--bg-color);
-  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
-  z-index: var(--delim-group-z);
-  /*
-  top: calc(-1 * var(--code-shadow-thickness));
-  left: calc(-1 * var(--code-shadow-thickness));
-  */
-}
-.Cursor.Term.has-Inline-OpenChild .Tessera {
-  border-radius: var(--code-radius);
-}
-.Cursor.Term.has-Para-OpenChild .Tessera {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-.Cursor.Term.Case .Tessera {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-.Cursor.Term.Rule .Tessera {
-  border-radius: var(--code-radius);
-}
-.Cursor .Term .Tessera {
-  background-color: var(--default-code-bg-color);
-  box-shadow: none;
-  z-index: auto;
-  border-radius: none;
-  /*
-  top: 0;
-  left: 0;
-  */
-}
-
-.Cursor.Exp .Tessera {
-  --bg-color: var(--exp-bg-color);
-
-  --shadow-color: var(--exp-shadow-color);
-}
-.Cursor.Pat .Tessera {
-  --bg-color: var(--pat-bg-color);
-  --shadow-color: var(--pat-shadow-color);
-}
-.Cursor.Typ .Tessera {
-  --bg-color: var(--typ-bg-color);
-  --shadow-color: var(--typ-shadow-color);
-}
-
-.Cursor.Term .Term {
-  z-index: var(--child-z);
-}
-.Cursor.Term.Exp .Term.Pat,
-.Cursor.Term.Exp .Term.Typ {
-  line-height: var(--closed-child-line-height);
-}
-.Cursor.Term .Term .Term {
-  z-index: auto;
-  line-height: var(--code-line-height);
-}
-
-.Cursor.Term.Exp .Term.Pat {
-  background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: var(--closed-child-shadow-shape) var(--pat-bright-shadow-color);
-}
-.Cursor.Term.Exp .Term .Term.Pat {
-  background-color: var(--default-code-bg-color);
-  box-shadow: none;
-}
-/*
-.Cursor.Term.Exp .Term.Pat > * {
-  top: var(--code-shadow-thickness);
-  left: var(--code-shadow-thickness);
-}
-.Cursor.Term.Exp .Term .Term.Pat > * {
-  top: 0px;
-  left: 0px;
-}
-*/
-
-.Cursor.Term.Exp .Term.Typ {
-  background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: var(--closed-child-shadow-shape) var(--typ-bright-shadow-color);
-}
-.Cursor.Term.Exp .Term .Term.Typ {
-  background-color: var(--default-code-bg-color);
-  box-shadow: none;
-}
-/*
-.Cursor.Term.Exp .Term.Typ > * {
-  top: var(--code-shadow-thickness);
-  left: var(--code-shadow-thickness);
-}
-.Cursor.Term.Exp .Term .Term.Typ > * {
-  top: 0px;
-  left: 0px;
-}
-*/
-
-.SDelim-before,
-.SDelim-after,
-.SOp-before,
-.SOp-after,
-.SEmptyHole-before,
-.SEmptyHole-after,
-.SEmptyLine {
-  padding-left: 1px;
+.var-use {
+  fill: var(--var-use-color);
+  stroke-width: 0;
 }
 
 #cell {
   position: relative;
-  width: 910px;
+  width: auto;
   margin-top: 20px;
   background-color: white;
   padding: 10px;
   border: 2px solid #CCC;
-  /* -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
-  box-sizing: border-box;  */
-  white-space: pre;
-  overflow: visible;
 }
 #cell:focus {
   outline: 0px;
-}
-
-.hole-indicator, .skel-hole-indicator, .ap-hole-indicator {
-  position: absolute;
-  z-index: var(--hole-indicator-z-index);
-  background-color: transparent;
-  font-family: var(--code-font-family);
-  font-size: 20px;
-}
-
-.hole-indicator {
-  border: 1px dashed var(--nonempty-hole-color);
-}
-
-.skel-hole-indicator, .ap-hole-indicator {
-  display: none;
-}
-
-.skel-hole-indicator, .ap-hole-indicator {
-  display: block;
-  border-top: 1px dashed var(--nonempty-hole-color);
-  border-bottom: 1px dashed var(--nonempty-hole-color);
-}
-
-.skel-hole-indicator-first, .ap-hole-indicator-first {
-  border-left: 1px dashed var(--nonempty-hole-color);
-}
-
-.skel-hole-indicator-first, .ap-hole-indicator-last {
-  border-right: 1px dashed var(--nonempty-hole-color);
-}
-
-.hole {
-  color: var(--empty-hole-color);
-}
-
-.OpSeq:hover .skel-binop {
-  background-color: var(--opseq-hover-color);
-  border-top: 1px solid var(--opseq-hover-color);
-  /* box-shadow: 0px 0px 0px 2px rgba(75, 50, 50, 0.20); */
-}
-
-.OpSeq:hover .Ap {
-  background-color: var(--opseq-hover-color);
-  border-top: 1px solid var(--opseq-hover-color);
-}
-
-.in_err_hole {
-  border: 1px dashed var(--nonempty-hole-color);
-}
-
-.in_err_hole > .in_err_hole {
-  border: 0px !important;
 }
 
 .InVarHole.Keyword {
@@ -2023,11 +1678,6 @@ input.slider::-moz-range-track {
   font-size: 125%;
 }
 
-.hole-decorations {
-  display: inline-table;
-  vertical-align: top;
-}
-
 .DHCode .EmptyHole {
   /* border-bottom: 1px solid var(--empty-hole-color); */
   cursor: pointer;
@@ -2036,19 +1686,6 @@ input.slider::-moz-range-track {
 .DHCode .EmptyHole.selected {
   box-sizing: border-box;
   border: 1px solid var(--empty-hole-color);
-}
-
-.hole-instance {
-  border-left: 1px solid rgba(0, 0, 0, 0);
-  border-right: 1px solid rgba(0, 0, 0, 0);
-  border-top: 1px solid rgba(0, 0, 0, 0);
-  margin-left: -1px;
-  margin-right: -1px;
-  cursor: pointer;
-}
-
-.path-instance {
-  border: 1px dashed var(--empty-hole-color);
 }
 
 .selected-instance {
@@ -2087,10 +1724,9 @@ input.slider::-moz-range-track {
   color: #777;
 }
 
-.hole-inst-num {
-  vertical-align: super;
-  font-size: 50%;
-  color: #BBB;
+.CommentLine {
+  color: #777;
+  font-style: italic;
 }
 
 .UserNewline {
@@ -2105,38 +1741,6 @@ input.slider::-moz-range-track {
 
 .hide-hole-envs .environment {
   display: none !important;
-}
-
-.hole-decorations > .holeName {
-  display: table-row;
-}
-
-.environment {
-  vertical-align: sub;
-  font-size: 50%;
-  color: var(--empty-hole-color);
-  color: black;
-}
-
-.hole-decorations > .environment {
-  display: table-row;
-}
-
-#num_changes_counter {
-  display: none;
-}
-
-.space {
-  margin-right: 2px;
-}
-
-.SFailedCastArrow {
-  color: red;
-  font-weight: bold;
-}
-
-.FailedCast {
-  background-color: rgba(255, 0, 0, 0.1);
 }
 
 .elided {
@@ -2170,28 +1774,11 @@ input.slider::-moz-range-track {
   margin-left: 5px;
 }
 
-.text {
-  height: 1em; /* Ensure that empty texts still consume height */
-}
-
-.hbox {
-  display: flex;
-  flex-direction: row;
-  align-content: flex-start;
-}
-
-.vbox {
-  display: flex;
-  flex-direction: column;
-  align-content: flex-start;
-}
-
 /* edit action history panel */
 
 .the-history {
   cursor: pointer;
 }
-
 
 .history-entry {
   border: 1px outset #ffffff;
@@ -2242,22 +1829,7 @@ input.slider::-moz-range-track {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }
-.string {
-  color: #1d5a5a;
-}
-.valid-seq {
-  color: #409fa0;
-}
-.invalid-seq {
-  --err-hole-color: red;
-  color: red;
-  border: 1px dotted var(--err-hole-color);
-  margin: -1px;
-}
-.ellipses {
-  color: gray;
-  background-color: lightgoldenrodyellow;
-}
+
 .timestamp-txt{
   float: right;
   text-align: center;

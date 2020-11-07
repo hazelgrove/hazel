@@ -188,9 +188,9 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
+  | StringLit(string)
   | ApBuiltin(string, list(t))
   | FailedAssert(t)
-  | StringLit(string)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
@@ -235,10 +235,10 @@ let constructor_string = (d: t): string =>
   | Ap(_, _) => "Ap"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
-  | ApBuiltin(_, _) => "ApBuiltin"
-  | Subscript(_, _, _) => "Subscript"
   | FloatLit(_) => "FloatLit"
   | StringLit(_) => "StringLit"
+  | ApBuiltin(_, _) => "ApBuiltin"
+  | Subscript(_, _, _) => "Subscript"
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"

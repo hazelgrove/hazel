@@ -34,7 +34,7 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
   | ([_, ..._], []) => None
   | ([], []) => Some([])
   | ([x, ...xs], [y, ...ys]) =>
-    opt_zip(xs, ys) |> OptUtil.map(xys => [(x, y), ...xys])
+    opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
   };
 
 let for_all2_opt =
@@ -145,7 +145,7 @@ let filteri = (pred, xs) =>
   |> List.filter(((i, x)) => pred(i, x))
   |> List.map(((_, x)) => x);
 
-let any = (xs, f) => xs |> List.find_opt(f) |> OptUtil.test;
+let any = (xs, f) => Option.is_some(List.find_opt(f, xs));
 
 let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
 
@@ -327,20 +327,6 @@ let rec map_with_accumulator_opt =
     (final, [y, ...ys]);
   };
 
-/*
- let rec pairs = (xs: list('x)): list(('x, 'x)) =>
-   switch (xs) {
-   | []
-   | [_] => []
-   | [x1, x2, ...xs] => [(x1, x2), ...pairs([x2, ...xs])]
-   };
- */
-
-/**
- * `disjoint_pairs(xs)` returns a list of disjoint pairs
- * of consecutive elements in `xs`. If `xs` has an odd
- * number of elements, the last element is dropped.
- */
 let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
   switch (xs) {
   | []
@@ -353,25 +339,3 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
-
-/*
- let cycle_map = (g: ('x, 'x) => 'y, xs: list('x)): list('y) => {
-   let rec go = (~hd: option('x)=?, xs: list('x)): list('y) =>
-     switch (xs) {
-     | [] => []
-     | [x] =>
-       switch (hd) {
-       | Some(hd) => [g(x, hd)]
-       | None => [g(x, x)]
-       }
-     | [x1, x2, ...xs] =>
-       let hd =
-         switch (hd) {
-         | None => x1
-         | Some(hd) => hd
-         };
-       [g(x1, x2), ...go(~hd, [x2, ...xs])];
-     };
-   go(xs);
- };
- */

@@ -179,13 +179,16 @@ let get_selected_instance = model =>
   | Some((kind, u)) =>
     model.selected_instances
     |> UserSelectedInstances.find_opt(kind, u)
-    |> OptUtil.map(i => (kind, (u, i)))
+    |> Option.map(i => (kind, (u, i)))
   };
 
 let select_instance =
     ((kind, (u, _)) as tni: TaggedNodeInstance.t, model: t): t =>
   model
-  |> map_program(Program.move_to_node(kind, u))
+  |> map_program(program => {
+       let action = Program.move_to_node(kind, u, program);
+       Program.perform_edit_action(action, program);
+     })
   |> map_selected_instances(UserSelectedInstances.add(tni))
   |> focus_cell;
 
@@ -294,8 +297,8 @@ let move_via_click = (opt_splice, row_col, model) => {
 let select_case_branch =
     (path_to_case: CursorPath_common.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
-  let (new_program, action) =
-    Program.move_to_case_branch(path_to_case, branch_index, program);
+  let action = Program.move_to_case_branch(path_to_case, branch_index);
+  let new_program = Program.perform_edit_action(action, program);
   model
   |> put_program(new_program)
   |> update_program(action, new_program)

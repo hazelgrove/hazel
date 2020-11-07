@@ -1,20 +1,5 @@
 open Sexplib.Std;
 
-/*
- module Steps : {
-   type t;
-   let prepend_step : ChildIndex.t => t => t;
-   let append_step : t => ChildIndex.t => t;
-   let to_list : t => list(ChildIndex.t);
- } = {
-   type t = list(ChildIndex.t);
-
-   let prepend_step = (step, steps) => [step, ...steps];
-   let append_step = (steps, step) => steps ++ [step];
-   let to_list = steps => steps;
- }
- */
-
 [@deriving sexp]
 type steps = list(ChildIndex.t);
 [@deriving sexp]
@@ -30,10 +15,9 @@ let rev = ((cursor, rev_steps): rev_t): t => (
   cursor,
 );
 
-let cons' = (step: int, (steps, cursor): t): t => (
-  [step, ...steps],
-  cursor,
-);
+let cons' = (step: int, (steps, cursor): t): t => {
+  ([step, ...steps], cursor);
+};
 
 let of_zopseq_ =
     (
@@ -88,7 +72,7 @@ let mk_zholes =
 };
 let no_holes = mk_zholes();
 
-let prev_hole_steps = (zhole_list: zhole_list): option(steps) =>
+let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   switch (
     List.rev(zhole_list.holes_before),
     List.rev(zhole_list.holes_after),
@@ -97,13 +81,15 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) =>
   | ([{steps, _}, ..._], _) => Some(steps)
   | ([], [{steps, _}, ..._]) => Some(steps)
   };
+};
 
-let next_hole_steps = (zhole_list: zhole_list): option(steps) =>
+let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   switch (zhole_list.holes_before, zhole_list.holes_after) {
   | ([], []) => None
   | (_, [{steps, _}, ..._]) => Some(steps)
   | ([{steps, _}, ..._], _) => Some(steps)
   };
+};
 
 let follow_opseq_ =
     (
@@ -124,13 +110,13 @@ let follow_opseq_ =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_operand((xs, cursor))
-      |> OptUtil.map(zoperand =>
+      |> Option.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
          )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_operator((xs, cursor))
-      |> OptUtil.map(zoperator =>
+      |> Option.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
     }
@@ -155,11 +141,11 @@ let of_steps_opseq_ =
     | (None, None) => None
     | (Some((operand, _)), _) =>
       let path = operand |> of_steps_operand(xs, ~side);
-      path |> OptUtil.map(path => cons'(x, path));
+      path |> Option.map(path => cons'(x, path));
     | (_, Some((operator, _))) =>
       operator
       |> of_steps_operator(xs, ~side)
-      |> OptUtil.map(path => cons'(x, path))
+      |> Option.map(path => cons'(x, path))
     }
   };
 
@@ -338,9 +324,7 @@ let holes_zopseq_ =
               (),
             );
           } else {
-            // convert option to list
-            let binop_holes =
-              binop_hole |> OptUtil.map_default(~default=[], hole => [hole]);
+            let binop_holes = Option.to_list(binop_hole);
             if (n < preceding_operand_index) {
               let holes1 = holes_skel(skel1);
               let zholes2 = go(skel2);

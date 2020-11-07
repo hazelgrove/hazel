@@ -291,6 +291,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [keyboard_button(Ctrl_Alt_J), keyboard_button(Ctrl_Alt_L)],
         ),
         combo(Enter, simple("Create new line ")),
+        single_line_multiple_actions(
+          "Create new comment line",
+          [keyboard_button(Pound), keyboard_button(Shift_Enter)],
+        ),
         combo(LeftParen, simple("Parenthesize")),
       ],
     ),
@@ -504,6 +508,7 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SAsc) => Added
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
+  | Construct(SCommentLine) => Added
   | Construct(SLam) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added

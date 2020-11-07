@@ -8,6 +8,7 @@ type t = block
 and block = list(line)
 and line =
   | EmptyLine
+  | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | AbbrevLine(
       LivelitName.t,
@@ -52,13 +53,6 @@ type skel = OpSeq.skel(operator);
 type seq = OpSeq.seq(operand, operator);
 
 type affix = Seq.affix(operand, operator);
-
-let rec find_line = (e: t): line => e |> find_line_block
-and find_line_block = block =>
-  List.nth(block, List.length(block) - 1) |> find_line_line
-and find_line_line =
-  fun
-  | line => line;
 
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
@@ -107,16 +101,13 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
-let subscript =
-    (~err: ErrStatus.t=NotInHole, target: t, start_: t, end_: t): operand =>
-  Subscript(err, target, start_, end_);
-
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
 module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {
     | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
+    | CommentLine(_)
     | ExpLine(_)
     | EmptyLine
     | AbbrevLine(_)
@@ -127,6 +118,7 @@ module Line = {
     fun
     | EmptyLine
     | AbbrevLine(_)
+    | CommentLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -214,18 +206,13 @@ and find_operand_block = block =>
 and find_operand_line =
   fun
   | EmptyLine
+  | CommentLine(_)
   | AbbrevLine(_) => None
   | LetLine(_, _, def) => def |> find_operand
   | ExpLine(opseq) => opseq |> find_operand_opseq
 and find_operand_opseq =
   fun
-  | OpSeq(_, S(operand, _)) => Some(operand)
-and find_operand_operator =
-  fun
-  | _ => None
-and find_operand_operand =
-  fun
-  | e => Some(e);
+  | OpSeq(_, S(operand, _)) => Some(operand);
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
@@ -344,14 +331,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
     (Parenthesized(body), u_gen);
   };
 
-let rec drop_outer_parentheses = (operand): t =>
-  switch (operand) {
-  | Parenthesized([ExpLine(OpSeq(_, S(operand, E)))]) =>
-    drop_outer_parentheses(operand)
-  | Parenthesized(e) => e
-  | _ => Block.wrap(operand)
-  };
-
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
   switch (shape) {
@@ -372,17 +351,15 @@ let text_operand =
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Exp.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
-};
+let associate =
+  Skel.mk(Operators_Exp.precedence, Operators_Exp.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let rec is_complete_line = (l: line, check_type_holes: bool): bool =>
+let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
   switch (l) {
-  | EmptyLine => true
+  | EmptyLine
+  | CommentLine(_) => true
   | AbbrevLine(_, NotInAbbrevHole, _, args) =>
     args |> List.for_all(arg => is_complete_operand(arg, check_type_holes))
   | AbbrevLine(_) => false
@@ -400,17 +377,21 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool =>
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
-  }
-and is_complete_block = (b: block, check_type_holes: bool): bool =>
-  b |> List.for_all(l => is_complete_line(l, check_type_holes))
-and is_complete_rule = (rule: rule, check_type_holes: bool): bool =>
+  };
+}
+and is_complete_block = (b: block, check_type_holes: bool): bool => {
+  b |> List.for_all(l => is_complete_line(l, check_type_holes));
+}
+and is_complete_rule = (rule: rule, check_type_holes: bool): bool => {
   switch (rule) {
   | Rule(pat, body) =>
     UHPat.is_complete(pat) && is_complete(body, check_type_holes)
-  }
-and is_complete_rules = (rules: rules, check_type_holes: bool): bool =>
-  rules |> List.for_all(l => is_complete_rule(l, check_type_holes))
-and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool =>
+  };
+}
+and is_complete_rules = (rules: rules, check_type_holes: bool): bool => {
+  rules |> List.for_all(l => is_complete_rule(l, check_type_holes));
+}
+and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
@@ -459,6 +440,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool =>
     splice_info.splice_map
     |> IntMap.bindings
     |> List.for_all(((_, (_, e))) => is_complete(e, check_type_holes))
-  }
+  };
+}
 and is_complete = (exp: t, check_type_holes: bool): bool =>
   is_complete_block(exp, check_type_holes);

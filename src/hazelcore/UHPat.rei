@@ -50,12 +50,6 @@ let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
 
 let is_EmptyHole: operand => bool;
 
-let find_operand: t => option(operand);
-
-let find_operand_opseq: opseq => option(operand);
-
-let find_operand_operand: operand => option(operand);
-
 let get_err_status: t => ErrStatus.t;
 
 let get_err_status_opseq: t => ErrStatus.t;
@@ -84,8 +78,4 @@ let associate: seq => Skel.t(Operators_Pat.t);
 
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
-let is_complete_skel: (skel, seq) => bool;
-
 let is_complete: t => bool;
-
-let is_complete_operand: operand => bool;

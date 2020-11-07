@@ -20,6 +20,7 @@ type operator_shape =
 
 [@deriving sexp]
 type shape =
+  | SCommentLine
   | SList
   | SLeftBracket
   | SQuote
@@ -52,7 +53,7 @@ type t =
   | SwapDown
   | Init;
 
-let shape_to_string = (shape: shape): string =>
+let shape_to_string = (shape: shape): string => {
   switch (shape) {
   | SList => "list type"
   | SQuote => "new string"
@@ -70,6 +71,7 @@ let shape_to_string = (shape: shape): string =>
   | SLet => "let binding"
   | SAbbrev => "livelit abbreviation"
   | SLine => "new line"
+  | SCommentLine => "comment line"
   | SCase => "case expression"
   | SOp(operator_shape) =>
     switch (operator_shape) {
@@ -90,6 +92,7 @@ let shape_to_string = (shape: shape): string =>
     | SCaret => "^"
     }
   };
+};
 
 let escape: Side.t => t =
   fun

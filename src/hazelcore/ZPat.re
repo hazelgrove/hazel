@@ -121,9 +121,10 @@ and is_after_zoperand =
   | CursorP(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorP(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
-  | CursorP(cursor, StringLit(_) | Inj(_) | Parenthesized(_)) =>
+  | CursorP(cursor, Inj(_, _, _))
+  | CursorP(cursor, StringLit(_) | Parenthesized(_)) =>
     cursor == OnDelim(1, After)
-  | InjZ(_)
+  | InjZ(_, _, _)
   | ParenthesizedZ(_) => false;
 let is_after_zoperator: zoperator => bool =
   fun
@@ -137,14 +138,14 @@ and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_)
-  | StringLit(_, _)
   | ListNil(_) => CursorP(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), operand)
-  | Inj(_, _, _)
+  | StringLit(_)
+  | Inj(_)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   };
 let place_before_operator = (op: UHPat.operator): option(zoperator) =>
@@ -178,12 +179,8 @@ let place_after_operator = (op: UHPat.operator): option(zoperator) =>
 
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
-  if (is_valid_cursor_operand(cursor, operand)) {
-    Some(CursorP(cursor, operand));
-  } else {
-    None;
-  };
-
+  is_valid_cursor_operand(cursor, operand)
+    ? Some(CursorP(cursor, operand)) : None;
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): option(zoperator) =>
   is_valid_cursor_operator(cursor, operator)
@@ -218,21 +215,20 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-
   | CursorP(OnOp(_), _) => None
-
   | CursorP(OnText(0), StringLit(_) as operand) =>
     Some(CursorP(OnDelim(0, After), operand))
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
-
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
   | CursorP(OnDelim(_one, Before), StringLit(_, s) as operand) =>
     Some(CursorP(OnText(String.length(s)), operand))
-  | CursorP(OnDelim(_one, Before), Parenthesized(p)) =>
+  | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
+    // _k == 1
     Some(ParenthesizedZ(place_after(p)))
-  | CursorP(OnDelim(_one, Before), Inj(err, side, p)) =>
+  | CursorP(OnDelim(_k, Before), Inj(err, side, p)) =>
+    // _k == 1
     Some(InjZ(err, side, place_after(p)))
   | CursorP(
       OnDelim(_, _),
@@ -241,7 +237,6 @@ and move_cursor_left_zoperand =
     ) =>
     // invalid cursor position
     None
-
   | ParenthesizedZ(zp) =>
     switch (move_cursor_left(zp)) {
     | Some(zp) => Some(ParenthesizedZ(zp))
@@ -255,7 +250,7 @@ and move_cursor_left_zoperand =
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
-  | (OnText(_) | OnDelim(_), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op));
 
@@ -274,21 +269,20 @@ and move_cursor_right_zopseq = zopseq =>
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-
   | CursorP(OnOp(_), _) => None
-
   | CursorP(OnText(j), StringLit(_, s) as operand)
       when j == String.length(s) =>
     Some(CursorP(OnDelim(1, Before), operand))
-  | CursorP(OnText(j), operand) => Some(CursorP(OnText(j + 1), operand))
-
+  | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
   | CursorP(OnDelim(_zero, After), StringLit(_) as operand) =>
     Some(CursorP(OnText(0), operand))
-  | CursorP(OnDelim(_zero, After), Parenthesized(p)) =>
+  | CursorP(OnDelim(_k, After), Parenthesized(p)) =>
+    // _k == 0
     Some(ParenthesizedZ(place_before(p)))
-  | CursorP(OnDelim(_zero, After), Inj(err, side, p)) =>
+  | CursorP(OnDelim(_k, After), Inj(err, side, p)) =>
+    // _k == 0
     Some(InjZ(err, side, place_before(p)))
   | CursorP(
       OnDelim(_, _),
@@ -297,7 +291,6 @@ and move_cursor_right_zoperand =
     ) =>
     // invalid cursor position
     None
-
   | ParenthesizedZ(zp) =>
     switch (move_cursor_right(zp)) {
     | Some(zp) => Some(ParenthesizedZ(zp))

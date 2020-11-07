@@ -1,5 +1,7 @@
 open Virtual_dom;
 
+let focus: unit => unit;
+
 /**
  * Code representation of UHExp.
  */

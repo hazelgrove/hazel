@@ -9,18 +9,19 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SPlus
   | STimes
   | SDivide
-  | SCaret
   | SLessThan
   | SGreaterThan
   | SEquals
   | SArrow
-  | SVBar => None;
+  | SVBar
+  | SCaret => None;
 
-let shape_of_operator: UHPat.operator => Action_common.operator_shape =
-  fun
+let shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>
+  switch (op) {
   | Comma => SComma
   | Space => SSpace
-  | Cons => SCons;
+  | Cons => SCons
+  };
 
 let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   zseq
@@ -561,7 +562,7 @@ and syn_perform_operand =
       a: Action_common.t,
       zoperand: ZPat.zoperand,
     )
-    : ActionOutcome.t(syn_success) =>
+    : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -580,9 +581,12 @@ and syn_perform_operand =
   | (_, CursorP(cursor, operand))
       when !ZPat.is_valid_cursor_operand(cursor, operand) =>
     Failed
+
   /* Invalid actions */
   | (
-      Construct(SList | SAsc | SLet | SAbbrev | SLine | SLam | SCase) |
+      Construct(
+        SAbbrev | SList | SAsc | SLet | SLine | SLam | SCase | SCommentLine,
+      ) |
       PerformLivelitAction(_) |
       SwapUp |
       SwapDown,
@@ -868,7 +872,8 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
 and ana_perform =
     (
       ctx: Contexts.t,
@@ -1083,7 +1088,9 @@ and ana_perform_operand =
 
   /* Invalid actions */
   | (
-      Construct(SList | SAsc | SLet | SAbbrev | SLine | SLam | SCase) |
+      Construct(
+        SAbbrev | SList | SAsc | SLet | SLine | SLam | SCase | SCommentLine,
+      ) |
       PerformLivelitAction(_) |
       SwapUp |
       SwapDown,
@@ -1287,6 +1294,7 @@ and ana_perform_operand =
       let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
       Succeeded((zp, ctx, u_gen));
     };
+
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
     ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>

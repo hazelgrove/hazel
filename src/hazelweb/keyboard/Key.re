@@ -13,20 +13,9 @@ type recognition_method =
   // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
   | Key(string);
 
-let code_of_letter = letter => "Key" ++ String.uppercase_ascii(letter);
-
 type t = {
   plain_name: string,
   recognition_methods: list(recognition_method),
-};
-
-let code1 = (plain_name, code) => {
-  plain_name,
-  recognition_methods: [Code(code)],
-};
-let code2 = (plain_name, code1, code2) => {
-  plain_name,
-  recognition_methods: [Code(code1), Code(code2)],
 };
 
 let key1 = (plain_name, key) => {
@@ -34,8 +23,6 @@ let key1 = (plain_name, key) => {
   recognition_methods: [Key(key)],
 };
 
-let the_letter_code = letter => code1(letter, code_of_letter(letter));
-let the_code = code => code1(code, code);
 let the_key = key => key1(key, key);
 
 let recognize = (evt: Js.t(Dom_html.keyboardEvent), r) =>

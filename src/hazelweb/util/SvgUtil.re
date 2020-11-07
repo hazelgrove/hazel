@@ -1,19 +1,28 @@
+open Sexplib.Std;
+
 module Vdom = Virtual_dom.Vdom;
 
-module Path = {
-  /**
-   * SVG <path> element
-   * https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
-   */
+module Point = {
+  [@deriving sexp]
+  type t = {
+    x: float,
+    y: float,
+  };
+};
 
-  type t = list(command)
-  // constructors with underscore suffix
-  // correspond to lower-case variants
-  and command =
-    | M({
-        x: float,
-        y: float,
-      })
+module Rect = {
+  [@deriving sexp]
+  type t = {
+    min: Point.t,
+    width: float,
+    height: float,
+  };
+};
+
+module Path = {
+  type t = list(cmd)
+  and cmd =
+    | M(Point.t)
     | M_({
         dx: float,
         dy: float,
@@ -30,46 +39,6 @@ module Path = {
         dy: float,
       });
 
-  let empty = [];
-  let cat = (@);
-  let cats = List.concat;
-
-  // non-standard
-  type axis =
-    | X
-    | Y;
-  type direction =
-    | Pos
-    | Neg;
-  type orientation = (axis, direction);
-
-  let turn_90 =
-      (
-        clockwise: bool,
-        initial_orientation: orientation,
-        (rx: float, ry: float),
-      )
-      : command => {
-    let (dx, dy) =
-      switch (initial_orientation) {
-      | (X, Pos) => (rx, ry)
-      | (X, Neg) => (Float.neg(rx), Float.neg(ry))
-      | (Y, Pos) => (Float.neg(rx), ry)
-      | (Y, Neg) => (rx, Float.neg(ry))
-      };
-    A_({
-      rx,
-      ry,
-      x_axis_rotation: 0.0,
-      large_arc_flag: false,
-      sweep_flag: !clockwise,
-      dx,
-      dy,
-    });
-  };
-  let turn_left = turn_90(true);
-  let turn_right = turn_90(false);
-
   let string_of_flag =
     fun
     | false => "0"
@@ -77,227 +46,327 @@ module Path = {
 
   let string_of_command =
     fun
-    | M({x, y}) =>
-      Printf.sprintf(
-        "M %s %s",
-        FloatUtil.to_string_zero(x),
-        FloatUtil.to_string_zero(y),
-      )
-    | M_({dx, dy}) =>
-      Printf.sprintf(
-        "m %s %s",
-        FloatUtil.to_string_zero(dx),
-        FloatUtil.to_string_zero(dy),
-      )
-    | H_({dx}) => Printf.sprintf("h %s", FloatUtil.to_string_zero(dx))
-    | V_({dy}) => Printf.sprintf("v %s", FloatUtil.to_string_zero(dy))
+    | M({x, y}) => Printf.sprintf("M %f %f", x, y)
+    | M_({dx, dy}) => Printf.sprintf("m %f %f", dx, dy)
+    | H_({dx}) => Printf.sprintf("h %f", dx)
+    | V_({dy}) => Printf.sprintf("v %f", dy)
     | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, dx, dy}) =>
       Printf.sprintf(
-        "a %s %s %s %s %s %s %s",
-        FloatUtil.to_string_zero(rx),
-        FloatUtil.to_string_zero(ry),
-        FloatUtil.to_string_zero(x_axis_rotation),
+        "a %f %f %f %s %s %f %f",
+        rx,
+        ry,
+        x_axis_rotation,
         string_of_flag(large_arc_flag),
         string_of_flag(sweep_flag),
-        FloatUtil.to_string_zero(dx),
-        FloatUtil.to_string_zero(dy),
+        dx,
+        dy,
       );
 
-  let view = (attrs: list(Vdom.Attr.t), path: t) =>
+  let view = (~attrs: list(Vdom.Attr.t), path: t): Vdom.Node.t => {
+    let buffer = Buffer.create(List.length(path) * 20);
+    path
+    |> List.iter(cmd => {
+         Buffer.add_string(buffer, string_of_command(cmd));
+         Buffer.add_string(buffer, " ");
+       });
     Vdom.(
       Node.create_svg(
         "path",
-        [
-          Attr.create(
-            "d",
-            path |> List.map(string_of_command) |> StringUtil.sep,
-          ),
-          ...attrs,
-        ],
+        [Attr.create("d", Buffer.contents(buffer)), ...attrs],
         [],
       )
     );
+  };
 };
 
-/*
- module BoxPath = {
-   type t = list(cmd)
-   and cmd =
-     | GoStraight(float)
-     | Turn90(rotation)
-   and rotation =
-     | CW
-     | CCW;
+module OrthogonalPolygon = {
+  type t = Path.t;
 
-   let concat = List.concat;
+  [@deriving sexp]
+  type linked_edge = {
+    src: Point.t,
+    dst: Point.t,
+    mutable next: [@sexp.opaque] option(linked_edge),
+  };
 
-   type axis =
-     | X
-     | Y;
-   type direction =
-     | Pos
-     | Neg;
-   type orientation = (axis, direction);
+  let linked_edge_eq = (e1, e2) => e1.src == e2.src && e1.dst == e2.dst;
 
-   let turn_180 =
-     fun
-     | (axis, Pos) => (axis, Neg)
-     | (axis, Neg) => (axis, Pos);
+  let cmd_of_linked_edge = (edge): Path.cmd => {
+    let src = edge.src;
+    let dst = edge.dst;
+    src.x == dst.x ? V_({dy: dst.y -. src.y}) : H_({dx: dst.x -. src.x});
+  };
 
-   let go_straight = (orientation, d) =>
-     switch (orientation) {
-     | (X, direction) =>
-       let dx =
-         switch (direction) {
-         | Pos => d
-         | Neg => Float.neg(d)
-         };
-       Printf.sprintf("h %s ", FloatUtil.to_string_zero(dx));
-     | (Y, direction) =>
-       let dy =
-         switch (direction) {
-         | Pos => d
-         | Neg => Float.neg(d)
-         };
-       Printf.sprintf("v %s ", FloatUtil.to_string_zero(dy));
-     };
+  let round_corners = ((rx: float, ry: float), path: Path.t): Path.t => {
+    // Corner rounding cuts into the lengths of the entering and
+    // exiting edges. Find the maximum (proportionally scaled)
+    // radii possible given lengths of entering and exiting edges.
+    let max_radii =
+        ((rx: float, ry: float), (dx: float, dy: float)): (float, float) => {
+      let rx_min = min(rx, Float.abs(dx));
+      let ry_min = min(ry, Float.abs(dy));
+      ry_min *. rx >= rx_min *. ry
+        ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
+    };
 
-   let turn_90 = ((rx, ry), orientation, rotation) => {
-     let (dx, dy) =
-       switch (orientation, rotation) {
-       | ((X, Pos), CW)
-       | ((Y, Pos), CCW) => (Float.neg(rx), Float.neg(ry))
-       | ((X, Pos), CCW)
-       | ((Y, Neg), CW) => (Float.neg(rx), ry)
-       | ((X, Neg), CW)
-       | ((Y, Neg), CCW) => (rx, ry)
-       | ((X, Neg), CCW)
-       | ((Y, Pos), CW) => (rx, Float.neg(ry))
-       };
-     let sweep =
-       switch (rotation) {
-       | CW => "1"
-       | CCW => "0"
-       };
-     Printf.sprintf(
-       "a %s %s 0 0 %s %s %s ",
-       FloatUtil.to_string_zero(rx),
-       FloatUtil.to_string_zero(ry),
-       sweep,
-       FloatUtil.to_string_zero(dx),
-       FloatUtil.to_string_zero(dy),
-     );
-   };
-
-   let next_orientation = (orientation, rotation_90) =>
-     switch (orientation, rotation) {
-     | ((X, Pos), CCW)
-     | ((X, Neg), CW) => (Y, Pos)
-     | ((X, Pos), CW)
-     | ((X, Neg), CCW) => (Y, Neg)
-     | ((Y, Pos), CCW)
-     | ((Y, Neg), CW) => (X, Neg)
-     | ((Y, Pos), CW)
-     | ((Y, Neg), CCW) => (X, Pos)
-     };
-
-   // TODO maybe revisit and compress turns too
-   let rec compress =
-     fun
-     | [] => []
-     | [GoStraight(d1), GoStraight(d2), ...path] =>
-       compress([GoStraight(d1 +. d2), ...path])
-     | [cmd, ...path] => [cmd, ...compress(path)];
-
-   let view =
-       (
-         ~initial_position as (x, y): (float, float),
-         ~initial_orientation: orientation,
-         ~radii as (rx, ry): (float, float),
-         path: t,
+    path
+    |> List.map(
+         fun
+         | Path.H_({dx}) => Path.[H_({dx: dx *. 0.5}), H_({dx: dx *. 0.5})]
+         | V_({dy}) => [V_({dy: dy *. 0.5}), V_({dy: dy *. 0.5})]
+         | cmd => [cmd],
        )
-       : Vdom.Node.t => {
-     // TODO refine initial capacity estimate
-     let buffer = Buffer.create(List.length(path) * 20);
-     Buffer.add_string(
-       buffer,
-       Printf.sprintf(
-         "M %s %s ",
-         FloatUtil.to_string_zero(x),
-         FloatUtil.to_string_zero(y),
-       ),
-     );
+    |> List.flatten
+    |> ListUtil.rotate
+    |> ListUtil.disjoint_pairs
+    |> List.map(((cmd1: Path.cmd, cmd2: Path.cmd)) => {
+         switch (cmd1, cmd2) {
+         | (H_({dx}), V_({dy})) =>
+           let (rx, ry) = max_radii((rx, ry), (dx, dy));
+           let clockwise = Float.sign_bit(dx) == Float.sign_bit(dy);
+           Path.[
+             H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
+             A_({
+               rx,
+               ry,
+               x_axis_rotation: 0.,
+               large_arc_flag: false,
+               sweep_flag: clockwise,
+               dx: Float.copy_sign(rx, dx),
+               dy: Float.copy_sign(ry, dy),
+             }),
+             V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
+           ];
+         | (V_({dy}), H_({dx})) =>
+           let (rx, ry) = max_radii((rx, ry), (dx, dy));
+           let clockwise = Float.sign_bit(dy) != Float.sign_bit(dx);
+           [
+             V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
+             A_({
+               rx,
+               ry,
+               x_axis_rotation: 0.,
+               large_arc_flag: false,
+               sweep_flag: clockwise,
+               dx: Float.copy_sign(rx, dx),
+               dy: Float.copy_sign(ry, dy),
+             }),
+             H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
+           ];
+         | _ => [cmd1, cmd2]
+         }
+       })
+    |> List.flatten;
+  };
 
-     // TODO simplify
-     let rec going_straight = (orientation, gone_so_far: float, path: t): unit =>
-       switch (path) {
-       | [] => ()
-       | [GoStraight(d), ...path] =>
-         going_straight(orientation, gone_so_far +. d, path)
-       | [Turn90(rotation), ...path] =>
-         turning_corner((gone_so_far, orientation), rotation, path)
-       }
-     and turning_corner =
-         ((entering_len, entering_orientation), rotation, path: t): unit =>
-       switch (path) {
-       | [] =>
-         Buffer.add(
-           buffer,
-           go_straight(initial_orientation, entering_edge_len),
+  let is_left_side = (edge: linked_edge): bool => {
+    edge.src.y > edge.dst.y;
+  };
+
+  /**
+   * Merge coinciding vertical edges that point in the same direction.
+   */
+  let merge_coinciding_vertical_edges =
+      (edges: list(linked_edge)): list(linked_edge) => {
+    // there may be a cleaner + more efficient method for this pass
+    // but good enough for now
+    let (left_edges, right_edges) = List.partition(is_left_side, edges);
+    let merged_left_edges =
+      left_edges
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             (-1) * Float.compare(v1.src.y, v2.src.y);
+           }
          )
-       | [Turn90(rotation'), ...path] =>
-         let new_orientation =
-           switch (rotation, rotation') {
-           | (CW, CCW)
-           | (CCW, CW) => entering_orientation
-           | (CW, CW)
-           | (CCW, CCW) => turn_180(entering_orientation)
-           };
-         going_straight(new_orientation, 0.0, path);
-       | [GoStraight(exiting_len), ...path] =>
-         // Corner rounding cuts into the lengths of
-         // the entering and exiting edges. Find the
-         // maximum (proportionally scaled) radii possible
-         // given lengths of entering and exiting edges.
-         let (rx, ry) = {
-           let (corner_x, corner_y) =
-             switch (orientation) {
-             | (X, _) => (entering_len, exiting_len *. 0.5)
-             | (Y, _) => (exiting_len *. 0.5, entering_len)
-             };
-           let rx_min = min(rx, corner_x);
-           let ry_min = min(ry, corner_y);
-           ry_min *. rx >= rx_min *. ry
-             ? (rx_min, rx_min *. ry /. rx) : (ry_min *. rx /. ry, ry_min);
-         };
-         let (r_entering, r_exiting) =
-           switch (orientation) {
-           | (X, _) => (rx, ry)
-           | (Y, _) => (ry, rx)
-           };
-         Buffer.add(
-           buffer,
-           go_straight(entering_orientation, entering_len -. r_entering),
+      |> List.fold_left(
+           (stack, v) =>
+             switch (stack) {
+             | [] => [v]
+             | [hd, ...tl] as stack =>
+               if (v.src.x == hd.dst.x && v.src.y >= hd.dst.y) {
+                 [{...hd, dst: v.dst}, ...tl];
+               } else {
+                 [v, ...stack];
+               }
+             },
+           [],
          );
-         Buffer.add(
-           buffer,
-           turn_90((rx, ry), entering_orientation, rotation),
+    let merged_right_edges =
+      right_edges
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             Float.compare(v1.src.y, v2.src.y);
+           }
+         )
+      |> List.fold_left(
+           (stack, v) =>
+             switch (stack) {
+             | [] => [v]
+             | [hd, ...tl] as stack =>
+               if (v.src.x == hd.dst.x && v.src.y <= hd.dst.y) {
+                 [{...hd, dst: v.dst}, ...tl];
+               } else {
+                 [v, ...stack];
+               }
+             },
+           [],
          );
-         going_straight(
-           next_orientation(entering_orientation, rotation),
-           exiting_len -. r_exiting,
-           path,
-         );
-       };
+    merged_left_edges @ merged_right_edges;
+  };
 
-     going_straight(initial_orientation, 0.0, compress(path));
-     Vdom.(
-       Node.create_svg(
-         "path",
-         [Attr.create("d", Buffer.contents(buffer))],
-         [],
+  /**
+   * `vertical_contour_edges(rs)` compute the vertical edges of the
+   * contour of the union of rectangles `rs`
+   */
+  let vertical_contour_edges = (rects: list(Rect.t)): list(linked_edge) => {
+    let sorted_vertical_sides: list(linked_edge) =
+      rects
+      |> List.map((Rect.{min, width, height}) => {
+           let max_x = min.x +. width;
+           let max_y = min.y +. height;
+           let max = Point.{x: max_x, y: max_y};
+           let min_max = Point.{x: min.x, y: max_y};
+           let max_min = Point.{x: max_x, y: min.y};
+           [
+             // left sides point in negative direction
+             {src: min_max, dst: min, next: None},
+             // right sides point in positive direction
+             {src: max_min, dst: max, next: None},
+           ];
+         })
+      |> List.flatten
+      |> List.sort((v1, v2) =>
+           if (v1.src.x < v2.src.x) {
+             (-1);
+           } else if (v1.src.x > v2.src.x) {
+             1;
+           } else {
+             // for vertical sides of equal abscissa,
+             // need to sort left sides before right sides
+             let is_left1 = is_left_side(v1);
+             let is_left2 = is_left_side(v2);
+             if (is_left1 && !is_left2) {
+               (-1);
+             } else if (!is_left1 && is_left2) {
+               1;
+             } else {
+               0;
+             };
+           }
+         );
+
+    let segment_tree =
+      rects
+      |> List.map((Rect.{min, height, _}) => [min.y, min.y +. height])
+      |> List.flatten
+      |> SegmentTree.mk;
+
+    sorted_vertical_sides
+    // plane-sweep
+    |> ListUtil.map_with_accumulator(
+         (tree, v) => {
+           let x = v.src.x;
+           let ys = (v.src.y, v.dst.y);
+           let mk_contour_edge = ((y_src, y_dst)) => {
+             let src = Point.{x, y: y_src};
+             let dst = Point.{x, y: y_dst};
+             {src, dst, next: None};
+           };
+           if (is_left_side(v)) {
+             let new_contour_edges =
+               SegmentTree.complement_intersection(ys, tree)
+               |> List.map(mk_contour_edge);
+             let updated_tree = SegmentTree.insert(ys, tree);
+             (updated_tree, new_contour_edges);
+           } else {
+             let updated_tree = SegmentTree.delete(ys, tree);
+             let new_contour_edges =
+               SegmentTree.complement_intersection(ys, updated_tree)
+               |> List.map(mk_contour_edge);
+             (updated_tree, new_contour_edges);
+           };
+         },
+         segment_tree,
        )
-     );
-   };
- };
- */
+    |> snd
+    |> List.flatten
+    // this step is not explicated by Preparata & Shamos
+    // but its absence causes bugs
+    |> merge_coinciding_vertical_edges;
+  };
+
+  /**
+   * Implements algorithm described in Section 8.5 of
+   * Computational Geometry: An Introduction by Preparata
+   * & Shamos. If you need to understand the algorithm in
+   * detail, you should first read Sections 1.2.3.1 + 8.3.
+   */
+  let mk = (~corner_radii: (float, float), rects: list(Rect.t)): t => {
+    assert(rects != []);
+
+    let vertical_contour_edges = vertical_contour_edges(rects);
+
+    // join vertical contour edges via horizontal edges
+    vertical_contour_edges
+    |> List.map(v => [(false, v), (true, v)])
+    |> List.flatten
+    // sort endpoints by y coordinate, then x coordinate
+    |> List.sort(((is_src1, v1), (is_src2, v2)) => {
+         let pt1 = is_src1 ? v1.src : v1.dst;
+         let pt2 = is_src2 ? v2.src : v2.dst;
+         if (pt1.y < pt2.y) {
+           (-1);
+         } else if (pt1.y > pt2.y) {
+           1;
+         } else {
+           Float.compare(pt1.x, pt2.x);
+         };
+       })
+    |> ListUtil.disjoint_pairs
+    // consecutive pairs of endpoints form horizontal edges
+    |> List.iter((((is_src1, v1), (is_src2, v2))) => {
+         let pt1 = is_src1 ? v1.src : v1.dst;
+         let pt2 = is_src2 ? v2.src : v2.dst;
+         assert(pt1.y == pt2.y);
+         let y = pt1.y;
+
+         let (x_src, x_dst, prev, next) =
+           is_src1 ? (pt2.x, pt1.x, v2, v1) : (pt1.x, pt2.x, v1, v2);
+
+         let h = {
+           let src = Point.{x: x_src, y};
+           let dst = Point.{x: x_dst, y};
+           {src, dst, next: Some(next)};
+         };
+         prev.next = Some(h);
+       });
+
+    let start = List.hd(vertical_contour_edges);
+    let rec build_path = (edge: linked_edge): Path.t => {
+      switch (edge.next) {
+      | None => failwith("expected single cycle")
+      | Some(next) =>
+        linked_edge_eq(next, start)
+          ? [] : [cmd_of_linked_edge(next), ...build_path(next)]
+      };
+    };
+    let path = [cmd_of_linked_edge(start), ...build_path(start)];
+
+    path
+    |> round_corners(corner_radii)
+    |> List.cons(
+         Path.M({
+           x: (start.src.x +. start.dst.x) *. 0.5,
+           y: (start.src.y +. start.dst.y) *. 0.5,
+         }),
+       );
+  };
+};
