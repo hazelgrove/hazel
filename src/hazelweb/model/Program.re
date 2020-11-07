@@ -63,9 +63,12 @@ let get_cursor_info = (program: t) => {
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
+  // TODO (corlaban): this is where to add decorations.
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let (err_holes, var_err_holes) =
-    CursorPath_Exp.holes(get_uhexp(program), [], [])
+  let (err_holes, var_err_holes) = {
+    let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
+
+    hole_list
     |> List.filter_map((CursorPath_common.{sort, steps}) =>
          switch (sort) {
          | TypHole => None
@@ -84,12 +87,38 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
+  };
+
+  let op_err_holes = {
+    let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
+
+    hole_list
+    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+         switch (sort) {
+         | TypHole => None
+         | PatHole(_, _) => None
+         | ExpHole(_, shape) =>
+           switch (shape) {
+           | Empty => None
+           | VarErr
+           | TypeErr => Some(steps)
+           }
+         }
+       );
+  };
+
   let var_uses =
     switch (get_cursor_info(program)) {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  UHDecorationPaths.{
+    err_holes,
+    var_err_holes,
+    var_uses,
+    op_err_holes,
+    current_term,
+  };
 };
 
 exception DoesNotElaborate;

@@ -120,7 +120,97 @@ let decoration_views =
       | Step(step) =>
         let stepped = UHDecorationPaths.take_step(step, dpaths);
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+      | Token({shape: Op, _}) =>
+        print_endline("in token case of annot");
+        let offset = start.col - indent;
+        let origin = MeasuredPosition.{row: start.row, col: indent};
+        let height = lazy(MeasuredLayout.height(m));
+        let width = lazy(MeasuredLayout.width(~offset, m));
+
+        // let (cls, decoration) = (
+        //   "var-err-hole",
+        //   UHDecoration.VarErrHole.view(
+        //     ~contains_current_term=Option.is_some(dpaths.current_term),
+        //     ~corner_radii,
+        //     (offset, m),
+        //   ),
+        // );
+        // decoration_container(
+        //   ~font_metrics,
+        //   ~height=Lazy.force(height),
+        //   ~width=Lazy.force(width),
+        //   ~origin,
+        //   ~cls,
+        //   [decoration],
+        // );
+
+        // let shape = TermShape.BinOp({op_index: 3});
+        let shape = TermShape.Operand;
+        // let sort = TermSort.Exp;
+
+        // UHDecorationPaths.current(BinOp({op_index: 1}), dpaths)
+        let current_vs =
+          UHDecorationPaths.current(shape, dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let (cls, decoration) =
+                 UHDecoration.(
+                   switch (dshape) {
+                   | ErrHole => (
+                       "err-hole",
+                       ErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
+                     )
+                   | VarErrHole =>
+                     print_endline("in varr err hole");
+                     (
+                       "var-err-hole",
+                       VarErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
+                     );
+                   | VarUse => (
+                       "var-use",
+                       VarUse.view(~corner_radii, (offset, m)),
+                     )
+                   //  | CurrentTerm => (
+                   //      "current-term",
+                   //      CurrentTerm.view(
+                   //        ~corner_radii,
+                   //        ~sort,
+                   //        ~shape,
+                   //        (offset, m),
+                   //      ),
+                   //    )
+                   | _ => (
+                       "var-err-hole",
+                       VarErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
+                     )
+                   }
+                 );
+               decoration_container(
+                 ~font_metrics,
+                 ~height=Lazy.force(height),
+                 ~width=Lazy.force(width),
+                 ~origin,
+                 ~cls,
+                 [decoration],
+               );
+             });
+        go'(~tl=current_vs @ tl, dpaths, m);
       | Term({shape, sort, _}) =>
+        print_endline("in term case of annot");
         let offset = start.col - indent;
         let origin = MeasuredPosition.{row: start.row, col: indent};
         let height = lazy(MeasuredLayout.height(m));
