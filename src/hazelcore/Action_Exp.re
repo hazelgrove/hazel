@@ -345,7 +345,6 @@ let mk_syn_text =
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, u_gen)));
     | None =>
-      print_endline("free var");
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -391,9 +390,7 @@ let mk_ana_text =
   | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
-    | (Failed | CursorEscaped(_)) as err =>
-      print_endline("error escaped in var 1");
-      err;
+    | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
       if (HTyp.consistent(ty, ty')) {
@@ -1494,8 +1491,7 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) |
-        BoolLit(_) |
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_),
       ) |
       CursorE(
@@ -2895,8 +2891,7 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) |
-        BoolLit(_) |
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_),
       ) |
       CursorE(
