@@ -16,6 +16,29 @@ and line =
       list(operand),
     )
   | ExpLine(opseq)
+  /*
+  livelit $? at ?ty {
+	captures ?e;
+	type model = ?ty;
+	type action = ?ty;
+	init = ?e;
+	update = ?e;
+	view = ?e;
+	expand = ?e;
+  */
+  | LivelitDefLine({
+    err: ErrStatus.t,
+    captures: list(string), // what should actually go here?
+    name: string, //livelitname look at stringlit
+    livelit_type: UHTyp.t,
+    model_type: UHTyp.t,
+    action_type: UHTyp.t,
+    // do i need to be able to specify a type annotation for these...
+    init: t,
+    update: t,
+    view: t,
+    expand: t,
+  })
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -120,6 +143,7 @@ module Line = {
     | ExpLine(_)
     | EmptyLine
     | AbbrevLine(_)
+    | LivelitDefLine(_)
     | LetLine(_) => line
     };
 
@@ -127,6 +151,7 @@ module Line = {
     fun
     | EmptyLine
     | AbbrevLine(_)
+    | LivelitDefLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -215,6 +240,7 @@ and find_operand_line =
   fun
   | EmptyLine
   | AbbrevLine(_) => None
+  | LivelitDefLine({init, _}) => find_operand(init) // ?
   | LetLine(_, _, def) => def |> find_operand
   | ExpLine(opseq) => opseq |> find_operand_opseq
 and find_operand_opseq =
@@ -400,6 +426,27 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool =>
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  | LivelitDefLine({
+    //err,
+    //captures,
+    //name,
+    livelit_type,
+    model_type,
+    action_type,
+    init,
+    update,
+    view,
+    expand,
+  }) =>
+  // TODO: is name complete? captures?
+  let types_complete =  UHTyp.is_complete(livelit_type) && UHTyp.is_complete(model_type) && UHTyp.is_complete(action_type);
+  let exprs_complete = is_complete(init, check_type_holes) && is_complete(update, check_type_holes) &&
+  is_complete(view, check_type_holes) && is_complete(expand, check_type_holes);
+  if (check_type_holes) {
+    exprs_complete && types_complete
+  } else {
+    exprs_complete
+  }
   }
 and is_complete_block = (b: block, check_type_holes: bool): bool =>
   b |> List.for_all(l => is_complete_line(l, check_type_holes))
