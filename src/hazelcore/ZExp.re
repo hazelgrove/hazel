@@ -119,7 +119,6 @@ let is_valid_cursor_line = (cursor: CursorPosition.t, line: UHExp.line): bool =>
   valid_cursors_line(line) |> List.mem(cursor);
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): bool => {
-  print_endline("is not valid cursor operand");
   valid_cursors_operand(operand) |> List.mem(cursor);
 };
 let is_valid_cursor_operator =

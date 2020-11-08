@@ -887,7 +887,6 @@ and syn_fix_holes_skel =
       (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
     };
   | BinOp(_, UserOp(op), skel1, skel2) =>
-    // let op_type = syn_operand(ctx, UHExp.Var(NotInHole, NotInVarHole, op));
     switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
     | Some(ty) =>
       switch (HTyp.matched_two_ary_arrow(ty)) {
