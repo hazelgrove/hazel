@@ -62,13 +62,13 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BinUserOp(op, d3, d4) =>
     switch (op) {
     | UserOp(var) =>
-      if (x |> Var.extract_op_exp |> Var.eq(var)) {
+      if (Var.is_operator(x) && x |> Var.extract_op_exp |> Var.eq(var)) {
         Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
       } else {
         let d3 = subst_var(d1, x, d3);
         let d4 = subst_var(d1, x, d4);
         BinUserOp(op, d3, d4);
-      }
+      };
     }
 
   | Inj(ty, side, d3) =>
