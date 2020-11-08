@@ -5,7 +5,7 @@ let mk:
     ~show_case_clauses: bool,
     ~parenthesize: bool=?,
     ~enforce_inline: bool,
-    ~selected_instance: option(TaggedNodeInstance.t),
+    ~selected_hole_instance: option(NodeInstance.t),
     DHExp.t
   ) =>
   DHDoc_common.t;

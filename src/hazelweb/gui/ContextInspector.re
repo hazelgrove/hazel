@@ -4,7 +4,7 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_instance: option(NodeInstance.t),
+      ~selected_hole_instance: option(NodeInstance.t),
       ~compute_results: Model.compute_results,
       program: Program.t,
     )
@@ -55,7 +55,7 @@ let view =
                   ~show_fn_bodies=false,
                   ~show_case_clauses=false,
                   ~show_casts=compute_results.show_casts,
-                  ~selected_instance,
+                  ~selected_hole_instance,
                   ~width=30,
                   d,
                 ),
@@ -103,7 +103,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance,
+                    ~selected_hole_instance,
                     inst,
                   ),
                 ],
@@ -207,7 +207,7 @@ let view =
             DHCode.view_of_hole_instance(
               ~inject,
               ~width=30,
-              ~selected_instance,
+              ~selected_hole_instance,
               inst,
             ),
           ],
@@ -252,7 +252,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_instance,
+                    ~selected_hole_instance,
                     inst,
                   ),
                 ],
@@ -284,8 +284,8 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (compute_results.compute_results) {
-        let (_, hii, _) = program |> Program.get_result;
-        switch (selected_instance) {
+        let (_, hii, _, _) = Program.get_result(program);
+        switch (selected_hole_instance) {
         | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
@@ -337,12 +337,12 @@ let view =
               ),
             ]
           | Some((kind, u)) =>
-            switch (selected_instance) {
+            switch (selected_hole_instance) {
             | None => [
                 instructional_msg("Click on a hole instance in the result"),
               ]
-            | Some((kind', (u', _) as inst)) =>
-              if (kind == kind' && MetaVar.eq(u, u')) {
+            | Some((u', _) as inst) =>
+              if (MetaVar.eq(u, u')) {
                 let helper = mii =>
                   switch (NodeInstanceInfo.lookup(mii, inst)) {
                   | None =>

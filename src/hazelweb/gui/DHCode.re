@@ -73,7 +73,7 @@ let view =
       ~show_casts=false,
       ~show_fn_bodies=false,
       ~show_case_clauses=false,
-      ~selected_instance: option(TaggedNodeInstance.t)=None,
+      ~selected_hole_instance: option(NodeInstance.t)=None,
       ~width: int,
       ~pos=0,
       d: DHExp.t,
@@ -85,7 +85,7 @@ let view =
        ~show_fn_bodies,
        ~show_case_clauses,
        ~enforce_inline=false,
-       ~selected_instance,
+       ~selected_hole_instance,
      )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
@@ -94,12 +94,12 @@ let view =
   |> view_of_layout(~inject);
 };
 
-let view_of_instance =
+let view_of_hole_instance =
     (
       ~inject,
       ~width: int,
       ~pos=0,
-      ~selected_instance,
+      ~selected_hole_instance,
       (u, i): NodeInstance.t,
     )
     : Vdom.Node.t =>
@@ -108,7 +108,7 @@ let view_of_instance =
     ~show_casts=false,
     ~show_fn_bodies=false,
     ~show_case_clauses=false,
-    ~selected_instance,
+    ~selected_hole_instance,
     ~width,
     ~pos,
     DHExp.EmptyHole(u, i, []),

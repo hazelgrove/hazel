@@ -117,7 +117,7 @@ let rec mk =
           ~show_case_clauses: bool,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_instance: option(TaggedNodeInstance.t),
+          ~selected_hole_instance: option(NodeInstance.t),
           d: DHExp.t,
         )
         : DHDoc_common.t => {
@@ -162,7 +162,7 @@ let rec mk =
                    ~show_fn_bodies,
                    ~show_case_clauses,
                    ~show_casts,
-                   ~selected_instance,
+                   ~selected_hole_instance,
                  ),
                ),
             [DHDoc_common.Delim.close_Case],
@@ -188,10 +188,9 @@ let rec mk =
         DHDoc_common.mk_FreeLivelit(lln, u, i)
       | EmptyHole(u, i, _sigma) =>
         let selected =
-          switch (selected_instance) {
+          switch (selected_hole_instance) {
           | None => false
-          | Some((kind, (u', i'))) =>
-            kind == TaggedNodeInstance.Hole && u == u' && i == i'
+          | Some((u', i')) => u == u' && i == i'
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, _sigma, d) =>
@@ -380,13 +379,18 @@ and mk_rule =
       ~show_casts,
       ~show_fn_bodies,
       ~show_case_clauses,
-      ~selected_instance,
+      ~selected_hole_instance,
       Rule(dp, dclause): DHExp.rule,
     )
     : DHDoc_common.t => {
   open Doc;
   let mk' =
-    mk(~show_casts, ~show_fn_bodies, ~show_case_clauses, ~selected_instance);
+    mk(
+      ~show_casts,
+      ~show_fn_bodies,
+      ~show_case_clauses,
+      ~selected_hole_instance,
+    );
   let hidden_clause =
     annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
   let clause_doc =
