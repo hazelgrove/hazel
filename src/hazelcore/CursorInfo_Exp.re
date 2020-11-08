@@ -382,14 +382,24 @@ and syn_cursor_info_skel =
         zoperand,
       )
     | ZOperator(_) =>
+
+      // if the operator synthesizes a hole, it must have been a free user op,
+      // so we want match it to a 2 argument function.
+      let syn_ty = ty =>
+        switch (ty) {
+        | HTyp.Hole =>
+          CursorInfo_common.SynFreeArrow(Arrow(Hole, Arrow(Hole, Hole)))
+        | ty => Synthesized(ty)
+        };
+
       Statics_Exp.syn_skel(ctx, skel, seq)
-      |> Option.map(ty =>
+      |> Option.map(ty => {
            CursorInfo_common.mk(
-             Synthesized(ty),
+             syn_ty(ty),
              ctx,
              extract_from_zexp_zseq(zseq),
            )
-         )
+         });
     };
   } else {
     // recurse toward cursor
@@ -399,22 +409,23 @@ and syn_cursor_info_skel =
       failwith(
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
-    | BinOp(_, UserOp(op), skel1, _ /*skel2*/) =>
+    | BinOp(_, UserOp(op), skel1, skel2) =>
+      // this case gets called when in operands of a bin user op
       let op_ty =
         switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
         | Some(ty) => ty
         | None => Hole
         };
+      let mk = typed =>
+        CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
 
       switch (HTyp.matched_two_ary_arrow(op_ty)) {
-      | Some((ty1, (_ /*ty2*/, _))) =>
-        let mk = typed =>
-          CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
+      | Some((ty1, (ty2, _))) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
         | Some(_) as result => result
-        | None => Some(mk(SynFreeArrow(Arrow(Hole, Hole)))) // ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
-        };
-      | _ => None
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2) 
+        }
+      | _ => Some(mk(SynFree))
       };
     | BinOp(
         _,
