@@ -598,11 +598,6 @@ let view =
         );
       };
 
-      // TODO fix
-      let caret =
-        program.is_focused
-          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-
       let key_handlers =
         program.is_focused
           ? key_handlers(
@@ -629,8 +624,7 @@ let view =
           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
-        caret
-        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+        [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
