@@ -15,7 +15,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   // | ListNil(ErrStatus.t)
-  | ListLit(ErrStatus.t, option(opseq))
+  | ListLit(ListErrStatus.t, option(opseq))
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
 
@@ -37,7 +37,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 // let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
-let listlit: (~err: ErrStatus.t=?, ~elems: option(opseq)=?, unit) => operand;
+let listlit:
+  (~err: ListErrStatus.t=?, ~elems: option(opseq)=?, unit) => operand;
 
 let get_tuple_elements: skel => list(skel);
 
