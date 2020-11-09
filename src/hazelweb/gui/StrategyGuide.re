@@ -8,14 +8,9 @@ module Vdom = Virtual_dom.Vdom;
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   let (vars, _) = ctx;
   let can_extract = ((_, ty: HTyp.t)) => {
-    if HTyp.consistent(ty, typ) {
-      true;
-    }
-    else {
-      false;
-    }
+    HTyp.consistent(ty, typ);
   };
-  let extracted_vars = vars |> VarMap.filter(can_extract);
+  vars |> VarMap.filter(can_extract);
 };
 
 /**
@@ -74,15 +69,35 @@ let list_vars_view = (vars: VarCtx.t) => {
   VarMap.map(
     ((var, ty)) => {
       Vdom.(
-        Node.div(
-          [Attr.classes(["option"])],
-          [Node.text(var ++ " : ")],
-        ),
+        Node.div([Attr.classes(["option"])], [Node.text(var ++ " : ")]),
         HTypCode.view(ty),
       )
     },
     vars,
   );
+};
+
+let branch_vars_view = (ctx: Contexts.t) => {
+  let (vars, _) = ctx;
+  List.map(
+    ((var, ty)) => {
+      Vdom.(
+        Node.div(
+          [Attr.classes(["mini-option"])],
+          [Node.text(var ++ " : "), HTypCode.view(ty)],
+        )
+      )
+    },
+    vars,
+  )
+  |> List.append([
+       Vdom.(
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [Node.text("Empty hole" ++ " : "), HTypCode.view(HTyp.Hole)],
+         )
+       ),
+     ]);
 };
 
 let view =
@@ -99,7 +114,7 @@ let view =
   let ty = get_type(cursor_info);
   let ctx = cursor_info.ctx;
 
-  let _ = typ;
+  let _ = ty;
   let _ = ctx;
 
   let fill_hole_msg =
@@ -320,53 +335,8 @@ let view =
             [
               Node.div(
                 [Attr.classes([])],
-                [
-                  Node.text("Branch on..."),
-                  Node.div(
-                    [Attr.classes(["mini-option"])],
-                    [Node.text("Empty Hole : "), HTypCode.view(Hole)],
-                  ),
-                  Node.div(
-                    [Attr.classes(["mini-option"])],
-                    [
-                      Node.div(
-                        [Attr.classes(["code-font"])],
-                        [Node.text("raw_score : ")],
-                      ),
-                      HTypCode.view(Float),
-                    ],
-                  ),
-                  Node.div(
-                    [Attr.classes(["mini-option"])],
-                    [
-                      Node.div(
-                        [Attr.classes(["code-font"])],
-                        [Node.text("bonus_question : ")],
-                      ),
-                      HTypCode.view(Bool),
-                    ],
-                  ),
-                  Node.div(
-                    [Attr.classes(["mini-option"])],
-                    [
-                      Node.div(
-                        [Attr.classes(["code-font"])],
-                        [Node.text("scores_and_bonuses : ")],
-                      ),
-                      HTypCode.view(List(Prod([Float, Bool]))),
-                    ],
-                  ),
-                  Node.div(
-                    [Attr.classes(["mini-option"])],
-                    [
-                      Node.div(
-                        [Attr.classes(["code-font"])],
-                        [Node.text("bonus : ")],
-                      ),
-                      HTypCode.view(Float),
-                    ],
-                  ),
-                ],
+                [Node.text("Branch on...")]
+                @ branch_vars_view(cursor_info.ctx),
               ),
             ],
           ),
