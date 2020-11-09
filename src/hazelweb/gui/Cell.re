@@ -13,7 +13,6 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
     () => {
       open Vdom;
       let program = Model.get_program(model);
-      let (_, _, llii, _) = Program.get_result(program);
       Node.div(
         [Attr.id(cell_id)],
         [
@@ -30,7 +29,6 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,
                 ~selected_instances=model.selected_instances,
-                ~llii,
                 ~sync_livelit,
                 program,
               ),

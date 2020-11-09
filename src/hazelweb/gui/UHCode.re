@@ -77,6 +77,88 @@ let decoration_container =
   );
 };
 
+// need to use mousedown instead of click to fire
+// (and move caret) before cell focus event handler
+let on_mousedown =
+    (
+      ~inject,
+      ~id: string,
+      ~font_metrics: FontMetrics.t,
+      ~splice: Program.current_splice,
+      evt,
+    ) => {
+  open Vdom;
+  let container_rect = JSUtil.force_get_elem_by_id(id)##getBoundingClientRect;
+  let (target_x, target_y) = (
+    float_of_int(evt##.clientX),
+    float_of_int(evt##.clientY),
+  );
+  let row_col =
+    MeasuredPosition.{
+      row:
+        Float.to_int(
+          (target_y -. container_rect##.top) /. font_metrics.row_height,
+        ),
+      col:
+        Float.to_int(
+          Float.round(
+            (target_x -. container_rect##.left) /. font_metrics.col_width,
+          ),
+        ),
+    };
+  Event.Many([
+    inject(ModelAction.MoveAction(Click(splice, row_col))),
+    Event.Stop_propagation,
+  ]);
+};
+
+let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
+let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
+  Vdom.(
+    switch (WeakMap.get(box_table, box)) {
+    | Some(vs) => vs
+    | None =>
+      switch (box) {
+      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+      | VBox(boxes) =>
+        let vs =
+          boxes
+          |> List.map(view_of_box)
+          |> ListUtil.join([Node.br([])])
+          |> List.flatten;
+        [Node.div([Attr.classes(["VBox"])], vs)];
+      | Annot(annot, box) =>
+        let vs = view_of_box(box);
+        switch (annot) {
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text(_) => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | HoleLabel({len}) =>
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | ValidSeq => [Node.span([Attr.classes(["ValidSeq"])], vs)]
+        | InvalidSeq => [Node.span([Attr.classes(["InvalidSeq"])], vs)]
+        | String => [Node.span([Attr.classes(["String"])], vs)]
+        | _ => vs
+        };
+      }
+    }
+  );
+};
+
 let decoration_views =
     (
       ~inject,
@@ -193,8 +275,7 @@ let decoration_views =
         let livelit_view = llview(m, trigger, sync);
         let vs = {
           let uhcode = splice_name => {
-            let splice_l =
-              splice_ls |> SpliceMap.get_splice(llu, splice_name);
+            let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
             let caret =
               switch (current_splice) {
@@ -210,9 +291,9 @@ let decoration_views =
                 |> UHDecorationPaths.take_step(hd_step)
                 |> UHDecorationPaths.take_step(splice_name);
               UHDecorationPaths.is_empty(stepped)
-                ? [] : go(stepped, splice_l);
+                ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
             };
-            let splice_code = code_text_view(Box.mk(splice_l));
+            let splice_code = view_of_box(UHBox.mk(splice_l));
             Vdom.(
               Node.div(
                 [
@@ -333,14 +414,12 @@ let decoration_views =
 
   let root_caret =
     switch (current_splice) {
-    | None when is_focused => [Dec.caret_view(~font_metrics, caret_pos)]
+    | None when is_focused => [
+        UHDecoration.Caret.view(~font_metrics, caret_pos),
+      ]
     | _ => []
     };
-  let m_with_splices = (
-    UHMeasuredLayout.mk(l),
-    splice_ls |> SpliceMap.map(UHMeasuredLayout.mk),
-  );
-  let root_ds = go(dpaths, m_with_splices);
+  let root_ds = go(dpaths, UHMeasuredLayout.mk(l));
   root_caret @ root_ds;
 };
 
@@ -451,53 +530,6 @@ let key_handlers =
   ];
 };
 
-let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
-let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
-  Vdom.(
-    switch (WeakMap.get(box_table, box)) {
-    | Some(vs) => vs
-    | None =>
-      switch (box) {
-      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
-      | VBox(boxes) =>
-        let vs =
-          boxes
-          |> List.map(view_of_box)
-          |> ListUtil.join([Node.br([])])
-          |> List.flatten;
-        [Node.div([Attr.classes(["VBox"])], vs)];
-      | Annot(annot, box) =>
-        let vs = view_of_box(box);
-        switch (annot) {
-        | Token({shape, _}) =>
-          let clss =
-            switch (shape) {
-            | Text => ["code-text"]
-            | Op => ["code-op"]
-            | Delim(_) => ["code-delim"]
-            };
-          [Node.span([Attr.classes(clss)], vs)];
-        | HoleLabel({len}) =>
-          let width = Css_gen.width(`Ch(float_of_int(len)));
-          [
-            Node.span(
-              [Attr.style(width), Attr.classes(["HoleLabel"])],
-              [Node.span([Attr.classes(["HoleNumber"])], vs)],
-            ),
-          ];
-        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-        | ValidSeq => [Node.span([Attr.classes(["ValidSeq"])], vs)]
-        | InvalidSeq => [Node.span([Attr.classes(["InvalidSeq"])], vs)]
-        | String => [Node.span([Attr.classes(["String"])], vs)]
-        | _ => vs
-        };
-      }
-    }
-  );
-};
-
 let root_id = "code-root";
 
 let focus = () => {
@@ -529,7 +561,6 @@ let view =
           ~memoize_doc=true,
           program,
         );
-      let code_text = code_text_view(Box.mk(l));
 
       let (caret_pos, current_splice) =
         Program.get_caret_position(
@@ -546,28 +577,21 @@ let view =
         decoration_views(
           ~inject,
           ~font_metrics,
+          ~is_focused=program.is_focused,
           ~current_splice,
           ~caret_pos,
           ~selected_instances,
           ~llii,
           ~sync_livelit,
           dpaths,
-          l,
+          (l, splice_ls),
         );
       };
 
-      let caret = {
-        // TODO still need this?
-        let caret_pos =
-          Program.get_caret_position(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          );
+      // TODO fix
+      let caret =
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-      };
 
       let key_handlers =
         program.is_focused
@@ -580,44 +604,23 @@ let view =
             )
           : [];
 
-      let click_handler = (~splice: Program.current_splice, evt) => {
-        // TODO splice logic
-        let container_rect =
-          JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
-        let (target_x, target_y) = (
-          float_of_int(evt##.clientX),
-          float_of_int(evt##.clientY),
-        );
-        let caret_pos =
-          MeasuredPosition.{
-            row:
-              Float.to_int(
-                (target_y -. container_rect##.top) /. font_metrics.row_height,
-              ),
-            col:
-              Float.to_int(
-                Float.round(
-                  (target_x -. container_rect##.left) /. font_metrics.col_width,
-                ),
-              ),
-          };
-        inject(ModelAction.MoveAction(Click(splice, caret_pos)));
-      };
-
       Node.div(
         [
           Attr.id(root_id),
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler
-          Attr.on_mousedown(~splice=None, click_handler),
+          Attr.on_mousedown(
+            on_mousedown(~inject, ~id=root_id, ~font_metrics, ~splice=None),
+          ),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),
           Attr.on_focus(_ => inject(ModelAction.FocusCell)),
           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
-        [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+        caret
+        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
   );
