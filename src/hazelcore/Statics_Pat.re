@@ -267,7 +267,7 @@ and ana_nth_type_mode =
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
-    syn_nth_type_mode(ctx, n, opseq |> UHPat.set_err_status_opseq(NotInHole))
+    syn_nth_type_mode(ctx, n, UHPat.set_err_status_opseq(NotInHole, opseq))
   | Some(skel_tys) =>
     let (nskel, nty) =
       skel_tys
@@ -364,15 +364,23 @@ and syn_fix_holes_skel =
     let (skels, tys) = List.split(pairs);
     (UHPat.mk_tuple(skels), seq, Prod(tys), ctx, u_gen);
   | BinOp(_, Space, skel1, skel2) =>
-    let (skel1, seq, ctx, u_gen) =
-      ana_fix_holes_skel(
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        skel1,
-        seq,
-        HTyp.Hole,
-      );
+    let (skel1, seq, ctx, u_gen) = {
+      let (skel1, seq, ty, ctx, u_gen) =
+        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+      let (skel1, seq, u_gen) =
+        switch (HTyp.matched_arrow(ty)) {
+        | Some(_) => (skel1, seq, u_gen)
+        | None =>
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+          let OpSeq(skel1, seq) =
+            UHPat.set_err_status_opseq(
+              InHole(TypeInconsistent(None), u),
+              OpSeq(skel1, seq),
+            );
+          (skel1, seq, u_gen);
+        };
+      (skel1, seq, ctx, u_gen);
+    };
     let (skel2, seq, ctx, u_gen) =
       ana_fix_holes_skel(
         ctx,
@@ -575,15 +583,23 @@ and ana_fix_holes_skel =
     let seq = seq |> Seq.update_nth_operand(n, pn);
     (skel, seq, ctx, u_gen);
   | BinOp(_, Space, skel1, skel2) =>
-    let (skel1, seq, ctx, u_gen) =
-      ana_fix_holes_skel(
-        ctx,
-        u_gen,
-        ~renumber_empty_holes,
-        skel1,
-        seq,
-        HTyp.Hole,
-      );
+    let (skel1, seq, ctx, u_gen) = {
+      let (skel1, seq, ty, ctx, u_gen) =
+        syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+      let (skel1, seq, u_gen) =
+        switch (HTyp.matched_arrow(ty)) {
+        | Some(_) => (skel1, seq, u_gen)
+        | None =>
+          let (u, u_gen) = MetaVarGen.next_hole(u_gen);
+          let OpSeq(skel1, seq) =
+            UHPat.set_err_status_opseq(
+              InHole(TypeInconsistent(None), u),
+              OpSeq(skel1, seq),
+            );
+          (skel1, seq, u_gen);
+        };
+      (skel1, seq, ctx, u_gen);
+    };
     let (skel2, seq, ctx, u_gen) =
       ana_fix_holes_skel(
         ctx,

@@ -211,7 +211,7 @@ let view =
                           Attr.on_click(_ => {
                             let e = program |> Program.get_uhexp;
                             JSUtil.log(
-                              Js.string(Serialize.string_of_exp(e)),
+                              Js.string(Serialization.string_of_exp(e)),
                             );
                             Event.Ignore;
                           }),

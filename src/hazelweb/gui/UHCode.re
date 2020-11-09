@@ -226,11 +226,21 @@ let decoration_views =
                    switch (dshape) {
                    | ErrHole => (
                        "err-hole",
-                       ErrHole.view(~corner_radii, (offset, m)),
+                       ErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
                      )
                    | VarErrHole => (
                        "var-err-hole",
-                       VarErrHole.view(~corner_radii, (offset, m)),
+                       VarErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
                      )
                    | VarUse => (
                        "var-use",

@@ -348,10 +348,9 @@ let nearest_path_within_row =
            let is_left = from_start + from_start <= len;
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Text({start_index}) => (
-                 OnText(start_index + from_start),
-                 from_start,
-               )
+             | Text({start_index}) =>
+               let offset = min(from_start, len);
+               (OnText(start_index + offset), offset);
              | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Delim(k) =>
                is_left ? (OnDelim(k, Before), 0) : (OnDelim(k, After), len)

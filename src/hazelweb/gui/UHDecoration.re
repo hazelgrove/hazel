@@ -38,44 +38,6 @@ let rects =
   |> snd;
 };
 
-module ErrHole = {
-  let view =
-      (
-        ~corner_radii: (float, float),
-        (offset, subject): UHMeasuredLayout.with_offset,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects({row: 0, col: offset})
-    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.Path.view(
-         ~attrs=
-           Vdom.Attr.[
-             classes(["err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
-};
-
-module VarErrHole = {
-  let view =
-      (
-        ~corner_radii: (float, float),
-        (offset, subject): UHMeasuredLayout.with_offset,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects({row: 0, col: offset})
-    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
-    |> SvgUtil.Path.view(
-         ~attrs=
-           Vdom.Attr.[
-             classes(["var-err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
-};
-
 module VarUse = {
   let view =
       (
@@ -462,6 +424,56 @@ module CurrentTerm = {
       )
     );
   };
+};
+
+module ErrHole = {
+  let view =
+      (
+        ~contains_current_term: bool,
+        ~corner_radii: (float, float),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Vdom.Node.t =>
+    subject
+    |> rects(
+         ~vtrim=
+           contains_current_term
+             ? 0.0 : CurrentTerm.inline_open_child_border_height,
+         {row: 0, col: offset},
+       )
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Vdom.Attr.[
+             classes(["err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
+};
+
+module VarErrHole = {
+  let view =
+      (
+        ~contains_current_term: bool,
+        ~corner_radii: (float, float),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Vdom.Node.t =>
+    subject
+    |> rects(
+         ~vtrim=
+           contains_current_term
+             ? 0.0 : CurrentTerm.inline_open_child_border_height,
+         {row: 0, col: offset},
+       )
+    |> SvgUtil.OrthogonalPolygon.mk(~corner_radii)
+    |> SvgUtil.Path.view(
+         ~attrs=
+           Vdom.Attr.[
+             classes(["var-err-hole"]),
+             create("vector-effect", "non-scaling-stroke"),
+           ],
+       );
 };
 
 module Caret = {
