@@ -12,7 +12,7 @@ and zline =
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)
-  | ListLitZ(ErrStatus.t, zopseq)
+  | ListLitZ(ListErrStatus.t, zopseq)
   | ParenthesizedZ(t)
   | LamZP(ErrStatus.t, ZPat.t, option(UHTyp.t), UHExp.t)
   | LamZA(ErrStatus.t, UHPat.t, ZTyp.t, UHExp.t)
@@ -37,7 +37,8 @@ type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
 type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
-let listlitz = (~err: ErrStatus.t=NotInHole, zopseq): zoperand =>
+let listlitz =
+    (~err: ListErrStatus.t=StandardErrStatus(NotInHole), zopseq): zoperand =>
   ListLitZ(err, zopseq);
 
 let prune_type_annotation: zoperand => zoperand =
@@ -528,7 +529,8 @@ and set_err_status_zoperand = (err, zoperand) =>
   | CursorE(cursor, operand) =>
     CursorE(cursor, UHExp.set_err_status_operand(err, operand))
   | ParenthesizedZ(zbody) => ParenthesizedZ(set_err_status(err, zbody))
-  | ListLitZ(_, zopseq) => ListLitZ(err, set_err_status_zopseq(err, zopseq))
+  | ListLitZ(_, zopseq) =>
+    ListLitZ(StandardErrStatus(err), set_err_status_zopseq(err, zopseq))
   | LamZP(_, zp, ann, body) => LamZP(err, zp, ann, body)
   | LamZA(_, p, zann, body) => LamZA(err, p, zann, body)
   | LamZE(_, p, ann, zbody) => LamZE(err, p, ann, zbody)

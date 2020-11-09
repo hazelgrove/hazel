@@ -5,7 +5,7 @@ and zoperand =
   | CursorP(CursorPosition.t, UHPat.operand)
   | ParenthesizedZ(t)
   | InjZ(ErrStatus.t, InjSide.t, t)
-  | ListLitZ(ErrStatus.t, zopseq)
+  | ListLitZ(ListErrStatus.t, zopseq)
 and zoperator = (CursorPosition.t, UHPat.operator);
 
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
@@ -32,7 +32,8 @@ let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
 
-let listlitz = (~err: ErrStatus.t=NotInHole, zopseq): zoperand =>
+let listlitz =
+    (~err: ListErrStatus.t=StandardErrStatus(NotInHole), zopseq): zoperand =>
   ListLitZ(err, zopseq);
 
 let is_valid_cursor_operand =
@@ -51,7 +52,7 @@ and set_err_status_zoperand = (err, zoperand) =>
   | CursorP(cursor, operand) =>
     CursorP(cursor, operand |> UHPat.set_err_status_operand(err))
   | ParenthesizedZ(zp) => ParenthesizedZ(set_err_status(err, zp))
-  | ListLitZ(_, zp) => ListLitZ(err, zp)
+  | ListLitZ(_, zp) => ListLitZ(StandardErrStatus(err), zp)
   | InjZ(_, inj_side, zp) => InjZ(err, inj_side, zp)
   };
 

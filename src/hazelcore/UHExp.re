@@ -20,7 +20,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   // | ListNil(ErrStatus.t)
-  | ListLit(ErrStatus.t, option(opseq))
+  | ListLit(ListErrStatus.t, option(opseq))
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -81,7 +81,12 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
-let listlit = (~err: ErrStatus.t=NotInHole, ~elems: option(opseq), ()) =>
+let listlit =
+    (
+      ~err: ListErrStatus.t=StandardErrStatus(NotInHole),
+      ~elems: option(opseq),
+      (),
+    ) =>
   ListLit(err, elems);
 
 module Line = {
@@ -195,11 +200,12 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   // | ListNil(err)
-  | ListLit(err, _)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
+  | ListLit(StandardErrStatus(err), _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _) => err
+  | ListLit(InconsistentBranches(_), _)
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -221,7 +227,7 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   // | ListNil(_) => ListNil(err)
-  | ListLit(_, opseq) => ListLit(err, opseq)
+  | ListLit(_, opseq) => ListLit(StandardErrStatus(err), opseq)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
@@ -256,7 +262,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   // | ListNil(InHole(TypeInconsistent, _))
-  | ListLit(InHole(TypeInconsistent, _), _)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
@@ -267,7 +273,11 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   // | ListNil(NotInHole | InHole(WrongLength, _))
-  | ListLit(NotInHole | InHole(WrongLength, _), _)
+  | ListLit(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
+      _,
+    )
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
@@ -354,8 +364,9 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
-  | ListLit(InHole(_), _) => false
-  | ListLit(NotInHole, _) => true
+  | ListLit(StandardErrStatus(InHole(_)) | InconsistentBranches(_, _), _) =>
+    false
+  | ListLit(StandardErrStatus(NotInHole), _) => true
   | Lam(InHole(_), _, _, _) => false
   | Lam(NotInHole, pat, option_ty, body) =>
     if (check_type_holes) {

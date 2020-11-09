@@ -49,7 +49,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZPat.ListLitZ(err, zbody))
+        |> OptUtil.map2(zbody => ZPat.ListLitZ(err, zbody))
       | _ => None
       }
     | Inj(err, side, body) =>
