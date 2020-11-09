@@ -21,6 +21,7 @@ let caret_position_of_path =
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
         | (OnText(j), Text) => Some({...start, col: start.col + j})
+        | (OnText(j), Op) => Some({...start, col: start.col + j})
         | (OnOp(Before), Op) => Some(start)
         | (OnOp(After), Op) => Some({...start, col: start.col + len})
         | (OnDelim(k, side), Delim(k')) when k == k' =>
@@ -237,7 +238,9 @@ let prev_path_within_row =
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
                | Text => (OnText(from_start - 1), 1)
-               | Op => (OnOp(Before), len)
+               | Op =>
+                 from_start - 1 == 0
+                   ? (OnOp(Before), len) : (OnText(from_start - 1), 1)
                | Delim(k) => (OnDelim(k, Before), len)
                };
              Some(((cursor, rev_steps), {...from, col: from.col - offset}));
@@ -281,7 +284,9 @@ let next_path_within_row =
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
                | Text => (OnText(from_start + 1), 1)
-               | Op => (OnOp(After), len)
+               | Op =>
+                 from_start + 1 == len
+                   ? (OnOp(After), len) : (OnText(from_start + 1), 1)
                | Delim(k) => (OnDelim(k, After), len)
                };
              Some(((cursor, rev_steps), {...from, col: from.col + offset}));
@@ -325,7 +330,7 @@ let nearest_path_within_row =
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
              | Text => (OnText(from_start), from_start)
-             | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
+             | Op => (OnText(from_start), from_start) // is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Delim(k) =>
                is_left ? (OnDelim(k, Before), 0) : (OnDelim(k, After), len)
              };
