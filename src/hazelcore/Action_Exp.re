@@ -1152,9 +1152,7 @@ and syn_perform_opseq =
     : ActionOutcome.t(syn_success) =>
   switch (a, zseq) {
   /* Invalid cursor positions */
-  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) =>
-    print_endline("failed on move around operator");
-    Failed;
+  | (_, ZOperator((OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
   | (UpdateApPalette(_), ZOperator(_)) => Failed
@@ -1244,6 +1242,10 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
+  // TODO (corlaban) add logic for these cases
+  | (Backspace, ZOperator((OnText(_), _), _))
+  | (Delete, ZOperator((OnText(_), _), _)) => Failed
+
   /* Construction */
 
   /* Making Float Operators from Int Operators */
@@ -1274,17 +1276,16 @@ and syn_perform_opseq =
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
   /* ...while construction of operators on operators creates user defined operator symbols,...*/
   | (Construct(SOp(os)), ZOperator((pos, oper), seq)) =>
-    let oper_string = Operators_Exp.to_string(oper);
+    let existing_op = Operators_Exp.to_string(oper);
+    let inserted_op =
+      String.sub(Action_common.shape_to_string(SOp(os)), 0, 1);
+
     let new_operator_string =
       switch (pos) {
-      | OnText(_)
+      | OnText(i) => StringUtil.insert(i, inserted_op, existing_op)
       | OnDelim(_, _)
-      | OnOp(After) =>
-        oper_string
-        ++ String.sub(Action_common.shape_to_string(SOp(os)), 0, 1)
-      | OnOp(Before) =>
-        String.sub(Action_common.shape_to_string(SOp(os)), 0, 1)
-        ++ oper_string
+      | OnOp(After) => existing_op ++ inserted_op
+      | OnOp(Before) => inserted_op ++ existing_op
       };
 
     let new_zoperator = (pos, Operators_Exp.UserOp(new_operator_string));
