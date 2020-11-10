@@ -70,7 +70,7 @@ let first_op_of_user_op = (op: string) => {
     failwith(
       "Error: invalid operator symbol provided to user defined operator.",
     )
-  | _ => operator_of_char(op.[0])
+  | _ => operator_of_char(String.get(op, 0))
   };
 };
 
