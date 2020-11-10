@@ -1210,9 +1210,21 @@ and syn_perform_opseq =
     syn_perform(ctx, Backspace, (new_ze, ty, u_gen)) |> wrap_in_SynDone;
 
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, ZOperator((OnOp(After), _), surround)) =>
-    let new_zseq = delete_operator(surround);
-    Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+  | (Backspace, ZOperator((OnOp(After), op), surround)) =>
+    switch (op) {
+    | UserOp(op) =>
+      let new_op = String.sub(op, 1, String.length(op) - 1);
+      let new_zoperator = (
+        CursorPosition.OnOp(After),
+        Operators_Exp.UserOp(new_op),
+      );
+      let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+
+    | _ =>
+      let new_zseq = delete_operator(surround);
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    }
 
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
@@ -1280,19 +1292,35 @@ and syn_perform_opseq =
     let inserted_op =
       String.sub(Action_common.shape_to_string(SOp(os)), 0, 1);
 
-    let new_operator_string =
-      switch (pos) {
-      | OnText(i) => StringUtil.insert(i, inserted_op, existing_op)
-      | OnDelim(_, _)
-      | OnOp(After) => existing_op ++ inserted_op
-      | OnOp(Before) => inserted_op ++ existing_op
+    let new_operator =
+      switch (pos, oper) {
+      | (
+          _,
+          FPlus | FMinus | FTimes | FDivide | FLessThan | FGreaterThan |
+          FEquals,
+        ) =>
+        None
+      | (OnText(i), _) =>
+        Some(
+          Operators_Exp.UserOp(
+            StringUtil.insert(i, inserted_op, existing_op),
+          ),
+        )
+      | (OnDelim(_, _), _)
+      | (OnOp(After), _) =>
+        Some(Operators_Exp.UserOp(existing_op ++ inserted_op))
+      | (OnOp(Before), _) =>
+        Some(Operators_Exp.UserOp(inserted_op ++ existing_op))
       };
 
-    let new_zoperator = (pos, Operators_Exp.UserOp(new_operator_string));
-    let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
-    let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
-
-    Succeeded(SynDone((exp, ty, meta_var)));
+    switch (new_operator) {
+    | Some(new_operator) =>
+      let new_zoperator = (pos, new_operator);
+      let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+      let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+      Succeeded(SynDone((exp, ty, meta_var)));
+    | _ => Failed
+    };
   /* ...and construction of operands is applied after movement.*/
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
