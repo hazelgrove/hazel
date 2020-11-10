@@ -13,6 +13,8 @@ let domain (m : 'a hole_map) : Hole_set.t =
 
 (* Hole map functions *)
 
+let delete k map = Hole_map.remove k map
+
 let delete_min map =
   let open Option2.Syntax in
   let+ k, v = Hole_map.min_binding_opt map in
