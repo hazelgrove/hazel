@@ -1213,11 +1213,12 @@ and syn_perform_opseq =
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
     switch (op) {
     | UserOp(op) =>
-      let new_op = String.sub(op, 1, String.length(op) - 1);
-      let new_zoperator = (
-        CursorPosition.OnOp(After),
-        Operators_Exp.UserOp(new_op),
-      );
+      let new_op = String.sub(op, 0, String.length(op) - 1);
+      let new_zoperator =
+        switch (Operators_Exp.string_to_operator(new_op)) {
+        | Some(ty) => (CursorPosition.OnOp(After), ty)
+        | None => (CursorPosition.OnOp(After), Operators_Exp.UserOp(new_op))
+        };
       let new_zseq = ZSeq.ZOperator(new_zoperator, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
