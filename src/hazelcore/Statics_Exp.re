@@ -955,6 +955,11 @@ and syn_fix_holes_skel =
            (u_gen, seq),
          );
     let (skels, tys) = List.split(pairs);
+    // ECD: You are here
+    let (seq, tys) =
+      UHExp.find_and_clear_dupe_holes_labels_tuple(skels, tys, seq, u_gen);
+    let (seq, tys) =
+      UHExp.find_and_set_dupe_labels_tuple(skels, tys, seq, u_gen);
     (UHExp.mk_tuple(skels), seq, Prod(tys), u_gen);
   | BinOp(_, Cons, skel1, skel2) =>
     let (skel1, seq, ty_elt, u_gen) =

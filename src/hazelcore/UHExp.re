@@ -156,6 +156,172 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
+// ECD: You are here, need to write find and set label tuples to go through list finding labels and then calling set duplicate label tuples
+// to find if any duplicate labels exist.  If so, set them to be duplicate and then in find and set labels tuples
+// set the offending duplicate label to also be a duplicate
+let rec set_duplicate_tuple_labels =
+        (
+          elements: list(skel),
+          types: list(HTyp.t),
+          seq: seq,
+          u_gen: MetaVarGen.t,
+          l: Label.t,
+        )
+        : (seq, list(HTyp.t), bool) => {
+  assert(List.length(elements) == List.length(types));
+  print_endline("In set_duplicate_tuple_labels");
+  switch (elements, types) {
+  | ([], _)
+  | (_, []) => (seq, [], false)
+  | ([skel, ...skels], [typ, ...types_tail]) =>
+    let (seq, types_tail, changed) =
+      set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+    print_endline(
+      "Types tail in set duplicates afte rec call length "
+      ++ string_of_int(List.length(types_tail)),
+    );
+    switch (skel) {
+    | BinOp(NotInHole, Space, Placeholder(n), _) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      | Label(NotInLabelHole, l')
+      | Label(InLabelHole(Duplicate, _), l') =>
+        if (l == l') {
+          let e_duplicate = Label(InLabelHole(Duplicate, u_gen), l);
+          let seq = seq |> Seq.update_nth_operand(n, e_duplicate);
+          (seq, [HTyp.Hole, ...types_tail], true);
+        } else {
+          (seq, [typ, ...types_tail], changed);
+        }
+      | _ => (seq, [typ, ...types_tail], changed)
+      };
+    | _ => (seq, [typ, ...types_tail], changed)
+    };
+  };
+};
+let rec find_and_set_dupe_labels_tuple =
+        (
+          elements: list(skel),
+          types: list(HTyp.t),
+          seq: seq,
+          u_gen: MetaVarGen.t,
+        )
+        : (seq, list(HTyp.t)) => {
+  assert(List.length(elements) == List.length(types));
+  print_endline("in find and set labels tuple");
+  switch (elements, types) {
+  | ([], _)
+  | (_, []) => (seq, [])
+  | ([skel, ...skels], [typ, ...types_tail]) =>
+    switch (skel) {
+    | BinOp(NotInHole, Space, Placeholder(n), _) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      // Only set as a duplicate label for labels not already in a hole
+      | Label(NotInLabelHole, l) =>
+        print_endline("in label case");
+        let (seq, types_tail, changed) =
+          set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        if (changed) {
+          print_endline("In Changed case for labels");
+          let e_duplicate = Label(InLabelHole(Duplicate, u_gen), l);
+          let seq = seq |> Seq.update_nth_operand(n, e_duplicate);
+          let (seq, types_tail) =
+            find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+          (seq, [typ, ...types_tail]);
+        } else {
+          print_endline("In not changed case for labels");
+          let (seq, types_tail) =
+            find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+          (seq, [typ, ...types_tail]);
+        };
+      | Label(InLabelHole(Duplicate, _), l) =>
+        let (seq, types_tail, _) =
+          set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        (seq, [typ, ...types_tail]);
+      // If no label not in a hole, continue recursing
+      | _ =>
+        print_endline("In no labels case");
+        let (seq, types_tail) =
+          find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+        (seq, [typ, ...types_tail]);
+      };
+    | _ =>
+      print_endline("In no Binop case");
+      let (seq, types_tail) =
+        find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+      (seq, [typ, ...types_tail]);
+    }
+  };
+};
+
+let rec find_and_clear_dupe_holes_labels_tuple =
+        (
+          elements: list(skel),
+          types: list(HTyp.t),
+          seq: seq,
+          u_gen: MetaVarGen.t,
+        )
+        : (seq, list(HTyp.t)) => {
+  assert(List.length(elements) == List.length(types));
+  print_endline("in find and set labels tuple");
+  switch (elements, types) {
+  | ([], _)
+  | (_, []) => (seq, [])
+  | ([skel, ...skels], [typ, ...types_tail]) =>
+    switch (skel) {
+    | BinOp(NotInHole, Space, Placeholder(n), _) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      // Only set as a duplicate label for labels not already in a hole
+      | Label(InLabelHole(Duplicate, _), l) =>
+        print_endline("in label case");
+        let (seq, types_tail, changed) =
+          set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        if (changed) {
+          let (seq, types_tail) =
+            find_and_clear_dupe_holes_labels_tuple(
+              skels,
+              types_tail,
+              seq,
+              u_gen,
+            );
+          (seq, [typ, ...types_tail]);
+        } else {
+          print_endline("In Changed case for labels");
+          let e_nohole = Label(NotInLabelHole, l);
+          let seq = seq |> Seq.update_nth_operand(n, e_nohole);
+          print_endline("In not changed case for labels");
+          let (seq, types_tail) =
+            find_and_clear_dupe_holes_labels_tuple(
+              skels,
+              types_tail,
+              seq,
+              u_gen,
+            );
+          (seq, [typ, ...types_tail]);
+        };
+      // If no label not in a hole, continue recursing
+      | _ =>
+        print_endline("In no labels case");
+        let (seq, types_tail) =
+          find_and_clear_dupe_holes_labels_tuple(
+            skels,
+            types_tail,
+            seq,
+            u_gen,
+          );
+        (seq, [typ, ...types_tail]);
+      };
+    | _ =>
+      print_endline("In no Binop case");
+      let (seq, types_tail) =
+        find_and_clear_dupe_holes_labels_tuple(skels, types_tail, seq, u_gen);
+      (seq, [typ, ...types_tail]);
+    }
+  };
+};
+
 let new_InvalidText =
     (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);

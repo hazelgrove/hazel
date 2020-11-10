@@ -81,6 +81,16 @@ let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
+let set_duplicate_tuple_labels:
+  (list(skel), list(HTyp.t), seq, MetaVarGen.t, Label.t) =>
+  (seq, list(HTyp.t), bool);
+
+let find_and_set_dupe_labels_tuple:
+  (list(skel), list(HTyp.t), seq, MetaVarGen.t) => (seq, list(HTyp.t));
+
+let find_and_clear_dupe_holes_labels_tuple:
+  (list(skel), list(HTyp.t), seq, MetaVarGen.t) => (seq, list(HTyp.t));
+
 let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
 
 /* helper function for constructing a new empty hole */

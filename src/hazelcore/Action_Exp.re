@@ -1366,14 +1366,6 @@ and syn_perform_opseq =
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
-    print_endline(__LOC__ ++ " n is " ++ string_of_int(n));
-    let OpSeq(skel, seq) = zopseq |> ZExp.erase_zopseq;
-    print_endline(
-      "Skel is " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_skel(skel)),
-    );
-    print_endline(
-      "Seq is " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_seq(seq)),
-    );
     switch (
       Statics_Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
     ) {
