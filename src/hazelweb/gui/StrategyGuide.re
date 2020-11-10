@@ -62,6 +62,34 @@ let get_type = (cursor_info: CursorInfo_common.t) => {
 };
 
 /**
+ * Gets the type in string format.
+ * Return string
+ */
+let type_to_str = (ty: option(HTyp.t)) => {
+  switch (ty) {
+  | Some(Hole) => "Hole"
+  | Some(Int) => "Integer"
+  | Some(Float) => "Boolean"
+  | Some(Arrow(_, _)) => "Function"
+  | Some(Sum(_, _)) => "Sum"
+  | Some(Prod(_)) => "Product"
+  | Some(List(_)) => "List"
+  | _ => raise(Invalid_argument("No Literal"))
+  };
+};
+
+/**
+ * Gets the type from the option type argument.
+ * Return HTyp.t
+ */
+let extract_literal = (ty: option(HTyp.t)) => {
+  switch (ty) {
+  | Some(ty_) => ty_
+  | _ => raise(Invalid_argument("No Literal"))
+  };
+};
+
+/**
  * Create a list of divs for the var options that will be shown.
  * Return list of Node.t
  */
@@ -152,7 +180,7 @@ let view =
             ])
           ),
         ],
-        [Node.text("Function Literal"), lit_arrow],
+        [Node.text(type_to_str(ty) ++ " literal"), lit_arrow],
       )
     );
   let lit_body_1 =
@@ -163,8 +191,8 @@ let view =
           Node.div(
             [Attr.classes(["option"])],
             [
-              Node.text("Create new list : "),
-              HTypCode.view(List(Prod([Float, Bool]))),
+              Node.text("Create new " ++ type_to_str(ty) ++ " : "),
+              HTypCode.view(extract_literal(ty)),
             ],
           ),
         ],
