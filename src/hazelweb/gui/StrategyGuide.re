@@ -105,6 +105,10 @@ let list_vars_view = (vars: VarCtx.t) => {
   );
 };
 
+/**
+ * Create a list of divs for the branch var options that will be shown.
+ * Return list of Node.t
+ */
 let branch_vars_view = (ctx: Contexts.t) => {
   let (vars, _) = ctx;
   List.map(
@@ -126,6 +130,51 @@ let branch_vars_view = (ctx: Contexts.t) => {
          )
        ),
      ]);
+};
+
+/**
+ * Create a div containing divs for all arithmetic operation options that will be shown.
+ * Return a Node.t
+ */
+let other_arithmetic_options = cursor_info => {
+  open Vdom;
+  let int_options =
+    ["+", "-", "*", "/"]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [Node.text(s ++ " : "), HTypCode.view(HTyp.Int)],
+         )
+       });
+  let float_options =
+    ["+.", "-.", "*.", "/."]
+    |> List.map(s => {
+         Node.div(
+           [Attr.classes(["mini-option"])],
+           [Node.text(s ++ " : "), HTypCode.view(HTyp.Float)],
+         )
+       });
+
+  let ty: option(HTyp.t) = get_type(cursor_info);
+  let options =
+    switch (ty) {
+    | Some(Hole) => int_options @ float_options
+    | Some(Int) => int_options
+    | Some(Float) => float_options
+    | _ => []
+    };
+
+  [
+    Node.div(
+      [Attr.classes(["option"])],
+      [
+        Node.div(
+          [Attr.classes([])],
+          [Node.text("Arithmetic operation")] @ options,
+        ),
+      ],
+    ),
+  ];
 };
 
 let view =
@@ -368,10 +417,9 @@ let view =
               ),
             ],
           ),
-          Node.div(
-            [Attr.classes(["option"])],
-            [Node.text("Arithmetic operation")],
-          ),
+        ]
+        @ other_arithmetic_options(cursor_info)
+        @ [
           Node.div(
             [Attr.classes(["option"])],
             [Node.text("New let binding")],
