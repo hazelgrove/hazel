@@ -1203,6 +1203,8 @@ and syn_perform_opseq =
     };
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+    // TODO corlaban: delete before != Backspace after, when we have user operators
+
     let new_ze =
       ZExp.ZBlock.wrap'(
         ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
@@ -1256,7 +1258,18 @@ and syn_perform_opseq =
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   // TODO (corlaban) add logic for these cases
-  | (Backspace, ZOperator((OnText(_), _), _))
+  | (Backspace, ZOperator((OnText(i), oper), seq)) =>
+    let new_op = StringUtil.backspace(i, Operators_Exp.to_string(oper));
+
+    let new_zoperator =
+      switch (Operators_Exp.string_to_operator(new_op)) {
+      | Some(ty) => (CursorPosition.OnOp(Before), ty)
+      | None => (CursorPosition.OnText(i - 1), Operators_Exp.UserOp(new_op))
+      };
+
+    let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
+    let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+    Succeeded(SynDone((exp, ty, meta_var)));
   | (Delete, ZOperator((OnText(_), _), _)) => Failed
 
   /* Construction */
