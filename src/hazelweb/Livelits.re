@@ -1602,6 +1602,70 @@ module CheckboxLivelit: LIVELIT = {
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
 
+module SliderLivelitMin: LIVELIT = {
+  let name = "$slidem";
+  let expansion_ty = HTyp.Int;
+  let param_tys = [];
+
+  [@deriving sexp]
+  type model = option(int);
+
+  [@deriving sexp]
+  type action = int;
+  type trigger = action => Vdom.Event.t;
+  type sync = action => unit;
+
+  let init_model = SpliceGenCmd.return(Some(0));
+  //let init_model = (psi, u_gen) => (Some(0), psi, u_gen);
+
+  let update = (_, n) => SpliceGenCmd.return(Some(n));
+  //let update = (_, n) => (psi, u_gen) => (Some(n), psi, u_gen);
+
+  let view = (model, trigger: trigger, _sync) => {
+    Vdom.(
+      (_: LivelitView.splice_and_param_getters) => {
+        let min = 0;
+        let max = 100;
+        let value =
+          switch (model) {
+          | Some(n) when min <= n && n <= max => n
+          | _ => 0
+          //let new_value = (min + max) / 2;
+          //sync(new_value);
+          //new_value;
+          };
+        let min_str = string_of_int(min);
+        let max_str = string_of_int(max);
+        let value_str = string_of_int(value);
+        let on_input = (_, value_str) => trigger(int_of_string(value_str));
+        Node.span(
+          [Attr.classes(["slider-livelit"])],
+          [
+            Node.input(
+              [
+                Attr.classes(["slider"]),
+                Attr.type_("range"),
+                Attr.create("min", min_str),
+                Attr.create("max", max_str),
+                Attr.value(value_str),
+                Attr.on_input(on_input),
+              ],
+              [],
+            ),
+          ],
+        );
+      }
+    );
+  };
+
+  let view_shape = _ => LivelitView.Inline(14); // use inj
+
+  let expand =
+    fun
+    | None => UHExp.Block.wrap(UHExp.intlit'(0))
+    | Some(n) => UHExp.Block.wrap(UHExp.intlit'(n));
+};
+
 module SliderLivelit: LIVELIT = {
   let name = "$slider";
   let expansion_ty = HTyp.Int;
@@ -2119,6 +2183,7 @@ module GradientLivelitAdapter = LivelitAdapter(GradientLivelit);
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
+module SliderLivelitMinAdapter = LivelitAdapter(SliderLivelitMin);
 module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
 module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
 module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
@@ -2136,24 +2201,27 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
                 LivelitContexts.extend(
                   LivelitContexts.extend(
                     LivelitContexts.extend(
-                      empty_livelit_contexts,
-                      GrayscaleLivelitAdapter.contexts_entry,
+                      LivelitContexts.extend(
+                        empty_livelit_contexts,
+                        GrayscaleLivelitAdapter.contexts_entry,
+                      ),
+                      DataFrameLivelitAdapter.contexts_entry,
                     ),
-                    DataFrameLivelitAdapter.contexts_entry,
+                    GradeCutoffLivelitAdapter.contexts_entry,
                   ),
-                  GradeCutoffLivelitAdapter.contexts_entry,
+                  MatrixLivelitAdapter.contexts_entry,
                 ),
-                MatrixLivelitAdapter.contexts_entry,
+                LiveMatrixLivelitAdapter.contexts_entry,
               ),
-              LiveMatrixLivelitAdapter.contexts_entry,
+              PairLivelitAdapter.contexts_entry,
             ),
-            PairLivelitAdapter.contexts_entry,
+            CheckboxLivelitAdapter.contexts_entry,
           ),
-          CheckboxLivelitAdapter.contexts_entry,
+          SliderLivelitAdapter.contexts_entry,
         ),
-        SliderLivelitAdapter.contexts_entry,
+        ColorLivelitAdapter.contexts_entry,
       ),
-      ColorLivelitAdapter.contexts_entry,
+      GradientLivelitAdapter.contexts_entry,
     ),
-    GradientLivelitAdapter.contexts_entry,
+    SliderLivelitMinAdapter.contexts_entry,
   );
