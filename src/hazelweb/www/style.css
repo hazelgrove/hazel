@@ -1039,7 +1039,6 @@ h1 {
 .matrix-livelit .cells-border {
   position: relative;
   border: 1px solid var(--matrix-cell-border-color);
-  box-shadow: inset 0px -2px 2px 0px #888;
   z-index: 50;
 }
 .matrix-livelit .matrix-cell {
