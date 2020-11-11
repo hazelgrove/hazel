@@ -1,5 +1,6 @@
 type tag_typ =
   | Exp
+  | Rule
   | Pat
   | Typ;
 

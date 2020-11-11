@@ -195,6 +195,7 @@ let novice_summary =
   let article =
     switch (tag_typ) {
     | Exp => "an"
+    | Rule
     | Pat
     | Typ => "a"
     };

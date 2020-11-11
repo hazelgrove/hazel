@@ -1511,6 +1511,9 @@ h1 {
 .term-tag-pat{
   background-color:#baf1fe;
 }
+.term-tag-rule{
+  background-color:rgb(242, 222, 184);
+}
 .term-tag-exp{
   background-color:rgb(197, 253, 197);
 }
