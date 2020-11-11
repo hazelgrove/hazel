@@ -169,17 +169,12 @@ let rec set_duplicate_tuple_labels =
         )
         : (seq, list(HTyp.t), bool) => {
   assert(List.length(elements) == List.length(types));
-  print_endline("In set_duplicate_tuple_labels");
   switch (elements, types) {
   | ([], _)
   | (_, []) => (seq, [], false)
   | ([skel, ...skels], [typ, ...types_tail]) =>
     let (seq, types_tail, changed) =
       set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
-    print_endline(
-      "Types tail in set duplicates afte rec call length "
-      ++ string_of_int(List.length(types_tail)),
-    );
     switch (skel) {
     | BinOp(NotInHole, Space, Placeholder(n), _) =>
       let en = seq |> Seq.nth_operand(n);
@@ -208,7 +203,6 @@ let rec find_and_set_dupe_labels_tuple =
         )
         : (seq, list(HTyp.t)) => {
   assert(List.length(elements) == List.length(types));
-  print_endline("in find and set labels tuple");
   switch (elements, types) {
   | ([], _)
   | (_, []) => (seq, [])
@@ -219,18 +213,15 @@ let rec find_and_set_dupe_labels_tuple =
       switch (en) {
       // Only set as a duplicate label for labels not already in a hole
       | Label(NotInLabelHole, l) =>
-        print_endline("in label case");
         let (seq, types_tail, changed) =
           set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
         if (changed) {
-          print_endline("In Changed case for labels");
           let e_duplicate = Label(InLabelHole(Duplicate, u_gen), l);
           let seq = seq |> Seq.update_nth_operand(n, e_duplicate);
           let (seq, types_tail) =
             find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
           (seq, [typ, ...types_tail]);
         } else {
-          print_endline("In not changed case for labels");
           let (seq, types_tail) =
             find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
           (seq, [typ, ...types_tail]);
@@ -238,16 +229,16 @@ let rec find_and_set_dupe_labels_tuple =
       | Label(InLabelHole(Duplicate, _), l) =>
         let (seq, types_tail, _) =
           set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        let (seq, types_tail) =
+          find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
         (seq, [typ, ...types_tail]);
       // If no label not in a hole, continue recursing
       | _ =>
-        print_endline("In no labels case");
         let (seq, types_tail) =
           find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
         (seq, [typ, ...types_tail]);
       };
     | _ =>
-      print_endline("In no Binop case");
       let (seq, types_tail) =
         find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
       (seq, [typ, ...types_tail]);
@@ -264,7 +255,6 @@ let rec find_and_clear_dupe_holes_labels_tuple =
         )
         : (seq, list(HTyp.t)) => {
   assert(List.length(elements) == List.length(types));
-  print_endline("in find and set labels tuple");
   switch (elements, types) {
   | ([], _)
   | (_, []) => (seq, [])
@@ -275,7 +265,6 @@ let rec find_and_clear_dupe_holes_labels_tuple =
       switch (en) {
       // Only set as a duplicate label for labels not already in a hole
       | Label(InLabelHole(Duplicate, _), l) =>
-        print_endline("in label case");
         let (seq, types_tail, changed) =
           set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
         if (changed) {
@@ -288,10 +277,8 @@ let rec find_and_clear_dupe_holes_labels_tuple =
             );
           (seq, [typ, ...types_tail]);
         } else {
-          print_endline("In Changed case for labels");
           let e_nohole = Label(NotInLabelHole, l);
           let seq = seq |> Seq.update_nth_operand(n, e_nohole);
-          print_endline("In not changed case for labels");
           let (seq, types_tail) =
             find_and_clear_dupe_holes_labels_tuple(
               skels,
@@ -303,7 +290,6 @@ let rec find_and_clear_dupe_holes_labels_tuple =
         };
       // If no label not in a hole, continue recursing
       | _ =>
-        print_endline("In no labels case");
         let (seq, types_tail) =
           find_and_clear_dupe_holes_labels_tuple(
             skels,
@@ -314,7 +300,6 @@ let rec find_and_clear_dupe_holes_labels_tuple =
         (seq, [typ, ...types_tail]);
       };
     | _ =>
-      print_endline("In no Binop case");
       let (seq, types_tail) =
         find_and_clear_dupe_holes_labels_tuple(skels, types_tail, seq, u_gen);
       (seq, [typ, ...types_tail]);

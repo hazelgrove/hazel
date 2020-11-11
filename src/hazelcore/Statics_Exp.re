@@ -955,7 +955,6 @@ and syn_fix_holes_skel =
            (u_gen, seq),
          );
     let (skels, tys) = List.split(pairs);
-    // ECD: You are here, not working on test case .a 2, .a 2, .a 2, .a 2 => .a 2, .a 2, .ab 2, .ab 2
     let (seq, tys) =
       UHExp.find_and_clear_dupe_holes_labels_tuple(skels, tys, seq, u_gen);
     let (seq, tys) =
