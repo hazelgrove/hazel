@@ -37,7 +37,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZTyp.ParenthesizedZ(zbody))
+        |> Option.map(zbody => ZTyp.ParenthesizedZ(zbody))
       | _ => None
       }
     | List(body) =>
@@ -45,7 +45,7 @@ and follow_operand =
       | 0 =>
         body
         |> follow((xs, cursor))
-        |> OptUtil.map(zbody => ZTyp.ListZ(zbody))
+        |> Option.map(zbody => ZTyp.ListZ(zbody))
       | _ => None
       }
     }
@@ -103,7 +103,7 @@ and of_steps_operand =
       | 0 =>
         body
         |> of_steps(xs, ~side)
-        |> OptUtil.map(path => CursorPath_common.cons'(0, path))
+        |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
     }

@@ -5,20 +5,20 @@ type t = Doc.t(DHAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;
 
-let precedence_const = 0;
-let precedence_Ap = 1;
-let precedence_Times = 2;
-let precedence_Divide = 2;
-let precedence_Plus = 3;
-let precedence_Minus = 3;
-let precedence_Cons = 4;
-let precedence_Equals = 5;
-let precedence_LessThan = 5;
-let precedence_GreaterThan = 5;
-let precedence_And = 6;
-let precedence_Or = 7;
-let precedence_Comma = 8;
-let precedence_max = 9;
+let precedence_const = DHDoc_common.precedence_const;
+let precedence_Ap = DHDoc_common.precedence_Ap;
+let precedence_Times = DHDoc_common.precedence_Times;
+let precedence_Divide = DHDoc_common.precedence_Divide;
+let precedence_Plus = DHDoc_common.precedence_Plus;
+let precedence_Minus = DHDoc_common.precedence_Minus;
+let precedence_Cons = DHDoc_common.precedence_Cons;
+let precedence_Equals = DHDoc_common.precedence_Equals;
+let precedence_LessThan = DHDoc_common.precedence_LessThan;
+let precedence_GreaterThan = DHDoc_common.precedence_GreaterThan;
+let precedence_And = DHDoc_common.precedence_And;
+let precedence_Or = DHDoc_common.precedence_Or;
+let precedence_Comma = DHDoc_common.precedence_Comma;
+let precedence_max = DHDoc_common.precedence_max;
 
 let pad_child =
     (

@@ -146,7 +146,7 @@ type zoperand =
   | ZTyp(ZTyp.zoperand)
   | ZPat(ZPat.zoperand);
 
-let cursor_term_is_editable = (cursor_term: cursor_term): bool =>
+let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, exp) =>
     switch (exp) {
@@ -165,8 +165,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool =>
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _)
-    | StringLit(_) => true
+    | BoolLit(_, _) => true
     | _ => false
     }
   | Typ(_, _)
@@ -175,15 +174,17 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool =>
   | TypOp(_, _) => false
   | Line(_, line) =>
     switch (line) {
-    | EmptyLine => true
+    | EmptyLine
+    | CommentLine(_) => true
     | LetLine(_, _, _)
     | AbbrevLine(_)
     | ExpLine(_) => false
     }
   | Rule(_, _) => false
   };
+};
 
-let is_empty_hole = (cursor_term: cursor_term): bool =>
+let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
   | Exp(_, EmptyHole(_)) => true
   | Exp(_, _) => false
@@ -197,6 +198,7 @@ let is_empty_hole = (cursor_term: cursor_term): bool =>
   | Line(_, _)
   | Rule(_, _) => false
   };
+};
 
 let is_empty_line = (cursor_term): bool =>
   switch (cursor_term) {

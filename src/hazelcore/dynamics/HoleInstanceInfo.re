@@ -10,6 +10,6 @@ let update_environment =
 let lookup =
     (hii: t, inst: NodeInstance.t): option((Environment.t, InstancePath.t)) =>
   NodeInstanceInfo.lookup(hii, inst)
-  |> OptUtil.map(((env, path, _)) => (env, path));
+  |> Option.map(((env, path, _)) => (env, path));
 
 let empty = NodeInstanceInfo.empty;

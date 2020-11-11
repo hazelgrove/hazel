@@ -6,8 +6,9 @@ type req =
   | NotHeld
   | Any;
 
-let is_held: req => bool;
-
+/**
+ * Modifier key requirements for a key combo
+ */
 type t = {
   c: req,
   s: req,
@@ -25,8 +26,7 @@ let ctrl_shift: t;
 let ctrl_alt: t;
 let meta_shift: t;
 
-let req_matches: (req, ModKey.t, Js.t(Dom_html.keyboardEvent)) => bool;
-
 let matches: (t, Js.t(Dom_html.keyboardEvent)) => bool;
 
+/** generates a string representation of a ModKeys for display */
 let mod_prefix: t => string;

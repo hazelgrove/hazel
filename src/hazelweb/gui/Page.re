@@ -110,6 +110,12 @@ let view =
       open Vdom;
       let card = model |> Model.get_card;
       let program = model |> Model.get_program;
+      let selected_hole_instance =
+        switch (Model.get_selected_instance(model)) {
+        | None
+        | Some((Livelit, _)) => None
+        | Some((Hole, inst)) => Some(inst)
+        };
       let cell_status =
         if (!model.compute_results.compute_results) {
           Node.div([], []);
@@ -148,7 +154,7 @@ let view =
                     ~show_fn_bodies=model.compute_results.show_fn_bodies,
                     ~show_case_clauses=model.compute_results.show_case_clauses,
                     ~show_casts=model.compute_results.show_casts,
-                    ~selected_instance=Model.get_selected_instance(model),
+                    ~selected_hole_instance,
                     ~width=80,
                     model.compute_results.show_unevaluated_expansion
                       ? program |> Program.get_expansion
@@ -205,7 +211,7 @@ let view =
                           Attr.on_click(_ => {
                             let e = program |> Program.get_uhexp;
                             JSUtil.log(
-                              Js.string(Serialize.string_of_exp(e)),
+                              Js.string(Serialization.string_of_exp(e)),
                             );
                             Event.Ignore;
                           }),
@@ -229,7 +235,12 @@ let view =
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
                   CursorInspector.view(~inject, model),
-                  ContextInspector.view(~inject, model),
+                  ContextInspector.view(
+                    ~inject,
+                    ~selected_hole_instance,
+                    ~compute_results=model.compute_results,
+                    program,
+                  ),
                   UndoHistoryPanel.view(~inject, model),
                   OptionsPanel.view(~inject, model),
                 ]

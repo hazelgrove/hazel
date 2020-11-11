@@ -78,14 +78,6 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
-let rec find_operand = (p: t): option(operand) => p |> find_operand_opseq
-and find_operand_opseq =
-  fun
-  | OpSeq(_, S(operand, _)) => Some(operand)
-and find_operand_operand =
-  fun
-  | p => Some(p);
-
 let rec get_err_status = (p: t) => get_err_status_opseq(p)
 and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
@@ -97,8 +89,8 @@ and get_err_status_operand =
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
-  | BoolLit(err, _)
   | StringLit(err, _)
+  | BoolLit(err, _)
   | ListNil(err)
   | Inj(err, _, _) => err
   | Parenthesized(p) => get_err_status(p);
@@ -139,8 +131,8 @@ and mk_inconsistent_operand =
   switch (operand) {
   // already in hole
   | EmptyHole(_)
-  | Wild(InHole(TypeInconsistent(_), _))
   | InvalidText(_, _)
+  | Wild(InHole(TypeInconsistent(_), _))
   | Var(InHole(TypeInconsistent(_), _), _, _)
   | IntLit(InHole(TypeInconsistent(_), _), _)
   | FloatLit(InHole(TypeInconsistent(_), _), _)
@@ -189,26 +181,25 @@ let text_operand =
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
-let associate = (seq: seq) => {
-  let skel_str = Skel.mk_skel_str(seq, Operators_Pat.to_parse_string);
-  let lexbuf = Lexing.from_string(skel_str);
-  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
-};
+let associate =
+  Skel.mk(Operators_Pat.precedence, Operators_Pat.associativity);
 
 let mk_OpSeq = OpSeq.mk(~associate);
 
-let rec is_complete_skel = (sk: skel, sq: seq): bool =>
+let rec is_complete_skel = (sk: skel, sq: seq): bool => {
   switch (sk) {
   | Placeholder(n) as _skel => is_complete_operand(sq |> Seq.nth_operand(n))
   | BinOp(InHole(_), _, _, _) => false
   | BinOp(NotInHole, _, skel1, skel2) =>
     is_complete_skel(skel1, sq) && is_complete_skel(skel2, sq)
-  }
-and is_complete = (p: t): bool =>
+  };
+}
+and is_complete = (p: t): bool => {
   switch (p) {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
-  }
-and is_complete_operand = (operand: 'operand): bool =>
+  };
+}
+and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
@@ -231,3 +222,4 @@ and is_complete_operand = (operand: 'operand): bool =>
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   };
+};

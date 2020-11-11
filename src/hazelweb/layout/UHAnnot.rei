@@ -1,6 +1,5 @@
 [@deriving sexp]
 type term_data = {
-  has_cursor: bool,
   shape: TermShape.t,
   sort: TermSort.t,
 };
@@ -14,26 +13,25 @@ type token_shape =
 type token_data = {
   shape: token_shape,
   len: int,
-  has_cursor: option(int),
 };
+
+type open_child_format =
+  | InlineWithoutBorder
+  | InlineWithBorder
+  | Multiline;
 
 [@deriving sexp]
 type t =
-  | Indent
-  | Padding
   | HoleLabel({len: int})
   | Token(token_data)
-  | SpaceOp
   | UserNewline
-  | OpenChild({
+  | OpenChild(open_child_format)
+  | ClosedChild({
       is_inline: bool,
-      is_enclosed: bool,
+      sort: TermSort.t,
     })
-  | ClosedChild({is_inline: bool})
   | Tessera
-  | EmptyLine
-  | LetLine
-  | AbbrevLine
+  | CommentLine
   | Step(int)
   | Term(term_data)
   | LivelitView({
@@ -48,12 +46,6 @@ type t =
   | InvalidSeq
   | String;
 
-let mk_Token:
-  (~has_cursor: option(int)=?, ~len: int, ~shape: token_shape, unit) => t;
+let mk_Token: (~len: int, ~shape: token_shape, unit) => t;
 
-let mk_Term:
-  (~has_cursor: bool=?, ~shape: TermShape.t, ~sort: TermSort.t, unit) => t;
-
-let mk_OpenChild: (~is_enclosed: bool=?, ~is_inline: bool, unit) => t;
-
-let mk_ClosedChild: (~is_inline: bool, unit) => t;
+let mk_Term: (~shape: TermShape.t, ~sort: TermSort.t, unit) => t;

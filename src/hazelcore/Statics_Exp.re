@@ -1,8 +1,7 @@
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
-/* returns recursive ctx + name of recursively defined var */
-let ctx_for_let' =
+let ctx_for_let =
     (ctx: Contexts.t'('a), p: UHPat.t, ty: HTyp.t, e: UHExp.t)
     : (Contexts.t'('a), option(Var.t)) =>
   switch (p, e) {
@@ -17,15 +16,9 @@ let ctx_for_let' =
   | _ => (ctx, None)
   };
 
-let ctx_for_let =
-    (ctx: Contexts.t'('a), p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t => {
-  let (ctx, _) = ctx_for_let'(ctx, p, ty, e);
-  ctx;
-};
-
 /**
-     * Synthesize a type, if possible, for e
-     */
+ * Synthesize a type, if possible, for e
+ */
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   syn_block(ctx, e)
 and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
@@ -38,7 +31,7 @@ and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
     }
   }
 and syn_lines =
-    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) =>
+    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
   lines
   |> List.fold_left(
        (opt_ctx: option(Contexts.t), line: UHExp.line) =>
@@ -47,16 +40,18 @@ and syn_lines =
          | Some(ctx) => syn_line(ctx, line)
          },
        Some(ctx),
-     )
+     );
+}
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
-  | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
-  | EmptyLine => Some(ctx)
+  | ExpLine(opseq) => syn_opseq(ctx, opseq) |> Option.map(_ => ctx)
+  | EmptyLine
+  | CommentLine(_) => Some(ctx)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty) =>
       let ty = UHTyp.expand(uty);
-      let ctx_def = ctx_for_let(ctx, p, ty, def);
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
       switch (ana(ctx_def, def, ty)) {
       | None => None
       | Some(_) => Statics_Pat.ana(ctx, p, ty)
@@ -73,7 +68,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let args_ana = tys =>
       List.combine(args, tys)
       |> List.for_all(((arg, ty)) =>
-           ana(ctx, UHExp.Block.wrap(arg), ty) |> OptUtil.test
+           Option.is_some(ana(ctx, UHExp.Block.wrap(arg), ty))
          );
     switch (old_data_opt, err_status) {
     | (None, InAbbrevHole(Free, _)) =>
@@ -129,40 +124,40 @@ and syn_skel =
     syn_operand(ctx, en);
   | BinOp(InHole(_), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-    syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
+    syn_skel(ctx, skel_not_in_hole, seq) |> Option.map(_ => HTyp.Hole);
   | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
     | None => None
-    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Int)
+    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Int)
     }
   | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Float)
+      ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Float)
     }
   | BinOp(NotInHole, And | Or, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, Bool) |> OptUtil.map(_ => HTyp.Bool)
+      ana_skel(ctx, skel2, seq, HTyp.Bool) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, Caret, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.String)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, String) |> OptUtil.map(_ => HTyp.String)
+      ana_skel(ctx, skel2, seq, String) |> Option.map(_ => HTyp.String)
     }
   | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Int)) {
     | None => None
-    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> OptUtil.map(_ => HTyp.Bool)
+    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Float)) {
     | None => None
     | Some(_) =>
-      ana_skel(ctx, skel2, seq, Float) |> OptUtil.map(_ => HTyp.Bool)
+      ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
     let livelit_ap_check = LivelitUtil.check_livelit(ctx, seq, skel);
@@ -177,7 +172,8 @@ and syn_skel =
       let (_, reqd_param_tys') = List.split(reqd_param_tys);
       let all_args_ana =
         List.for_all2(
-          (ty_n, skel_n) => ana_skel(ctx, skel_n, seq, ty_n) |> OptUtil.test,
+          (ty_n, skel_n) =>
+            Option.is_some(ana_skel(ctx, skel_n, seq, ty_n)),
           reqd_param_tys',
           args,
         );
@@ -199,7 +195,7 @@ and syn_skel =
         switch (HTyp.matched_arrow(ty1)) {
         | None => None
         | Some((ty2, ty)) =>
-          ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
+          ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
         }
       }
     };
@@ -214,7 +210,7 @@ and syn_skel =
     | None => None
     | Some(ty1) =>
       let ty = HTyp.List(ty1);
-      ana_skel(ctx, skel2, seq, ty) |> OptUtil.map(_ => ty);
+      ana_skel(ctx, skel2, seq, ty) |> Option.map(_ => ty);
     }
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
@@ -234,7 +230,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Subscript(InHole(TypeInconsistent(_), _), _, _, _)
   | ApLivelit(_, InHole(TypeInconsistent(None), _), _, _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
+    syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -276,7 +272,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(NotInHole, _) => Some(Bool)
   | StringLit(NotInHole, _) => Some(String)
   | ListNil(NotInHole) => Some(List(Hole))
-  | Parenthesized(body) => syn(ctx, body)
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -341,10 +336,11 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
             si,
             all_param_tys,
           );
-        err_status == NotInHole ? rslt : rslt |> OptUtil.map(_ => HTyp.Hole);
+        err_status == NotInHole ? rslt : rslt |> Option.map(_ => HTyp.Hole);
       };
     };
   | FreeLivelit(_, _) => Some(Hole)
+  | Parenthesized(body) => syn(ctx, body)
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -421,8 +417,8 @@ and ana_splice_map_and_params =
   );
 }
 /**
-     * Analyze e against expected type ty
-     */
+ * Analyze e against expected type ty
+ */
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
 and ana_block =
@@ -444,7 +440,7 @@ and ana_opseq =
     | (InHole(TypeInconsistent(_), _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
-      syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
+      syn_opseq(ctx, opseq') |> Option.map(_ => ());
     | _ => None
     }
   | Some(skel_tys) =>
@@ -482,8 +478,8 @@ and ana_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space |
-      Caret,
+      Caret |
+      Space,
       _,
       _,
     ) =>
@@ -536,8 +532,8 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _)
-  | StringLit(NotInHole, _) =>
+  | StringLit(NotInHole, _)
+  | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -740,7 +736,7 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : option(Statics_common.type_mode) =>
+    : option(Statics_common.type_mode) => {
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
@@ -753,7 +749,8 @@ and ana_nth_type_mode =
            && n <= Skel.rightmost_tm_index(skel)
          );
     ana_nth_type_mode'(ctx, n, nskel, seq, nty);
-  }
+  };
+}
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(Statics_common.type_mode) => {
@@ -786,8 +783,8 @@ and ana_nth_type_mode' =
         FLessThan |
         FGreaterThan |
         FEquals |
-        Space |
-        Caret,
+        Caret |
+        Space,
         _,
         _,
       ) =>
@@ -870,12 +867,13 @@ and syn_fix_holes_line =
     let (e, _, u_gen) =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, u_gen);
-  | EmptyLine => (line, ctx, u_gen)
+  | EmptyLine
+  | CommentLine(_) => (line, ctx, u_gen)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
-      let ctx_def = ctx_for_let(ctx, p, ty1, def);
+      let (ctx_def, _) = ctx_for_let(ctx, p, ty1, def);
       let (def, u_gen) =
         ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
       let (p, ctx, u_gen) =
@@ -1573,7 +1571,7 @@ and ana_fix_holes_opseq =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : (UHExp.opseq, MetaVarGen.t) =>
+    : (UHExp.opseq, MetaVarGen.t) => {
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -1652,7 +1650,8 @@ and ana_fix_holes_opseq =
         );
       (opseq |> UHExp.set_err_status_opseq(InHole(WrongLength, u)), u_gen);
     }
-  }
+  };
+}
 and ana_fix_holes_skel =
     (
       ctx: Contexts.t,
@@ -1729,8 +1728,8 @@ and ana_fix_holes_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space |
-      Caret,
+      Caret |
+      Space,
       _,
       _,
     ) =>

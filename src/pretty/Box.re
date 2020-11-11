@@ -1,65 +1,89 @@
-// Invariant for HBox: all but last element must be height <= 1
+open Sexplib.Std;
+
+[@deriving sexp]
 type t('annot) =
   | Text(string)
-  | HBox(list(t('annot))) // note: due to alignment, HBox([]) is not a zero (or maybe it is?)
-  | VBox(list(t('annot))) // note: due to alignment, VBox([]) is not a zero
-  | Annot('annot, t('annot)); // Annotations
+  | HBox(list(t('annot)))
+  | VBox(list(t('annot)))
+  | Annot('annot, t('annot));
 
-let rec box_height: 'annot. t('annot) => int =
-  layout =>
-    Obj.magic(snd(Lazy.force(box_height_memo_table), Obj.magic(layout)))
+module Make = (MemoTbl: MemoTbl.S) => {
+  let height_tbl: MemoTbl.t(t(unit), int) = MemoTbl.mk();
+  let rec height = (box: t('annot)) =>
+    switch (MemoTbl.get(height_tbl, Obj.magic(box))) {
+    | Some(h) => h
+    | None =>
+      let h =
+        switch (box) {
+        | Text(_) => 1
+        | Annot(_, b) => height(b)
+        | HBox(bs) => bs |> List.map(height) |> List.fold_left(max, 1) // Note: 1 is HBox([]) height
+        | VBox(bs) => bs |> List.map(height) |> List.fold_left((+), 0)
+        };
+      MemoTbl.set(height_tbl, Obj.magic(box), h);
+      h;
+    };
 
-and box_height_memo_table:
-  Lazy.t((Memoize.WeakPoly.Table.t(int), t(unit) => int)) =
-  lazy(Memoize.WeakPoly.make(box_height'))
-
-and box_height' = (box: t('annot)): int => {
-  switch (box) {
-  | Text(_) => 1
-  | Annot(_, b) => box_height(b)
-  | HBox(bs) => List.fold_right(max, List.map(box_height, bs), 1) // Note: 1 is HBox([]) height
-  | VBox(bs) => List.fold_right((+), List.map(box_height, bs), 0)
+  // Note: annots are inside-out (i.e. List.hd(annots) is the inner-most annot)
+  let rec annot = (annots: list('annot), box: t('annot)): t('annot) => {
+    switch (annots) {
+    | [] => box
+    | [ann, ...anns] => annot(anns, Annot(ann, box))
+    };
   };
-};
 
-let rec flatten = (box: t('annot)): t('annot) => {
-  let flatten_box_list =
-      (
-        bs: list(t('annot)),
-        ctor: list(t('annot)) => t('annot),
-        pattern: t('annot) => option(list(t('annot))),
-      )
-      : t('annot) => {
-    let rec go = (b: t('annot)): list(t('annot)) => {
-      switch (pattern(b)) {
-      | Some(bs) => List.concat(List.map(go, bs))
-      | None => [b]
+  let rec append_box =
+          (~annots: list('annot)=[], box1: t('annot), box2: t('annot))
+          : t('annot) =>
+    if (height(box1) <= 1) {
+      HBox([annot(annots, box1), box2]);
+    } else {
+      let rec append_last = (bs1: list(t('annot))): list(t('annot)) => {
+        switch (bs1) {
+        | [] => failwith("impossible due to `box_height` guard")
+        | [b1] => [append_box(~annots, b1, box2)]
+        | [b1, ...bs1] => [annot(annots, b1), ...append_last(bs1)]
+        };
+      };
+      switch (box1) {
+      | Text(_) => failwith("impossible due to `box_height` guard")
+      | HBox(bs1) => HBox(append_last(bs1))
+      | VBox(bs1) => VBox(append_last(bs1))
+      | Annot(annot, b) => append_box(~annots=[annot, ...annots], b, box2)
       };
     };
-    switch (List.concat(List.map(go, List.map(flatten, bs)))) {
-    | [b] => b
-    | bs => ctor(bs)
+
+  let append_hbox = (boxes1: list(t('annot)), boxes2: list(t('annot))) => {
+    switch (ListUtil.split_last_opt(boxes1)) {
+    | None => boxes2
+    | Some((leading, last)) => leading @ [append_box(last, HBox(boxes2))]
     };
   };
 
-  switch (box) {
-  | Text(_) => box
-  | Annot(annot, b) => Annot(annot, flatten(b))
-  | HBox(bs) =>
-    flatten_box_list(
-      bs,
-      b => HBox(b),
-      fun
-      | HBox(bs) => Some(bs)
-      | _ => None,
-    )
-  | VBox(bs) =>
-    flatten_box_list(
-      bs,
-      b => VBox(b),
-      fun
-      | VBox(bs) => Some(bs)
-      | _ => None,
-    )
+  let table: MemoTbl.t(Layout.t(unit), t(unit)) = MemoTbl.mk();
+  let mk = (l: Layout.t('annot)): t('annot) => {
+    let mk = (boxes: list(list(t(_)))) =>
+      VBox(List.map(row => HBox(row), boxes));
+    let rec go = (l: Layout.t(_)) => {
+      switch (MemoTbl.get(table, Obj.magic(l))) {
+      | Some(box) => Obj.magic(box)
+      | None =>
+        let box =
+          switch (l) {
+          | Linebreak => [[], []]
+          | Text(s) => [[Text(s)]]
+          | Align(l) => [[mk(go(l))]]
+          | Annot(ann, l) =>
+            go(l) |> List.map(row => [Annot(ann, HBox(row))])
+          | Cat(l1, l2) =>
+            let (leading, last) = ListUtil.split_last(go(l1));
+            let (first, trailing) = ListUtil.split_first(go(l2));
+            leading @ [append_hbox(last, first), ...trailing];
+          };
+        MemoTbl.set(table, Obj.magic(l), Obj.magic(box));
+        box;
+      };
+    };
+    mk(go(l));
   };
 };

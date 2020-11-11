@@ -3,512 +3,79 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
-module Dec = {
-  type rects = list(RectilinearPolygon.rect);
+module MeasuredPosition = Pretty.MeasuredPosition;
+module MeasuredLayout = Pretty.MeasuredLayout;
 
-  let rects =
-      (~vtrim=0.0, ~indent=0, start: CaretPosition.t, m: MeasuredLayout.t)
-      : (CaretPosition.t, list(RectilinearPolygon.rect)) => {
-    let mk_rect =
-        (
-          ~is_first=false,
-          ~is_last=false,
-          start: CaretPosition.t,
-          box: MeasuredLayout.box,
-        ) =>
-      RectilinearPolygon.{
-        min: {
-          x: Float.of_int(start.col),
-          y: Float.of_int(start.row) +. (is_first ? vtrim : 0.0),
-        },
-        width: Float.of_int(box.width),
-        height:
-          Float.of_int(box.height)
-          -. (is_first ? vtrim : 0.0)
-          -. (is_last ? vtrim : 0.0),
-      };
-    let (leading, last) = ListUtil.split_last(m.metrics);
-    let (last_start, leading_rects) =
-      leading
-      |> List.mapi((i, box) => (i, box))
-      |> ListUtil.map_with_accumulator(
-           (start: CaretPosition.t, (i, box: MeasuredLayout.box)) =>
-             (
-               {row: start.row + box.height, col: 0},
-               mk_rect(~is_first=i == 0, start, box),
-             ),
-           start,
-         );
-    let end_: CaretPosition.t = {
-      row: last_start.row + last.height - 1,
-      col:
-        last.width
-        + (
-          switch (leading) {
-          | [] => start.col
-          | [_, ..._] => indent
-          }
-        ),
-    };
-    let last_rect =
-      mk_rect(~is_first=leading == [], ~is_last=true, last_start, last);
-    (end_, leading_rects @ [last_rect]);
-  };
-
-  let err_hole_view =
-      (
-        ~corner_radii: (float, float),
-        ~offset: int,
-        subject: MeasuredLayout.t,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects({row: 0, col: offset})
-    |> snd
-    |> RectilinearPolygon.mk_svg(
-         ~corner_radii,
-         ~attrs=
-           Vdom.Attr.[
-             classes(["err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
-
-  [@warning "-32"]
-  let var_err_hole_view =
-      (
-        ~corner_radii: (float, float),
-        ~offset: int,
-        subject: MeasuredLayout.t,
-      )
-      : Vdom.Node.t =>
-    subject
-    |> rects({row: 0, col: offset})
-    |> snd
-    |> RectilinearPolygon.mk_svg(
-         ~corner_radii,
-         ~attrs=
-           Vdom.Attr.[
-             classes(["var-err-hole"]),
-             create("vector-effect", "non-scaling-stroke"),
-           ],
-       );
-
-  let tessera_rects =
-      (start: CaretPosition.t, m: MeasuredLayout.t)
-      : (CaretPosition.t, (rects, list(rects))) => {
-    let (end_, highlighted_rs) = rects(start, m);
-    let closed_child_rss =
-      m
-      |> MeasuredLayout.flatten
-      |> ListUtil.map_with_accumulator(
-           (line_start, line: list(MeasuredLayout.t)) => {
-             line
-             |> ListUtil.map_with_accumulator(
-                  (word_start, word: MeasuredLayout.t) => {
-                    switch (word) {
-                    | {layout: Annot(ClosedChild(_), m), _} =>
-                      let (word_end, rs) = rects(~vtrim=0.1, word_start, m);
-                      (word_end, rs);
-                    | _ => (
-                        MeasuredLayout.next_position(
-                          ~indent=0,
-                          word_start,
-                          word,
-                        ),
-                        [],
-                      )
-                    }
-                  },
-                  line_start,
-                )
-             |> (
-               fun
-               | (line_end, rss) => (
-                   line_end,
-                   List.filter(rs => !ListUtil.is_empty(rs), rss),
-                 )
-             )
-           },
-           start,
-         )
-      |> snd
-      |> List.flatten;
-    (end_, (highlighted_rs, closed_child_rss));
-  };
-
-  let inline_open_child_rects =
-      (start: CaretPosition.t, m: MeasuredLayout.t): rects => {
-    // TODO relax assumption
-    assert(MeasuredLayout.height(m) == 1);
-    // make singleton skinny rect along bottom
-    [
-      RectilinearPolygon.{
-        min: {
-          x: Float.of_int(start.col),
-          y: Float.of_int(start.row) +. 1. -. 0.1,
-        },
-        height: 0.1, // TODO
-        width: Float.of_int(MeasuredLayout.width(m)),
-      },
-    ];
-  };
-
-  let multiline_open_child_rects =
-      (~overflow_left, start: CaretPosition.t, m: MeasuredLayout.t): rects => {
-    let overflow_left = overflow_left ? 0.1 : 0.0;
-    [
-      // make singleton skinny rect
-      RectilinearPolygon.{
-        min: {
-          x: Float.of_int(start.col) -. overflow_left,
-          y: Float.of_int(start.row),
-        },
-        height: Float.of_int(MeasuredLayout.height(m)),
-        width: 0.25 // TODO
-      },
-    ];
-  };
-
-  let line_rects =
-      (
-        ~overflow_left: bool,
-        start: CaretPosition.t,
-        line: list(MeasuredLayout.t),
-      )
-      : (CaretPosition.t, (rects, list(rects))) => {
-    let (end_, zipped) =
-      line
-      |> ListUtil.map_with_accumulator(
-           (word_start, word: MeasuredLayout.t) => {
-             switch (word) {
-             | {layout: Annot(Tessera, m), _} =>
-               tessera_rects(word_start, m)
-             | {layout: Annot(OpenChild({is_inline, _}), m), _} =>
-               let highlighted_rs =
-                 is_inline
-                   ? inline_open_child_rects(word_start, m)
-                   : multiline_open_child_rects(
-                       ~overflow_left=true,
-                       word_start,
-                       m,
-                     );
-               let word_end =
-                 MeasuredLayout.next_position(~indent=0, word_start, m);
-               (word_end, (highlighted_rs, []));
-             | _ =>
-               failwith(
-                 "Doc nodes annotated as Term should only contain Tessera and OpenChild (flat) children",
-               )
-             }
-           },
-           start,
-         );
-    let (highlighted_rs, closed_child_rss) = List.split(zipped);
-    let highlighted_rs =
-      switch (line) {
-      | [{layout: Annot(Tessera, m), _}, ..._] when overflow_left =>
-        let height = MeasuredLayout.height(m);
-        [
-          RectilinearPolygon.{
-            min: {
-              x: Float.of_int(start.col) -. 0.1,
-              y: Float.of_int(start.row),
-            },
-            height: Float.of_int(height),
-            width: 0.1,
-          },
-          ...List.flatten(highlighted_rs),
-        ];
-      | _ => List.flatten(highlighted_rs)
-      };
-    (end_, (highlighted_rs, List.flatten(closed_child_rss)));
-  };
-
-  let lines_rects =
-      (
-        ~overflow_left: bool,
-        start: CaretPosition.t,
-        lines: list(list(MeasuredLayout.t)),
-      )
-      : (CaretPosition.t, (rects, list(rects))) => {
-    lines
-    |> ListUtil.map_with_accumulator(
-         (line_start, line: list(MeasuredLayout.t)) => {
-           let (line_end, rss) =
-             switch (line) {
-             | [{layout: Annot(OpenChild(_), m), _}] =>
-               let highlighted_rs =
-                 multiline_open_child_rects(~overflow_left, line_start, m);
-               let line_end =
-                 MeasuredLayout.next_position(~indent=0, line_start, m);
-               (line_end, (highlighted_rs, []));
-             | _ => line_rects(~overflow_left, line_start, line)
-             };
-           ({row: line_end.row + 1, col: 0}, rss);
-         },
-         start,
-       )
-    |> (
-      fun
-      | (end_, zipped) => {
-          let (highlighted_rs, closed_child_rss) = List.split(zipped);
-          (
-            {...end_, row: end_.row - 1},
-            (List.flatten(highlighted_rs), List.flatten(closed_child_rss)),
-          );
-        }
-    );
-  };
-
-  let subblock_rects =
-      (~offset: int, subject: MeasuredLayout.t): (rects, list(rects)) => {
-    let flattened = MeasuredLayout.flatten(subject);
-    switch (flattened) {
-    | [
-        [{layout: Annot(Step(_), {layout: Annot(EmptyLine, _), _}), _}],
-        ..._,
-      ] =>
-      // TODO undo hack
-      ([], [])
-    | _ =>
-      flattened
-      |> ListUtil.map_with_accumulator(
-           (line_start, line: list(MeasuredLayout.t)) => {
-             let (line_end, rss) =
-               switch (line) {
-               | [{layout: Annot(Step(_), m), _}] =>
-                 lines_rects(
-                   ~overflow_left=true,
-                   line_start,
-                   MeasuredLayout.peel_and_flatten(m),
-                 )
-               | [{layout: Annot(OpenChild(_), m), _}] =>
-                 let highlighted_rs =
-                   multiline_open_child_rects(
-                     ~overflow_left=true,
-                     line_start,
-                     m,
-                   );
-                 let line_end =
-                   MeasuredLayout.next_position(~indent=0, line_start, m);
-                 (line_end, (highlighted_rs, []));
-               | _ =>
-                 failwith(
-                   "Doc nodes annotated as SubBlock should only contain *Line and OpenChild (flat) children",
-                 )
-               };
-             ({row: line_end.row + 1, col: 0}, rss);
-           },
-           {row: 0, col: offset},
-         )
-      |> (
-        fun
-        | (_, zipped) => {
-            let (highlighted_rs, closed_child_rss) = List.split(zipped);
-            (List.flatten(highlighted_rs), List.flatten(closed_child_rss));
-          }
-      )
-    };
-  };
-
-  let current_term_view =
-      (
-        ~corner_radii: (float, float),
-        ~offset: int,
-        ~shape: TermShape.t,
-        subject: MeasuredLayout.t,
-      )
-      : Vdom.Node.t => {
-    let (highlighted_rs, closed_child_rss) =
-      switch (shape) {
-      | SubBlock(_) =>
-        // special case for now
-        subblock_rects(~offset, subject)
-      | Rule
-      | Var(_)
-      | Operand(_)
-      | Invalid
-      | FreeLivelit
-      | ApLivelit =>
-        snd(
-          lines_rects(
-            ~overflow_left=false,
-            {row: 0, col: offset},
-            MeasuredLayout.flatten(subject),
-          ),
-        )
-      | Case(_)
-      | BinOp(_)
-      | NTuple(_) =>
-        snd(
-          lines_rects(
-            ~overflow_left=true,
-            {row: 0, col: offset},
-            MeasuredLayout.flatten(subject),
-          ),
-        )
-      | LivelitExpression(_) => ([], [])
-      };
-    let highlighted_vs =
-      ListUtil.is_empty(highlighted_rs)
-        ? []
-        : [
-          RectilinearPolygon.mk_svg(
-            ~corner_radii,
-            ~attrs=Vdom.[Attr.classes(["code-current-term"])],
-            highlighted_rs,
-          ),
-        ];
-    let closed_child_vs =
-      closed_child_rss
-      |> List.filter_map(
-           fun
-           | [] => None
-           | rs =>
-             Some(
-               RectilinearPolygon.mk_svg(
-                 ~corner_radii,
-                 ~attrs=[Vdom.Attr.classes(["code-closed-child"])],
-                 rs,
-               ),
-             ),
-         );
-    Vdom.(Node.create_svg("g", [], highlighted_vs @ closed_child_vs));
-  };
-
-  let caret_view =
-      (~font_metrics: FontMetrics.t, {row, col}: CaretPosition.t)
-      : Vdom.Node.t => {
-    Vdom.(
-      Node.span(
-        [
-          Attr.id("caret"),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              // TODO make more robust
-              "top: %fpx; left: calc(%fpx - 1px);",
-              Float.of_int(row) *. font_metrics.row_height,
-              Float.of_int(col) *. font_metrics.col_width,
-            ),
-          ),
-          Attr.classes(["blink"]),
-        ],
-        [],
-      )
-    );
-  };
-
-  let livelit_expression_view =
-      (~offset: int, subject: MeasuredLayout.t): Vdom.Node.t => {
-    Vdom.(
-      Node.create_svg(
-        "rect",
-        [
-          Attr.create("width", string_of_int(MeasuredLayout.width(subject))),
-          Attr.create(
-            "height",
-            string_of_int(MeasuredLayout.height(subject)),
-          ),
-          Attr.create("x", string_of_int(offset)),
-          Attr.create("style", "fill: lightblue;"),
-        ],
-        [],
-      )
-    );
-  };
-
-  let view =
-      (
-        ~corner_radius=2.5, // px
-        ~font_metrics: FontMetrics.t,
-        // TODO document
-        ~origin: CaretPosition.t,
-        ~offset: int,
-        // ~shape: TermShape.t,
-        ~subject: MeasuredLayout.t,
-        d: Decoration.t,
-      ) => {
-    let num_rows =
-      subject.metrics
-      |> List.map((box: MeasuredLayout.box) => box.height)
-      |> List.fold_left((+), 0);
-    let buffered_height =
-      Float.of_int(num_rows + 1) *. font_metrics.row_height;
-
-    let num_cols =
-      List.tl(subject.metrics)
-      |> List.map((box: MeasuredLayout.box) => box.width)
-      |> List.fold_left(max, offset + List.hd(subject.metrics).width);
-    let buffered_width = Float.of_int(num_cols + 1) *. font_metrics.col_width;
-
-    let corner_radii = (
-      corner_radius /. font_metrics.col_width,
-      corner_radius /. font_metrics.row_height,
-    );
-
-    let v =
-      switch (d) {
-      | ErrHole => err_hole_view(~corner_radii, ~offset, subject)
-      | VarErrHole => Vdom.Node.span([], []) // var_err_hole_view(~corner_radii, ~offset, subject)
-      | CurrentTerm(shape) =>
-        current_term_view(~corner_radii, ~offset, ~shape, subject)
-      | LivelitExpression => livelit_expression_view(~offset, subject)
-      };
-
-    let cls =
-      switch (d) {
-      | ErrHole => "err-hole"
-      | VarErrHole => "var-err-hole"
-      | CurrentTerm(_) => "current-term"
-      | LivelitExpression => "livelit-exp"
-      };
-
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes([
-            "decoration-container",
-            Printf.sprintf("%s-container", cls),
-          ]),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              "top: %fpx; left: %fpx;",
-              (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height,
-              (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width,
-            ),
-          ),
-        ],
-        [
-          Node.create_svg(
-            "svg",
-            [
-              Attr.classes([cls]),
-              Attr.create(
-                "viewBox",
-                Printf.sprintf("-0.5 -0.5 %d %d", num_cols + 1, num_rows + 1),
-              ),
-              Attr.create("width", Printf.sprintf("%fpx", buffered_width)),
-              Attr.create("height", Printf.sprintf("%fpx", buffered_height)),
-              Attr.create("preserveAspectRatio", "none"),
-            ],
-            [v],
-          ),
-        ],
-      )
-    );
-  };
-};
-
-/*
- let sort_clss: TermSort.t => list(cls) =
-   fun
-   | Typ => ["Typ"]
-   | Pat => ["Pat"]
-   | Exp => ["Exp"];
+/**
+ * A buffered container for SVG elements so that strokes along
+ * the bounding box of the elements do not get clipped by the
+ * viewBox boundaries
  */
+let decoration_container =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~origin: MeasuredPosition.t,
+      ~height: int,
+      ~width: int,
+      ~cls: string,
+      svgs: list(Vdom.Node.t),
+    )
+    : Vdom.Node.t => {
+  let buffered_height = height + 1;
+  let buffered_width = width + 1;
+
+  let buffered_height_px =
+    Float.of_int(buffered_height) *. font_metrics.row_height;
+  let buffered_width_px =
+    Float.of_int(buffered_width) *. font_metrics.col_width;
+
+  let container_origin_x =
+    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
+  let container_origin_y =
+    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
+
+  Vdom.(
+    Node.div(
+      [
+        Attr.classes([
+          "decoration-container",
+          Printf.sprintf("%s-container", cls),
+        ]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: calc(%fpx - 1px); left: %fpx;",
+            container_origin_x,
+            container_origin_y,
+          ),
+        ),
+      ],
+      [
+        Node.create_svg(
+          "svg",
+          [
+            Attr.classes([cls]),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "-0.5 -0.5 %d %d",
+                buffered_width,
+                buffered_height,
+              ),
+            ),
+            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", buffered_height_px),
+            ),
+            Attr.create("preserveAspectRatio", "none"),
+          ],
+          svgs,
+        ),
+      ],
+    )
+  );
+};
 
 // need to use mousedown instead of click to fire
 // (and move caret) before cell focus event handler
@@ -527,7 +94,7 @@ let on_mousedown =
     float_of_int(evt##.clientY),
   );
   let row_col =
-    CaretPosition.{
+    MeasuredPosition.{
       row:
         Float.to_int(
           (target_y -. container_rect##.top) /. font_metrics.row_height,
@@ -545,82 +112,88 @@ let on_mousedown =
   ]);
 };
 
-let rec code_text_view = (box: UHBox.t): list(Vdom.Node.t) => {
+let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
+let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
   Vdom.(
-    switch (box) {
-    | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-    | HBox(boxes) => boxes |> List.map(code_text_view) |> List.flatten
-    | VBox(boxes) =>
-      let vs =
-        boxes
-        |> List.map(code_text_view)
-        |> ListUtil.join([Node.br([])])
-        |> List.flatten;
-      [Node.div([Attr.classes(["VBox"])], vs)];
-    | Annot(annot, box) =>
-      let vs = code_text_view(box);
-      switch (annot) {
-      | Token({shape, _}) =>
-        let clss =
-          switch (shape) {
-          | Text(_) => ["code-text"]
-          | Op => ["code-op"]
-          | Delim(_) => ["code-delim"]
-          };
-        [Node.span([Attr.classes(clss)], vs)];
-      | HoleLabel({len}) =>
-        let width = Css_gen.width(`Ch(float_of_int(len)));
-        [
-          Node.span(
-            [Vdom.Attr.style(width), Attr.classes(["HoleLabel"])],
-            [Node.span([Attr.classes(["HoleNumber"])], vs)],
-          ),
-        ];
-      | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-      | ValidSeq => [Node.span([Attr.classes(["ValidSeq"])], vs)]
-      | InvalidSeq => [Node.span([Attr.classes(["InvalidSeq"])], vs)]
-      | String => [Node.span([Attr.classes(["String"])], vs)]
-      | _ => vs
-      };
+    switch (WeakMap.get(box_table, box)) {
+    | Some(vs) => vs
+    | None =>
+      switch (box) {
+      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+      | VBox(boxes) =>
+        let vs =
+          boxes
+          |> List.map(view_of_box)
+          |> ListUtil.join([Node.br([])])
+          |> List.flatten;
+        [Node.div([Attr.classes(["VBox"])], vs)];
+      | Annot(annot, box) =>
+        let vs = view_of_box(box);
+        switch (annot) {
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text(_) => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | HoleLabel({len}) =>
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | ValidSeq => [Node.span([Attr.classes(["ValidSeq"])], vs)]
+        | InvalidSeq => [Node.span([Attr.classes(["InvalidSeq"])], vs)]
+        | String => [Node.span([Attr.classes(["String"])], vs)]
+        | _ => vs
+        };
+      }
     }
   );
-}
-and decoration_views =
+};
+
+let decoration_views =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
       ~is_focused: bool,
       ~current_splice: Program.current_splice,
-      ~caret_pos: CaretPosition.t,
-      ~selected_instances,
+      ~caret_pos: MeasuredPosition.t,
       ~llii,
+      ~selected_instances,
       ~sync_livelit,
-      ds: Decorations.t,
+      dpaths: UHDecorationPaths.t,
       (l, splice_ls): UHLayout.with_splices,
     )
     : list(Vdom.Node.t) => {
+  let corner_radius = 2.5;
+  let corner_radii = (
+    corner_radius /. font_metrics.col_width,
+    corner_radius /. font_metrics.row_height,
+  );
+
   let rec go =
           (
-            ~indent: int=0,
-            ~start: CaretPosition.t={row: 0, col: 0},
-            ds: Decorations.t,
-            l: UHLayout.t,
+            ~tl: list(Vdom.Node.t)=[], // tail-recursive
+            ~indent=0, // indentation level of `m`
+            ~start=MeasuredPosition.zero, // start position of `m`
+            dpaths: UHDecorationPaths.t, // paths to decorations within `m`
+            m: UHMeasuredLayout.t,
           )
           : list(Vdom.Node.t) => {
     let go' = go(~indent, ~start);
-    switch (l) {
+    switch (m.layout) {
     | Linebreak
-    | Text(_) => []
-    | Cat(l1, l2) =>
-      // fast because memoized
-      let m1 = MeasuredLayout.mk(l1);
-      let mid_row = {
-        let height1 =
-          m1.metrics
-          |> List.map((box: MeasuredLayout.box) => box.height)
-          |> List.fold_left((+), 0);
-        start.row + height1 - 1;
-      };
+    | Text(_) => tl
+    | Cat(m1, m2) =>
+      let mid_row = start.row + MeasuredLayout.height(m1) - 1;
       let mid_col = {
         let (leading, MeasuredLayout.{width: last_width, _}) =
           ListUtil.split_last(m1.metrics);
@@ -631,28 +204,73 @@ and decoration_views =
           };
         offset + last_width;
       };
-      let ds1 = go'(ds, l1);
-      let ds2 = go(~indent, ~start={row: mid_row, col: mid_col}, ds, l2);
-      ds1 @ ds2;
-    | Align(l) => go(~indent=start.col, ~start, ds, l)
-    | Annot(annot, l) =>
+      let mid_tl =
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, dpaths, m2);
+      go'(~tl=mid_tl, dpaths, m1);
+    | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
+    | Annot(annot, m) =>
       switch (annot) {
       | Step(step) =>
-        let stepped = Decorations.take_step(step, ds);
-        Decorations.is_empty(stepped) ? [] : go'(stepped, l);
-      | Term({shape, _}) =>
-        let current_ds =
-          Decorations.current(shape, ds)
-          |> List.map(
-               Dec.view(
+        let stepped = UHDecorationPaths.take_step(step, dpaths);
+        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+      | Term({shape, sort, _}) =>
+        let offset = start.col - indent;
+        let origin = MeasuredPosition.{row: start.row, col: indent};
+        let height = lazy(MeasuredLayout.height(m));
+        let width = lazy(MeasuredLayout.width(~offset, m));
+        let current_vs =
+          UHDecorationPaths.current(shape, dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let (cls, decoration) =
+                 UHDecoration.(
+                   switch (dshape) {
+                   | ErrHole => (
+                       "err-hole",
+                       ErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
+                     )
+                   | VarErrHole => (
+                       "var-err-hole",
+                       VarErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
+                     )
+                   | VarUse => (
+                       "var-use",
+                       VarUse.view(~corner_radii, (offset, m)),
+                     )
+                   | CurrentTerm => (
+                       "current-term",
+                       CurrentTerm.view(
+                         ~corner_radii,
+                         ~sort,
+                         ~shape,
+                         (offset, m),
+                       ),
+                     )
+                   | LivelitExpression => (
+                       "livelit-expression",
+                       LivelitExpression.view((offset, m)),
+                     )
+                   }
+                 );
+               decoration_container(
                  ~font_metrics,
-                 ~origin={row: start.row, col: indent},
-                 ~offset=start.col - indent,
-                 // ~shape,
-                 ~subject=MeasuredLayout.mk(l),
-               ),
-             );
-        current_ds @ go'(ds, l);
+                 ~height=Lazy.force(height),
+                 ~width=Lazy.force(width),
+                 ~origin,
+                 ~cls,
+                 [decoration],
+               );
+             });
+        go'(~tl=current_vs @ tl, dpaths, m);
       | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
         // TODO(livelit definitions): thread ctx
         let ctx = Livelits.initial_livelit_view_ctx;
@@ -667,25 +285,25 @@ and decoration_views =
         let livelit_view = llview(m, trigger, sync);
         let vs = {
           let uhcode = splice_name => {
-            let splice_l =
-              splice_ls |> SpliceMap.get_splice(llu, splice_name);
+            let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
             let caret =
               switch (current_splice) {
               | Some((u, name))
                   when u == llu && name == splice_name && is_focused => [
-                  Dec.caret_view(~font_metrics, caret_pos),
+                  UHDecoration.Caret.view(~font_metrics, caret_pos),
                 ]
               | _ => []
               };
             let splice_ds = {
               let stepped =
-                ds
-                |> Decorations.take_step(hd_step)
-                |> Decorations.take_step(splice_name);
-              Decorations.is_empty(stepped) ? [] : go(stepped, splice_l);
+                dpaths
+                |> UHDecorationPaths.take_step(hd_step)
+                |> UHDecorationPaths.take_step(splice_name);
+              UHDecorationPaths.is_empty(stepped)
+                ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
             };
-            let splice_code = code_text_view(Box.mk(splice_l));
+            let splice_code = view_of_box(UHBox.mk(splice_l));
             Vdom.(
               Node.div(
                 [
@@ -713,7 +331,7 @@ and decoration_views =
                  TaggedNodeInstance.Livelit,
                  llu,
                )
-            |> OptUtil.map(i => (llu, i));
+            |> Option.map(i => (llu, i));
           let inst_opt =
             switch (selected_inst_opt) {
             | None => LivelitInstanceInfo.default_instance(llii, llu)
@@ -722,7 +340,7 @@ and decoration_views =
           let sim_dargs_opt =
             inst_opt
             |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-            |> OptUtil.map(((_, _, (si, dargs))) =>
+            |> Option.map(((_, _, (si, dargs))) =>
                  (SpliceInfo.splice_map(si), dargs)
                );
 
@@ -739,13 +357,13 @@ and decoration_views =
                  switch (IntMap.find_opt(splice_name, splice_map)) {
                  | None => raise(Not_found)
                  | Some((_, d_opt)) =>
-                   d_opt |> OptUtil.map(d => (d, dhview(d)))
+                   d_opt |> Option.map(d => (d, dhview(d)))
                  }
                );
 
           let dargs =
             sim_dargs_opt
-            |> OptUtil.map(((_, dargs)) =>
+            |> Option.map(((_, dargs)) =>
                  dargs
                  |> List.map(((v, darg_opt)) =>
                       (
@@ -799,18 +417,19 @@ and decoration_views =
             vs,
           ),
         ];
-
-      | _ => go'(ds, l)
+      | _ => go'(~tl, dpaths, m)
       }
     };
   };
 
   let root_caret =
     switch (current_splice) {
-    | None when is_focused => [Dec.caret_view(~font_metrics, caret_pos)]
+    | None when is_focused => [
+        UHDecoration.Caret.view(~font_metrics, caret_pos),
+      ]
     | _ => []
     };
-  let root_ds = go(ds, l);
+  let root_ds = go(dpaths, UHMeasuredLayout.mk(l));
   root_caret @ root_ds;
 };
 
@@ -921,13 +540,18 @@ let key_handlers =
   ];
 };
 
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~measure: bool,
       ~is_mac: bool,
-      ~llii: LivelitInstanceInfo.t,
       ~selected_instances: UserSelectedInstances.t,
       ~sync_livelit,
       program: Program.t,
@@ -938,6 +562,7 @@ let view =
     measure,
     () => {
       open Vdom;
+      let (_, _, llii, _) = Program.get_result(program);
 
       let (l, splice_ls) =
         Program.get_layout(
@@ -946,7 +571,6 @@ let view =
           ~memoize_doc=true,
           program,
         );
-      let code_text = code_text_view(Box.mk(l));
 
       let (caret_pos, current_splice) =
         Program.get_caret_position(
@@ -956,8 +580,10 @@ let view =
           program,
         );
 
-      let ds = Program.get_decorations(program);
-      let decorations =
+      // TODO need to render code text for splices... I think
+      let code_text = view_of_box(UHBox.mk(l));
+      let decorations = {
+        let dpaths = Program.get_decoration_paths(program);
         decoration_views(
           ~inject,
           ~font_metrics,
@@ -967,9 +593,10 @@ let view =
           ~selected_instances,
           ~llii,
           ~sync_livelit,
-          ds,
+          dpaths,
           (l, splice_ls),
         );
+      };
 
       let key_handlers =
         program.is_focused
@@ -982,13 +609,14 @@ let view =
             )
           : [];
 
-      let id = "code-root";
       Node.div(
         [
-          Attr.id(id),
+          Attr.id(root_id),
           Attr.classes(["code", "presentation"]),
+          // need to use mousedown instead of click to fire
+          // (and move caret) before cell focus event handler
           Attr.on_mousedown(
-            on_mousedown(~inject, ~id, ~font_metrics, ~splice=None),
+            on_mousedown(~inject, ~id=root_id, ~font_metrics, ~splice=None),
           ),
           // necessary to make cell focusable
           Attr.create("tabindex", "0"),

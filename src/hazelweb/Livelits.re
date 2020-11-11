@@ -678,7 +678,7 @@ module GradeCutoffLivelit: LIVELIT = {
       };
     let grades_svgs_invalids_opt =
       data_opt
-      |> OptUtil.map(d =>
+      |> Option.map(d =>
            dhexp_to_grades_invalids([], 0, d) |> grades_invalids_to_svgs
          );
     let (grades_svgs, data_err_msg) =

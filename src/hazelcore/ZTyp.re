@@ -17,7 +17,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   | Unit
   | Int
   | Float
-  | Bool => CursorPosition.delim_cursors(1)
+  | Bool
   | String => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
   | List(_) => CursorPosition.delim_cursors(2);

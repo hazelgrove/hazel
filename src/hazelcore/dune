@@ -7,14 +7,9 @@
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
+ (inline_tests)
  (preprocess
-  (pps ppx_let ppx_sexp_conv)))
-
-(ocamllex
- (modules SkelExprLexer SkelPatLexer SkelTypLexer))
-
-(menhir
- (modules SkelExprParser SkelPatParser SkelTypParser))
+  (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))

@@ -151,12 +151,13 @@ let is_outer =
       ~is_outer_zoperand: 'zoperand => bool,
       ZOpSeq(skel, zseq): t(_, _, 'zoperand, _),
     )
-    : bool =>
+    : bool => {
   switch (zseq) {
   | ZOperator(_) => skel_is_rooted_at_cursor(skel, zseq)
   | ZOperand(operand, (E, E)) => is_outer_zoperand(operand)
   | ZOperand(_) => false
   };
+};
 
 let place_before =
     (
@@ -198,7 +199,7 @@ let move_cursor_left =
        ~erase_zoperand,
        ~erase_zoperator,
      )
-  |> OptUtil.map(zseq => ZOpSeq(skel, zseq));
+  |> Option.map(zseq => ZOpSeq(skel, zseq));
 
 let move_cursor_right =
     (
@@ -220,4 +221,4 @@ let move_cursor_right =
        ~erase_zoperand,
        ~erase_zoperator,
      )
-  |> OptUtil.map(zseq => ZOpSeq(skel, zseq));
+  |> Option.map(zseq => ZOpSeq(skel, zseq));

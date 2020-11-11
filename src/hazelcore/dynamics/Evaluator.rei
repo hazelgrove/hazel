@@ -21,30 +21,4 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let grounded_Arrow: ground_cases;
-
-let grounded_Sum: ground_cases;
-
-let grounded_Prod: int => ground_cases;
-
-let grounded_List: ground_cases;
-
-let ground_cases_of: HTyp.t => ground_cases;
-
-let eval_bin_bool_op: (DHExp.BinBoolOp.t, bool, bool) => DHExp.t;
-
-let eval_bin_int_op: (DHExp.BinIntOp.t, int, int) => DHExp.t;
-
-let eval_bin_float_op: (DHExp.BinFloatOp.t, float, float) => DHExp.t;
-
 let evaluate: (~eval_livelit_holes: bool, DHExp.t) => result;
-
-let evaluate_case:
-  (
-    ~eval_livelit_holes: bool=?,
-    option((MetaVar.t, MetaVarInst.t, VarMap.t_(DHExp.t))),
-    DHExp.t,
-    list(DHExp.rule),
-    int
-  ) =>
-  result;

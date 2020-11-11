@@ -88,7 +88,7 @@ let perform_edit_action: (Action_common.t, t) => t;
 
 let move_via_key: (MoveKey.t, t) => t;
 let move_via_click:
-  (option((MetaVar.t, SpliceName.t)), CaretPosition.t, t) => t;
+  (option((MetaVar.t, SpliceName.t)), Pretty.MeasuredPosition.t, t) => t;
 
 /**
  * See `Program.move_to_case_branch`

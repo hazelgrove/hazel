@@ -15,6 +15,7 @@ type t =
   | Colon
   | Equals
   | Enter
+  | Shift_Enter
   | Backslash
   | Plus
   | Minus
@@ -56,6 +57,7 @@ let get_details =
   | Colon => KeyCombo.colon
   | Equals => KeyCombo.equals
   | Enter => KeyCombo.enter
+  | Shift_Enter => KeyCombo.shift_enter
   | Backslash => KeyCombo.backslash
   | Plus => KeyCombo.plus
   | Minus => KeyCombo.minus
@@ -117,6 +119,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Equals);
   } else if (evt_matches(KeyCombo.enter)) {
     Some(Enter);
+  } else if (evt_matches(KeyCombo.shift_enter)) {
+    Some(Shift_Enter);
   } else if (evt_matches(KeyCombo.backslash)) {
     Some(Backslash);
   } else if (evt_matches(KeyCombo.plus)) {
@@ -125,8 +129,6 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Minus);
   } else if (evt_matches(KeyCombo.asterisk)) {
     Some(Asterisk);
-  } else if (evt_matches(KeyCombo.caret)) {
-    Some(Caret);
   } else if (evt_matches(KeyCombo.slash)) {
     Some(Slash);
   } else if (evt_matches(KeyCombo.lt)) {
@@ -139,8 +141,6 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Dollar);
   } else if (evt_matches(KeyCombo.left_bracket)) {
     Some(LeftBracket);
-  } else if (evt_matches(KeyCombo.left_quotation)) {
-    Some(LeftQuotation);
   } else if (evt_matches(KeyCombo.semicolon)) {
     Some(Semicolon);
   } else if (evt_matches(KeyCombo.alt_L)) {

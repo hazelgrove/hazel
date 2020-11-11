@@ -46,7 +46,7 @@ let rec check_livelit_skel =
       seq,
       skel1,
     )
-    |> OptUtil.map(((data, rev_args)) => (data, [skel2, ...rev_args]))
+    |> Option.map(((data, rev_args)) => (data, [skel2, ...rev_args]))
   | _ => None
   };
 

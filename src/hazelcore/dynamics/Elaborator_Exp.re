@@ -13,6 +13,7 @@ let rec builtin_subst =
     }
   | [] => []
   };
+
 /* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   let subst_splices = splice_info =>
@@ -20,7 +21,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
       splice_info,
       splice_info.splice_map
       |> IntMap.map(((splice_typ, splice_d)) =>
-           (splice_typ, splice_d |> OptUtil.map(subst_var(d1, x)))
+           (splice_typ, splice_d |> Option.map(subst_var(d1, x)))
          ),
     );
   switch (d2) {
@@ -91,13 +92,13 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | Inj(ty, side, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    Inj(ty, side, d3);
   | BinStrOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinStrOp(op, d3, d4);
-  | Inj(ty, side, d3) =>
-    let d3 = subst_var(d1, x, d3);
-    Inj(ty, side, d3);
   | Pair(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -133,7 +134,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let dargs' =
       dargs
       |> List.map(((v, t, d_opt)) => {
-           let new_d = d_opt |> OptUtil.map(subst_var(d1, x));
+           let new_d = d_opt |> Option.map(subst_var(d1, x));
            (v, t, new_d);
          });
     let sigma' = subst_var_env(d1, x, sigma);
@@ -256,8 +257,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
-  | (StringLit(n1), StringLit(n2)) =>
-    if (n1 == n2) {
+  | (StringLit(s1), StringLit(s2)) =>
+    if (s1 == s2) {
       Matches(Environment.empty);
     } else {
       DoesNotMatch;
@@ -638,13 +639,14 @@ and syn_elab_line =
       let prelude = d2 => DHExp.Let(Wild, d1, d2);
       LinesExpand(prelude, ctx, delta);
     }
-  | EmptyLine => LinesExpand(d => d, ctx, delta)
+  | EmptyLine
+  | CommentLine(_) => LinesExpand(d => d, ctx, delta)
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
       let (ctx1, is_recursive_fn) =
-        Statics_Exp.ctx_for_let'(ctx, p, ty1, def);
+        Statics_Exp.ctx_for_let(ctx, p, ty1, def);
       switch (ana_elab(~livelit_holes, ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1', delta) =>
@@ -1031,9 +1033,7 @@ and syn_elab_operand =
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(InconsistentBranches(u, 0, sigma, d), Hole, delta);
       };
-    }
-
-  /* not in hole */
+    } /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1050,15 +1050,9 @@ and syn_elab_operand =
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x), BuiltinFunctions.lookup(x)) {
-    | (Some(ty'), Some(ty)) =>
-      if (HTyp.is_Arrow(ty') == false) {
-        Elaborates(BoundVar(x), ty', delta);
-      } else {
-        Elaborates(BoundVar(x), ty, delta);
-      }
-    | (Some(ty), _) => Elaborates(BoundVar(x), ty, delta)
-    | (None, _) => DoesNotElaborate
+    switch (VarMap.lookup(gamma, x)) {
+    | Some(ty) => Elaborates(BoundVar(x), ty, delta)
+    | None => DoesNotElaborate
     };
   | Var(NotInHole, InVarHole(reason, u), x) =>
     let gamma = Contexts.gamma(ctx);
@@ -1278,7 +1272,7 @@ and syn_expand_ApLivelit =
           dargs
           |> ListUtil.map_with_accumulator_opt(
                ((), (v, t, arg_opt)) =>
-                 arg_opt |> OptUtil.map(arg => ((), (v, t, arg))),
+                 arg_opt |> Option.map(arg => ((), (v, t, arg))),
                (),
              );
         let rslt =
@@ -1428,7 +1422,7 @@ and ana_elab_opseq =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
   // handle n-tuples
   switch (Statics_Exp.tuple_zip(skel, ty)) {
   | Some(skel_tys) =>
@@ -1520,7 +1514,8 @@ and ana_elab_opseq =
         }
       };
     }
-  }
+  };
+}
 and ana_elab_skel =
     (
       ~livelit_holes,
@@ -1861,8 +1856,6 @@ let rec renumber_result_only =
         : (DHExp.t, HoleInstanceInfo.t, LivelitInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
-  | ApBuiltin(_, _)
-  | FailedAssert(_)
   | InvalidText(_)
   | BoolLit(_)
   | IntLit(_)
@@ -1870,6 +1863,21 @@ let rec renumber_result_only =
   | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii, llii)
+  | ApBuiltin(fn, args) =>
+    let ((hii, llii), args) =
+      args
+      |> ListUtil.map_with_accumulator(
+           ((hii, llii), arg) => {
+             let (arg, hii, llii) =
+               renumber_result_only(path, hii, llii, arg);
+             ((hii, llii), arg);
+           },
+           (hii, llii),
+         );
+    (ApBuiltin(fn, args), hii, llii);
+  | FailedAssert(d) =>
+    let (d, hii, llii) = renumber_result_only(path, hii, llii, d);
+    (d, hii, llii);
   | Let(dp, d1, d2) =>
     let (d1, hii, llii) = renumber_result_only(path, hii, llii, d1);
     let (d2, hii, llii) = renumber_result_only(path, hii, llii, d2);
@@ -2000,15 +2008,28 @@ let rec renumber_sigmas_only =
         : (DHExp.t, HoleInstanceInfo.t, LivelitInstanceInfo.t) =>
   switch (d) {
   | BoundVar(_)
-  | ApBuiltin(_, _)
-  | FailedAssert(_)
   | InvalidText(_)
   | BoolLit(_)
+  | StringLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | StringLit(_)
   | ListNil(_)
   | Triv => (d, hii, llii)
+  | ApBuiltin(fn, args) =>
+    let ((hii, llii), args) =
+      args
+      |> ListUtil.map_with_accumulator(
+           ((hii, llii), arg) => {
+             let (arg, hii, llii) =
+               renumber_sigmas_only(path, hii, llii, arg);
+             ((hii, llii), arg);
+           },
+           (hii, llii),
+         );
+    (ApBuiltin(fn, args), hii, llii);
+  | FailedAssert(d) =>
+    let (d, hii, llii) = renumber_sigmas_only(path, hii, llii, d);
+    (d, hii, llii);
   | Let(dp, d1, d2) =>
     let (d1, hii, llii) = renumber_sigmas_only(path, hii, llii, d1);
     let (d2, hii, llii) = renumber_sigmas_only(path, hii, llii, d2);

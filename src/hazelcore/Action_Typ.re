@@ -8,14 +8,14 @@ let operator_of_shape =
   | SPlus
   | STimes
   | SDivide
-  | SCaret
   | SAnd
   | SOr
   | SLessThan
   | SGreaterThan
   | SEquals
   | SSpace
-  | SCons => None
+  | SCons
+  | SCaret => None
   };
 
 let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
@@ -76,17 +76,15 @@ let rec move = (a: Action_common.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
       }
     }
   | MoveLeft =>
-    zty
-    |> ZTyp.move_cursor_left
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(Before), z =>
-         Succeeded(z)
-       )
+    switch (ZTyp.move_cursor_left(zty)) {
+    | None => ActionOutcome.CursorEscaped(Before)
+    | Some(z) => Succeeded(z)
+    }
   | MoveRight =>
-    zty
-    |> ZTyp.move_cursor_right
-    |> OptUtil.map_default(~default=ActionOutcome.CursorEscaped(After), z =>
-         Succeeded(z)
-       )
+    switch (ZTyp.move_cursor_right(zty)) {
+    | None => ActionOutcome.CursorEscaped(After)
+    | Some(z) => Succeeded(z)
+    }
   | Construct(_)
   | Delete
   | Backspace
@@ -230,7 +228,8 @@ and perform_operand =
   | (
       PerformLivelitAction(_) |
       Construct(
-        SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase,
+        SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase |
+        SCommentLine,
       ) |
       SwapUp |
       SwapDown,
@@ -300,9 +299,6 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
   | (Construct(SChar("B")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
-  | (Construct(SChar("S")), CursorT(_, Hole)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
-
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>
