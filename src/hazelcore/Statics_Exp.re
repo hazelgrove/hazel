@@ -113,7 +113,7 @@ and syn_skel =
         }
       | Label(InLabelHole(_), _) => Some(Hole)
       // Skel1 is not a label, so continue wiht matching on arrow
-      // ECD TOD: Check for parentheses
+      // ECD TODO: Check for parentheses
       | _ =>
         switch (syn_skel(ctx, skel1, seq)) {
         | None => None
@@ -955,7 +955,7 @@ and syn_fix_holes_skel =
            (u_gen, seq),
          );
     let (skels, tys) = List.split(pairs);
-    // ECD: You are here
+    // ECD: You are here, not working on test case .a 2, .a 2, .a 2, .a 2 => .a 2, .a 2, .ab 2, .ab 2
     let (seq, tys) =
       UHExp.find_and_clear_dupe_holes_labels_tuple(skels, tys, seq, u_gen);
     let (seq, tys) =
@@ -995,7 +995,7 @@ and syn_fix_holes_operand =
       Hole,
       u_gen,
     )
-  | Label(InLabelHole(_, _), _) => (e, Hole, u_gen)
+  | Label(InLabelHole(_, u), _) => (e, Hole, u)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {

@@ -591,45 +591,62 @@ and syn_elab_skel =
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    // ECD YOU are here: fix this
-
-    switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
-    | None => DoesNotElaborate
-    | Some(ty1) =>
-      switch (HTyp.matched_arrow(ty1)) {
-      | None =>
-        switch (skel1) {
-        | Placeholder(n) =>
-          let en = seq |> Seq.nth_operand(n);
-          switch (en) {
-          | Label(_, l) =>
-            switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+    let arrow_case = (): ElaborationResult.t => {
+      switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
+      | None => DoesNotElaborate
+      | Some(ty1) =>
+        switch (HTyp.matched_arrow(ty1)) {
+        | None => DoesNotElaborate
+        | Some((ty2, ty)) =>
+          let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
+          switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(d1, ty1', delta) =>
+            switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
             | DoesNotElaborate => DoesNotElaborate
             | Elaborates(d2, ty2', delta) =>
-              let dc = DHExp.cast(d2, ty2', ty2');
-              let d = DHExp.Label_Elt(l, dc);
-              Elaborates(d, Label_Elt(l, ty2'), delta);
+              let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
+              let dc2 = DHExp.cast(d2, ty2', ty2);
+              let d = DHExp.Ap(dc1, dc2);
+              Elaborates(d, ty, delta);
             }
-          | _ => DoesNotElaborate
           };
-        | _ => DoesNotElaborate
         }
-      | Some((ty2, ty)) =>
-        let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
-        switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty1', delta) =>
-          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d2, ty2', delta) =>
-            let dc1 = DHExp.cast(d1, ty1', ty2_arrow_ty);
-            let dc2 = DHExp.cast(d2, ty2', ty2);
-            let d = DHExp.Ap(dc1, dc2);
-            Elaborates(d, ty, delta);
-          }
-        };
-      }
-    }
+      };
+    };
+
+    switch (skel1) {
+    | Placeholder(n) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      | Label(NotInLabelHole, l)
+      | Label(InLabelHole(Standalone, _), l) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | ElaborationResult.DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d2, ty2', delta) =>
+          let d = DHExp.Label_Elt(l, d2);
+          Elaborates(d, Label_Elt(l, ty2'), delta);
+        }
+      // all other labels in a hole should be in a hole
+      | Label(InLabelHole(_, u_gen), l) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | ElaborationResult.DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d2, _, delta) =>
+          let gamma = Contexts.gamma(ctx);
+          let delta =
+            MetaVarMap.add(
+              u_gen,
+              (Delta.ExpressionHole, HTyp.Hole, gamma),
+              delta,
+            );
+          let d = DHExp.Label_Elt(l, d2);
+          Elaborates(d, Hole, delta);
+        }
+      // skel1 is not a label, so evaluate for arrow case
+      | _ => arrow_case()
+      };
+    | _ => arrow_case()
+    };
   | BinOp(NotInHole, Comma, _, _) =>
     switch (UHExp.get_tuple_elements(skel)) {
     | [skel1, skel2, ...tail] =>
