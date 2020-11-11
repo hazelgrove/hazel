@@ -1608,35 +1608,25 @@ module SliderLivelitMin: LIVELIT = {
   let param_tys = [];
 
   [@deriving sexp]
-  type model = option(int);
-
+  type model = int;
   [@deriving sexp]
   type action = int;
   type trigger = action => Vdom.Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return(Some(0));
-  //let init_model = (psi, u_gen) => (Some(0), psi, u_gen);
-
-  let update = (_, n) => SpliceGenCmd.return(Some(n));
-  //let update = (_, n) => (psi, u_gen) => (Some(n), psi, u_gen);
+  let init_model = SpliceGenCmd.return(0);
+  //let init_model = (psi, u_gen) => (0, psi, u_gen);
+  let update = (_, n) => SpliceGenCmd.return(n);
+  //let update = (_, n) => (psi, u_gen) => (n, psi, u_gen);
+  let view_shape = _ => LivelitView.Inline(14); // use inj for multiline vs inline
+  // need to include shape!!
+  let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
+  // how to do this... str of sexp?
 
   let view = (model, trigger: trigger, _sync) => {
     Vdom.(
-      (_: LivelitView.splice_and_param_getters) => {
-        let min = 0;
-        let max = 100;
-        let value =
-          switch (model) {
-          | Some(n) when min <= n && n <= max => n
-          | _ => 0
-          //let new_value = (min + max) / 2;
-          //sync(new_value);
-          //new_value;
-          };
-        let min_str = string_of_int(min);
-        let max_str = string_of_int(max);
-        let value_str = string_of_int(value);
+      _ => {
+        let value = string_of_int(model);
         let on_input = (_, value_str) => trigger(int_of_string(value_str));
         Node.span(
           [Attr.classes(["slider-livelit"])],
@@ -1645,9 +1635,9 @@ module SliderLivelitMin: LIVELIT = {
               [
                 Attr.classes(["slider"]),
                 Attr.type_("range"),
-                Attr.create("min", min_str),
-                Attr.create("max", max_str),
-                Attr.value(value_str),
+                Attr.create("min", "0"),
+                Attr.create("max", "100"),
+                Attr.value(value),
                 Attr.on_input(on_input),
               ],
               [],
@@ -1657,13 +1647,6 @@ module SliderLivelitMin: LIVELIT = {
       }
     );
   };
-
-  let view_shape = _ => LivelitView.Inline(14); // use inj
-
-  let expand =
-    fun
-    | None => UHExp.Block.wrap(UHExp.intlit'(0))
-    | Some(n) => UHExp.Block.wrap(UHExp.intlit'(n));
 };
 
 module SliderLivelit: LIVELIT = {
