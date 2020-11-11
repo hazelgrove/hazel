@@ -8,14 +8,9 @@ module Vdom = Virtual_dom.Vdom;
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   let (vars, _) = ctx;
   let can_extract = ((_, ty: HTyp.t)) => {
-    if HTyp.consistent(ty, typ) {
-      true;
-    }
-    else {
-      false;
-    }
+    HTyp.consistent(ty, typ);
   };
-  let extracted_vars = vars |> VarMap.filter(can_extract);
+  vars |> VarMap.filter(can_extract);
 };
 
 /**
@@ -74,10 +69,7 @@ let list_vars_view = (vars: VarCtx.t) => {
   VarMap.map(
     ((var, ty)) => {
       Vdom.(
-        Node.div(
-          [Attr.classes(["option"])],
-          [Node.text(var ++ " : ")],
-        ),
+        Node.div([Attr.classes(["option"])], [Node.text(var ++ " : ")]),
         HTypCode.view(ty),
       )
     },
@@ -99,8 +91,17 @@ let view =
   let ty = get_type(cursor_info);
   let ctx = cursor_info.ctx;
 
-  let _ = typ;
+  let _ = ty;
   let _ = ctx;
+
+  let typ =
+    switch (ty) {
+    | Some(my_ty) => my_ty
+    | None => print_endline("None")
+    };
+
+  let var_ctx = extract_vars(ctx, typ);
+  let list_vars = list_vars_view(var_ctx);
 
   let fill_hole_msg =
     Vdom.(
@@ -194,43 +195,14 @@ let view =
         [Node.text("Variable"), var_arrow],
       )
     );
-  let var_body_1 =
+  let var_body =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.div(
-                [Attr.classes(["code-font"])],
-                [Node.text("scores_and_bonuses : ")],
-              ),
-              HTypCode.view(List(Prod([Float, Bool]))),
-            ],
-          ),
-        ],
+        [list_vars],
       )
     );
-  let var_body_2 =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.div(
-                [Attr.classes(["code-font"])],
-                [Node.text("bonus : ")],
-              ),
-              HTypCode.view(Float),
-            ],
-          ),
-        ],
-      )
-    );
-  let _ = if (true) {var_body_1} else {var_body_2};
+  let _ = var_body;
   let arrow_func =
     if (func_t) {
       Icons.down_arrow(["fill-arrow"]);
@@ -389,7 +361,7 @@ let view =
     };
   let body =
     if (var_t) {
-      List.append(body, [var, var_body_1]);
+      List.append(body, [var, var_body]);
     } else {
       List.append(body, [var]);
     };
