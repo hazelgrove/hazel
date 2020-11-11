@@ -496,21 +496,25 @@ let summary_bar =
       )
     );
   let fill_icon =
-    Vdom.(
-      Node.div(
-        [
-          Attr.classes(["cursor-inspector-arrow"]),
-          Attr.on_click(_ =>
-            Vdom.Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(ModelAction.ToggleTypeAssist),
-            ])
-          ),
-        ],
-        [Node.text("💡")],
-      )
-    );
+    if (CursorInfo_common.is_empty_hole(ci.cursor_term)) {
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes(["cursor-inspector-arrow"]),
+            Attr.on_click(_ =>
+              Vdom.Event.Many([
+                Event.Prevent_default,
+                Event.Stop_propagation,
+                inject(ModelAction.ToggleTypeAssist),
+              ])
+            ),
+          ],
+          [Node.text("💡")],
+        )
+      );
+    } else {
+      Vdom.(Node.div([], [Node.text("")]));
+    };
   let body =
     show
       ? [summary, arrow, fill_icon, err_icon]
