@@ -1042,19 +1042,6 @@ h1 {
   box-shadow: inset 0px -2px 2px 0px #888;
   z-index: 50;
 }
-.matrix-livelit .cells-border::before {
-  content: '';
-  display: block;
-  position: absolute;
-  top: 8px;
-  left: 98.2%;
-  background-color: #444;
-  opacity: 60%;
-  width: 8px;
-  border-radius: 4px;
-  height: 25px;
-  z-index: 100;
-}
 .matrix-livelit .matrix-cell {
   height: 100%;
   width: 100%;
