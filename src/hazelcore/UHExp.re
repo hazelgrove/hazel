@@ -3,9 +3,28 @@ open Sexplib.Std;
 [@deriving sexp]
 type operator = Operators_Exp.t;
 
+// where should this live - andrew
+[@deriving sexp]
+type livelitShape =
+  | Inline(int)
+  | MultiLine(int);
+
 [@deriving sexp]
 type t = block
 and block = list(line)
+and livelitDefn = {
+  err: ErrStatus.t,
+  captures: list(string), // what should actually go here?
+  name: string, //livelitname look at stringlit
+  shape: livelitShape,
+  livelit_type: UHTyp.t,
+  model_type: UHTyp.t,
+  action_type: UHTyp.t,
+  init: t,
+  update: t,
+  view: t,
+  expand: t,
+}
 and line =
   | EmptyLine
   | CommentLine(string)
@@ -17,6 +36,7 @@ and line =
       list(operand),
     )
   | ExpLine(opseq)
+  | LivelitDefLine(livelitDefn)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -41,6 +61,7 @@ and operand =
       splice_info,
     )
   | FreeLivelit(MetaVar.t, LivelitName.t)
+
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -111,6 +132,7 @@ module Line = {
     | ExpLine(_)
     | EmptyLine
     | AbbrevLine(_)
+    | LivelitDefLine(_)
     | LetLine(_) => line
     };
 
@@ -119,6 +141,7 @@ module Line = {
     | EmptyLine
     | AbbrevLine(_)
     | CommentLine(_)
+    | LivelitDefLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -209,6 +232,7 @@ and find_operand_line =
   | CommentLine(_)
   | AbbrevLine(_) => None
   | LetLine(_, _, def) => def |> find_operand
+  | LivelitDefLine({init, _}) => find_operand(init) // ?
   | ExpLine(opseq) => opseq |> find_operand_opseq
 and find_operand_opseq =
   fun
@@ -377,6 +401,30 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  | LivelitDefLine({
+      //err,
+      //captures,
+      //name,
+      livelit_type,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      expand,
+      _,
+    }) =>
+    // TODO: is name complete? captures?
+    let types_complete =
+      UHTyp.is_complete(livelit_type)
+      && UHTyp.is_complete(model_type)
+      && UHTyp.is_complete(action_type);
+    let exprs_complete =
+      is_complete(init, check_type_holes)
+      && is_complete(update, check_type_holes)
+      && is_complete(view, check_type_holes)
+      && is_complete(expand, check_type_holes);
+    exprs_complete && (check_type_holes ? types_complete : true);
   };
 }
 and is_complete_block = (b: block, check_type_holes: bool): bool => {
