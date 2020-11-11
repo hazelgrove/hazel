@@ -1805,7 +1805,7 @@ module DataFrameLivelit: LIVELIT = {
         ),
         rows =>
         MonadsUtil.bind_count(
-          init_height, bind(new_splice(HTyp.String)), col_headers =>
+          init_width, bind(new_splice(HTyp.String)), col_headers =>
           return({selected: List.hd(col_headers), col_headers, rows})
         )
       )
