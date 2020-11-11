@@ -9,7 +9,7 @@ let mk = (~width, info: CardstackInfo.t): t => {
   assert(List.length(cards) != 0);
   let zcards =
     cards
-    |> ZList.split_at(0)
+    |> ListUtil.split_nth_opt(0)
     |> Option.get
     |> ZList.map_z(ZCard.mk(~width));
   {info, zcards};

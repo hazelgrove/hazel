@@ -62,7 +62,7 @@ and follow_block =
   switch (steps) {
   | [] => None // no block level cursor
   | [x, ...xs] =>
-    switch (ZList.split_at(x, block)) {
+    switch (ListUtil.split_nth_opt(x, block)) {
     | None => None
     | Some(split_lines) =>
       split_lines |> ZList.optmap_z(follow_line((xs, cursor)))
@@ -101,9 +101,7 @@ and follow_line =
     if (x >= List.length(args)) {
       None;
     } else {
-      let (p, s) = ListUtil.split_index(args, x);
-      let carg = List.hd(s);
-      let s = List.tl(s);
+      let (p, carg, s) = ListUtil.split_nth(x, args);
       carg
       |> follow_operand((xs, cursor))
       |> Option.map(zarg =>
@@ -185,7 +183,7 @@ and follow_operand =
         |> follow((xs, cursor))
         |> Option.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
       | _ =>
-        switch (ZList.split_at(x - 1, rules)) {
+        switch (ListUtil.split_nth_opt(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
           split_rules
@@ -243,7 +241,7 @@ and follow_rules =
   switch (steps) {
   | [] => None
   | [x, ...xs] =>
-    switch (ZList.split_at(x, rules)) {
+    switch (ListUtil.split_nth_opt(x, rules)) {
     | None => None
     | Some(split_rules) =>
       split_rules |> ZList.optmap_z(follow_rule((xs, cursor)))
@@ -287,7 +285,7 @@ and of_steps_block =
       };
     Some(of_zblock(place_cursor(block)));
   | [x, ...xs] =>
-    switch (ZList.split_at(x, block)) {
+    switch (ListUtil.split_nth_opt(x, block)) {
     | None => None
     | Some(split_lines) =>
       let (_, z, _) = split_lines;
@@ -413,7 +411,7 @@ and of_steps_operand =
       | 0 =>
         scrut |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
       | _ =>
-        switch (ZList.split_at(x - 1, rules)) {
+        switch (ListUtil.split_nth_opt(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
           let (_, z, _) = split_rules;
