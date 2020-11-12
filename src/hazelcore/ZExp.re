@@ -84,10 +84,9 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   };
 let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
   fun
-  | UserOp(op) =>
-    CursorPosition.text_cursors(Var.length(op))
-    @ [OnOp(Before), OnOp(After)]
-  | _ => [OnOp(Before), OnOp(After)];
+  | op =>
+    CursorPosition.text_cursors(Var.length(Operators_Exp.to_string(op)))
+    @ [OnOp(Before), OnOp(After)];
 let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   fun
   /* outer nodes - delimiter */
