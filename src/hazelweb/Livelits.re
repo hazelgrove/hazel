@@ -1923,10 +1923,9 @@ module DataFrameLivelit: LIVELIT = {
       ),
     );
 
-  [@warning "-27"]
   let view =
       (
-        {selected, col_headers, rows} as m: model,
+        m: model,
         trig,
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
@@ -1938,7 +1937,8 @@ module DataFrameLivelit: LIVELIT = {
           attr_style(grid_area(grid_coordinates)),
           Attr.classes([
             "matrix-splice",
-            splice_name == selected ? "matrix-selected" : "matrix-unselected",
+            splice_name == m.selected
+              ? "matrix-selected" : "matrix-unselected",
             ...clss,
           ]),
           Attr.on_mousedown(_ => trig(Select(splice_name))),
@@ -2035,7 +2035,7 @@ module DataFrameLivelit: LIVELIT = {
               [Attr.classes(["formula-bar-prompt"])],
               [Node.text(" > ")],
             ),
-            uhcode(selected),
+            uhcode(m.selected),
           ],
         ),
         Node.div(
