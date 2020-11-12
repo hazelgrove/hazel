@@ -46,6 +46,20 @@ let to_string =
   | Or => "||"
   | UserOp(op) => op;
 
+let string_to_operator =
+  fun
+  | "+" => Some(Plus)
+  | "-" => Some(Minus)
+  | "*" => Some(Times)
+  | "/" => Some(Divide)
+  | "<" => Some(LessThan)
+  | ">" => Some(GreaterThan)
+  | "==" => Some(Equals)
+  | "::" => Some(Cons)
+  | "&&" => Some(And)
+  | "||" => Some(Or)
+  | _ => None;
+
 let is_Space =
   fun
   | Space => true
@@ -70,7 +84,7 @@ let first_op_of_user_op = (op: string) => {
     failwith(
       "Error: invalid operator symbol provided to user defined operator.",
     )
-  | _ => operator_of_char(String.get(op, 0))
+  | _ => operator_of_char(op.[0])
   };
 };
 
