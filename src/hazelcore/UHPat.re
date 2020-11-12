@@ -18,7 +18,8 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
-  | Inj(ErrStatus.t, InjSide.t, t);
+  | Inj(ErrStatus.t, InjSide.t, t)
+  | Label(LabelErrStatus.t, Label.t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -43,6 +44,9 @@ let intlit = (~err: ErrStatus.t=NotInHole, n: string) => IntLit(err, n);
 let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
+
+let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t) =>
+  Label(err, l);
 
 let rec get_tuple_elements: skel => list(skel) =
   fun
@@ -88,7 +92,8 @@ and get_err_status_operand =
   | BoolLit(err, _)
   | ListNil(err)
   | Inj(err, _, _) => err
-  | Parenthesized(p) => get_err_status(p);
+  | Parenthesized(p) => get_err_status(p)
+  | Label(_, _) => NotInHole;
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
   p |> set_err_status_opseq(err)
@@ -106,6 +111,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
+  | Label(_, _) => operand
   };
 
 let is_inconsistent = (p: t): bool =>
@@ -132,7 +138,8 @@ and mk_inconsistent_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | Label(_, _) => (operand, u_gen)
   // not in hole
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -164,6 +171,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | Label(l) => (label(l), u_gen)
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
@@ -189,6 +197,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   switch (operand) {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
+  | Label(_, _) => false
   | Wild(InHole(_)) => false
   | Wild(NotInHole) => true
   | Var(InHole(_), _, _) => false

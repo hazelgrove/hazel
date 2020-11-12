@@ -18,7 +18,8 @@ type t =
   | Comma
   | Cons
   | And
-  | Or;
+  | Or
+  | Dot;
 
 let to_string =
   fun
@@ -40,7 +41,8 @@ let to_string =
   | Comma => ","
   | Cons => "::"
   | And => "&&"
-  | Or => "||";
+  | Or => "||"
+  | Dot => ".";
 
 let is_Space =
   fun
@@ -71,6 +73,7 @@ let precedence =
 
 let precedence_const = 0;
 let precedence_Ap = 1;
+let precedence_Label = 2;
 let precedence_max = 10;
 
 let associativity =

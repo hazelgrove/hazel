@@ -332,6 +332,15 @@ let mk_syn_text =
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, u_gen)));
     };
+  | Label(label) =>
+    let ze =
+      ZExp.ZBlock.wrap(
+        CursorE(
+          text_cursor,
+          UHExp.label(label, ~err=InLabelHole(Standalone, u_gen)),
+        ),
+      );
+    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
   };
 };
 
@@ -363,6 +372,9 @@ let mk_ana_text =
         k |> ExpandingKeyword.to_string,
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
+    Succeeded(AnaDone((ze, u_gen)));
+  | Label(l) =>
+    let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.label(l)));
     Succeeded(AnaDone((ze, u_gen)));
   | IntLit(_)
   | FloatLit(_)
@@ -1442,7 +1454,8 @@ and syn_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_),
+        ApPalette(_) |
+        Label(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1507,6 +1520,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+  | (Delete, CursorE(OnText(j), Label(_, l))) =>
+    syn_delete_text(ctx, u_gen, j, l)
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1517,6 +1532,9 @@ and syn_perform_operand =
     syn_backspace_text(ctx, u_gen, j, f)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+  | (Backspace, CursorE(OnText(j), Label(_, l))) =>
+    // ECD TODO: test if there is a bug with allowing labels wiht an empty string
+    syn_backspace_text(ctx, u_gen, j, l)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -1602,6 +1620,11 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, f)
+  | (Construct(SOp(sop)), CursorE(OnText(j), Label(_, l)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, l)
 
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
@@ -1645,6 +1668,8 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), f)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+  | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
+    syn_insert_text(ctx, u_gen, (j, s), l)
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
@@ -1990,6 +2015,8 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
+  | (_, CursorE(_, Prj(_, _, _))) =>
+    failwith(__LOC__ ++ " unimplemented Label Projection")
   };
 }
 and syn_perform_rules =
@@ -2840,7 +2867,8 @@ and ana_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_),
+        ApPalette(_) |
+        Label(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -2945,6 +2973,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, f, ty)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorE(OnText(j), Label(_, l))) =>
+    ana_delete_text(ctx, u_gen, j, l, ty)
 
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -2956,6 +2986,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorE(OnText(j), Label(_, l))) =>
+    ana_backspace_text(ctx, u_gen, j, l, ty)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -3027,6 +3059,8 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+  | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
+    ana_insert_text(ctx, u_gen, (j, s), l, ty)
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SCase), CursorE(_, operand)) =>
@@ -3065,6 +3099,11 @@ and ana_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
+  | (Construct(SOp(sop)), CursorE(OnText(j), Label(_, l)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, l, ty)
 
   | (Construct(SAsc), LamZP(err, zp, None, body)) =>
     let new_zann = UHTyp.Hole |> ZTyp.place_before_operand |> ZOpSeq.wrap;
@@ -3373,6 +3412,7 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
+  | (_, CursorE(_, Prj(_))) => failwith("unimplemented Label Projection")
   }
 and ana_perform_subsume =
     (

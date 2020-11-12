@@ -83,6 +83,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         hcats([choices([linebreak(), space()]), text("| ")]),
         d2,
       ]);
+    | Label(label) => text(label)
+    | Label_Elt(l, ty) =>
+      hcats([text(l), text(" "), mk(ty) |> pad_child(~enforce_inline)])
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
 };

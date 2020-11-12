@@ -150,6 +150,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Case(_, _, _)
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
+    | Label(_, label) => Len(Label.length(label))
+    | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented label projection")
     }
   | Pat(_, operand) =>
     switch (operand) {
@@ -163,6 +165,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | ListNil(_)
     | Parenthesized(_)
     | Inj(_, _, _) => MaxLen
+    | Label(_, label) => Len(Label.length(label))
     }
   | Typ(_, operand) =>
     switch (operand) {
@@ -173,6 +176,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Bool
     | Parenthesized(_)
     | List(_) => MaxLen
+    | Label(_, label) => Len(Label.length(label))
     }
   | ExpOp(_, _)
   | PatOp(_, _)

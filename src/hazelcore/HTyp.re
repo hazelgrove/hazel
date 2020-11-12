@@ -10,8 +10,9 @@ type t =
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list(t))
-  | List(t);
-
+  | List(t)
+  | Label(Label.t)
+  | Label_Elt(Label.t, t);
 [@deriving sexp]
 type join =
   | GLB
@@ -20,7 +21,9 @@ type join =
 let precedence_Prod = Operators_Typ.precedence(Prod);
 let precedence_Arrow = Operators_Typ.precedence(Arrow);
 let precedence_Sum = Operators_Typ.precedence(Sum);
+let precedence_Space = Operators_Typ.precedence(Space);
 let precedence_const = Operators_Typ.precedence_const;
+
 let precedence = (ty: t): int =>
   switch (ty) {
   | Int
@@ -28,7 +31,9 @@ let precedence = (ty: t): int =>
   | Bool
   | Hole
   | Prod([])
-  | List(_) => precedence_const
+  | List(_)
+  | Label(_)
+  | Label_Elt(_, _) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
@@ -61,6 +66,11 @@ let rec consistent = (x, y) =>
   | (Prod(_), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
+  | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
+    label == label' && consistent(ty, ty')
+  | (Label_Elt(_), _) => false
+  | (Label(id), Label(id')) => id == id'
+  | (Label(_), _) => true // Labels are holes
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
@@ -111,19 +121,21 @@ let rec complete =
   | Int => true
   | Float => true
   | Bool => true
+  | Label(_) => false // ECD TODO: Unsure of if this should be true or false, as labels act as holes now
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | Prod(tys) => tys |> List.for_all(complete)
-  | List(ty) => complete(ty);
+  | List(ty)
+  | Label_Elt(_, ty) => complete(ty);
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Hole) =>
+  | (_, Hole | Label(_)) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty1)
     }
-  | (Hole, _) =>
+  | (Hole | Label(_), _) =>
     switch (j) {
     | GLB => Some(Hole)
     | LUB => Some(ty2)
@@ -158,6 +170,23 @@ let rec join = (j, ty1, ty2) =>
     | None => None
     }
   | (List(_), _) => None
+  | (Label_Elt(label, ty), Label_Elt(label', ty')) =>
+    if (label == label') {
+      switch (join(j, ty, ty')) {
+      | Some(ty) => Some(Label_Elt(label, ty))
+      | None => None
+      };
+    } else {
+      None;
+    }
+  | (Label_Elt(_, _), _) => None
+  // | (Label(id), Label(id')) =>
+  //   if (id == id') {
+  //     Some(Label(id));
+  //   } else {
+  //     None;
+  //   }
+  // | (Label(_), _) => None ECD TODO: May not need b/c labels by themselves are treated as holes
   };
 
 let join_all = (j: join, types: list(t)): option(t) => {

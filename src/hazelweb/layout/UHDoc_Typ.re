@@ -3,7 +3,8 @@ let inline_padding_of_operator:
   fun
   | Prod => (UHDoc_common.empty_, UHDoc_common.space_)
   | Arrow
-  | Sum => (UHDoc_common.space_, UHDoc_common.space_);
+  | Sum
+  | Space => (UHDoc_common.space_, UHDoc_common.space_);
 
 let mk_EmptyHole: string => UHDoc_common.t =
   UHDoc_common.mk_EmptyHole(~sort=Typ);
@@ -63,6 +64,8 @@ and mk_operand =
         | List(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           UHDoc_common.mk_List(body);
+        // ECD TODO: Show the label error in this case
+        | Label(_, label) => UHDoc_common.mk_Label(~sort=Typ, label)
         }: UHDoc_common.t
       )
     )

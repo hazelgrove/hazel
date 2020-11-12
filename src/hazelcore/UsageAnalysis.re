@@ -17,7 +17,8 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_)
-  | Inj(InHole(_), _, _) => false
+  | Inj(InHole(_), _, _)
+  | Label(_, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
@@ -73,7 +74,8 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | Lam(InHole(_), _, _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _)
-  | ApPalette(_) => []
+  | ApPalette(_)
+  | Label(_, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [2], x, body)
@@ -92,6 +94,7 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
       |> List.concat;
     scrut_uses @ rules_uses;
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
+  | Prj(_) => failwith("unimplemented Label Projection")
   }
 and find_uses_rule =
     (~steps, x: Var.t, Rule(p, clause): UHExp.rule): uses_list =>

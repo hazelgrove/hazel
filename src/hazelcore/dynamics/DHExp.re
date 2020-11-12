@@ -158,17 +158,21 @@ type t =
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
+  | Label(Label.t)
+  | Label_Elt(Label.t, t)
+  /* TODO: Is this the right way to handle things? */
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
+
 and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t);
 
-let constructor_string = (d: t): string =>
+let rec constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
@@ -196,6 +200,10 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
+  | Label(label) => label
+  | Label_Elt(l, elt2) =>
+    // ECD TODO: is this the right way, or should it be hardcoded?
+    l ++ " " ++ constructor_string(elt2)
   };
 
 let rec mk_tuple: list(t) => t =

@@ -23,6 +23,8 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+  | Label(LabelErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, t, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -46,6 +48,8 @@ let intlit: (~err: ErrStatus.t=?, string) => operand;
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
+
+let label: (~err: LabelErrStatus.t=?, Label.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
@@ -76,6 +80,16 @@ module Block: {
 let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
+
+let set_duplicate_tuple_labels:
+  (list(skel), list(HTyp.t), seq, MetaVarGen.t, Label.t) =>
+  (seq, list(HTyp.t), bool);
+
+let find_and_set_dupe_labels_tuple:
+  (list(skel), list(HTyp.t), seq, MetaVarGen.t) => (seq, list(HTyp.t));
+
+let find_and_clear_dupe_holes_labels_tuple:
+  (list(skel), list(HTyp.t), seq, MetaVarGen.t) => (seq, list(HTyp.t));
 
 let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
 

@@ -41,7 +41,9 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
-  | Lam(_) => DHDoc_common.precedence_const
+  | Lam(_)
+  | Label(_)
+  | Label_Elt(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -321,6 +323,8 @@ let rec mk =
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
+      | Label(label) => DHDoc_common.mk_Label(label)
+      | Label_Elt(l, d) => DHDoc_common.mk_Label_Elt(l, mk_cast(go'(d)))
       };
     let doc =
       parenthesize

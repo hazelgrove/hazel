@@ -8,7 +8,9 @@ type t =
   | Arrow(t, t)
   | Sum(t, t)
   | Prod(list(t))
-  | List(t);
+  | List(t)
+  | Label(Label.t)
+  | Label_Elt(Label.t, t);
 
 type join =
   | GLB
@@ -17,6 +19,7 @@ type join =
 let precedence_Prod: int;
 let precedence_Arrow: int;
 let precedence_Sum: int;
+let precedence_Space: int;
 let precedence: t => int;
 
 /* type equality */

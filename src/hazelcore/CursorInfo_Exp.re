@@ -161,7 +161,8 @@ and get_outer_zrules_from_zrule =
 type err_status_result =
   | StandardErr(ErrStatus.t)
   | VarErr(VarErrStatus.HoleReason.t)
-  | InconsistentBranchesErr(list(HTyp.t));
+  | InconsistentBranchesErr(list(HTyp.t))
+  | LabelErr(LabelErrStatus.HoleReason.t);
 
 let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
@@ -448,6 +449,10 @@ and syn_cursor_info_skel =
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
+        | Some(LabelErr(Standalone))
+        | Some(LabelErr(Duplicate))
+        | Some(LabelErr(Empty)) =>
+          failwith(__LOC__ ++ "Unimplemented Label Err Status")
         | Some(StandardErr(NotInHole)) =>
           let operand_nih =
             zoperand
@@ -455,6 +460,7 @@ and syn_cursor_info_skel =
             |> UHExp.set_err_status_operand(NotInHole);
           switch (operand_nih) {
           | InvalidText(_) => Some(mk(SynInvalidArrow(Arrow(Hole, Hole))))
+          | Label(err, l) => Some(mk(SynLabel(err, l)))
           | _ =>
             switch (
               Statics_Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
@@ -473,7 +479,11 @@ and syn_cursor_info_skel =
         | None => None
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
-          | None => None
+          | None =>
+            switch (seq |> Seq.nth_operand(n)) {
+            | Label(_, _) => syn_cursor_info_skel(~steps, ctx, skel2, zseq)
+            | _ => None
+            }
           | Some((ty1, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty1)
           }
@@ -530,6 +540,8 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(_, Label(lerr, l)) =>
+    Some(CursorInfo_common.mk(SynLabel(lerr, l), ctx, cursor_term))
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
@@ -828,6 +840,8 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
+    | Label(_, _) =>
+      Some(CursorInfo_common.mk(AnaLabel(ty), ctx, cursor_term))
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -836,7 +850,8 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-    | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+    | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+    | Prj(InHole(TypeInconsistent, _), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -864,7 +879,8 @@ and ana_cursor_info_zoperand =
         _,
         _,
       )
-    | ApPalette(InHole(WrongLength, _), _, _, _) => None
+    | ApPalette(InHole(WrongLength, _), _, _, _)
+    | Prj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -905,6 +921,8 @@ and ana_cursor_info_zoperand =
             : None;
         }
       }
+    | Prj(NotInHole, _, _) =>
+      failwith(__LOC__ ++ " unimplemented label projection")
     } /* zipper cases */
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */

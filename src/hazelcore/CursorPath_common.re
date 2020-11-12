@@ -37,6 +37,7 @@ let of_zopseq_ =
 type hole_shape =
   | TypeErr
   | VarErr
+  | LabelErr
   | Empty;
 
 [@deriving sexp]
@@ -172,6 +173,21 @@ let holes_verr =
   switch (verr) {
   | NotInVarHole => hs
   | InVarHole(_, u) => [
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
+      ...hs,
+    ]
+  };
+
+let holes_lerr =
+    (
+      ~hole_sort: MetaVar.t => hole_sort,
+      lerr: LabelErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hole_list,
+    ) =>
+  switch (lerr) {
+  | NotInLabelHole => hs
+  | InLabelHole(_, u) => [
       {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]

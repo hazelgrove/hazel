@@ -4,6 +4,7 @@ let operator_of_shape =
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
   | SVBar => Some(Sum)
+  | SSpace => Some(Space)
   | SMinus
   | SPlus
   | STimes
@@ -13,7 +14,6 @@ let operator_of_shape =
   | SLessThan
   | SGreaterThan
   | SEquals
-  | SSpace
   | SCons => None
   };
 
@@ -22,6 +22,7 @@ let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>
   | Arrow => SArrow
   | Prod => SComma
   | Sum => SVBar
+  | Space => SSpace
   };
 
 let construct_operator =
@@ -159,7 +160,9 @@ and perform_opseq =
 
   /* Space becomes movement until we have proper type constructors */
   | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
-      when ZTyp.is_after_zoperand(zoperand) =>
+      when
+        ZTyp.is_after_zoperand(zoperand)
+        && !ZTyp.is_on_label_zoperand(zoperand) =>
     perform_opseq(MoveRight, zopseq)
 
   | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
@@ -235,6 +238,32 @@ and perform_operand =
       _,
     ) =>
     Failed
+  // Label Text Positions
+  | (_, CursorT(OnDelim(_), Label(_))) => Failed
+  | (Backspace, CursorT(OnText(j), Label(lerr, l))) =>
+    if (Label.length(l) == 1) {
+      Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Hole)));
+    } else {
+      Succeeded(
+        ZOpSeq.wrap(
+          ZTyp.place_after_operand(Label(lerr, Label.backspace(j, l))),
+        ),
+      );
+    }
+  // ZOperand(CursorT(_) as zoperand, surround)
+  // | (Construct(SOp(SSpace)), CursorT(OnText(_), Label(label))) =>
+  //   Succeeded(construct_operator(Space, zoperand, (Label(label), SSpace))) //TODO ECD: How to create a labeled element type
+  | (Construct(SChar(".")), CursorT(_, Hole)) =>
+    Succeeded(
+      ZOpSeq.wrap(ZTyp.place_after_operand(Label(NotInLabelHole, "."))),
+    )
+  | (Construct(SChar(s)), CursorT(OnText(j), Label(lerr, l)))
+      when Label.is_valid(Label.insert(j, s, l)) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.place_after_operand(Label(lerr, Label.insert(j, s, l))),
+      ),
+    )
 
   /* Invalid cursor positions */
   | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
@@ -278,7 +307,8 @@ and perform_operand =
 
   /* Construction */
 
-  | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
+  | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), ty))
+      when !UHTyp.is_label(ty) =>
     perform_operand(MoveRight, zoperand)
   | (Construct(_) as a, CursorT(OnDelim(_, side), _))
       when

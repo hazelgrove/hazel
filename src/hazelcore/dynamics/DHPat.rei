@@ -15,7 +15,9 @@ type t =
   | Cons(t, t)
   | Pair(t, t)
   | Triv
-  | Ap(t, t);
+  | Ap(t, t)
+  | Label(Label.t)
+  | Label_Elt(Label.t, t);
 
 let mk_tuple: list(t) => t;
 

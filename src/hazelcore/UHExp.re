@@ -25,6 +25,8 @@ and operand =
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
+  | Label(LabelErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -58,6 +60,9 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
+
+let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t): operand =>
+  Label(err, l);
 
 let lam =
     (
@@ -151,6 +156,157 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
+// ECD: You are here, need to write find and set label tuples to go through list finding labels and then calling set duplicate label tuples
+// to find if any duplicate labels exist.  If so, set them to be duplicate and then in find and set labels tuples
+// set the offending duplicate label to also be a duplicate
+let rec set_duplicate_tuple_labels =
+        (
+          elements: list(skel),
+          types: list(HTyp.t),
+          seq: seq,
+          u_gen: MetaVarGen.t,
+          l: Label.t,
+        )
+        : (seq, list(HTyp.t), bool) => {
+  assert(List.length(elements) == List.length(types));
+  switch (elements, types) {
+  | ([], _)
+  | (_, []) => (seq, [], false)
+  | ([skel, ...skels], [typ, ...types_tail]) =>
+    let (seq, types_tail, changed) =
+      set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+    switch (skel) {
+    | BinOp(NotInHole, Space, Placeholder(n), _) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      | Label(NotInLabelHole, l')
+      | Label(InLabelHole(Duplicate, _), l') =>
+        if (l == l') {
+          let e_duplicate = Label(InLabelHole(Duplicate, u_gen), l);
+          let seq = seq |> Seq.update_nth_operand(n, e_duplicate);
+          (seq, [HTyp.Hole, ...types_tail], true);
+        } else {
+          (seq, [typ, ...types_tail], changed);
+        }
+      | _ => (seq, [typ, ...types_tail], changed)
+      };
+    | _ => (seq, [typ, ...types_tail], changed)
+    };
+  };
+};
+let rec find_and_set_dupe_labels_tuple =
+        (
+          elements: list(skel),
+          types: list(HTyp.t),
+          seq: seq,
+          u_gen: MetaVarGen.t,
+        )
+        : (seq, list(HTyp.t)) => {
+  assert(List.length(elements) == List.length(types));
+  switch (elements, types) {
+  | ([], _)
+  | (_, []) => (seq, [])
+  | ([skel, ...skels], [typ, ...types_tail]) =>
+    switch (skel) {
+    | BinOp(NotInHole, Space, Placeholder(n), _) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      // Only set as a duplicate label for labels not already in a hole
+      | Label(NotInLabelHole, l) =>
+        let (seq, types_tail, changed) =
+          set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        if (changed) {
+          let e_duplicate = Label(InLabelHole(Duplicate, u_gen), l);
+          let seq = seq |> Seq.update_nth_operand(n, e_duplicate);
+          let (seq, types_tail) =
+            find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+          (seq, [typ, ...types_tail]);
+        } else {
+          let (seq, types_tail) =
+            find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+          (seq, [typ, ...types_tail]);
+        };
+      | Label(InLabelHole(Duplicate, _), l) =>
+        let (seq, types_tail, _) =
+          set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        let (seq, types_tail) =
+          find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+        (seq, [typ, ...types_tail]);
+      // If no label not in a hole, continue recursing
+      | _ =>
+        let (seq, types_tail) =
+          find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+        (seq, [typ, ...types_tail]);
+      };
+    | _ =>
+      let (seq, types_tail) =
+        find_and_set_dupe_labels_tuple(skels, types_tail, seq, u_gen);
+      (seq, [typ, ...types_tail]);
+    }
+  };
+};
+
+let rec find_and_clear_dupe_holes_labels_tuple =
+        (
+          elements: list(skel),
+          types: list(HTyp.t),
+          seq: seq,
+          u_gen: MetaVarGen.t,
+        )
+        : (seq, list(HTyp.t)) => {
+  assert(List.length(elements) == List.length(types));
+  switch (elements, types) {
+  | ([], _)
+  | (_, []) => (seq, [])
+  | ([skel, ...skels], [typ, ...types_tail]) =>
+    switch (skel) {
+    | BinOp(NotInHole, Space, Placeholder(n), _) =>
+      let en = seq |> Seq.nth_operand(n);
+      switch (en) {
+      // Only set as a duplicate label for labels not already in a hole
+      | Label(InLabelHole(Duplicate, _), l) =>
+        let (seq, types_tail, changed) =
+          set_duplicate_tuple_labels(skels, types_tail, seq, u_gen, l);
+        if (changed) {
+          let (seq, types_tail) =
+            find_and_clear_dupe_holes_labels_tuple(
+              skels,
+              types_tail,
+              seq,
+              u_gen,
+            );
+          (seq, [typ, ...types_tail]);
+        } else {
+          let e_nohole = Label(NotInLabelHole, l);
+          let seq = seq |> Seq.update_nth_operand(n, e_nohole);
+          let (seq, types_tail) =
+            find_and_clear_dupe_holes_labels_tuple(
+              skels,
+              types_tail,
+              seq,
+              u_gen,
+            );
+          (seq, [typ, ...types_tail]);
+        };
+      // If no label not in a hole, continue recursing
+      | _ =>
+        let (seq, types_tail) =
+          find_and_clear_dupe_holes_labels_tuple(
+            skels,
+            types_tail,
+            seq,
+            u_gen,
+          );
+        (seq, [typ, ...types_tail]);
+      };
+    | _ =>
+      let (seq, types_tail) =
+        find_and_clear_dupe_holes_labels_tuple(skels, types_tail, seq, u_gen);
+      (seq, [typ, ...types_tail]);
+    }
+  };
+};
+
 let new_InvalidText =
     (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -186,6 +342,7 @@ and get_err_status_operand =
   fun
   | EmptyHole(_) => NotInHole
   | InvalidText(_, _) => NotInHole
+  | Label(_, _) => NotInHole
   | Var(err, _, _)
   | IntLit(err, _)
   | FloatLit(err, _)
@@ -194,7 +351,8 @@ and get_err_status_operand =
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | ApPalette(err, _, _, _) => err
+  | ApPalette(err, _, _, _)
+  | Prj(err, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -211,6 +369,7 @@ and set_err_status_operand = (err, operand) =>
   switch (operand) {
   | EmptyHole(_) => operand
   | InvalidText(_, _) => operand
+  | Label(_, _) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
@@ -221,6 +380,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
+  | Prj(_, exp, label) => Prj(err, exp, label)
   };
 
 let is_inconsistent = operand =>
@@ -245,6 +405,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   /* already in hole */
   | EmptyHole(_)
   | InvalidText(_, _)
+  | Label(_, _)
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
@@ -253,7 +414,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | Prj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -268,7 +430,8 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
+  | Prj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -293,6 +456,7 @@ let text_operand =
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       u_gen,
     );
+  | Label(l) => (label(l), u_gen)
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
   };
 
@@ -338,6 +502,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | EmptyHole(_) => false
   | InvalidText(_, _) => false
   | Var(InHole(_), _, _) => false
+  | Label(_, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
   | IntLit(InHole(_), _) => false
@@ -371,6 +536,7 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
+  | Prj(_) => failwith("unimplemented Label Projection")
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {
