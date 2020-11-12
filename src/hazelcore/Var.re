@@ -9,10 +9,9 @@ let length = String.length;
 
 let valid_regex = Re.Str.regexp("^[_a-zA-Z][_a-zA-Z0-9']*$");
 
-let operator_regex_pat = Re.Str.regexp("^[_]?[&*+-./:;<=>?@^|~]+[_]?$");
-let operator_regex_exp = Re.Str.regexp("^[&*+-./:;<=>?@^|~]*$");
-let operator_regex_pat_complete =
-  Re.Str.regexp("^[_][&*+-./:;<=>?@^|~]+[_]$");
+let operator_regex_pat = Re.Str.regexp("^[_]?[&*+-/:;<=>?@^|~]+[_]?$");
+let operator_regex_exp = Re.Str.regexp("^[&*+-/:;<=>?@^|~]*$");
+let operator_regex_pat_complete = Re.Str.regexp("^[_][&*+-/:;<=>?@^|~]+[_]$");
 
 let is_valid = s => {
   Re.Str.string_match(valid_regex, s, 0);
@@ -66,5 +65,6 @@ let extract_op_exp = s =>
     // Return same string if valid
     Re.Str.matched_string(s);
   } else {
+    print_endline(s);
     failwith("invalid user op definition");
   };
