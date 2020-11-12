@@ -127,7 +127,7 @@ and expand_skel = (skel, seq) =>
       | [hd] =>
         switch (hd) {
         | Label(l) => [Label_Elt(l, ty2)]
-        | _ => failwith("Expecting a Label Got a Type")
+        | _ => [hd]
         }
       | [hd, ...tl] => [hd, ...make_new_prod(tl, ty)]
       };

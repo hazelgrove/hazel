@@ -166,7 +166,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _, _) =>
+  | Prj(InHole(TypeInconsistent, _), _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
   | Var(InHole(WrongLength, _), _, _)
@@ -178,7 +178,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) => None
+  | Prj(InHole(WrongLength, _), _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     switch (syn(ctx, scrut)) {
     | None => None
@@ -254,8 +254,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       }
     };
   | Parenthesized(body) => syn(ctx, body)
-  | Prj(NotInHole, _, _) =>
-    failwith(__LOC__ ++ " unimplemented label projection")
+  | Prj(NotInHole, _) => Some(Hole) // Projection by itself has no meaning, so hole
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -387,7 +386,7 @@ and ana_operand =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _, _) =>
+  | Prj(InHole(TypeInconsistent, _), _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -402,7 +401,7 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) =>
+  | Prj(InHole(WrongLength, _), _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
@@ -468,8 +467,7 @@ and ana_operand =
       }
     }
   | Parenthesized(body) => ana(ctx, body, ty)
-  | Prj(NotInHole, _, _) =>
-    failwith(__LOC__ ++ " unimplemented label projection")
+  | Prj(NotInHole, _) => Some()
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -1080,7 +1078,9 @@ and syn_fix_holes_operand =
         u_gen,
       );
     };
-  | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented Label projection")
+  // All projections should have their holes fixed in the skel case, so if here by itself
+  // then it must be a standalone projection, which is an inconsistent type
+  | Prj(NotInHole, l) => Prj(InHole(InconsistentType, u_gen), l)
   };
 }
 and syn_fix_holes_rules =
@@ -1417,7 +1417,8 @@ and ana_fix_holes_operand =
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) =>
+  | BoolLit(_, _)
+  | Prj(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
@@ -1536,7 +1537,6 @@ and ana_fix_holes_operand =
         u_gen,
       );
     };
-  | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented label projection")
   };
 
 let syn_fix_holes_z =
