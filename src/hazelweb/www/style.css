@@ -1067,26 +1067,9 @@ h1 {
   margin-bottom: 8px;
   border: 2px solid var(--matrix-cell-border-color);
 }
-.matrix-livelit .formula-bar-text {
+.matrix-livelit .formula-bar-prompt {
   color: orange;
   font-weight: bold;
-}
-.matrix-livelit .formula-bar-entry .cursor {
-  background-color: var(--exp-bg-color);
-  border-radius: var(--code-radius);
-}
-.matrix-livelit .formula-bar-entry .cursor::before {
-  content: '';
-  z-index: var(--caret-z);
-  position: absolute;
-  display: inline-block;
-  font-weight: 100;
-  margin: calc(0.1 * var(--code-line-height) * 1em) 0;
-  height: calc(0.8 * var(--code-line-height) * 1em);
-  width: 2px;
-  top: -1px;
-  left: 96%;
-  background-color: red;
 }
 
 .matrix-livelit .matrix-cell {

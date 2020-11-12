@@ -2032,24 +2032,10 @@ module DataFrameLivelit: LIVELIT = {
           [Attr.classes(["formula-bar"])],
           [
             Node.div(
-              [Attr.classes(["formula-bar-text"])],
+              [Attr.classes(["formula-bar-prompt"])],
               [Node.text(" > ")],
             ),
-            Node.div(
-              [],
-              [
-                Node.span(
-                  [Attr.classes(["formula-bar-entry"])],
-                  [
-                    Node.text("24. +. 36. +. "),
-                    Node.span(
-                      [Attr.classes(["cursor"])],
-                      [Node.text("33.")],
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            uhcode(selected),
           ],
         ),
         Node.div(
