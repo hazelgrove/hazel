@@ -333,14 +333,25 @@ let mk_syn_text =
       Succeeded(SynDone((new_ze, Hole, u_gen)));
     };
   | Label(label) =>
-    let ze =
-      ZExp.ZBlock.wrap(
-        CursorE(
-          text_cursor,
-          UHExp.label(label, ~err=InLabelHole(Standalone, u_gen)),
-        ),
-      );
-    Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    if (Label.empty(label)) {
+      let ze =
+        ZExp.ZBlock.wrap(
+          CursorE(
+            text_cursor,
+            UHExp.label(label, ~err=InLabelHole(Empty, u_gen)),
+          ),
+        );
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    } else {
+      let ze =
+        ZExp.ZBlock.wrap(
+          CursorE(
+            text_cursor,
+            UHExp.label(label, ~err=InLabelHole(Standalone, u_gen)),
+          ),
+        );
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    }
   };
 };
 
@@ -2015,7 +2026,7 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  | (_, CursorE(_, Prj(_, _, _))) =>
+  | (_, CursorE(_, Prj(_, _))) =>
     failwith(__LOC__ ++ " unimplemented Label Projection")
   };
 }

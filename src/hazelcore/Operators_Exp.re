@@ -18,8 +18,7 @@ type t =
   | Comma
   | Cons
   | And
-  | Or
-  | Dot;
+  | Or;
 
 let to_string =
   fun
@@ -41,8 +40,7 @@ let to_string =
   | Comma => ","
   | Cons => "::"
   | And => "&&"
-  | Or => "||"
-  | Dot => ".";
+  | Or => "||";
 
 let is_Space =
   fun

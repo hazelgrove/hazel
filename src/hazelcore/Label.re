@@ -23,3 +23,5 @@ let backspace: (int, t) => t =
   (caret_index, label) => {
     StringUtil.backspace(caret_index, label);
   };
+
+let empty: t => bool = label => String.length(label) <= 1;

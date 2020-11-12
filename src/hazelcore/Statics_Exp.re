@@ -985,13 +985,18 @@ and syn_fix_holes_operand =
       (e, Hole, u_gen);
     }
   | InvalidText(_) => (e, Hole, u_gen)
-  // all labels in a tuple should have their holes fixed in the skel case
-  // If reaching fix_holes_operand, then the label must be standalone
-  | Label(NotInLabelHole, l) => (
-      Label(InLabelHole(Standalone, u_gen), l),
-      Hole,
-      u_gen,
-    )
+  | Label(NotInLabelHole, l) =>
+    if (Label.empty(l)) {
+      (Label(InLabelHole(Empty, u_gen), l), Hole, u_gen);
+    } else {
+      (
+        // all labels in a tuple should have their holes fixed in the skel case
+        // If reaching fix_holes_operand, then the label must be standalone
+        Label(InLabelHole(Standalone, u_gen), l),
+        Hole,
+        u_gen,
+      );
+    }
   | Label(InLabelHole(_, u), _) => (e, Hole, u)
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
@@ -1080,7 +1085,7 @@ and syn_fix_holes_operand =
     };
   // All projections should have their holes fixed in the skel case, so if here by itself
   // then it must be a standalone projection, which is an inconsistent type
-  | Prj(NotInHole, l) => Prj(InHole(InconsistentType, u_gen), l)
+  | Prj(_, _) => failwith(__LOC__ ++ " Unimplemented Label Projection")
   };
 }
 and syn_fix_holes_rules =

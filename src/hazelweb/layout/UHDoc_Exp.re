@@ -229,8 +229,7 @@ and mk_operand =
             UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
-        | Prj(_, _, _) =>
-          failwith(__LOC__ ++ " unimplemented label projection")
+        | Prj(_, _) => failwith(__LOC__ ++ " unimplemented label projection")
         }: UHDoc_common.t
       )
     )

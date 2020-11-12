@@ -151,7 +151,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Parenthesized(_) => MaxLen
     | ApPalette(_, _, _, _) => failwith("ApPalette not implemented")
     | Label(_, label) => Len(Label.length(label))
-    | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented label projection")
+    | Prj(_, _) => failwith(__LOC__ ++ " unimplemented label projection")
     }
   | Pat(_, operand) =>
     switch (operand) {

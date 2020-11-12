@@ -352,7 +352,7 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _)
-  | Prj(err, _, _) => err
+  | Prj(err, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -380,7 +380,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Prj(_, exp, label) => Prj(err, exp, label)
+  | Prj(_, label) => Prj(err, label)
   };
 
 let is_inconsistent = operand =>
@@ -415,7 +415,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
+  | Prj(InHole(TypeInconsistent, _), _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -431,7 +431,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
     )
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Prj(NotInHole | InHole(WrongLength, _), _, _) =>
+  | Prj(NotInHole | InHole(WrongLength, _), _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

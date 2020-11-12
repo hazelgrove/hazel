@@ -755,7 +755,7 @@ and syn_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Prj(InHole(TypeInconsistent as reason, u), _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -775,7 +775,7 @@ and syn_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+  | Prj(InHole(WrongLength, _), _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -940,7 +940,7 @@ and syn_elab_operand =
      | None -> DoesNotElaborate
      end */ /* TODO fix me */
 
-  | Prj(NotInHole, _, _) =>
+  | Prj(NotInHole, _) =>
     failwith(__LOC__ ++ " Unimplemented Label projection")
   }
 and syn_elab_rules =
@@ -1200,7 +1200,7 @@ and ana_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
+  | Prj(InHole(TypeInconsistent as reason, u), _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1229,7 +1229,7 @@ and ana_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
+  | Prj(InHole(WrongLength, _), _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1338,7 +1338,7 @@ and ana_elab_operand =
       DoesNotElaborate;
     }
 
-  | Prj(NotInHole, _, _) =>
+  | Prj(NotInHole, _) =>
     failwith(__LOC__ ++ " unimplemented label projection")
   }
 and ana_elab_rules =
