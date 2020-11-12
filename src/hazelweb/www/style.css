@@ -1039,7 +1039,7 @@ h1 {
 .matrix-livelit .cells-border {
   position: relative;
   border: 1px solid var(--matrix-cell-border-color);
-  z-index: 50;
+  z-index: 0;
 }
 .matrix-livelit .matrix-cell {
   height: 100%;
@@ -1052,9 +1052,12 @@ h1 {
   padding: 4px;
 }
 
-.matrix-livelit .matrix-cell .matrix-splice {
+.matrix-livelit .matrix-splice {
   justify-self: right;
   align-self: center;
+}
+.matrix-livelit .matrix-splice:hover {
+  cursor: pointer;
 }
 
 /*.matrix-livelit .matrix-formula-bar-splice,*/
@@ -1089,7 +1092,7 @@ h1 {
 .matrix-livelit .matrix-cell {
   position: relative;
 }
-.matrix-livelit .matrix-cell.matrix-selected::before {
+.matrix-livelit .matrix-splice.matrix-selected::before {
   content: '';
   display: block;
   position: absolute;
