@@ -3,10 +3,10 @@ open Sexplib.Std;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
 module LivelitView = {
-  type div_type = Vdom.Node.t;
+  type div_type = Node.t;
 
   type splice_and_param_getters = {
     uhcode: SpliceName.t => div_type,
@@ -31,7 +31,7 @@ module type LIVELIT = {
   type model;
   [@deriving sexp]
   type action;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model: SpliceGenCmd.t(model);
@@ -81,7 +81,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   );
 };
 
-type trigger_serialized = SerializedAction.t => Vdom.Event.t;
+type trigger_serialized = SerializedAction.t => Event.t;
 type sync_serialized = SerializedAction.t => unit;
 type serialized_view_fn_t =
   (SerializedModel.t, trigger_serialized, sync_serialized) => LivelitView.t;
@@ -138,7 +138,7 @@ module LivelitContexts = {
 
 let _to_uhvar = id => UHExp.var(SpliceInfo.var_of_splice_name(id));
 
-let attr_style = Vdom.Attr.create("style");
+let attr_style = Attr.create("style");
 
 let prop_val = (prop: string, value: string) =>
   StringUtil.cat([prop, ": ", value, ";"]);
@@ -152,7 +152,7 @@ module PairLivelit: LIVELIT = {
   type model = (int, int);
   [@deriving sexp]
   type action = unit;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model =
@@ -170,11 +170,9 @@ module PairLivelit: LIVELIT = {
         _,
         {uhcode, _}: LivelitView.splice_and_param_getters,
       ) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["pair-livelit"])],
-        [uhcode(leftID), uhcode(rightID)],
-      )
+    Node.div(
+      [Attr.classes(["pair-livelit"])],
+      [uhcode(leftID), uhcode(rightID)],
     );
   let view_shape = _ =>
     LivelitView.Inline(
@@ -214,7 +212,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     | Select(SpliceName.t)
     | Add(dim)
     | Del(dim, int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_height = 2;
@@ -321,7 +319,6 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
     let width = get_width(m);
     let height = get_height(m);
     let row_header =
@@ -543,7 +540,7 @@ module GradeCutoffLivelit: LIVELIT = {
   type action =
     | UpdateCutoff(letter_grade, int);
 
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60});
@@ -620,18 +617,16 @@ module GradeCutoffLivelit: LIVELIT = {
       |> List.filter_map(grade =>
            if (0 <= grade && grade <= 100) {
              Some(
-               Vdom.(
-                 Node.create_svg(
-                   "circle",
-                   [
-                     Attr.create("cx", string_of_int(grade)),
-                     Attr.create("cy", "0"),
-                     Attr.create("r", "1"),
-                     Attr.create("fill", "orange"),
-                     Attr.create("stroke-width", "0"),
-                   ],
-                   [],
-                 )
+               Node.create_svg(
+                 "circle",
+                 [
+                   Attr.create("cx", string_of_int(grade)),
+                   Attr.create("cy", "0"),
+                   Attr.create("r", "1"),
+                   Attr.create("fill", "orange"),
+                   Attr.create("stroke-width", "0"),
+                 ],
+                 [],
                ),
              );
            } else {
@@ -679,16 +674,16 @@ module GradeCutoffLivelit: LIVELIT = {
          );
     let (grades_svgs, data_err_msg) =
       switch (grades_svgs_invalids_opt) {
-      | None => ([], [Vdom.Node.text("Grades data was never evaluated")])
+      | None => ([], [Node.text("Grades data was never evaluated")])
       | Some((grades_svgs, invalid_count)) => (
           grades_svgs,
           if (invalid_count == 0) {
             [];
           } else if (invalid_count == 1) {
-            [Vdom.Node.text("1 grade was indeterminate or out of bounds")];
+            [Node.text("1 grade was indeterminate or out of bounds")];
           } else {
             [
-              Vdom.Node.text(
+              Node.text(
                 Printf.sprintf(
                   "%d grades were indeterminate or out of bounds",
                   invalid_count,
@@ -700,27 +695,24 @@ module GradeCutoffLivelit: LIVELIT = {
       };
 
     let cutoff_slider = (letter, cls, value) =>
-      Vdom.(
-        Node.input(
-          [
-            Attr.classes(["grade-cutoff-slider", cls]),
-            Attr.type_("range"),
-            Attr.create("min", "0"),
-            Attr.create("max", "100"),
-            Attr.value(string_of_int(value)),
-            Attr.on_input((_, value_str) =>
-              trigger(UpdateCutoff(letter, int_of_string(value_str)))
-            ),
-            Attr.on_change((_, value_str) =>
-              trigger(UpdateCutoff(letter, int_of_string(value_str)))
-            ),
-          ],
-          [],
-        )
+      Node.input(
+        [
+          Attr.classes(["grade-cutoff-slider", cls]),
+          Attr.type_("range"),
+          Attr.create("min", "0"),
+          Attr.create("max", "100"),
+          Attr.value(string_of_int(value)),
+          Attr.on_input((_, value_str) =>
+            trigger(UpdateCutoff(letter, int_of_string(value_str)))
+          ),
+          Attr.on_change((_, value_str) =>
+            trigger(UpdateCutoff(letter, int_of_string(value_str)))
+          ),
+        ],
+        [],
       );
 
     let percentage_line = grade_points => {
-      open Vdom;
       let percentage_label = (p: int) =>
         Node.create_svg(
           "text",
@@ -769,23 +761,21 @@ module GradeCutoffLivelit: LIVELIT = {
       );
     };
 
-    Vdom.(
-      Node.div(
-        [Attr.classes(["grade-cutoffs-livelit"])],
-        [
-          Node.div(
-            [Attr.classes(["grade-display"])],
-            [
-              percentage_line(grades_svgs),
-              cutoff_slider(A, "a-slider", a),
-              cutoff_slider(B, "b-slider", b),
-              cutoff_slider(C, "c-slider", c),
-              cutoff_slider(D, "d-slider", d),
-              Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
-            ],
-          ),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["grade-cutoffs-livelit"])],
+      [
+        Node.div(
+          [Attr.classes(["grade-display"])],
+          [
+            percentage_line(grades_svgs),
+            cutoff_slider(A, "a-slider", a),
+            cutoff_slider(B, "b-slider", b),
+            cutoff_slider(C, "c-slider", c),
+            cutoff_slider(D, "d-slider", d),
+            Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+          ],
+        ),
+      ],
     );
   };
 
@@ -824,7 +814,7 @@ module GrayscaleLivelit: LIVELIT = {
   };
   [@deriving sexp]
   type action = unit;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model =
@@ -860,7 +850,6 @@ module GrayscaleLivelit: LIVELIT = {
         _,
         {dargs, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
     let subject = {
       let height_prop_val = Printf.sprintf("height: %dem;", height);
       switch (dargs, dhcode(brightness), dhcode(grayscale)) {
@@ -1061,7 +1050,7 @@ module ColorLivelit: LIVELIT = {
     | StopSelectingSatVal
     | SelectSatVal(float, float)
     | SelectHue(int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let update_hsv = (hsv, model) => {
@@ -1112,8 +1101,6 @@ module ColorLivelit: LIVELIT = {
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
-
     let is_valid = color_value => 0 <= color_value && color_value < 256;
     let rgba_values =
       switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
@@ -1429,7 +1416,7 @@ module GradientLivelit: LIVELIT = {
   [@deriving sexp]
   type action =
     | Slide(int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let slider_min = 0;
@@ -1462,28 +1449,26 @@ module GradientLivelit: LIVELIT = {
 
   let view =
       (model, trigger, _, {uhcode, _}: LivelitView.splice_and_param_getters) => {
-    Vdom.(
-      Node.span(
-        [Attr.classes(["gradient-livelit"])],
-        [
-          uhcode(model.lcolor),
-          Node.input(
-            [
-              Attr.classes(["slider"]),
-              Attr.type_("range"),
-              Attr.create("min", string_of_int(slider_min)),
-              Attr.create("max", string_of_int(slider_max)),
-              Attr.value(string_of_int(model.slider_value)),
-              Attr.on_change((_, value_str) => {
-                let new_value = int_of_string(value_str);
-                trigger(Slide(new_value));
-              }),
-            ],
-            [],
-          ),
-          uhcode(model.rcolor),
-        ],
-      )
+    Node.span(
+      [Attr.classes(["gradient-livelit"])],
+      [
+        uhcode(model.lcolor),
+        Node.input(
+          [
+            Attr.classes(["slider"]),
+            Attr.type_("range"),
+            Attr.create("min", string_of_int(slider_min)),
+            Attr.create("max", string_of_int(slider_max)),
+            Attr.value(string_of_int(model.slider_value)),
+            Attr.on_change((_, value_str) => {
+              let new_value = int_of_string(value_str);
+              trigger(Slide(new_value));
+            }),
+          ],
+          [],
+        ),
+        uhcode(model.rcolor),
+      ],
     );
   };
 
@@ -1585,26 +1570,24 @@ module CheckboxLivelit: LIVELIT = {
   [@deriving sexp]
   type action =
     | Toggle;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(false);
   let update = (m, Toggle) => SpliceGenCmd.return(!m);
 
   let view = (m, trig, _) => {
-    let checked_state = m ? [Vdom.Attr.checked] : [];
+    let checked_state = m ? [Attr.checked] : [];
     let input_elt =
-      Vdom.(
-        Node.input(
-          [
-            Attr.type_("checkbox"),
-            Attr.on_input((_, _) => trig(Toggle)),
-            ...checked_state,
-          ],
-          [],
-        )
+      Node.input(
+        [
+          Attr.type_("checkbox"),
+          Attr.on_input((_, _) => trig(Toggle)),
+          ...checked_state,
+        ],
+        [],
       );
-    _ => Vdom.Node.span([], [input_elt]);
+    _ => Node.span([], [input_elt]);
   };
 
   let view_shape = _ => LivelitView.Inline(/* TODO! */ 1);
@@ -1629,7 +1612,7 @@ module SliderLivelit: LIVELIT = {
   type action =
     | InvalidParams
     | Slide(int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(Some(0));
@@ -1641,8 +1624,6 @@ module SliderLivelit: LIVELIT = {
     };
 
   let view = (model, trigger: trigger, sync) => {
-    open Vdom;
-
     let _endpoint_view = (cls, value) => {
       let padding = "3px";
       let val_str = string_of_int(value);
@@ -1672,42 +1653,40 @@ module SliderLivelit: LIVELIT = {
         let p = Float.of_int(p) /. 100.0;
         Printf.sprintf("%f", (1. -. p) *. min +. p *. max);
       };
-      Vdom.(
-        Node.create(
-          "datalist",
-          [Attr.id("tickmarks")],
-          [
-            Node.option(
-              [
-                Attr.create("value", val_of_percent(0)),
-                Attr.create("label", "0%"),
-              ],
-              [],
-            ),
-            Node.option([Attr.create("value", val_of_percent(10))], []),
-            Node.option([Attr.create("value", val_of_percent(20))], []),
-            Node.option([Attr.create("value", val_of_percent(30))], []),
-            Node.option([Attr.create("value", val_of_percent(40))], []),
-            Node.option(
-              [
-                Attr.create("value", val_of_percent(50)),
-                Attr.create("label", "50%"),
-              ],
-              [],
-            ),
-            Node.option([Attr.create("value", val_of_percent(60))], []),
-            Node.option([Attr.create("value", val_of_percent(70))], []),
-            Node.option([Attr.create("value", val_of_percent(80))], []),
-            Node.option([Attr.create("value", val_of_percent(90))], []),
-            Node.option(
-              [
-                Attr.create("value", val_of_percent(100)),
-                Attr.create("label", "100%"),
-              ],
-              [],
-            ),
-          ],
-        )
+      Node.create(
+        "datalist",
+        [Attr.id("tickmarks")],
+        [
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(0)),
+              Attr.create("label", "0%"),
+            ],
+            [],
+          ),
+          Node.option([Attr.create("value", val_of_percent(10))], []),
+          Node.option([Attr.create("value", val_of_percent(20))], []),
+          Node.option([Attr.create("value", val_of_percent(30))], []),
+          Node.option([Attr.create("value", val_of_percent(40))], []),
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(50)),
+              Attr.create("label", "50%"),
+            ],
+            [],
+          ),
+          Node.option([Attr.create("value", val_of_percent(60))], []),
+          Node.option([Attr.create("value", val_of_percent(70))], []),
+          Node.option([Attr.create("value", val_of_percent(80))], []),
+          Node.option([Attr.create("value", val_of_percent(90))], []),
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(100)),
+              Attr.create("label", "100%"),
+            ],
+            [],
+          ),
+        ],
       );
     };
 
@@ -1796,7 +1775,7 @@ module DataFrameLivelit: LIVELIT = {
     | Select(SpliceName.t)
     | Add(dim)
     | Del(dim, int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_height = 3;
@@ -1944,7 +1923,6 @@ module DataFrameLivelit: LIVELIT = {
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
     let splice = (~clss, ~grid_coordinates, splice_name) =>
       Node.div(
         [
