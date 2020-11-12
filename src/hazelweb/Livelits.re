@@ -1960,7 +1960,7 @@ module DataFrameLivelit: LIVELIT = {
       |> List.mapi((j, header) =>
            splice(
              ~clss=["col-header"],
-             ~grid_coordinates=(1, j + 3, 2, j + 4),
+             ~grid_coordinates=(1, j + 2, 2, j + 3),
              header,
            )
          );
@@ -1969,7 +1969,7 @@ module DataFrameLivelit: LIVELIT = {
       |> List.mapi((i, row) =>
            splice(
              ~clss=["row-header"],
-             ~grid_coordinates=(i + 3, 1, i + 4, 2),
+             ~grid_coordinates=(i + 2, 1, i + 3, 2),
              row.header,
            )
          );
@@ -1980,7 +1980,7 @@ module DataFrameLivelit: LIVELIT = {
            |> List.mapi((j, cell) =>
                 splice(
                   ~clss=["matrix-cell"],
-                  ~grid_coordinates=(i + 3, j + 3, i + 4, j + 4),
+                  ~grid_coordinates=(i + 2, j + 2, i + 3, j + 3),
                   cell,
                 )
               )
@@ -1990,7 +1990,7 @@ module DataFrameLivelit: LIVELIT = {
     let add_row_button =
       Node.button(
         [
-          attr_style(grid_area(((-1), 3, (-2), (-3)))),
+          attr_style(grid_area(((-1), 2, (-2), (-3)))),
           Attr.classes(["add-row", "add-button"]),
           Attr.on_click(_ => trig(Add(Row))),
         ],
@@ -1999,7 +1999,7 @@ module DataFrameLivelit: LIVELIT = {
     let add_col_button =
       Node.button(
         [
-          attr_style(grid_area((3, (-2), (-3), (-1)))),
+          attr_style(grid_area((2, (-2), (-3), (-1)))),
           Attr.classes(["add-col", "add-button"]),
           Attr.on_click(_ => trig(Add(Col))),
         ],
@@ -2009,20 +2009,15 @@ module DataFrameLivelit: LIVELIT = {
     let cells_border =
       Node.div(
         [
-          attr_style(grid_area((3, 3, (-3), (-3)))),
+          attr_style(grid_area((2, 2, (-3), (-3)))),
           Attr.classes(["cells-border"]),
         ],
         [],
       );
 
-    let gutter_width = "0px";
     let dim_template = dim =>
       StringUtil.sep(
-        List.concat([
-          ["auto", gutter_width],
-          ListUtil.replicate(dim, "auto"),
-          ["4px", "auto"],
-        ]),
+        List.concat([ListUtil.replicate(1 + dim, "auto"), ["4px", "auto"]]),
       );
 
     Node.div(
