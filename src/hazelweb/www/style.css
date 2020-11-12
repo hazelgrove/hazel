@@ -1389,6 +1389,7 @@ input.slider::-moz-range-track {
   grid-area: swatch;
   height: 20px;
   width: 100%;
+  display: grid;
 }
 
 .color-livelit .color-picker .color-swatch-label {
@@ -1396,7 +1397,6 @@ input.slider::-moz-range-track {
   align-self: center;
   font-family: "Gill Sans", sans-serif;
   font-size: 8pt;
-  display: grid;
 }
 
 

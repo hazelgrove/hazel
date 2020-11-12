@@ -1322,7 +1322,21 @@ module ColorLivelit: LIVELIT = {
                 [Attr.classes(["color-swatch-label"])],
                 [
                   Node.span(
-                    [],
+                    [
+                      // https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
+                      attr_style(
+                        prop_val(
+                          "color",
+                          Float.of_int(r)
+                          *. 0.299
+                          +. Float.of_int(g)
+                          *. 0.587
+                          +. Float.of_int(b)
+                          *. 0.114 > 186.
+                            ? "#000000" : "#ffffff",
+                        ),
+                      ),
+                    ],
                     [
                       Node.text(
                         Printf.sprintf("rgba(%d, %d, %d, %d)", r, g, b, a),
