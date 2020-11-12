@@ -65,6 +65,7 @@
 %token SEMICOLON
 %token EQUAL
 %token PERIOD
+%token COMMA
 %token EOF
 %token <string> IDENT
 %token LPAREN RPAREN
@@ -74,6 +75,7 @@
 %token CASE
 %token BAR
 %token ARROW
+%token TARROW
 %token END
 %token <string> COMMENT
 %token EMPTY
@@ -81,6 +83,9 @@
 %left PLUS MINUS
 %left MULT DIV
 %right COLONCOLON
+%left BAR
+%right TARROW
+%left COMMA
 %nonassoc LET LPAREN LAMBDA INT IDENT IN
 
 %start main
@@ -94,6 +99,35 @@ main:
 
 let_binding:
   LET pat EQUAL expr IN { mk_letline $2 $4 }
+  | LET pat COLON typ EQUAL expr IN {
+    let typ = UHTyp.mk_OpSeq $4 in
+    UHExp.letline $2 ~ann:typ $6
+  }
+;
+
+typ:
+  atomic_type { $1 }
+  | l = typ typ_op r = typ {
+    mk_binop l $2 r
+  }
+  | LPAREN typ RPAREN {
+    let opseq = UHTyp.mk_OpSeq $2 in
+    Seq.mk (UHTyp.Parenthesized opseq) []
+  }
+  | LBRACK typ RBRACK {
+    let opseq = UHTyp.mk_OpSeq $2 in
+    Seq.mk (UHTyp.List opseq) []
+  }
+;
+
+%inline typ_op:
+  COMMA { Operators_Typ.Prod }
+  | TARROW { Operators_Typ.Arrow }
+  | BAR { Operators_Typ.Sum }
+;
+
+atomic_type:
+  IDENT { mk_seq UHTyp.Int }
 ;
 
 pat:
@@ -139,6 +173,10 @@ simple_expr:
 fn:
   LAMBDA pat PERIOD LBRACE expr RBRACE {
     mk_lambda $2 $5
+  }
+  | LAMBDA pat COLON typ PERIOD LBRACE expr RBRACE {
+    let typ = UHTyp.mk_OpSeq $4 in
+    UHExp.lam $2 ~ann:typ $7
   }
 ;
 

@@ -43,6 +43,7 @@ rule read =
   | "/" { DIV }
   | "=" { EQUAL }
   | "." { PERIOD }
+  | "," { COMMA }
   | ":" { COLON }
   | "::" { COLONCOLON }
   | ";" { SEMICOLON }
@@ -55,6 +56,7 @@ rule read =
   | "\\" { LAMBDA }
   | "|" { BAR }
   | "=>" { ARROW }
+  | "->" { TARROW }
   | "#" white* ( [^'\n']* as t) { COMMENT t }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | eof { EOF }
