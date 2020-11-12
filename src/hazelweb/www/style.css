@@ -1105,6 +1105,20 @@ h1 {
 .matrix-livelit .add-col {
   background-color: #EEE;
   font-size: 85%;
+  border-radius: 3px;
+  border: none;
+}
+.matrix-livelit .add-button:focus {
+  outline: none;
+}
+.matrix-livelit .add-button:hover {
+  background-color: #DDD;
+}
+.matrix-livelit .add-row:active {
+  transform: translateY(1px);
+}
+.matrix-livelit .add-col:active {
+  transform: translateX(1px);
 }
 .matrix-livelit .add-row {
   width: 100%;

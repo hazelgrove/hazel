@@ -1991,7 +1991,7 @@ module DataFrameLivelit: LIVELIT = {
       Node.button(
         [
           attr_style(grid_area(((-1), 3, (-2), (-3)))),
-          Attr.classes(["add-row"]),
+          Attr.classes(["add-row", "add-button"]),
           Attr.on_click(_ => trig(Add(Row))),
         ],
         [Node.text("+")],
@@ -2000,7 +2000,7 @@ module DataFrameLivelit: LIVELIT = {
       Node.button(
         [
           attr_style(grid_area((3, (-2), (-3), (-1)))),
-          Attr.classes(["add-col"]),
+          Attr.classes(["add-col", "add-button"]),
           Attr.on_click(_ => trig(Add(Col))),
         ],
         [Node.text("+")],
