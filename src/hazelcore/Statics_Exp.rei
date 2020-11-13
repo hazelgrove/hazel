@@ -13,6 +13,18 @@ let ctx_for_let:
   (Contexts.t'('a), UHPat.t, HTyp.t, UHExp.t) =>
   (Contexts.t'('a), option(Var.t));
 
+type livelit_types_type = {
+  init_ty: HTyp.t,
+  update_ty: HTyp.t,
+  view_ty: HTyp.t,
+  shape_ty: HTyp.t,
+  expand_ty: HTyp.t,
+};
+/**
+ * Determine member function types for livelit def `llrecord`
+ */
+let livelit_types: UHExp.livelit_record => livelit_types_type;
+
 /**
  * Get type mode of nth operand of an opseq in synthetic position
  */

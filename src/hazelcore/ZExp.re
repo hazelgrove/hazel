@@ -15,18 +15,6 @@ and zline =
       LivelitName.t,
       ZList.t(zoperand, UHExp.operand),
     )
-  | LivelitDefLineZName({
-      name: (VarErrStatus.t, string), //??? what is zipper form here - andrew
-      captures: unit,
-      expansion_type: UHTyp.t,
-      model_type: UHTyp.t,
-      action_type: UHTyp.t,
-      init: UHExp.t,
-      update: UHExp.t,
-      view: UHExp.t,
-      shape: UHExp.t,
-      expand: UHExp.t,
-    })
   | LivelitDefLineZExpansionType({
       name: (VarErrStatus.t, string),
       captures: unit,
@@ -170,15 +158,14 @@ and is_opseq_zline =
   | LetLineZA(_)
   | AbbrevLineZL(_) => None
   | LetLineZE(_, _, zdef) => zdef |> is_opseq
-  | LivelitDefLineZName({name, _}) => 666
-| LivelitDefLineZExpansionType({, _}) => 666
-| LivelitDefLineZModelType({, _}) => 666
-| LivelitDefLineZActionType({, _}) => 666
-| LivelitDefLineZInit({, _}) => 666
-| LivelitDefLineZUpdate({, _}) => 666
-| LivelitDefLineZView({, _}) => 666
-| LivelitDefLineZShape({, _}) => 666
-| LivelitDefLineZExpand({, _}) => 666
+  | LivelitDefLineZExpansionType(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZModelType(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZActionType(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZInit(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZUpdate(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZView(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZShape(_) => failwith("is_opseq_zline")
+  | LivelitDefLineZExpand(_) => failwith("is_opseq_zline")
 and is_opseq_zopseq =
   fun
   | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
@@ -690,6 +677,22 @@ and erase_zline =
   | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
   | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
   | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
+  | LivelitDefLineZExpansionType({expansion_type, _} as llrecord) =>
+    LivelitDefLine({...llrecord, expansion_type: ZTyp.erase(expansion_type)})
+  | LivelitDefLineZModelType({model_type, _} as llrecord) =>
+    LivelitDefLine({...llrecord, model_type: ZTyp.erase(model_type)})
+  | LivelitDefLineZActionType({action_type, _} as llrecord) =>
+    LivelitDefLine({...llrecord, action_type: ZTyp.erase(action_type)})
+  | LivelitDefLineZInit({init, _} as llrecord) =>
+    LivelitDefLine({...llrecord, init: erase(init)})
+  | LivelitDefLineZUpdate({update, _} as llrecord) =>
+    LivelitDefLine({...llrecord, update: erase(update)})
+  | LivelitDefLineZView({view, _} as llrecord) =>
+    LivelitDefLine({...llrecord, view: erase(view)})
+  | LivelitDefLineZShape({shape, _} as llrecord) =>
+    LivelitDefLine({...llrecord, shape: erase(shape)})
+  | LivelitDefLineZExpand({expand, _} as llrecord) =>
+    LivelitDefLine({...llrecord, expand: erase(expand)})
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
