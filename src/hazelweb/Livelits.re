@@ -1222,38 +1222,30 @@ module ColorLivelit: LIVELIT = {
         | Some((rval, gval, bval, aval)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+          let overlay =
+            Node.div(
+              [
+                Attr.classes(["dragging-overlay"]),
+                Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
+                Attr.on_mousemove(evt => {
+                  let sat_val_rect =
+                    JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
+                  let (offset_x, offset_y) =
+                    Js.Unsafe.(get(evt, "offsetX"), get(evt, "offsetY"))
+                    |> TupleUtil.map2(Float.of_int);
+                  let s = (offset_x -. sat_val_rect##.left) /. width;
+                  let v =
+                    (height -. (offset_y -. sat_val_rect##.top)) /. height;
+                  let bounded = f => max(0., min(1., f));
+                  trigger(SelectSatVal(bounded(s), bounded(v)));
+                }),
+              ],
+              [],
+            );
+
           box(
             Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
-            [
-              Attr.on_mousemove(evt =>
-                if (selecting_sat_val) {
-                  let (offset_x, offset_y) = {
-                    let target =
-                      Js.Opt.get(evt##.target, () => failwith("no target"));
-                    if (target |> JSUtil.elem_has_cls("sat-val-box")) {
-                      (
-                        Float.of_int(Js.Unsafe.get(evt, "offsetX")),
-                        Float.of_int(Js.Unsafe.get(evt, "offsetY")),
-                      );
-                    } else {
-                      let box = JSUtil.force_get_parent_elem(target);
-                      let rect = box##getBoundingClientRect;
-                      let client_x = Float.of_int(evt##.clientX);
-                      let client_y = Float.of_int(evt##.clientY);
-                      (client_x -. rect##.left, client_y -. rect##.top);
-                    };
-                  };
-                  trigger(
-                    SelectSatVal(
-                      max(0.0, min(offset_x /. width, 1.0)),
-                      max(0.0, min((height -. offset_y) /. height, 1.0)),
-                    ),
-                  );
-                } else {
-                  Event.Many([]);
-                }
-              ),
-            ],
+            [],
             [
               Node.div(
                 [
@@ -1265,10 +1257,10 @@ module ColorLivelit: LIVELIT = {
                     ]),
                   ),
                   Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
-                  Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
                 ],
                 [],
               ),
+              ...selecting_sat_val ? [overlay] : [],
             ],
           );
         };
