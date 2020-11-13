@@ -10,6 +10,20 @@ module Point = {
   };
 };
 
+module Vector = {
+  [@deriving sexp]
+  type t = {
+    dx: float,
+    dy: float,
+  };
+  [@deriving sexp]
+  type h = {dx: float};
+  [@deriving sexp]
+  type v = {dy: float};
+
+  let scale = (r: float, {dx, dy}: t) => {dx: r *. dx, dy: r *. dy};
+};
+
 module Rect = {
   [@deriving sexp]
   type t = {
@@ -23,20 +37,33 @@ module Path = {
   type t = list(cmd)
   and cmd =
     | M(Point.t)
-    | M_({
-        dx: float,
-        dy: float,
+    | M_(Vector.t)
+    | H_(Vector.h)
+    | V_(Vector.v)
+    | A({
+        rx: float,
+        ry: float,
+        x_axis_rotation: float,
+        large_arc_flag: bool,
+        sweep_flag: bool,
+        target: Point.t,
       })
-    | H_({dx: float})
-    | V_({dy: float})
     | A_({
         rx: float,
         ry: float,
         x_axis_rotation: float,
         large_arc_flag: bool,
         sweep_flag: bool,
-        dx: float,
-        dy: float,
+        displacement: Vector.t,
+      })
+    | Q({
+        control: Point.t,
+        target: Point.t,
+      })
+    | C_({
+        control_start: Vector.t,
+        control_end: Vector.t,
+        displacement: Vector.t,
       });
 
   let string_of_flag =
@@ -50,7 +77,18 @@ module Path = {
     | M_({dx, dy}) => Printf.sprintf("m %f %f", dx, dy)
     | H_({dx}) => Printf.sprintf("h %f", dx)
     | V_({dy}) => Printf.sprintf("v %f", dy)
-    | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, dx, dy}) =>
+    | A({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, target}) =>
+      Printf.sprintf(
+        "A %f %f %f %s %s %f %f",
+        rx,
+        ry,
+        x_axis_rotation,
+        string_of_flag(large_arc_flag),
+        string_of_flag(sweep_flag),
+        target.x,
+        target.y,
+      )
+    | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, displacement}) =>
       Printf.sprintf(
         "a %f %f %f %s %s %f %f",
         rx,
@@ -58,8 +96,26 @@ module Path = {
         x_axis_rotation,
         string_of_flag(large_arc_flag),
         string_of_flag(sweep_flag),
-        dx,
-        dy,
+        displacement.dx,
+        displacement.dy,
+      )
+    | Q({control, target}) =>
+      Printf.sprintf(
+        "Q %f %f, %f %f",
+        control.x,
+        control.y,
+        target.x,
+        target.y,
+      )
+    | C_({control_start, control_end, displacement}) =>
+      Printf.sprintf(
+        "c %f %f, %f %f, %f %f",
+        control_start.dx,
+        control_start.dy,
+        control_end.dx,
+        control_end.dy,
+        displacement.dx,
+        displacement.dy,
       );
 
   let view = (~attrs: list(Vdom.Attr.t), path: t): Vdom.Node.t => {
@@ -132,8 +188,10 @@ module OrthogonalPolygon = {
                x_axis_rotation: 0.,
                large_arc_flag: false,
                sweep_flag: clockwise,
-               dx: Float.copy_sign(rx, dx),
-               dy: Float.copy_sign(ry, dy),
+               displacement: {
+                 dx: Float.copy_sign(rx, dx),
+                 dy: Float.copy_sign(ry, dy),
+               },
              }),
              V_({dy: Float.copy_sign(Float.abs(dy) -. ry, dy)}),
            ];
@@ -148,8 +206,10 @@ module OrthogonalPolygon = {
                x_axis_rotation: 0.,
                large_arc_flag: false,
                sweep_flag: clockwise,
-               dx: Float.copy_sign(rx, dx),
-               dy: Float.copy_sign(ry, dy),
+               displacement: {
+                 dx: Float.copy_sign(rx, dx),
+                 dy: Float.copy_sign(ry, dy),
+               },
              }),
              H_({dx: Float.copy_sign(Float.abs(dx) -. rx, dx)}),
            ];

@@ -694,23 +694,86 @@ module GradeCutoffLivelit: LIVELIT = {
         )
       };
 
-    let cutoff_slider = (letter, cls, value) =>
-      Node.input(
+    let cutoff_thumb = (letter: letter_grade, value: int) => {
+      open SvgUtil;
+      let v = Float.of_int(value);
+      let tip = 4.;
+      let chord_distance = 2.5;
+      let arc_radius = chord_distance *. Float.sqrt(2.);
+      let arc_start = Point.{x: v -. chord_distance, y: -. tip};
+      let arc_end = Point.{x: v +. chord_distance, y: -. tip};
+      let control = Point.{x: v, y: -. (tip -. chord_distance)};
+      let origin = Point.{x: v, y: (-0.5)};
+      let thumb =
+        Path.[
+          Q({control, target: arc_start}),
+          A({
+            rx: arc_radius,
+            ry: arc_radius,
+            x_axis_rotation: 0.,
+            large_arc_flag: true,
+            sweep_flag: true,
+            target: arc_end,
+          }),
+          Q({control, target: origin}),
+        ];
+      Node.create_svg(
+        "g",
+        [],
         [
-          Attr.classes(["grade-cutoff-slider", cls]),
-          Attr.type_("range"),
-          Attr.create("min", "0"),
-          Attr.create("max", "100"),
-          Attr.value(string_of_int(value)),
-          Attr.on_input((_, value_str) =>
-            trigger(UpdateCutoff(letter, int_of_string(value_str)))
+          Path.view(
+            ~attrs=
+              Attr.[
+                classes(["grade-cutoff-thumb"]),
+                create("vector-effect", "non-scaling-stroke"),
+              ],
+            [M(origin), ...thumb],
           ),
-          Attr.on_change((_, value_str) =>
-            trigger(UpdateCutoff(letter, int_of_string(value_str)))
+          Node.create_svg(
+            "text",
+            Attr.[
+              classes(["grade-label"]),
+              create("vector-effect", "non-scaling-stroke"),
+              create("dominant-baseline", "middle"),
+              create("text-anchor", "middle"),
+              create("x", Printf.sprintf("%f", v)),
+              create(
+                "y",
+                Printf.sprintf("%f", -. (tip +. chord_distance -. 0.5)),
+              ),
+            ],
+            [
+              Node.text(
+                switch (letter) {
+                | A => "A"
+                | B => "B"
+                | C => "C"
+                | D => "D"
+                },
+              ),
+            ],
           ),
         ],
-        [],
       );
+    };
+
+    // let cutoff_slider = (letter, cls, value) =>
+    //   Node.input(
+    //     [
+    //       Attr.classes(["grade-cutoff-slider", cls]),
+    //       Attr.type_("range"),
+    //       Attr.create("min", "0"),
+    //       Attr.create("max", "100"),
+    //       Attr.value(string_of_int(value)),
+    //       Attr.on_input((_, value_str) =>
+    //         trigger(UpdateCutoff(letter, int_of_string(value_str)))
+    //       ),
+    //       Attr.on_change((_, value_str) =>
+    //         trigger(UpdateCutoff(letter, int_of_string(value_str)))
+    //       ),
+    //     ],
+    //     [],
+    //   );
 
     let percentage_line = grade_points => {
       let percentage_label = (p: int) =>
@@ -731,50 +794,45 @@ module GradeCutoffLivelit: LIVELIT = {
         |> List.map(( * )(10))
         |> List.map(percentage_label);
       Node.create_svg(
-        "svg",
-        [
-          Attr.classes(["grade-cutoff-scale"]),
-          Attr.create("viewBox", "-10 -1 120 4"),
-          Attr.create("stroke", "black"),
-        ],
+        "g",
+        [],
         [
           Node.create_svg(
-            "g",
-            [],
+            "line",
             [
-              Node.create_svg(
-                "line",
-                [
-                  Attr.create("x1", "0"),
-                  Attr.create("y1", "0"),
-                  Attr.create("x2", "100"),
-                  Attr.create("y2", "0"),
-                  Attr.create("vector-effect", "non-scaling-stroke"),
-                ],
-                [],
-              ),
-              ...percentage_labels,
-            ]
-            @ grade_points,
+              Attr.create("x1", "0"),
+              Attr.create("y1", "0"),
+              Attr.create("x2", "100"),
+              Attr.create("y2", "0"),
+              Attr.create("vector-effect", "non-scaling-stroke"),
+            ],
+            [],
           ),
-        ],
+          ...percentage_labels,
+        ]
+        @ grade_points,
       );
     };
 
     Node.div(
       [Attr.classes(["grade-cutoffs-livelit"])],
       [
-        Node.div(
-          [Attr.classes(["grade-display"])],
+        Node.create_svg(
+          "svg",
+          [
+            Attr.classes(["grade-display"]),
+            Attr.create("viewBox", "-10 -1 120 4"),
+            Attr.create("stroke", "black"),
+          ],
           [
             percentage_line(grades_svgs),
-            cutoff_slider(A, "a-slider", a),
-            cutoff_slider(B, "b-slider", b),
-            cutoff_slider(C, "c-slider", c),
-            cutoff_slider(D, "d-slider", d),
-            Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+            cutoff_thumb(A, a),
+            cutoff_thumb(B, b),
+            cutoff_thumb(C, c),
+            cutoff_thumb(D, d),
           ],
         ),
+        Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
       ],
     );
   };

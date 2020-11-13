@@ -1117,6 +1117,10 @@ h1 {
   padding: 1em 0;
 }
 
+.grade-label {
+  font-family: "Gill Sans", sans-serif;
+  font-size: 2.5pt;
+}
 
 .grade-cutoffs-livelit {
   width: var(--grade-cutoffs-livelit-width);
@@ -1210,6 +1214,9 @@ h1 {
   font-weight: lighter;
 }
 
+.grade-cutoff-thumb {
+  fill: white;
+}
 
 .slider-livelit {
   display: inline-block;
