@@ -1106,36 +1106,9 @@ module ColorLivelit: LIVELIT = {
   type action =
     | StartSelectingSatVal
     | StopSelectingSatVal
-    | SelectSatVal(float, float)
-    | SelectHue(int);
+    | SelectRGB((int, int, int));
   type trigger = action => Event.t;
   type sync = action => unit;
-
-  let update_hsv = (hsv, model) => {
-    let (r, g, b) = model.rgb;
-    let (rval, gval, bval) = rgb_of_hsv(hsv);
-    SpliceGenCmd.(
-      bind(
-        map_splice(r, (_, u_gen) =>
-          ((HTyp.Int, UHExp.(Block.wrap(intlit'(rval)))), u_gen)
-        ),
-        _ =>
-        bind(
-          map_splice(g, (_, u_gen) =>
-            ((HTyp.Int, UHExp.(Block.wrap(intlit'(gval)))), u_gen)
-          ),
-          _ =>
-          bind(
-            map_splice(b, (_, u_gen) =>
-              ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
-            ),
-            _ =>
-            return(model)
-          )
-        )
-      )
-    );
-  };
 
   let update = (m, action) =>
     switch (action) {
@@ -1143,12 +1116,29 @@ module ColorLivelit: LIVELIT = {
       SpliceGenCmd.return({...m, selecting_sat_val: true})
     | StopSelectingSatVal =>
       SpliceGenCmd.return({...m, selecting_sat_val: false})
-    | SelectSatVal(s, v) =>
-      let (h, _, _) = hsv_of_rgb(m.rgb);
-      update_hsv((h, s, v), m);
-    | SelectHue(h) =>
-      let (_, s, v) = hsv_of_rgb(m.rgb);
-      update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
+    | SelectRGB((rval, gval, bval)) =>
+      let (r, g, b) = m.rgb;
+      SpliceGenCmd.(
+        bind(
+          map_splice(r, (_, u_gen) =>
+            ((HTyp.Int, UHExp.(Block.wrap(intlit'(rval)))), u_gen)
+          ),
+          _ =>
+          bind(
+            map_splice(g, (_, u_gen) =>
+              ((HTyp.Int, UHExp.(Block.wrap(intlit'(gval)))), u_gen)
+            ),
+            _ =>
+            bind(
+              map_splice(b, (_, u_gen) =>
+                ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
+              ),
+              _ =>
+              return(m)
+            )
+          )
+        )
+      );
     };
 
   [@warning "-27"]
@@ -1200,21 +1190,24 @@ module ColorLivelit: LIVELIT = {
             "gray",
             [
               Attr.on_click(evt => {
-                let (offset_x, offset_y) = {
-                  let target =
-                    Js.Opt.get(evt##.target, () => failwith("no target"));
-                  let box = JSUtil.force_get_parent_elem(target);
-                  let rect = box##getBoundingClientRect;
-                  let client_x = Float.of_int(evt##.clientX);
-                  let client_y = Float.of_int(evt##.clientY);
-                  (client_x -. rect##.left, client_y -. rect##.top);
-                };
-                trigger(
-                  SelectSatVal(
-                    max(0.0, min(offset_x /. width, 1.0)),
-                    max(0.0, min((height -. offset_y) /. height, 1.0)),
-                  ),
-                );
+                // let (offset_x, offset_y) = {
+                //   let target =
+                //     Js.Opt.get(evt##.target, () => failwith("no target"));
+                //   let box = JSUtil.force_get_parent_elem(target);
+                //   let rect = box##getBoundingClientRect;
+                //   let client_x = Float.of_int(evt##.clientX);
+                //   let client_y = Float.of_int(evt##.clientY);
+                //   (client_x -. rect##.left, client_y -. rect##.top);
+                // };
+                // trigger(
+                //   SelectSatVal(
+                //     max(0.0, min(offset_x /. width, 1.0)),
+                //     max(0.0, min((height -. offset_y) /. height, 1.0)),
+                //   ),
+                // );
+                Event.Many(
+                  [],
+                )
               }),
             ],
             [],
@@ -1237,7 +1230,10 @@ module ColorLivelit: LIVELIT = {
                   let v =
                     (height -. (offset_y -. sat_val_rect##.top)) /. height;
                   let bounded = f => max(0., min(1., f));
-                  trigger(SelectSatVal(bounded(s), bounded(v)));
+                  trigger(
+                    SelectRGB(rgb_of_hsv((h, bounded(s), bounded(v)))),
+                  );
+                  // trigger(SelectSatVal(bounded(s), bounded(v)));
                 }),
               ],
               [],
@@ -1277,27 +1273,28 @@ module ColorLivelit: LIVELIT = {
                   Attr.type_("range"),
                   Attr.create("min", "0"),
                   Attr.create("max", "360"),
-                  Attr.on_input((_, value_str) =>
-                    trigger(SelectHue(int_of_string(value_str)))
-                  ),
                   Attr.create(
                     "style",
                     // slider is rotated 90 degrees
                     Printf.sprintf("width: %fpx;", height),
                   ),
                   ...attrs,
-                ],
+                ]
+                |> Attrs.merge_classes_and_styles,
                 [],
               ),
             ],
           );
         switch (rgba_values) {
-        | None => slider([Attr.classes(["hue-slider", "no-thumb"])])
+        | None => slider([Attr.classes(["no-thumb"])])
         | Some((r, g, b, _)) =>
-          let (h, _, _) = hsv_of_rgb((r, g, b));
+          let (h, s, v) = hsv_of_rgb((r, g, b));
           slider([
-            Attr.classes(["hue-slider"]),
             Attr.value(string_of_int(Float.to_int(h))),
+            Attr.on_input((_, value_str) => {
+              let h = float_of_string(value_str);
+              trigger(SelectRGB(rgb_of_hsv((h, s, v))));
+            }),
           ]);
         };
       };
