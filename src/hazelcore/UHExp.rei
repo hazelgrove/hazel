@@ -4,6 +4,19 @@ type operator = Operators_Exp.t;
 [@deriving sexp]
 type t = block
 and block = list(line)
+and livelit_record = {
+  // err: ErrStatus.t,
+  name: (VarErrStatus.t, string), // 0
+  captures: unit, //list((VarErrStatus.t, Var.t)), // 1
+  expansion_type: UHTyp.t, // 2
+  model_type: UHTyp.t, // 3
+  action_type: UHTyp.t, // 4
+  init: t, // 5
+  update: t, // 6
+  view: t, // 7
+  shape: t, //convert to shape // 8
+  expand: t // 9
+}
 and line =
   | EmptyLine
   | CommentLine(string)
@@ -15,6 +28,7 @@ and line =
       list(operand),
     )
   | ExpLine(opseq)
+  | LivelitDefLine(livelit_record)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)

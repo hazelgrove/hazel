@@ -61,6 +61,7 @@ and find_uses_line = (~steps, x: Var.t, line: UHExp.line): (uses_list, bool) =>
       |> List.concat,
       false,
     )
+  | LivelitDefLine(_) => failwith("TODO") // TODO andrew
   }
 and find_uses_opseq =
     (~steps, x: Var.t, OpSeq(_, seq): UHExp.opseq): uses_list =>

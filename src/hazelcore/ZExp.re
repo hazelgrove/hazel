@@ -15,6 +15,114 @@ and zline =
       LivelitName.t,
       ZList.t(zoperand, UHExp.operand),
     )
+  | LivelitDefLineZName({
+      name: (VarErrStatus.t, string), //??? andrew
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZExpansionType({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: ZTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZModelType({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: ZTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZActionType({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: ZTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZInit({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZUpdate({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZView({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZShape({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: t,
+      expand: UHExp.t,
+    })
+  | LivelitDefLineZExpand({
+      name: (VarErrStatus.t, string),
+      captures: unit,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: t,
+    })
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
   | CursorE(CursorPosition.t, UHExp.operand)

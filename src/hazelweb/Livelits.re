@@ -1622,6 +1622,8 @@ module SliderLivelitMin: LIVELIT = {
   // need to include shape!!
   let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
   // how to do this... str of sexp?
+  // let expand = "(=> n (UHExp.Block.wrap (UHExp.intlit' n)))"
+  // (except with actual constructors instead of helpers)
 
   let view = (model, trigger: trigger, _sync) => {
     Vdom.(

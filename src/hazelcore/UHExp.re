@@ -3,27 +3,21 @@ open Sexplib.Std;
 [@deriving sexp]
 type operator = Operators_Exp.t;
 
-// where should this live - andrew
-[@deriving sexp]
-type livelitShape =
-  | Inline(int)
-  | MultiLine(int);
-
 [@deriving sexp]
 type t = block
 and block = list(line)
-and livelitDefn = {
-  err: ErrStatus.t,
-  captures: list(string), // what should actually go here?
-  name: string, //livelitname look at stringlit
-  shape: livelitShape,
-  livelit_type: UHTyp.t,
-  model_type: UHTyp.t,
-  action_type: UHTyp.t,
-  init: t,
-  update: t,
-  view: t,
-  expand: t,
+and livelit_record = {
+  //err: ErrStatus.t,
+  name: (VarErrStatus.t, string), // 0
+  captures: unit, //list((VarErrStatus.t, Var.t)), // 1
+  expansion_type: UHTyp.t, // 2
+  model_type: UHTyp.t, // 3
+  action_type: UHTyp.t, // 4
+  init: t, // 5
+  update: t, // 6
+  view: t, // 7
+  shape: t, //convert to shape // 8
+  expand: t // 9
 }
 and line =
   | EmptyLine
@@ -36,7 +30,7 @@ and line =
       list(operand),
     )
   | ExpLine(opseq)
-  | LivelitDefLine(livelitDefn)
+  | LivelitDefLine(livelit_record)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)

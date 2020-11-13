@@ -62,6 +62,28 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty) => Statics_Pat.ana(ctx, p, ty)
       }
     }
+  | LivelitDefLine({
+      err,
+      name,
+      captures,
+      expansion_type,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+    }) => 0
+  // TODO:
+  // 0. build updateMonad type
+  // 1. ana expand against type model → string
+  //    (note: nor decidable to statically check if this expands into a uhexp of expansion_type i guess?)
+  // 2. ana init against type model (this will later be wrapped in a return
+  // 3. ana update against (model, action) → model (later we will deconstruct and wrap body in a return)
+  // 4. ana shape against inj(int, int)
+  // skip captures for now
+
   | AbbrevLine(lln_new, err_status, lln_old, args) =>
     let (gamma, livelit_ctx) = ctx;
     let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
