@@ -350,14 +350,16 @@ body {
   padding: 3px;
 }
 
-.type-info-summary {
+.code.presentation .type-info-summary {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   color: white;
   padding: 2px;
   font-family: Montserrat, sans-serif;
   cursor: pointer;
+}
+.code.presentation .type-info-summary .filler {
+  flex-grow: 1;
 }
 
 .type-driven .title-bar.fill-bar {
@@ -532,7 +534,6 @@ body {
 
 .cursor-inspector-arrow {
   color: white;
-  margin-right: 15px;
 }
 
 .type-info-summary .novice-mode .term-tag {

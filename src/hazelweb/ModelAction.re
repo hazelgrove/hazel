@@ -66,4 +66,5 @@ type t =
   | ToggleTypeAssistLit
   | ToggleTypeAssistVar
   | ToggleTypeAssistFun
+  | ToggleTypeAssistBranch
   | ToggleTypeAssistOther;

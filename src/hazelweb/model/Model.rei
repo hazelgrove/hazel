@@ -38,6 +38,7 @@ type cursor_inspector = {
   type_assist_lit: bool,
   type_assist_var: bool,
   type_assist_fun: bool,
+  type_assist_branch: bool,
   type_assist_other: bool,
 };
 

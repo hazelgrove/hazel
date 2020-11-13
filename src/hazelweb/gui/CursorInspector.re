@@ -439,6 +439,7 @@ let summary_bar =
       show_expanded: bool,
       term_novice_message_mode: bool,
       type_novice_message_mode: bool,
+      show_strategy_guide: bool,
     ) => {
   let arrow =
     if (show_expanded) {
@@ -496,29 +497,26 @@ let summary_bar =
       )
     );
   let fill_icon =
-    if (CursorInfo_common.is_empty_hole(ci.cursor_term)) {
-      Vdom.(
-        Node.div(
-          [
-            Attr.classes(["cursor-inspector-arrow"]),
-            Attr.on_click(_ =>
-              Vdom.Event.Many([
-                Event.Prevent_default,
-                Event.Stop_propagation,
-                inject(ModelAction.ToggleTypeAssist),
-              ])
-            ),
-          ],
-          [Node.text("💡")],
-        )
-      );
-    } else {
-      Vdom.(Node.div([], [Node.text("")]));
-    };
+    Vdom.(
+      Node.div(
+        [
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleTypeAssist),
+            ])
+          ),
+        ],
+        [Node.text("💡")],
+      )
+    );
+  let fill_space = Vdom.(Node.span([Attr.classes(["filler"])], []));
+  let body = show ? [summary, fill_space, arrow] : [summary];
   let body =
-    show
-      ? [summary, arrow, fill_icon, err_icon]
-      : [summary, fill_icon, err_icon];
+    show_strategy_guide
+      ? List.append(body, [fill_space, fill_icon, err_icon])
+      : List.append(body, [err_icon]);
   Vdom.(
     Node.div(
       [
@@ -942,6 +940,20 @@ let view =
     | Exp(OnDelim(0, _), Case(_)) => "above"
     | _ => "below"
     };
+  let on_empty_hole =
+    switch (cursor_info.cursor_term) {
+    | Exp(_, EmptyHole(_)) => true
+    | Exp(_, _) => false
+    | Pat(_, EmptyHole(_)) => false
+    | Pat(_, _) => false
+    | Typ(_, Hole) => false
+    | Typ(_, _) => false
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
   let summary =
     summary_bar(
       ~inject,
@@ -951,6 +963,7 @@ let view =
       cursor_inspector.show_expanded,
       cursor_inspector.term_novice_message_mode,
       cursor_inspector.type_novice_message_mode,
+      on_empty_hole,
     );
   let content =
     if (cursor_inspector.show_expanded && show) {
@@ -959,7 +972,7 @@ let view =
       [summary];
     };
   let content =
-    if (cursor_inspector.type_assist) {
+    if (cursor_inspector.type_assist && on_empty_hole) {
       List.append(
         content,
         [StrategyGuide.view(~inject, cursor_inspector, cursor_info)],

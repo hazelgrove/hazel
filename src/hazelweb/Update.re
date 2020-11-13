@@ -88,6 +88,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleTypeAssistLit
   | ToggleTypeAssistVar
   | ToggleTypeAssistFun
+  | ToggleTypeAssistBranch
   | ToggleTypeAssistOther =>
     Logger.append(
       Sexp.to_string(
@@ -384,6 +385,13 @@ let apply_action =
           cursor_inspector: {
             ...model.cursor_inspector,
             type_assist_fun: !model.cursor_inspector.type_assist_fun,
+          },
+        }
+      | ToggleTypeAssistBranch => {
+          ...model,
+          cursor_inspector: {
+            ...model.cursor_inspector,
+            type_assist_branch: !model.cursor_inspector.type_assist_branch,
           },
         }
       | ToggleTypeAssistOther => {
