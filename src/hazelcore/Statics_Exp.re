@@ -16,6 +16,20 @@ let ctx_for_let =
   | _ => (ctx, None)
   };
 
+let livelit_types = llrecord => {
+  let {model_type, action_type, init, update, view, shape, expand} = llrecord;
+  open HTyp;
+  let model_hty = UHTyp.expand(model_type);
+  let action_hty = UHTyp.expand(action_type);
+  {
+    init_ty: model_h_ty,
+    update_ty: Arrow(Prod(model_hty, action_hty), model_hty),
+    view_ty: Arrow(model_hty, String),
+    shape_ty: Sum(Int, Int),
+    expand_ty: Arrow(model_h_ty, String),
+  };
+};
+
 /**
  * Synthesize a type, if possible, for e
  */
@@ -62,28 +76,21 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty) => Statics_Pat.ana(ctx, p, ty)
       }
     }
-  | LivelitDefLine({
-      err,
-      name,
-      captures,
-      expansion_type,
-      model_type,
-      action_type,
-      init,
-      update,
-      view,
-      shape,
-      expand,
-    }) => 0
-  // TODO:
-  // 0. build updateMonad type
-  // 1. ana expand against type model → string
-  //    (note: nor decidable to statically check if this expands into a uhexp of expansion_type i guess?)
-  // 2. ana init against type model (this will later be wrapped in a return
-  // 3. ana update against (model, action) → model (later we will deconstruct and wrap body in a return)
-  // 4. ana shape against inj(int, int)
-  // skip captures for now
-
+  | LivelitDefLine(llrecord) =>
+    // TODO: captures
+    let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
+      livelit_types(llrecord);
+    let results = [
+      ana(ctx, init, init_ty),
+      ana(ctx, update, update_ty),
+      ana(ctx, view, view_ty),
+      ana(ctx, shape, shape_ty),
+      ana(ctx, expand, expand_ty),
+    ];
+    switch (OptUtil.sequence(results)) {
+    | None => None
+    | Some(_) => ctx // ??? not adding anything i guess??
+    };
   | AbbrevLine(lln_new, err_status, lln_old, args) =>
     let (gamma, livelit_ctx) = ctx;
     let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);
@@ -908,6 +915,21 @@ and syn_fix_holes_line =
         Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
       (LetLine(p, ann, def), ctx, u_gen);
     }
+  | LivelitDefLine(llrecord) =>
+    // TODO: captures
+    let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
+      livelit_types(llrecord);
+    let (init, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, init, init_ty);
+    let (update, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, update, update_ty);
+    let (view, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, view, view_ty);
+    let (shape, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, shape, shape_ty);
+    let (expand, u_gen) =
+      ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, expand, expand_ty);
+    LivelitDefLine({...lldef, init, update, view, shape, expand});
   | AbbrevLine(lln_new, _, lln_old, args) =>
     let (gamma, livelit_ctx) = ctx;
     let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);

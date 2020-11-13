@@ -399,7 +399,7 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
       //err,
       //captures,
       //name,
-      livelit_type,
+      expansion_type,
       model_type,
       action_type,
       init,
@@ -410,7 +410,7 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     }) =>
     // TODO: is name complete? captures?
     let types_complete =
-      UHTyp.is_complete(livelit_type)
+      UHTyp.is_complete(expansion_type)
       && UHTyp.is_complete(model_type)
       && UHTyp.is_complete(action_type);
     let exprs_complete =

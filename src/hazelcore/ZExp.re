@@ -16,7 +16,7 @@ and zline =
       ZList.t(zoperand, UHExp.operand),
     )
   | LivelitDefLineZName({
-      name: (VarErrStatus.t, string), //??? andrew
+      name: (VarErrStatus.t, string), //??? what is zipper form here - andrew
       captures: unit,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
@@ -170,6 +170,15 @@ and is_opseq_zline =
   | LetLineZA(_)
   | AbbrevLineZL(_) => None
   | LetLineZE(_, _, zdef) => zdef |> is_opseq
+  | LivelitDefLineZName({name, _}) => 666
+| LivelitDefLineZExpansionType({, _}) => 666
+| LivelitDefLineZModelType({, _}) => 666
+| LivelitDefLineZActionType({, _}) => 666
+| LivelitDefLineZInit({, _}) => 666
+| LivelitDefLineZUpdate({, _}) => 666
+| LivelitDefLineZView({, _}) => 666
+| LivelitDefLineZShape({, _}) => 666
+| LivelitDefLineZExpand({, _}) => 666
 and is_opseq_zopseq =
   fun
   | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
