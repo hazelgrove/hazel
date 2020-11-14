@@ -1185,63 +1185,45 @@ module ColorLivelit: LIVELIT = {
           );
         };
         switch (rgba_values) {
-        | None =>
-          box(
-            "gray",
-            [
-              Attr.on_click(evt => {
-                // let (offset_x, offset_y) = {
-                //   let target =
-                //     Js.Opt.get(evt##.target, () => failwith("no target"));
-                //   let box = JSUtil.force_get_parent_elem(target);
-                //   let rect = box##getBoundingClientRect;
-                //   let client_x = Float.of_int(evt##.clientX);
-                //   let client_y = Float.of_int(evt##.clientY);
-                //   (client_x -. rect##.left, client_y -. rect##.top);
-                // };
-                // trigger(
-                //   SelectSatVal(
-                //     max(0.0, min(offset_x /. width, 1.0)),
-                //     max(0.0, min((height -. offset_y) /. height, 1.0)),
-                //   ),
-                // );
-                Event.Many(
-                  [],
-                )
-              }),
-            ],
-            [],
-          )
+        | None => box("gray", [Attr.on_click(evt => Event.Many([]))], [])
         | Some((rval, gval, bval, aval)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+          let bounded = f => max(0., min(1., f));
+          let offset_x_y = evt =>
+            Js.Unsafe.(get(evt, "offsetX"), get(evt, "offsetY"))
+            |> TupleUtil.map2(Float.of_int);
+          let on_first_click = evt => {
+            let (offset_x, offset_y) = offset_x_y(evt);
+            let s = offset_x /. width;
+            let v = (height -. offset_y) /. height;
+            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
+            Event.Many([
+              trigger(StartSelectingSatVal),
+              trigger(SelectRGB(rgb)),
+            ]);
+          };
+          let on_drag = evt => {
+            let sat_val_rect =
+              JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
+            let (offset_x, offset_y) = offset_x_y(evt);
+            let s = (offset_x -. sat_val_rect##.left) /. width;
+            let v = (height -. (offset_y -. sat_val_rect##.top)) /. height;
+            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
+            trigger(SelectRGB(rgb));
+          };
           let overlay =
             Node.div(
-              [
-                Attr.classes(["dragging-overlay"]),
-                Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
-                Attr.on_mousemove(evt => {
-                  let sat_val_rect =
-                    JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
-                  let (offset_x, offset_y) =
-                    Js.Unsafe.(get(evt, "offsetX"), get(evt, "offsetY"))
-                    |> TupleUtil.map2(Float.of_int);
-                  let s = (offset_x -. sat_val_rect##.left) /. width;
-                  let v =
-                    (height -. (offset_y -. sat_val_rect##.top)) /. height;
-                  let bounded = f => max(0., min(1., f));
-                  trigger(
-                    SelectRGB(rgb_of_hsv((h, bounded(s), bounded(v)))),
-                  );
-                  // trigger(SelectSatVal(bounded(s), bounded(v)));
-                }),
+              Attr.[
+                classes(["dragging-overlay"]),
+                on_mouseup(_ => trigger(StopSelectingSatVal)),
+                on_mousemove(on_drag),
               ],
               [],
             );
-
           box(
             Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
-            [],
+            [Attr.on_mousedown(on_first_click)],
             [
               Node.div(
                 [
