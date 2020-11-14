@@ -57,8 +57,6 @@
   --code-text-z: 3;
   --caret-z: 6;
   --livelit-view-z: 7;
-  /* TODO remove */
-  --color-picker-z: 7;
 }
 
 /* general */
@@ -1266,35 +1264,10 @@ input.slider::-moz-range-track {
 .color-livelit:focus {
   outline: none;
 }
-.color-livelit .color-box {
-  height: 1.2ch;
-  width: 1.2ch;
-  border: 1px solid black;
-  border-radius: 3px;
-  cursor: pointer;
-  margin: auto 0;
-}
-.color-livelit .color-box svg {
-  /* not sure why this display property is needed
-   * but svg becomes offset from container otherwise */
-  display: block;
-  stroke-width: 1.5px;
-  height: 100%;
-  width: 100%;
-  stroke: red;
-  stroke-linecap: round;
-}
-.color-livelit .color-picker.closed {
-  display: none;
-}
-.color-livelit .color-picker.open {
-  z-index: var(--color-picker-z);
-  /*position: absolute;
-  top: 1.2ch;
-  left: 0;*/
+
+.color-livelit .color-picker {
   background-color: white;
   border-radius: 0;
-  /*border: 1px solid black;*/
   padding: 4px;
   cursor: default;
   display: grid;
@@ -1306,18 +1279,6 @@ input.slider::-moz-range-track {
   column-gap: 8px;
   row-gap: 8px;
   align-items: top;
-}
-.color-livelit .modal-overlay.closed {
-  display: none;
-}
-.color-livelit .modal-overlay.open {
-  position: fixed;
-  height: 100vh;
-  width: 100vw;
-  top: 0;
-  left: 0;
-  z-index: var(--color-picker-modal-overlay-z);
-  background-color: transparent;
 }
 
 .color-livelit .color-picker .color-swatch {

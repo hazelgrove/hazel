@@ -1421,13 +1421,7 @@ module ColorLivelit: LIVELIT = {
           [uhcode(splice_name)],
         );
       Node.div(
-        [
-          Attr.classes([
-            "color-picker",
-            // TODO clean up open closed logic
-            "open",
-          ]),
-        ],
+        [Attr.classes(["color-picker"])],
         [
           color_swatch,
           Node.div(
