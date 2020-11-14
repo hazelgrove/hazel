@@ -820,8 +820,8 @@ module GradeCutoffLivelit: LIVELIT = {
       | None
       | Some(A) => [d, c, b, a]
       | Some(B) => [d, c, a, b]
-      | Some(C) => [d, b, a, c]
-      | Some(D) => [c, b, a, d]
+      | Some(C) => [a, d, b, c]
+      | Some(D) => [a, b, c, d]
       };
     };
 
