@@ -14,6 +14,17 @@ and of_zline = (zline: ZExp.zline): CursorPath_common.t =>
   | AbbrevLineZL(_, _, _, (p, zarg, _)) =>
     cons'(List.length(p), of_zoperand(zarg))
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
+  | LivelitDefLineZExpansionType({expansion_type: ty, _}) =>
+    cons'(1, CursorPath_Typ.of_z(ty))
+  | LivelitDefLineZModelType({model_type: ty, _}) =>
+    cons'(3, CursorPath_Typ.of_z(ty))
+  | LivelitDefLineZActionType({action_type: ty, _}) =>
+    cons'(4, CursorPath_Typ.of_z(ty))
+  | LivelitDefLineZInit({init: exp, _}) => cons'(5, of_z(exp))
+  | LivelitDefLineZUpdate({update: exp, _}) => cons'(6, of_z(exp))
+  | LivelitDefLineZView({view: exp, _}) => cons'(7, of_z(exp))
+  | LivelitDefLineZShape({shape: exp, _}) => cons'(8, of_z(exp))
+  | LivelitDefLineZExpand({expand: exp, _}) => cons'(9, of_z(exp))
   }
 and of_zopseq = (zopseq: ZExp.zopseq): CursorPath_common.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
@@ -74,7 +85,11 @@ and follow_line =
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
     follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
-  | ([], EmptyLine | CommentLine(_) | LetLine(_) | AbbrevLine(_)) =>
+  | (
+      [],
+      EmptyLine | CommentLine(_) | LetLine(_) | LivelitDefLine(_) |
+      AbbrevLine(_),
+    ) =>
     line |> ZExp.place_cursor_line(cursor)
   | ([_, ..._], EmptyLine | CommentLine(_)) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
@@ -97,6 +112,163 @@ and follow_line =
       |> Option.map(zdef => ZExp.LetLineZE(p, ann, zdef))
     | _ => None
     }
+  | (
+      [x, ...xs],
+      LivelitDefLine({
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      }),
+    ) =>
+    switch (x) {
+    | 0 => failwith("follow_line TODO andrew") // what do
+    | 1 =>
+      expansion_type
+      |> CursorPath_Typ.follow((xs, cursor))
+      |> Option.map(zty =>
+           ZExp.LivelitDefLineZExpansionType({
+             name,
+             captures,
+             expansion_type: zty,
+             model_type,
+             action_type,
+             init,
+             update,
+             view,
+             shape,
+             expand,
+           })
+         )
+    | 2 => failwith("follow_line TODO andrew") // captures
+    | 3 =>
+      model_type
+      |> CursorPath_Typ.follow((xs, cursor))
+      |> Option.map(zty =>
+           ZExp.LivelitDefLineZModelType({
+             name,
+             captures,
+             expansion_type,
+             model_type: zty,
+             action_type,
+             init,
+             update,
+             view,
+             shape,
+             expand,
+           })
+         )
+    | 4 =>
+      action_type
+      |> CursorPath_Typ.follow((xs, cursor))
+      |> Option.map(zty =>
+           ZExp.LivelitDefLineZActionType({
+             name,
+             captures,
+             expansion_type,
+             model_type,
+             action_type: zty,
+             init,
+             update,
+             view,
+             shape,
+             expand,
+           })
+         )
+    | 5 =>
+      init
+      |> follow((xs, cursor))
+      |> Option.map(zexp =>
+           ZExp.LivelitDefLineZInit({
+             name,
+             captures,
+             expansion_type,
+             model_type,
+             action_type,
+             init: zexp,
+             update,
+             view,
+             shape,
+             expand,
+           })
+         )
+    | 6 =>
+      update
+      |> follow((xs, cursor))
+      |> Option.map(zexp =>
+           ZExp.LivelitDefLineZUpdate({
+             name,
+             captures,
+             expansion_type,
+             model_type,
+             action_type,
+             init,
+             update: zexp,
+             view,
+             shape,
+             expand,
+           })
+         )
+    | 7 =>
+      view
+      |> follow((xs, cursor))
+      |> Option.map(zexp =>
+           ZExp.LivelitDefLineZView({
+             name,
+             captures,
+             expansion_type,
+             model_type,
+             action_type,
+             init,
+             update,
+             view: zexp,
+             shape,
+             expand,
+           })
+         )
+    | 8 =>
+      shape
+      |> follow((xs, cursor))
+      |> Option.map(zexp =>
+           ZExp.LivelitDefLineZShape({
+             name,
+             captures,
+             expansion_type,
+             model_type,
+             action_type,
+             init,
+             update,
+             view,
+             shape: zexp,
+             expand,
+           })
+         )
+    | 9 =>
+      expand
+      |> follow((xs, cursor))
+      |> Option.map(zexp =>
+           ZExp.LivelitDefLineZExpand({
+             name,
+             captures,
+             expansion_type,
+             model_type,
+             action_type,
+             init,
+             update,
+             view,
+             shape,
+             expand: zexp,
+           })
+         )
+    | _ => None
+    }
+
   | ([x, ...xs], AbbrevLine(lln_new, err_status, lln_old, args)) =>
     if (x >= List.length(args)) {
       None;
@@ -299,7 +471,11 @@ and of_steps_line =
     : option(CursorPath_common.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-  | ([], EmptyLine | CommentLine(_) | LetLine(_) | AbbrevLine(_)) =>
+  | (
+      [],
+      EmptyLine | CommentLine(_) | LetLine(_) | LivelitDefLine(_) |
+      AbbrevLine(_),
+    ) =>
     let place_cursor =
       switch (side) {
       | Before => ZExp.place_before_line
@@ -324,6 +500,41 @@ and of_steps_line =
     | 2 => def |> of_steps(xs, ~side) |> Option.map(path => cons'(2, path))
     | _ => None
     }
+  | (
+      [x, ...xs],
+      LivelitDefLine({
+        //name,
+        expansion_type,
+        captures,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+        _,
+      }),
+    ) =>
+    let of_steps_ty = (ty, index) =>
+      ty
+      |> CursorPath_Typ.of_steps(xs, ~side)
+      |> Option.map(path => cons'(index, path));
+    let of_steps_exp = (exp, index) =>
+      exp |> of_steps(xs, ~side) |> Option.map(path => cons'(index, path));
+    switch (x) {
+    | 0 => failwith("of_steps_line livelitdef TODO andrew")
+    | 1 => of_steps_ty(expansion_type, 1)
+    | 2 => of_steps_exp(captures, 2)
+    | 3 => of_steps_ty(model_type, 3)
+    | 4 => of_steps_ty(action_type, 4)
+    | 5 => of_steps_exp(init, 5)
+    | 6 => of_steps_exp(update, 6)
+    | 7 => of_steps_exp(view, 7)
+    | 8 => of_steps_exp(shape, 8)
+    | 9 => of_steps_exp(expand, 9)
+    | _ => None
+    };
   | ([x, ...xs], AbbrevLine(_, _, _, args)) =>
     List.nth_opt(args, x)
     |> OptUtil.and_then(arg =>
@@ -509,6 +720,30 @@ and holes_line =
       }
     )
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+  | LivelitDefLine({
+      //name,
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    hs
+    |> holes(expand, [9, ...rev_steps])
+    |> holes(shape, [8, ...rev_steps])
+    |> holes(view, [7, ...rev_steps])
+    |> holes(update, [6, ...rev_steps])
+    |> holes(init, [5, ...rev_steps])
+    |> CursorPath_Typ.holes(action_type, [4, ...rev_steps])
+    |> CursorPath_Typ.holes(model_type, [3, ...rev_steps])
+    |> holes(captures, [2, ...rev_steps])
+    |> CursorPath_Typ.holes(expansion_type, [1, ...rev_steps])
+  //|> holes(name, [0, ...rev_steps]) TODO andrew ???
   | AbbrevLine(_, _, _, args) =>
     ListUtil.fold_right_i(
       ((i, arg), hs) => hs |> holes_operand(arg, [i, ...rev_steps]),
@@ -648,6 +883,50 @@ and holes_zline =
   | CursorL(_, EmptyLine) => CursorPath_common.no_holes
   | CursorL(_, CommentLine(_)) => CursorPath_common.no_holes
   | CursorL(_, ExpLine(_)) => CursorPath_common.no_holes /* invalid cursor position */
+  | CursorL(
+      cursor,
+      LivelitDefLine({
+        expansion_type,
+        captures,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+        _,
+      }),
+    ) =>
+    let holes_expansion_type =
+      CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []);
+    let holes_body =
+      List.concat([
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    switch (cursor) {
+    | OnDelim(0, _)
+    | OnText(_)
+    | OnDelim(1, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_after=holes_expansion_type @ holes_body,
+        (),
+      )
+    | OnDelim(2, _) =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_expansion_type,
+        ~holes_after=holes_body,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
   | CursorL(cursor, LetLine(p, ann, def)) =>
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_ann =
@@ -698,6 +977,273 @@ and holes_zline =
     | _ => CursorPath_common.no_holes
     };
   | ExpLineZ(zopseq) => holes_zopseq(zopseq, rev_steps)
+  | LivelitDefLineZExpansionType({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before = List.concat([]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(expansion_type, [1, ...rev_steps]);
+    let holes_body_after =
+      List.concat([
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZModelType({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(model_type, [3, ...rev_steps]);
+
+    let holes_body_after =
+      List.concat([
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZActionType({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(action_type, [4, ...rev_steps]);
+    let holes_body_after =
+      List.concat([
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZInit({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(init, [5, ...rev_steps]);
+    let holes_body_after =
+      List.concat([
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZUpdate({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(update, [6, ...rev_steps]);
+    let holes_body_after =
+      List.concat([
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZView({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(view, [7, ...rev_steps]);
+    let holes_body_after =
+      List.concat([
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZShape({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(shape, [8, ...rev_steps]);
+    let holes_body_after =
+      List.concat([holes(expand, [9, ...rev_steps], [])]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZExpand({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+        holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(expand, [9, ...rev_steps]);
+    let holes_body_after = List.concat([]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
   | LetLineZP(zp, ann, body) =>
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
       CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);

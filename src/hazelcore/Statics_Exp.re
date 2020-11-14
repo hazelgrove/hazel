@@ -16,8 +16,8 @@ let ctx_for_let =
   | _ => (ctx, None)
   };
 
-let livelit_types = llrecord => {
-  let {model_type, action_type, init, update, view, shape, expand} = llrecord;
+let livelit_types = (llrecord: UHExp.livelit_record) => {
+  let {model_type, action_type, init, update, view, shape, expand, _} = llrecord;
   open HTyp;
   let model_hty = UHTyp.expand(model_type);
   let action_hty = UHTyp.expand(action_type);

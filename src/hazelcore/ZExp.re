@@ -17,7 +17,7 @@ and zline =
     )
   | LivelitDefLineZExpansionType({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: ZTyp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
@@ -29,7 +29,7 @@ and zline =
     })
   | LivelitDefLineZModelType({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: ZTyp.t,
       action_type: UHTyp.t,
@@ -41,7 +41,7 @@ and zline =
     })
   | LivelitDefLineZActionType({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
       action_type: ZTyp.t,
@@ -53,7 +53,7 @@ and zline =
     })
   | LivelitDefLineZInit({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
@@ -65,7 +65,7 @@ and zline =
     })
   | LivelitDefLineZUpdate({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
@@ -77,7 +77,7 @@ and zline =
     })
   | LivelitDefLineZView({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
@@ -89,7 +89,7 @@ and zline =
     })
   | LivelitDefLineZShape({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
@@ -101,7 +101,7 @@ and zline =
     })
   | LivelitDefLineZExpand({
       name: (VarErrStatus.t, string),
-      captures: unit,
+      captures: UHExp.t,
       expansion_type: UHTyp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
@@ -156,16 +156,17 @@ and is_opseq_zline =
   | ExpLineZ(zopseq) => zopseq |> is_opseq_zopseq
   | LetLineZP(_)
   | LetLineZA(_)
-  | AbbrevLineZL(_) => None
-  | LetLineZE(_, _, zdef) => zdef |> is_opseq
+  | AbbrevLineZL(_)
   | LivelitDefLineZExpansionType(_)
   | LivelitDefLineZModelType(_)
-  | LivelitDefLineZActionType(_)
-  | LivelitDefLineZInit(_)
-  | LivelitDefLineZUpdate(_)
-  | LivelitDefLineZView(_)
-  | LivelitDefLineZShape(_)
-  | LivelitDefLineZExpand(_) => failwith("is_opseq_zline livelitdef")
+  | LivelitDefLineZActionType(_) => None
+  // not sure these are right - andrew
+  | LivelitDefLineZInit({init: zdef, _})
+  | LivelitDefLineZUpdate({update: zdef, _})
+  | LivelitDefLineZView({view: zdef, _})
+  | LivelitDefLineZShape({shape: zdef, _})
+  | LivelitDefLineZExpand({expand: zdef, _})
+  | LetLineZE(_, _, zdef) => zdef |> is_opseq
 and is_opseq_zopseq =
   fun
   | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
@@ -190,11 +191,11 @@ and find_zoperand_zline =
   | LivelitDefLineZExpansionType(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_) => None
-  | LivelitDefLineZInit({init, _}) => init |> find_zoperand
-  | LivelitDefLineZUpdate({update, _}) => update |> find_zoperand
-  | LivelitDefLineZView({view, _}) => view |> find_zoperand
-  | LivelitDefLineZShape({shape, _}) => shape |> find_zoperand
-  | LivelitDefLineZExpand({expand, _}) => expand |> find_zoperand
+  | LivelitDefLineZInit({init: zdef, _})
+  | LivelitDefLineZUpdate({update: zdef, _})
+  | LivelitDefLineZView({view: zdef, _})
+  | LivelitDefLineZShape({shape: zdef, _})
+  | LivelitDefLineZExpand({expand: zdef, _}) => zdef |> find_zoperand
 and find_zoperand_zopseq =
   fun
   | ZOpSeq(_, ZOperand(zoperand, _)) => zoperand |> find_zoperand_zoperand
@@ -246,6 +247,7 @@ let line_can_be_swapped = (line: zline): bool =>
   | LivelitDefLineZUpdate(_)
   | LivelitDefLineZView(_)
   | LivelitDefLineZShape(_)
+  // TODO: andrew: don't get what the logic is for existing cases....
   | LivelitDefLineZExpand(_) => failwith("line_can_be_swapped livelitdef")
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>

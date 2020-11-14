@@ -177,6 +177,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | EmptyLine
     | CommentLine(_) => true
     | LetLine(_, _, _)
+    | LivelitDefLine(_)
     | AbbrevLine(_)
     | ExpLine(_) => false
     }
@@ -225,7 +226,15 @@ and is_text_cursor_zline =
     }
   | ExpLineZ(zopseq) => zopseq |> is_text_cursor_zopseq_exp
   | LetLineZP(zp, _, _) => zp |> is_text_cursor_zopseq_pat
+  | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZModelType(_)
+  | LivelitDefLineZActionType(_)
   | LetLineZA(_) => false
+  | LivelitDefLineZInit({init: zdef, _})
+  | LivelitDefLineZUpdate({update: zdef, _})
+  | LivelitDefLineZView({view: zdef, _})
+  | LivelitDefLineZShape({shape: zdef, _})
+  | LivelitDefLineZExpand({expand: zdef, _})
   | LetLineZE(_, _, zdef) => zdef |> is_text_cursor
   | AbbrevLineZL(_, _, _, (_, zoperand, _)) =>
     zoperand |> is_text_cursor_zoperand_exp
