@@ -382,6 +382,7 @@ body {
 
 .mini-option {
   display: flex;
+  align-items: flex-end;
   padding-left: 10px;
 }
 

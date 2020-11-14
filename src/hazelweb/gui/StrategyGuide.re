@@ -79,19 +79,45 @@ let type_to_str = (ty: option(HTyp.t)) => {
   };
 };
 
+let code_node = text =>
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["code-font"])],
+    [Vdom.Node.text(text)],
+  );
+
 let lit_msg = (ty: HTyp.t) => {
+  open Vdom;
+
   let msg =
     switch (ty) {
-    | Hole => "Enter a literal"
-    | Int => "Enter an Integer (e.g. 1)"
-    | Float => "Enter a Float (e.g. 1.0)"
-    | Bool => "Enter a Boolean (e.g. true)"
-    | Arrow(_, _) => "Write a function (e.g. fun _ -> _)"
-    | Sum(_, _) => "Enter a Sum (e.g. inj[L](_)"
-    | Prod(_) => "Enter a Product (e.g. (_, _))"
-    | List(_) => "Enter a List (e.g. [])"
+    | Hole => [Vdom.Node.text("Enter a literal: ")]
+    | Int => [
+        Vdom.Node.text("Enter an Integer (e.g. "),
+        code_node("1"),
+        Node.text("): "),
+      ]
+    | Float => [
+        Vdom.Node.text("Enter a Float (e.g. "),
+        code_node("1.0"),
+        Node.text("): "),
+      ]
+    | Bool => [
+        Vdom.Node.text("Enter a Boolean (e.g. "),
+        code_node("true"),
+        Node.text("): "),
+      ]
+    | Arrow(_, _) => [Vdom.Node.text("Enter a function (type `\\`): ")]
+    | Sum(_, _) => [
+        Vdom.Node.text("Enter a Sum (type `Alt + l` or `Alt + r`): "),
+      ]
+    | Prod(_) => [Vdom.Node.text("Enter a Product (type `,`): ")]
+    | List(_) => [
+        Vdom.Node.text("Enter a List (e.g. "),
+        code_node("[]"),
+        Node.text("): "),
+      ]
     };
-  [Vdom.Node.text(msg ++ " : "), HTypCode.view(ty)];
+  msg @ [HTypCode.view(ty)];
 };
 
 /**
@@ -105,7 +131,7 @@ let list_vars_view = (vars: VarCtx.t) => {
         Vdom.(
           Node.div(
             [Attr.classes(["option"])],
-            [Node.text(var ++ " : "), HTypCode.view(ty)],
+            [code_node(var), Node.text(" : "), HTypCode.view(ty)],
           )
         )
       },
@@ -120,25 +146,39 @@ let list_vars_view = (vars: VarCtx.t) => {
  */
 let branch_vars_view = (ctx: Contexts.t) => {
   let vars = branch_vars(ctx);
-  List.map(
-    ((var, ty)) => {
-      Vdom.(
-        Node.div(
-          [Attr.classes(["option"])],
-          [Node.text(var ++ " : "), HTypCode.view(ty)],
+  let mini_options =
+    List.map(
+      ((var, ty)) => {
+        Vdom.(
+          Node.div(
+            [Attr.classes(["mini-option"])],
+            [code_node(var), Node.text(":"), HTypCode.view(ty)],
+          )
         )
+      },
+      vars,
+    )
+    |> List.append([
+         Vdom.(
+           Node.div(
+             [Attr.classes(["mini-option"])],
+             [Node.text("Empty hole" ++ ":"), HTypCode.view(HTyp.Hole)],
+           )
+         ),
+       ]);
+  [
+    Vdom.(
+      Node.div(
+        [Attr.classes(["option"])],
+        [
+          Node.div(
+            [Attr.classes([])],
+            [code_node("case ...")] @ mini_options,
+          ),
+        ],
       )
-    },
-    vars,
-  )
-  |> List.append([
-       Vdom.(
-         Node.div(
-           [Attr.classes(["option"])],
-           [Node.text("Empty hole" ++ " : "), HTypCode.view(HTyp.Hole)],
-         )
-       ),
-     ]);
+    ),
+  ];
 };
 
 /**
@@ -153,11 +193,9 @@ let other_arithmetic_options = cursor_info => {
          Node.div(
            [Attr.classes(["mini-option"])],
            [
-             Node.div([Attr.classes(["code-font"])], [Node.text("_")]),
-             Node.text(s),
-             Node.div([Attr.classes(["code-font"])], [Node.text("_")]),
-             Node.text(" : "),
-             HTypCode.view(HTyp.Int),
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(HTyp.Int, HTyp.Arrow(Int, Int))),
            ],
          )
        });
@@ -167,11 +205,9 @@ let other_arithmetic_options = cursor_info => {
          Node.div(
            [Attr.classes(["mini-option"])],
            [
-             Node.div([Attr.classes(["code-font"])], [Node.text("_")]),
-             Node.text(s),
-             Node.div([Attr.classes(["code-font"])], [Node.text("_")]),
-             Node.text(" : "),
-             HTypCode.view(HTyp.Float),
+             code_node(s),
+             Node.text(":"),
+             HTypCode.view(HTyp.Arrow(Float, Arrow(Float, Float))),
            ],
          )
        });
@@ -288,7 +324,7 @@ let view =
             ])
           ),
         ],
-        [Node.text("Use a Variable"), var_arrow],
+        [Node.text("Fill with a Variable"), var_arrow],
       )
     );
   let var_body =
@@ -332,7 +368,7 @@ let view =
               Node.text("Apply "),
               Node.div(
                 [Attr.classes(["code-font"])],
-                [Node.text("map : ")],
+                [Node.text("map: ")],
               ),
               HTypCode.view(
                 Arrow(
@@ -348,7 +384,7 @@ let view =
           Node.div(
             [Attr.classes(["option"])],
             [
-              Node.text("Create and apply new function : "),
+              Node.text("Create and apply new function: "),
               HTypCode.view(Arrow(Hole, Hole)),
             ],
           ),
@@ -375,7 +411,7 @@ let view =
             ])
           }),
         ],
-        [Node.text("Branch on..."), arrow_branch],
+        [Node.text("Consider by cases"), arrow_branch],
       )
     );
   let branch_body =
@@ -449,11 +485,6 @@ let view =
     } else {
       List.append(body, [other]);
     };
-
-  let _ = extract_vars;
-  let _ = branch_vars;
-  let _ = get_type;
-  let _ = list_vars_view;
 
   Vdom.(Node.div([Attr.classes(["type-driven"])], body));
 };
