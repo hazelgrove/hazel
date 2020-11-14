@@ -534,16 +534,20 @@ module GradeCutoffLivelit: LIVELIT = {
     b: int,
     c: int,
     d: int,
+    selecting: option(letter_grade),
   };
 
   [@deriving sexp]
   type action =
-    | UpdateCutoff(letter_grade, int);
+    | UpdateCutoff(letter_grade, int)
+    | StartSelecting(letter_grade)
+    | StopSelecting;
 
   type trigger = action => Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60});
+  let init_model =
+    SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selecting: None});
 
   let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
 
@@ -599,6 +603,8 @@ module GradeCutoffLivelit: LIVELIT = {
   let update = (model, action) =>
     SpliceGenCmd.return(
       switch (action) {
+      | StopSelecting => {...model, selecting: None}
+      | StartSelecting(letter) => {...model, selecting: Some(letter)}
       | UpdateCutoff(letter, new_cutoff) =>
         let update =
           switch (letter) {
@@ -648,10 +654,9 @@ module GradeCutoffLivelit: LIVELIT = {
     | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
     | _ => (List.rev(rslt), invalid_count + 1);
 
-  [@warning "-27"]
   let view =
       (
-        {a, b, c, d},
+        {a, b, c, d, selecting},
         trigger,
         _,
         {dargs, _}: LivelitView.splice_and_param_getters,
@@ -694,22 +699,25 @@ module GradeCutoffLivelit: LIVELIT = {
         )
       };
 
+    let px_scalar = 5.;
+    let scale_len = 100.;
+    let thumb_radius = 3.;
+    let thumb_tip = 5.;
+
     let cutoff_thumb = (letter: letter_grade, value: int) => {
       open SvgUtil;
       let v = Float.of_int(value);
-      let tip = 4.;
-      let chord_distance = 2.5;
-      let arc_radius = chord_distance *. Float.sqrt(2.);
-      let arc_start = Point.{x: v -. chord_distance, y: -. tip};
-      let arc_end = Point.{x: v +. chord_distance, y: -. tip};
-      let control = Point.{x: v, y: -. (tip -. chord_distance)};
+      let chord_distance = thumb_radius /. Float.sqrt(2.);
+      let arc_start = Point.{x: v -. chord_distance, y: -. thumb_tip};
+      let arc_end = Point.{x: v +. chord_distance, y: -. thumb_tip};
+      let control = Point.{x: v, y: -. (thumb_tip -. chord_distance)};
       let origin = Point.{x: v, y: (-0.5)};
       let thumb =
         Path.[
           Q({control, target: arc_start}),
           A({
-            rx: arc_radius,
-            ry: arc_radius,
+            rx: thumb_radius,
+            ry: thumb_radius,
             x_axis_rotation: 0.,
             large_arc_flag: true,
             sweep_flag: true,
@@ -726,6 +734,7 @@ module GradeCutoffLivelit: LIVELIT = {
               Attr.[
                 classes(["grade-cutoff-thumb"]),
                 create("vector-effect", "non-scaling-stroke"),
+                on_mousedown(_ => trigger(StartSelecting(letter))),
               ],
             [M(origin), ...thumb],
           ),
@@ -739,8 +748,9 @@ module GradeCutoffLivelit: LIVELIT = {
               create("x", Printf.sprintf("%f", v)),
               create(
                 "y",
-                Printf.sprintf("%f", -. (tip +. chord_distance -. 0.5)),
+                Printf.sprintf("%f", -. (thumb_tip +. chord_distance -. 0.5)),
               ),
+              on_mousedown(_ => trigger(StartSelecting(letter))),
             ],
             [
               Node.text(
@@ -757,24 +767,6 @@ module GradeCutoffLivelit: LIVELIT = {
       );
     };
 
-    // let cutoff_slider = (letter, cls, value) =>
-    //   Node.input(
-    //     [
-    //       Attr.classes(["grade-cutoff-slider", cls]),
-    //       Attr.type_("range"),
-    //       Attr.create("min", "0"),
-    //       Attr.create("max", "100"),
-    //       Attr.value(string_of_int(value)),
-    //       Attr.on_input((_, value_str) =>
-    //         trigger(UpdateCutoff(letter, int_of_string(value_str)))
-    //       ),
-    //       Attr.on_change((_, value_str) =>
-    //         trigger(UpdateCutoff(letter, int_of_string(value_str)))
-    //       ),
-    //     ],
-    //     [],
-    //   );
-
     let percentage_line = grade_points => {
       let percentage_label = (p: int) =>
         Node.create_svg(
@@ -782,7 +774,7 @@ module GradeCutoffLivelit: LIVELIT = {
           [
             Attr.classes(["grade-cutoff-scale-label"]),
             Attr.create("x", string_of_int(p)),
-            Attr.create("y", "2"),
+            Attr.create("y", "0.5"),
             Attr.create("dominant-baseline", "hanging"),
             Attr.create("text-anchor", "middle"),
             Attr.create("vector-effect", "non-scaling-stroke"),
@@ -800,9 +792,10 @@ module GradeCutoffLivelit: LIVELIT = {
           Node.create_svg(
             "line",
             [
+              Attr.classes(["grade-cutoff-scale"]),
               Attr.create("x1", "0"),
               Attr.create("y1", "0"),
-              Attr.create("x2", "100"),
+              Attr.create("x2", Printf.sprintf("%f", scale_len)),
               Attr.create("y2", "0"),
               Attr.create("vector-effect", "non-scaling-stroke"),
             ],
@@ -814,6 +807,50 @@ module GradeCutoffLivelit: LIVELIT = {
       );
     };
 
+    let thumbs = {
+      let (a, b, c, d) = (
+        cutoff_thumb(A, a),
+        cutoff_thumb(B, b),
+        cutoff_thumb(C, c),
+        cutoff_thumb(D, d),
+      );
+      // change paint order depending on
+      // which thumb is being dragged
+      switch (selecting) {
+      | None
+      | Some(A) => [d, c, b, a]
+      | Some(B) => [d, c, a, b]
+      | Some(C) => [d, b, a, c]
+      | Some(D) => [c, b, a, d]
+      };
+    };
+
+    let overlay =
+      switch (selecting) {
+      | None => []
+      | Some(letter) => [
+          Node.div(
+            Attr.[
+              classes(["dragging-overlay"]),
+              on_mouseup(_ => trigger(StopSelecting)),
+              on_mousemove(evt => {
+                let scale =
+                  JSUtil.force_get_elem_by_cls("grade-cutoff-scale")##getBoundingClientRect;
+                let offset_x = Float.of_int(Js.Unsafe.get(evt, "offsetX"));
+                let cutoff =
+                  100.
+                  *. (offset_x -. scale##.left)
+                  /. (px_scalar *. scale_len);
+                trigger(UpdateCutoff(letter, Float.to_int(cutoff)));
+              }),
+            ],
+            [],
+          ),
+        ]
+      };
+
+    let width = scale_len +. 2. *. thumb_radius +. 2.;
+    let height = 2. *. thumb_radius +. thumb_tip +. 6.;
     Node.div(
       [Attr.classes(["grade-cutoffs-livelit"])],
       [
@@ -821,18 +858,27 @@ module GradeCutoffLivelit: LIVELIT = {
           "svg",
           [
             Attr.classes(["grade-display"]),
-            Attr.create("viewBox", "-10 -1 120 4"),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "%f %f %f %f",
+                -. (thumb_radius +. 1.),
+                -. (2. *. thumb_radius +. thumb_tip),
+                width,
+                height,
+              ),
+            ),
+            Attr.create("width", Printf.sprintf("%fpx", px_scalar *. width)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", px_scalar *. height),
+            ),
             Attr.create("stroke", "black"),
           ],
-          [
-            percentage_line(grades_svgs),
-            cutoff_thumb(A, a),
-            cutoff_thumb(B, b),
-            cutoff_thumb(C, c),
-            cutoff_thumb(D, d),
-          ],
+          [percentage_line(grades_svgs), ...thumbs],
         ),
         Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+        ...overlay,
       ],
     );
   };
@@ -844,7 +890,7 @@ module GradeCutoffLivelit: LIVELIT = {
     );
   };
 
-  let expand = ({a, b, c, d}) => {
+  let expand = ({a, b, c, d, selecting: _}) => {
     let tupl_seq =
       UHExp.(
         Seq.mk(
