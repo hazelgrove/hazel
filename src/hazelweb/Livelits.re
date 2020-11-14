@@ -748,7 +748,7 @@ module GradeCutoffLivelit: LIVELIT = {
               create("x", Printf.sprintf("%f", v)),
               create(
                 "y",
-                Printf.sprintf("%f", -. (thumb_tip +. chord_distance -. 0.5)),
+                Printf.sprintf("%f", -. (thumb_tip +. chord_distance -. 0.4)),
               ),
               on_mousedown(_ => trigger(StartSelecting(letter))),
             ],
