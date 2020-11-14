@@ -279,8 +279,8 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
     // livelit <name> at <expansion_type> { <body> + }
     CursorPosition.delim_cursors_k(0)  // "livelit"
     @ CursorPosition.text_cursors(String.length(name))  // <name>
-    @ CursorPosition.delim_cursors_k(1) // "at"
-    @ CursorPosition.delim_cursors_k(2) // "{"
+    @ CursorPosition.delim_cursors_k(1)  // "at"
+    @ CursorPosition.delim_cursors_k(2)  // "{"
     @ CursorPosition.delim_cursors_k(3) // "}"
   };
 let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
@@ -1198,7 +1198,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | CursorL(OnText(0), LivelitDefLine(llrecord)) =>
     Some(CursorL(OnDelim(0, After), LivelitDefLine(llrecord)))
   | CursorL(OnText(n), LivelitDefLine(llrecord)) =>
-    Some(CursorL(OnText(n-1), LivelitDefLine(llrecord)))
+    Some(CursorL(OnText(n - 1), LivelitDefLine(llrecord)))
   | CursorL(OnText(_), EmptyLine) => None
   | CursorL(OnText(0), CommentLine(_) as line) =>
     Some(CursorL(OnDelim(0, After), line))
@@ -1216,23 +1216,33 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | (_, _, _) => Some(LetLineZE(p, ann, place_after(def)))
     }
 
-  | CursorL(OnDelim(k, Before), LivelitDefLine({
-            name: (_err, name_str) as name,
-        captures,
-        expansion_type,
-        model_type,
-        action_type,
-        init,
-        update,
-        view,
-        shape,
-        expand,
-  } as llrecord)) =>
-  switch(k) {
-  | 1 /* "at" */ =>
-  Some(CursorL(OnText(String.length(name_str) - 1),  LivelitDefLine(llrecord)))
-  | 2 /* "{" */ =>
-  Some(
+  | CursorL(
+      OnDelim(k, Before),
+      LivelitDefLine(
+        {
+          name: (_err, name_str) as name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type,
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        } as llrecord,
+      ),
+    ) =>
+    switch (k) {
+    | 1 /* "at" */ =>
+      Some(
+        CursorL(
+          OnText(String.length(name_str) - 1),
+          LivelitDefLine(llrecord),
+        ),
+      )
+    | 2 /* "{" */ =>
+      Some(
         LivelitDefLineZExpansionType({
           name,
           captures,
@@ -1244,9 +1254,10 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
           view,
           shape,
           expand,
-        }))
+        }),
+      )
     | 3 /* "}" */ =>
-    Some(
+      Some(
         LivelitDefLineZExpand({
           name,
           captures,
@@ -1258,9 +1269,10 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
           view,
           shape,
           expand: place_after(expand),
-        }))
-  | _ => None // invalid cursor position
-  }
+        }),
+      )
+    | _ => None // invalid cursor position
+    }
 
   | ExpLineZ(zopseq) =>
     switch (move_cursor_left_zopseq(zopseq)) {
@@ -1273,16 +1285,13 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(LivelitDefLineZExpansionType({...llrecord, expansion_type}))
     | None => Some(CursorL(OnDelim(1, After), erase_zline(zline)))
     }
-  | LivelitDefLineZModelType(
-      { model_type, _ } as llrecord,
-    ) =>
+  | LivelitDefLineZModelType({model_type, _} as llrecord) =>
     switch (ZTyp.move_cursor_left(model_type)) {
     | Some(model_type) =>
       Some(LivelitDefLineZModelType({...llrecord, model_type}))
-    | None =>
-      Some(CursorL(OnDelim(2, After), erase_zline(zline)))
+    | None => Some(CursorL(OnDelim(2, After), erase_zline(zline)))
     }
-    | LivelitDefLineZActionType(
+  | LivelitDefLineZActionType(
       {
         name,
         captures,
@@ -1315,7 +1324,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
         }),
       )
     }
-    | LivelitDefLineZInit(
+  | LivelitDefLineZInit(
       {
         name,
         captures,
@@ -1330,8 +1339,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       } as llrecord,
     ) =>
     switch (move_cursor_left(init)) {
-    | Some(init) =>
-      Some(LivelitDefLineZInit({...llrecord, init}))
+    | Some(init) => Some(LivelitDefLineZInit({...llrecord, init}))
     | None =>
       Some(
         LivelitDefLineZActionType({
@@ -1363,8 +1371,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       } as llrecord,
     ) =>
     switch (move_cursor_left(update)) {
-    | Some(update) =>
-      Some(LivelitDefLineZUpdate({...llrecord, update}))
+    | Some(update) => Some(LivelitDefLineZUpdate({...llrecord, update}))
     | None =>
       Some(
         LivelitDefLineZInit({
@@ -1381,7 +1388,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
         }),
       )
     }
-    | LivelitDefLineZView(
+  | LivelitDefLineZView(
       {
         name,
         captures,
@@ -1396,8 +1403,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       } as llrecord,
     ) =>
     switch (move_cursor_left(view)) {
-    | Some(view) =>
-      Some(LivelitDefLineZView({...llrecord, view}))
+    | Some(view) => Some(LivelitDefLineZView({...llrecord, view}))
     | None =>
       Some(
         LivelitDefLineZUpdate({
@@ -1429,8 +1435,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       } as llrecord,
     ) =>
     switch (move_cursor_left(shape)) {
-    | Some(shape) =>
-      Some(LivelitDefLineZShape({...llrecord, shape}))
+    | Some(shape) => Some(LivelitDefLineZShape({...llrecord, shape}))
     | None =>
       Some(
         LivelitDefLineZView({
@@ -1462,8 +1467,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       } as llrecord,
     ) =>
     switch (move_cursor_left(expand)) {
-    | Some(expand) =>
-      Some(LivelitDefLineZExpand({...llrecord, expand}))
+    | Some(expand) => Some(LivelitDefLineZExpand({...llrecord, expand}))
     | None =>
       Some(
         LivelitDefLineZShape({
@@ -1485,7 +1489,7 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
     | Some(zp) => Some(LetLineZP(zp, ann, def))
     | None =>
       Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), ann, def)))
-    };
+    }
   | LetLineZA(p, zann, def) =>
     switch (ZTyp.move_cursor_left(zann)) {
     | Some(zann) => Some(LetLineZA(p, zann, def))
@@ -1803,11 +1807,297 @@ and move_cursor_right_zline =
     | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
     | (_three, _) => None
     }
-
+  | CursorL(
+      OnDelim(k, After),
+      LivelitDefLine(
+        {
+          name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type,
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        } as llrecord,
+      ),
+    ) =>
+    // k=0 on livelit. move to name ie text
+    // k=1 on at. move to expansion_type
+    // k=2 on {. move to model type
+    switch (k) {
+    | 0 => Some(CursorL(OnText(0), LivelitDefLine(llrecord)))
+    | 1 =>
+      Some(
+        LivelitDefLineZExpansionType({
+          name,
+          captures,
+          expansion_type: ZTyp.place_before(expansion_type),
+          model_type,
+          action_type,
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        }),
+      )
+    | 2 =>
+      Some(
+        LivelitDefLineZModelType({
+          name,
+          captures,
+          expansion_type,
+          model_type: ZTyp.place_before(model_type),
+          action_type,
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        }),
+      )
+    | _ => None // invalid cursor position
+    }
+  | CursorL(
+      OnText(n),
+      LivelitDefLine({name: (_, name_str), _} as llrecord),
+    ) =>
+    if (n == 0) {
+      None;
+    } else if (n < String.length(name_str)) {
+      Some(CursorL(OnText(n - 1), LivelitDefLine(llrecord)));
+    } else {
+      // move to "at"
+      Some(
+        CursorL(OnDelim(1, After), LivelitDefLine(llrecord)),
+      );
+    }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
     | None => None
     | Some(zopseq) => Some(ExpLineZ(zopseq))
+    }
+  | LivelitDefLineZExpansionType({expansion_type, _} as llrecord) =>
+    switch (ZTyp.move_cursor_right(expansion_type)) {
+    | Some(expansion_type) =>
+      Some(LivelitDefLineZExpansionType({...llrecord, expansion_type}))
+    | None =>
+      // move cursor to "{"
+      Some(
+        CursorL(
+          OnDelim(2, Before),
+          erase_zline(LivelitDefLineZExpansionType(llrecord)),
+        ),
+      )
+    }
+  | LivelitDefLineZModelType(
+      {
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (ZTyp.move_cursor_right(model_type)) {
+    | Some(model_type) =>
+      Some(LivelitDefLineZModelType({...llrecord, model_type}))
+    | None =>
+      Some(
+        LivelitDefLineZActionType({
+          name,
+          captures,
+          expansion_type,
+          model_type: ZTyp.erase(model_type),
+          action_type: ZTyp.place_before(action_type),
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        }),
+      )
+    }
+  | LivelitDefLineZActionType(
+      {
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (ZTyp.move_cursor_right(action_type)) {
+    | Some(action_type) =>
+      Some(LivelitDefLineZActionType({...llrecord, action_type}))
+    | None =>
+      Some(
+        LivelitDefLineZInit({
+          name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type: ZTyp.erase(action_type),
+          init: place_before(init),
+          update,
+          view,
+          shape,
+          expand,
+        }),
+      )
+    }
+  | LivelitDefLineZInit(
+      {
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (move_cursor_right(init)) {
+    | Some(init) => Some(LivelitDefLineZInit({...llrecord, init}))
+    | None =>
+      Some(
+        LivelitDefLineZUpdate({
+          name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type,
+          init: erase(init),
+          update: place_before(update),
+          view,
+          shape,
+          expand,
+        }),
+      )
+    }
+  | LivelitDefLineZUpdate(
+      {
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (move_cursor_right(update)) {
+    | Some(update) => Some(LivelitDefLineZUpdate({...llrecord, update}))
+    | None =>
+      Some(
+        LivelitDefLineZView({
+          name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type,
+          init,
+          update: erase(update),
+          view: place_before(view),
+          shape,
+          expand,
+        }),
+      )
+    }
+  | LivelitDefLineZView(
+      {
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (move_cursor_right(view)) {
+    | Some(view) => Some(LivelitDefLineZView({...llrecord, view}))
+    | None =>
+      Some(
+        LivelitDefLineZShape({
+          name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type,
+          init,
+          update,
+          view: erase(view),
+          shape: place_before(shape),
+          expand,
+        }),
+      )
+    }
+  | LivelitDefLineZShape(
+      {
+        name,
+        captures,
+        expansion_type,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (move_cursor_right(shape)) {
+    | Some(shape) => Some(LivelitDefLineZShape({...llrecord, shape}))
+    | None =>
+      Some(
+        LivelitDefLineZExpand({
+          name,
+          captures,
+          expansion_type,
+          model_type,
+          action_type,
+          init,
+          update,
+          view,
+          shape: erase(shape),
+          expand: place_before(expand),
+        }),
+      )
+    }
+  | LivelitDefLineZExpand({expand, _} as llrecord) =>
+    switch (move_cursor_right(expand)) {
+    | Some(expand) => Some(LivelitDefLineZExpand({...llrecord, expand}))
+    | None =>
+      // move cursor to "}"
+      Some(
+        CursorL(
+          OnDelim(3, Before),
+          erase_zline(LivelitDefLineZExpand(llrecord)),
+        ),
+      )
     }
   | LetLineZP(zp, ann, def) =>
     switch (ZPat.move_cursor_right(zp)) {
