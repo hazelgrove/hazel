@@ -1,4 +1,4 @@
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
 let rec extract_cursor_term = (ztyp: ZTyp.t): cursor_term => {
@@ -43,5 +43,5 @@ and get_zoperand_from_ztyp_operand =
 };
 
 let cursor_info =
-    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo_common.t) =>
+    (~steps as _, ctx: Contexts.t, typ: ZTyp.t): option(CursorInfo.t) =>
   Some(CursorInfo_common.mk(OnType, ctx, extract_cursor_term(typ)));

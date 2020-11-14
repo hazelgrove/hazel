@@ -6,7 +6,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
-  previous_action: Action_common.t,
+  previous_action: Action.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
 };
@@ -68,7 +68,7 @@ let shift_history: (int, int, bool, t) => t;
  * entry for performing action `a` starting with cardstacks `before`
  * and resulting in cardstacks `after`.
  */
-let push_edit_state: (t, ZCardstacks.t, ZCardstacks.t, Action_common.t) => t;
+let push_edit_state: (t, ZCardstacks.t, ZCardstacks.t, Action.t) => t;
 
 /**
  * Returns the `UndoHistoryCore.cursor_term_info` associated with

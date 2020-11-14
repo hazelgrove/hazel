@@ -110,7 +110,7 @@ We use
     - `Program`:
       entry point to any Hazel program, provides functions for
       acquiring semantic info as well as layout concerns, goes
-      beyond `Statics_common.edit_state` in that it contains information like
+      beyond `Statics.edit_state` in that it contains information like
       current editor width, whether its focused, etc...
     - `Result`: result of evaluating a Hazel program
     - `UndoHistory`: undo logic
@@ -134,7 +134,7 @@ We use
         `CardstackInfo`
       - `ZCard` is the selected card in a `Cardstack`, it differs from
         `Card` in that it contains a full `Program` as opposed to
-        a `Statics_common.edit_state`
+        a `Statics.edit_state`
   -
 
 
