@@ -244,7 +244,7 @@ let mk_Int = (): t =>
   Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Float = (): t =>
-  Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, "Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
