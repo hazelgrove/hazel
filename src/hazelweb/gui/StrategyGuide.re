@@ -67,7 +67,7 @@ let get_type = (cursor_info: CursorInfo_common.t) => {
  */
 let type_to_str = (ty: option(HTyp.t)) => {
   switch (ty) {
-  | Some(Hole) => "Any"
+  | Some(Hole) => "A"
   | Some(Int) => "Integer"
   | Some(Float) => "Float"
   | Some(Bool) => "Boolean"
@@ -82,6 +82,12 @@ let type_to_str = (ty: option(HTyp.t)) => {
 let code_node = text =>
   Vdom.Node.div(
     [Vdom.Attr.classes(["code-font"])],
+    [Vdom.Node.text(text)],
+  );
+
+let shortcut_node = text =>
+  Vdom.Node.div(
+    [Vdom.Attr.classes(["code-font", "shortcut"])],
     [Vdom.Node.text(text)],
   );
 
@@ -106,14 +112,22 @@ let lit_msg = (ty: HTyp.t) => {
         code_node("true"),
         Node.text("): "),
       ]
-    | Arrow(_, _) => [Vdom.Node.text("Enter a function (type `\\`): ")]
+    | Arrow(_, _) => [
+        Vdom.Node.text("Enter a function (type "),
+        shortcut_node("\\"),
+        Node.text("): "),
+      ]
     | Sum(_, _) => [
-        Vdom.Node.text("Enter a Sum (type `Alt + l` or `Alt + r`): "),
+        Vdom.Node.text("Enter a Sum (type "),
+        shortcut_node("Alt + l"),
+        Node.text("or"),
+        shortcut_node("Alt + r"),
+        Node.text("): "),
       ]
     | Prod(_) => [Vdom.Node.text("Enter a Product (type `,`): ")]
     | List(_) => [
-        Vdom.Node.text("Enter a List (e.g. "),
-        code_node("[]"),
+        Vdom.Node.text("Enter a List (type "),
+        shortcut_node("["),
         Node.text("): "),
       ]
     };

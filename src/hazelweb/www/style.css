@@ -400,6 +400,12 @@ body {
   font-family: var(--code-font-family);  
 }
 
+.body-bar .option .code-font.shortcut {
+  font-family: var(--code-font-family); 
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
 .type-driven {
   font-family: Montserrat, sans-serif;
 }
