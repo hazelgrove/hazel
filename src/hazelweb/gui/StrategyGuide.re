@@ -62,8 +62,8 @@ let branch_vars = (ctx: Contexts.t) => {
  * Return HTyp.t
  */
 let get_type = (cursor_info: CursorInfo_common.t) => {
-  let my_type =
-    switch (cursor_info.typed) {
+  let rec my_type = (typed: CursorInfo_common.typed) =>
+    switch (typed) {
     | Analyzed(ty) => Some(ty)
     | AnaAnnotatedLambda(expected_ty, _) => Some(expected_ty)
     | AnaSubsumed(expected_ty, _) => Some(expected_ty)
@@ -77,11 +77,12 @@ let get_type = (cursor_info: CursorInfo_common.t) => {
         | (true, false) => Some(ty)
         | _ => None
         }
+      | (NoBranches, _) => my_type(typed)
       | _ => None
       }
     | _ => None
     };
-  my_type;
+  my_type(cursor_info.typed);
 };
 
 /**
