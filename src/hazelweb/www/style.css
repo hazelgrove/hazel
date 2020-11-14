@@ -356,7 +356,6 @@ body {
   color: white;
   padding: 2px;
   font-family: Montserrat, sans-serif;
-  cursor: pointer;
 }
 .code.presentation .type-info-summary .filler {
   flex-grow: 1;
@@ -384,6 +383,7 @@ body {
   display: flex;
   align-items: flex-end;
   padding-left: 10px;
+  cursor: default;
 }
 
 .fill-arrow {
@@ -419,6 +419,7 @@ body {
   padding-left: 10px;
   font-size: 14px;
   font-weight: normal;
+  cursor: default;
 }
 
 .body-bar .option {
@@ -524,6 +525,10 @@ body {
   margin: 0 10px;
   font-weight: bolder;
   font-family: var(--code-font-family);
+}
+
+.type-info-summary .clickable{
+  cursor: pointer;
 }
 
 .HTypCode .Diff {

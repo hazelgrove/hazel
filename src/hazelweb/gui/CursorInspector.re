@@ -441,12 +441,28 @@ let summary_bar =
       type_novice_message_mode: bool,
       show_strategy_guide: bool,
     ) => {
-  let arrow =
+  let arrow_direction =
     if (show_expanded) {
       Icons.down_arrow(["cursor-inspector-arrow"]);
     } else {
       Icons.left_arrow(["cursor-inspector-arrow"]);
     };
+  let arrow =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["clickable"]),
+          Attr.on_click(_ =>
+            Vdom.Event.Many([
+              Event.Prevent_default,
+              Event.Stop_propagation,
+              inject(ModelAction.ToggleCursorInspectorExpansion),
+            ])
+          ),
+        ],
+        [arrow_direction],
+      )
+    );
   let err_icon =
     switch (err_state_b) {
     | TypeInconsistency
@@ -465,7 +481,8 @@ let summary_bar =
             [
               Attr.classes(
                 term_novice_message_mode
-                  ? ["novice-mode", "subsection"] : ["subsection"],
+                  ? ["novice-mode", "subsection", "clickable"]
+                  : ["subsection", "clickable"],
               ),
               Attr.on_click(_ =>
                 Vdom.Event.Many([
@@ -481,7 +498,8 @@ let summary_bar =
             [
               Attr.classes(
                 term_novice_message_mode
-                  ? ["novice-mode", "subsection"] : ["subsection"],
+                  ? ["novice-mode", "subsection", "clickable"]
+                  : ["subsection", "clickable"],
               ),
               Attr.on_click(_ =>
                 Vdom.Event.Many([
@@ -500,6 +518,7 @@ let summary_bar =
     Vdom.(
       Node.div(
         [
+          Attr.classes(["clickable"]),
           Attr.on_click(_ =>
             Vdom.Event.Many([
               Event.Prevent_default,
@@ -517,21 +536,7 @@ let summary_bar =
     show_strategy_guide
       ? List.append(body, [fill_space, fill_icon, err_icon])
       : List.append(body, [err_icon]);
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes(["type-info-summary"]),
-        Attr.on_click(_ =>
-          Vdom.Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(ModelAction.ToggleCursorInspectorExpansion),
-          ])
-        ),
-      ],
-      body,
-    )
-  );
+  Vdom.(Node.div([Attr.classes(["type-info-summary"])], body));
 };
 
 let view =

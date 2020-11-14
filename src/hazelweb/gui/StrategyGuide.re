@@ -14,6 +14,29 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
 };
 
 /**
+ * Filter the variables that are functions that have the correct resulting type
+ */
+let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
+  let (vars, _) = ctx;
+  let rec compatible_funs = right_ty =>
+    if (HTyp.consistent(right_ty, typ)) {
+      true;
+    } else {
+      switch (right_ty) {
+      | Arrow(_, right_ty) => compatible_funs(right_ty)
+      | _ => false
+      };
+    };
+  let can_extract = ((_, ty: HTyp.t)) => {
+    switch (ty) {
+    | Arrow(_, t2) => compatible_funs(t2)
+    | _ => false
+    };
+  };
+  vars |> VarMap.filter(can_extract);
+};
+
+/**
  * Extract from the context the variables we offer to branch on.
  * Return a VarCtx.t
  */
@@ -325,6 +348,19 @@ let view =
     } else {
       Icons.left_arrow(["fill-arrow"]);
     };
+  let vars_view =
+    if (VarMap.is_empty(var_ctx)) {
+      [
+        Vdom.(
+          Node.div(
+            [Attr.classes(["option", "empty-vars"])],
+            [Node.text("No variables of expected type in context")],
+          )
+        ),
+      ];
+    } else {
+      list_vars_view(var_ctx);
+    };
   let var =
     Vdom.(
       Node.div(
@@ -343,10 +379,7 @@ let view =
     );
   let var_body =
     Vdom.(
-      Node.div(
-        [Attr.classes(["panel-title-bar", "body-bar"])],
-        list_vars_view(var_ctx),
-      )
+      Node.div([Attr.classes(["panel-title-bar", "body-bar"])], vars_view)
     );
   let _ = var_body;
   let arrow_func =
@@ -375,31 +408,13 @@ let view =
     Vdom.(
       Node.div(
         [Attr.classes(["panel-title-bar", "body-bar"])],
-        [
-          Node.div(
-            [Attr.classes(["option"])],
-            [
-              Node.text("Apply "),
-              Node.div(
-                [Attr.classes(["code-font"])],
-                [Node.text("map: ")],
-              ),
-              HTypCode.view(
-                Arrow(
-                  Arrow(
-                    Arrow(Prod([Float, Bool]), Float),
-                    List(Prod([Float, Bool])),
-                  ),
-                  List(Float),
-                ),
-              ),
-            ],
-          ),
+        list_vars_view(fun_vars(ctx, typ))
+        @ [
           Node.div(
             [Attr.classes(["option"])],
             [
               Node.text("Create and apply new function: "),
-              HTypCode.view(Arrow(Hole, Hole)),
+              HTypCode.view(Arrow(Hole, typ)),
             ],
           ),
         ]
