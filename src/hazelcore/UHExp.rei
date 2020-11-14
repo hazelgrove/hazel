@@ -7,8 +7,8 @@ and block = list(line)
 and livelit_record = {
   // err: ErrStatus.t,
   name: (VarErrStatus.t, string), // 0
-  captures: unit, //list((VarErrStatus.t, Var.t)), // 1
-  expansion_type: UHTyp.t, // 2
+  expansion_type: UHTyp.t, // 1
+  captures: unit, //list((VarErrStatus.t, Var.t)), // 2
   model_type: UHTyp.t, // 3
   action_type: UHTyp.t, // 4
   init: t, // 5
