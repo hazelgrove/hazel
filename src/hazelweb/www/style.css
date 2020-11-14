@@ -42,6 +42,8 @@
   --typ-shadow-color: rgb(173, 154, 202);
   --typ-bright-shadow-color: rgb(192, 159, 241);
 
+  --livelit-expression-color: rgb(211, 237, 245);
+
   --matrix-cell-border-color: rgb(220, 220, 220);
 
   --livelit-border-thickness: 2px;
@@ -938,16 +940,11 @@ h1 {
   vertical-align: top;
 }
 
-.LivelitExpression {
-  border-radius: 0;
-  background-color: lightblue;
-  display: inline-block;
-}
 .code.presentation .LivelitView {
   z-index: var(--livelit-view-z);
   position: absolute;
   border-radius: 0;
-  border: var(--livelit-border-thickness) solid lightblue;
+  border: var(--livelit-border-thickness) solid var(--livelit-expression-color);
   box-sizing: border-box;
 }
 .LivelitView.Inline {

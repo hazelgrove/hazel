@@ -513,7 +513,7 @@ module LivelitExpression = {
             string_of_int(MeasuredLayout.height(subject)),
           ),
           Attr.create("x", string_of_int(offset)),
-          Attr.create("style", "fill: lightblue;"),
+          Attr.create("style", "fill: var(--livelit-expression-color);"),
         ],
         [],
       )
