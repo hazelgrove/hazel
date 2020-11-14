@@ -249,6 +249,8 @@ let key_handlers =
           } else {
             Event.Ignore;
           }
+        | Some(Ctrl_Space) =>
+          prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
         | Some(kc) =>
           prevent_stop_inject(
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
