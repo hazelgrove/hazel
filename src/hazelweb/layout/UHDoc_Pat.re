@@ -7,21 +7,14 @@ let inline_padding_of_operator: UHPat.operator => (UHDoc.t, UHDoc.t) =
 let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Pat);
 let mk_InvalidText: string => UHDoc.t =
   UHDoc_common.mk_InvalidText(~sort=Pat);
-let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc.t =
-  UHDoc_common.mk_IntLit(~sort=Pat);
-let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc.t =
-  UHDoc_common.mk_FloatLit(~sort=Pat);
-let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc.t =
-  UHDoc_common.mk_BoolLit(~sort=Pat);
-let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc.t =
-  UHDoc_common.mk_ListNil(~sort=Pat);
-let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => UHDoc.t =
-  UHDoc_common.mk_Var(~sort=Pat);
+let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Pat);
+let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Pat);
+let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Pat);
+let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Pat);
+let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Pat);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Pat);
-let mk_Inj:
-  (~err: ErrStatus.t, ~inj_side: InjSide.t, UHDoc_common.formatted_child) =>
-  UHDoc.t =
+let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_Inj(~sort=Pat);
 let mk_NTuple:
   (
@@ -68,19 +61,19 @@ and mk_operand =
       (
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
-        | Wild(err) => UHDoc_common.mk_Wild(~err)
+        | Wild(_) => UHDoc_common.mk_Wild()
         | InvalidText(_, t) => mk_InvalidText(t)
-        | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-        | IntLit(err, n) => mk_IntLit(~err, n)
-        | FloatLit(err, f) => mk_FloatLit(~err, f)
-        | BoolLit(err, b) => mk_BoolLit(~err, b)
-        | ListNil(err) => mk_ListNil(~err, ())
+        | Var(_, _, x) => mk_Var(x)
+        | IntLit(_, n) => mk_IntLit(n)
+        | FloatLit(_, f) => mk_FloatLit(f)
+        | BoolLit(_, b) => mk_BoolLit(b)
+        | ListNil(_) => mk_ListNil()
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Inj(err, inj_side, body) =>
+        | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_Inj(~err, ~inj_side, body);
+          mk_Inj(~inj_side, body);
         }: UHDoc.t
       )
     )

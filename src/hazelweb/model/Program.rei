@@ -31,6 +31,8 @@ let get_steps: t => CursorPath.steps;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo.t;
 
+let get_decoration_paths: t => UHDecorationPaths.t;
+
 /**
  * Raised when edit state does not elaborate
  * (indicates a bug, either in that function or in Action
@@ -66,7 +68,7 @@ let move_via_click:
     ~measure_program_get_doc: bool,
     ~measure_layoutOfDoc_layout_of_doc: bool,
     ~memoize_doc: bool,
-    (CursorMap.Row.t, CursorMap.Col.t),
+    Pretty.MeasuredPosition.t,
     t
   ) =>
   (t, Action.t);
@@ -90,26 +92,14 @@ let get_layout:
     t
   ) =>
   UHLayout.t;
-/**
- * Returns a `UHLayout.t` that has been decorated with the caret,
- * current term, and variable uses. (Will be refactored away.)
- */
-let get_decorated_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHLayout.t;
-
-let get_cursor_map_z:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  (CursorMap.t, CursorMap.binding);
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
+
+let get_caret_position:
+  (
+    ~measure_program_get_doc: bool,
+    ~measure_layoutOfDoc_layout_of_doc: bool,
+    ~memoize_doc: bool,
+    t
+  ) =>
+  Pretty.MeasuredPosition.t;

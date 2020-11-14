@@ -1,4 +1,5 @@
-open Pretty;
+module Doc = Pretty.Doc;
+
 let inline_padding_of_operator: UHExp.operator => (UHDoc.t, UHDoc.t) =
   fun
   | Space
@@ -24,21 +25,14 @@ let inline_padding_of_operator: UHExp.operator => (UHDoc.t, UHDoc.t) =
 let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Exp);
 let mk_InvalidText: string => UHDoc.t =
   UHDoc_common.mk_InvalidText(~sort=Exp);
-let mk_IntLit: (~err: ErrStatus.t, string) => UHDoc.t =
-  UHDoc_common.mk_IntLit(~sort=Exp);
-let mk_FloatLit: (~err: ErrStatus.t, string) => UHDoc.t =
-  UHDoc_common.mk_FloatLit(~sort=Exp);
-let mk_BoolLit: (~err: ErrStatus.t, bool) => UHDoc.t =
-  UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_ListNil: (~err: ErrStatus.t, unit) => UHDoc.t =
-  UHDoc_common.mk_ListNil(~sort=Exp);
-let mk_Var: (~err: ErrStatus.t, ~verr: VarErrStatus.t, string) => UHDoc.t =
-  UHDoc_common.mk_Var(~sort=Exp);
+let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
+let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
+let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
-let mk_Inj:
-  (~err: ErrStatus.t, ~inj_side: InjSide.t, UHDoc_common.formatted_child) =>
-  UHDoc.t =
+let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple:
   (
@@ -86,25 +80,34 @@ and mk_block =
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
-    block
-    |> List.mapi((i, line) =>
-         Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
-         |> UHDoc_common.annot_Step(offset + i)
-       )
-    |> ListUtil.split_last_opt
-    |> (
-      fun
-      | None => failwith(__LOC__ ++ ": empty block")
-      | Some((leading, concluding)) =>
-        ListUtil.fold_right_i(
-          ((i, hd_doc), tl_doc) =>
-            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
-          leading,
-          concluding
-          |> annot_SubBlock(
-               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
-             ),
-        )
+    let (leading, (_, last_doc)) =
+      block
+      |> List.mapi((i, line) =>
+           (
+             line,
+             Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+             |> UHDoc_common.annot_Step(offset + i),
+           )
+         )
+      |> ListUtil.split_last;
+
+    ListUtil.fold_right_i(
+      ((i, (hd, hd_doc)), tl_doc) =>
+        switch ((hd: UHExp.line)) {
+        | EmptyLine
+        | CommentLine(_)
+        | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
+        | LetLine(_) =>
+          annot_SubBlock(
+            ~hd_index=offset + i,
+            Doc.vsep(
+              hd_doc,
+              Doc.annot(UHAnnot.OpenChild(Multiline), tl_doc),
+            ),
+          )
+        },
+      leading,
+      last_doc,
     );
   }
 and mk_line =
@@ -116,7 +119,6 @@ and mk_line =
         | EmptyLine =>
           UHDoc_common.empty_
           |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-          |> Doc.annot(UHAnnot.EmptyLine)
         | CommentLine(comment) =>
           let comment_doc =
             UHDoc_common.mk_text(comment)
@@ -129,7 +131,7 @@ and mk_line =
                );
           Doc.hcats([
             UHDoc_common.Delim.open_CommentLine(),
-            UHDoc_common.space_ |> UHDoc_common.annot_Padding,
+            UHDoc_common.space_,
             comment_doc,
           ])
           |> Doc.annot(UHAnnot.CommentLine);
@@ -149,7 +151,7 @@ and mk_line =
                  )
                );
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
-          UHDoc_common.mk_LetLine(p, ann, def) |> Doc.annot(UHAnnot.LetLine);
+          UHDoc_common.mk_LetLine(p, ann, def);
         }: UHDoc.t
       )
     )
@@ -180,12 +182,12 @@ and mk_operand =
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
         | InvalidText(_, t) => mk_InvalidText(t)
-        | Var(err, verr, x) => mk_Var(~err, ~verr, x)
-        | IntLit(err, n) => mk_IntLit(~err, n)
-        | FloatLit(err, f) => mk_FloatLit(~err, f)
-        | BoolLit(err, b) => mk_BoolLit(~err, b)
-        | ListNil(err) => mk_ListNil(~err, ())
-        | Lam(err, p, ann, body) =>
+        | Var(_, _, x) => mk_Var(x)
+        | IntLit(_, n) => mk_IntLit(n)
+        | FloatLit(_, f) => mk_FloatLit(f)
+        | BoolLit(_, b) => mk_BoolLit(b)
+        | ListNil(_) => mk_ListNil()
+        | Lam(_, p, ann, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
           let ann =
@@ -199,14 +201,14 @@ and mk_operand =
                  )
                );
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=2, body);
-          UHDoc_common.mk_Lam(~err, p, ann, body);
-        | Inj(err, inj_side, body) =>
+          UHDoc_common.mk_Lam(p, ann, body);
+        | Inj(_, inj_side, body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_Inj(~err, ~inj_side, body);
+          mk_Inj(~inj_side, body);
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
-        | Case(err, scrut, rules) =>
+        | Case(_, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();
           } else {
@@ -218,7 +220,7 @@ and mk_operand =
                    Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
                    |> UHDoc_common.annot_Step(1 + i)
                  );
-            UHDoc_common.mk_Case(~err, scrut, rules);
+            UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
         }: UHDoc.t
