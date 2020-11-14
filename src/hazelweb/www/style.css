@@ -1063,6 +1063,7 @@ h1 {
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
   font-variant-ligatures: none;
+  white-space: pre;
 }
 .code.presentation * {
   position: relative;
