@@ -1349,6 +1349,8 @@ module ColorLivelit: LIVELIT = {
                           *. 0.587
                           +. Float.of_int(b)
                           *. 0.114 > 186.
+                          *. Float.of_int(a)
+                          /. 255.
                             ? "#000000" : "#ffffff",
                         ),
                       ),
