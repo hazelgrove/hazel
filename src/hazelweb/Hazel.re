@@ -53,10 +53,10 @@ let on_startup = (~schedule_action, _) => {
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      Cell.focus();
+      UHCode.focus();
       Js._true;
     });
-  Cell.focus();
+  UHCode.focus();
 
   Async_kernel.Deferred.return(State.State);
 };
@@ -124,7 +124,7 @@ let create =
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
             | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
-            | _ => Cell.focus()
+            | _ => UHCode.focus()
             };
             let caret_elem = JSUtil.force_get_elem_by_id("caret");
             restart_cursor_animation(caret_elem);

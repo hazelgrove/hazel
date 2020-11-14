@@ -123,16 +123,16 @@ and of_steps_operator =
     };
   };
 
-let hole_sort = _ => CursorPath_common.TypHole;
+let hole_sort = _ => CursorPath.TypHole;
 let is_space = _ => false;
 
 let rec holes =
         (
           uty: UHTyp.t,
-          rev_steps: CursorPath_common.rev_steps,
-          hs: CursorPath_common.hole_list,
+          rev_steps: CursorPath.rev_steps,
+          hs: CursorPath.hole_list,
         )
-        : CursorPath_common.hole_list =>
+        : CursorPath.hole_list =>
   hs
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
@@ -144,15 +144,12 @@ let rec holes =
 and holes_operand =
     (
       operand: UHTyp.operand,
-      rev_steps: CursorPath_common.rev_steps,
-      hs: CursorPath_common.hole_list,
+      rev_steps: CursorPath.rev_steps,
+      hs: CursorPath.hole_list,
     )
-    : CursorPath_common.hole_list =>
+    : CursorPath.hole_list =>
   switch (operand) {
-  | Hole => [
-      {sort: TypHole, steps: List.rev(rev_steps), is_empty: true},
-      ...hs,
-    ]
+  | Hole => [{sort: TypHole, steps: List.rev(rev_steps)}, ...hs]
   | Unit
   | Int
   | Float
@@ -162,12 +159,11 @@ and holes_operand =
   };
 
 let rec holes_z =
-        (zty: ZTyp.t, rev_steps: CursorPath_common.rev_steps)
-        : CursorPath_common.zhole_list =>
+        (zty: ZTyp.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
   holes_zopseq(zty, rev_steps)
 and holes_zopseq =
-    (zopseq: ZTyp.zopseq, rev_steps: CursorPath_common.rev_steps)
-    : CursorPath_common.zhole_list =>
+    (zopseq: ZTyp.zopseq, rev_steps: CursorPath.rev_steps)
+    : CursorPath.zhole_list =>
   CursorPath_common.holes_zopseq_(
     ~holes_operand,
     ~holes_zoperand,
@@ -178,13 +174,12 @@ and holes_zopseq =
     zopseq,
   )
 and holes_zoperand =
-    (zoperand: ZTyp.zoperand, rev_steps: CursorPath_common.rev_steps)
-    : CursorPath_common.zhole_list =>
+    (zoperand: ZTyp.zoperand, rev_steps: CursorPath.rev_steps)
+    : CursorPath.zhole_list =>
   switch (zoperand) {
   | CursorT(_, Hole) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=
-        Some({sort: TypHole, steps: List.rev(rev_steps), is_empty: true}),
+      ~hole_selected=Some({sort: TypHole, steps: List.rev(rev_steps)}),
       (),
     )
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes

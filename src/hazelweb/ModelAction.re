@@ -8,7 +8,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type move_input =
   | Key(MoveKey.t)
-  | Click((CursorMap.Row.t, CursorMap.Col.t));
+  | Click(Pretty.MeasuredPosition.t);
 
 [@deriving sexp]
 type shift_history_info = {

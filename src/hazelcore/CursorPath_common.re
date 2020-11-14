@@ -1,12 +1,4 @@
-open Sexplib.Std;
-
 open CursorPath;
-
-[@deriving sexp]
-type rev_steps = steps;
-
-[@deriving sexp]
-type rev_t = (CursorPosition.t, rev_steps);
 
 let rev = ((cursor, rev_steps): rev_t): t => (
   rev_steps |> List.rev,
@@ -30,30 +22,6 @@ let of_zopseq_ =
     let length = Seq.length(prefix) + Seq.length(suffix);
     ([length + Seq.length(prefix) - 1], cursor);
   };
-
-[@deriving sexp]
-type hole_sort =
-  | TypHole
-  | PatHole(MetaVar.t)
-  | ExpHole(MetaVar.t);
-
-[@deriving sexp]
-type hole_info = {
-  sort: hole_sort,
-  is_empty: bool,
-  steps,
-};
-
-[@deriving sexp]
-type hole_list = list(hole_info);
-
-/* two hole lists, one for before the cursor, one for after */
-[@deriving sexp]
-type zhole_list = {
-  holes_before: hole_list,
-  hole_selected: option(hole_info),
-  holes_after: hole_list,
-};
 
 let mk_zholes =
     (~holes_before=[], ~hole_selected=None, ~holes_after=[], ()): zhole_list => {
@@ -150,7 +118,7 @@ let holes_err =
   switch (err) {
   | NotInHole => hs
   | InHole(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   };
@@ -165,7 +133,7 @@ let holes_verr =
   switch (verr) {
   | NotInVarHole => hs
   | InVarHole(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   };
@@ -180,7 +148,7 @@ let holes_case_err =
   switch (err) {
   | StandardErrStatus(err) => holes_err(~hole_sort, err, rev_steps, hs)
   | InconsistentBranches(_, u) => [
-      {sort: hole_sort(u), steps: List.rev(rev_steps), is_empty: false},
+      {sort: hole_sort(u), steps: List.rev(rev_steps)},
       ...hs,
     ]
   };
@@ -214,11 +182,7 @@ let holes_skel_ =
       | InHole(_, u) =>
         let step = skel1 |> Skel.leftmost_tm_index;
         [
-          {
-            sort: hole_sort(u),
-            steps: List.rev([step, ...rev_steps]),
-            is_empty: false,
-          },
+          {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
           ...hs,
         ];
       };
@@ -230,11 +194,7 @@ let holes_skel_ =
         | InHole(_, u) =>
           let step = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
           [
-            {
-              sort: hole_sort(u),
-              steps: List.rev([step, ...rev_steps]),
-              is_empty: false,
-            },
+            {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
             ...hs,
           ];
         };
@@ -313,7 +273,6 @@ let holes_zopseq_ =
               Some({
                 sort: hole_sort(u),
                 steps: List.rev([step, ...rev_steps]),
-                is_empty: false,
               });
             };
           if (n == preceding_operand_index) {
@@ -373,11 +332,7 @@ let holes_zopseq_ =
             | InHole(_, u) =>
               let step = skel1 |> Skel.leftmost_tm_index;
               [
-                {
-                  sort: hole_sort(u),
-                  steps: List.rev([step, ...rev_steps]),
-                  is_empty: false,
-                },
+                {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
               ];
             };
           if (zoperand_index <= Skel.rightmost_tm_index(skel1)) {
@@ -408,11 +363,7 @@ let holes_zopseq_ =
             | InHole(_, u) =>
               let step = n + Seq.length(seq);
               [
-                {
-                  sort: hole_sort(u),
-                  steps: List.rev([step, ...rev_steps]),
-                  is_empty: false,
-                },
+                {sort: hole_sort(u), steps: List.rev([step, ...rev_steps])},
               ];
             };
           if (zoperand_index <= n) {
@@ -445,8 +396,8 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
     List.find_opt(
       ({sort, _}) =>
         switch (sort) {
-        | ExpHole(u')
-        | PatHole(u') => MetaVar.eq(u, u')
+        | ExpHole(u', _)
+        | PatHole(u', _) => MetaVar.eq(u, u')
         | TypHole => false
         },
       hole_list,
