@@ -464,17 +464,17 @@ and ana_rule =
      */
 let rec syn_nth_type_mode =
         (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
-        : option(Statics_common.type_mode) =>
+        : option(Statics.type_mode) =>
   syn_nth_type_mode'(ctx, n, skel, seq)
 and syn_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
   let rec go = (skel: UHExp.skel) =>
     switch (skel) {
     | Placeholder(n') =>
       assert(n == n');
-      Some(Statics_common.Syn);
+      Some(Statics.Syn);
     | BinOp(InHole(_), op, skel1, skel2) =>
       go(BinOp(NotInHole, op, skel1, skel2))
     | BinOp(NotInHole, Comma, skel1, skel2) =>
@@ -549,7 +549,7 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
@@ -566,7 +566,7 @@ and ana_nth_type_mode =
 }
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
   let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
     switch (skel) {
@@ -575,7 +575,7 @@ and ana_nth_type_mode' =
       failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
     | Placeholder(n') =>
       assert(n == n');
-      Some(Statics_common.Ana(ty));
+      Some(Statics.Ana(ty));
     | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
@@ -1454,7 +1454,7 @@ let syn_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, ty, u_gen);
@@ -1471,7 +1471,7 @@ let syn_fix_holes_zlines =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes_lines did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zlines, ctx, u_gen);
@@ -1494,7 +1494,7 @@ let syn_fix_holes_zrules =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes_rules did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zrules, rule_types, common_type, u_gen);
@@ -1510,7 +1510,7 @@ let ana_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "ana_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, u_gen);
@@ -1522,7 +1522,7 @@ let fix_and_renumber_holes =
   syn_fix_holes(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
 
 let fix_and_renumber_holes_z =
-    (ctx: Contexts.t, ze: ZExp.t): Statics_common.edit_state => {
+    (ctx: Contexts.t, ze: ZExp.t): Statics.edit_state => {
   let path = CursorPath_Exp.of_z(ze);
   let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
   let ze =
@@ -1530,7 +1530,7 @@ let fix_and_renumber_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "fix_and_renumber_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, ty, u_gen);

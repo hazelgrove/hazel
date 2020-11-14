@@ -212,17 +212,17 @@ and ana_operand =
 
 let rec syn_nth_type_mode =
         (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHPat.opseq)
-        : option(Statics_common.type_mode) =>
+        : option(Statics.type_mode) =>
   syn_nth_type_mode'(ctx, n, skel, seq)
 and syn_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq)
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
   let rec go = (skel: UHPat.skel) =>
     switch (skel) {
     | Placeholder(n') =>
       assert(n == n');
-      Some(Statics_common.Syn);
+      Some(Statics.Syn);
     | BinOp(InHole(_), op, skel1, skel2) =>
       go(BinOp(NotInHole, op, skel1, skel2))
     | BinOp(NotInHole, Comma, skel1, skel2) =>
@@ -257,7 +257,7 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
@@ -274,7 +274,7 @@ and ana_nth_type_mode =
 }
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
     switch (skel) {
     | BinOp(_, Comma, _, _)
@@ -282,7 +282,7 @@ and ana_nth_type_mode' =
       failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
     | Placeholder(n') =>
       assert(n == n');
-      Some(Statics_common.Ana(ty));
+      Some(Statics.Ana(ty));
     | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_nth_type_mode'(ctx, n, skel_not_in_hole, seq);
@@ -736,7 +736,7 @@ let syn_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zp, ty, ctx, u_gen);
@@ -752,7 +752,7 @@ let ana_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "ana_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zp, ctx, u_gen);
