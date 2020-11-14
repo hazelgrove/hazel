@@ -567,9 +567,9 @@ module GradeCutoffLivelit: LIVELIT = {
       model;
     } else {
       let updated = {...model, b: new_b};
-      if (updated.a < updated.b) {
+      if (updated.a <= updated.b) {
         update_a(updated.b + 1, updated);
-      } else if (updated.b < updated.c) {
+      } else if (updated.b <= updated.c) {
         update_c(updated.b - 1, updated);
       } else {
         updated;
@@ -580,9 +580,9 @@ module GradeCutoffLivelit: LIVELIT = {
       model;
     } else {
       let updated = {...model, c: new_c};
-      if (updated.b < updated.c) {
+      if (updated.b <= updated.c) {
         update_b(updated.c + 1, updated);
-      } else if (updated.c < updated.d) {
+      } else if (updated.c <= updated.d) {
         update_d(updated.c - 1, updated);
       } else {
         updated;
@@ -593,7 +593,7 @@ module GradeCutoffLivelit: LIVELIT = {
       model;
     } else {
       let updated = {...model, d: new_d};
-      if (updated.c < updated.d) {
+      if (updated.c <= updated.d) {
         update_c(updated.c + 1, updated);
       } else {
         updated;
