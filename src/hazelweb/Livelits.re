@@ -1187,7 +1187,6 @@ module ColorLivelit: LIVELIT = {
       );
     };
 
-  [@warning "-27"]
   let view =
       (
         {rgb: (r, g, b), a, selecting_sat_val},
@@ -1231,8 +1230,8 @@ module ColorLivelit: LIVELIT = {
           );
         };
         switch (rgba_values) {
-        | None => box("gray", [Attr.on_click(evt => Event.Many([]))], [])
-        | Some((rval, gval, bval, aval)) =>
+        | None => box("gray", [], [])
+        | Some((rval, gval, bval, _)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
           let bounded = f => max(0., min(1., f));
