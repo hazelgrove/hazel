@@ -16,17 +16,35 @@ let ctx_for_let =
   | _ => (ctx, None)
   };
 
-let livelit_types = (llrecord: UHExp.livelit_record) => {
-  let {model_type, action_type, init, update, view, shape, expand, _} = llrecord;
-  open HTyp;
-  let model_hty = UHTyp.expand(model_type);
-  let action_hty = UHTyp.expand(action_type);
+type livelit_types_type = {
+  init_ty: HTyp.t,
+  update_ty: HTyp.t,
+  view_ty: HTyp.t,
+  shape_ty: HTyp.t,
+  expand_ty: HTyp.t,
+};
+
+let ll_init_ty = (model_type, _) => UHTyp.expand(model_type);
+let ll_update_ty = (model_type, action_type) =>
+  HTyp.Arrow(
+    Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
+    UHTyp.expand(model_type),
+  );
+let ll_view_ty = (model_type, _) =>
+  HTyp.Arrow(UHTyp.expand(model_type), String);
+let ll_shape_ty = HTyp.Sum(Int, Int);
+let ll_expand_ty = (model_type, _) =>
+  HTyp.Arrow(UHTyp.expand(model_type), String);
+
+let livelit_types = (llrecord: UHExp.livelit_record): livelit_types_type => {
+  open UHExp;
+  let {model_type, action_type, _} = llrecord;
   {
-    init_ty: model_h_ty,
-    update_ty: Arrow(Prod(model_hty, action_hty), model_hty),
-    view_ty: Arrow(model_hty, String),
-    shape_ty: Sum(Int, Int),
-    expand_ty: Arrow(model_h_ty, String),
+    init_ty: ll_init_ty(model_type, action_type),
+    update_ty: ll_update_ty(model_type, action_type),
+    view_ty: ll_view_ty(model_type, action_type),
+    shape_ty: ll_shape_ty,
+    expand_ty: ll_expand_ty(model_type, action_type),
   };
 };
 
@@ -76,7 +94,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty) => Statics_Pat.ana(ctx, p, ty)
       }
     }
-  | LivelitDefLine(llrecord) =>
+  | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
     // TODO: captures
     let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
       livelit_types(llrecord);
@@ -89,7 +107,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     ];
     switch (OptUtil.sequence(results)) {
     | None => None
-    | Some(_) => ctx // ??? not adding anything i guess??
+    | Some(_) => Some(ctx) // ??? not adding anything i guess??
     };
   | AbbrevLine(lln_new, err_status, lln_old, args) =>
     let (gamma, livelit_ctx) = ctx;
@@ -915,7 +933,7 @@ and syn_fix_holes_line =
         Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
       (LetLine(p, ann, def), ctx, u_gen);
     }
-  | LivelitDefLine(llrecord) =>
+  | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
     // TODO: captures
     let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
       livelit_types(llrecord);
@@ -929,7 +947,11 @@ and syn_fix_holes_line =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, shape, shape_ty);
     let (expand, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, expand, expand_ty);
-    LivelitDefLine({...lldef, init, update, view, shape, expand});
+    (
+      LivelitDefLine({...llrecord, init, update, view, shape, expand}),
+      ctx,
+      u_gen,
+    );
   | AbbrevLine(lln_new, _, lln_old, args) =>
     let (gamma, livelit_ctx) = ctx;
     let old_data_opt = LivelitCtx.lookup(livelit_ctx, lln_old);

@@ -27,6 +27,18 @@ and zline =
       shape: UHExp.t,
       expand: UHExp.t,
     })
+  | LivelitDefLineZCaptures({
+      name: (VarErrStatus.t, string),
+      captures: t,
+      expansion_type: UHTyp.t,
+      model_type: UHTyp.t,
+      action_type: UHTyp.t,
+      init: UHExp.t,
+      update: UHExp.t,
+      view: UHExp.t,
+      shape: UHExp.t,
+      expand: UHExp.t,
+    })
   | LivelitDefLineZModelType({
       name: (VarErrStatus.t, string),
       captures: UHExp.t,
@@ -161,6 +173,7 @@ and is_opseq_zline =
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_) => None
   // not sure these are right - andrew
+  | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
@@ -191,6 +204,7 @@ and find_zoperand_zline =
   | LivelitDefLineZExpansionType(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_) => None
+  | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
@@ -241,6 +255,7 @@ let line_can_be_swapped = (line: zline): bool =>
     ) =>
     false
   | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZCaptures(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_)
   | LivelitDefLineZInit(_)
@@ -348,6 +363,7 @@ module ZLine = {
     | LetLineZE(_)
     | AbbrevLineZL(_)
     | LivelitDefLineZExpansionType(_)
+    | LivelitDefLineZCaptures(_)
     | LivelitDefLineZModelType(_)
     | LivelitDefLineZActionType(_)
     | LivelitDefLineZInit(_)
@@ -385,6 +401,7 @@ and is_before_zline = (zline: zline): bool =>
   | LetLineZE(_)
   | AbbrevLineZL(_)
   | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZCaptures(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_)
   | LivelitDefLineZInit(_)
@@ -484,6 +501,7 @@ and is_after_zline =
   | LetLineZE(_, _, _)
   | AbbrevLineZL(_)
   | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZCaptures(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_)
   | LivelitDefLineZInit(_)
@@ -552,6 +570,7 @@ and is_outer_zline = (zline: zline): bool =>
   | LetLineZE(_)
   | AbbrevLineZL(_)
   | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZCaptures(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_)
   | LivelitDefLineZInit(_)
@@ -719,6 +738,7 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | AbbrevLineZL(_)
   | CursorL(_)
   | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZCaptures(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_)
   | LivelitDefLineZInit(_)
@@ -765,6 +785,30 @@ and erase_zline =
       name,
       captures,
       expansion_type: ZTyp.erase(expansion_type),
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+    })
+  | LivelitDefLineZCaptures({
+      name,
+      captures,
+      expansion_type,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+    }) =>
+    LivelitDefLine({
+      name,
+      captures: erase(captures),
+      expansion_type,
       model_type,
       action_type,
       init,
@@ -1247,8 +1291,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZExpansionType({
           name,
-          captures,
           expansion_type: ZTyp.place_after(expansion_type),
+          captures,
           model_type,
           action_type,
           init,
@@ -1262,8 +1306,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZExpand({
           name,
-          captures,
           expansion_type,
+          captures,
           model_type,
           action_type,
           init,
@@ -1287,11 +1331,44 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(LivelitDefLineZExpansionType({...llrecord, expansion_type}))
     | None => Some(CursorL(OnDelim(1, After), erase_zline(zline)))
     }
-  | LivelitDefLineZModelType({model_type, _} as llrecord) =>
+  | LivelitDefLineZCaptures({captures, _} as llrecord) =>
+    switch (move_cursor_left(captures)) {
+    | Some(captures) =>
+      Some(LivelitDefLineZCaptures({...llrecord, captures}))
+    | None => Some(CursorL(OnDelim(2, After), erase_zline(zline)))
+    }
+  | LivelitDefLineZModelType(
+      {
+        name,
+        expansion_type,
+        captures,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
     switch (ZTyp.move_cursor_left(model_type)) {
     | Some(model_type) =>
       Some(LivelitDefLineZModelType({...llrecord, model_type}))
-    | None => Some(CursorL(OnDelim(2, After), erase_zline(zline)))
+    | None =>
+      Some(
+        LivelitDefLineZCaptures({
+          name,
+          expansion_type,
+          captures: place_after(captures),
+          model_type: ZTyp.erase(model_type),
+          action_type,
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        }),
+      )
     }
   | LivelitDefLineZActionType(
       {
@@ -1314,8 +1391,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZModelType({
           name,
-          captures,
           expansion_type,
+          captures,
           model_type: ZTyp.place_after(model_type),
           action_type: ZTyp.erase(action_type),
           init,
@@ -1329,8 +1406,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | LivelitDefLineZInit(
       {
         name,
-        captures,
         expansion_type,
+        captures,
         model_type,
         action_type,
         init,
@@ -1346,8 +1423,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZActionType({
           name,
-          captures,
           expansion_type,
+          captures,
           model_type,
           action_type: ZTyp.place_after(action_type),
           init: erase(init),
@@ -1361,8 +1438,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | LivelitDefLineZUpdate(
       {
         name,
-        captures,
         expansion_type,
+        captures,
         model_type,
         action_type,
         init,
@@ -1378,8 +1455,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZInit({
           name,
-          captures,
           expansion_type,
+          captures,
           model_type,
           action_type,
           init: place_after(init),
@@ -1393,8 +1470,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | LivelitDefLineZView(
       {
         name,
-        captures,
         expansion_type,
+        captures,
         model_type,
         action_type,
         init,
@@ -1410,8 +1487,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZUpdate({
           name,
-          captures,
           expansion_type,
+          captures,
           model_type,
           action_type,
           init,
@@ -1425,8 +1502,8 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
   | LivelitDefLineZShape(
       {
         name,
-        captures,
         expansion_type,
+        captures,
         model_type,
         action_type,
         init,
@@ -1442,8 +1519,9 @@ and move_cursor_left_zline = (zline: zline): option(zline) =>
       Some(
         LivelitDefLineZView({
           name,
-          captures,
           expansion_type,
+          captures,
+
           model_type,
           action_type,
           init,
@@ -1814,8 +1892,8 @@ and move_cursor_right_zline =
       LivelitDefLine(
         {
           name,
-          captures,
           expansion_type,
+          captures,
           model_type,
           action_type,
           init,
@@ -1828,15 +1906,15 @@ and move_cursor_right_zline =
     ) =>
     // k=0 on livelit. move to name ie text
     // k=1 on at. move to expansion_type
-    // k=2 on {. move to model type
+    // k=2 on {. move to captures
     switch (k) {
     | 0 => Some(CursorL(OnText(0), LivelitDefLine(llrecord)))
     | 1 =>
       Some(
         LivelitDefLineZExpansionType({
           name,
-          captures,
           expansion_type: ZTyp.place_before(expansion_type),
+          captures,
           model_type,
           action_type,
           init,
@@ -1848,11 +1926,11 @@ and move_cursor_right_zline =
       )
     | 2 =>
       Some(
-        LivelitDefLineZModelType({
+        LivelitDefLineZCaptures({
           name,
-          captures,
           expansion_type,
-          model_type: ZTyp.place_before(model_type),
+          captures: place_before(captures),
+          model_type,
           action_type,
           init,
           update,
@@ -1893,6 +1971,39 @@ and move_cursor_right_zline =
           OnDelim(2, Before),
           erase_zline(LivelitDefLineZExpansionType(llrecord)),
         ),
+      )
+    }
+  | LivelitDefLineZCaptures(
+      {
+        name,
+        expansion_type,
+        captures,
+        model_type,
+        action_type,
+        init,
+        update,
+        view,
+        shape,
+        expand,
+      } as llrecord,
+    ) =>
+    switch (move_cursor_right(captures)) {
+    | Some(captures) =>
+      Some(LivelitDefLineZCaptures({...llrecord, captures}))
+    | None =>
+      Some(
+        LivelitDefLineZModelType({
+          name,
+          expansion_type,
+          captures: erase(captures),
+          model_type: ZTyp.place_before(model_type),
+          action_type,
+          init,
+          update,
+          view,
+          shape,
+          expand,
+        }),
       )
     }
   | LivelitDefLineZModelType(
@@ -2376,6 +2487,7 @@ and _cursor_inst_zline =
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_) => []
   | LetLineZE(_, _, ze)
+  | LivelitDefLineZCaptures({captures: ze, _})
   | LivelitDefLineZInit({init: ze, _})
   | LivelitDefLineZUpdate({update: ze, _})
   | LivelitDefLineZView({view: ze, _})

@@ -20,6 +20,12 @@ type livelit_types_type = {
   shape_ty: HTyp.t,
   expand_ty: HTyp.t,
 };
+
+let ll_init_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_update_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_view_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
+let ll_shape_ty: HTyp.t;
+let ll_expand_ty: (UHTyp.t, UHTyp.t) => HTyp.t;
 /**
  * Determine member function types for livelit def `llrecord`
  */

@@ -230,6 +230,7 @@ and is_text_cursor_zline =
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_)
   | LetLineZA(_) => false
+  | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})

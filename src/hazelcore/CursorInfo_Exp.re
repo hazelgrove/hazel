@@ -13,6 +13,7 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | LivelitDefLineZModelType({model_type: ztyp, _})
   | LivelitDefLineZActionType({action_type: ztyp, _})
   | LetLineZA(_, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
+  | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
@@ -81,6 +82,7 @@ and get_zoperand_from_zline = (zline: ZExp.zline): option(zoperand) => {
   | LivelitDefLineZModelType({model_type: ztyp, _})
   | LivelitDefLineZActionType({action_type: ztyp, _})
   | LetLineZA(_, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
+  | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
@@ -143,6 +145,7 @@ and get_outer_zrules_from_zline =
   | LivelitDefLineZActionType(_)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _) => outer_zrules
+  | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
   | LivelitDefLineZView({view: zdef, _})
@@ -270,6 +273,7 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | LivelitDefLineZExpansionType(_)
       | LivelitDefLineZModelType(_)
       | LivelitDefLineZActionType(_)
+      | LivelitDefLineZCaptures(_)
       | LivelitDefLineZInit(_)
       | LivelitDefLineZUpdate(_)
       | LivelitDefLineZView(_)
@@ -292,6 +296,7 @@ let adjacent_is_emptyline = (exp: ZExp.t): (bool, bool) => {
       | LetLineZA(_, _, _)
       | LetLineZE(_, _, _)
       | LivelitDefLineZExpansionType(_)
+      | LivelitDefLineZCaptures(_)
       | LivelitDefLineZModelType(_)
       | LivelitDefLineZActionType(_)
       | LivelitDefLineZInit(_)
@@ -392,7 +397,10 @@ and syn_cursor_info_line =
       |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
     }
   | LivelitDefLineZExpansionType({expansion_type, _}) =>
-    CursorInfo_Typ.cursor_info(~steps=steps @ [2], ctx, expansion_type)
+    CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, expansion_type)
+    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
+  | LivelitDefLineZCaptures({captures, _}) =>
+    syn_cursor_info(~steps=steps @ [2], ctx, captures)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
   | LivelitDefLineZModelType({model_type, _}) =>
     CursorInfo_Typ.cursor_info(~steps=steps @ [3], ctx, model_type)
@@ -400,25 +408,25 @@ and syn_cursor_info_line =
   | LivelitDefLineZActionType({action_type, _}) =>
     CursorInfo_Typ.cursor_info(~steps=steps @ [4], ctx, action_type)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-  | LivelitDefLineZInit({init, _} as llrecord_z) =>
-    let {init_ty, _} = Statics_Exp.livelit_types(ZExp.erase(llrecord_z));
-    ana_cursor_info(~steps=steps @ [5], ctx_def, init, init_ty)
+  | LivelitDefLineZInit({init, model_type, action_type, _}) =>
+    let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
+    ana_cursor_info(~steps=steps @ [5], ctx, init, init_ty)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-  | LivelitDefLineZUpdate({update, _} as llrecord_z) =>
-    let {update_ty, _} = Statics_Exp.livelit_types(ZExp.erase(llrecord_z));
-    ana_cursor_info(~steps=steps @ [6], ctx_def, update, update_ty)
+  | LivelitDefLineZUpdate({update, model_type, action_type, _}) =>
+    let update_ty = Statics_Exp.ll_update_ty(model_type, action_type);
+    ana_cursor_info(~steps=steps @ [6], ctx, update, update_ty)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-  | LivelitDefLineZView({view, _} as llrecord_z) =>
-    let {view_ty, _} = Statics_Exp.livelit_types(ZExp.erase(llrecord_z));
-    ana_cursor_info(~steps=steps @ [7], ctx_def, view, view_ty)
+  | LivelitDefLineZView({view, model_type, action_type, _}) =>
+    let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
+    ana_cursor_info(~steps=steps @ [7], ctx, view, view_ty)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-  | LivelitDefLineZShape({shape, _} as llrecord_z) =>
-    let {shape_ty, _} = Statics_Exp.livelit_types(ZExp.erase(llrecord_z));
-    ana_cursor_info(~steps=steps @ [8], ctx_def, shape, shape_ty)
+  | LivelitDefLineZShape({shape, _}) =>
+    let shape_ty = Statics_Exp.ll_shape_ty;
+    ana_cursor_info(~steps=steps @ [8], ctx, shape, shape_ty)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-  | LivelitDefLineZExpand({expand, _} as llrecord_z) =>
-    let {expand_ty, _} = Statics_Exp.livelit_types(ZExp.erase(llrecord_z));
-    ana_cursor_info(~steps=steps @ [9], ctx_def, expand, expand_ty)
+  | LivelitDefLineZExpand({expand, model_type, action_type, _}) =>
+    let expand_ty = Statics_Exp.ll_expand_ty(model_type, action_type);
+    ana_cursor_info(~steps=steps @ [9], ctx, expand, expand_ty)
     |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
   | AbbrevLineZL(_, _, _, (p, zarg, _)) =>
     syn_cursor_info_zoperand(~steps=steps @ [List.length(p)], ctx, zarg)
@@ -815,6 +823,15 @@ and ana_cursor_info_zblock =
       | LetLineZP(_)
       | LetLineZA(_)
       | LetLineZE(_)
+      | LivelitDefLineZExpansionType(_)
+      | LivelitDefLineZCaptures(_)
+      | LivelitDefLineZModelType(_)
+      | LivelitDefLineZActionType(_)
+      | LivelitDefLineZInit(_)
+      | LivelitDefLineZUpdate(_)
+      | LivelitDefLineZView(_)
+      | LivelitDefLineZShape(_)
+      | LivelitDefLineZExpand(_)
       | AbbrevLineZL(_) => None
       | ExpLineZ(zopseq) =>
         ana_cursor_info_zopseq(

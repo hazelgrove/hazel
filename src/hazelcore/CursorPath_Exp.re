@@ -16,6 +16,7 @@ and of_zline = (zline: ZExp.zline): CursorPath_common.t =>
   | ExpLineZ(zopseq) => of_zopseq(zopseq)
   | LivelitDefLineZExpansionType({expansion_type: ty, _}) =>
     cons'(1, CursorPath_Typ.of_z(ty))
+  | LivelitDefLineZCaptures({captures: exp, _}) => cons'(2, of_z(exp))
   | LivelitDefLineZModelType({model_type: ty, _}) =>
     cons'(3, CursorPath_Typ.of_z(ty))
   | LivelitDefLineZActionType({action_type: ty, _}) =>
@@ -995,6 +996,41 @@ and holes_zline =
     let holes_body_after =
       List.concat([
         holes(captures, [2, ...rev_steps], []),
+        CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
+        CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
+        holes(init, [5, ...rev_steps], []),
+        holes(update, [6, ...rev_steps], []),
+        holes(view, [7, ...rev_steps], []),
+        holes(shape, [8, ...rev_steps], []),
+        holes(expand, [9, ...rev_steps], []),
+      ]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_body_before @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body_after,
+      (),
+    );
+  | LivelitDefLineZCaptures({
+      expansion_type,
+      captures,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      shape,
+      expand,
+      _,
+    }) =>
+    let holes_body_before =
+      List.concat([
+        CursorPath_Typ.holes(expansion_type, [1, ...rev_steps], []),
+      ]);
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(captures, [2, ...rev_steps]);
+
+    let holes_body_after =
+      List.concat([
         CursorPath_Typ.holes(model_type, [3, ...rev_steps], []),
         CursorPath_Typ.holes(action_type, [4, ...rev_steps], []),
         holes(init, [5, ...rev_steps], []),
