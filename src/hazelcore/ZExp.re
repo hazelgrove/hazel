@@ -19,9 +19,9 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
-  | IfZ1(CaseErrStatus.t, UHExp.t, t, t)
-  | IfZ2(CaseErrStatus.t, t, UHExp.t, t)
-  | IfZ3(CaseErrStatus.t, t, t, UHExp.t)
+  | IfZ1(CaseErrStatus.t, t, UHExp.t, UHExp.t)
+  | IfZ2(CaseErrStatus.t, UHExp.t, t, UHExp.t)
+  | IfZ3(CaseErrStatus.t, UHExp.t, UHExp.t, t)
   | ApPaletteZ(
       ErrStatus.t,
       PaletteName.t,
@@ -486,9 +486,9 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
-  | IfZ1(err, t1, t2, t3) => If(err, t1, erase(t2), erase(t3))
-  | IfZ2(err, t1, t2, t3) => If(err, erase(t1), t2, erase(t3))
-  | IfZ3(err, t1, t2, t3) => If(err, erase(t1), erase(t2), t3)
+  | IfZ1(err, t1, t2, t3) => If(err, erase(t1), t2, t3)
+  | IfZ2(err, t1, t2, t3) => If(err, t1, erase(t2), t3)
+  | IfZ3(err, t1, t2, t3) => If(err, t1, t2, erase(t3))
   | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
       let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
       ApPalette(err, palette_name, serialized_model, psi);
@@ -547,6 +547,9 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
+  | IfZ1(_, zt1, t2, t3) => IfZ1(StandardErrStatus(err), zt1, t2, t3)
+  | IfZ2(_, t1, zt2, t3) => IfZ2(StandardErrStatus(err), t1, zt2, t3)
+  | IfZ3(_, t1, t2, zt3) => IfZ3(StandardErrStatus(err), t1, t2, zt3)
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
@@ -599,6 +602,33 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | CaseZR(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
+      _,
+      _,
+    )
+  | IfZ1(
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
+      ) |
+      InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
+  | IfZ2(
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
+      ) |
+      InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
+  | IfZ3(
+      StandardErrStatus(
+        NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
+      ) |
+      InconsistentBranches(_, _),
+      _,
       _,
       _,
     )
@@ -803,6 +833,21 @@ and move_cursor_left_zoperand =
     switch (zrules |> move_cursor_left_zrules) {
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
+    }
+  | IfZ1(err, zt1, t2, t3) =>
+    switch (move_cursor_left(zt1)) {
+    | Some(zt1) => Some(IfZ1(err, zt1, t2, t3))
+    | None => Some(CursorE(OnDelim(0, After), If(err, erase(zt1), t2, t3)))
+    }
+  | IfZ2(err, t1, zt2, t3) =>
+    switch (move_cursor_left(zt2)) {
+    | Some(zt2) => Some(IfZ2(err, t1, zt2, t3))
+    | None => Some(CursorE(OnDelim(0, After), If(err, t1, erase(zt2), t3)))
+    }
+  | IfZ3(err, t1, t2, zt3) =>
+    switch (move_cursor_left(zt3)) {
+    | Some(zt3) => Some(IfZ3(err, t1, t2, zt3))
+    | None => Some(CursorE(OnDelim(0, After), If(err, t1, t2, erase(zt3))))
     }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_left_zrules =
