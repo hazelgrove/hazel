@@ -58,12 +58,14 @@
 %token LET
 %token IN
 %token <string> INT
+%token TRUE FALSE
 %token PLUS MINUS
 %token MULT DIV
 %token COLON
 %token COLONCOLON
 %token SEMICOLON
 %token EQUAL
+%token GREATER LESSER
 %token PERIOD
 %token COMMA
 %token EOF
@@ -80,6 +82,7 @@
 %token <string> COMMENT
 %token EMPTY
 
+%left LESSER GREATER EQUAL
 %left PLUS MINUS
 %left MULT DIV
 %right COLONCOLON
@@ -193,8 +196,13 @@ rule:
   | MINUS { Operators_Exp.Minus }
   | MULT { Operators_Exp.Times }
   | DIV { Operators_Exp.Divide }
+  | GREATER { Operators_Exp.GreaterThan }
+  | LESSER { Operators_Exp.LessThan }
+  | EQUAL EQUAL { Operators_Exp.Equals }
 ;
 
 constant:
   INT { mk_intlit $1 }
+  | TRUE { UHExp.boollit true }
+  | FALSE { UHExp.boollit false }
 ;

@@ -1,14 +1,16 @@
 {
 open Hazel_parser
 
-let keyword_table = Hashtbl.create 8
+let keyword_table = Hashtbl.create 12
 let _ =
   List.iter
     (fun (keyword, token) -> Hashtbl.add keyword_table keyword token)
     [ "let", LET;
       "in", IN;
       "case", CASE;
-      "end", END ]
+      "end", END;
+      "true", TRUE;
+      "false", FALSE ]
 }
 
 let white = [' ']+
@@ -42,6 +44,8 @@ rule read =
   | "*" { MULT }
   | "/" { DIV }
   | "=" { EQUAL }
+  | ">" { GREATER }
+  | "<" { LESSER }
   | "." { PERIOD }
   | "," { COMMA }
   | ":" { COLON }
