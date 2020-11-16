@@ -877,6 +877,7 @@ and syn_perform_line =
       _,
       CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
       CursorL(OnText(_) | OnOp(_), LetLine(_)) |
+      CursorL(OnOp(_), LivelitDefLine(_)) |
       CursorL(OnOp(_), AbbrevLine(_) | CommentLine(_)) |
       CursorL(_, ExpLine(_)),
     ) =>
@@ -897,6 +898,21 @@ and syn_perform_line =
       );
     fix_and_mk_result(u_gen, ([], new_ze, []));
   | (_, CursorL(OnText(_), AbbrevLine(_))) => Failed
+  | (
+      Construct(SChar(s)),
+      CursorL(
+        OnText(j),
+        LivelitDefLine({name: (err, name_str), _} as llrecord),
+      ),
+    ) =>
+    let name_str = name_str ++ s;
+    let new_lld =
+      ZExp.CursorL(
+        OnText(j + String.length(s)),
+        LivelitDefLine({...llrecord, name: (err, name_str)}),
+      );
+    mk_result(u_gen, ([], new_lld, []));
+
   | (_, CursorL(cursor, line)) when !ZExp.is_valid_cursor_line(cursor, line) =>
     Failed
 
@@ -1122,7 +1138,134 @@ and syn_perform_line =
         Succeeded(LineDone((ze, ctx, u_gen)))
       }
     }
-
+  | (_, LivelitDefLineZExpansionType({expansion_type, _} as llrecord)) =>
+    switch (Action_Typ.perform(a, expansion_type)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded(expansion_type) =>
+      let new_lldef =
+        ZExp.LivelitDefLineZExpansionType({...llrecord, expansion_type});
+      // don't really need to do anything else here i think? -andrew
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    }
+  | (_, LivelitDefLineZCaptures(_llrecord)) =>
+    // need to check this is... a tuple of vars?
+    failwith("TODO andrew lldef captures case for perform_action")
+  | (
+      _,
+      LivelitDefLineZModelType(
+        {model_type, action_type, init, update, view, _} as llrecord,
+      ),
+    ) =>
+    switch (Action_Typ.perform(a, model_type)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded(model_ztype) =>
+      let model_type = model_ztype |> ZTyp.erase;
+      let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
+      let update_ty = Statics_Exp.ll_update_ty(model_type, action_type);
+      let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
+      let (init, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, init, init_ty);
+      let (update, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, update, update_ty);
+      let (view, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, view, view_ty);
+      let new_lldef =
+        ZExp.LivelitDefLineZModelType({
+          ...llrecord,
+          model_type: model_ztype,
+          init,
+          update,
+          view,
+        });
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    }
+  | (
+      _,
+      LivelitDefLineZActionType(
+        {model_type, action_type, init, update, view, _} as llrecord,
+      ),
+    ) =>
+    switch (Action_Typ.perform(a, action_type)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded(action_ztype) =>
+      let action_type = action_ztype |> ZTyp.erase;
+      let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
+      let update_ty = Statics_Exp.ll_update_ty(model_type, action_type);
+      let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
+      let (init, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, init, init_ty);
+      let (update, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, update, update_ty);
+      let (view, u_gen) =
+        Statics_Exp.ana_fix_holes(ctx, u_gen, view, view_ty);
+      let new_lldef =
+        ZExp.LivelitDefLineZActionType({
+          ...llrecord,
+          action_type: action_ztype,
+          init,
+          update,
+          view,
+        });
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    }
+  | (_, LivelitDefLineZInit({model_type, action_type, init, _} as llrecord)) =>
+    let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
+    switch (ana_perform(ctx, a, (init, u_gen), init_ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((init, u_gen)) =>
+      let new_lldef = ZExp.LivelitDefLineZInit({...llrecord, init});
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    };
+  | (
+      _,
+      LivelitDefLineZUpdate(
+        {model_type, action_type, update, _} as llrecord,
+      ),
+    ) =>
+    let update_ty = Statics_Exp.ll_update_ty(model_type, action_type);
+    switch (ana_perform(ctx, a, (update, u_gen), update_ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((update, u_gen)) =>
+      let new_lldef = ZExp.LivelitDefLineZUpdate({...llrecord, update});
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    };
+  | (_, LivelitDefLineZShape({shape, _} as llrecord)) =>
+    let shape_ty = Statics_Exp.ll_shape_ty;
+    switch (ana_perform(ctx, a, (shape, u_gen), shape_ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((shape, u_gen)) =>
+      let new_lldef = ZExp.LivelitDefLineZShape({...llrecord, shape});
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    };
+  | (
+      _,
+      LivelitDefLineZExpand(
+        {model_type, action_type, expand, _} as llrecord,
+      ),
+    ) =>
+    let expand_ty = Statics_Exp.ll_expand_ty(model_type, action_type);
+    switch (ana_perform(ctx, a, (expand, u_gen), expand_ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((expand, u_gen)) =>
+      let new_lldef = ZExp.LivelitDefLineZExpand({...llrecord, expand});
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    };
+  | (_, LivelitDefLineZView({model_type, action_type, view, _} as llrecord)) =>
+    let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
+    switch (ana_perform(ctx, a, (view, u_gen), view_ty)) {
+    | Failed => Failed
+    | CursorEscaped(side) => escape(u_gen, side)
+    | Succeeded((view, u_gen)) =>
+      let new_lldef = ZExp.LivelitDefLineZView({...llrecord, view});
+      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+    };
   | (_, LetLineZP(zp, None, def)) =>
     switch (Statics_Exp.syn(ctx, def)) {
     | None => Failed
@@ -2913,6 +3056,15 @@ and ana_perform_block =
         | LetLineZP(_)
         | LetLineZA(_)
         | LetLineZE(_)
+        | LivelitDefLineZExpansionType(_)
+        | LivelitDefLineZCaptures(_)
+        | LivelitDefLineZModelType(_)
+        | LivelitDefLineZActionType(_)
+        | LivelitDefLineZInit(_)
+        | LivelitDefLineZUpdate(_)
+        | LivelitDefLineZView(_)
+        | LivelitDefLineZShape(_)
+        | LivelitDefLineZExpand(_)
         | AbbrevLineZL(_) => Failed
         | ExpLineZ(zopseq) =>
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {

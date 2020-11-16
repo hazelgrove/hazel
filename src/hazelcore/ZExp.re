@@ -17,8 +17,8 @@ and zline =
     )
   | LivelitDefLineZExpansionType({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: ZTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
@@ -29,8 +29,8 @@ and zline =
     })
   | LivelitDefLineZCaptures({
       name: (VarErrStatus.t, string),
-      captures: t,
       expansion_type: UHTyp.t,
+      captures: t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
@@ -41,8 +41,8 @@ and zline =
     })
   | LivelitDefLineZModelType({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: ZTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
@@ -53,8 +53,8 @@ and zline =
     })
   | LivelitDefLineZActionType({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: ZTyp.t,
       init: UHExp.t,
@@ -65,8 +65,8 @@ and zline =
     })
   | LivelitDefLineZInit({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: t,
@@ -77,8 +77,8 @@ and zline =
     })
   | LivelitDefLineZUpdate({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
@@ -89,8 +89,8 @@ and zline =
     })
   | LivelitDefLineZView({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
@@ -101,8 +101,8 @@ and zline =
     })
   | LivelitDefLineZShape({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
@@ -113,8 +113,8 @@ and zline =
     })
   | LivelitDefLineZExpand({
       name: (VarErrStatus.t, string),
-      captures: UHExp.t,
       expansion_type: UHTyp.t,
+      captures: UHExp.t,
       model_type: UHTyp.t,
       action_type: UHTyp.t,
       init: UHExp.t,
