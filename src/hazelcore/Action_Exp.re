@@ -992,7 +992,39 @@ and syn_perform_line =
       let new_ze = k == 3 ? def |> ZExp.place_after : def |> ZExp.place_before;
       fix_and_mk_result(u_gen, new_ze);
     }
-
+  | (Backspace, CursorL(OnDelim(_k, After), LivelitDefLine(_))) =>
+    let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
+    mk_result(u_gen, new_zblock);
+  | (
+      Backspace,
+      CursorL(
+        OnText(j),
+        LivelitDefLine({name: (err, name_str), _} as llrecord),
+      ),
+    ) =>
+    if (j == 0) {
+      escape(u_gen, Before);
+    } else {
+      let new_name_str = name_str |> StringUtil.backspace(j);
+      let new_line: UHExp.line =
+        LivelitDefLine({...llrecord, name: (err, new_name_str)});
+      mk_result(u_gen, ([], ZExp.CursorL(OnText(j - 1), new_line), []));
+    }
+  | (
+      Delete,
+      CursorL(
+        OnText(j),
+        LivelitDefLine({name: (err, name_str), _} as llrecord),
+      ),
+    ) =>
+    if (j == String.length(name_str)) {
+      escape(u_gen, After);
+    } else {
+      let new_name_str = name_str |> StringUtil.delete(j);
+      let new_line: UHExp.line =
+        LivelitDefLine({...llrecord, name: (err, new_name_str)});
+      mk_result(u_gen, ([], ZExp.CursorL(OnText(j), new_line), []));
+    }
   | (
       Backspace,
       CursorL(
