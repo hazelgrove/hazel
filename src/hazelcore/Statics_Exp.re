@@ -61,15 +61,15 @@ let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
 
 let mk_ll_update =
     (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
-  let action_h = DHExp.t_of_sexp(action);
-  let model_h = DHExp.t_of_sexp(model);
-  let dh_update =
-    switch (update) {
+  let action_dhexp = DHExp.t_of_sexp(action);
+  let model_dhexp = DHExp.t_of_sexp(model);
+  let update_dhexp =
+    switch (Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty, update)) {
     | DoesNotElaborate => failwith("mk_ll_update")
     | Elaborates(update, _, _) => serialize_ll_monad(update)
     };
-  let res = eval_bin_ap(update, [action_h, model_h]);
-  switch ((res: DHExp.result)) {
+  let term = DHExp.Ap(DHExp.Ap(update_dhexp, action_dhexp), model_str_dhexp);
+  switch (Evaluator.evaluate(eval_livelit_holes = false, term)) {
   | InvalidInput(_int)
   | Indet(_dhexp) => failwith("mk_ll_update")
   | BoxedValue(dhexp) => serialize_ll_monad(dhexp)
@@ -77,14 +77,14 @@ let mk_ll_update =
 };
 
 let mk_ll_expand = (expand: UHExp.t, model: SerializedModel.t) => {
-  let model_str_h = model |> Sexplib.Sexp.to_string |> DHExp.stringlit;
-  let dh_expand =
-    switch (expand) {
+  let model_str_dhexp = model |> Sexplib.Sexp.to_string |> DHExp.stringlit;
+  let expand_dhexp =
+    switch (Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty, expand)) {
     | DoesNotElaborate => failwith("mk_ll_expand")
     | Elaborates(expand, _, _) => serialize_ll_monad(expand)
     };
-  let res = eval_ap(dh_expand, [model_str_h]);
-  switch ((res: DHExp.result)) {
+  let term = DHExp.Ap(expand_dh, model_str_dhexp);
+  switch (Evaluator.evaluate(eval_livelit_holes = false, term)) {
   | BoxedValue(StringLit(str)) =>
     str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp
   | BoxedValue(_)
@@ -154,7 +154,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       } as llrecord,
     ) =>
     // TODO: captures
-    // TODO: errstatus for name?
+    // TODO: errstatus for name
     let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
       livelit_types(llrecord);
     let results = [
