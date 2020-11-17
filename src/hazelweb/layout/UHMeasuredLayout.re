@@ -8,7 +8,7 @@ include MeasuredLayout.Make(WeakMap);
 
 [@deriving sexp]
 let caret_position_of_path =
-    ((steps, cursor): CursorPath_common.t, (m, splice_ms): with_splices)
+    ((steps, cursor): CursorPath.t, (m, splice_ms): with_splices)
     : option((MeasuredPosition.t, option((MetaVar.t, SpliceName.t)))) => {
   let rec go =
           (
@@ -63,7 +63,7 @@ let caret_position_of_path =
   go(steps, m);
 };
 
-type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
+type path_position = (CursorPath.rev_t, MeasuredPosition.t);
 
 /**
  * `find_path(~token, ~cat, m)` returns the path associated with
@@ -75,12 +75,12 @@ type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
  */
 let find_path =
     (
-      ~rev_steps: CursorPath_common.rev_steps=[],
+      ~rev_steps: CursorPath.rev_steps=[],
       ~start: MeasuredPosition.t=MeasuredPosition.zero,
       ~indent: int=0,
       ~token:
          (
-           ~rev_steps: CursorPath_common.rev_steps,
+           ~rev_steps: CursorPath.rev_steps,
            ~start: MeasuredPosition.t,
            UHAnnot.token_data
          ) =>
@@ -88,7 +88,7 @@ let find_path =
       ~cat:
          (
            ~go: (MeasuredPosition.t, t) => option('a),
-           ~rev_steps: CursorPath_common.rev_steps,
+           ~rev_steps: CursorPath.rev_steps,
            ~start: MeasuredPosition.t,
            ~mid: MeasuredPosition.t,
            ~end_: MeasuredPosition.t,
@@ -128,7 +128,7 @@ let find_path =
 
 let first_path_in_row =
     (
-      ~rev_steps: CursorPath_common.rev_steps=[],
+      ~rev_steps: CursorPath.rev_steps=[],
       ~indent=0,
       ~start: MeasuredPosition.t=MeasuredPosition.zero,
       row: int,
@@ -217,8 +217,8 @@ let last_path_in_row =
 
 let arbitrate =
     (
-      (pos1, rev_steps1) as rev_path1: CursorPath_common.rev_t,
-      (pos2, rev_steps2) as rev_path2: CursorPath_common.rev_t,
+      (pos1, rev_steps1) as rev_path1: CursorPath.rev_t,
+      (pos2, rev_steps2) as rev_path2: CursorPath.rev_t,
     ) => {
   let n1 = List.length(rev_steps1);
   let n2 = List.length(rev_steps2);

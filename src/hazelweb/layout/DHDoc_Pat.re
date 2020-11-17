@@ -21,8 +21,7 @@ let precedence = (dp: DHPat.t) =>
   };
 
 let rec mk =
-        (~parenthesize=false, ~enforce_inline: bool, dp: DHPat.t)
-        : DHDoc_common.t => {
+        (~parenthesize=false, ~enforce_inline: bool, dp: DHPat.t): DHDoc.t => {
   let mk' = mk(~enforce_inline);
   let mk_left_associative_operands = (precedence_op, dp1, dp2) => (
     mk'(~parenthesize=precedence(dp1) > precedence_op, dp1),

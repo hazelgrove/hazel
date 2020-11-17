@@ -163,9 +163,9 @@ let decoration_views =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~is_focused: bool,
-      ~current_splice: Program.current_splice,
-      ~caret_pos: MeasuredPosition.t,
+      ~settings: Settings.t,
+      ~caret_pos:
+         option((Pretty.MeasuredPosition.t, Program.current_splice)),
       ~llii,
       ~selected_instances,
       ~sync_livelit,
@@ -288,9 +288,9 @@ let decoration_views =
             let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
             let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
             let caret =
-              switch (current_splice) {
-              | Some((u, name))
-                  when u == llu && name == splice_name && is_focused => [
+              switch (caret_pos) {
+              | Some((caret_pos, Some((u, name))))
+                  when u == llu && name == splice_name => [
                   UHDecoration.Caret.view(~font_metrics, caret_pos),
                 ]
               | _ => []
@@ -349,6 +349,7 @@ let decoration_views =
               ~inject,
               // TODO undo hardcoded width
               ~width=80,
+              ~settings=settings.evaluation,
             );
 
           let dhcode = splice_name =>
@@ -423,8 +424,8 @@ let decoration_views =
   };
 
   let root_caret =
-    switch (current_splice) {
-    | None when is_focused => [
+    switch (caret_pos) {
+    | Some((caret_pos, None)) => [
         UHDecoration.Caret.view(~font_metrics, caret_pos),
       ]
     | _ => []
@@ -437,7 +438,7 @@ let key_handlers =
     (
       ~inject,
       ~is_mac: bool,
-      ~cursor_info: CursorInfo_common.t,
+      ~cursor_info: CursorInfo.t,
       ~is_text_cursor: bool,
     )
     : list(Vdom.Attr.t) => {
@@ -512,7 +513,9 @@ let key_handlers =
             }
           | Some(kc) =>
             prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+              ModelAction.EditAction(
+                KeyComboAction.get(Some(cursor_info), kc),
+              ),
             )
           | None =>
             switch (HazelKeyCombos.of_evt(evt)) {
@@ -520,7 +523,9 @@ let key_handlers =
             | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
             | Some(kc) =>
               prevent_stop_inject(
-                ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+                ModelAction.EditAction(
+                  KeyComboAction.get(Some(cursor_info), kc),
+                ),
               )
             | None =>
               switch (JSUtil.is_single_key(evt)) {
@@ -554,6 +559,7 @@ let view =
       ~is_mac: bool,
       ~selected_instances: UserSelectedInstances.t,
       ~sync_livelit,
+      ~settings: Settings.t,
       program: Program.t,
     )
     : Vdom.Node.t =>
@@ -564,21 +570,9 @@ let view =
       open Vdom;
       let (_, _, llii, _) = Program.get_result(program);
 
-      let (l, splice_ls) =
-        Program.get_layout(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=true,
-          program,
-        );
+      let (l, splice_ls) = Program.get_layout(~settings, program);
 
-      let (caret_pos, current_splice) =
-        Program.get_caret_position(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=true,
-          program,
-        );
+      let caret_pos = Program.get_caret_position(~settings, program);
 
       // TODO need to render code text for splices... I think
       let code_text = view_of_box(UHBox.mk(l));
@@ -586,9 +580,8 @@ let view =
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(
           ~inject,
+          ~settings,
           ~font_metrics,
-          ~is_focused=program.is_focused,
-          ~current_splice,
           ~caret_pos,
           ~selected_instances,
           ~llii,
@@ -599,15 +592,17 @@ let view =
       };
 
       let key_handlers =
-        program.is_focused
-          ? key_handlers(
-              ~inject,
-              ~is_mac,
-              ~cursor_info=Program.get_cursor_info(program),
-              ~is_text_cursor=
-                CursorInfo_common.is_text_cursor(Program.get_zexp(program)),
-            )
-          : [];
+        switch (Program.get_cursor_info(program), Program.get_zexp(program)) {
+        | (None, _)
+        | (_, None) => []
+        | (Some(cursor_info), Some(ze)) =>
+          key_handlers(
+            ~inject,
+            ~is_mac,
+            ~cursor_info,
+            ~is_text_cursor=CursorInfo_common.is_text_cursor(ze),
+          )
+        };
 
       Node.div(
         [

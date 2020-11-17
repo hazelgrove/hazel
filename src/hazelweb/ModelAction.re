@@ -1,11 +1,4 @@
-module EditAction = Action_common;
-module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-
-[@deriving sexp]
-type move_input =
-  | Key(MoveKey.t)
-  | Click(option((MetaVar.t, SpliceName.t)), Pretty.MeasuredPosition.t);
 
 [@deriving sexp]
 type shift_history_info = {
@@ -17,8 +10,8 @@ type shift_history_info = {
 type group_id = int;
 [@deriving sexp]
 type t =
-  | EditAction(EditAction.t)
-  | MoveAction(move_input)
+  | EditAction(Action.t)
+  | MoveAction(MoveInput.t)
   | LivelitAction(MetaVar.t, SerializedAction.t)
   | ToggleLeftSidebar
   | ToggleRightSidebar
@@ -26,26 +19,9 @@ type t =
   | LoadCardstack(int)
   | NextCard
   | PrevCard
-  // Result computation toggles
-  | ToggleComputeResults
-  | ToggleShowCaseClauses
-  | ToggleShowFnBodies
-  | ToggleShowCasts
-  | ToggleShowUnevaluatedExpansion
-  // Time measurement toggles
-  | ToggleMeasureTimes
-  | ToggleMeasureModel_perform_edit_action
-  | ToggleMeasureProgram_get_doc
-  | ToggleMeasureLayoutOfDoc_layout_of_doc
-  | ToggleMeasureUHCode_view
-  | ToggleMeasureCell_view
-  | ToggleMeasurePage_view
-  | ToggleMeasureHazel_create
-  | ToggleMeasureUpdate_apply_action
-  //
-  | ToggleMemoizeDoc
+  | UpdateSettings(Settings.update)
   | SelectInstance(TaggedNodeInstance.kind, NodeInstance.t)
-  | SelectCaseBranch(CursorPath_common.steps, int)
+  | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
   | FocusCell
   | BlurCell

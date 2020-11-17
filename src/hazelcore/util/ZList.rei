@@ -3,8 +3,6 @@ type t('z, 'a) = (list('a), 'z, list('a));
 
 let singleton: 'z => t('z, 'a);
 
-let split_at: (int, list('a)) => option(t('a, 'a));
-
 let join: t('a, 'a) => list('a);
 
 let replace_z: ('z, t('z, 'a)) => t('z, 'a);

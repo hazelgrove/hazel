@@ -6,6 +6,20 @@ module Point: {
   };
 };
 
+module Vector: {
+  [@deriving sexp]
+  type t = {
+    dx: float,
+    dy: float,
+  };
+  [@deriving sexp]
+  type h = {dx: float};
+  [@deriving sexp]
+  type v = {dy: float};
+
+  let scale: (float, t) => t;
+};
+
 module Rect: {
   [@deriving sexp]
   type t = {
@@ -27,20 +41,33 @@ module Path: {
    */
   and cmd =
     | M(Point.t)
-    | M_({
-        dx: float,
-        dy: float,
+    | M_(Vector.t)
+    | H_(Vector.h)
+    | V_(Vector.v)
+    | A({
+        rx: float,
+        ry: float,
+        x_axis_rotation: float,
+        large_arc_flag: bool,
+        sweep_flag: bool,
+        target: Point.t,
       })
-    | H_({dx: float})
-    | V_({dy: float})
     | A_({
         rx: float,
         ry: float,
         x_axis_rotation: float,
         large_arc_flag: bool,
         sweep_flag: bool,
-        dx: float,
-        dy: float,
+        displacement: Vector.t,
+      })
+    | Q({
+        control: Point.t,
+        target: Point.t,
+      })
+    | C_({
+        control_start: Vector.t,
+        control_end: Vector.t,
+        displacement: Vector.t,
       });
 
   let view:

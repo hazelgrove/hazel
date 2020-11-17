@@ -7,9 +7,11 @@ module Sexp = Sexplib.Sexp;
 open ViewUtil;
 
 let view = (~inject, ~sync_livelit, model: Model.t) => {
+  let settings = model.settings;
+  let performance = settings.performance;
   TimeUtil.measure_time(
     "Cell.view",
-    model.measurements.measurements && model.measurements.cell_view,
+    performance.measure && performance.cell_view,
     () => {
       open Vdom;
       let program = Model.get_program(model);
@@ -23,13 +25,12 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
             [
               UHCode.view(
                 ~inject,
-                ~measure=
-                  model.measurements.measurements
-                  && model.measurements.uhcode_view,
+                ~measure=performance.measure && performance.uhcode_view,
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,
                 ~selected_instances=model.selected_instances,
                 ~sync_livelit,
+                ~settings,
                 program,
               ),
             ],

@@ -1,4 +1,4 @@
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
 type err_state_b =
   | InsufficientLivelitArgs
@@ -8,73 +8,60 @@ type err_state_b =
   | OK;
 
 let view =
-    (~inject: ModelAction.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+    (~inject: ModelAction.t => Event.t, ci: option(CursorInfo.t)): Node.t => {
   let typebar = ty =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "typebar"])],
-        [HTypCode.view(ty)],
-      )
-    );
+    Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
   let matched_ty_bar = (ty1, ty2) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "matched-type-bar"])],
-        [
-          HTypCode.view(ty1),
-          Node.span(
-            [Attr.classes(["matched-connective"])],
-            [Node.text(" ▶ ")],
-          ),
-          HTypCode.view(ty2),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["infobar", "matched-type-bar"])],
+      [
+        HTypCode.view(ty1),
+        Node.span(
+          [Attr.classes(["matched-connective"])],
+          [Node.text(" ▶ ")],
+        ),
+        HTypCode.view(ty2),
+      ],
     );
   let inconsistent_branches_ty_bar =
       (branch_types, path_to_case, skipped_index) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
-        List.mapi(
-          (index, ty) => {
-            let shifted_index =
-              switch (skipped_index) {
-              | None => index
-              | Some(skipped_index) =>
-                if (index >= skipped_index) {
-                  index + 1;
-                } else {
-                  index;
-                }
-              };
-            Node.span(
-              [
-                Attr.on_click(_ => {
-                  inject(SelectCaseBranch(path_to_case, shifted_index))
-                }),
-              ],
-              [HTypCode.view(ty)],
-            );
-          },
-          branch_types,
-        ),
-      )
+    Node.div(
+      [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+      List.mapi(
+        (index, ty) => {
+          let shifted_index =
+            switch (skipped_index) {
+            | None => index
+            | Some(skipped_index) =>
+              if (index >= skipped_index) {
+                index + 1;
+              } else {
+                index;
+              }
+            };
+          Node.span(
+            [
+              Attr.on_click(_ => {
+                inject(SelectCaseBranch(path_to_case, shifted_index))
+              }),
+            ],
+            [HTypCode.view(ty)],
+          );
+        },
+        branch_types,
+      ),
     );
 
   let special_msg_bar = (msg: string) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "special-msg-bar"])],
-        [Node.text(msg)],
-      )
+    Node.div(
+      [Attr.classes(["infobar", "special-msg-bar"])],
+      [Node.text(msg)],
     );
 
   let expected_indicator = (title_text, type_div) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["indicator", "expected-indicator"])],
-        [Panel.view_of_main_title_bar(title_text), type_div],
-      )
+    Node.div(
+      [Attr.classes(["indicator", "expected-indicator"])],
+      [Panel.view_of_main_title_bar(title_text), type_div],
     );
   let expected_ty_title = "Expecting an expression of type";
   let expected_ty_title_pat = "Expecting a pattern of type";
@@ -109,26 +96,22 @@ let view =
     );
 
   let got_indicator = (title_text, type_div) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["indicator", "got-indicator"])],
-        [Panel.view_of_other_title_bar(title_text), type_div],
-      )
+    Node.div(
+      [Attr.classes(["indicator", "got-indicator"])],
+      [Panel.view_of_other_title_bar(title_text), type_div],
     );
   let got_invalid_escape = s =>
     got_indicator(
       "Got",
-      Vdom.(
-        Node.div(
-          [Attr.classes(["infobar"])],
-          [
-            Node.div(
-              [Attr.classes(["special-msg-bar"])],
-              [Node.text("invalid escape sequence ")],
-            ),
-            Node.div([Attr.classes(["code-bar"])], [Node.text(s)]),
-          ],
-        )
+      Node.div(
+        [Attr.classes(["infobar"])],
+        [
+          Node.div(
+            [Attr.classes(["special-msg-bar"])],
+            [Node.text("invalid escape sequence ")],
+          ),
+          Node.div([Attr.classes(["code-bar"])], [Node.text(s)]),
+        ],
       ),
     );
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
@@ -171,8 +154,7 @@ let view =
       typebar(got_ty),
     );
 
-  let ci = model |> Model.get_program |> Program.get_cursor_info;
-  let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
+  let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
@@ -433,7 +415,22 @@ let view =
       (ind1, ind2, OK);
     };
 
-  let (ind1, ind2, err_state_b) = get_indicator_info(ci.typed);
+  let (ind1, ind2, err_state_b) =
+    switch (ci) {
+    | Some(ci) => get_indicator_info(ci.typed)
+    | None =>
+      let ind1 =
+        Node.div(
+          [Attr.classes(["indicator", "expected-indicator"])],
+          [Panel.view_of_main_title_bar(""), special_msg_bar("-")],
+        );
+      let ind2 =
+        Node.div(
+          [Attr.classes(["indicator", "got-indicator"])],
+          [Panel.view_of_other_title_bar(""), special_msg_bar("-")],
+        );
+      (ind1, ind2, OK);
+    };
 
   // this determines the color
   let cls_of_err_state_b =
@@ -445,15 +442,13 @@ let view =
     | OK => "cursor-OK"
     };
 
-  Vdom.(
-    Node.div(
-      [Attr.classes(["cursor-inspector-outer"])],
-      [
-        Node.div(
-          [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
-          [ind1, ind2],
-        ),
-      ],
-    )
+  Node.div(
+    [Attr.classes(["cursor-inspector-outer"])],
+    [
+      Node.div(
+        [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
+        [ind1, ind2],
+      ),
+    ],
   );
 };

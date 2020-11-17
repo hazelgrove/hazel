@@ -33,18 +33,18 @@ let intro_caption =
       ptxt("Click Next to go to the next card once you are finished."),
     ],
   );
-let intro_init_zexp =
+let intro_init_term =
   ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0)));
 // deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
 /*
  let intro_card: CardInfo.t = {
    caption: intro_caption,
-   init_zexp: intro_init_zexp,
+   init_term: intro_init_term,
  };
  */
 let intro_card: CardInfo.t = {
   caption: div([], []),
-  init_zexp: intro_init_zexp,
+  init_term: Focused(intro_init_term),
 };
 /*
  let backspace_caption =
@@ -65,7 +65,7 @@ let intro_card: CardInfo.t = {
    // deserialize("(BlockZE()(CursorE(OnText 5)(IntLit NotInHole 12345)))");
  let backspace_card: CardInfo.t = {
    caption: backspace_caption,
-   init_zexp: backspace_init_zblock,
+   init_term: backspace_init_zblock,
  };
 
  let empty_hole_insertion_caption =
@@ -103,7 +103,7 @@ let intro_card: CardInfo.t = {
    deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
  let empty_hole_insertion_card: CardInfo.t = {
    caption: empty_hole_insertion_caption,
-   init_zexp: empty_hole_insertion_init_zblock,
+   init_term: empty_hole_insertion_init_zblock,
  };
  */
 

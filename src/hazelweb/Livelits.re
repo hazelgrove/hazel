@@ -3,10 +3,10 @@ open Sexplib.Std;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
 module LivelitView = {
-  type div_type = Vdom.Node.t;
+  type div_type = Node.t;
 
   type splice_and_param_getters = {
     uhcode: SpliceName.t => div_type,
@@ -31,7 +31,7 @@ module type LIVELIT = {
   type model;
   [@deriving sexp]
   type action;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model: SpliceGenCmd.t(model);
@@ -81,7 +81,7 @@ module LivelitAdapter = (L: LIVELIT) => {
   );
 };
 
-type trigger_serialized = SerializedAction.t => Vdom.Event.t;
+type trigger_serialized = SerializedAction.t => Event.t;
 type sync_serialized = SerializedAction.t => unit;
 type serialized_view_fn_t =
   (SerializedModel.t, trigger_serialized, sync_serialized) => LivelitView.t;
@@ -136,10 +136,9 @@ module LivelitContexts = {
   };
 };
 
-let _to_uhvar = id =>
-  UHExp.(Var(NotInHole, NotInVarHole, SpliceInfo.var_of_splice_name(id)));
+let _to_uhvar = id => UHExp.var(SpliceInfo.var_of_splice_name(id));
 
-let attr_style = Vdom.Attr.create("style");
+let attr_style = Attr.create("style");
 
 let prop_val = (prop: string, value: string) =>
   StringUtil.cat([prop, ": ", value, ";"]);
@@ -153,7 +152,7 @@ module PairLivelit: LIVELIT = {
   type model = (int, int);
   [@deriving sexp]
   type action = unit;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model =
@@ -171,11 +170,9 @@ module PairLivelit: LIVELIT = {
         _,
         {uhcode, _}: LivelitView.splice_and_param_getters,
       ) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["pair-livelit"])],
-        [uhcode(leftID), uhcode(rightID)],
-      )
+    Node.div(
+      [Attr.classes(["pair-livelit"])],
+      [uhcode(leftID), uhcode(rightID)],
     );
   let view_shape = _ =>
     LivelitView.Inline(
@@ -215,7 +212,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
     | Select(SpliceName.t)
     | Add(dim)
     | Del(dim, int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_height = 2;
@@ -289,18 +286,15 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
           if (get_height(m) <= 1) {
             SpliceGenCmd.return((selected, m));
           } else {
-            let (before, rest) = ListUtil.split_index(m, i);
-            let (to_drop, after) = (List.hd(rest), List.tl(rest));
+            let (before, to_drop, after) = ListUtil.split_nth(i, m);
             drop(to_drop, before @ after);
           }
         | Col =>
           if (get_width(m) <= 1) {
             SpliceGenCmd.return((selected, m));
           } else {
-            let (before, rest) =
-              m |> List.map(r => ListUtil.split_index(r, i)) |> List.split;
-            let (to_drop, after) =
-              rest |> List.map(r => (List.hd(r), List.tl(r))) |> List.split;
+            let (before, to_drop, after) =
+              m |> List.map(r => ListUtil.split_nth(i, r)) |> ListUtil.split3;
             drop(to_drop, List.map2((b, a) => b @ a, before, after));
           }
         };
@@ -325,7 +319,6 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
     let width = get_width(m);
     let height = get_height(m);
     let row_header =
@@ -541,16 +534,20 @@ module GradeCutoffLivelit: LIVELIT = {
     b: int,
     c: int,
     d: int,
+    selecting: option(letter_grade),
   };
 
   [@deriving sexp]
   type action =
-    | UpdateCutoff(letter_grade, int);
+    | UpdateCutoff(letter_grade, int)
+    | StartSelecting(letter_grade)
+    | StopSelecting;
 
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
-  let init_model = SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60});
+  let init_model =
+    SpliceGenCmd.return({a: 90, b: 80, c: 70, d: 60, selecting: None});
 
   let is_valid_percentage = (p: int) => 0 <= p && p <= 100;
 
@@ -570,9 +567,9 @@ module GradeCutoffLivelit: LIVELIT = {
       model;
     } else {
       let updated = {...model, b: new_b};
-      if (updated.a < updated.b) {
+      if (updated.a <= updated.b) {
         update_a(updated.b + 1, updated);
-      } else if (updated.b < updated.c) {
+      } else if (updated.b <= updated.c) {
         update_c(updated.b - 1, updated);
       } else {
         updated;
@@ -583,9 +580,9 @@ module GradeCutoffLivelit: LIVELIT = {
       model;
     } else {
       let updated = {...model, c: new_c};
-      if (updated.b < updated.c) {
+      if (updated.b <= updated.c) {
         update_b(updated.c + 1, updated);
-      } else if (updated.c < updated.d) {
+      } else if (updated.c <= updated.d) {
         update_d(updated.c - 1, updated);
       } else {
         updated;
@@ -596,7 +593,7 @@ module GradeCutoffLivelit: LIVELIT = {
       model;
     } else {
       let updated = {...model, d: new_d};
-      if (updated.c < updated.d) {
+      if (updated.c <= updated.d) {
         update_c(updated.c + 1, updated);
       } else {
         updated;
@@ -606,6 +603,8 @@ module GradeCutoffLivelit: LIVELIT = {
   let update = (model, action) =>
     SpliceGenCmd.return(
       switch (action) {
+      | StopSelecting => {...model, selecting: None}
+      | StartSelecting(letter) => {...model, selecting: Some(letter)}
       | UpdateCutoff(letter, new_cutoff) =>
         let update =
           switch (letter) {
@@ -624,18 +623,16 @@ module GradeCutoffLivelit: LIVELIT = {
       |> List.filter_map(grade =>
            if (0 <= grade && grade <= 100) {
              Some(
-               Vdom.(
-                 Node.create_svg(
-                   "circle",
-                   [
-                     Attr.create("cx", string_of_int(grade)),
-                     Attr.create("cy", "0"),
-                     Attr.create("r", "1"),
-                     Attr.create("fill", "orange"),
-                     Attr.create("stroke-width", "0"),
-                   ],
-                   [],
-                 )
+               Node.create_svg(
+                 "circle",
+                 [
+                   Attr.create("cx", string_of_int(grade)),
+                   Attr.create("cy", "0"),
+                   Attr.create("r", "1"),
+                   Attr.create("fill", "orange"),
+                   Attr.create("stroke-width", "0"),
+                 ],
+                 [],
                ),
              );
            } else {
@@ -657,10 +654,9 @@ module GradeCutoffLivelit: LIVELIT = {
     | DHExp.ListNil(_) => (List.rev(rslt), invalid_count)
     | _ => (List.rev(rslt), invalid_count + 1);
 
-  [@warning "-27"]
   let view =
       (
-        {a, b, c, d},
+        {a, b, c, d, selecting},
         trigger,
         _,
         {dargs, _}: LivelitView.splice_and_param_getters,
@@ -683,16 +679,16 @@ module GradeCutoffLivelit: LIVELIT = {
          );
     let (grades_svgs, data_err_msg) =
       switch (grades_svgs_invalids_opt) {
-      | None => ([], [Vdom.Node.text("Grades data was never evaluated")])
+      | None => ([], [Node.text("Grades data was never evaluated")])
       | Some((grades_svgs, invalid_count)) => (
           grades_svgs,
           if (invalid_count == 0) {
             [];
           } else if (invalid_count == 1) {
-            [Vdom.Node.text("1 grade was indeterminate or out of bounds")];
+            [Node.text("1 grade was indeterminate or out of bounds")];
           } else {
             [
-              Vdom.Node.text(
+              Node.text(
                 Printf.sprintf(
                   "%d grades were indeterminate or out of bounds",
                   invalid_count,
@@ -703,35 +699,82 @@ module GradeCutoffLivelit: LIVELIT = {
         )
       };
 
-    let cutoff_slider = (letter, cls, value) =>
-      Vdom.(
-        Node.input(
-          [
-            Attr.classes(["grade-cutoff-slider", cls]),
-            Attr.type_("range"),
-            Attr.create("min", "0"),
-            Attr.create("max", "100"),
-            Attr.value(string_of_int(value)),
-            Attr.on_input((_, value_str) =>
-              trigger(UpdateCutoff(letter, int_of_string(value_str)))
-            ),
-            Attr.on_change((_, value_str) =>
-              trigger(UpdateCutoff(letter, int_of_string(value_str)))
-            ),
-          ],
-          [],
-        )
+    let px_scalar = 5.;
+    let scale_len = 100.;
+    let thumb_radius = 3.;
+    let thumb_tip = 5.;
+
+    let cutoff_thumb = (letter: letter_grade, value: int) => {
+      open SvgUtil;
+      let v = Float.of_int(value);
+      let chord_distance = thumb_radius /. Float.sqrt(2.);
+      let arc_start = Point.{x: v -. chord_distance, y: -. thumb_tip};
+      let arc_end = Point.{x: v +. chord_distance, y: -. thumb_tip};
+      let control = Point.{x: v, y: -. (thumb_tip -. chord_distance)};
+      let origin = Point.{x: v, y: (-0.5)};
+      let thumb =
+        Path.[
+          Q({control, target: arc_start}),
+          A({
+            rx: thumb_radius,
+            ry: thumb_radius,
+            x_axis_rotation: 0.,
+            large_arc_flag: true,
+            sweep_flag: true,
+            target: arc_end,
+          }),
+          Q({control, target: origin}),
+        ];
+      Node.create_svg(
+        "g",
+        [],
+        [
+          Path.view(
+            ~attrs=
+              Attr.[
+                classes(["grade-cutoff-thumb"]),
+                create("vector-effect", "non-scaling-stroke"),
+                on_mousedown(_ => trigger(StartSelecting(letter))),
+              ],
+            [M(origin), ...thumb],
+          ),
+          Node.create_svg(
+            "text",
+            Attr.[
+              classes(["grade-label"]),
+              create("vector-effect", "non-scaling-stroke"),
+              create("dominant-baseline", "middle"),
+              create("text-anchor", "middle"),
+              create("x", Printf.sprintf("%f", v)),
+              create(
+                "y",
+                Printf.sprintf("%f", -. (thumb_tip +. chord_distance -. 0.4)),
+              ),
+              on_mousedown(_ => trigger(StartSelecting(letter))),
+            ],
+            [
+              Node.text(
+                switch (letter) {
+                | A => "A"
+                | B => "B"
+                | C => "C"
+                | D => "D"
+                },
+              ),
+            ],
+          ),
+        ],
       );
+    };
 
     let percentage_line = grade_points => {
-      open Vdom;
       let percentage_label = (p: int) =>
         Node.create_svg(
           "text",
           [
             Attr.classes(["grade-cutoff-scale-label"]),
             Attr.create("x", string_of_int(p)),
-            Attr.create("y", "2"),
+            Attr.create("y", "0.5"),
             Attr.create("dominant-baseline", "hanging"),
             Attr.create("text-anchor", "middle"),
             Attr.create("vector-effect", "non-scaling-stroke"),
@@ -743,53 +786,100 @@ module GradeCutoffLivelit: LIVELIT = {
         |> List.map(( * )(10))
         |> List.map(percentage_label);
       Node.create_svg(
-        "svg",
-        [
-          Attr.classes(["grade-cutoff-scale"]),
-          Attr.create("viewBox", "-10 -1 120 4"),
-          Attr.create("stroke", "black"),
-        ],
+        "g",
+        [],
         [
           Node.create_svg(
-            "g",
-            [],
+            "line",
             [
-              Node.create_svg(
-                "line",
-                [
-                  Attr.create("x1", "0"),
-                  Attr.create("y1", "0"),
-                  Attr.create("x2", "100"),
-                  Attr.create("y2", "0"),
-                  Attr.create("vector-effect", "non-scaling-stroke"),
-                ],
-                [],
-              ),
-              ...percentage_labels,
-            ]
-            @ grade_points,
+              Attr.classes(["grade-cutoff-scale"]),
+              Attr.create("x1", "0"),
+              Attr.create("y1", "0"),
+              Attr.create("x2", Printf.sprintf("%f", scale_len)),
+              Attr.create("y2", "0"),
+              Attr.create("vector-effect", "non-scaling-stroke"),
+            ],
+            [],
           ),
-        ],
+          ...percentage_labels,
+        ]
+        @ grade_points,
       );
     };
 
-    Vdom.(
-      Node.div(
-        [Attr.classes(["grade-cutoffs-livelit"])],
-        [
+    let thumbs = {
+      let (a, b, c, d) = (
+        cutoff_thumb(A, a),
+        cutoff_thumb(B, b),
+        cutoff_thumb(C, c),
+        cutoff_thumb(D, d),
+      );
+      // change paint order depending on
+      // which thumb is being dragged
+      switch (selecting) {
+      | None
+      | Some(A) => [d, c, b, a]
+      | Some(B) => [d, c, a, b]
+      | Some(C) => [a, d, b, c]
+      | Some(D) => [a, b, c, d]
+      };
+    };
+
+    let overlay =
+      switch (selecting) {
+      | None => []
+      | Some(letter) => [
           Node.div(
-            [Attr.classes(["grade-display"])],
-            [
-              percentage_line(grades_svgs),
-              cutoff_slider(A, "a-slider", a),
-              cutoff_slider(B, "b-slider", b),
-              cutoff_slider(C, "c-slider", c),
-              cutoff_slider(D, "d-slider", d),
-              Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+            Attr.[
+              classes(["dragging-overlay"]),
+              on_mouseup(_ => trigger(StopSelecting)),
+              on_mousemove(evt => {
+                let scale =
+                  JSUtil.force_get_elem_by_cls("grade-cutoff-scale")##getBoundingClientRect;
+                let offset_x = Float.of_int(Js.Unsafe.get(evt, "offsetX"));
+                let cutoff =
+                  100.
+                  *. (offset_x -. scale##.left)
+                  /. (px_scalar *. scale_len);
+                trigger(UpdateCutoff(letter, Float.to_int(cutoff)));
+              }),
             ],
+            [],
           ),
-        ],
-      )
+        ]
+      };
+
+    let width = scale_len +. 2. *. thumb_radius +. 2.;
+    let height = 2. *. thumb_radius +. thumb_tip +. 6.;
+    Node.div(
+      [Attr.classes(["grade-cutoffs-livelit"])],
+      [
+        Node.create_svg(
+          "svg",
+          [
+            Attr.classes(["grade-display"]),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "%f %f %f %f",
+                -. (thumb_radius +. 1.),
+                -. (2. *. thumb_radius +. thumb_tip),
+                width,
+                height,
+              ),
+            ),
+            Attr.create("width", Printf.sprintf("%fpx", px_scalar *. width)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", px_scalar *. height),
+            ),
+            Attr.create("stroke", "black"),
+          ],
+          [percentage_line(grades_svgs), ...thumbs],
+        ),
+        Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
+        ...overlay,
+      ],
     );
   };
 
@@ -800,7 +890,7 @@ module GradeCutoffLivelit: LIVELIT = {
     );
   };
 
-  let expand = ({a, b, c, d}) => {
+  let expand = ({a, b, c, d, selecting: _}) => {
     let tupl_seq =
       UHExp.(
         Seq.mk(
@@ -828,7 +918,7 @@ module GrayscaleLivelit: LIVELIT = {
   };
   [@deriving sexp]
   type action = unit;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model =
@@ -864,7 +954,6 @@ module GrayscaleLivelit: LIVELIT = {
         _,
         {dargs, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
     let subject = {
       let height_prop_val = Printf.sprintf("height: %dem;", height);
       switch (dargs, dhcode(brightness), dhcode(grayscale)) {
@@ -1063,36 +1152,9 @@ module ColorLivelit: LIVELIT = {
   type action =
     | StartSelectingSatVal
     | StopSelectingSatVal
-    | SelectSatVal(float, float)
-    | SelectHue(int);
-  type trigger = action => Vdom.Event.t;
+    | SelectRGB((int, int, int));
+  type trigger = action => Event.t;
   type sync = action => unit;
-
-  let update_hsv = (hsv, model) => {
-    let (r, g, b) = model.rgb;
-    let (rval, gval, bval) = rgb_of_hsv(hsv);
-    SpliceGenCmd.(
-      bind(
-        map_splice(r, (_, u_gen) =>
-          ((HTyp.Int, UHExp.(Block.wrap(intlit'(rval)))), u_gen)
-        ),
-        _ =>
-        bind(
-          map_splice(g, (_, u_gen) =>
-            ((HTyp.Int, UHExp.(Block.wrap(intlit'(gval)))), u_gen)
-          ),
-          _ =>
-          bind(
-            map_splice(b, (_, u_gen) =>
-              ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
-            ),
-            _ =>
-            return(model)
-          )
-        )
-      )
-    );
-  };
 
   let update = (m, action) =>
     switch (action) {
@@ -1100,15 +1162,31 @@ module ColorLivelit: LIVELIT = {
       SpliceGenCmd.return({...m, selecting_sat_val: true})
     | StopSelectingSatVal =>
       SpliceGenCmd.return({...m, selecting_sat_val: false})
-    | SelectSatVal(s, v) =>
-      let (h, _, _) = hsv_of_rgb(m.rgb);
-      update_hsv((h, s, v), m);
-    | SelectHue(h) =>
-      let (_, s, v) = hsv_of_rgb(m.rgb);
-      update_hsv((h == 360 ? 0.0 : Float.of_int(h), s, v), m);
+    | SelectRGB((rval, gval, bval)) =>
+      let (r, g, b) = m.rgb;
+      SpliceGenCmd.(
+        bind(
+          map_splice(r, (_, u_gen) =>
+            ((HTyp.Int, UHExp.(Block.wrap(intlit'(rval)))), u_gen)
+          ),
+          _ =>
+          bind(
+            map_splice(g, (_, u_gen) =>
+              ((HTyp.Int, UHExp.(Block.wrap(intlit'(gval)))), u_gen)
+            ),
+            _ =>
+            bind(
+              map_splice(b, (_, u_gen) =>
+                ((HTyp.Int, UHExp.(Block.wrap(intlit'(bval)))), u_gen)
+              ),
+              _ =>
+              return(m)
+            )
+          )
+        )
+      );
     };
 
-  [@warning "-27"]
   let view =
       (
         {rgb: (r, g, b), a, selecting_sat_val},
@@ -1116,8 +1194,6 @@ module ColorLivelit: LIVELIT = {
         _,
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
-
     let is_valid = color_value => 0 <= color_value && color_value < 256;
     let rgba_values =
       switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
@@ -1154,65 +1230,45 @@ module ColorLivelit: LIVELIT = {
           );
         };
         switch (rgba_values) {
-        | None =>
-          box(
-            "gray",
-            [
-              Attr.on_click(evt => {
-                let (offset_x, offset_y) = {
-                  let target =
-                    Js.Opt.get(evt##.target, () => failwith("no target"));
-                  let box = JSUtil.force_get_parent_elem(target);
-                  let rect = box##getBoundingClientRect;
-                  let client_x = Float.of_int(evt##.clientX);
-                  let client_y = Float.of_int(evt##.clientY);
-                  (client_x -. rect##.left, client_y -. rect##.top);
-                };
-                trigger(
-                  SelectSatVal(
-                    max(0.0, min(offset_x /. width, 1.0)),
-                    max(0.0, min((height -. offset_y) /. height, 1.0)),
-                  ),
-                );
-              }),
-            ],
-            [],
-          )
-        | Some((rval, gval, bval, aval)) =>
+        | None => box("gray", [], [])
+        | Some((rval, gval, bval, _)) =>
           let (h, s, v) = hsv_of_rgb((rval, gval, bval));
           let (sat_r, sat_g, sat_b) = rgb_of_hsv((h, 1.0, 1.0));
+          let bounded = f => max(0., min(1., f));
+          let offset_x_y = evt =>
+            Js.Unsafe.(get(evt, "offsetX"), get(evt, "offsetY"))
+            |> TupleUtil.map2(Float.of_int);
+          let on_first_click = evt => {
+            let (offset_x, offset_y) = offset_x_y(evt);
+            let s = offset_x /. width;
+            let v = (height -. offset_y) /. height;
+            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
+            Event.Many([
+              trigger(StartSelectingSatVal),
+              trigger(SelectRGB(rgb)),
+            ]);
+          };
+          let on_drag = evt => {
+            let sat_val_rect =
+              JSUtil.force_get_elem_by_cls("sat-val-box")##getBoundingClientRect;
+            let (offset_x, offset_y) = offset_x_y(evt);
+            let s = (offset_x -. sat_val_rect##.left) /. width;
+            let v = (height -. (offset_y -. sat_val_rect##.top)) /. height;
+            let rgb = rgb_of_hsv((h, bounded(s), bounded(v)));
+            trigger(SelectRGB(rgb));
+          };
+          let overlay =
+            Node.div(
+              Attr.[
+                classes(["dragging-overlay"]),
+                on_mouseup(_ => trigger(StopSelectingSatVal)),
+                on_mousemove(on_drag),
+              ],
+              [],
+            );
           box(
             Printf.sprintf("rgb(%d, %d, %d)", sat_r, sat_g, sat_b),
-            [
-              Attr.on_mousemove(evt =>
-                if (selecting_sat_val) {
-                  let (offset_x, offset_y) = {
-                    let target =
-                      Js.Opt.get(evt##.target, () => failwith("no target"));
-                    if (target |> JSUtil.elem_has_cls("sat-val-box")) {
-                      (
-                        Float.of_int(Js.Unsafe.get(evt, "offsetX")),
-                        Float.of_int(Js.Unsafe.get(evt, "offsetY")),
-                      );
-                    } else {
-                      let box = JSUtil.force_get_parent_elem(target);
-                      let rect = box##getBoundingClientRect;
-                      let client_x = Float.of_int(evt##.clientX);
-                      let client_y = Float.of_int(evt##.clientY);
-                      (client_x -. rect##.left, client_y -. rect##.top);
-                    };
-                  };
-                  trigger(
-                    SelectSatVal(
-                      max(0.0, min(offset_x /. width, 1.0)),
-                      max(0.0, min((height -. offset_y) /. height, 1.0)),
-                    ),
-                  );
-                } else {
-                  Event.Many([]);
-                }
-              ),
-            ],
+            [Attr.on_mousedown(on_first_click)],
             [
               Node.div(
                 [
@@ -1224,10 +1280,10 @@ module ColorLivelit: LIVELIT = {
                     ]),
                   ),
                   Attr.on_mousedown(_ => trigger(StartSelectingSatVal)),
-                  Attr.on_mouseup(_ => trigger(StopSelectingSatVal)),
                 ],
                 [],
               ),
+              ...selecting_sat_val ? [overlay] : [],
             ],
           );
         };
@@ -1244,27 +1300,28 @@ module ColorLivelit: LIVELIT = {
                   Attr.type_("range"),
                   Attr.create("min", "0"),
                   Attr.create("max", "360"),
-                  Attr.on_input((_, value_str) =>
-                    trigger(SelectHue(int_of_string(value_str)))
-                  ),
                   Attr.create(
                     "style",
                     // slider is rotated 90 degrees
                     Printf.sprintf("width: %fpx;", height),
                   ),
                   ...attrs,
-                ],
+                ]
+                |> Attrs.merge_classes_and_styles,
                 [],
               ),
             ],
           );
         switch (rgba_values) {
-        | None => slider([Attr.classes(["hue-slider", "no-thumb"])])
+        | None => slider([Attr.classes(["no-thumb"])])
         | Some((r, g, b, _)) =>
-          let (h, _, _) = hsv_of_rgb((r, g, b));
+          let (h, s, v) = hsv_of_rgb((r, g, b));
           slider([
-            Attr.classes(["hue-slider"]),
             Attr.value(string_of_int(Float.to_int(h))),
+            Attr.on_input((_, value_str) => {
+              let h = float_of_string(value_str);
+              trigger(SelectRGB(rgb_of_hsv((h, s, v))));
+            }),
           ]);
         };
       };
@@ -1326,7 +1383,23 @@ module ColorLivelit: LIVELIT = {
                 [Attr.classes(["color-swatch-label"])],
                 [
                   Node.span(
-                    [],
+                    [
+                      // https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
+                      attr_style(
+                        prop_val(
+                          "color",
+                          Float.of_int(r)
+                          *. 0.299
+                          +. Float.of_int(g)
+                          *. 0.587
+                          +. Float.of_int(b)
+                          *. 0.114 > 186.
+                          *. Float.of_int(a)
+                          /. 255.
+                            ? "#000000" : "#ffffff",
+                        ),
+                      ),
+                    ],
                     [
                       Node.text(
                         Printf.sprintf("rgba(%d, %d, %d, %d)", r, g, b, a),
@@ -1348,13 +1421,7 @@ module ColorLivelit: LIVELIT = {
           [uhcode(splice_name)],
         );
       Node.div(
-        [
-          Attr.classes([
-            "color-picker",
-            // TODO clean up open closed logic
-            "open",
-          ]),
-        ],
+        [Attr.classes(["color-picker"])],
         [
           color_swatch,
           Node.div(
@@ -1419,7 +1486,7 @@ module GradientLivelit: LIVELIT = {
   [@deriving sexp]
   type action =
     | Slide(int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let slider_min = 0;
@@ -1452,28 +1519,26 @@ module GradientLivelit: LIVELIT = {
 
   let view =
       (model, trigger, _, {uhcode, _}: LivelitView.splice_and_param_getters) => {
-    Vdom.(
-      Node.span(
-        [Attr.classes(["gradient-livelit"])],
-        [
-          uhcode(model.lcolor),
-          Node.input(
-            [
-              Attr.classes(["slider"]),
-              Attr.type_("range"),
-              Attr.create("min", string_of_int(slider_min)),
-              Attr.create("max", string_of_int(slider_max)),
-              Attr.value(string_of_int(model.slider_value)),
-              Attr.on_change((_, value_str) => {
-                let new_value = int_of_string(value_str);
-                trigger(Slide(new_value));
-              }),
-            ],
-            [],
-          ),
-          uhcode(model.rcolor),
-        ],
-      )
+    Node.span(
+      [Attr.classes(["gradient-livelit"])],
+      [
+        uhcode(model.lcolor),
+        Node.input(
+          [
+            Attr.classes(["slider"]),
+            Attr.type_("range"),
+            Attr.create("min", string_of_int(slider_min)),
+            Attr.create("max", string_of_int(slider_max)),
+            Attr.value(string_of_int(model.slider_value)),
+            Attr.on_change((_, value_str) => {
+              let new_value = int_of_string(value_str);
+              trigger(Slide(new_value));
+            }),
+          ],
+          [],
+        ),
+        uhcode(model.rcolor),
+      ],
     );
   };
 
@@ -1575,26 +1640,24 @@ module CheckboxLivelit: LIVELIT = {
   [@deriving sexp]
   type action =
     | Toggle;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(false);
   let update = (m, Toggle) => SpliceGenCmd.return(!m);
 
   let view = (m, trig, _) => {
-    let checked_state = m ? [Vdom.Attr.checked] : [];
+    let checked_state = m ? [Attr.checked] : [];
     let input_elt =
-      Vdom.(
-        Node.input(
-          [
-            Attr.type_("checkbox"),
-            Attr.on_input((_, _) => trig(Toggle)),
-            ...checked_state,
-          ],
-          [],
-        )
+      Node.input(
+        [
+          Attr.type_("checkbox"),
+          Attr.on_input((_, _) => trig(Toggle)),
+          ...checked_state,
+        ],
+        [],
       );
-    _ => Vdom.Node.span([], [input_elt]);
+    _ => Node.span([], [input_elt]);
   };
 
   let view_shape = _ => LivelitView.Inline(/* TODO! */ 1);
@@ -1611,7 +1674,7 @@ module SliderLivelitMin: LIVELIT = {
   type model = int;
   [@deriving sexp]
   type action = int;
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(0);
@@ -1625,28 +1688,24 @@ module SliderLivelitMin: LIVELIT = {
   // let expand = "(=> n (UHExp.Block.wrap (UHExp.intlit' n)))"
   // (except with actual constructors instead of helpers)
 
-  let view = (model, trigger: trigger, _sync) => {
-    Vdom.(
-      _ => {
-        let value = string_of_int(model);
-        let on_input = (_, value_str) => trigger(int_of_string(value_str));
-        Node.span(
-          [Attr.classes(["slider-livelit"])],
+  let view = (model, trigger: trigger, _sync, _) => {
+    let value = string_of_int(model);
+    let on_input = (_, value_str) => trigger(int_of_string(value_str));
+    Node.span(
+      [Attr.classes(["slider-livelit"])],
+      [
+        Node.input(
           [
-            Node.input(
-              [
-                Attr.classes(["slider"]),
-                Attr.type_("range"),
-                Attr.create("min", "0"),
-                Attr.create("max", "100"),
-                Attr.value(value),
-                Attr.on_input(on_input),
-              ],
-              [],
-            ),
+            Attr.classes(["slider"]),
+            Attr.type_("range"),
+            Attr.create("min", "0"),
+            Attr.create("max", "100"),
+            Attr.value(value),
+            Attr.on_input(on_input),
           ],
-        );
-      }
+          [],
+        ),
+      ],
     );
   };
 };
@@ -1668,7 +1727,7 @@ module SliderLivelit: LIVELIT = {
   type action =
     | InvalidParams
     | Slide(int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(Some(0));
@@ -1680,8 +1739,6 @@ module SliderLivelit: LIVELIT = {
     };
 
   let view = (model, trigger: trigger, sync) => {
-    open Vdom;
-
     let _endpoint_view = (cls, value) => {
       let padding = "3px";
       let val_str = string_of_int(value);
@@ -1711,42 +1768,40 @@ module SliderLivelit: LIVELIT = {
         let p = Float.of_int(p) /. 100.0;
         Printf.sprintf("%f", (1. -. p) *. min +. p *. max);
       };
-      Vdom.(
-        Node.create(
-          "datalist",
-          [Attr.id("tickmarks")],
-          [
-            Node.option(
-              [
-                Attr.create("value", val_of_percent(0)),
-                Attr.create("label", "0%"),
-              ],
-              [],
-            ),
-            Node.option([Attr.create("value", val_of_percent(10))], []),
-            Node.option([Attr.create("value", val_of_percent(20))], []),
-            Node.option([Attr.create("value", val_of_percent(30))], []),
-            Node.option([Attr.create("value", val_of_percent(40))], []),
-            Node.option(
-              [
-                Attr.create("value", val_of_percent(50)),
-                Attr.create("label", "50%"),
-              ],
-              [],
-            ),
-            Node.option([Attr.create("value", val_of_percent(60))], []),
-            Node.option([Attr.create("value", val_of_percent(70))], []),
-            Node.option([Attr.create("value", val_of_percent(80))], []),
-            Node.option([Attr.create("value", val_of_percent(90))], []),
-            Node.option(
-              [
-                Attr.create("value", val_of_percent(100)),
-                Attr.create("label", "100%"),
-              ],
-              [],
-            ),
-          ],
-        )
+      Node.create(
+        "datalist",
+        [Attr.id("tickmarks")],
+        [
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(0)),
+              Attr.create("label", "0%"),
+            ],
+            [],
+          ),
+          Node.option([Attr.create("value", val_of_percent(10))], []),
+          Node.option([Attr.create("value", val_of_percent(20))], []),
+          Node.option([Attr.create("value", val_of_percent(30))], []),
+          Node.option([Attr.create("value", val_of_percent(40))], []),
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(50)),
+              Attr.create("label", "50%"),
+            ],
+            [],
+          ),
+          Node.option([Attr.create("value", val_of_percent(60))], []),
+          Node.option([Attr.create("value", val_of_percent(70))], []),
+          Node.option([Attr.create("value", val_of_percent(80))], []),
+          Node.option([Attr.create("value", val_of_percent(90))], []),
+          Node.option(
+            [
+              Attr.create("value", val_of_percent(100)),
+              Attr.create("label", "100%"),
+            ],
+            [],
+          ),
+        ],
       );
     };
 
@@ -1809,12 +1864,23 @@ module SliderLivelit: LIVELIT = {
 
 module DataFrameLivelit: LIVELIT = {
   let name = "$data_frame";
-  let expansion_ty = HTyp.(List(List(Int)));
+  let expansion_ty =
+    HTyp.(Prod([List(String), List(Prod([String, List(Int)]))]));
   let param_tys = [];
 
+  [@deriving sexp]
+  type row = {
+    header: SpliceName.t,
+    cells: list(SpliceName.t),
+  };
   // assume nonzero height and width
   [@deriving sexp]
-  type model = (SpliceName.t, list(list(SpliceName.t)));
+  type model = {
+    selected: SpliceName.t,
+    col_headers: list(SpliceName.t),
+    rows: list(row),
+  };
+
   [@deriving sexp]
   type dim =
     | Row
@@ -1824,15 +1890,14 @@ module DataFrameLivelit: LIVELIT = {
     | Select(SpliceName.t)
     | Add(dim)
     | Del(dim, int);
-  type trigger = action => Vdom.Event.t;
+  type trigger = action => Event.t;
   type sync = action => unit;
 
   let init_height = 3;
   let init_width = 6;
 
-  let get_height = (m: list(list(SpliceName.t))): int => List.length(m);
-  let get_width = (m: list(list(SpliceName.t))): int =>
-    List.length(List.hd(m));
+  let get_height = (m: model): int => List.length(m.rows);
+  let get_width = (m: model): int => List.length(m.col_headers);
 
   let init_model =
     SpliceGenCmd.(
@@ -1840,82 +1905,121 @@ module DataFrameLivelit: LIVELIT = {
         init_height,
         bind(
           MonadsUtil.bind_count(
-            init_width,
-            bind(new_splice(HTyp.Int)),
-            return,
+            init_width, bind(new_splice(HTyp.Int)), row_cells =>
+            bind(new_splice(HTyp.String), row_header =>
+              return({header: row_header, cells: row_cells})
+            )
           ),
         ),
-        grid =>
-        return((grid |> List.hd |> List.hd, grid))
+        rows =>
+        MonadsUtil.bind_count(
+          init_width, bind(new_splice(HTyp.String)), col_headers =>
+          return({selected: List.hd(col_headers), col_headers, rows})
+        )
       )
     );
 
-  let update = ((selected, m)) =>
-    fun
-    | Select(to_select) => {
-        let to_select_in_grid =
-          !(m |> List.for_all(List.for_all(s => s != to_select)));
-        if (!to_select_in_grid) {
-          JSUtil.log(
-            Printf.sprintf(
-              "Attempt to select splice name %d, which is not in the matrix",
-              to_select,
-            ),
-          );
-        };
-        SpliceGenCmd.return((to_select_in_grid ? to_select : selected, m));
-      }
+  let update = (m, u): SpliceGenCmd.t(model) =>
+    switch (u) {
+    | Select(splice) => SpliceGenCmd.return({...m, selected: splice})
     | Add(Row) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
-          get_width(m), bind(new_splice(HTyp.Int)), new_row =>
-          return((selected, m @ [new_row]))
+          get_width(m), bind(new_splice(HTyp.Int)), new_cells =>
+          bind(new_splice(HTyp.String), new_header =>
+            return({
+              ...m,
+              selected: new_header,
+              rows: m.rows @ [{header: new_header, cells: new_cells}],
+            })
+          )
         )
       )
     | Add(Col) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
-          get_height(m), bind(new_splice(HTyp.Int)), new_col =>
-          return((selected, List.map2((c, r) => r @ [c], new_col, m)))
+          get_height(m), bind(new_splice(HTyp.Int)), new_cells =>
+          bind(new_splice(HTyp.String), new_header =>
+            return({
+              selected: new_header,
+              col_headers: m.col_headers @ [new_header],
+              rows:
+                List.map2(
+                  (r, c) => {...r, cells: r.cells @ [c]},
+                  m.rows,
+                  new_cells,
+                ),
+            })
+          )
         )
       )
-    | Del(dim, i) => {
-        let drop = (to_drop, ret) => {
-          let selected_in_to_drop =
-            !(to_drop |> List.for_all(s => s != selected));
-          let to_select =
-            selected_in_to_drop ? ret |> List.hd |> List.hd : selected;
-          SpliceGenCmd.(
-            MonadsUtil.bind_list(
-              to_drop,
-              d => bind(drop_splice(d)),
-              _ => return((to_select, ret)),
-            )
-          );
+    | Del(Row, i) =>
+      switch (ListUtil.split_nth_opt(i, m.rows)) {
+      | None
+      | Some(([], _, [])) => SpliceGenCmd.return(m)
+      | Some((prefix, row_to_drop, suffix)) =>
+        let row_to_drop = [row_to_drop.header, ...row_to_drop.cells];
+        let selected =
+          List.exists((==)(m.selected), row_to_drop)
+            ? switch (ListUtil.split_first_opt(suffix)) {
+              | Some((hd, _)) => hd.header
+              | None =>
+                let (_, last) = ListUtil.split_last(prefix);
+                last.header;
+              }
+            : m.selected;
+        SpliceGenCmd.(
+          MonadsUtil.bind_list(
+            row_to_drop,
+            splice => bind(drop_splice(splice)),
+            _ => return({...m, selected, rows: prefix @ suffix}),
+          )
+        );
+      }
+    | Del(Col, i) =>
+      if (get_width(m) <= 1) {
+        SpliceGenCmd.return(m);
+      } else {
+        let (hdr_prefix, hdr_to_drop, hdr_suffix) =
+          ListUtil.split_nth(i, m.col_headers);
+        let (prefixes, cells_to_drop, suffixes) =
+          m.rows
+          |> List.map(row => row.cells)
+          |> List.map(ListUtil.split_nth(i))
+          |> ListUtil.split3;
+        let col_to_drop = [hdr_to_drop, ...cells_to_drop];
+        let selected =
+          List.exists((==)(m.selected), col_to_drop)
+            ? {
+              let col =
+                switch (ListUtil.split_first_opt(suffixes)) {
+                | Some((hd, _)) => hd
+                | None =>
+                  let (_, last) = ListUtil.split_last(prefixes);
+                  last;
+                };
+              List.hd(col);
+            }
+            : m.selected;
+        let col_headers = hdr_prefix @ hdr_suffix;
+        let rows = {
+          let row_hdrs = List.map(row => row.header, m.rows);
+          List.combine(row_hdrs, List.combine(prefixes, suffixes))
+          |> List.map(((header, (prefix, suffix))) =>
+               {header, cells: prefix @ suffix}
+             );
         };
-        switch (dim) {
-        | Row =>
-          if (get_height(m) <= 1) {
-            SpliceGenCmd.return((selected, m));
-          } else {
-            let (before, rest) = ListUtil.split_index(m, i);
-            let (to_drop, after) = (List.hd(rest), List.tl(rest));
-            drop(to_drop, before @ after);
-          }
-        | Col =>
-          if (get_width(m) <= 1) {
-            SpliceGenCmd.return((selected, m));
-          } else {
-            let (before, rest) =
-              m |> List.map(r => ListUtil.split_index(r, i)) |> List.split;
-            let (to_drop, after) =
-              rest |> List.map(r => (List.hd(r), List.tl(r))) |> List.split;
-            drop(to_drop, List.map2((b, a) => b @ a, before, after));
-          }
-        };
-      };
+        SpliceGenCmd.(
+          MonadsUtil.bind_list(
+            col_to_drop,
+            splice => bind(drop_splice(splice)),
+            _ => return({selected, col_headers, rows}),
+          )
+        );
+      }
+    };
 
-  let grid_area = (row_start, col_start, row_end, col_end) =>
+  let grid_area = ((row_start, col_start, row_end, col_end)) =>
     prop_val(
       "grid-area",
       Printf.sprintf(
@@ -1927,79 +2031,74 @@ module DataFrameLivelit: LIVELIT = {
       ),
     );
 
-  [@warning "-27"]
   let view =
       (
-        (selected, m),
+        m: model,
         trig,
         _,
-        {uhcode, dhcode: _, _}: LivelitView.splice_and_param_getters,
+        {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
-    open Vdom;
+    let splice = (~clss, ~grid_coordinates, splice_name) =>
+      Node.div(
+        [
+          attr_style(grid_area(grid_coordinates)),
+          Attr.classes([
+            "matrix-splice",
+            splice_name == m.selected
+              ? "matrix-selected" : "matrix-unselected",
+            ...clss,
+          ]),
+          Attr.on_mousedown(_ => trig(Select(splice_name))),
+          // Attr.on_click(_ => trig(Del(Col, j))),
+        ],
+        [
+          switch (dhcode(splice_name)) {
+          | None => Node.text("-")
+          | Some((_, view)) => view
+          },
+          //Node.span([Attr.classes(["delete"])], [Node.text("x")]),
+        ],
+      );
+
     let width = get_width(m);
     let height = get_height(m);
-    let row_header =
-      ListUtil.range(height)
-      |> List.map(i =>
-           Node.div(
-             [
-               attr_style(grid_area(i + 3, 1, i + 4, 2)),
-               Attr.classes(["row-header"]),
-               Attr.on_click(_ => trig(Del(Row, i))),
-             ],
-             [
-               Node.span(
-                 [Attr.classes(["row-index"])],
-                 [
-                   Node.text(
-                     switch (i) {
-                     | 0 => "\"Alice\""
-                     | 1 => "\"Bob\""
-                     | 2 => "\"Carol\""
-                     | _ => string_of_int(i + 1)
-                     },
-                   ),
-                 ],
-               ),
-               Node.span([Attr.classes(["delete"])], [Node.text("x")]),
-             ],
+    let col_headers =
+      m.col_headers
+      |> List.mapi((j, header) =>
+           splice(
+             ~clss=["col-header"],
+             ~grid_coordinates=(1, j + 2, 2, j + 3),
+             header,
            )
          );
-    let col_header =
-      ListUtil.range(width)
-      |> List.map(j =>
-           Node.div(
-             [
-               attr_style(grid_area(1, j + 3, 2, j + 4)),
-               Attr.classes(["col-header"]),
-               Attr.on_click(_ => trig(Del(Col, j))),
-             ],
-             [
-               Node.span(
-                 [Attr.classes(["col-index"])],
-                 [
-                   Node.text(
-                     switch (j) {
-                     | 0 => "\"A1\""
-                     | 1 => "\"A2\""
-                     | 2 => "\"A3\""
-                     | 3 => "\"A4\""
-                     | 4 => "\"Midterm\""
-                     | 5 => "\"Final\""
-                     | _ => string_of_int(j + 1)
-                     },
-                   ),
-                 ],
-               ),
-               Node.span([Attr.classes(["delete"])], [Node.text("x")]),
-             ],
+    let row_headers =
+      m.rows
+      |> List.mapi((i, row) =>
+           splice(
+             ~clss=["row-header"],
+             ~grid_coordinates=(i + 2, 1, i + 3, 2),
+             row.header,
            )
          );
+    let cells =
+      m.rows
+      |> List.mapi((i, row) =>
+           row.cells
+           |> List.mapi((j, cell) =>
+                splice(
+                  ~clss=["matrix-cell"],
+                  ~grid_coordinates=(i + 2, j + 2, i + 3, j + 3),
+                  cell,
+                )
+              )
+         )
+      |> List.flatten;
+
     let add_row_button =
       Node.button(
         [
-          attr_style(grid_area(-1, 3, -2, -3)),
-          Attr.classes(["add-row", "pure-button"]),
+          attr_style(grid_area(((-1), 2, (-2), (-3)))),
+          Attr.classes(["add-row", "add-button"]),
           Attr.on_click(_ => trig(Add(Row))),
         ],
         [Node.text("+")],
@@ -2007,81 +2106,25 @@ module DataFrameLivelit: LIVELIT = {
     let add_col_button =
       Node.button(
         [
-          attr_style(grid_area(3, -2, -3, -1)),
-          Attr.classes(["add-col", "pure-button"]),
+          attr_style(grid_area((2, (-2), (-3), (-1)))),
+          Attr.classes(["add-col", "add-button"]),
           Attr.on_click(_ => trig(Add(Col))),
         ],
         [Node.text("+")],
       );
-    let cells =
-      m
-      |> List.mapi((i, row) =>
-           row
-           |> List.mapi((j, splice) => {
-                let s =
-                  switch (i, j) {
-                  | (0, 0) => "93."
-                  | (0, 1) => "92."
-                  | (0, 2) => "83.5"
-                  | (0, 3) => "87.5"
-                  | (0, 4) => "95."
-                  | (0, 5) => "88."
-                  | (1, 0) => "61."
-                  | (1, 1) => "64."
-                  | (1, 2) => "98."
-                  | (1, 3) => "89.5"
-                  | (1, 4) => "70."
-                  | (1, 5) => "85."
-                  | (2, 0) => "75."
-                  | (2, 1) => "81."
-                  | (2, 2) => "73."
-                  | (2, 3) => "71."
-                  | (2, 4) => "82."
-                  | (2, 5) => "79."
-                  | _ => ""
-                  };
-                let cls =
-                  splice == selected ? "matrix-selected" : "matrix-unselected";
-                /*let contents = {
-                    let child =
-                      switch (dhcode(splice)) {
-                      | None => Node.text("Uneval'd")
-                      | Some((_, view)) => view
-                      };
-                    Node.div(
-                      [Attr.on_mousedown(_ => trig(Select(splice)))],
-                      [child],
-                    );
-                  };*/
-                Node.div(
-                  [
-                    attr_style(grid_area(i + 3, j + 3, i + 4, j + 4)),
-                    Attr.classes([cls, "matrix-cell"]),
-                  ],
-                  // [contents],
-                  [Node.div([], [Node.text(s)])],
-                );
-              })
-         )
-      |> List.flatten;
 
     let cells_border =
       Node.div(
         [
-          attr_style(grid_area(3, 3, -3, -3)),
+          attr_style(grid_area((2, 2, (-3), (-3)))),
           Attr.classes(["cells-border"]),
         ],
         [],
       );
 
-    let gutter_width = "0px";
     let dim_template = dim =>
       StringUtil.sep(
-        List.concat([
-          ["auto", gutter_width],
-          ListUtil.replicate(dim, "auto"),
-          ["4px", "auto"],
-        ]),
+        List.concat([ListUtil.replicate(1 + dim, "auto"), ["4px", "auto"]]),
       );
 
     Node.div(
@@ -2091,24 +2134,10 @@ module DataFrameLivelit: LIVELIT = {
           [Attr.classes(["formula-bar"])],
           [
             Node.div(
-              [Attr.classes(["formula-bar-text"])],
+              [Attr.classes(["formula-bar-prompt"])],
               [Node.text(" > ")],
             ),
-            Node.div(
-              [],
-              [
-                Node.span(
-                  [Attr.classes(["formula-bar-entry"])],
-                  [
-                    Node.text("24. +. 36. +. "),
-                    Node.span(
-                      [Attr.classes(["cursor"])],
-                      [Node.text("33.")],
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            uhcode(m.selected),
           ],
         ),
         Node.div(
@@ -2122,8 +2151,8 @@ module DataFrameLivelit: LIVELIT = {
             ),
           ],
           List.concat([
-            row_header,
-            col_header,
+            row_headers,
+            col_headers,
             [cells_border, ...cells],
             [add_row_button, add_col_button],
           ]),
@@ -2132,31 +2161,42 @@ module DataFrameLivelit: LIVELIT = {
     );
   };
 
-  let view_shape = ((_, matrix)) => {
-    let num_rows = List.length(matrix);
-    LivelitView.MultiLine(3 * num_rows + 1);
+  let view_shape = m => {
+    LivelitView.MultiLine(3 * get_height(m) + 1);
   };
 
-  let expand = ((_, m)) => {
+  let expand = m => {
     let to_uhexp_list =
       fun
-      | [] => UHExp.(Block.wrap(ListNil(NotInHole)))
+      | [] => Seq.wrap(UHExp.listnil())
       | [fst, ...rest] => {
           let rest' =
             (rest |> List.map(item => (Operators_Exp.Cons, item)))
-            @ [(Operators_Exp.Cons, UHExp.ListNil(NotInHole))];
-          let seq = Seq.mk(fst, rest');
-          UHExp.Block.wrap'(UHExp.mk_OpSeq(seq));
+            @ [(Operators_Exp.Cons, UHExp.listnil())];
+          Seq.mk(fst, rest');
         };
-    let m' =
-      m
-      |> List.map(r =>
-           r
-           |> List.map(_to_uhvar)
-           |> to_uhexp_list
-           |> (q => UHExp.Parenthesized(q))
-         );
-    to_uhexp_list(m');
+    let col_headers = m.col_headers |> List.map(_to_uhvar) |> to_uhexp_list;
+    let rows =
+      m.rows
+      |> List.map(row => {
+           let header = _to_uhvar(row.header);
+           let cells = row.cells |> List.map(_to_uhvar) |> to_uhexp_list;
+           UHExp.(
+             Parenthesized([
+               ExpLine(
+                 UHExp.mk_OpSeq(
+                   Seq.S(header, A(Operators_Exp.Comma, cells)),
+                 ),
+               ),
+             ])
+           );
+         })
+      |> to_uhexp_list;
+    UHExp.[
+      ExpLine(
+        mk_OpSeq(Seq.seq_op_seq(col_headers, Operators_Exp.Comma, rows)),
+      ),
+    ];
   };
 };
 

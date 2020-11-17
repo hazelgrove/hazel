@@ -167,6 +167,15 @@ let split_first_opt = (xs: list('a)): option(('a, list('a))) =>
 let split_first = (xs: list('a)): ('a, list('a)) =>
   OptUtil.get(() => failwith("empty list"), split_first_opt(xs));
 
+let rec split3 =
+        (xyzs: list(('x, 'y, 'z))): (list('x), list('y), list('z)) =>
+  switch (xyzs) {
+  | [] => ([], [], [])
+  | [(x, y, z), ...xyzs] =>
+    let (xs, ys, zs) = split3(xyzs);
+    ([x, ...xs], [y, ...ys], [z, ...zs]);
+  };
+
 let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
   | []
@@ -181,35 +190,29 @@ let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
   };
 
-let rec _split_index = (rev_before, xs, ind, n) =>
-  if (ind == n) {
-    (List.rev(rev_before), xs);
-  } else {
-    switch (xs) {
-    | [] =>
-      raise(
-        Invalid_argument(
-          Printf.sprintf(
-            "ListUtil.split_index: index (%d) out of bounds (%d)",
-            n,
-            ind,
-          ),
-        ),
-      )
-    | [x, ...xs] => _split_index([x, ...rev_before], xs, ind + 1, n)
+let rec split_nth_opt =
+        (n: int, xs: list('x)): option((list('x), 'x, list('x))) =>
+  switch (n, xs) {
+  | (_, []) => None
+  | (0, [x, ...xs]) =>
+    let prefix = [];
+    let suffix = xs;
+    Some((prefix, x, suffix));
+  | (_, [x, ...xs]) =>
+    let n' = n - 1;
+    switch (split_nth_opt(n', xs)) {
+    | None => None
+    | Some((prefix, z, suffix)) =>
+      let prefix' = [x, ...prefix];
+      Some((prefix', z, suffix));
     };
   };
 
-let split_index = (xs, n) =>
-  if (n < 0) {
-    raise(
-      Invalid_argument(
-        Printf.sprintf("ListUtil.split_index: negative index %d", n),
-      ),
-    );
-  } else {
-    _split_index([], xs, 0, n);
-  };
+let split_nth = (n, xs) =>
+  OptUtil.get(
+    () => raise(Invalid_argument("ListUtil.split_nth")),
+    split_nth_opt(n, xs),
+  );
 
 let rec split_at = (xs, n) =>
   switch (xs) {
@@ -321,9 +324,9 @@ let rec map_with_accumulator_opt =
   switch (xs) {
   | [] => Some((start, []))
   | [x, ...xs] =>
-    module Let_syntax = OptUtil.Let_syntax;
-    let%bind (new_acc, y) = f(start, x);
-    let%map (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
+    open OptUtil.Syntax;
+    let* (new_acc, y) = f(start, x);
+    let+ (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
   };
 
