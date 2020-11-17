@@ -91,7 +91,7 @@ let get_type = (cursor_info: CursorInfo_common.t) => {
  */
 let type_to_str = (ty: option(HTyp.t)) => {
   switch (ty) {
-  | Some(Hole) => "A"
+  | Some(Hole) => "a"
   | Some(Int) => "Integer"
   | Some(Float) => "Float"
   | Some(Bool) => "Boolean"
@@ -137,20 +137,20 @@ let lit_msg = (ty: HTyp.t) => {
         Node.text("): "),
       ]
     | Arrow(_, _) => [
-        Vdom.Node.text("Enter a function (type "),
+        Vdom.Node.text("Enter a function (enter "),
         shortcut_node("\\"),
         Node.text("): "),
       ]
     | Sum(_, _) => [
-        Vdom.Node.text("Enter a Sum (type "),
+        Vdom.Node.text("Enter a Sum (enter "),
         shortcut_node("Alt + l"),
         Node.text("or"),
         shortcut_node("Alt + r"),
         Node.text("): "),
       ]
-    | Prod(_) => [Vdom.Node.text("Enter a Product (type `,`): ")]
+    | Prod(_) => [Vdom.Node.text("Enter a Product (enter `,`): ")]
     | List(_) => [
-        Vdom.Node.text("Enter a List (type "),
+        Vdom.Node.text("Enter a List (enter "),
         shortcut_node("["),
         Node.text("): "),
       ]
