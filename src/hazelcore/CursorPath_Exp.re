@@ -146,7 +146,7 @@ and follow_line =
              expand,
            })
          )
-    | 2 => failwith("follow_line TODO andrew") // captures
+    | 2 => failwith("follow_line TODO andrew") // TODO: captures
     | 3 =>
       model_type
       |> CursorPath_Typ.follow((xs, cursor))

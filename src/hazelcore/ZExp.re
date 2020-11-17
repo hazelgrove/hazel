@@ -262,7 +262,7 @@ let line_can_be_swapped = (line: zline): bool =>
   | LivelitDefLineZUpdate(_)
   | LivelitDefLineZView(_)
   | LivelitDefLineZShape(_)
-  // TODO: andrew: don't get what the logic is for existing cases....
+  // TODO(andrew)
   | LivelitDefLineZExpand(_) => failwith("line_can_be_swapped livelitdef")
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>

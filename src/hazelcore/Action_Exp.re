@@ -1209,11 +1209,10 @@ and syn_perform_line =
     | Succeeded(expansion_type) =>
       let new_lldef =
         ZExp.LivelitDefLineZExpansionType({...llrecord, expansion_type});
-      // don't really need to do anything else here i think? -andrew
       Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
     }
   | (_, LivelitDefLineZCaptures(_llrecord)) =>
-    // need to check this is... a tuple of vars?
+    // TODO (andrew) : bind this in ctx
     failwith("TODO andrew lldef captures case for perform_action")
   | (
       _,

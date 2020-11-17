@@ -731,7 +731,16 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
           }
         }
       }
-    | LivelitDefLine(_) => failwith("TODO andrew elaborator_exp")
+    | LivelitDefLine(_) =>
+      // TODO: introduce captures to ctx (see ICFP2018 fig. 14)
+      let ctx' = ctx |> map_livelit_ctx(((_, ty)) => ty);
+      switch (S.syn_lines(ctx', [line])) {
+      | None => LinesDoNotExpand
+      | Some(new_ctx) =>
+        // TODO (andrew): this will need to include livelit params when they are implemented
+        let ctx'' = new_ctx |> map_livelit_ctx(ty => (DHExp.Triv, ty));
+        LinesExpand(d => d, ctx'', delta);
+      };
     | AbbrevLine(lln_new, err_status, lln_old, args) =>
       let ret = (ctx, delta) => LinesExpand(d => d, ctx, delta);
       switch (err_status) {
