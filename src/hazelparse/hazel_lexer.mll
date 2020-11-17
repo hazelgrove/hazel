@@ -17,6 +17,7 @@ let white = [' ']+
 let newline = ['\n']
 let digit = ['0'-'9']
 let numlit = digit+
+let floatlit = digit* '.' digit+ | digit+ '.' digit*
 let lowercase_ident = ['a'-'z' '_']+
 
 rule read =
@@ -63,4 +64,5 @@ rule read =
   | "->" { TARROW }
   | "#" white* ( [^'\n']* as t) { COMMENT t }
   | numlit { INT (Lexing.lexeme lexbuf) }
+  | floatlit { FLOAT (Lexing.lexeme lexbuf) }
   | eof { EOF }

@@ -58,9 +58,12 @@
 %token LET
 %token IN
 %token <string> INT
+%token <string> FLOAT
 %token TRUE FALSE
 %token PLUS MINUS
 %token MULT DIV
+%token FPLUS FMINUS
+%token FMULT FDIV
 %token COLON
 %token COLONCOLON
 %token SEMICOLON
@@ -83,8 +86,8 @@
 %token EMPTY
 
 %left LESSER GREATER EQUAL
-%left PLUS MINUS
-%left MULT DIV
+%left PLUS MINUS FPLUS FMINUS
+%left MULT DIV FMULT FDIV
 %right COLONCOLON
 %left BAR
 %right TARROW
@@ -196,6 +199,10 @@ rule:
   | MINUS { Operators_Exp.Minus }
   | MULT { Operators_Exp.Times }
   | DIV { Operators_Exp.Divide }
+  | FPLUS { Operators_Exp.FPlus }
+  | FMINUS { Operators_Exp.FMinus }
+  | FMULT { Operators_Exp.FTimes }
+  | FDIV { Operators_Exp.FDivide }
   | GREATER { Operators_Exp.GreaterThan }
   | LESSER { Operators_Exp.LessThan }
   | EQUAL EQUAL { Operators_Exp.Equals }
@@ -203,6 +210,7 @@ rule:
 
 constant:
   INT { mk_intlit $1 }
+  | FLOAT { UHExp.floatlit $1 }
   | TRUE { UHExp.boollit true }
   | FALSE { UHExp.boollit false }
 ;
