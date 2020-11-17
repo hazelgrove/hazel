@@ -1214,7 +1214,7 @@ and syn_perform_opseq =
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), op), surround)) =>
     switch (op) {
-    | UserOp(op) =>
+    | UserOp(op) when String.length(op) > 1 =>
       let new_op = String.sub(op, 0, String.length(op) - 1);
       let new_zoperator =
         switch (Operators_Exp.string_to_operator(new_op)) {
@@ -1257,20 +1257,35 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
-  // TODO (corlaban) add logic for these cases
   | (Backspace, ZOperator((OnText(i), oper), seq)) =>
     let new_op = StringUtil.backspace(i, Operators_Exp.to_string(oper));
 
+    let new_zseq =
+      switch (Operators_Exp.string_to_operator(new_op)) {
+      | Some(ty) => ZSeq.ZOperator((CursorPosition.OnOp(Before), ty), seq)
+      | None when String.length(new_op) > 0 =>
+        ZSeq.ZOperator(
+          (CursorPosition.OnText(i - 1), Operators_Exp.UserOp(new_op)),
+          seq,
+        )
+      | None => delete_operator(seq)
+      };
+
+    let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
+    Succeeded(SynDone((exp, ty, meta_var)));
+
+  | (Delete, ZOperator((OnText(i), oper), seq)) =>
+    let new_op = StringUtil.delete(i, Operators_Exp.to_string(oper));
+
     let new_zoperator =
       switch (Operators_Exp.string_to_operator(new_op)) {
-      | Some(ty) => (CursorPosition.OnOp(Before), ty)
-      | None => (CursorPosition.OnText(i - 1), Operators_Exp.UserOp(new_op))
+      | Some(ty) => (CursorPosition.OnOp(After), ty)
+      | None => (CursorPosition.OnText(i), Operators_Exp.UserOp(new_op))
       };
 
     let new_zseq = ZSeq.ZOperator(new_zoperator, seq);
     let (exp, ty, meta_var) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq);
     Succeeded(SynDone((exp, ty, meta_var)));
-  | (Delete, ZOperator((OnText(_), _), _)) => Failed
 
   /* Construction */
 
