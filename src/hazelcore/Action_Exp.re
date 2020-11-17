@@ -1263,7 +1263,10 @@ and syn_perform_opseq =
     let new_zseq =
       switch (Operators_Exp.string_to_operator(new_op)) {
       | Some(ty) => ZSeq.ZOperator((CursorPosition.OnOp(Before), ty), seq)
-      | None when String.length(new_op) > 0 =>
+      | None
+          when
+            String.length(new_op) > 0
+            && Operators_Exp.string_to_operator(new_op) != None =>
         ZSeq.ZOperator(
           (CursorPosition.OnText(i - 1), Operators_Exp.UserOp(new_op)),
           seq,
