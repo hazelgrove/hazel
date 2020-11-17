@@ -206,11 +206,15 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let is_action_allowed_with_on_type_check = (~on_type, action) => {
-    switch (cursor_info.typed) {
-    | OnType when on_type => is_action_allowed(action)
-    | OnType => false
-    | _ when on_type => false
-    | _ => is_action_allowed(action)
+    switch (cursor_info) {
+    | None => false
+    | Some(ci) =>
+      switch (ci.typed) {
+      | OnType when on_type => is_action_allowed(action)
+      | OnType => false
+      | _ when on_type => false
+      | _ => is_action_allowed(action)
+      }
     };
   };
 
@@ -442,14 +446,19 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 };
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
-  let edit_state = Model.get_edit_state(model);
+  let program = Model.get_program(model);
+  let Program.EditState.{term, ty, u_gen} = program.edit_state;
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-    | Failed => false
-    | CursorEscaped(_)
-    | Succeeded(_) => true
+    switch (term) {
+    | Unfocused(_) => false
+    | Focused(ze) =>
+      switch (Action_Exp.syn_perform(Contexts.empty, a, (ze, ty, u_gen))) {
+      | Failed => false
+      | CursorEscaped(_)
+      | Succeeded(_) => true
+      }
     };
   };
 

@@ -1,10 +1,5 @@
 open CursorPath;
 
-let rev = ((cursor, rev_steps): rev_t): t => (
-  rev_steps |> List.rev,
-  cursor,
-);
-
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
 };

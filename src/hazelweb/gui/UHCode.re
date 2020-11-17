@@ -221,7 +221,9 @@ let key_handlers =
           }
         | Some(kc) =>
           prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+            ModelAction.EditAction(
+              KeyComboAction.get(Some(cursor_info), kc),
+            ),
           )
         | None =>
           switch (HazelKeyCombos.of_evt(evt)) {
@@ -229,7 +231,9 @@ let key_handlers =
           | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
           | Some(kc) =>
             prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+              ModelAction.EditAction(
+                KeyComboAction.get(Some(cursor_info), kc),
+              ),
             )
           | None =>
             switch (JSUtil.is_single_key(evt)) {
@@ -304,6 +308,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~measure: bool,
       ~is_mac: bool,
+      ~settings: Settings.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -313,39 +318,26 @@ let view =
     () => {
       open Vdom;
 
-      let l =
-        Program.get_layout(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=false,
-          program,
-        );
+      let l = Program.get_layout(~settings, program);
 
       let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(~font_metrics, dpaths, l);
       };
-      let caret = {
-        let caret_pos =
-          Program.get_caret_position(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          );
-        program.is_focused
-          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-      };
+      let caret =
+        switch (Program.get_caret_position(~settings, program)) {
+        | None => []
+        | Some(caret_pos) => [
+            UHDecoration.Caret.view(~font_metrics, caret_pos),
+          ]
+        };
 
       let key_handlers =
-        program.is_focused
-          ? key_handlers(
-              ~inject,
-              ~is_mac,
-              ~cursor_info=Program.get_cursor_info(program),
-            )
-          : [];
+        switch (Program.get_cursor_info(program)) {
+        | None => []
+        | Some(cursor_info) => key_handlers(~inject, ~is_mac, ~cursor_info)
+        };
 
       let click_handler = evt => {
         let container_rect =

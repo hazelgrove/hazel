@@ -1083,7 +1083,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
 
   let preview_on_hover_checkbox = (preview_on_hover: bool) => {
-    OptionsPanel.labeled_checkbox(
+    SettingsPanel.labeled_checkbox(
       ~id="preview_on_hover",
       ~label="Preview On Hover",
       ~on_change=() => inject(TogglePreviewOnHover),

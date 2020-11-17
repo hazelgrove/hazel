@@ -1,14 +1,4 @@
-module EditAction = {
-  include Action;
-  include Action_common;
-};
-module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-
-[@deriving sexp]
-type move_input =
-  | Key(MoveKey.t)
-  | Click(Pretty.MeasuredPosition.t);
 
 [@deriving sexp]
 type shift_history_info = {
@@ -20,32 +10,15 @@ type shift_history_info = {
 type group_id = int;
 [@deriving sexp]
 type t =
-  | EditAction(EditAction.t)
-  | MoveAction(move_input)
+  | EditAction(Action.t)
+  | MoveAction(MoveInput.t)
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(Examples.id)
   | LoadCardstack(int)
   | NextCard
   | PrevCard
-  // Result computation toggles
-  | ToggleComputeResults
-  | ToggleShowCaseClauses
-  | ToggleShowFnBodies
-  | ToggleShowCasts
-  | ToggleShowUnevaluatedExpansion
-  // Time measurement toggles
-  | ToggleMeasureTimes
-  | ToggleMeasureModel_perform_edit_action
-  | ToggleMeasureProgram_get_doc
-  | ToggleMeasureLayoutOfDoc_layout_of_doc
-  | ToggleMeasureUHCode_view
-  | ToggleMeasureCell_view
-  | ToggleMeasurePage_view
-  | ToggleMeasureHazel_create
-  | ToggleMeasureUpdate_apply_action
-  //
-  | ToggleMemoizeDoc
+  | UpdateSettings(Settings.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)

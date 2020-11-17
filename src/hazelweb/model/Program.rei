@@ -1,40 +1,56 @@
+module EditState: {
+  [@deriving sexp]
+  type term =
+    | Focused(ZExp.t)
+    | Unfocused(UHExp.t);
+
+  [@deriving sexp]
+  type t = {
+    term,
+    ty: HTyp.t,
+    u_gen: MetaVarGen.t,
+  };
+
+  let focus: t => t;
+  let blur: t => t;
+};
+
 /**
  * A Hazel program ready for user interaction.
- * Contains, in addition to `Statics.edit_state`,
+ * Contains, in addition to the term edit state,
  * user interface state such as the current width of
  * the editor, whether the editor is focused, etc.
  */
 [@deriving sexp]
-type t =
-  pri {
-    edit_state: Statics.edit_state,
-    width: int,
-    start_col_of_vertical_movement: option(int),
-    is_focused: bool,
-  };
+type t = {
+  edit_state: EditState.t,
+  width: int,
+  start_col_of_vertical_movement: option(int),
+};
 
-let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
+let mk: (~width: int, EditState.t) => t;
 
 let focus: t => t;
 let blur: t => t;
 
-let get_zexp: t => ZExp.t;
+let get_zexp: t => option(ZExp.t);
 let get_uhexp: t => UHExp.t;
 
-let get_steps: t => CursorPath.steps;
+let get_path: t => option(CursorPath.t);
 
 /**
- * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
+ * Raised when the program is focused and
+ * `CursorInfo_Exp.syn_cursor_info` returns None
  * (indicates a bug, either in that function or in Action
  * because Action needs to return a well-typed edit state)
  */
 exception MissingCursorInfo;
-let get_cursor_info: t => CursorInfo.t;
+let get_cursor_info: t => option(CursorInfo.t);
 
 let get_decoration_paths: t => UHDecorationPaths.t;
 
 /**
- * Raised when edit state does not elaborate
+ * Raised when term does not elaborate
  * (indicates a bug, either in that function or in Action
  * because Action needs to return a well-typed edit state) */
 exception DoesNotElaborate;
@@ -53,25 +69,8 @@ let get_result: t => Result.t;
  */
 exception FailedAction;
 exception CursorEscaped;
-let perform_edit_action: (Action.t, t) => t;
-let move_via_key:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    MoveKey.t,
-    t
-  ) =>
-  (t, Action.t);
-let move_via_click:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    Pretty.MeasuredPosition.t,
-    t
-  ) =>
-  (t, Action.t);
+let perform_action:
+  (~settings: Settings.t, ~move_via: MoveInput.t=?, Action.t, t) => t;
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => Action.t;
@@ -84,22 +83,14 @@ let move_to_hole: (MetaVar.t, t) => Action.t;
  */
 let move_to_case_branch: (CursorPath.steps, int) => Action.t;
 
-let get_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHLayout.t;
-
 let cursor_on_exp_hole: t => option(MetaVar.t);
 
+let target_path_of_key_input:
+  (~settings: Settings.t, MoveKey.t, t) => option(CursorPath.t);
+let target_path_of_click_input:
+  (~settings: Settings.t, Pretty.MeasuredPosition.t, t) => CursorPath.t;
+
+let get_layout: (~settings: Settings.t, t) => UHLayout.t;
+
 let get_caret_position:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  Pretty.MeasuredPosition.t;
+  (~settings: Settings.t, t) => option(Pretty.MeasuredPosition.t);

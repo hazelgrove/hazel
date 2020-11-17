@@ -5,7 +5,7 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~selected_instance: option(HoleInstance.t),
-      ~compute_results: Model.compute_results,
+      ~settings: Settings.Evaluation.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -52,9 +52,7 @@ let view =
               [
                 DHCode.view(
                   ~inject,
-                  ~show_fn_bodies=false,
-                  ~show_case_clauses=false,
-                  ~show_casts=compute_results.show_casts,
+                  ~settings,
                   ~selected_instance,
                   ~width=30,
                   d,
@@ -98,6 +96,7 @@ let view =
                     ~inject,
                     ~width=30,
                     ~selected_instance,
+                    ~settings,
                     inst,
                   ),
                 ],
@@ -202,6 +201,7 @@ let view =
               ~inject,
               ~width=30,
               ~selected_instance,
+              ~settings,
               inst,
             ),
           ],
@@ -247,6 +247,7 @@ let view =
                     ~inject,
                     ~width=30,
                     ~selected_instance,
+                    ~settings,
                     inst,
                   ),
                 ],
@@ -271,94 +272,95 @@ let view =
   };
 
   let context_view = {
-    let ctx =
-      program
-      |> Program.get_cursor_info
-      |> CursorInfo_common.get_ctx
-      |> Contexts.gamma;
-    let sigma =
-      if (compute_results.compute_results) {
-        let (_, hii, _) = program |> Program.get_result;
-        switch (selected_instance) {
-        | None => Elaborator_Exp.id_env(ctx)
-        | Some(inst) =>
-          switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None => raise(InvalidInstance)
-          | Some((sigma, _)) => sigma
-          }
-        };
-      } else {
-        Elaborator_Exp.id_env(ctx);
-      };
-    switch (VarCtx.to_list(ctx)) {
-    | [] =>
-      Node.div(
-        [Attr.classes(["the-context"])],
-        [
+    let contents =
+      switch (Program.get_cursor_info(program)) {
+      | None => [
           Node.div(
             [Attr.classes(["context-is-empty-msg"])],
-            [Node.text("no variables in scope")],
+            [Node.text("place cursor to see variables in scope")],
           ),
-        ],
-      )
-    | ctx_lst =>
-      Node.div(
-        [Attr.classes(["the-context"])],
-        List.map(context_entry(sigma), ctx_lst),
-      )
-    };
+        ]
+      | Some({ctx, _}) =>
+        let ctx = Contexts.gamma(ctx);
+        let sigma =
+          if (settings.evaluate) {
+            let (_, hii, _) = program |> Program.get_result;
+            switch (selected_instance) {
+            | None => Elaborator_Exp.id_env(ctx)
+            | Some(inst) =>
+              switch (HoleInstanceInfo.lookup(hii, inst)) {
+              | None => raise(InvalidInstance)
+              | Some((sigma, _)) => sigma
+              }
+            };
+          } else {
+            Elaborator_Exp.id_env(ctx);
+          };
+        switch (VarCtx.to_list(ctx)) {
+        | [] => [
+            Node.div(
+              [Attr.classes(["context-is-empty-msg"])],
+              [Node.text("no variables in scope")],
+            ),
+          ]
+        | ctx_lst => List.map(context_entry(sigma), ctx_lst)
+        };
+      };
+    Node.div([Attr.classes(["the-context"])], contents);
   };
 
   /**
    * Shows the `InstancePath` to the currently selected instance.
    */
-  let path_viewer =
-    if (compute_results.compute_results) {
-      let ctx =
-        program
-        |> Program.get_cursor_info
-        |> CursorInfo_common.get_ctx
-        |> Contexts.gamma;
-      let (_, hii, _) = program |> Program.get_result;
-      if (VarMap.is_empty(ctx)) {
-        Node.div([], []);
+  let path_viewer = {
+    let contents =
+      if (!settings.evaluate) {
+        [];
       } else {
-        let children =
-          switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
-          | None => [
-              instructional_msg(
-                "Move cursor to a hole, or click a hole instance in the result, to see closures.",
-              ),
-            ]
-          | Some(u) =>
-            switch (selected_instance) {
+        switch (Program.get_cursor_info(program)) {
+        | None => []
+        | Some({ctx, _}) =>
+          let ctx = Contexts.gamma(ctx);
+          switch (ctx, Program.get_zexp(program)) {
+          | ([], _)
+          | (_, None) => []
+          | ([_, ..._], Some(ze)) =>
+            switch (ZExp.cursor_on_EmptyHole(ze)) {
             | None => [
-                instructional_msg("Click on a hole instance in the result"),
+                instructional_msg(
+                  "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+                ),
               ]
-            | Some((u', _) as inst) =>
-              if (MetaVar.eq(u, u')) {
-                switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None => raise(InvalidInstance)
-                | Some((_, path)) => [
-                    path_view_titlebar,
-                    hii_summary(hii, inst),
-                    path_view(inst, path),
-                  ]
-                };
-              } else {
-                [
-                  instructional_msg(
-                    "Internal Error: cursor is not at the selected hole instance.",
-                  ),
-                ];
+            | Some(u) =>
+              switch (selected_instance) {
+              | None => [
+                  instructional_msg("Click on a hole instance in the result"),
+                ]
+              | Some((u', _) as inst) =>
+                if (MetaVar.eq(u, u')) {
+                  let (_, hii, _) = Program.get_result(program);
+                  switch (HoleInstanceInfo.lookup(hii, inst)) {
+                  | None => raise(InvalidInstance)
+                  | Some((_, path)) => [
+                      path_view_titlebar,
+                      hii_summary(hii, inst),
+                      path_view(inst, path),
+                    ]
+                  };
+                } else {
+                  [
+                    instructional_msg(
+                      "Internal Error: cursor is not at the selected hole instance.",
+                    ),
+                  ];
+                }
               }
             }
           };
-        Node.div([Attr.classes(["the-path-viewer"])], children);
+        };
       };
-    } else {
-      Node.div([], []);
-    };
+    Node.div([Attr.classes(["the-path-viewer"])], contents);
+  };
 
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],

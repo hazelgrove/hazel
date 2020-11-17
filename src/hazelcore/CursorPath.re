@@ -12,6 +12,11 @@ type rev_steps = steps;
 [@deriving sexp]
 type rev_t = (CursorPosition.t, rev_steps);
 
+let rev = ((cursor, rev_steps): rev_t): t => (
+  rev_steps |> List.rev,
+  cursor,
+);
+
 [@deriving sexp]
 type hole_shape =
   | TypeErr
