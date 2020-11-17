@@ -585,7 +585,8 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SAbbrev | SList | SAsc | SLet | SLine | SLam | SCase | SCommentLine,
+        SAbbrev | SLivelitDef | SList | SAsc | SLet | SLine | SLam | SCase |
+        SCommentLine,
       ) |
       PerformLivelitAction(_) |
       SwapUp |
@@ -1089,7 +1090,8 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SAbbrev | SList | SAsc | SLet | SLine | SLam | SCase | SCommentLine,
+        SAbbrev | SLivelitDef | SList | SAsc | SLet | SLine | SLam | SCase |
+        SCommentLine,
       ) |
       PerformLivelitAction(_) |
       SwapUp |

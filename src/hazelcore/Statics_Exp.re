@@ -48,6 +48,51 @@ let livelit_types = (llrecord: UHExp.livelit_record): livelit_types_type => {
   };
 };
 
+let serialize_ll_monad = model =>
+  SpliceGenCmd.return(DHExp.sexp_of_t(model));
+
+let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
+  let dh_init = Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty, init);
+  switch (dh_init) {
+  | DoesNotElaborate => failwith("mk_ll_init")
+  | Elaborates(dh_init, _, _) => serialize_ll_monad(dh_init)
+  };
+};
+
+let mk_ll_update =
+    (update: UHExp.t, action: SerializedAction.t, model: SerializedModel.t) => {
+  let action_h = DHExp.t_of_sexp(action);
+  let model_h = DHExp.t_of_sexp(model);
+  let dh_update =
+    switch (update) {
+    | DoesNotElaborate => failwith("mk_ll_update")
+    | Elaborates(update, _, _) => serialize_ll_monad(update)
+    };
+  let res = eval_bin_ap(update, [action_h, model_h]);
+  switch ((res: DHExp.result)) {
+  | InvalidInput(_int)
+  | Indet(_dhexp) => failwith("mk_ll_update")
+  | BoxedValue(dhexp) => serialize_ll_monad(dhexp)
+  };
+};
+
+let mk_ll_expand = (expand: UHExp.t, model: SerializedModel.t) => {
+  let model_str_h = model |> Sexplib.Sexp.to_string |> DHExp.stringlit;
+  let dh_expand =
+    switch (expand) {
+    | DoesNotElaborate => failwith("mk_ll_expand")
+    | Elaborates(expand, _, _) => serialize_ll_monad(expand)
+    };
+  let res = eval_ap(dh_expand, [model_str_h]);
+  switch ((res: DHExp.result)) {
+  | BoxedValue(StringLit(str)) =>
+    str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp
+  | BoxedValue(_)
+  | InvalidInput(_int)
+  | Indet(_dhexp) => failwith("mk_ll_update")
+  };
+};
+
 /**
  * Synthesize a type, if possible, for e
  */
@@ -94,8 +139,22 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty) => Statics_Pat.ana(ctx, p, ty)
       }
     }
-  | LivelitDefLine({init, update, view, shape, expand, _} as llrecord) =>
+  | LivelitDefLine(
+      {
+        name: (_, name_str),
+        init,
+        update,
+        view,
+        shape,
+        expand,
+        expansion_type,
+        model_type,
+        action_type,
+        _,
+      } as llrecord,
+    ) =>
     // TODO: captures
+    // TODO: errstatus for name?
     let {init_ty, update_ty, view_ty, shape_ty, expand_ty} =
       livelit_types(llrecord);
     let results = [
@@ -107,7 +166,22 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     ];
     switch (OptUtil.sequence(results)) {
     | None => None
-    | Some(_) => Some(ctx) // ??? not adding anything i guess??
+    | Some(_) =>
+      let (gamma, livelit_ctx) = ctx;
+      let new_ll_def: LivelitDefinition.t = {
+        name: name_str,
+        expansion_ty: UHTyp.expand(expansion_type),
+        param_tys: [], // TODO(andrew): params
+        init_model: mk_ll_init(init),
+        update: mk_ll_update(update),
+        expand: mk_ll_expand(expand),
+      };
+      let livelit_ctx =
+        LivelitCtx.extend(
+          livelit_ctx,
+          (name_str, (new_ll_def, [])) // TODO(andrew): params
+        );
+      Some((gamma, livelit_ctx));
     };
   | AbbrevLine(lln_new, err_status, lln_old, args) =>
     let (gamma, livelit_ctx) = ctx;

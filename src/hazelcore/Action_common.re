@@ -32,6 +32,7 @@ type shape =
   | SInj(InjSide.t)
   | SLet
   | SAbbrev
+  | SLivelitDef
   | SLine
   | SCase
   | SOp(operator_shape);
@@ -70,6 +71,7 @@ let shape_to_string = (shape: shape): string => {
     }
   | SLet => "let binding"
   | SAbbrev => "livelit abbreviation"
+  | SLivelitDef => "livelit definition"
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"
