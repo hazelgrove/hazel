@@ -7,10 +7,10 @@ type with_offset = MeasuredLayout.with_offset(UHAnnot.t);
 let mk: Layout.t(UHAnnot.t) => t;
 
 let caret_position_of_path:
-  (CursorPath_common.t, with_splices) =>
+  (CursorPath.t, with_splices) =>
   option((MeasuredPosition.t, option((MetaVar.t, SpliceName.t))));
 
-type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
+type path_position = (CursorPath.rev_t, MeasuredPosition.t);
 
 /**
  * `first_path_in_row(r, m)` returns the first path encountered
@@ -19,7 +19,7 @@ type path_position = (CursorPath_common.rev_t, MeasuredPosition.t);
  */
 let first_path_in_row:
   (
-    ~rev_steps: CursorPath_common.rev_steps=?,
+    ~rev_steps: CursorPath.rev_steps=?,
     ~indent: int=?,
     ~start: MeasuredPosition.t=?,
     int,
@@ -34,7 +34,7 @@ let first_path_in_row:
  */
 let last_path_in_row:
   (
-    ~rev_steps: CursorPath_common.rev_steps=?,
+    ~rev_steps: CursorPath.rev_steps=?,
     ~indent: int=?,
     ~start: MeasuredPosition.t=?,
     int,

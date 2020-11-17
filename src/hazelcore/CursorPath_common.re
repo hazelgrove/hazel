@@ -1,19 +1,4 @@
-open Sexplib.Std;
-
-[@deriving sexp]
-type steps = list(ChildIndex.t);
-[@deriving sexp]
-type rev_steps = steps;
-
-[@deriving sexp]
-type t = (steps, CursorPosition.t);
-[@deriving sexp]
-type rev_t = (CursorPosition.t, rev_steps);
-
-let rev = ((cursor, rev_steps): rev_t): t => (
-  rev_steps |> List.rev,
-  cursor,
-);
+open CursorPath;
 
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
@@ -32,37 +17,6 @@ let of_zopseq_ =
     let length = Seq.length(prefix) + Seq.length(suffix);
     ([length + Seq.length(prefix) - 1], cursor);
   };
-
-[@deriving sexp]
-type hole_shape =
-  | TypeErr
-  | VarErr
-  | Empty;
-
-[@deriving sexp]
-type hole_sort =
-  | TypHole
-  | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape)
-  | LivelitHole(MetaVar.t)
-  | ApLivelit(MetaVar.t);
-
-[@deriving sexp]
-type hole_info = {
-  sort: hole_sort,
-  steps,
-};
-
-[@deriving sexp]
-type hole_list = list(hole_info);
-
-/* two hole lists, one for before the cursor, one for after */
-[@deriving sexp]
-type zhole_list = {
-  holes_before: hole_list,
-  hole_selected: option(hole_info),
-  holes_after: hole_list,
-};
 
 let mk_zholes =
     (~holes_before=[], ~hole_selected=None, ~holes_after=[], ()): zhole_list => {
@@ -431,11 +385,6 @@ let holes_zopseq_ =
     go(skel);
   };
 };
-
-let append = (steps, (appendee_steps, appendee_cursor): t): t => (
-  steps @ appendee_steps,
-  appendee_cursor,
-);
 
 let steps_to_hole =
     (hole_list: hole_list, kind: TaggedNodeInstance.kind, u: MetaVar.t)

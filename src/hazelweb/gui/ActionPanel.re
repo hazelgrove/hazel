@@ -63,9 +63,9 @@ let mono_text = content => {
 
 let action_button =
     (
-      is_action_allowed: Action_common.t => bool,
+      is_action_allowed: Action.t => bool,
       inject: ModelAction.t => Vdom.Event.t,
-      a: Action_common.t,
+      a: Action.t,
       lbl: list(Vdom.Node.t),
       key_combo,
     ) => {
@@ -149,9 +149,9 @@ let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
 
 let action_list =
     (
-      is_action_allowed: Action_common.t => bool,
+      is_action_allowed: Action.t => bool,
       inject: ModelAction.t => Vdom.Event.t,
-      actions: list((KeyCombo.t, Action_common.t)),
+      actions: list((KeyCombo.t, Action.t)),
       label: string,
     ) => {
   let item = ((combo, action)) => {
@@ -206,11 +206,15 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let is_action_allowed_with_on_type_check = (~on_type, action) => {
-    switch (cursor_info.typed) {
-    | OnType when on_type => is_action_allowed(action)
-    | OnType => false
-    | _ when on_type => false
-    | _ => is_action_allowed(action)
+    switch (cursor_info) {
+    | None => false
+    | Some(ci) =>
+      switch (ci.typed) {
+      | OnType when on_type => is_action_allowed(action)
+      | OnType => false
+      | _ when on_type => false
+      | _ => is_action_allowed(action)
+      }
     };
   };
 
@@ -311,7 +315,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("\"let \""),
             text(" to enter a let expression"),
           ],
-          Action_common.Construct(SLet),
+          Action.Construct(SLet),
         ),
         combo(Colon, simple("Type ascription")),
       ],
@@ -332,7 +336,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("\"B\""),
             text(" to insert a Bool type"),
           ],
-          Action_common.Construct(SChar("B")),
+          Action.Construct(SChar("B")),
         ),
         operator_list(~on_type=false, "Operators", [Ampersand, VBar]),
       ],
@@ -352,7 +356,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("Int"),
             text(" type"),
           ],
-          Action_common.Construct(SChar("I")),
+          Action.Construct(SChar("I")),
         ),
         info_action(
           [
@@ -362,7 +366,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("Float"),
             text(" type"),
           ],
-          Action_common.Construct(SChar("F")),
+          Action.Construct(SChar("F")),
         ),
         operator_list(
           ~on_type=false,
@@ -396,7 +400,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
             mono_text("\"S\""),
             text(" to insert a String type"),
           ],
-          Action_common.Construct(SChar("S")),
+          Action.Construct(SChar("S")),
         ),
         operator_list(~on_type=false, "String concatenation", [Caret]),
         combo_and_cursor(
@@ -465,14 +469,19 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 };
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
-  let edit_state = Model.get_edit_state(model);
+  let program = Model.get_program(model);
+  let Program.EditState.{term, ty, u_gen} = program.edit_state;
   let cursor_info = Model.get_cursor_info(model);
 
-  let is_action_allowed = (a: Action_common.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
-    | Failed => false
-    | CursorEscaped(_)
-    | Succeeded(_) => true
+  let is_action_allowed = (a: Action.t): bool => {
+    switch (term) {
+    | Unfocused(_) => false
+    | Focused(ze) =>
+      switch (Action_Exp.syn_perform(Contexts.empty, a, (ze, ty, u_gen))) {
+      | Failed => false
+      | CursorEscaped(_)
+      | Succeeded(_) => true
+      }
     };
   };
 
@@ -493,7 +502,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 type ack_checkin =
   | Added;
 
-let _check_actions = (a: Action_common.t) =>
+let _check_actions = (a: Action.t) =>
   switch (a) {
   /* Used */
   | Backspace => Added

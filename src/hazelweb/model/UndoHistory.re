@@ -8,7 +8,7 @@ type undo_history_entry = {
      if there is a movement action, update it. */
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
-  previous_action: Action_common.t,
+  previous_action: Action.t,
   action_group: UndoHistoryCore.action_group,
   timestamp: UndoHistoryCore.timestamp,
 };
@@ -32,6 +32,11 @@ type t = {
   cur_group_id: int,
   cur_elt_id: int,
 };
+
+// TODO refactor undo history so that it contains
+// a sequence of `ZExp.t` entries (or whatever is
+// the constructor arg to `Program.Focused`)
+exception EntryWithoutCursor;
 
 let update_disable_auto_scrolling = (disable_auto_scrolling: bool, history: t) => {
   {...history, disable_auto_scrolling};
@@ -90,13 +95,17 @@ let caret_jump =
     (prev_group: undo_history_group, new_cardstacks_before: ZCardstacks.t)
     : bool => {
   let prev_entry = ZList.prj_z(prev_group.group_entries);
-  let prev_step =
+  let (prev_steps, _) =
     prev_entry.cardstacks_after_action
     |> ZCardstacks.get_program
-    |> Program.get_steps;
-  let new_step =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_steps;
-  prev_step != new_step;
+    |> Program.get_path
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
+  let (new_steps, _) =
+    new_cardstacks_before
+    |> ZCardstacks.get_program
+    |> Program.get_path
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
+  prev_steps != new_steps;
 };
 
 /* return true if new entry can be grouped into the previous group */
@@ -461,7 +470,7 @@ let get_new_action_group =
       ~prev_group: undo_history_group,
       ~new_cardstacks_before: ZCardstacks.t,
       ~new_cursor_term_info: UndoHistoryCore.cursor_term_info,
-      ~action: Action_common.t,
+      ~action: Action.t,
     )
     : option(UndoHistoryCore.action_group) =>
   if (UndoHistoryCore.is_move_action(new_cursor_term_info)) {
@@ -683,16 +692,28 @@ let get_cursor_term_info =
     )
     : UndoHistoryCore.cursor_term_info => {
   let zexp_before =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_before
+    |> ZCardstacks.get_program
+    |> Program.get_zexp
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let (prev_is_empty_line, next_is_empty_line) =
     CursorInfo_Exp.adjacent_is_emptyline(zexp_before);
   let cursor_info_before =
-    new_cardstacks_before |> ZCardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_before
+    |> ZCardstacks.get_program
+    |> Program.get_cursor_info
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let cursor_term_before = cursor_info_before.cursor_term;
   let zexp_after =
-    new_cardstacks_after |> ZCardstacks.get_program |> Program.get_zexp;
+    new_cardstacks_after
+    |> ZCardstacks.get_program
+    |> Program.get_zexp
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let cursor_info_after =
-    new_cardstacks_after |> ZCardstacks.get_program |> Program.get_cursor_info;
+    new_cardstacks_after
+    |> ZCardstacks.get_program
+    |> Program.get_cursor_info
+    |> OptUtil.get(() => raise(EntryWithoutCursor));
   let cursor_term_after = cursor_info_after.cursor_term;
 
   {
@@ -706,14 +727,22 @@ let get_cursor_term_info =
 };
 
 let push_edit_state =
-    (
-      undo_history: t,
-      new_cardstacks_before: ZCardstacks.t,
-      new_cardstacks_after: ZCardstacks.t,
-      action: Action_common.t,
-    )
+    (undo_history: t, new_cardstacks_after: ZCardstacks.t, action: Action.t)
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
+  let new_cardstacks_before =
+    get_cardstacks(
+      undo_history,
+      ~is_after_move=
+        switch (action) {
+        | MoveTo(_)
+        | MoveLeft
+        | MoveRight
+        | MoveToNextHole
+        | MoveToPrevHole => true
+        | _ => false
+        },
+    );
   let new_cursor_term_info =
     get_cursor_term_info(~new_cardstacks_before, ~new_cardstacks_after);
   let new_action_group =

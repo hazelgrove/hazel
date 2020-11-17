@@ -1,5 +1,4 @@
-let operator_of_shape =
-    (os: Action_common.operator_shape): option(UHExp.operator) =>
+let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
   | SMinus => Some(Minus)
@@ -18,8 +17,7 @@ let operator_of_shape =
   | SVBar => None
   };
 
-let shape_of_operator =
-    (op: UHExp.operator): option(Action_common.operator_shape) =>
+let shape_of_operator = (op: UHExp.operator): option(Action.operator_shape) =>
   switch (op) {
   | Minus => Some(SMinus)
   | Plus => Some(SPlus)
@@ -74,7 +72,7 @@ let mk_and_ana_fix_ZOpSeq =
   Statics_Exp.ana_fix_holes_z(ctx, u_gen, ([], ExpLineZ(zopseq), []), ty);
 };
 
-let keyword_action = (kw: ExpandingKeyword.t): Action_common.t =>
+let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Abbrev => Construct(SAbbrev)
@@ -410,7 +408,7 @@ let syn_split_text =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
-      sop: Action_common.operator_shape,
+      sop: Action.operator_shape,
       text: string,
     )
     : ActionOutcome.t(syn_success) => {
@@ -450,7 +448,7 @@ let ana_split_text =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
-      sop: Action_common.operator_shape,
+      sop: Action.operator_shape,
       text: string,
       ty: HTyp.t,
     )
@@ -490,7 +488,7 @@ let ana_split_text =
 let rec syn_move =
         (
           ctx: Contexts.t,
-          a: Action_common.t,
+          a: Action.t,
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
         )
         : ActionOutcome.t(syn_success) =>
@@ -541,14 +539,14 @@ let rec syn_move =
     failwith(
       __LOC__
       ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
+      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
 
 let rec ana_move =
         (
           ctx: Contexts.t,
-          a: Action_common.t,
+          a: Action.t,
           (ze: ZExp.t, u_gen: MetaVarGen.t),
           ty: HTyp.t,
         )
@@ -600,15 +598,15 @@ let rec ana_move =
     failwith(
       __LOC__
       ++ ": expected movement action, got "
-      ++ Sexplib.Sexp.to_string(Action_common.sexp_of_t(a)),
+      ++ Sexplib.Sexp.to_string(Action.sexp_of_t(a)),
     )
   };
 
 let rec syn_perform =
         (
           ctx: Contexts.t,
-          a: Action_common.t,
-          (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics_common.edit_state,
+          a: Action.t,
+          (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
   switch (syn_perform_block(ctx, a, (ze, ty, u_gen))) {
@@ -644,7 +642,7 @@ let rec syn_perform =
 and syn_perform_block =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (
         (prefix, zline, suffix) as zblock: ZExp.zblock,
         ty: HTyp.t,
@@ -843,11 +841,7 @@ and syn_perform_block =
     }
   }
 and syn_perform_line =
-    (
-      ctx: Contexts.t,
-      a: Action_common.t,
-      (zline: ZExp.zline, u_gen: MetaVarGen.t),
-    )
+    (ctx: Contexts.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
     : ActionOutcome.t(line_success) => {
   let mk_result = (u_gen, zlines): ActionOutcome.t(_) =>
     switch (Statics_Exp.syn_lines(ctx, ZExp.erase_zblock(zlines))) {
@@ -1220,7 +1214,7 @@ and syn_perform_line =
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (
         ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
         ty: HTyp.t,
@@ -1546,7 +1540,7 @@ and syn_perform_operand =
     (
       ~check_inconsistent: bool=false,
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (zoperand: ZExp.zoperand, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
@@ -2456,7 +2450,7 @@ and syn_perform_operand =
 and syn_perform_rules =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       ((prefix, zrule, suffix) as zrules: ZExp.zrules, u_gen: MetaVarGen.t),
       pat_ty: HTyp.t,
     )
@@ -2599,7 +2593,7 @@ and syn_perform_rules =
 and ana_perform_rules =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       ((prefix, zrule, suffix) as zrules: ZExp.zrules, u_gen: MetaVarGen.t),
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
@@ -2750,7 +2744,7 @@ and ana_perform_rules =
 and ana_perform =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
@@ -2787,7 +2781,7 @@ and ana_perform =
 and ana_perform_block =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       ((prefix, zline, suffix) as zblock: ZExp.zblock, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
@@ -2975,7 +2969,7 @@ and ana_perform_block =
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )
@@ -3311,7 +3305,7 @@ and ana_perform_opseq =
 and ana_perform_operand =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
       ty: HTyp.t,
     )
@@ -4132,7 +4126,7 @@ and ana_perform_operand =
 and ana_perform_subsume =
     (
       ctx: Contexts.t,
-      a: Action_common.t,
+      a: Action.t,
       (zoperand: ZExp.zoperand, u_gen: MetaVarGen.t),
       ty: HTyp.t,
     )

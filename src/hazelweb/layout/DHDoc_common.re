@@ -1,7 +1,5 @@
 module Doc = Pretty.Doc;
-
-[@deriving sexp]
-type t = Doc.t(DHAnnot.t);
+open DHDoc;
 
 type formattable_child = (~enforce_inline: bool) => t;
 

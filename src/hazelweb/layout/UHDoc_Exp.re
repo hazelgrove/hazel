@@ -1,7 +1,6 @@
 module Doc = Pretty.Doc;
 
-let inline_padding_of_operator:
-  UHExp.operator => (UHDoc_common.t, UHDoc_common.t) =
+let inline_padding_of_operator: UHExp.operator => (UHDoc.t, UHDoc.t) =
   fun
   | Space
   | Cons => (UHDoc_common.empty_, UHDoc_common.empty_)
@@ -24,31 +23,27 @@ let inline_padding_of_operator:
   | Caret => (UHDoc_common.space_, UHDoc_common.space_)
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);
 
-let mk_EmptyHole: string => UHDoc_common.t =
-  UHDoc_common.mk_EmptyHole(~sort=Exp);
-let mk_InvalidText: string => UHDoc_common.t =
+let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Exp);
+let mk_InvalidText: string => UHDoc.t =
   UHDoc_common.mk_InvalidText(~sort=Exp);
-let mk_IntLit: string => UHDoc_common.t = UHDoc_common.mk_IntLit(~sort=Exp);
-let mk_FloatLit: string => UHDoc_common.t =
-  UHDoc_common.mk_FloatLit(~sort=Exp);
-let mk_BoolLit: bool => UHDoc_common.t = UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_StringLit: string => UHDoc_common.t =
-  UHDoc_common.mk_StringLit(~sort=Exp);
-let mk_ListNil: unit => UHDoc_common.t = UHDoc_common.mk_ListNil(~sort=Exp);
-let mk_Var: string => UHDoc_common.t = UHDoc_common.mk_Var(~sort=Exp);
-let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
+let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
+let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
+let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_StringLit: string => UHDoc.t = UHDoc_common.mk_StringLit(~sort=Exp);
+let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
+let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
-let mk_Inj:
-  (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc_common.t =
+let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple =
     (
-      ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc_common.t,
-      ~mk_operator: UHExp.operator => UHDoc_common.t,
+      ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+      ~mk_operator: UHExp.operator => UHDoc.t,
       ~enforce_inline: bool,
       opseq: OpSeq.t('a, UHExp.operator),
     )
-    : UHDoc_common.t =>
+    : UHDoc.t =>
   UHDoc_common.mk_NTuple(
     ~sort=Exp,
     ~get_tuple_elements=UHExp.get_tuple_elements,
@@ -103,7 +98,7 @@ let livelit_handler = (~enforce_inline, go, seq, skel) =>
   | _ => None
   };
 
-let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
+let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
   Doc.annot(
     UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
   );
@@ -111,7 +106,7 @@ let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
 let rec mk =
   lazy(
     UHDoc_common.memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
-      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc_common.t)
+      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc.t)
     )
   )
 // Two versions of `mk_block` so we can memoize them
@@ -119,19 +114,19 @@ and mk_block_0 =
   lazy(
     UHDoc_common.memoize(
       (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
-      (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc_common.t)
+      (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc.t)
     )
   )
 and mk_block_1 =
   lazy(
     UHDoc_common.memoize(
       (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
-      (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc_common.t)
+      (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc.t)
     )
   )
 and mk_block =
     (~offset: int, ~memoize, ~enforce_inline: bool, block: UHExp.block)
-    : UHDoc_common.t =>
+    : UHDoc.t =>
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
@@ -225,7 +220,7 @@ and mk_line =
                );
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
           UHDoc_common.mk_LetLine(p, ann, def);
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )
@@ -239,11 +234,11 @@ and mk_opseq =
           ~mk_operator,
           ~enforce_inline,
           opseq,
-        ): UHDoc_common.t
+        ): UHDoc.t
       )
     )
   )
-and mk_operator = (op: UHExp.operator): UHDoc_common.t =>
+and mk_operator = (op: UHExp.operator): UHDoc.t =>
   op |> Operators_Exp.is_Space
     ? UHDoc_common.mk_space_op
     : UHDoc_common.mk_op(Operators_Exp.to_string(op))
@@ -305,7 +300,7 @@ and mk_operand =
             mk_child(~memoize, ~enforce_inline, ~child_step=1, start_);
           let end_ = mk_child(~memoize, ~enforce_inline, ~child_step=2, end_);
           UHDoc_common.mk_Subscript(target, start_, end_);
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )
@@ -329,7 +324,7 @@ and mk_rule =
           let clause =
             mk_child(~memoize, ~enforce_inline=false, ~child_step=1, clause);
           UHDoc_common.mk_Rule(p, clause);
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )
@@ -356,11 +351,11 @@ and mk_child =
   };
 };
 
-let mk_splices = (e: UHExp.t): UHDoc_common.splices => {
-  let rec mk_block = (~splices, block: UHExp.block): UHDoc_common.splices =>
+let mk_splices = (e: UHExp.t): UHDoc.splices => {
+  let rec mk_block = (~splices, block: UHExp.block): UHDoc.splices =>
     block
     |> List.fold_left((splices, line) => mk_line(~splices, line), splices)
-  and mk_line = (~splices, line: UHExp.line): UHDoc_common.splices =>
+  and mk_line = (~splices, line: UHExp.line): UHDoc.splices =>
     switch (line) {
     | EmptyLine
     | CommentLine(_) => splices
@@ -373,13 +368,13 @@ let mk_splices = (e: UHExp.t): UHDoc_common.splices => {
          )
     | LetLine(_, _, def) => mk_block(~splices, def)
     }
-  and mk_opseq = (~splices, OpSeq(_, seq): UHExp.opseq): UHDoc_common.splices =>
+  and mk_opseq = (~splices, OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>
     Seq.operands(seq)
     |> List.fold_left(
          (splices, operand) => mk_operand(~splices, operand),
          splices,
        )
-  and mk_operand = (~splices, operand: UHExp.operand): UHDoc_common.splices =>
+  and mk_operand = (~splices, operand: UHExp.operand): UHDoc.splices =>
     switch (operand) {
     | EmptyHole(_)
     | Var(_)

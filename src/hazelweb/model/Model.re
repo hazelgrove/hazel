@@ -1,36 +1,16 @@
-type compute_results = {
-  compute_results: bool,
-  show_case_clauses: bool,
-  show_fn_bodies: bool,
-  show_casts: bool,
-  show_unevaluated_expansion: bool,
-};
-
-type measurements = {
-  measurements: bool,
-  model_perform_edit_action: bool,
-  program_get_doc: bool,
-  layoutOfDoc_layout_of_doc: bool,
-  uhcode_view: bool,
-  cell_view: bool,
-  page_view: bool,
-  hazel_create: bool,
-  update_apply_action: bool,
-};
+open OptUtil.Syntax;
 
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
-  compute_results,
-  measurements,
-  memoize_doc: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
+  settings: Settings.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -73,11 +53,11 @@ let init = (): t => {
       cur_elt_id: 0,
     };
   };
-  let compute_results = true;
+  let settings = Settings.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
-      compute_results,
+      settings.evaluation.evaluate,
       cardstacks |> ZCardstacks.get_program |> Program.cursor_on_inst,
     ) {
     | (false, _)
@@ -91,25 +71,6 @@ let init = (): t => {
     cell_width,
     selected_instances,
     undo_history,
-    compute_results: {
-      compute_results,
-      show_case_clauses: false,
-      show_fn_bodies: false,
-      show_casts: false,
-      show_unevaluated_expansion: false,
-    },
-    measurements: {
-      measurements: false,
-      model_perform_edit_action: true,
-      program_get_doc: true,
-      layoutOfDoc_layout_of_doc: true,
-      uhcode_view: true,
-      cell_view: true,
-      page_view: true,
-      hazel_create: true,
-      update_apply_action: true,
-    },
-    memoize_doc: true,
     left_sidebar_open: false,
     right_sidebar_open: true,
     font_metrics:
@@ -120,18 +81,14 @@ let init = (): t => {
       },
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
+    settings,
   };
 };
 
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics_common.edit_state => {
-  let program = get_program(model);
-  program.edit_state;
-};
-
-let get_cursor_info = (model: t): CursorInfo_common.t =>
+let get_cursor_info = (model: t): option(CursorInfo.t) =>
   model |> get_program |> Program.get_cursor_info;
 
 let put_program = (program: Program.t, model: t): t => {
@@ -165,14 +122,6 @@ let map_selected_instances =
   selected_instances: f(model.selected_instances),
 };
 
-let focus_cell = map_program(Program.focus);
-let blur_cell = map_program(Program.blur);
-
-let is_cell_focused = model => {
-  let program = get_program(model);
-  program.is_focused;
-};
-
 let get_selected_instance = model =>
   switch (model |> get_program |> Program.cursor_on_inst) {
   | None => None
@@ -187,122 +136,96 @@ let select_instance =
   model
   |> map_program(program => {
        let action = Program.move_to_node(kind, u, program);
-       Program.perform_edit_action(action, program);
+       Program.perform_action(~settings=model.settings, action, program);
      })
-  |> map_selected_instances(UserSelectedInstances.add(tni))
-  |> focus_cell;
-
-let update_program = (a: Action_common.t, new_program, model) => {
-  let old_program = model |> get_program;
-  let update_selected_instances = si => {
-    let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
-        ? si : UserSelectedInstances.init;
-    switch (
-      model.compute_results.compute_results,
-      new_program |> Program.cursor_through_insts,
-    ) {
-    | (false, _)
-    | (_, []) => si
-    | (true, insts) =>
-      insts
-      |> List.fold_left(
-           (si, (kind, u)) =>
-             switch (UserSelectedInstances.find_opt(kind, u, si)) {
-             | None => UserSelectedInstances.add((kind, (u, 0)), si)
-             | Some(_) => si
-             },
-           si,
-         )
-    };
-  };
-  model
-  |> put_program(new_program)
-  |> map_selected_instances(update_selected_instances)
-  |> put_undo_history(
-       {
-         let history = model |> get_undo_history;
-         let prev_cardstacks = model |> get_cardstacks;
-         let new_cardstacks =
-           model |> put_program(new_program) |> get_cardstacks;
-         UndoHistory.push_edit_state(
-           history,
-           prev_cardstacks,
-           new_cardstacks,
-           a,
-         );
-       },
-     );
-};
+  |> map_selected_instances(UserSelectedInstances.add(tni));
 
 let prev_card = model => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.prev_card))
-  |> focus_cell;
+  |> map_program(Program.focus);
 };
 let next_card = model => {
   model
   |> map_cardstacks(ZCardstacks.map_z(Cardstack.next_card))
-  |> focus_cell;
+  |> map_program(Program.focus);
 };
 
-let perform_edit_action = (a: Action_common.t, model: t): t => {
+let perform_action =
+    (~move_via: option(MoveInput.t)=?, a: Action.t, model: t): t => {
+  let settings = model.settings;
   TimeUtil.measure_time(
-    "Model.perform_edit_action",
-    model.measurements.measurements
-    && model.measurements.model_perform_edit_action,
+    "Model.perform_action",
+    settings.performance.measure
+    && settings.performance.model_perform_edit_action,
     () => {
+      let old_program = get_program(model);
       let new_program =
-        model |> get_program |> Program.perform_edit_action(a);
-      model |> update_program(a, new_program);
+        Program.perform_action(~settings, ~move_via?, a, old_program);
+      let update_selected_instances = si => {
+        let si =
+          Program.get_result(old_program) == Program.get_result(new_program)
+            ? si : UserSelectedInstances.init;
+        switch (
+          model.settings.evaluation.evaluate,
+          new_program |> Program.cursor_on_inst,
+        ) {
+        | (false, _)
+        | (_, None) => si
+        | (true, Some((kind, u))) =>
+          switch (si |> UserSelectedInstances.find_opt(kind, u)) {
+          | None => si |> UserSelectedInstances.add((kind, (u, 0)))
+          | Some(_) => si
+          }
+        };
+      };
+      model
+      |> put_program(new_program)
+      |> map_selected_instances(update_selected_instances)
+      |> put_undo_history(
+           {
+             let history = get_undo_history(model);
+             let new_cardstacks =
+               model |> put_program(new_program) |> get_cardstacks;
+             switch (ZCardstacks.get_program(new_cardstacks).edit_state.term) {
+             | Unfocused(_) => failwith("history entry without cursor")
+             | Focused(_) => ()
+             };
+             UndoHistory.push_edit_state(history, new_cardstacks, a);
+           },
+         );
     },
   );
 };
 
 let move_via_key = (move_key, model) => {
-  let (new_program, action) =
+  let+ target =
     model
     |> get_program
-    |> Program.move_via_key(
-         ~measure_program_get_doc=
-           model.measurements.measurements
-           && model.measurements.program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc=
-           model.measurements.measurements
-           && model.measurements.layoutOfDoc_layout_of_doc,
-         ~memoize_doc=model.memoize_doc,
-         move_key,
-       );
-  model |> update_program(action, new_program);
+    |> Program.target_path_of_key_input(~settings=model.settings, move_key);
+  perform_action(~move_via=Key(move_key), MoveTo(target), model);
 };
 
 let move_via_click = (opt_splice, row_col, model) => {
-  let (new_program, action) =
+  let target =
     model
     |> get_program
-    |> Program.move_via_click(
-         ~measure_program_get_doc=
-           model.measurements.measurements
-           && model.measurements.program_get_doc,
-         ~measure_layoutOfDoc_layout_of_doc=
-           model.measurements.measurements
-           && model.measurements.layoutOfDoc_layout_of_doc,
-         ~memoize_doc=model.memoize_doc,
+    |> Program.target_path_of_click_input(
+         ~settings=model.settings,
          opt_splice,
          row_col,
        );
-  model |> update_program(action, new_program);
+  perform_action(
+    ~move_via=Click(opt_splice, row_col),
+    MoveTo(target),
+    model,
+  );
 };
 
 let select_case_branch =
-    (path_to_case: CursorPath_common.steps, branch_index: int, model: t): t => {
-  let program = model |> get_program;
-  let action = Program.move_to_case_branch(path_to_case, branch_index);
-  let new_program = Program.perform_edit_action(action, program);
-  model
-  |> put_program(new_program)
-  |> update_program(action, new_program)
-  |> focus_cell;
+    (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
+  let a = Program.move_to_case_branch(path_to_case, branch_index);
+  perform_action(a, model);
 };
 
 let toggle_left_sidebar = (model: t): t => {
@@ -314,20 +237,20 @@ let toggle_right_sidebar = (model: t): t => {
   right_sidebar_open: !model.right_sidebar_open,
 };
 
-let load_example = (model: t, e: UHExp.t): t =>
-  model
-  |> put_program(
-       Program.mk(
-         ~width=model.cell_width,
-         Statics_Exp.fix_and_renumber_holes_z(
-           (VarCtx.empty, Livelits.initial_livelit_ctx),
-           ZExp.place_before(e),
-         ),
-       ),
-     );
+let load_example = (model: t, e: UHExp.t): t => {
+  let (ze, ty, u_gen) =
+    Statics_Exp.fix_and_renumber_holes_z(
+      (VarCtx.empty, Livelits.initial_livelit_ctx),
+      ZExp.place_before(e),
+    );
+  let edit_state: Program.EditState.t = {term: Focused(ze), ty, u_gen};
+  model |> put_program(Program.mk(~width=model.cell_width, edit_state));
+};
 
 let load_cardstack = (model, idx) => {
-  model |> map_cardstacks(ZCardstacks.load_cardstack(idx)) |> focus_cell;
+  model
+  |> map_cardstacks(ZCardstacks.load_cardstack(idx))
+  |> map_program(Program.focus);
 };
 
 let load_undo_history =

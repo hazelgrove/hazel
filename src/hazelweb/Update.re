@@ -51,26 +51,12 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | LoadCardstack(_)
   | NextCard
   | PrevCard
-  | ToggleComputeResults
-  | ToggleShowCaseClauses
-  | ToggleShowFnBodies
-  | ToggleShowCasts
-  | ToggleShowUnevaluatedExpansion
-  | ToggleMemoizeDoc
   | SelectInstance(_)
+  | UpdateSettings(_)
   | SelectCaseBranch(_)
   | InvalidVar(_)
   | FocusCell
   | BlurCell
-  | ToggleMeasureTimes
-  | ToggleMeasureModel_perform_edit_action
-  | ToggleMeasureProgram_get_doc
-  | ToggleMeasureLayoutOfDoc_layout_of_doc
-  | ToggleMeasureUHCode_view
-  | ToggleMeasureCell_view
-  | ToggleMeasurePage_view
-  | ToggleMeasureHazel_create
-  | ToggleMeasureUpdate_apply_action
   | Undo
   | Redo
   | ShiftHistory(_)
@@ -96,17 +82,18 @@ let apply_action =
       ~schedule_action as _,
     )
     : Model.t => {
-  if (model.measurements.measurements) {
+  let settings = model.settings;
+  if (settings.performance.measure) {
     Printf.printf("\n== Update.apply_action times ==\n");
   };
   TimeUtil.measure_time(
     "Update.apply_action",
-    model.measurements.measurements && model.measurements.update_apply_action,
+    settings.performance.measure && settings.performance.update_apply_action,
     () => {
       log_action(action, state);
       switch (action) {
       | EditAction(a) =>
-        switch (model |> Model.perform_edit_action(a)) {
+        switch (model |> Model.perform_action(a)) {
         | new_model => new_model
         | exception Program.FailedAction =>
           JSUtil.log("[Program.FailedAction]");
@@ -125,142 +112,37 @@ let apply_action =
           model;
         }
       | MoveAction(Key(move_key)) =>
-        switch (model |> Model.move_via_key(move_key)) {
-        | new_model => new_model
-        | exception Program.CursorEscaped =>
-          JSUtil.log("[Program.CursorEscaped]");
-          model;
+        switch (Model.move_via_key(move_key, model)) {
+        | None => model
+        | Some(m) => m
         }
       | MoveAction(Click(opt_splice, row_col)) =>
         model |> Model.move_via_click(opt_splice, row_col)
       | LivelitAction(llu, serialized_action) =>
         let program = Model.get_program(model);
-        model
-        |> Model.perform_edit_action(
-             Program.move_to_node(Livelit, llu, program),
-           )
-        |> Model.perform_edit_action(
-             PerformLivelitAction(serialized_action),
-           )
-        |> Model.perform_edit_action(MoveTo(Program.get_path(program)));
+        let performed =
+          model
+          |> Model.perform_action(
+               Program.move_to_node(Livelit, llu, program),
+             )
+          |> Model.perform_action(PerformLivelitAction(serialized_action));
+        switch (Program.get_path(program)) {
+        | None => performed
+        | Some(path) => Model.perform_action(MoveTo(path), performed)
+        };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadExample(id) => Model.load_example(model, Examples.get(id))
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
-      //
-      | ToggleComputeResults => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            compute_results: !model.compute_results.compute_results,
-          },
-        }
-      | ToggleShowCaseClauses => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_case_clauses: !model.compute_results.show_case_clauses,
-          },
-        }
-      | ToggleShowFnBodies => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_fn_bodies: !model.compute_results.show_fn_bodies,
-          },
-        }
-      | ToggleShowCasts => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_casts: !model.compute_results.show_casts,
-          },
-        }
-      | ToggleShowUnevaluatedExpansion => {
-          ...model,
-          compute_results: {
-            ...model.compute_results,
-            show_unevaluated_expansion:
-              !model.compute_results.show_unevaluated_expansion,
-          },
-        }
-      //
-      | ToggleMeasureTimes => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            measurements: !model.measurements.measurements,
-          },
-        }
-      | ToggleMeasureModel_perform_edit_action => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            model_perform_edit_action:
-              !model.measurements.model_perform_edit_action,
-          },
-        }
-      | ToggleMeasureProgram_get_doc => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            program_get_doc: !model.measurements.program_get_doc,
-          },
-        }
-      | ToggleMeasureLayoutOfDoc_layout_of_doc => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            layoutOfDoc_layout_of_doc:
-              !model.measurements.layoutOfDoc_layout_of_doc,
-          },
-        }
-      | ToggleMeasureUHCode_view => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            uhcode_view: !model.measurements.uhcode_view,
-          },
-        }
-      | ToggleMeasureCell_view => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            cell_view: !model.measurements.cell_view,
-          },
-        }
-      | ToggleMeasurePage_view => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            page_view: !model.measurements.page_view,
-          },
-        }
-      | ToggleMeasureHazel_create => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            hazel_create: !model.measurements.hazel_create,
-          },
-        }
-      | ToggleMeasureUpdate_apply_action => {
-          ...model,
-          measurements: {
-            ...model.measurements,
-            update_apply_action: !model.measurements.update_apply_action,
-          },
-        }
-      //
-      | ToggleMemoizeDoc => {...model, memoize_doc: !model.memoize_doc}
       | SelectInstance(kind, inst) =>
         model |> Model.select_instance((kind, inst))
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | InvalidVar(_) => model
-      | FocusCell => model |> Model.focus_cell
-      | BlurCell => model |> Model.blur_cell
+      | FocusCell => model |> Model.map_program(Program.focus)
+      | BlurCell => model |> Model.map_program(Program.blur)
       | Undo =>
         let new_history =
           model.undo_history
@@ -330,6 +212,10 @@ let apply_action =
         }
       | UpdateFontMetrics(metrics) => {...model, font_metrics: metrics}
       | UpdateIsMac(is_mac) => {...model, is_mac}
+      | UpdateSettings(u) => {
+          ...model,
+          settings: Settings.apply_update(u, model.settings),
+        }
       };
     },
   );

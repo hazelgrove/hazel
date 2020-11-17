@@ -1,8 +1,5 @@
 module Doc = Pretty.Doc;
-
-type t = Doc.t(UHAnnot.t);
-type splices = SpliceMap.t(t);
-type with_splices = (t, splices);
+open UHDoc;
 
 let map_root = (f: t => t, (doc, splices): with_splices): with_splices => (
   f(doc),

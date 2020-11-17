@@ -103,9 +103,10 @@ let cardstack_controls = (~inject, model: Model.t) =>
 
 let view =
     (~inject: ModelAction.t => Vdom.Event.t, ~sync_livelit, model: Model.t) => {
+  let settings = model.settings;
   TimeUtil.measure_time(
     "Page.view",
-    model.measurements.measurements && model.measurements.page_view,
+    settings.performance.measure && settings.performance.page_view,
     () => {
       open Vdom;
       let card = model |> Model.get_card;
@@ -117,7 +118,7 @@ let view =
         | Some((Hole, inst)) => Some(inst)
         };
       let cell_status =
-        if (!model.compute_results.compute_results) {
+        if (!settings.evaluation.evaluate) {
           Node.div([], []);
         } else {
           Node.div(
@@ -135,12 +136,7 @@ let view =
                       ),
                       Node.div(
                         [Attr.classes(["htype-view"])],
-                        [
-                          {
-                            let (_, ty, _) = program.edit_state;
-                            HTypCode.view(ty);
-                          },
-                        ],
+                        [HTypCode.view(program.edit_state.ty)],
                       ),
                     ],
                   ),
@@ -151,12 +147,10 @@ let view =
                 [
                   DHCode.view(
                     ~inject,
-                    ~show_fn_bodies=model.compute_results.show_fn_bodies,
-                    ~show_case_clauses=model.compute_results.show_case_clauses,
-                    ~show_casts=model.compute_results.show_casts,
                     ~selected_hole_instance,
+                    ~settings=settings.evaluation,
                     ~width=80,
-                    model.compute_results.show_unevaluated_expansion
+                    settings.evaluation.show_unevaluated_expansion
                       ? program |> Program.get_expansion
                       : program |> Program.get_result |> Result.get_dhexp,
                   ),
@@ -234,15 +228,18 @@ let view =
               ),
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
-                  CursorInspector.view(~inject, model),
+                  CursorInspector.view(
+                    ~inject,
+                    Program.get_cursor_info(program),
+                  ),
                   ContextInspector.view(
                     ~inject,
                     ~selected_hole_instance,
-                    ~compute_results=model.compute_results,
+                    ~settings=settings.evaluation,
                     program,
                   ),
                   UndoHistoryPanel.view(~inject, model),
-                  OptionsPanel.view(~inject, model),
+                  SettingsPanel.view(~inject, settings),
                 ]
               ),
             ],

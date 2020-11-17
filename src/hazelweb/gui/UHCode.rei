@@ -1,5 +1,6 @@
 open Virtual_dom;
 
+let root_id: string;
 let focus: unit => unit;
 
 /**
@@ -13,6 +14,7 @@ let view:
     ~is_mac: bool,
     ~selected_instances: UserSelectedInstances.t,
     ~sync_livelit: ModelAction.t => unit,
+    ~settings: Settings.t,
     Program.t
   ) =>
   Vdom.Node.t;

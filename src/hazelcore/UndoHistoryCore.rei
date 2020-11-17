@@ -1,5 +1,5 @@
 [@deriving sexp]
-type cursor_term = CursorInfo_common.cursor_term;
+type cursor_term = CursorInfo.cursor_term;
 
 [@deriving sexp]
 type start_from_insertion = bool;
@@ -31,7 +31,7 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action_common.shape)
+  | ConstructEdit(Action.shape)
   /* SLine in Action_common.shape stands for both empty line and case rule,
      so an extra type CaseRule is added for construction */
   | CaseRule

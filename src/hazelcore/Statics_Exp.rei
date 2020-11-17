@@ -17,12 +17,12 @@ let ctx_for_let:
  * Get type mode of nth operand of an opseq in synthetic position
  */
 let syn_nth_type_mode:
-  (Contexts.t, int, UHExp.opseq) => option(Statics_common.type_mode);
+  (Contexts.t, int, UHExp.opseq) => option(Statics.type_mode);
 /**
  * Get type mode of nth operand of an opseq in analytic position
  */
 let ana_nth_type_mode:
-  (Contexts.t, int, UHExp.opseq, HTyp.t) => option(Statics_common.type_mode);
+  (Contexts.t, int, UHExp.opseq, HTyp.t) => option(Statics.type_mode);
 
 /**
  * Under context `ctx`, `syn(ctx, e)` synthesizes a type for `e`
@@ -136,5 +136,4 @@ let ana_fix_holes_z:
 let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);
 
-let fix_and_renumber_holes_z:
-  (Contexts.t, ZExp.t) => Statics_common.edit_state;
+let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;

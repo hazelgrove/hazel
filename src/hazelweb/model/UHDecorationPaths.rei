@@ -3,11 +3,11 @@
  */
 [@deriving sexp]
 type t = {
-  err_holes: list(CursorPath_common.steps),
-  var_err_holes: list(CursorPath_common.steps),
-  var_uses: list(CursorPath_common.steps),
-  current_term: option(CursorPath_common.t),
-  livelits: list(CursorPath_common.steps),
+  err_holes: list(CursorPath.steps),
+  var_err_holes: list(CursorPath.steps),
+  var_uses: list(CursorPath.steps),
+  current_term: option(CursorPath.t),
+  livelits: list(CursorPath.steps),
 };
 
 let is_empty: t => bool;

@@ -1,22 +1,20 @@
-let inline_padding_of_operator:
-  UHTyp.operator => (UHDoc_common.t, UHDoc_common.t) =
+let inline_padding_of_operator: UHTyp.operator => (UHDoc.t, UHDoc.t) =
   fun
   | Prod => (UHDoc_common.empty_, UHDoc_common.space_)
   | Arrow
   | Sum => (UHDoc_common.space_, UHDoc_common.space_);
 
-let mk_EmptyHole: string => UHDoc_common.t =
-  UHDoc_common.mk_EmptyHole(~sort=Typ);
-let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
+let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Typ);
+let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Typ);
 let mk_NTuple =
     (
-      ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc_common.t,
-      ~mk_operator: UHTyp.operator => UHDoc_common.t,
+      ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+      ~mk_operator: UHTyp.operator => UHDoc.t,
       ~enforce_inline: bool,
       opseq: OpSeq.t('a, UHTyp.operator),
     )
-    : UHDoc_common.t =>
+    : UHDoc.t =>
   UHDoc_common.mk_NTuple(
     ~sort=Typ,
     ~get_tuple_elements=UHTyp.get_prod_elements,
@@ -31,7 +29,7 @@ let rec mk =
   lazy(
     UHDoc_common.memoize(
       (~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
-      (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc_common.t)
+      (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc.t)
     )
   )
 and mk_opseq =
@@ -44,11 +42,11 @@ and mk_opseq =
           ~mk_operator,
           ~enforce_inline,
           opseq,
-        ): UHDoc_common.t
+        ): UHDoc.t
       )
     )
   )
-and mk_operator = (op: UHTyp.operator): UHDoc_common.t =>
+and mk_operator = (op: UHTyp.operator): UHDoc.t =>
   UHDoc_common.mk_op(Operators_Typ.to_string(op))
 and mk_operand =
   lazy(
@@ -68,7 +66,7 @@ and mk_operand =
         | List(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           UHDoc_common.mk_List(body);
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )
