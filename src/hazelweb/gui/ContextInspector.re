@@ -277,6 +277,8 @@ let view =
     );
   };
 
+  module Elaborator = Elaborator_Exp.M(Statics_Exp.M);
+
   let context_view = {
     let contents =
       switch (Program.get_cursor_info(program)) {
@@ -292,18 +294,18 @@ let view =
           if (settings.evaluate) {
             let (_, hii, _, _) = program |> Program.get_result;
             switch (selected_hole_instance) {
-            | None => Elaborator_Exp.id_env(ctx)
+            | None => Elaborator.id_env(ctx)
             | Some(inst) =>
               switch (HoleInstanceInfo.lookup(hii, inst)) {
               | None =>
                 // raise(InvalidInstance);
                 print_endline("[InvalidInstance]");
-                Elaborator_Exp.id_env(ctx);
+                Elaborator.id_env(ctx);
               | Some((sigma, _)) => sigma
               }
             };
           } else {
-            Elaborator_Exp.id_env(ctx);
+            Elaborator.id_env(ctx);
           };
         switch (VarCtx.to_list(ctx)) {
         | [] => [

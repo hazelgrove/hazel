@@ -1298,8 +1298,11 @@ and syn_perform_line =
       let new_lldef = ZExp.LivelitDefLineZUpdate({...llrecord, update});
       Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
     };
-  | (_, LivelitDefLineZShape({shape, _} as llrecord)) =>
-    let shape_ty = Statics_Exp.ll_shape_ty;
+  | (
+      _,
+      LivelitDefLineZShape({model_type, action_type, shape, _} as llrecord),
+    ) =>
+    let shape_ty = Statics_Exp.ll_shape_ty(model_type, action_type);
     switch (ana_perform(ctx, a, (shape, u_gen), shape_ty)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)

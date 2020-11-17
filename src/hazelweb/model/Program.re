@@ -151,7 +151,7 @@ exception DoesNotElaborate;
 let expand = (~livelit_holes=false) =>
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(
+    Elaborator_Exp.M(Statics_Exp.M).syn_elab(
       ~livelit_holes,
       (VarCtx.empty, Livelits.initial_livelit_ctx),
       Delta.empty,
@@ -167,7 +167,7 @@ exception InvalidInput;
 let evaluate = (~eval_livelit_holes=false) => {
   Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(~eval_livelit_holes),
+    Evaluator.M(Statics_Exp.M).evaluate(~eval_livelit_holes),
   );
 };
 
@@ -225,9 +225,10 @@ let fill_and_resume_llii =
        }),
      );
 
+module Evaluator = Evaluator.M(Statics_Exp.M);
 let get_result = (program: t): Result.t => {
   let renumber =
-    Elaborator_Exp.renumber(
+    Elaborator_Exp.M(Statics_Exp.M).renumber(
       [],
       HoleInstanceInfo.empty,
       LivelitInstanceInfo.empty,
