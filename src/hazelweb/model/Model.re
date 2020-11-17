@@ -185,15 +185,13 @@ let perform_action =
       |> put_undo_history(
            {
              let history = get_undo_history(model);
-             let prev_cardstacks = get_cardstacks(model);
              let new_cardstacks =
                model |> put_program(new_program) |> get_cardstacks;
-             UndoHistory.push_edit_state(
-               history,
-               prev_cardstacks,
-               new_cardstacks,
-               a,
-             );
+             switch (ZCardstacks.get_program(new_cardstacks).edit_state.term) {
+             | Unfocused(_) => failwith("history entry without cursor")
+             | Focused(_) => ()
+             };
+             UndoHistory.push_edit_state(history, new_cardstacks, a);
            },
          );
     },

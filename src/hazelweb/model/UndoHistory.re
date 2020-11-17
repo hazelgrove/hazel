@@ -705,14 +705,22 @@ let get_cursor_term_info =
 };
 
 let push_edit_state =
-    (
-      undo_history: t,
-      new_cardstacks_before: ZCardstacks.t,
-      new_cardstacks_after: ZCardstacks.t,
-      action: Action.t,
-    )
+    (undo_history: t, new_cardstacks_after: ZCardstacks.t, action: Action.t)
     : t => {
   let prev_group = ZList.prj_z(undo_history.groups);
+  let new_cardstacks_before =
+    get_cardstacks(
+      undo_history,
+      ~is_after_move=
+        switch (action) {
+        | MoveTo(_)
+        | MoveLeft
+        | MoveRight
+        | MoveToNextHole
+        | MoveToPrevHole => true
+        | _ => false
+        },
+    );
   let new_cursor_term_info =
     get_cursor_term_info(~new_cardstacks_before, ~new_cardstacks_after);
   let new_action_group =
