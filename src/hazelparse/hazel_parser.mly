@@ -2,9 +2,6 @@
   let mk_seq operand =
     Seq.mk operand []
 
-  let mk_letline pat expr =
-    UHExp.letline pat expr
-
   let mk_binop l op r =
     let seq = Seq.seq_op_seq l op r in
     seq
@@ -13,10 +10,6 @@
     let OpSeq.OpSeq(_, l) = l in
     let OpSeq.OpSeq(_, r) = r in
     mk_binop l op r
-
-  let mk_exp_parenthesized e =
-    let operand = UHExp.Parenthesized(e) in
-    operand
 
   let mk_pat_parenthesized e =
     let operand = UHPat.Parenthesized(e) in
@@ -35,24 +28,6 @@
       )
     in
     mk_app e args
-
-  let mk_exp_var id =
-    UHExp.var id
-
-  let mk_pat_var id =
-    UHPat.var id
-
-  let mk_lambda pat expr =
-    UHExp.lam pat expr
-
-  let mk_case block rules =
-    UHExp.case block rules
-
-  let mk_rule pat block =
-    UHExp.Rule(pat, block)
-
-  let mk_intlit v =
-    UHExp.intlit v
 %}
 
 %token LET
@@ -104,7 +79,7 @@ main:
 ;
 
 let_binding:
-  LET pat EQUAL expr IN { mk_letline $2 $4 }
+  LET pat EQUAL expr IN { UHExp.letline $2 $4 }
   | LET pat COLON typ EQUAL expr IN {
     let typ = UHTyp.mk_OpSeq $4 in
     UHExp.letline $2 ~ann:typ $6
@@ -138,7 +113,7 @@ atomic_type:
 
 pat:
   LPAREN pat RPAREN { mk_pat_parenthesized $2 }
-  | IDENT { UHPat.mk_OpSeq (mk_seq (mk_pat_var $1)) }
+  | IDENT { UHPat.mk_OpSeq (mk_seq (UHPat.var $1)) }
   | LBRACK RBRACK {
     let seq = mk_seq (UHPat.listnil ()) in
     UHPat.mk_OpSeq seq
@@ -170,15 +145,15 @@ expr_:
 ;
 
 simple_expr:
-  LPAREN expr RPAREN { mk_exp_parenthesized $2 }
+  LPAREN expr RPAREN { UHExp.Parenthesized($2) }
   | constant { $1 }
-  | IDENT { mk_exp_var $1 }
+  | IDENT { UHExp.var $1 }
   | fn { $1 }
 ;
 
 fn:
   LAMBDA pat PERIOD LBRACE expr RBRACE {
-    mk_lambda $2 $5
+    UHExp.lam $2 $5
   }
   | LAMBDA pat COLON typ PERIOD LBRACE expr RBRACE {
     let typ = UHTyp.mk_OpSeq $4 in
@@ -187,11 +162,11 @@ fn:
 ;
 
 case:
-  CASE expr rule+ END { mk_case $2 $3 }
+  CASE expr rule+ END { UHExp.case $2 $3 }
 ;
 
 rule:
-  BAR pat ARROW expr { mk_rule $2 $4 }
+  BAR pat ARROW expr { UHExp.Rule($2, $4) }
 ;
 
 %inline op:
@@ -209,7 +184,7 @@ rule:
 ;
 
 constant:
-  INT { mk_intlit $1 }
+  INT { UHExp.intlit $1 }
   | FLOAT { UHExp.floatlit $1 }
   | TRUE { UHExp.boollit true }
   | FALSE { UHExp.boollit false }
