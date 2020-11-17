@@ -163,7 +163,9 @@ let get_result = (program: t): Result.t =>
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(
-    "Program.get_doc", settings.performance.program_get_doc, () => {
+    "Program.get_doc",
+    settings.performance.measure && settings.performance.program_get_doc,
+    () => {
     Lazy.force(
       UHDoc_Exp.mk,
       ~memoize=settings.memoize_doc,
@@ -177,7 +179,8 @@ let get_layout = (~settings: Settings.t, program) => {
   let doc = get_doc(~settings, program);
   TimeUtil.measure_time(
     "LayoutOfDoc.layout_of_doc",
-    settings.performance.layoutOfDoc_layout_of_doc,
+    settings.performance.measure
+    && settings.performance.layoutOfDoc_layout_of_doc,
     () =>
     Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0, doc)
   )
