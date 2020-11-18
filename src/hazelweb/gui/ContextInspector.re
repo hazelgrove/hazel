@@ -277,7 +277,7 @@ let view =
     );
   };
 
-  module Elaborator = Elaborator_Exp.M(Statics_Exp.M);
+  module Elaborator = Elaborator_Exp.M(Statics_Exp);
 
   let context_view = {
     let contents =

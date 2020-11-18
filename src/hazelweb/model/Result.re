@@ -1,5 +1,3 @@
-module Evaluator = Evaluator.M(Statics_Exp);
-
 [@deriving sexp]
 type t = (
   DHExp.t,
