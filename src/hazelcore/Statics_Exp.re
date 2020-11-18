@@ -31,8 +31,7 @@ module rec M: Statics_Exp_Sig.S = {
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
       UHTyp.expand(model_type),
     );
-  let ll_view_ty = (model_type, _) =>
-    HTyp.Arrow(UHTyp.expand(model_type), String);
+  let ll_view_ty = (_, _) => HTyp.String;
   let ll_shape_ty = (_, _) => HTyp.Sum(Int, Int);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
@@ -77,6 +76,31 @@ module rec M: Statics_Exp_Sig.S = {
     | InvalidInput(_)
     | Indet(_) => failwith("mk_ll_update")
     | BoxedValue(dhexp) => serialize_ll_monad(dhexp)
+    };
+  };
+
+  let mk_ll_view = (view: UHExp.t): string => {
+    // TODO(andrew): handle failure cases more better
+    switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
+    | Elaborates(view_dhexp, _, _) =>
+      switch (Evaluator.evaluate(~eval_livelit_holes=false, view_dhexp)) {
+      | BoxedValue(StringLit(str)) => str
+      | _ => failwith("mk_ll_view")
+      }
+    | _ => failwith("mk_ll_view")
+    };
+  };
+
+  let mk_ll_shape = (shape: UHExp.t): LivelitShape.t => {
+    // TODO(andrew): handle failure cases more better
+    switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, shape)) {
+    | Elaborates(Pair(BoolLit(flag), IntLit(num)), _, _) =>
+      if (flag) {
+        Inline(num);
+      } else {
+        MultiLine(num);
+      }
+    | _ => failwith("mk_ll_shape")
     };
   };
 
@@ -2192,9 +2216,14 @@ module rec M: Statics_Exp_Sig.S = {
   type livelit_view_data = (UHExp.t /* view */, UHExp.t /* shape */);
   type livelit_def_ctx = VarMap.t_(livelit_view_data);
   type livelit_view_ctx = MetaVarMap.t(livelit_view_data);
+  type livelit_web_view_ctx = MetaVarMap.t((string, LivelitShape.t));
 
-  let rec build_ll_view_ctx = (block: UHExp.t): livelit_view_ctx => {
-    build_ll_view_ctx_block(block, VarMap.empty);
+  let rec build_ll_view_ctx = (block: UHExp.t): livelit_web_view_ctx => {
+    let ll_view = build_ll_view_ctx_block(block, VarMap.empty);
+    IntMap.map(
+      ((view, shape)) => (mk_ll_view(view), mk_ll_shape(shape)),
+      ll_view,
+    );
   }
   and build_ll_view_ctx_block =
       (block: UHExp.t, def_ctx: livelit_def_ctx): livelit_view_ctx => {

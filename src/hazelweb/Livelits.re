@@ -15,11 +15,6 @@ module LivelitView = {
   };
 
   type t = splice_and_param_getters => div_type;
-
-  [@deriving sexp]
-  type shape =
-    | Inline(int)
-    | MultiLine(int);
 };
 
 module type LIVELIT = {
@@ -37,7 +32,7 @@ module type LIVELIT = {
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
   let view: (model, trigger, sync) => LivelitView.t;
-  let view_shape: model => LivelitView.shape;
+  let view_shape: model => LivelitShape.t;
   let expand: model => UHExp.t;
 };
 
@@ -85,7 +80,7 @@ type trigger_serialized = SerializedAction.t => Event.t;
 type sync_serialized = SerializedAction.t => unit;
 type serialized_view_fn_t =
   (SerializedModel.t, trigger_serialized, sync_serialized) => LivelitView.t;
-type serialized_view_shape_fn_t = SerializedModel.t => LivelitView.shape;
+type serialized_view_shape_fn_t = SerializedModel.t => LivelitShape.t;
 
 module LivelitViewCtx = {
   type t = VarMap.t_((serialized_view_fn_t, serialized_view_shape_fn_t));
