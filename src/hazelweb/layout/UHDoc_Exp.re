@@ -103,29 +103,46 @@ let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
     UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
   );
 
+// TODO fill stub
+type llview_ctx = unit;
+
 let rec mk =
   lazy(
-    UHDoc_common.memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
-      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc.t)
+    UHDoc_common.memoize(
+      (~memoize: bool, ~enforce_inline: bool, ctx_e: (llview_ctx, UHExp.t)) =>
+      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, ctx_e): UHDoc.t)
     )
   )
 // Two versions of `mk_block` so we can memoize them
 and mk_block_0 =
   lazy(
     UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
-      (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc.t)
+      (
+        ~memoize: bool,
+        ~enforce_inline: bool,
+        ctx_block: (llview_ctx, UHExp.block),
+      ) =>
+      (mk_block(~offset=0, ~memoize, ~enforce_inline, ctx_block): UHDoc.t)
     )
   )
 and mk_block_1 =
   lazy(
     UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
-      (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc.t)
+      (
+        ~memoize: bool,
+        ~enforce_inline: bool,
+        ctx_block: (llview_ctx, UHExp.block),
+      ) =>
+      (mk_block(~offset=1, ~memoize, ~enforce_inline, ctx_block): UHDoc.t)
     )
   )
 and mk_block =
-    (~offset: int, ~memoize, ~enforce_inline: bool, block: UHExp.block)
+    (
+      ~offset: int,
+      ~memoize,
+      ~enforce_inline: bool,
+      (llview_ctx, block: UHExp.block),
+    )
     : UHDoc.t =>
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
@@ -135,7 +152,12 @@ and mk_block =
       |> List.mapi((i, line) =>
            (
              line,
-             Lazy.force(mk_line, ~memoize, ~enforce_inline, line)
+             Lazy.force(
+               mk_line,
+               ~memoize,
+               ~enforce_inline,
+               (llview_ctx, line),
+             )
              |> UHDoc_common.annot_Step(offset + i),
            )
          )
@@ -148,6 +170,7 @@ and mk_block =
         | CommentLine(_)
         | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
         | AbbrevLine(_)
+        | LivelitDefLine(_)
         | LetLine(_) =>
           annot_SubBlock(
             ~hd_index=offset + i,
@@ -164,7 +187,7 @@ and mk_block =
 and mk_line =
   lazy(
     UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, line: UHExp.line) =>
+      (~memoize: bool, ~enforce_inline: bool, (llview_ctx, line: UHExp.line)) =>
       (
         switch (line) {
         | EmptyLine =>
@@ -189,10 +212,15 @@ and mk_line =
           ])
           |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
-          Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
+          Lazy.force(
+            mk_opseq,
+            ~memoize,
+            ~enforce_inline,
+            (llview_ctx, opseq),
+          )
         | AbbrevLine(lln_new, _, lln_old, args) =>
           let formattable = (i, arg, ~enforce_inline) =>
-            arg
+            (llview_ctx, arg)
             |> Lazy.force(mk_operand, ~memoize, ~enforce_inline)
             |> UHDoc_common.annot_Step(i);
           let formatteds =
@@ -205,6 +233,7 @@ and mk_line =
                    : Unformatted(formattable(i, arg))
                );
           UHDoc_common.mk_AbbrevLine(lln_new, lln_old, formatteds);
+        | LivelitDefLine(_) => failwith("UHDoc_Exp")
         | LetLine(p, ann, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
@@ -218,7 +247,13 @@ and mk_line =
                    ann,
                  )
                );
-          let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
+          let def =
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=2,
+              (llview_ctx, def),
+            );
           UHDoc_common.mk_LetLine(p, ann, def);
         }: UHDoc.t
       )
@@ -227,10 +262,21 @@ and mk_line =
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
+      (
+        ~memoize: bool,
+        ~enforce_inline: bool,
+        (llview_ctx, opseq: UHExp.opseq),
+      ) =>
       (
         mk_NTuple(
-          ~mk_operand=Lazy.force(mk_operand, ~memoize),
+          ~mk_operand=
+            (~enforce_inline, operand) =>
+              Lazy.force(
+                mk_operand,
+                ~memoize,
+                ~enforce_inline,
+                (llview_ctx, operand),
+              ),
           ~mk_operator,
           ~enforce_inline,
           opseq,
@@ -245,7 +291,11 @@ and mk_operator = (op: UHExp.operator): UHDoc.t =>
 and mk_operand =
   lazy(
     UHDoc_common.memoize(
-      (~memoize: bool, ~enforce_inline: bool, operand: UHExp.operand) =>
+      (
+        ~memoize: bool,
+        ~enforce_inline: bool,
+        (llview_ctx, operand: UHExp.operand),
+      ) =>
       (
         switch (operand) {
         | EmptyHole(u) => mk_EmptyHole(UHDoc_common.hole_lbl(u + 1))
@@ -269,24 +319,52 @@ and mk_operand =
                    ann,
                  )
                );
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=2, body);
+          let body =
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=2,
+              (llview_ctx, body),
+            );
           UHDoc_common.mk_Lam(p, ann, body);
         | Inj(_, inj_side, body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+          let body =
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=0,
+              (llview_ctx, body),
+            );
           mk_Inj(~inj_side, body);
         | Parenthesized(body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+          let body =
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=0,
+              (llview_ctx, body),
+            );
           mk_Parenthesized(body);
         | Case(_, scrut, rules) =>
           if (enforce_inline) {
             Doc.fail();
           } else {
             let scrut =
-              mk_child(~memoize, ~enforce_inline=false, ~child_step=0, scrut);
+              mk_child(
+                ~memoize,
+                ~enforce_inline=false,
+                ~child_step=0,
+                (llview_ctx, scrut),
+              );
             let rules =
               rules
               |> List.mapi((i, rule) =>
-                   Lazy.force(mk_rule, ~memoize, ~enforce_inline, rule)
+                   Lazy.force(
+                     mk_rule,
+                     ~memoize,
+                     ~enforce_inline,
+                     (llview_ctx, rule),
+                   )
                    |> UHDoc_common.annot_Step(1 + i)
                  );
             UHDoc_common.mk_Case(scrut, rules);
@@ -295,10 +373,26 @@ and mk_operand =
         | ApLivelit(_, _, _, lln, _, _) => UHDoc_common.mk_ApLivelit(lln)
         | Subscript(_, target, start_, end_) =>
           let target =
-            mk_child(~memoize, ~enforce_inline, ~child_step=0, target);
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=0,
+              (llview_ctx, target),
+            );
           let start_ =
-            mk_child(~memoize, ~enforce_inline, ~child_step=1, start_);
-          let end_ = mk_child(~memoize, ~enforce_inline, ~child_step=2, end_);
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=1,
+              (llview_ctx, start_),
+            );
+          let end_ =
+            mk_child(
+              ~memoize,
+              ~enforce_inline,
+              ~child_step=2,
+              (llview_ctx, end_),
+            );
           UHDoc_common.mk_Subscript(target, start_, end_);
         }: UHDoc.t
       )
@@ -310,7 +404,7 @@ and mk_rule =
       (
         ~memoize: bool,
         ~enforce_inline as _: bool,
-        Rule(p, clause): UHExp.rule,
+        (llview_ctx, Rule(p, clause): UHExp.rule),
       ) =>
       (
         {
@@ -322,14 +416,24 @@ and mk_rule =
               p,
             );
           let clause =
-            mk_child(~memoize, ~enforce_inline=false, ~child_step=1, clause);
+            mk_child(
+              ~memoize,
+              ~enforce_inline=false,
+              ~child_step=1,
+              (llview_ctx, clause),
+            );
           UHDoc_common.mk_Rule(p, clause);
         }: UHDoc.t
       )
     )
   )
 and mk_child =
-    (~memoize: bool, ~enforce_inline: bool, ~child_step: int, e: UHExp.t)
+    (
+      ~memoize: bool,
+      ~enforce_inline: bool,
+      ~child_step: int,
+      (llview_ctx, e: UHExp.t),
+    )
     : UHDoc_common.formatted_child => {
   switch (e) {
   | [EmptyLine, ...subblock] =>
@@ -337,13 +441,18 @@ and mk_child =
       EnforcedInline(Doc.fail());
     } else {
       let formatted =
-        Lazy.force(mk_block_1, ~memoize, ~enforce_inline=false, subblock)
+        Lazy.force(
+          mk_block_1,
+          ~memoize,
+          ~enforce_inline=false,
+          (llview_ctx, subblock),
+        )
         |> UHDoc_common.annot_Step(child_step);
       UserNewline(formatted);
     }
   | _ =>
     let formattable = (~enforce_inline) =>
-      Lazy.force(mk, ~memoize, ~enforce_inline, e)
+      Lazy.force(mk, ~memoize, ~enforce_inline, (llview_ctx, e))
       |> UHDoc_common.annot_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
@@ -351,7 +460,7 @@ and mk_child =
   };
 };
 
-let mk_splices = (e: UHExp.t): UHDoc.splices => {
+let mk_splices = (llview_ctx, e: UHExp.t): UHDoc.splices => {
   let rec mk_block = (~splices, block: UHExp.block): UHDoc.splices =>
     block
     |> List.fold_left((splices, line) => mk_line(~splices, line), splices)
@@ -366,6 +475,7 @@ let mk_splices = (e: UHExp.t): UHDoc.splices => {
            (splices, operand) => mk_operand(~splices, operand),
            splices,
          )
+    | LivelitDefLine(_) => failwith("UHDoc_Exp.mk_splices")
     | LetLine(_, _, def) => mk_block(~splices, def)
     }
   and mk_opseq = (~splices, OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>
@@ -402,7 +512,7 @@ let mk_splices = (e: UHExp.t): UHDoc.splices => {
                      mk,
                      ~memoize=false,
                      ~enforce_inline=false,
-                     splice_e,
+                     (llview_ctx, splice_e),
                    ),
                  ),
               mk_block(~splices, splice_e),

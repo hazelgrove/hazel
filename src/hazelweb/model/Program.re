@@ -147,11 +147,13 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   {current_term, err_holes, var_uses, var_err_holes, livelits};
 };
 
+module Elaborator_Exp = Elaborator_Exp.M(Statics_Exp);
+
 exception DoesNotElaborate;
 let expand = (~livelit_holes=false) =>
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.M(Statics_Exp).syn_elab(
+    Elaborator_Exp.syn_elab(
       ~livelit_holes,
       (VarCtx.empty, Livelits.initial_livelit_ctx),
       Delta.empty,
@@ -224,7 +226,7 @@ let fill_and_resume_llii =
 
 let get_result = (program: t): Result.t => {
   let renumber =
-    Elaborator_Exp.M(Statics_Exp).renumber(
+    Elaborator_Exp.renumber(
       [],
       HoleInstanceInfo.empty,
       LivelitInstanceInfo.empty,
@@ -241,8 +243,8 @@ let get_result = (program: t): Result.t => {
     };
   switch (program |> get_expansion(~livelit_holes=false) |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) => ret(d, d' => Evaluator.BoxedValue(d'))
-  | Indet(d) => ret(d, d' => Evaluator.Indet(d'))
+  | BoxedValue(d) => ret(d, d' => Eval.BoxedValue(d'))
+  | Indet(d) => ret(d, d' => Eval.Indet(d'))
   };
 };
 
@@ -257,10 +259,12 @@ let get_doc = (~settings: Settings.t, program) => {
         UHDoc_Exp.mk,
         ~memoize=settings.memoize_doc,
         ~enforce_inline=false,
-        e,
+        // TODO livelit view ctx
+        ((), e),
       )
     );
-  let splice_docs = UHDoc_Exp.mk_splices(e);
+  // TODO livelit view ctx
+  let splice_docs = UHDoc_Exp.mk_splices((), e);
   (doc, splice_docs);
 };
 
