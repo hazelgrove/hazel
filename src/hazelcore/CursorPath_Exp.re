@@ -128,7 +128,6 @@ and follow_line =
       }),
     ) =>
     switch (x) {
-    | 0 => failwith("follow_line TODO andrew") // what do
     | 1 =>
       expansion_type
       |> CursorPath_Typ.follow((xs, cursor))
@@ -146,7 +145,23 @@ and follow_line =
              expand,
            })
          )
-    | 2 => failwith("follow_line TODO andrew") // TODO: captures
+    | 2 =>
+    captures
+    |> follow((xs, cursor))
+    |> Option.map(zexp =>
+         ZExp.LivelitDefLineZCaptures({
+           name,
+           captures: zexp,
+           expansion_type,
+           model_type,
+           action_type,
+           init,
+           update,
+           view,
+           shape,
+           expand,
+         })
+       )
     | 3 =>
       model_type
       |> CursorPath_Typ.follow((xs, cursor))
@@ -517,7 +532,6 @@ and of_steps_line =
     let of_steps_exp = (exp, index) =>
       exp |> of_steps(xs, ~side) |> Option.map(path => cons'(index, path));
     switch (x) {
-    | 0 => failwith("of_steps_line livelitdef TODO andrew")
     | 1 => of_steps_ty(expansion_type, 1)
     | 2 => of_steps_exp(captures, 2)
     | 3 => of_steps_ty(model_type, 3)
@@ -737,7 +751,6 @@ and holes_line =
     |> CursorPath_Typ.holes(model_type, [3, ...rev_steps])
     |> holes(captures, [2, ...rev_steps])
     |> CursorPath_Typ.holes(expansion_type, [1, ...rev_steps])
-  //|> holes(name, [0, ...rev_steps]) TODO andrew ???
   | AbbrevLine(_, _, _, args) =>
     ListUtil.fold_right_i(
       ((i, arg), hs) => hs |> holes_operand(arg, [i, ...rev_steps]),

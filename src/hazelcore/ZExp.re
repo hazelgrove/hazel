@@ -172,7 +172,6 @@ and is_opseq_zline =
   | LivelitDefLineZExpansionType(_)
   | LivelitDefLineZModelType(_)
   | LivelitDefLineZActionType(_) => None
-  // not sure these are right - andrew
   | LivelitDefLineZCaptures({captures: zdef, _})
   | LivelitDefLineZInit({init: zdef, _})
   | LivelitDefLineZUpdate({update: zdef, _})
@@ -234,11 +233,20 @@ let line_can_be_swapped = (line: zline): bool =>
   | CursorL(_)
   | LetLineZP(_)
   | LetLineZA(_)
+  | LivelitDefLineZExpansionType(_)
+  | LivelitDefLineZModelType(_)
+  | LivelitDefLineZActionType(_)
   | ExpLineZ(ZOpSeq(_, ZOperator(_)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZP(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(LamZA(_), _))) => true
   | LetLineZE(_)
+  | LivelitDefLineZCaptures(_)
+  | LivelitDefLineZInit(_)
+  | LivelitDefLineZUpdate(_)
+  | LivelitDefLineZView(_)
+  | LivelitDefLineZShape(_)
+  | LivelitDefLineZExpand(_)
   | AbbrevLineZL(_)
   | ExpLineZ(
       ZOpSeq(
@@ -254,16 +262,6 @@ let line_can_be_swapped = (line: zline): bool =>
       ),
     ) =>
     false
-  | LivelitDefLineZExpansionType(_)
-  | LivelitDefLineZCaptures(_)
-  | LivelitDefLineZModelType(_)
-  | LivelitDefLineZActionType(_)
-  | LivelitDefLineZInit(_)
-  | LivelitDefLineZUpdate(_)
-  | LivelitDefLineZView(_)
-  | LivelitDefLineZShape(_)
-  // TODO(andrew)
-  | LivelitDefLineZExpand(_) => failwith("line_can_be_swapped livelitdef")
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {

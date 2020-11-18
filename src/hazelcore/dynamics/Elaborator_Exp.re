@@ -737,7 +737,7 @@ module M = (S: Statics_Exp_Sig.S) : SElab => {
       switch (S.syn_lines(ctx', [line])) {
       | None => LinesDoNotExpand
       | Some(new_ctx) =>
-        // TODO (andrew): this will need to include livelit params when they are implemented
+        // TODO (andrew): params, captures
         let ctx'' = new_ctx |> map_livelit_ctx(ty => (DHExp.Triv, ty));
         LinesExpand(d => d, ctx'', delta);
       };

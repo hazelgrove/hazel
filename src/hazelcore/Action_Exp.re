@@ -1211,9 +1211,18 @@ and syn_perform_line =
         ZExp.LivelitDefLineZExpansionType({...llrecord, expansion_type});
       Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
     }
-  | (_, LivelitDefLineZCaptures(_llrecord)) =>
-    // TODO (andrew) : bind this in ctx
-    failwith("TODO andrew lldef captures case for perform_action")
+  | (_, LivelitDefLineZCaptures({captures, _} as llrecord)) =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(captures))) {
+    | None => Failed
+    | Some(captures_ty) =>
+      switch (syn_perform(ctx, a, (captures, captures_ty, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded((captures, _, u_gen)) =>
+        let new_lldef = ZExp.LivelitDefLineZCaptures({...llrecord, captures});
+        Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      }
+    }
   | (
       _,
       LivelitDefLineZModelType(
