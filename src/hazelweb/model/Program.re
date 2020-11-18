@@ -165,10 +165,7 @@ let get_expansion = (~livelit_holes=false, program: t): DHExp.t =>
 
 exception InvalidInput;
 let evaluate = (~eval_livelit_holes=false) => {
-  Memo.general(
-    ~cache_size_bound=1000,
-    Evaluator.evaluate(~eval_livelit_holes),
-  );
+  Memo.general(~cache_size_bound=1000, Eval.evaluate(~eval_livelit_holes));
 };
 
 let fill_and_resume_llii =
