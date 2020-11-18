@@ -547,6 +547,7 @@ let _check_actions = (a: Action.t) =>
   | MoveRight => Added
   /* Not added */
   | PerformLivelitAction(_) => failwith("unimplemented")
+  | Construct(SLivelitDef) => failwith("unimplemented")
   | MoveTo(_) => Added
   | Init => Added
   };
