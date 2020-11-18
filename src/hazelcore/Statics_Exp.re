@@ -2188,6 +2188,133 @@ module rec M: Statics_Exp_Sig.S = {
          );
     (ze, ty, u_gen);
   };
+
+  type livelit_view_data = (UHExp.t /* view */, UHExp.t /* shape */);
+  type livelit_def_ctx = VarMap.t_(livelit_view_data);
+  type livelit_view_ctx = MetaVarMap.t(livelit_view_data);
+
+  let rec build_ll_view_ctx = (block: UHExp.t): livelit_view_ctx => {
+    build_ll_view_ctx_block(block, VarMap.empty);
+  }
+  and build_ll_view_ctx_block =
+      (block: UHExp.t, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+    let (_, view_ctx) =
+      List.fold_left(
+        ((def_ctx_acc, view_ctx_acc), line) => {
+          let (new_defs_ctx, new_views_ctx) =
+            build_ll_view_ctx_line(line, def_ctx_acc);
+          (
+            new_defs_ctx,
+            MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_views_ctx),
+          );
+        },
+        (def_ctx, MetaVarMap.empty),
+        block,
+      );
+    view_ctx;
+  }
+  and build_ll_view_ctx_line =
+      (line: UHExp.line, def_ctx: livelit_def_ctx)
+      : (livelit_def_ctx, livelit_view_ctx) => {
+    switch (line) {
+    | EmptyLine
+    | CommentLine(_)
+    | AbbrevLine(_) => (def_ctx, MetaVarMap.empty)
+    | ExpLine(opseq) => (def_ctx, build_ll_view_ctx_opseq(opseq, def_ctx))
+    | LetLine(_, _, block) => (
+        def_ctx,
+        build_ll_view_ctx_block(block, def_ctx),
+      )
+    | LivelitDefLine({name: (_, name_str), view, shape, _}) =>
+      let new_def_ctx = VarMap.extend(def_ctx, (name_str, (view, shape)));
+      (new_def_ctx, MetaVarMap.empty);
+    };
+  }
+  and build_ll_view_ctx_opseq =
+      (opseq: UHExp.opseq, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+    let OpSeq(_, seq) = opseq;
+    let operands = Seq.operands(seq);
+    List.fold_left(
+      (view_ctx_acc, operand) => {
+        let new_view_ctx = build_ll_view_ctx_operand(operand, def_ctx);
+        MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
+      },
+      MetaVarMap.empty,
+      operands,
+    );
+  }
+  and build_ll_view_ctx_operand =
+      (operand: UHExp.operand, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+    switch (operand) {
+    | EmptyHole(_)
+    | InvalidText(_)
+    | Var(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_)
+    | StringLit(_)
+    | ListNil(_) => MetaVarMap.empty
+    | Lam(_, _, _, block)
+    | Inj(_, _, block)
+    | Parenthesized(block) => build_ll_view_ctx_block(block, def_ctx)
+    | Case(_, scrut, rules) =>
+      let scrut_view_ctx = build_ll_view_ctx_block(scrut, def_ctx);
+      let rules_view_ctx = build_ll_view_ctx_rules(rules, def_ctx);
+      MetaVarMap.merge((_, _, b) => b, scrut_view_ctx, rules_view_ctx);
+    | Subscript(_, t1, t2, t3) =>
+      let t1_view_ctx = build_ll_view_ctx_block(t1, def_ctx);
+      let t2_view_ctx = build_ll_view_ctx_block(t2, def_ctx);
+      let t3_view_ctx = build_ll_view_ctx_block(t3, def_ctx);
+      let t1_and_t2_view_ctx =
+        MetaVarMap.merge((_, _, b) => b, t1_view_ctx, t2_view_ctx);
+      MetaVarMap.merge((_, _, b) => b, t1_and_t2_view_ctx, t3_view_ctx);
+    | ApLivelit(metavar, _, _base_name, name, _, spliceinfo) =>
+      let new_view_ctx1 =
+        switch (VarMap.lookup(def_ctx, name)) {
+        | None =>
+          print_endline(
+            "ERROR: build_ll_view: livelit name not found: " ++ name,
+          );
+          MetaVarMap.empty;
+        | Some((view, shape)) =>
+          MetaVarMap.singleton(metavar, (view, shape))
+        };
+      let new_view_ctx2 = build_ll_view_ctx_splice_info(spliceinfo, def_ctx);
+      MetaVarMap.merge((_, _, b) => b, new_view_ctx1, new_view_ctx2);
+    | FreeLivelit(_metavar, _name) =>
+      // not sure about this case -andrew
+      MetaVarMap.empty
+    };
+  }
+  and build_ll_view_ctx_splice_info =
+      (splice_info: UHExp.splice_info, def_ctx: livelit_def_ctx)
+      : livelit_view_ctx => {
+    let {SpliceInfo.splice_map, _} = splice_info;
+    IntMap.fold(
+      (_k, (_, uhexp: UHExp.t), view_ctx_acc: livelit_view_ctx) => {
+        let new_view_ctx = build_ll_view_ctx_block(uhexp, def_ctx);
+        MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
+      },
+      splice_map,
+      MetaVarMap.empty: livelit_view_ctx,
+    );
+  }
+  and build_ll_view_ctx_rules =
+      (rules: UHExp.rules, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+    List.fold_left(
+      (view_ctx_acc, rule) => {
+        let new_view_ctx = build_ll_view_ctx_rule(rule, def_ctx);
+        MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
+      },
+      MetaVarMap.empty,
+      rules,
+    );
+  }
+  and build_ll_view_ctx_rule =
+      (rule: UHExp.rule, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+    let Rule(_, rule_expr) = rule;
+    build_ll_view_ctx_block(rule_expr, def_ctx);
+  };
 };
 
 include M;
