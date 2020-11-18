@@ -146,22 +146,22 @@ and follow_line =
            })
          )
     | 2 =>
-    captures
-    |> follow((xs, cursor))
-    |> Option.map(zexp =>
-         ZExp.LivelitDefLineZCaptures({
-           name,
-           captures: zexp,
-           expansion_type,
-           model_type,
-           action_type,
-           init,
-           update,
-           view,
-           shape,
-           expand,
-         })
-       )
+      captures
+      |> follow((xs, cursor))
+      |> Option.map(zexp =>
+           ZExp.LivelitDefLineZCaptures({
+             name,
+             captures: zexp,
+             expansion_type,
+             model_type,
+             action_type,
+             init,
+             update,
+             view,
+             shape,
+             expand,
+           })
+         )
     | 3 =>
       model_type
       |> CursorPath_Typ.follow((xs, cursor))
