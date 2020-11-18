@@ -1,7 +1,6 @@
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
-let action_panel = (children: list(Vdom.Node.t)): Vdom.Node.t => {
-  open Vdom;
+let action_panel = (children: list(Node.t)): Node.t => {
   let panel_title =
     Node.div(
       [Attr.classes(["panel-title-bar", "title-bar"])],
@@ -17,140 +16,126 @@ let action_panel = (children: list(Vdom.Node.t)): Vdom.Node.t => {
   );
 };
 
-let sub_panel = (title: string, children: list(Vdom.Node.t)): Vdom.Node.t => {
-  Vdom.(
-    Node.div(
-      [Attr.classes(["sub-panel", "sub-panel-default"])],
-      [
-        Node.div([Attr.classes(["sub-panel-title"])], [Node.text(title)]),
-        Node.div([Attr.classes(["sub-panel-body"])], children),
-      ],
-    )
+let sub_panel = (title: string, children: list(Node.t)): Node.t => {
+  Node.div(
+    [Attr.classes(["sub-panel", "sub-panel-default"])],
+    [
+      Node.div([Attr.classes(["sub-panel-title"])], [Node.text(title)]),
+      Node.div([Attr.classes(["sub-panel-body"])], children),
+    ],
   );
 };
 
 let action_label = (~attrs=[], children) => {
-  Vdom.(
-    Node.div(
-      [Attr.classes(["action-label", "info-label"]), ...attrs],
-      children,
-    )
+  Node.div(
+    [Attr.classes(["action-label", "info-label"]), ...attrs],
+    children,
   );
 };
 
 let info_button = (can_perform, lbl) =>
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes(
-          can_perform
-            ? ["action-panel-entry", "action-enabled"]
-            : ["action-panel-entry", "action-disabled"],
-        ),
-      ],
-      [action_label(lbl)],
-    )
+  Node.div(
+    [
+      Attr.classes(
+        can_perform
+          ? ["action-panel-entry", "action-enabled"]
+          : ["action-panel-entry", "action-disabled"],
+      ),
+    ],
+    [action_label(lbl)],
   );
 
 let mono_text = content => {
-  Vdom.(
-    Node.span(
-      [Attr.classes(["code"]), Attr.style(Css_gen.font_size(`Inherit))],
-      [Node.text(content)],
-    )
+  Node.span(
+    [Attr.classes(["code"]), Attr.style(Css_gen.font_size(`Inherit))],
+    [Node.text(content)],
   );
 };
 
 let action_button =
     (
       is_action_allowed: Action.t => bool,
-      inject: ModelAction.t => Vdom.Event.t,
+      inject: ModelAction.t => Event.t,
       a: Action.t,
-      lbl: list(Vdom.Node.t),
+      lbl: list(Node.t),
       key_combo,
     ) => {
   let can_perform = is_action_allowed(a);
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes(
-          can_perform
-            ? ["action-panel-entry", "action-enabled"]
-            : ["action-panel-entry", "action-disabled"],
-        ),
-        Attr.on_click(_ => inject(ModelAction.EditAction(a))),
-        Attr.on_keydown(evt =>
-          if (KeyCombo.matches(key_combo, evt)) {
-            Event.Many([
-              inject(ModelAction.EditAction(a)),
-              Event.Prevent_default,
-            ]);
-          } else {
-            Event.Prevent_default;
-          }
-        ),
-      ],
-      [
-        Node.div([Attr.classes(["action-label"])], lbl),
-        Node.div(
-          [Attr.classes(["keyboard-shortcut"])],
-          [Node.text(KeyCombo.name(key_combo))],
-        ),
-      ],
-    )
+  Node.div(
+    [
+      Attr.classes(
+        can_perform
+          ? ["action-panel-entry", "action-enabled"]
+          : ["action-panel-entry", "action-disabled"],
+      ),
+      Attr.on_click(_ => inject(ModelAction.EditAction(a))),
+      Attr.on_keydown(evt =>
+        if (KeyCombo.matches(key_combo, evt)) {
+          Event.Many([
+            inject(ModelAction.EditAction(a)),
+            Event.Prevent_default,
+          ]);
+        } else {
+          Event.Prevent_default;
+        }
+      ),
+    ],
+    [
+      Node.div([Attr.classes(["action-label"])], lbl),
+      Node.div(
+        [Attr.classes(["keyboard-shortcut"])],
+        [Node.text(KeyCombo.name(key_combo))],
+      ),
+    ],
   );
 };
 
 let brown_label = body => {
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes(["keyboard-shortcut", "action-enabled"]),
-        Attr.style(
-          Css_gen.(
-            create(~field="display", ~value="inline-block")
-            @> create(~field="border-bottom", ~value="none")
-          ),
+  Node.div(
+    [
+      Attr.classes(["keyboard-shortcut", "action-enabled"]),
+      Attr.style(
+        Css_gen.(
+          create(~field="display", ~value="inline-block")
+          @> create(~field="border-bottom", ~value="none")
         ),
-      ],
-      body,
-    )
+      ),
+    ],
+    body,
   );
 };
 
 let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes(
-          is_action_allowed(action)
-            ? ["keyboard-shortcut", "action-enabled"]
-            : ["keyboard-shortcut", "action-disabled"],
-        ),
-        Attr.on_click(_ => inject(ModelAction.EditAction(action))),
-        Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
-        Attr.on_keydown(evt =>
-          if (KeyCombo.matches(combo, evt)) {
-            Event.Many([
-              inject(ModelAction.EditAction(action)),
-              Event.Prevent_default,
-            ]);
-          } else {
-            Event.Prevent_default;
-          }
-        ),
-      ],
-      [Node.text(KeyCombo.name(combo))],
-    )
+  Node.div(
+    [
+      Attr.classes(
+        is_action_allowed(action)
+          ? ["keyboard-shortcut", "action-enabled"]
+          : ["keyboard-shortcut", "action-disabled"],
+      ),
+      Attr.on_click(_ => inject(ModelAction.EditAction(action))),
+      Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
+      Attr.on_keydown(evt =>
+        if (KeyCombo.matches(combo, evt)) {
+          Event.Many([
+            inject(ModelAction.EditAction(action)),
+            Event.Prevent_default,
+          ]);
+        } else {
+          Event.Prevent_default;
+        }
+      ),
+    ],
+    [Node.text(KeyCombo.name(combo))],
   );
 };
 
-let flex_grow = Vdom.Attr.style(Css_gen.(flex_item(~grow=1., ())));
+let flex_grow = Attr.style(Css_gen.(flex_item(~grow=1., ())));
 
 let action_list =
     (
       is_action_allowed: Action.t => bool,
-      inject: ModelAction.t => Vdom.Event.t,
+      inject: ModelAction.t => Event.t,
       actions: list((KeyCombo.t, Action.t)),
       label: string,
     ) => {
@@ -158,27 +143,23 @@ let action_list =
     keyboard_button(is_action_allowed, ~inject, ~action, ~combo);
   };
   let display_flex =
-    Vdom.Attr.style(Css_gen.create(~field="display", ~value="flex"));
+    Attr.style(Css_gen.create(~field="display", ~value="flex"));
 
   let label =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["action-label"]), flex_grow],
-        [Node.text(label)],
-      )
+    Node.div(
+      [Attr.classes(["action-label"]), flex_grow],
+      [Node.text(label)],
     );
   let items = List.map(item, actions);
-  Vdom.(
-    Node.div(
-      [Attr.classes(["action-panel-entry"]), display_flex],
-      [label, ...items],
-    )
+  Node.div(
+    [Attr.classes(["action-panel-entry"]), display_flex],
+    [label, ...items],
   );
 };
 
 let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
-  let text = Vdom.Node.text;
-  let simple = desc => [Vdom.Node.text(desc)];
+  let text = Node.text;
+  let simple = desc => [Node.text(desc)];
 
   let section = (title, children) => {
     sub_panel(title, children);
@@ -243,13 +224,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   };
 
   let display_inline_block =
-    Vdom.Attr.(
-      style(Css_gen.(create(~field="display", ~value="inline-block")))
-    );
+    Attr.(style(Css_gen.(create(~field="display", ~value="inline-block"))));
 
   let spaced_line = children => {
-    Vdom.Node.div(
-      Vdom.Attr.[
+    Node.div(
+      Attr.[
         classes(["action-panel-entry"]),
         style(
           Css_gen.(
@@ -264,7 +243,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let single_line_multiple_actions = (description, elems) => {
     let label = action_label(~attrs=[flex_grow], [text(description)]);
-    let elems = Vdom.Node.div([display_inline_block], elems);
+    let elems = Node.div([display_inline_block], elems);
     spaced_line([label, elems]);
   };
 
@@ -445,7 +424,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   ];
 };
 
-let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let program = Model.get_program(model);
   let Program.EditState.{term, ty, u_gen} = program.edit_state;
   let cursor_info = Model.get_cursor_info(model);
