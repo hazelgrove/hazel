@@ -162,4 +162,6 @@ module type S = {
     (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);
 
   let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;
+
+  let build_ll_view_ctx: UHExp.t => Statics.livelit_web_view_ctx;
 };

@@ -2215,13 +2215,7 @@ module rec M: Statics_Exp_Sig.S = {
     (ze, ty, u_gen);
   };
 
-  type livelit_view_data = (UHExp.t /* view */, UHExp.t /* shape */);
-  type livelit_def_ctx = VarMap.t_(livelit_view_data);
-  type livelit_view_ctx = MetaVarMap.t(livelit_view_data);
-  type livelit_web_view_ctx =
-    MetaVarMap.t((SerializedModel.t => string, LivelitShape.t));
-
-  let rec build_ll_view_ctx = (block: UHExp.t): livelit_web_view_ctx => {
+  let rec build_ll_view_ctx = (block: UHExp.t): Statics.livelit_web_view_ctx => {
     let ll_view = build_ll_view_ctx_block(block, VarMap.empty);
     IntMap.map(
       ((view, shape)) => (mk_ll_view(view), mk_ll_shape(shape)),
@@ -2229,7 +2223,8 @@ module rec M: Statics_Exp_Sig.S = {
     );
   }
   and build_ll_view_ctx_block =
-      (block: UHExp.t, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+      (block: UHExp.t, def_ctx: Statics.livelit_def_ctx)
+      : Statics.livelit_view_ctx => {
     let (_, view_ctx) =
       List.fold_left(
         ((def_ctx_acc, view_ctx_acc), line) => {
@@ -2246,8 +2241,8 @@ module rec M: Statics_Exp_Sig.S = {
     view_ctx;
   }
   and build_ll_view_ctx_line =
-      (line: UHExp.line, def_ctx: livelit_def_ctx)
-      : (livelit_def_ctx, livelit_view_ctx) => {
+      (line: UHExp.line, def_ctx: Statics.livelit_def_ctx)
+      : (Statics.livelit_def_ctx, Statics.livelit_view_ctx) => {
     switch (line) {
     | EmptyLine
     | CommentLine(_)
@@ -2263,7 +2258,8 @@ module rec M: Statics_Exp_Sig.S = {
     };
   }
   and build_ll_view_ctx_opseq =
-      (opseq: UHExp.opseq, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+      (opseq: UHExp.opseq, def_ctx: Statics.livelit_def_ctx)
+      : Statics.livelit_view_ctx => {
     let OpSeq(_, seq) = opseq;
     let operands = Seq.operands(seq);
     List.fold_left(
@@ -2276,7 +2272,8 @@ module rec M: Statics_Exp_Sig.S = {
     );
   }
   and build_ll_view_ctx_operand =
-      (operand: UHExp.operand, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+      (operand: UHExp.operand, def_ctx: Statics.livelit_def_ctx)
+      : Statics.livelit_view_ctx => {
     switch (operand) {
     | EmptyHole(_)
     | InvalidText(_)
@@ -2319,20 +2316,21 @@ module rec M: Statics_Exp_Sig.S = {
     };
   }
   and build_ll_view_ctx_splice_info =
-      (splice_info: UHExp.splice_info, def_ctx: livelit_def_ctx)
-      : livelit_view_ctx => {
+      (splice_info: UHExp.splice_info, def_ctx: Statics.livelit_def_ctx)
+      : Statics.livelit_view_ctx => {
     let {SpliceInfo.splice_map, _} = splice_info;
     IntMap.fold(
-      (_k, (_, uhexp: UHExp.t), view_ctx_acc: livelit_view_ctx) => {
+      (_k, (_, uhexp: UHExp.t), view_ctx_acc: Statics.livelit_view_ctx) => {
         let new_view_ctx = build_ll_view_ctx_block(uhexp, def_ctx);
         MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
       },
       splice_map,
-      MetaVarMap.empty: livelit_view_ctx,
+      MetaVarMap.empty: Statics.livelit_view_ctx,
     );
   }
   and build_ll_view_ctx_rules =
-      (rules: UHExp.rules, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+      (rules: UHExp.rules, def_ctx: Statics.livelit_def_ctx)
+      : Statics.livelit_view_ctx => {
     List.fold_left(
       (view_ctx_acc, rule) => {
         let new_view_ctx = build_ll_view_ctx_rule(rule, def_ctx);
@@ -2343,7 +2341,8 @@ module rec M: Statics_Exp_Sig.S = {
     );
   }
   and build_ll_view_ctx_rule =
-      (rule: UHExp.rule, def_ctx: livelit_def_ctx): livelit_view_ctx => {
+      (rule: UHExp.rule, def_ctx: Statics.livelit_def_ctx)
+      : Statics.livelit_view_ctx => {
     let Rule(_, rule_expr) = rule;
     build_ll_view_ctx_block(rule_expr, def_ctx);
   };

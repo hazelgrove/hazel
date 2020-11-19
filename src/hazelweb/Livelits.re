@@ -170,7 +170,7 @@ module PairLivelit: LIVELIT = {
       [uhcode(leftID), uhcode(rightID)],
     );
   let view_shape = _ =>
-    LivelitView.Inline(
+    LivelitShape.Inline(
       // TODO fix brittle magic constant
       20,
     );
@@ -474,7 +474,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
 
   let view_shape = ((_, matrix)) => {
     let num_rows = List.length(matrix);
-    LivelitView.MultiLine(3 * num_rows + 2 + (I.is_live ? 1 : 0));
+    LivelitShape.MultiLine(3 * num_rows + 2 + (I.is_live ? 1 : 0));
   };
 
   let expand = ((_, m)) => {
@@ -879,7 +879,7 @@ module GradeCutoffLivelit: LIVELIT = {
   };
 
   let view_shape = _ => {
-    LivelitView.MultiLine(
+    LivelitShape.MultiLine(
       // TODO
       5,
     );
@@ -940,7 +940,7 @@ module GrayscaleLivelit: LIVELIT = {
   let update = (model, _) => SpliceGenCmd.return(model);
 
   let height = 18;
-  let view_shape = _ => LivelitView.MultiLine(height);
+  let view_shape = _ => LivelitShape.MultiLine(height);
 
   let view =
       (
@@ -1442,7 +1442,7 @@ module ColorLivelit: LIVELIT = {
     Node.div([Attr.classes(["color-livelit"])], [color_picker]);
   };
 
-  let view_shape = _ => LivelitView.MultiLine(10);
+  let view_shape = _ => LivelitShape.MultiLine(10);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =
@@ -1537,7 +1537,7 @@ module GradientLivelit: LIVELIT = {
     );
   };
 
-  let view_shape = _ => LivelitView.Inline(10);
+  let view_shape = _ => LivelitShape.Inline(10);
 
   let expand = ({lcolor, rcolor, slider_value}) => {
     let typ_opseq = (hd, tl) => UHTyp.mk_OpSeq(Seq.mk(hd, tl));
@@ -1655,7 +1655,7 @@ module CheckboxLivelit: LIVELIT = {
     _ => Node.span([], [input_elt]);
   };
 
-  let view_shape = _ => LivelitView.Inline(/* TODO! */ 1);
+  let view_shape = _ => LivelitShape.Inline(/* TODO! */ 1);
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
 };
@@ -1676,7 +1676,7 @@ module SliderLivelitMin: LIVELIT = {
   //let init_model = (psi, u_gen) => (0, psi, u_gen);
   let update = (_, n) => SpliceGenCmd.return(n);
   //let update = (_, n) => (psi, u_gen) => (n, psi, u_gen);
-  let view_shape = _ => LivelitView.Inline(14); // use inj for multiline vs inline
+  let view_shape = _ => LivelitShape.Inline(14); // use inj for multiline vs inline
   // need to include shape!!
   let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
   // how to do this... str of sexp?
@@ -1849,7 +1849,7 @@ module SliderLivelit: LIVELIT = {
     };
   };
 
-  let view_shape = _ => LivelitView.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(14);
 
   let expand =
     fun
@@ -2157,7 +2157,7 @@ module DataFrameLivelit: LIVELIT = {
   };
 
   let view_shape = m => {
-    LivelitView.MultiLine(3 * get_height(m) + 1);
+    LivelitShape.MultiLine(3 * get_height(m) + 1);
   };
 
   let expand = m => {
