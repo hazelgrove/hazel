@@ -633,7 +633,7 @@ let rec syn_perform =
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: LivelitDef, prefix, suffix, u_gen, _})) =>
-    let name = (VarErrStatus.NotInVarHole, "");
+    let name = (VarErrStatus.NotInVarHole, "$");
     let expansion_type = UHTyp.Hole |> OpSeq.wrap;
     let (captures, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let model_type = UHTyp.Hole |> OpSeq.wrap;
@@ -645,7 +645,7 @@ let rec syn_perform =
     let (expand, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let zlldef =
       ZExp.CursorL(
-        OnText(0),
+        OnText(1),
         LivelitDefLine({
           name,
           expansion_type,
@@ -2985,7 +2985,7 @@ and ana_perform =
       |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_zblock, ty));
   | Succeeded(AnaExpands({kw: LivelitDef, prefix, suffix, u_gen, _})) =>
-    let name = (VarErrStatus.NotInVarHole, "");
+    let name = (VarErrStatus.NotInVarHole, "$");
     let expansion_type = UHTyp.Hole |> OpSeq.wrap;
     let (captures, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let model_type = UHTyp.Hole |> OpSeq.wrap;
@@ -2997,7 +2997,7 @@ and ana_perform =
     let (expand, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let zlldef =
       ZExp.CursorL(
-        OnText(0),
+        OnText(1),
         LivelitDefLine({
           name,
           expansion_type,
