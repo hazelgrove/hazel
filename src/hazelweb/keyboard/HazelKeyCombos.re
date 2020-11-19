@@ -143,6 +143,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(LeftBracket);
   } else if (evt_matches(KeyCombo.left_quotation)) {
     Some(LeftQuotation);
+  } else if (evt_matches(KeyCombo.caret)) {
+    Some(Caret);
   } else if (evt_matches(KeyCombo.semicolon)) {
     Some(Semicolon);
   } else if (evt_matches(KeyCombo.alt_L)) {
