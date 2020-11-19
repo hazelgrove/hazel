@@ -1,4 +1,5 @@
 module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
 let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
@@ -211,6 +212,28 @@ let view =
                           }),
                         ],
                         [Node.text("Serialize to console")],
+                      ),
+                      Node.widget(
+                        ~id=
+                          Base__Type_equal.Id.create(~name="w_state", _ =>
+                            Sexplib.Sexp.List([])
+                          ),
+                        ~init=
+                          () =>
+                            (
+                              0,
+                              {
+                                let div = Dom_html.(createDiv(document));
+                                div##.id := Js.string("hello");
+                                div##.innerHTML :=
+                                  Js.string(
+                                    "<script type=\"text/javascript\">function print_me() { console.log(\"hello world\"); }</script>"
+                                    ++ "<div style=\"width: 10px; height: 10px; background-color: red;\" onclick=\"print_me()\"></div>",
+                                  );
+                                div;
+                              },
+                            ),
+                        (),
                       ),
                       Node.div(
                         [

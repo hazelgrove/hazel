@@ -169,6 +169,7 @@ let decoration_views =
       ~llii,
       ~selected_instances,
       ~sync_livelit,
+      ~llview_ctx,
       dpaths: UHDecorationPaths.t,
       (l, splice_ls): UHLayout.with_splices,
     )
@@ -272,152 +273,178 @@ let decoration_views =
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
-        // TODO(livelit definitions): thread ctx
-        let ctx = Livelits.initial_livelit_view_ctx;
-        let (llview: Livelits.serialized_view_fn_t, _) =
-          VarMap.lookup(ctx, base_llname)
-          |> OptUtil.get(() => failwith("undefined livelit " ++ base_llname));
+        switch (IntMap.find_opt(llu)) {
+        | Some((llview, llview_shape)) =>
+          // type magic required by virtual dom to ensure
+          // each widget state's type is unique from others
+          let id =
+            Base__Type_equal.Id.create(
+              ~name=string_of_int(llu) ++ "-state", _ =>
+              Sexplib.Sexp.List([])
+            );
+          Vdom.[
+            Node.widget(
+              ~id,
+              ~init=() => {
+                // don't think we need widget-internal state
+                let state = ();
+                let container = Dom_html.(createDiv(document));
+                div##.innerHtml := Js.string(llview(m));
+              },
+            ),
+          ];
+        | None =>
+          // TODO(livelit definitions): thread ctx
+          let ctx = Livelits.initial_livelit_view_ctx;
+          let (llview: Livelits.serialized_view_fn_t, _) =
+            VarMap.lookup(ctx, base_llname)
+            |> OptUtil.get(() =>
+                 failwith("undefined livelit " ++ base_llname)
+               );
 
-        let trigger = serialized_action =>
-          inject(ModelAction.LivelitAction(llu, serialized_action));
-        let sync = serialized_action =>
-          sync_livelit(ModelAction.LivelitAction(llu, serialized_action));
-        let livelit_view = llview(m, trigger, sync);
-        let vs = {
-          let uhcode = splice_name => {
-            let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
-            let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
-            let caret =
-              switch (caret_pos) {
-              | Some((caret_pos, Some((u, name))))
-                  when u == llu && name == splice_name => [
-                  UHDecoration.Caret.view(~font_metrics, caret_pos),
-                ]
-              | _ => []
+          let trigger = serialized_action =>
+            inject(ModelAction.LivelitAction(llu, serialized_action));
+          let sync = serialized_action =>
+            sync_livelit(ModelAction.LivelitAction(llu, serialized_action));
+          let livelit_view = llview(m, trigger, sync);
+          let vs = {
+            let uhcode = splice_name => {
+              let splice_l =
+                SpliceMap.get_splice(llu, splice_name, splice_ls);
+              let id = Printf.sprintf("code-splice-%d-%d", llu, splice_name);
+              let caret =
+                switch (caret_pos) {
+                | Some((caret_pos, Some((u, name))))
+                    when u == llu && name == splice_name => [
+                    UHDecoration.Caret.view(~font_metrics, caret_pos),
+                  ]
+                | _ => []
+                };
+              let splice_ds = {
+                let stepped =
+                  dpaths
+                  |> UHDecorationPaths.take_step(hd_step)
+                  |> UHDecorationPaths.take_step(splice_name);
+                UHDecorationPaths.is_empty(stepped)
+                  ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
               };
-            let splice_ds = {
-              let stepped =
-                dpaths
-                |> UHDecorationPaths.take_step(hd_step)
-                |> UHDecorationPaths.take_step(splice_name);
-              UHDecorationPaths.is_empty(stepped)
-                ? [] : go(stepped, UHMeasuredLayout.mk(splice_l));
-            };
-            let splice_code = view_of_box(UHBox.mk(splice_l));
-            Vdom.(
-              Node.div(
-                [
-                  Attr.id(id),
-                  Attr.classes(["splice"]),
-                  Attr.on_mousedown(
-                    on_mousedown(
-                      ~inject,
-                      ~id,
-                      ~font_metrics,
-                      ~splice=Some((llu, splice_name)),
+              let splice_code = view_of_box(UHBox.mk(splice_l));
+              Vdom.(
+                Node.div(
+                  [
+                    Attr.id(id),
+                    Attr.classes(["splice"]),
+                    Attr.on_mousedown(
+                      on_mousedown(
+                        ~inject,
+                        ~id,
+                        ~font_metrics,
+                        ~splice=Some((llu, splice_name)),
+                      ),
                     ),
-                  ),
-                ],
-                caret
-                @ splice_ds
-                @ [Node.span([Attr.classes(["code"])], splice_code)],
-              )
-            );
-          };
-
-          let selected_inst_opt =
-            selected_instances
-            |> UserSelectedInstances.find_opt(
-                 TaggedNodeInstance.Livelit,
-                 llu,
-               )
-            |> Option.map(i => (llu, i));
-          let inst_opt =
-            switch (selected_inst_opt) {
-            | None => LivelitInstanceInfo.default_instance(llii, llu)
-            | Some(inst) => Some(inst)
+                  ],
+                  caret
+                  @ splice_ds
+                  @ [Node.span([Attr.classes(["code"])], splice_code)],
+                )
+              );
             };
-          let sim_dargs_opt =
-            inst_opt
-            |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
-            |> Option.map(((_, _, (si, dargs))) =>
-                 (SpliceInfo.splice_map(si), dargs)
-               );
 
-          let dhview =
-            DHCode.view(
-              ~inject,
-              // TODO undo hardcoded width
-              ~width=80,
-              ~settings=settings.evaluation,
-            );
+            let selected_inst_opt =
+              selected_instances
+              |> UserSelectedInstances.find_opt(
+                   TaggedNodeInstance.Livelit,
+                   llu,
+                 )
+              |> Option.map(i => (llu, i));
+            let inst_opt =
+              switch (selected_inst_opt) {
+              | None => LivelitInstanceInfo.default_instance(llii, llu)
+              | Some(inst) => Some(inst)
+              };
+            let sim_dargs_opt =
+              inst_opt
+              |> OptUtil.and_then(LivelitInstanceInfo.lookup(llii))
+              |> Option.map(((_, _, (si, dargs))) =>
+                   (SpliceInfo.splice_map(si), dargs)
+                 );
 
-          let dhcode = splice_name =>
-            sim_dargs_opt
-            |> OptUtil.and_then(((splice_map, _)) =>
-                 switch (IntMap.find_opt(splice_name, splice_map)) {
-                 | None => raise(Not_found)
-                 | Some((_, d_opt)) =>
-                   d_opt |> Option.map(d => (d, dhview(d)))
-                 }
-               );
+            let dhview =
+              DHCode.view(
+                ~inject,
+                // TODO undo hardcoded width
+                ~width=80,
+                ~settings=settings.evaluation,
+              );
 
-          let dargs =
-            sim_dargs_opt
-            |> Option.map(((_, dargs)) =>
-                 dargs
-                 |> List.map(((v, darg_opt)) =>
-                      (
-                        v,
-                        darg_opt |> Option.map(darg => (darg, dhview(darg))),
+            let dhcode = splice_name =>
+              sim_dargs_opt
+              |> OptUtil.and_then(((splice_map, _)) =>
+                   switch (IntMap.find_opt(splice_name, splice_map)) {
+                   | None => raise(Not_found)
+                   | Some((_, d_opt)) =>
+                     d_opt |> Option.map(d => (d, dhview(d)))
+                   }
+                 );
+
+            let dargs =
+              sim_dargs_opt
+              |> Option.map(((_, dargs)) =>
+                   dargs
+                   |> List.map(((v, darg_opt)) =>
+                        (
+                          v,
+                          darg_opt
+                          |> Option.map(darg => (darg, dhview(darg))),
+                        )
                       )
-                    )
-               );
+                 );
 
-          [livelit_view({uhcode, dhcode, dargs})];
-        };
-        let top = Float.of_int(start.row) *. font_metrics.row_height;
-        let left = Float.of_int(start.col) *. font_metrics.col_width;
-        let dim_attr =
-          switch (shape) {
-          | Inline(width) =>
-            Vdom.Attr.create(
-              "style",
-              Printf.sprintf(
-                "max-width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
-                width,
-                font_metrics.row_height,
-                top,
-                left,
-              ),
-            )
-          | MultiLine(height) =>
-            Vdom.Attr.create(
-              "style",
-              Printf.sprintf(
-                "max-height: %fpx; top: %fpx; left: %fpx;",
-                float_of_int(height) *. font_metrics.row_height,
-                top,
-                left,
-              ),
-            )
+            [livelit_view({uhcode, dhcode, dargs})];
           };
-        Vdom.[
-          Node.div(
-            [
-              Attr.classes([
-                "LivelitView",
-                switch (shape) {
-                | Inline(_) => "Inline"
-                | MultiLine(_) => "MultiLine"
-                },
-              ]),
-              dim_attr,
-              Attr.on_mousedown(_ => Event.Stop_propagation),
-            ],
-            vs,
-          ),
-        ];
+          let top = Float.of_int(start.row) *. font_metrics.row_height;
+          let left = Float.of_int(start.col) *. font_metrics.col_width;
+          let dim_attr =
+            switch (shape) {
+            | Inline(width) =>
+              Vdom.Attr.create(
+                "style",
+                Printf.sprintf(
+                  "max-width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+                  width,
+                  font_metrics.row_height,
+                  top,
+                  left,
+                ),
+              )
+            | MultiLine(height) =>
+              Vdom.Attr.create(
+                "style",
+                Printf.sprintf(
+                  "max-height: %fpx; top: %fpx; left: %fpx;",
+                  float_of_int(height) *. font_metrics.row_height,
+                  top,
+                  left,
+                ),
+              )
+            };
+          Vdom.[
+            Node.div(
+              [
+                Attr.classes([
+                  "LivelitView",
+                  switch (shape) {
+                  | Inline(_) => "Inline"
+                  | MultiLine(_) => "MultiLine"
+                  },
+                ]),
+                dim_attr,
+                Attr.on_mousedown(_ => Event.Stop_propagation),
+              ],
+              vs,
+            ),
+          ];
+        }
       | _ => go'(~tl, dpaths, m)
       }
     };
@@ -559,6 +586,7 @@ let view =
       ~selected_instances: UserSelectedInstances.t,
       ~sync_livelit,
       ~settings: Settings.t,
+      ~llview_ctx,
       program: Program.t,
     )
     : Vdom.Node.t =>
@@ -585,6 +613,7 @@ let view =
           ~selected_instances,
           ~llii,
           ~sync_livelit,
+          ~llview_ctx,
           dpaths,
           (l, splice_ls),
         );

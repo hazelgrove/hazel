@@ -15,6 +15,7 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
     () => {
       open Vdom;
       let program = Model.get_program(model);
+      let llview_ctx = failwith("todo andrew");
       Node.div(
         [Attr.id(cell_id)],
         [
@@ -30,6 +31,7 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
                 ~selected_instances=model.selected_instances,
                 ~sync_livelit,
                 ~settings,
+                ~llview_ctx,
                 program,
               ),
             ],
