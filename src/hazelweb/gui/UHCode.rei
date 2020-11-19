@@ -10,7 +10,6 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~font_metrics: FontMetrics.t,
-    ~measure: bool,
     ~is_mac: bool,
     ~selected_instances: UserSelectedInstances.t,
     ~sync_livelit: ModelAction.t => unit,
