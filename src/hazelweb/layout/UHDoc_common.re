@@ -486,11 +486,12 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
     |> ListUtil.join(Doc.linebreak());
   Doc.(
     hcats([
-      Delim.open_StringLit() |> annot_Tessera,
+      Delim.open_StringLit(),
       hcats(line_docs),
-      Delim.close_StringLit() |> annot_Tessera,
+      Delim.close_StringLit(),
     ])
   )
+  |> annot_Tessera
   |> annot_Operand(~sort);
 };
 
