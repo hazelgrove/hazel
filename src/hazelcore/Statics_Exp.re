@@ -31,8 +31,9 @@ module rec M: Statics_Exp_Sig.S = {
       Prod([UHTyp.expand(model_type), UHTyp.expand(action_type)]),
       UHTyp.expand(model_type),
     );
-  let ll_view_ty = (_, _) => HTyp.String;
-  let ll_shape_ty = (_, _) => HTyp.Sum(Int, Int);
+  let ll_view_ty = (model_type, _) =>
+    HTyp.Arrow(UHTyp.expand(model_type), HTyp.String);
+  let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
 
