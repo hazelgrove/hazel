@@ -952,7 +952,7 @@ module GrayscaleLivelit: LIVELIT = {
         {brightness, grayscale},
         _,
         _,
-        {dargs, dhcode, _}: LivelitView.splice_and_param_getters,
+        {dargs, dhcode, uhcode}: LivelitView.splice_and_param_getters,
       ) => {
     let subject = {
       let height_prop_val = Printf.sprintf("height: %dem;", height);
@@ -1006,16 +1006,13 @@ module GrayscaleLivelit: LIVELIT = {
               "img",
               [
                 Attr.id("grayscale-icon"),
-                Attr.create(
-                  "src",
-                  "https://imageog.flaticon.com/icons/png/512/108/108931.png?size=1200x630f&pad=10,10,10,10&ext=png&bg=FFFFFFFF",
-                ),
+                Attr.create("src", "imgs/grayscale-icon.png"),
               ],
               [],
             ),
             Node.div(
               [Attr.classes(["splice-content"])],
-              [Node.text("hello world")],
+              [uhcode(grayscale)],
             ),
             Node.div([], []),
             Node.create(
@@ -1031,7 +1028,7 @@ module GrayscaleLivelit: LIVELIT = {
             ),
             Node.div(
               [Attr.classes(["splice-content"])],
-              [Node.text("hello world")],
+              [uhcode(brightness)],
             ),
           ],
         ),
