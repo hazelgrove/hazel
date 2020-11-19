@@ -1,6 +1,7 @@
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
+[@deriving sexp]
 type t = MeasuredLayout.t(UHAnnot.t);
 type with_splices = (t, SpliceMap.t(t));
 type with_offset = MeasuredLayout.with_offset(UHAnnot.t);

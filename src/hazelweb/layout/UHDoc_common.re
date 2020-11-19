@@ -749,7 +749,13 @@ let rec mk_BinOp =
           Doc.fail();
         } else {
           let spaceholder =
-            Doc.hcats(ListUtil.replicate(height, Doc.linebreak()));
+            Doc.(
+              hcats(
+                Doc.text(UnicodeConstants.nbsp)
+                |> ListUtil.replicate(height)
+                |> ListUtil.join(Doc.linebreak()),
+              )
+            );
           Doc.vsep(llexp, annot_LivelitView(spaceholder));
         }
       };

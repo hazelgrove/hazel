@@ -1,5 +1,6 @@
 open Pretty;
 
+[@deriving sexp]
 type t = MeasuredLayout.t(UHAnnot.t);
 type with_splices = (t, SpliceMap.t(t));
 type with_offset = MeasuredLayout.with_offset(UHAnnot.t);

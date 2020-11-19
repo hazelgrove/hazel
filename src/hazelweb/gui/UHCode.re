@@ -384,7 +384,7 @@ let decoration_views =
             Vdom.Attr.create(
               "style",
               Printf.sprintf(
-                "max-width: %dch; max-height: %fpx; top: %fpx; left: %fpx;",
+                "width: %dch; height: %fpx; top: %fpx; left: %fpx;",
                 width,
                 font_metrics.row_height,
                 top,
@@ -395,7 +395,7 @@ let decoration_views =
             Vdom.Attr.create(
               "style",
               Printf.sprintf(
-                "max-height: %fpx; top: %fpx; left: %fpx;",
+                "height: %fpx; top: %fpx; left: %fpx;",
                 float_of_int(height) *. font_metrics.row_height,
                 top,
                 left,

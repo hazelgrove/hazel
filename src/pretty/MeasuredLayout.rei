@@ -28,8 +28,8 @@ type box = {
  */
 [@deriving sexp]
 type t('annot) = {
-  layout: t'('annot),
   metrics: list(box),
+  layout: t'('annot),
 }
 and t'('annot) =
   | Linebreak
