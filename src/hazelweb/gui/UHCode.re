@@ -273,8 +273,8 @@ let decoration_views =
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
-        switch (IntMap.find_opt(llu)) {
-        | Some((llview, llview_shape)) =>
+        switch (IntMap.find_opt(llu, llview_ctx)) {
+        | Some((llview, _)) =>
           // type magic required by virtual dom to ensure
           // each widget state's type is unique from others
           let id =
@@ -285,12 +285,15 @@ let decoration_views =
           Vdom.[
             Node.widget(
               ~id,
-              ~init=() => {
-                // don't think we need widget-internal state
-                let state = ();
-                let container = Dom_html.(createDiv(document));
-                div##.innerHtml := Js.string(llview(m));
-              },
+              ~init=
+                () => {
+                  // don't think we need widget-internal state
+                  let state = ();
+                  let container = Dom_html.(createDiv(document));
+                  container##.innerHTML := Js.string(llview(m));
+                  (state, container);
+                },
+              (),
             ),
           ];
         | None =>

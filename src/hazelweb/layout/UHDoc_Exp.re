@@ -41,6 +41,8 @@ let mk_NTuple =
       ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
       ~mk_operator: UHExp.operator => UHDoc.t,
       ~enforce_inline: bool,
+      ~llview_ctx: Statics.livelit_web_view_ctx,
+      // andrew: added above but it didn't cause type errors????
       opseq: OpSeq.t('a, UHExp.operator),
     )
     : UHDoc.t =>
@@ -51,6 +53,7 @@ let mk_NTuple =
     ~mk_operand,
     ~mk_operator,
     ~enforce_inline,
+    ~llview_ctx,
     ~check_livelit_skel=
       (seq, skel) =>
         LivelitUtil.check_livelit_skel(seq, skel) |> Option.map(fst),
@@ -103,8 +106,7 @@ let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
     UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
   );
 
-// TODO fill stub
-type llview_ctx = unit;
+type llview_ctx = Statics.livelit_web_view_ctx;
 
 let rec mk =
   lazy(
@@ -113,6 +115,16 @@ let rec mk =
       (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, ctx_e): UHDoc.t)
     )
   )
+and mk_doc = (expr, child_step) => {
+  Lazy.force(
+    mk,
+    ~memoize=false,
+    ~enforce_inline=false,
+    // TODO livelit view ctx
+    (IntMap.empty, expr),
+  )
+  |> UHDoc_common.annot_Step(child_step);
+}
 // Two versions of `mk_block` so we can memoize them
 and mk_block_0 =
   lazy(
@@ -233,7 +245,30 @@ and mk_line =
                    : Unformatted(formattable(i, arg))
                );
           UHDoc_common.mk_AbbrevLine(lln_new, lln_old, formatteds);
-        | LivelitDefLine(_) => failwith("UHDoc_Exp")
+        | LivelitDefLine({
+            name: (_, name_str),
+            expansion_type,
+            captures,
+            model_type,
+            action_type,
+            init,
+            update,
+            view,
+            shape,
+            expand,
+          }) =>
+          UHDoc_common.mk_LivelitDefLine(
+            name_str,
+            UHDoc_Typ.mk_doc(expansion_type, 1),
+            mk_doc(captures, 2),
+            UHDoc_Typ.mk_doc(model_type, 3),
+            UHDoc_Typ.mk_doc(action_type, 4),
+            mk_doc(init, 5),
+            mk_doc(update, 6),
+            mk_doc(view, 7),
+            mk_doc(shape, 8),
+            mk_doc(expand, 9),
+          )
         | LetLine(p, ann, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
@@ -279,6 +314,7 @@ and mk_opseq =
               ),
           ~mk_operator,
           ~enforce_inline,
+          ~llview_ctx,
           opseq,
         ): UHDoc.t
       )
@@ -475,7 +511,12 @@ let mk_splices = (llview_ctx, e: UHExp.t): UHDoc.splices => {
            (splices, operand) => mk_operand(~splices, operand),
            splices,
          )
-    | LivelitDefLine(_) => failwith("UHDoc_Exp.mk_splices")
+    | LivelitDefLine({captures, init, update, view, shape, expand, _}) =>
+      List.fold_left(
+        (splices, block) => mk_block(~splices, block),
+        splices,
+        [captures, init, update, view, shape, expand],
+      )
     | LetLine(_, _, def) => mk_block(~splices, def)
     }
   and mk_opseq = (~splices, OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>

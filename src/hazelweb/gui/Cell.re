@@ -15,7 +15,8 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
     () => {
       open Vdom;
       let program = Model.get_program(model);
-      let llview_ctx = failwith("todo andrew");
+      let e = Program.get_uhexp(program);
+      let llview_ctx = Statics_Exp.build_ll_view_ctx(e);
       Node.div(
         [Attr.id(cell_id)],
         [

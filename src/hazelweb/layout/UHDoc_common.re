@@ -613,11 +613,6 @@ let mk_ApLivelit = (llname: LivelitName.t): t => {
 };
 
 /*
-   let livelit_LivelitDefLine = (): t => mk(~index=0, "livelit");
-   let at_LivelitDefLine = (): t => mk(~index=1, "at");
-   let open_LivelitDefLine = (): t => mk(~index=2, "{");
-   let open_LivelitDefLine = (): t => mk(~index=3, "}");
-
  livelit $? at ?ty {
  	captures ?e;
  	type model = ?ty;
@@ -627,41 +622,63 @@ let mk_ApLivelit = (llname: LivelitName.t): t => {
   view = ?e;
   shape =
   expand = ?e;
- } in
-   */
-/*
- let mk_LivelitDefLine =
-     (
-       name: string,
-       expansion_type: formatted_child,
-       captures: formatted_child,
-       model_type: formatted_child,
-       action_type: formatted_child,
-       init: formatted_child,
-       update: formatted_child,
-       view: formatted_child,
-       shape: formatted_child,
-       expand: formatted_child,
-     )
-     : t => {
-   let livelit_delim = Delim.livelit_LivelitDefLine();
-   let at_delim = Delim.at_LivelitDefLine();
-   let open_delim = Delim.open_LivelitDefLine();
-   let close_delim = Delim.close_LivelitDefLine();
-   let open_group = Doc.hcats([
-     livelit_delim,
-     expansion_type,
-     at_delim,
-     captures,
+ } in */
 
-   ]) |> annot_Tessera;
-   let close_group = close_delim |> annot_Tessera;
-   Doc.hcats([
-     //open_group,
-     //def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
-     close_group,
-   ]);
- };*/
+let mk_LivelitDefLine =
+    (
+      name: string,
+      expansion_type: UHDoc.t,
+      captures: UHDoc.t,
+      model_type: UHDoc.t,
+      action_type: UHDoc.t,
+      init: UHDoc.t,
+      update: UHDoc.t,
+      view: UHDoc.t,
+      shape: UHDoc.t,
+      expand: UHDoc.t,
+    )
+    : t => {
+  open Pretty;
+  let livelit_delim = Delim.livelit_LivelitDefLine();
+  let at_delim = Delim.at_LivelitDefLine();
+  let open_delim = Delim.open_LivelitDefLine();
+  let close_delim = Delim.close_LivelitDefLine();
+  let open_group =
+    Doc.hseps([
+      livelit_delim,
+      mk_text(name),
+      at_delim,
+      expansion_type,
+      open_delim,
+      Doc.linebreak(),
+    ])
+    |> annot_Tessera;
+  let close_group = close_delim |> annot_Tessera;
+  let ll_captures =
+    Doc.hcats([
+      Doc.hseps([Doc.indent(), Doc.text("captures"), captures]),
+      Doc.text(";"),
+      Doc.linebreak(),
+    ]);
+  let ll_line = (text, thing) =>
+    Doc.hcats([
+      Doc.hseps([Doc.indent(), Doc.text(text), Doc.text("="), thing]),
+      Doc.text(";"),
+      Doc.linebreak(),
+    ]);
+  let body_group =
+    Doc.vseps([
+      ll_captures,
+      ll_line("model type", model_type),
+      ll_line("action type", action_type),
+      ll_line("init", init),
+      ll_line("update", update),
+      ll_line("view", view),
+      ll_line("shape", shape),
+      ll_line("expand", expand),
+    ]);
+  Doc.hcats([open_group, body_group, close_group]);
+};
 
 let mk_LetLine =
     (p: formatted_child, ann: option(formatted_child), def: formatted_child)
@@ -758,6 +775,7 @@ let rec mk_BinOp =
              (Seq.t('operand, 'operator), Skel.t('operator)) =>
              option(LivelitUtil.llctordata)=(_, _) => None,
           ~seq: Seq.t('operand, 'operator),
+          ~llview_ctx: Statics.livelit_web_view_ctx,
           skel: Skel.t('operator),
         )
         : t => {
@@ -768,46 +786,48 @@ let rec mk_BinOp =
       ~mk_operator,
       ~inline_padding_of_operator,
       ~seq,
+      ~llview_ctx,
     );
 
   switch (check_livelit_skel(seq, skel)) {
   | Some(ApLivelitData(llu, base_llname, llname, model, _)) =>
     let ctx = Livelits.initial_livelit_view_ctx;
-    switch (VarMap.lookup(ctx, base_llname)) {
-    | None => failwith("livelit " ++ base_llname ++ " not found")
-    | Some((_, shape_fn)) =>
-      let shape = shape_fn(model);
-      let hd_step = Skel.leftmost_tm_index(skel);
-      let llexp =
-        annot_LivelitExpression(
-          ~hd_index=hd_step,
-          go(~enforce_inline, skel),
-        );
-      let annot_LivelitView =
-        Doc.annot(
-          UHAnnot.LivelitView({
-            llu,
-            base_llname,
-            llname,
-            shape,
-            model,
-            hd_step,
-          }),
-        );
-      switch (shape) {
-      | Inline(width) =>
-        let spaceholder =
-          Doc.text(StringUtil.replicat(width, UnicodeConstants.nbsp));
-        Doc.hcat(llexp, annot_LivelitView(spaceholder));
-      | MultiLine(height) =>
-        if (enforce_inline) {
-          Doc.fail();
-        } else {
-          let spaceholder =
-            Doc.hcats(ListUtil.replicate(height, Doc.linebreak()));
-          Doc.vsep(llexp, annot_LivelitView(spaceholder));
+    let shape =
+      switch (MetaVarMap.find(llu, llview_ctx)) {
+      | (_, shape) => shape
+      | exception Not_found =>
+        switch (VarMap.lookup(ctx, base_llname)) {
+        | None => failwith("livelit " ++ base_llname ++ " not found")
+        | Some((_, shape_fn)) => shape_fn(model)
         }
       };
+    let hd_step = Skel.leftmost_tm_index(skel);
+    let llexp =
+      annot_LivelitExpression(~hd_index=hd_step, go(~enforce_inline, skel));
+    let annot_LivelitView =
+      Doc.annot(
+        UHAnnot.LivelitView({
+          llu,
+          base_llname,
+          llname,
+          shape,
+          model,
+          hd_step,
+        }),
+      );
+    switch (shape) {
+    | Inline(width) =>
+      let spaceholder =
+        Doc.text(StringUtil.replicat(width, UnicodeConstants.nbsp));
+      Doc.hcat(llexp, annot_LivelitView(spaceholder));
+    | MultiLine(height) =>
+      if (enforce_inline) {
+        Doc.fail();
+      } else {
+        let spaceholder =
+          Doc.hcats(ListUtil.replicate(height, Doc.linebreak()));
+        Doc.vsep(llexp, annot_LivelitView(spaceholder));
+      }
     };
   | _ =>
     switch (skel) {
@@ -881,6 +901,7 @@ let mk_NTuple =
       ~mk_operator: 'operator => t,
       ~inline_padding_of_operator: 'operator => (t, t),
       ~enforce_inline: bool,
+      ~llview_ctx: Statics.livelit_web_view_ctx,
       ~check_livelit_skel:
          (Seq.t('operand, 'operator), Skel.t('operator)) =>
          option(LivelitUtil.llctordata)=(_, _) => None,
@@ -895,6 +916,7 @@ let mk_NTuple =
       ~inline_padding_of_operator,
       ~check_livelit_skel,
       ~seq,
+      ~llview_ctx,
     );
 
   switch (get_tuple_elements(skel)) {

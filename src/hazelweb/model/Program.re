@@ -250,6 +250,7 @@ let get_result = (program: t): Result.t => {
 
 let get_doc = (~settings: Settings.t, program) => {
   let e = get_uhexp(program);
+  let llview_ctx = Statics_Exp.build_ll_view_ctx(e);
   let doc =
     TimeUtil.measure_time(
       "Program.get_doc",
@@ -259,12 +260,10 @@ let get_doc = (~settings: Settings.t, program) => {
         UHDoc_Exp.mk,
         ~memoize=settings.memoize_doc,
         ~enforce_inline=false,
-        // TODO livelit view ctx
-        ((), e),
+        (llview_ctx, e),
       )
     );
-  // TODO livelit view ctx
-  let splice_docs = UHDoc_Exp.mk_splices((), e);
+  let splice_docs = UHDoc_Exp.mk_splices(llview_ctx, e);
   (doc, splice_docs);
 };
 
