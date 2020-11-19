@@ -250,16 +250,7 @@ let other_arithmetic_options = cursor_info => {
          )
        });
 
-  let ty: option(HTyp.t) = get_type(cursor_info);
-  let options =
-    switch (ty) {
-    | Some(Hole) => int_options @ float_options
-    | Some(Int) => int_options
-    | Some(Float) => float_options
-    | _ => []
-    };
-
-  [
+  let arithmetic_options_wrapper = options => [
     Node.div(
       [Attr.classes(["option"])],
       [
@@ -270,6 +261,14 @@ let other_arithmetic_options = cursor_info => {
       ],
     ),
   ];
+
+  let ty: option(HTyp.t) = get_type(cursor_info);
+  switch (ty) {
+  | Some(Hole) => arithmetic_options_wrapper(int_options @ float_options)
+  | Some(Int) => arithmetic_options_wrapper(int_options)
+  | Some(Float) => arithmetic_options_wrapper(float_options)
+  | _ => []
+  };
 };
 
 let view =
