@@ -555,7 +555,6 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~measure: bool,
       ~is_mac: bool,
       ~selected_instances: UserSelectedInstances.t,
       ~sync_livelit,
@@ -565,7 +564,7 @@ let view =
     : Vdom.Node.t =>
   TimeUtil.measure_time(
     "UHCode.view",
-    measure,
+    settings.performance.measure && settings.performance.uhcode_view,
     () => {
       open Vdom;
       let (_, _, llii, _) = Program.get_result(program);
