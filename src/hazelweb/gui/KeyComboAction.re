@@ -30,6 +30,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, option(CursorInfo.t) => Action.t) =
       | _ => Construct(SOp(SSpace)),
     ),
     (Comma, _ => Construct(SOp(SComma))),
+    (Caret, _ => Construct(SOp(SCaret))),
     (LeftBracket, _ => Construct(SLeftBracket)),
     (LeftQuotation, _ => Construct(SQuote)),
     (Dollar, _ => Construct(SChar("$"))),
