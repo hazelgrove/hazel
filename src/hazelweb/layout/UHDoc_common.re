@@ -648,23 +648,22 @@ let mk_LivelitDefLine =
       livelit_delim,
       mk_text(name),
       at_delim,
-      expansion_type,
+      expansion_type |> annot_ClosedChild(~is_inline=true, ~sort=Typ),
       open_delim,
-      Doc.linebreak(),
     ])
     |> annot_Tessera;
   let close_group = close_delim |> annot_Tessera;
   let ll_captures =
     Doc.hcats([
-      Doc.hseps([Doc.indent(), Doc.text("captures"), captures]),
+      Doc.indent(),
+      Doc.hseps([Doc.text("captures"), captures]),
       Doc.text(";"),
-      Doc.linebreak(),
     ]);
   let ll_line = (text, thing) =>
     Doc.hcats([
-      Doc.hseps([Doc.indent(), Doc.text(text), Doc.text("="), thing]),
+      Doc.indent(),
+      Doc.hseps([Doc.text(text), Doc.text("="), thing]),
       Doc.text(";"),
-      Doc.linebreak(),
     ]);
   let body_group =
     Doc.vseps([
@@ -676,8 +675,9 @@ let mk_LivelitDefLine =
       ll_line("view", view),
       ll_line("shape", shape),
       ll_line("expand", expand),
-    ]);
-  Doc.hcats([open_group, body_group, close_group]);
+    ])
+    |> Doc.annot(UHAnnot.OpenChild(Multiline));
+  Doc.vseps([open_group, body_group, close_group]);
 };
 
 let mk_LetLine =
