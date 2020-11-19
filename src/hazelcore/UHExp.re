@@ -7,7 +7,6 @@ type operator = Operators_Exp.t;
 type t = block
 and block = list(line)
 and livelit_record = {
-  //err: ErrStatus.t,
   name: (VarErrStatus.t, string), // 0
   expansion_type: UHTyp.t, // 1
   captures: t, //list((VarErrStatus.t, Var.t)), // 2

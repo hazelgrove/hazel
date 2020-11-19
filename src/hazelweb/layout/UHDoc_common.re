@@ -120,6 +120,11 @@ module Delim = {
   let eq_LetLine = (): t => mk(~index=2, "=");
   let in_LetLine = (): t => mk(~index=3, "in");
 
+  let livelit_LivelitDefLine = (): t => mk(~index=0, "livelit");
+  let at_LivelitDefLine = (): t => mk(~index=1, "at");
+  let open_LivelitDefLine = (): t => mk(~index=2, "{");
+  let close_LivelitDefLine = (): t => mk(~index=3, "} in");
+
   let abbrev_AbbrevLine = () => mk(~index=0, "abbrev");
   let eq_AbbrevLine = () => mk(~index=1, "=");
   let in_AbbrevLine = () => mk(~index=2, "in");
@@ -606,6 +611,57 @@ let mk_ApLivelit = (llname: LivelitName.t): t => {
     annot_Tessera(mk_text(llname)),
   );
 };
+
+/*
+   let livelit_LivelitDefLine = (): t => mk(~index=0, "livelit");
+   let at_LivelitDefLine = (): t => mk(~index=1, "at");
+   let open_LivelitDefLine = (): t => mk(~index=2, "{");
+   let open_LivelitDefLine = (): t => mk(~index=3, "}");
+
+ livelit $? at ?ty {
+ 	captures ?e;
+ 	type model = ?ty;
+ 	type action = ?ty;
+ 	init = ?e;
+ 	update = ?e;
+  view = ?e;
+  shape =
+  expand = ?e;
+ } in
+   */
+/*
+ let mk_LivelitDefLine =
+     (
+       name: string,
+       expansion_type: formatted_child,
+       captures: formatted_child,
+       model_type: formatted_child,
+       action_type: formatted_child,
+       init: formatted_child,
+       update: formatted_child,
+       view: formatted_child,
+       shape: formatted_child,
+       expand: formatted_child,
+     )
+     : t => {
+   let livelit_delim = Delim.livelit_LivelitDefLine();
+   let at_delim = Delim.at_LivelitDefLine();
+   let open_delim = Delim.open_LivelitDefLine();
+   let close_delim = Delim.close_LivelitDefLine();
+   let open_group = Doc.hcats([
+     livelit_delim,
+     expansion_type,
+     at_delim,
+     captures,
+
+   ]) |> annot_Tessera;
+   let close_group = close_delim |> annot_Tessera;
+   Doc.hcats([
+     //open_group,
+     //def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
+     close_group,
+   ]);
+ };*/
 
 let mk_LetLine =
     (p: formatted_child, ann: option(formatted_child), def: formatted_child)

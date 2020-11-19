@@ -79,14 +79,16 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_view = (view: UHExp.t): string => {
+  let mk_ll_view = (view: UHExp.t, model: SerializedModel.t): string => {
     // TODO(andrew): handle failure cases more better
+    let model_dhexp = DHExp.t_of_sexp(model);
     switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
     | Elaborates(view_dhexp, _, _) =>
-      switch (Evaluator.evaluate(~eval_livelit_holes=false, view_dhexp)) {
+      let term = DHExp.Ap(view_dhexp, model_dhexp);
+      switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
       | BoxedValue(StringLit(str)) => str
       | _ => failwith("mk_ll_view")
-      }
+      };
     | _ => failwith("mk_ll_view")
     };
   };
@@ -2216,7 +2218,8 @@ module rec M: Statics_Exp_Sig.S = {
   type livelit_view_data = (UHExp.t /* view */, UHExp.t /* shape */);
   type livelit_def_ctx = VarMap.t_(livelit_view_data);
   type livelit_view_ctx = MetaVarMap.t(livelit_view_data);
-  type livelit_web_view_ctx = MetaVarMap.t((string, LivelitShape.t));
+  type livelit_web_view_ctx =
+    MetaVarMap.t((SerializedModel.t => string, LivelitShape.t));
 
   let rec build_ll_view_ctx = (block: UHExp.t): livelit_web_view_ctx => {
     let ll_view = build_ll_view_ctx_block(block, VarMap.empty);
