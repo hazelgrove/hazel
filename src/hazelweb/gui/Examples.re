@@ -350,10 +350,11 @@ let slidy_view_first = handler =>
     <span class=\\\"slider-livelit\\\">
       <input
         class=\\\"slider\\\"
+        id=\\\"slidyy\\\"
         type=\\\"range\\\"
         min=0
         max=100
-        onClick=\\\""
+        onclick=\\\""
   ++ handler
   ++ "\\\"
         value=";
@@ -373,11 +374,14 @@ let mk_slidy_slice_last = "(shape((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized(
 let model_v = "10";
 
 let slidy_onclick = "(function(){
-              alert('HHHHHZZZZZ');
+              let value = document.getElementById('slidyy').value;
+              let action = '(IntLit ' + value + ')';
+              window.trigger(action);
               return false;
                  }) ();
             return false;";
 
+//TODO(andrew): give slider unique id somehow?
 let lltest2p =
   mk_slidy_slice_first
   ++ mk_slidy_slice_view1

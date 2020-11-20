@@ -75,12 +75,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 };
 
 let apply_action =
-    (
-      model: Model.t,
-      action: ModelAction.t,
-      state: State.t,
-      ~schedule_action as _,
-    )
+    (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
   let settings = model.settings;
   if (settings.performance.measure) {
@@ -93,6 +88,19 @@ let apply_action =
       log_action(action, state);
       switch (action) {
       | EditAction(a) =>
+        let llu = 0; // TODO(andrew): unhardcode me
+        let trigger = js_str => {
+          print_endline("RUN TRIGGER");
+          print_endline(Js.to_string(js_str));
+          let serialized_action =
+            js_str
+            |> Js.to_string
+            |> Sexplib.Sexp.of_string
+            |> SerializedAction.t_of_sexp;
+          schedule_action(ModelAction.LivelitAction(llu, serialized_action));
+        };
+        Js.Unsafe.set(Dom_html.window, "trigger", Js.wrap_callback(trigger));
+
         switch (model |> Model.perform_action(a)) {
         | new_model => new_model
         | exception Program.FailedAction =>
@@ -110,15 +118,26 @@ let apply_action =
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
           model;
-        }
+        };
       | MoveAction(Key(move_key)) =>
         switch (Model.move_via_key(move_key, model)) {
+        | exception Program.FailedAction =>
+          JSUtil.log("[Program.FailedAction]");
+          model;
+
         | None => model
         | Some(m) => m
         }
       | MoveAction(Click(opt_splice, row_col)) =>
-        model |> Model.move_via_click(opt_splice, row_col)
+        switch (model |> Model.move_via_click(opt_splice, row_col)) {
+        | exception Program.FailedAction =>
+          JSUtil.log("[Program.FailedAction]");
+          model;
+        | x => x
+        }
+
       | LivelitAction(llu, serialized_action) =>
+        print_endline("LIVELIT ACTION");
         let program = Model.get_program(model);
         let performed =
           model

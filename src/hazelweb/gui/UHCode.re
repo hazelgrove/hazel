@@ -305,8 +305,10 @@ let decoration_views =
                  failwith("undefined livelit " ++ base_llname)
                );
 
-          let trigger = serialized_action =>
+          let trigger = serialized_action => {
             inject(ModelAction.LivelitAction(llu, serialized_action));
+          };
+
           let sync = serialized_action =>
             sync_livelit(ModelAction.LivelitAction(llu, serialized_action));
           let livelit_view = llview(m, trigger, sync);

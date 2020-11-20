@@ -58,7 +58,7 @@ module rec M: Statics_Exp_Sig.S = {
   let mk_ll_init = (init: UHExp.t): SpliceGenCmd.t(SerializedModel.t) => {
     let dh_init = Elaborator.syn_elab(Contexts.empty, Delta.empty, init);
     switch (dh_init) {
-    | DoesNotElaborate => failwith("mk_ll_init")
+    | DoesNotElaborate => failwith("mk_ll_init ERROR")
     | Elaborates(dh_init, _, _) => serialize_ll_monad(dh_init)
     };
   };
@@ -69,13 +69,15 @@ module rec M: Statics_Exp_Sig.S = {
     let model_dhexp = DHExp.t_of_sexp(model);
     let update_dhexp =
       switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, update)) {
-      | DoesNotElaborate => failwith("mk_ll_update elab")
+      | DoesNotElaborate => failwith("mk_ll_update elab ERROR")
       | Elaborates(update, _, _) => update
       };
-    let term = DHExp.Ap(DHExp.Ap(update_dhexp, action_dhexp), model_dhexp);
+    let term = DHExp.Ap(update_dhexp, DHExp.Pair(action_dhexp, model_dhexp));
+    print_endline("mk_ll_update");
+    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | InvalidInput(_)
-    | Indet(_) => failwith("mk_ll_update eval")
+    | Indet(_) => failwith("mk_ll_update eval ERROR")
     | BoxedValue(dhexp) => serialize_ll_monad(dhexp)
     };
   };
@@ -88,9 +90,9 @@ module rec M: Statics_Exp_Sig.S = {
       let term = DHExp.Ap(view_dhexp, model_dhexp);
       switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
       | BoxedValue(StringLit(str)) => str
-      | _ => failwith("mk_ll_view")
+      | _ => failwith("mk_ll_view eval ERROR")
       };
-    | _ => failwith("mk_ll_view")
+    | _ => failwith("mk_ll_view elab ERROR")
     };
   };
 
@@ -103,30 +105,26 @@ module rec M: Statics_Exp_Sig.S = {
       } else {
         MultiLine(num);
       }
-    | _ => failwith("mk_ll_shape")
+    | _ => failwith("mk_ll_shape ERROR")
     };
   };
 
   let mk_ll_expand = (expand: UHExp.t, model: SerializedModel.t) => {
-    let model_dhexp = model |> DHExp.t_of_sexp; // |> (s => DHExp.StringLit(s));
+    let model_dhexp = model |> DHExp.t_of_sexp;
     let expand_dhexp =
       switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, expand)) {
       | DoesNotElaborate => failwith("mk_ll_expand elab")
       | Elaborates(expand, _, _) => expand
       };
     let term = DHExp.Ap(expand_dhexp, model_dhexp);
-    print_endline("BLOG");
-    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
-    print_endline("BLOG");
+    //print_endline("mk_ll_expand");
+    //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(StringLit(str)) =>
-      print_endline("BLEE");
-      print_endline(str);
-      str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+      str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp
     | BoxedValue(_) => failwith("mk_ll_expand eval otherval")
-    | InvalidInput(ii) =>
-      print_endline(string_of_int(ii));
-      failwith("mk_ll_expand eval invalidinput");
+    | InvalidInput(code) =>
+      failwith("mk_ll_expand eval invalidinput" ++ string_of_int(code))
     | Indet(_) => failwith("mk_ll_expand eval indet")
     };
   };
@@ -2260,7 +2258,6 @@ module rec M: Statics_Exp_Sig.S = {
         build_ll_view_ctx_block(block, def_ctx),
       )
     | LivelitDefLine({name: (_, name_str), view, shape, _}) =>
-      print_endline("BLOO build_ll_view_ctx_line lldefline case!!!!");
       let new_def_ctx = VarMap.extend(def_ctx, (name_str, (view, shape)));
       (new_def_ctx, MetaVarMap.empty);
     };

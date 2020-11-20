@@ -451,11 +451,18 @@ let target_path_of_click_input =
       );
     };
   };
-  let (rev_path_suffix, _) =
-    m
-    |> UHMeasuredLayout.nearest_path_within_row(target)
-    |> OptUtil.get(() => failwith("row with no caret positions"));
-  CursorPath.(append(path_prefix, rev(rev_path_suffix)));
+  /*
+     let (rev_path_suffix, _) =
+       m
+       |> UHMeasuredLayout.nearest_path_within_row(target)
+       |> OptUtil.get(() => failwith("row with no caret positions"));
+     CursorPath.(append(path_prefix, rev(rev_path_suffix)));
+   */
+  switch (UHMeasuredLayout.nearest_path_within_row(target, m)) {
+  | None => ([], OnDelim(0, Before))
+  | Some((rev_path_suffix, _)) =>
+    CursorPath.(append(path_prefix, rev(rev_path_suffix)))
+  };
 };
 
 let target_path_of_key_input =
