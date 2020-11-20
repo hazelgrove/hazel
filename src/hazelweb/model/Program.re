@@ -372,7 +372,7 @@ let perform_action =
     (~settings, ~move_via: option(MoveInput.t)=?, a: Action.t, program: t) => {
   let performed =
     switch (move_via, program.edit_state.term) {
-    | (None | Some(Key(_)), Unfocused(_)) => program
+    | (Some(Key(_)), Unfocused(_)) => program
     | _ =>
       let ze = EditState.get_focused_term(program.edit_state);
       let EditState.{ty, u_gen, _} = program.edit_state;

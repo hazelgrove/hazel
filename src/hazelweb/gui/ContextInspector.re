@@ -140,7 +140,7 @@ let view =
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectInstance(kind, prev_inst))),
+            Attr.on_mousedown(_ => inject(SelectInstance(kind, prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.matches(prev_key, ev)
@@ -167,7 +167,7 @@ let view =
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectInstance(kind, next_inst))),
+            Attr.on_mousedown(_ => inject(SelectInstance(kind, next_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.matches(next_key, ev)
