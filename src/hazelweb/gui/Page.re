@@ -111,12 +111,7 @@ let view =
       open Vdom;
       let card = model |> Model.get_card;
       let program = model |> Model.get_program;
-      let selected_hole_instance =
-        switch (Model.get_selected_instance(model)) {
-        | None
-        | Some((Livelit, _)) => None
-        | Some((Hole, inst)) => Some(inst)
-        };
+      let selected_instance = Model.get_selected_instance(model);
       let cell_status =
         if (!settings.evaluation.evaluate) {
           Node.div([], []);
@@ -147,7 +142,7 @@ let view =
                 [
                   DHCode.view(
                     ~inject,
-                    ~selected_hole_instance,
+                    ~selected_instance,
                     ~settings=settings.evaluation,
                     ~width=80,
                     settings.evaluation.show_unevaluated_expansion
@@ -234,7 +229,7 @@ let view =
                   ),
                   ContextInspector.view(
                     ~inject,
-                    ~selected_hole_instance,
+                    ~selected_instance,
                     ~settings=settings.evaluation,
                     program,
                   ),

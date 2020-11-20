@@ -4,7 +4,7 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_hole_instance: option(NodeInstance.t),
+      ~selected_instance: option(TaggedNodeInstance.t),
       ~settings: Settings.Evaluation.t,
       program: Program.t,
     )
@@ -52,7 +52,7 @@ let view =
               [
                 DHCode.view(
                   ~inject,
-                  ~selected_hole_instance,
+                  ~selected_instance,
                   ~settings,
                   ~width=30,
                   d,
@@ -101,7 +101,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_hole_instance,
+                    ~selected_instance,
                     ~settings,
                     inst,
                   ),
@@ -206,7 +206,7 @@ let view =
             DHCode.view_of_hole_instance(
               ~inject,
               ~width=30,
-              ~selected_hole_instance,
+              ~selected_instance,
               ~settings,
               inst,
             ),
@@ -252,7 +252,7 @@ let view =
                   DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_hole_instance,
+                    ~selected_instance,
                     ~settings,
                     inst,
                   ),
@@ -290,17 +290,22 @@ let view =
         let ctx = Contexts.gamma(ctx);
         let sigma =
           if (settings.evaluate) {
-            let (_, hii, _, _) = program |> Program.get_result;
-            switch (selected_hole_instance) {
+            let (_, hii, llii, _) = program |> Program.get_result;
+            switch (selected_instance) {
             | None => Elaborator_Exp.id_env(ctx)
-            | Some(inst) =>
-              switch (HoleInstanceInfo.lookup(hii, inst)) {
-              | None =>
-                // raise(InvalidInstance);
-                print_endline("[InvalidInstance]");
-                Elaborator_Exp.id_env(ctx);
-              | Some((sigma, _)) => sigma
-              }
+            | Some((kind, inst)) =>
+              let lookup = ii =>
+                switch (NodeInstanceInfo.lookup(ii, inst)) {
+                | None =>
+                  // raise(InvalidInstance);
+                  print_endline("[InvalidInstance]");
+                  Elaborator_Exp.id_env(ctx);
+                | Some((sigma, _, _)) => sigma
+                };
+              switch (kind) {
+              | Hole => lookup(hii)
+              | Livelit => lookup(llii)
+              };
             };
           } else {
             Elaborator_Exp.id_env(ctx);
@@ -341,12 +346,12 @@ let view =
                 ),
               ]
             | Some((kind, u)) =>
-              switch (selected_hole_instance) {
+              switch (selected_instance) {
               | None => [
                   instructional_msg("Click on a hole instance in the result"),
                 ]
-              | Some((u', _) as inst) =>
-                if (MetaVar.eq(u, u')) {
+              | Some((kind', (u', _) as inst)) =>
+                if (kind == kind' && MetaVar.eq(u, u')) {
                   let (_, hii, llii, _) = program |> Program.get_result;
                   let helper = mii =>
                     switch (NodeInstanceInfo.lookup(mii, inst)) {

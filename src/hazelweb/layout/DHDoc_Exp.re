@@ -115,7 +115,7 @@ let rec mk =
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_hole_instance: option(NodeInstance.t),
+          ~selected_instance: option(TaggedNodeInstance.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -154,7 +154,7 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_hole_instance)),
+            drs |> List.map(mk_rule(~settings, ~selected_instance)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -178,9 +178,9 @@ let rec mk =
         DHDoc_common.mk_FreeLivelit(lln, u, i)
       | EmptyHole(u, i, _sigma) =>
         let selected =
-          switch (selected_hole_instance) {
-          | None => false
-          | Some((u', i')) => u == u' && i == i'
+          switch (selected_instance) {
+          | Some((Hole, (u', i'))) when u' == u && i' == i => true
+          | _ => false
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, _sigma, d) =>
@@ -365,10 +365,9 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
-    : DHDoc.t => {
+    (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_hole_instance);
+  let mk' = mk(~settings, ~selected_instance);
   let hidden_clause =
     annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
   let clause_doc =
