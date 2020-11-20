@@ -19,8 +19,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
-  | UnaryOpZU(_, zunop, _) => cons'(0, of_zunop(zunop))
-  | UnaryOpZN(_, _, zoperand) => cons'(1, of_zoperand(zoperand))
+  | UnaryOpZN(_, _, zoperand) => cons'(0, of_zoperand(zoperand))
   | LamZP(_, zp, _, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LamZA(_, _, zann, _) => cons'(1, CursorPath_Typ.of_z(zann))
   | LamZE(_, _, _, zdef) => cons'(2, of_z(zdef))
@@ -141,10 +140,6 @@ and follow_operand =
     | UnaryOp(err, unop, operand) =>
       switch (x) {
       | 0 =>
-        unop
-        |> follow_unop((xs, cursor))
-        |> Option.map(zunop => ZExp.UnaryOpZU(err, zunop, operand))
-      | 1 =>
         operand
         |> follow_operand((xs, cursor))
         |> Option.map(zoperand => ZExp.UnaryOpZN(err, unop, zoperand))
@@ -364,16 +359,12 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
-    | UnaryOp(_, unop, operand) =>
+    | UnaryOp(_, _, operand) =>
       switch (x) {
       | 0 =>
-        unop
-        |> of_steps_unop(xs, ~side)
-        |> Option.map(path => cons'(0, path))
-      | 1 =>
         operand
         |> of_steps_operand(xs, ~side)
-        |> Option.map(path => cons'(1, path))
+        |> Option.map(path => cons'(0, path))
       | _ => None
       }
     | Lam(_, p, ann, body) =>
@@ -706,6 +697,9 @@ and holes_zoperand =
     (zoperand: ZExp.zoperand, rev_steps: CursorPath_common.rev_steps)
     : CursorPath_common.zhole_list =>
   switch (zoperand) {
+  | CursorE(OnOp(Before), UnaryOp(_) as operand) =>
+    let operand_holes = holes_operand(operand, [0, ...rev_steps], []);
+    CursorPath_common.mk_zholes(~holes_before=operand_holes, ());
   | CursorE(OnOp(_), _) => CursorPath_common.no_holes
   | CursorE(_, EmptyHole(u)) =>
     CursorPath_common.mk_zholes(
@@ -856,24 +850,9 @@ and holes_zoperand =
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-  | UnaryOpZU(err, _, operand) =>
-    let operand_holes = holes_operand(operand, [1, ...rev_steps], []);
-    let hole_err: option(CursorPath_common.hole_info) =
-      switch (err) {
-      | NotInHole => None
-      | InHole(_, u) =>
-        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
-      };
-    /* TODO */
-    CursorPath_common.mk_zholes(
-      ~holes_before=[],
-      ~hole_selected=hole_err,
-      ~holes_after=operand_holes,
-      (),
-    );
   | UnaryOpZN(err, _, zoperand) =>
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
-      holes_zoperand(zoperand, [1, ...rev_steps]);
+      holes_zoperand(zoperand, [0, ...rev_steps]);
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []

@@ -289,17 +289,8 @@ let mk_Unop =
       ~mk_operand: 'operand => t,
     )
     : t => {
-  let op_doc =
-    mk_op(UnaryOperators_Exp.to_string(unop))
-    |> annot_Step(0)
-    |> annot_Tessera;
-  Doc.hcats([
-    op_doc,
-    // |> pad_operator(
-    //      ~inline_padding=inline_padding_of_operator(Operators_Exp.Minus),
-    //    )
-    mk_operand(operand) |> annot_Step(1),
-  ])
+  let op_doc = mk_op(UnaryOperators_Exp.to_string(unop)) |> annot_Tessera;
+  Doc.hcats([op_doc, mk_operand(operand) |> annot_Step(0)])
   |> annot_Operand(~sort);
 };
 

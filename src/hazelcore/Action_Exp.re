@@ -1827,7 +1827,7 @@ and syn_perform_operand =
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
   | (SwapLeft | SwapRight, CursorE(_)) => Failed
-  | (SwapUp | SwapDown | SwapLeft | SwapRight, UnaryOpZU(_) | UnaryOpZN(_)) =>
+  | (SwapUp | SwapDown | SwapLeft | SwapRight, UnaryOpZN(_)) =>
     failwith("not implemented.")
 
   /* Zipper Cases */
@@ -1844,25 +1844,6 @@ and syn_perform_operand =
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
-  | (_, UnaryOpZU(_, zunop, _)) =>
-    switch (a, zunop) {
-    /* invalid cursor positions */
-    | (_, (OnOp(After) | OnText(_) | OnDelim(_, _), _)) => Failed
-    /* movement handled at top level */
-    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-      failwith("unimplemented 1853")
-    /* swapping */
-    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) =>
-      failwith("unimplemented 1856")
-
-    /* Backspace and Delete */
-    | (Delete, (CursorPosition.OnOp(Before), _))
-    | (Backspace, (CursorPosition.OnOp(Before), _)) =>
-      CursorEscaped(Before)
-    | (Construct(_), _) => failwith("not implemented 1916")
-    | (UpdateApPalette(_), _) => failwith("not implemented 1889")
-    | (Init, _) => failwith("Init action should not be performed.")
-    }
   | (_, UnaryOpZN(_, unop, zoperand)) =>
     let unwrap_zblock_to_zoperand = (ze: ZExp.t) => {
       switch (ze) {
@@ -1870,7 +1851,7 @@ and syn_perform_operand =
         switch (zopseq) {
         | ZOpSeq(_, seq) =>
           switch (seq) {
-          | ZOperand(zoperand, _) => zoperand // TODO ANAND: writ ehelper function to handle sequence case
+          | ZOperand(zoperand, _) => zoperand
           | _ => ParenthesizedZ(ze)
           }
         }
@@ -1922,7 +1903,6 @@ and syn_perform_operand =
       | CursorEscaped(Before) => failwith("not implemented 1951")
       | Succeeded(AnaExpands(_)) => failwith("not implemented 1938")
       | Succeeded(AnaDone((ze, u_gen))) =>
-        // TODO ANAND: if it's not a ExpLineZ, paranthesize it!
         // TODO ANAND: If it's an opseq, negate the first part of the opseq and keep the rest!
 
         /* unwrap ze to the operand */
@@ -3330,7 +3310,8 @@ and ana_perform_operand =
     | Failed
     | CursorEscaped(_) => Failed
     | Succeeded(new_edit_state) =>
-      ana_perform(ctx, a, new_edit_state, ty) |> wrap_in_AnaDone
+      print_endline("HAHAHA");
+      ana_perform(ctx, a, new_edit_state, ty) |> wrap_in_AnaDone;
     }
 
   | (Construct(SLine), CursorE(_)) when ZExp.is_before_zoperand(zoperand) =>
@@ -3374,32 +3355,7 @@ and ana_perform_operand =
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(zbody));
       Succeeded(AnaDone((new_ze, u_gen)));
     }
-  | (_, UnaryOpZU(_, zunop, operand)) =>
-    switch (a, zunop) {
-    /* invalid cursor positions */
-    | (_, (OnOp(After) | OnText(_) | OnDelim(_, _), _)) => Failed
-    /* movement handled at top level */
-    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-      failwith("unimplemented")
-    /* swapping (unimplemented) */
-    | (SwapUp | SwapDown | SwapLeft | SwapRight, _) =>
-      failwith("unimplemented")
-
-    /* Backspace and Delete */
-    | (Delete, (CursorPosition.OnOp(Before), _)) =>
-      let (operand, u_gen) =
-        Statics_Exp.ana_fix_holes_operand(ctx, u_gen, operand, ty);
-      let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(operand));
-      Succeeded(AnaDone((new_ze, u_gen)));
-    | (Backspace, (CursorPosition.OnOp(Before), _)) =>
-      CursorEscaped(Before)
-    | (Construct(_), _) => failwith("not implemented 3440")
-    | (UpdateApPalette(_), _) => failwith("not implemented 3441")
-    | (Init, _) => failwith("Init action should not be performed.")
-    }
   | (_, UnaryOpZN(_, unop, zoperand)) =>
-    // TODO ANAND: this needs to handle other stuff to, like Let expressions. Make sure it works for everything, not just zblocks, as long as it wraps a zoperand
-    // TODO: ANAND: if it's not a explinez, just parenthesize it. (CursorL, LetLine**)
     let unwrap_zblock_to_zoperand = (ze: ZExp.t) => {
       switch (ze) {
       | (_, ExpLineZ(zopseq), _) =>

@@ -180,11 +180,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
-  | UnaryOp(NotInHole, unop, _) =>
-    switch (unop) {
-    | UnaryMinus => Some(Int)
-    | FUnaryMinus => Some(Float)
-    }
+  | UnaryOp(NotInHole, unop, _) => syn_unop(ctx, unop)
   | Lam(NotInHole, p, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -232,7 +228,12 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     };
   | Parenthesized(body) => syn(ctx, body)
   }
-
+and syn_unop = (_: Contexts.t, unop: UHExp.unop) => {
+  switch (unop) {
+  | UnaryOperators_Exp.UnaryMinus => Some(HTyp.Int)
+  | UnaryOperators_Exp.FUnaryMinus => Some(HTyp.Float)
+  };
+}
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
   let clause_types =
