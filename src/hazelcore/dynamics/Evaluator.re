@@ -75,38 +75,33 @@ let eval_bin_str_op = (op: DHExp.BinStrOp.t, n1: string, n2: string): DHExp.t =>
   | Caret => StringLit(n1 ++ n2)
   };
 
-let builtin_subst = (d_in: DHExp.t): DHExp.t =>
-  switch (d_in) {
-  | BoundVar(x) =>
-    switch (BuiltinFunctions.lookup(x)) {
-    | None => d_in //InvalidInput(1)
-    | Some(ty) =>
-      switch (x) {
-      | "equal" =>
-        Lam(
-          Var("x1"),
-          ty,
-          Lam(
-            Var("x2"),
-            Arrow(String, Bool),
-            ApBuiltin("equal", [BoundVar("x1"), BoundVar("x2")]),
-          ),
-        )
-      | "compare" =>
-        Lam(
-          Var("x1"),
-          ty,
-          Lam(
-            Var("x2"),
-            Arrow(String, Int),
-            ApBuiltin("compare", [BoundVar("x1"), BoundVar("x2")]),
-          ),
-        )
-      | _ => Lam(Var("x1"), ty, ApBuiltin(x, [BoundVar("x1")]))
-      }
-    }
-  | _ => d_in
-  };
+let builtin_subst = (x: Var.t): option(DHExp.t) =>
+  BuiltinFunctions.lookup(x)
+  |> Option.map(ty =>
+       switch (x) {
+       | "equal" =>
+         DHExp.Lam(
+           Var("x1"),
+           ty,
+           Lam(
+             Var("x2"),
+             Arrow(String, Bool),
+             ApBuiltin("equal", [BoundVar("x1"), BoundVar("x2")]),
+           ),
+         )
+       | "compare" =>
+         Lam(
+           Var("x1"),
+           ty,
+           Lam(
+             Var("x2"),
+             Arrow(String, Int),
+             ApBuiltin("compare", [BoundVar("x1"), BoundVar("x2")]),
+           ),
+         )
+       | _ => Lam(Var("x1"), ty, ApBuiltin(x, [BoundVar("x1")]))
+       }
+     );
 
 let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
   switch (x) {
@@ -280,7 +275,11 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
 let rec evaluate = (~eval_livelit_holes, d: DHExp.t): result => {
   let evaluate' = evaluate(~eval_livelit_holes);
   switch (d) {
-  | BoundVar(x) => evaluate'(builtin_subst(BoundVar(x)))
+  | BoundVar(x) =>
+    switch (builtin_subst(x)) {
+    | None => InvalidInput(1)
+    | Some(d) => evaluate'(d)
+    }
   | FailedAssert(d1) => Indet(d1)
   | ApBuiltin(x, l) => builtinfunctions_evaluate(x, l)
   | Let(dp, d1, d2) =>
