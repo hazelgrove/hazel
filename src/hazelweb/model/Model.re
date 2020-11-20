@@ -240,7 +240,7 @@ let toggle_right_sidebar = (model: t): t => {
 let load_example = (model: t, e: UHExp.t): t => {
   let (ze, ty, u_gen) =
     Statics_Exp.fix_and_renumber_holes_z(
-      (VarCtx.empty, Livelits.initial_livelit_ctx),
+      (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx),
       ZExp.place_before(e),
     );
   let edit_state: Program.EditState.t = {term: Focused(ze), ty, u_gen};

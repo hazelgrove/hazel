@@ -251,6 +251,7 @@ let get_result = (program: t): Result.t => {
 let get_doc = (~settings: Settings.t, program) => {
   let e = get_uhexp(program);
   let llview_ctx = Statics_Exp.build_ll_view_ctx(e);
+
   let doc =
     TimeUtil.measure_time(
       "Program.get_doc",

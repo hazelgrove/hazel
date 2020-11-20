@@ -69,13 +69,13 @@ module rec M: Statics_Exp_Sig.S = {
     let model_dhexp = DHExp.t_of_sexp(model);
     let update_dhexp =
       switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, update)) {
-      | DoesNotElaborate => failwith("mk_ll_update")
+      | DoesNotElaborate => failwith("mk_ll_update elab")
       | Elaborates(update, _, _) => update
       };
     let term = DHExp.Ap(DHExp.Ap(update_dhexp, action_dhexp), model_dhexp);
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | InvalidInput(_)
-    | Indet(_) => failwith("mk_ll_update")
+    | Indet(_) => failwith("mk_ll_update eval")
     | BoxedValue(dhexp) => serialize_ll_monad(dhexp)
     };
   };
@@ -108,20 +108,26 @@ module rec M: Statics_Exp_Sig.S = {
   };
 
   let mk_ll_expand = (expand: UHExp.t, model: SerializedModel.t) => {
-    let model_str_dhexp =
-      model |> Sexplib.Sexp.to_string |> (s => DHExp.StringLit(s));
+    let model_dhexp = model |> DHExp.t_of_sexp; // |> (s => DHExp.StringLit(s));
     let expand_dhexp =
       switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, expand)) {
-      | DoesNotElaborate => failwith("mk_ll_expand")
+      | DoesNotElaborate => failwith("mk_ll_expand elab")
       | Elaborates(expand, _, _) => expand
       };
-    let term = DHExp.Ap(expand_dhexp, model_str_dhexp);
+    let term = DHExp.Ap(expand_dhexp, model_dhexp);
+    print_endline("BLOG");
+    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
+    print_endline("BLOG");
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(StringLit(str)) =>
-      str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp
-    | BoxedValue(_)
-    | InvalidInput(_)
-    | Indet(_) => failwith("mk_ll_update")
+      print_endline("BLEE");
+      print_endline(str);
+      str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
+    | BoxedValue(_) => failwith("mk_ll_expand eval otherval")
+    | InvalidInput(ii) =>
+      print_endline(string_of_int(ii));
+      failwith("mk_ll_expand eval invalidinput");
+    | Indet(_) => failwith("mk_ll_expand eval indet")
     };
   };
 
@@ -2233,7 +2239,7 @@ module rec M: Statics_Exp_Sig.S = {
             build_ll_view_ctx_line(line, def_ctx_acc);
           (
             new_defs_ctx,
-            MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_views_ctx),
+            MetaVarMap.shadowed_merge(view_ctx_acc, new_views_ctx),
           );
         },
         (def_ctx, MetaVarMap.empty),
@@ -2254,6 +2260,7 @@ module rec M: Statics_Exp_Sig.S = {
         build_ll_view_ctx_block(block, def_ctx),
       )
     | LivelitDefLine({name: (_, name_str), view, shape, _}) =>
+      print_endline("BLOO build_ll_view_ctx_line lldefline case!!!!");
       let new_def_ctx = VarMap.extend(def_ctx, (name_str, (view, shape)));
       (new_def_ctx, MetaVarMap.empty);
     };
@@ -2266,7 +2273,7 @@ module rec M: Statics_Exp_Sig.S = {
     List.fold_left(
       (view_ctx_acc, operand) => {
         let new_view_ctx = build_ll_view_ctx_operand(operand, def_ctx);
-        MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
+        MetaVarMap.shadowed_merge(view_ctx_acc, new_view_ctx);
       },
       MetaVarMap.empty,
       operands,
@@ -2290,14 +2297,14 @@ module rec M: Statics_Exp_Sig.S = {
     | Case(_, scrut, rules) =>
       let scrut_view_ctx = build_ll_view_ctx_block(scrut, def_ctx);
       let rules_view_ctx = build_ll_view_ctx_rules(rules, def_ctx);
-      MetaVarMap.merge((_, _, b) => b, scrut_view_ctx, rules_view_ctx);
+      MetaVarMap.shadowed_merge(scrut_view_ctx, rules_view_ctx);
     | Subscript(_, t1, t2, t3) =>
       let t1_view_ctx = build_ll_view_ctx_block(t1, def_ctx);
       let t2_view_ctx = build_ll_view_ctx_block(t2, def_ctx);
       let t3_view_ctx = build_ll_view_ctx_block(t3, def_ctx);
       let t1_and_t2_view_ctx =
-        MetaVarMap.merge((_, _, b) => b, t1_view_ctx, t2_view_ctx);
-      MetaVarMap.merge((_, _, b) => b, t1_and_t2_view_ctx, t3_view_ctx);
+        MetaVarMap.shadowed_merge(t1_view_ctx, t2_view_ctx);
+      MetaVarMap.shadowed_merge(t1_and_t2_view_ctx, t3_view_ctx);
     | ApLivelit(metavar, _, _base_name, name, _, spliceinfo) =>
       let new_view_ctx1 =
         switch (VarMap.lookup(def_ctx, name)) {
@@ -2310,7 +2317,9 @@ module rec M: Statics_Exp_Sig.S = {
           MetaVarMap.singleton(metavar, (view, shape))
         };
       let new_view_ctx2 = build_ll_view_ctx_splice_info(spliceinfo, def_ctx);
-      MetaVarMap.merge((_, _, b) => b, new_view_ctx1, new_view_ctx2);
+      let ret_ctx = MetaVarMap.shadowed_merge(new_view_ctx2, new_view_ctx1);
+      // TODO (andrew): make merge fn here more better
+      ret_ctx;
     | FreeLivelit(_metavar, _name) =>
       // not sure about this case -andrew
       MetaVarMap.empty
@@ -2323,7 +2332,7 @@ module rec M: Statics_Exp_Sig.S = {
     IntMap.fold(
       (_k, (_, uhexp: UHExp.t), view_ctx_acc: Statics.livelit_view_ctx) => {
         let new_view_ctx = build_ll_view_ctx_block(uhexp, def_ctx);
-        MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
+        MetaVarMap.shadowed_merge(view_ctx_acc, new_view_ctx);
       },
       splice_map,
       MetaVarMap.empty: Statics.livelit_view_ctx,
@@ -2335,7 +2344,7 @@ module rec M: Statics_Exp_Sig.S = {
     List.fold_left(
       (view_ctx_acc, rule) => {
         let new_view_ctx = build_ll_view_ctx_rule(rule, def_ctx);
-        MetaVarMap.merge((_, _, b) => b, view_ctx_acc, new_view_ctx);
+        MetaVarMap.shadowed_merge(view_ctx_acc, new_view_ctx);
       },
       MetaVarMap.empty,
       rules,
