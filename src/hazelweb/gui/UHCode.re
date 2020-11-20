@@ -271,7 +271,7 @@ let decoration_views =
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
-      | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
+      | LivelitView({llu, base_llname, shape, model, hd_step, _}) =>
         // TODO(livelit definitions): thread ctx
         let ctx = Livelits.initial_livelit_view_ctx;
         let (llview: Livelits.serialized_view_fn_t, _) =
@@ -282,7 +282,7 @@ let decoration_views =
           inject(ModelAction.LivelitAction(llu, serialized_action));
         let sync = serialized_action =>
           sync_livelit(ModelAction.LivelitAction(llu, serialized_action));
-        let livelit_view = llview(m, trigger, sync);
+        let livelit_view = llview(model, trigger, sync);
         let vs = {
           let uhcode = splice_name => {
             let splice_l = SpliceMap.get_splice(llu, splice_name, splice_ls);
@@ -402,22 +402,24 @@ let decoration_views =
               ),
             )
           };
-        Vdom.[
-          Node.div(
-            [
-              Attr.classes([
-                "LivelitView",
-                switch (shape) {
-                | Inline(_) => "Inline"
-                | MultiLine(_) => "MultiLine"
-                },
-              ]),
-              dim_attr,
-              Attr.on_mousedown(_ => Event.Stop_propagation),
-            ],
-            vs,
-          ),
-        ];
+        let current_vs =
+          Vdom.[
+            Node.div(
+              [
+                Attr.classes([
+                  "LivelitView",
+                  switch (shape) {
+                  | Inline(_) => "Inline"
+                  | MultiLine(_) => "MultiLine"
+                  },
+                ]),
+                dim_attr,
+                Attr.on_mousedown(_ => Event.Stop_propagation),
+              ],
+              vs,
+            ),
+          ];
+        go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
     };
