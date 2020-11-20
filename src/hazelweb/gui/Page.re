@@ -21,6 +21,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
         ),
         Node.option([Attr.value("map_example")], [Node.text("map")]),
         Node.option([Attr.value("qsort_example")], [Node.text("qsort")]),
+        Node.option(
+          [Attr.value("map_img_filter")],
+          [Node.text("map_img_filter")],
+        ),
       ],
     )
   );
