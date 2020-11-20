@@ -1858,11 +1858,7 @@ and syn_perform_operand =
       | _ => ParenthesizedZ(ze)
       };
     };
-    let ty_u: HTyp.t =
-      switch (unop) {
-      | UnaryMinus => Int
-      | FUnaryMinus => Float
-      };
+    let ty_u = Statics_Exp.syn_unop(ctx, unop);
     switch (a, unop, zoperand) {
     | (
         Construct(SChar(".")),
@@ -3246,11 +3242,7 @@ and ana_perform_operand =
     switch (os) {
     | SMinus =>
       let unop = UnaryOperators_Exp.UnaryMinus;
-      let ty_u: HTyp.t =
-        switch (unop) {
-        | UnaryMinus => Int
-        | FUnaryMinus => Float
-        };
+      let ty_u = Statics_Exp.syn_unop(ctx, unop);
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
           ctx,
@@ -3371,11 +3363,7 @@ and ana_perform_operand =
     };
 
     // TODO ANAND: probably put this somewhere else in a helper func, like Statics_Exp.re
-    let ty_u: HTyp.t =
-      switch (unop) {
-      | UnaryMinus => Int
-      | FUnaryMinus => Float
-      };
+    let ty_u = Statics_Exp.syn_unop(ctx, unop);
     switch (a, unop, zoperand) {
     | (
         Construct(SChar(".")),

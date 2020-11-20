@@ -33,9 +33,9 @@ let syn_lines: (Contexts.t, list(UHExp.line)) => option(Contexts.t);
 let syn_opseq: (Contexts.t, UHExp.opseq) => option(HTyp.t);
 let syn_skel: (Contexts.t, UHExp.skel, UHExp.seq) => option(HTyp.t);
 let syn_operand: (Contexts.t, UHExp.operand) => option(HTyp.t);
-let syn_unop: (Contexts.t, UHExp.unop) => option(HTyp.t);
 let syn_rules: (Contexts.t, UHExp.rules, HTyp.t) => option(HTyp.t);
 let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
+let syn_unop: (Contexts.t, UHExp.unop) => HTyp.t;
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
