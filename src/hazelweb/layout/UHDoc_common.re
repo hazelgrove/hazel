@@ -665,7 +665,7 @@ let mk_AbbrevLine =
            | EnforcedInline(arg) => arg
            | Unformatted(arg) => arg(~enforce_inline=true),
          );
-    Doc.(hcats([space_, ...args] @ [space_]));
+    Doc.hseps(args);
   };
   let old_ll_group =
     Doc.hcats([

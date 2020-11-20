@@ -623,17 +623,13 @@ let rec syn_perform =
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-  | Succeeded(SynExpands({kw: Abbrev, prefix, subject, suffix, u_gen})) =>
+  | Succeeded(SynExpands({kw: Abbrev, prefix, subject: _, suffix, u_gen})) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next_hole;
+    let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let zlet =
       ZExp.CursorL(
         OnDelim(0, Before),
-        UHExp.AbbrevLine(
-          "$",
-          InAbbrevHole(Free, u),
-          "$",
-          [UHExp.Parenthesized(subject)],
-        ),
+        UHExp.AbbrevLine("$", InAbbrevHole(Free, u), "$", [hole]),
       );
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
@@ -1193,16 +1189,26 @@ and syn_perform_line =
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded(
         AnaDone((
-          ([], ExpLineZ(ZOpSeq(_, ZOperand(zarg, (_, _)))), []),
+          ([], ExpLineZ(ZOpSeq(_, ZOperand(zarg, (pre, suf)))), []),
           u_gen,
         )),
       ) =>
+      let pre =
+        List.map(
+          UHExp.set_err_status_operand(NotInHole),
+          Seq.operands_of_affix(pre),
+        );
+      let suf =
+        List.map(
+          UHExp.set_err_status_operand(NotInHole),
+          Seq.operands_of_affix(suf),
+        );
       let new_zabbrev =
         ZExp.AbbrevLineZL(
           lln_new,
           err_status,
           lln_old,
-          (prefix, zarg, suffix),
+          (prefix @ pre, zarg, suf @ suffix),
         );
       Succeeded(LineDone((([], new_zabbrev, []), ctx, u_gen)));
     | Succeeded(_) => Failed
