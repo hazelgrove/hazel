@@ -6,11 +6,6 @@ module Memo = Core_kernel.Memo;
 module MeasuredLayout = Pretty.MeasuredLayout;
 module MeasuredPosition = Pretty.MeasuredPosition;
 
-/**
- * - what's the "gap problem" on slide 6? (was it explained in previous slide?)
- * - slide 6, don't use the term "non-trivial"
- * - demo: need better motivation of different types of edits
- */
 module EditState = {
   [@deriving sexp]
   type term =
