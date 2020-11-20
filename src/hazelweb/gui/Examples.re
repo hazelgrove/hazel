@@ -345,24 +345,47 @@ let mk_slidy_slice_second = "(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole
 
 let mk_slidy_slice_view1 = "(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole \"";
 
-let slidy_view_first = handler =>
-  "
-    <span class=\\\"slider-livelit\\\">
-      <input
-        class=\\\"slider\\\"
-        id=\\\"slidyy\\\"
-        type=\\\"range\\\"
-        min=0
-        max=100
-        onclick=\\\""
-  ++ handler
-  ++ "\\\"
-        value=";
+let slidy_view_first = (_onclick_handler, _onmousedown_handler) => "
+     <span class=\\\"slider-livelit\\\">
+       <input
+         class=\\\"slider\\\"
+         id=\\\"slidyy\\\"
+         type=\\\"range\\\"
+         min=0
+         max=100
 
+         oninput=\\\"(function(e){
+          console.log('ONINPUT');
+          console.log(e);
+          let value = document.getElementById('slidyy').value;
+          let action = '(IntLit ' + value + ')';
+          window.trigger(action);
+          return false;
+             }) ();
+        return false;\\\"
+
+         value=";
+/*
+ let slidy_view_first = (_onclick_handler, _onmousedown_handler) => "
+     <span class=\\\"slider-livelit\\\">
+       <input
+         class=\\\"slider\\\"
+         id=\\\"slidyy\\\"
+         type=\\\"range\\\"
+         min=0
+         max=100
+         value=";
+ */
 let mk_slidy_slice_view2 = "\")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole \"";
 
 let slidy_view_last = ">
       </input>
+      <script>
+      console.log('SCRIPT RUNNING');
+      let el = document.getElementById('slidyy');
+      let f = function(e){console.log('FFFFFFFF'); console.log(e);};
+      el.addEventListener('onchange', f);
+      </script>
     </span>";
 
 let mk_slidy_slice_view3 = "\")E)))))))))E)))))";
@@ -373,19 +396,36 @@ let mk_slidy_slice_last = "(shape((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized(
 
 let model_v = "10";
 
-let slidy_onclick = "(function(){
+let slidy_onclick = "(function(e){
+              console.log('ONCLICK');
+              console.log(e);
               let value = document.getElementById('slidyy').value;
-              let action = '(IntLit ' + value + ')';
+              console.log(value);
+              console.log(this);
+
+              let value2222 = '87';
+              let action = '(IntLit ' + value2222 + ')';
               window.trigger(action);
               return false;
                  }) ();
             return false;";
 
+let slidy_onmousedown = "(function(e){
+            console.log('ONMOUSEDOWN');
+            console.log(e);
+            let value = document.getElementById('slidyy').value;
+            console.log(value);
+            console.log(this);
+            console.log(this.Event);
+            return false;
+                }) ();
+          return false;";
+
 //TODO(andrew): give slider unique id somehow?
 let lltest2p =
   mk_slidy_slice_first
   ++ mk_slidy_slice_view1
-  ++ slidy_view_first(slidy_onclick)
+  ++ slidy_view_first(slidy_onclick, slidy_onmousedown)
   ++ mk_slidy_slice_view2
   ++ slidy_view_last
   ++ mk_slidy_slice_view3

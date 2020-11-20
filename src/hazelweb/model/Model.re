@@ -1,5 +1,7 @@
 open OptUtil.Syntax;
+open Sexplib.Std;
 
+[@deriving sexp]
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -187,11 +189,18 @@ let perform_action =
              let history = get_undo_history(model);
              let new_cardstacks =
                model |> put_program(new_program) |> get_cardstacks;
-             switch (ZCardstacks.get_program(new_cardstacks).edit_state.term) {
-             | Unfocused(_) => failwith("history entry without cursor")
-             | Focused(_) => ()
-             };
-             UndoHistory.push_edit_state(history, new_cardstacks, a);
+             // HACK(andrew)
+             let new_new_cardstack =
+               switch (
+                 ZCardstacks.get_program(new_cardstacks).edit_state.term
+               ) {
+               | Unfocused(_) =>
+                 model
+                 |> put_program(Program.focus(new_program))
+                 |> get_cardstacks
+               | Focused(_) => new_cardstacks
+               };
+             UndoHistory.push_edit_state(history, new_new_cardstack, a);
            },
          );
     },

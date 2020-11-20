@@ -3,6 +3,9 @@
  * and configuring the result view
  */
 module Evaluation = {
+  open Sexplib.Std;
+
+  [@deriving sexp]
   type t = {
     evaluate: bool,
     show_case_clauses: bool,
@@ -51,6 +54,9 @@ module Evaluation = {
  * the render cycle
  */
 module Performance = {
+  open Sexplib.Std;
+
+  [@deriving sexp]
   type t = {
     measure: bool,
     model_perform_edit_action: bool,
@@ -115,6 +121,9 @@ module Performance = {
     };
 };
 
+open Sexplib.Std;
+
+[@deriving sexp]
 type t = {
   evaluation: Evaluation.t,
   performance: Performance.t,

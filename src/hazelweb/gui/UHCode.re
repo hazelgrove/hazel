@@ -284,12 +284,23 @@ let decoration_views =
             );
           Vdom.[
             Node.widget(
+              ~update=
+                (state, container) => {
+                  print_endline("WIDGET UPDATE");
+                  (state, container);
+                },
               ~id,
               ~init=
                 () => {
+                  print_endline("WIDGET INIT");
+                  print_endline("SETTING VIEW with MODEL:");
+                  print_endline(
+                    Sexplib.Sexp.to_string_hum(SerializedModel.sexp_of_t(m)),
+                  );
+
                   // don't think we need widget-internal state
                   let state = ();
-                  let container = Dom_html.(createDiv(document));
+                  let container = Dom_html.(createSpan(document));
                   container##.innerHTML := Js.string(llview(m));
                   (state, container);
                 },
