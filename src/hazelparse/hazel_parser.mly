@@ -6,15 +6,9 @@
     let seq = Seq.seq_op_seq l op r in
     seq
 
-  let mk_pat_binop l op r =
-    let OpSeq.OpSeq(_, l) = l in
-    let OpSeq.OpSeq(_, r) = r in
-    mk_binop l op r
-
   let mk_pat_parenthesized e =
-    let operand = UHPat.Parenthesized(e) in
-    let seq = Seq.mk operand [] in
-    UHPat.mk_OpSeq seq
+    let e = UHPat.mk_OpSeq e in
+    UHPat.Parenthesized(e)
 
   let mk_application e args =
     let e = mk_seq e in
@@ -79,26 +73,37 @@ main:
 ;
 
 let_binding:
-  LET pat EQUAL expr IN { UHExp.letline $2 $4 }
+  LET pat EQUAL expr IN {
+    let pat = UHPat.mk_OpSeq $2 in
+    UHExp.letline pat $4 }
   | LET pat COLON typ EQUAL expr IN {
+    let pat = UHPat.mk_OpSeq $2 in
     let typ = UHTyp.mk_OpSeq $4 in
-    UHExp.letline $2 ~ann:typ $6
+    UHExp.letline pat ~ann:typ $6
   }
 ;
 
 typ:
-  atomic_type { $1 }
-  | l = typ typ_op r = typ {
+  l = typ typ_op r = typ {
     mk_binop l $2 r
   }
+  | typ_ { mk_seq $1 }
+;
+
+typ_:
+  atomic_type { $1 }
   | LPAREN typ RPAREN {
     let opseq = UHTyp.mk_OpSeq $2 in
-    Seq.mk (UHTyp.Parenthesized opseq) []
+    UHTyp.Parenthesized opseq
   }
   | LBRACK typ RBRACK {
     let opseq = UHTyp.mk_OpSeq $2 in
-    Seq.mk (UHTyp.List opseq) []
+    UHTyp.List opseq
   }
+;
+
+atomic_type:
+  IDENT { UHTyp.Int }
 ;
 
 %inline typ_op:
@@ -107,21 +112,17 @@ typ:
   | BAR { Operators_Typ.Sum }
 ;
 
-atomic_type:
-  IDENT { mk_seq UHTyp.Int }
+pat:
+  pat COLONCOLON pat {
+    mk_binop $1 Operators_Pat.Cons $3
+  }
+  | pat_ { mk_seq $1 }
 ;
 
-pat:
+pat_:
   LPAREN pat RPAREN { mk_pat_parenthesized $2 }
-  | IDENT { UHPat.mk_OpSeq (mk_seq (UHPat.var $1)) }
-  | LBRACK RBRACK {
-    let seq = mk_seq (UHPat.listnil ()) in
-    UHPat.mk_OpSeq seq
-  }
-  | pat COLONCOLON pat {
-    let seq = mk_pat_binop $1 Operators_Pat.Cons $3 in
-    UHPat.mk_OpSeq seq
-  }
+  | IDENT { UHPat.var $1 }
+  | LBRACK RBRACK { UHPat.listnil () }
 ;
 
 expr:
@@ -153,11 +154,13 @@ simple_expr:
 
 fn:
   LAMBDA pat PERIOD LBRACE expr RBRACE {
-    UHExp.lam $2 $5
+    let pat = UHPat.mk_OpSeq $2 in
+    UHExp.lam pat $5
   }
   | LAMBDA pat COLON typ PERIOD LBRACE expr RBRACE {
+    let pat = UHPat.mk_OpSeq $2 in
     let typ = UHTyp.mk_OpSeq $4 in
-    UHExp.lam $2 ~ann:typ $7
+    UHExp.lam pat ~ann:typ $7
   }
 ;
 
@@ -166,7 +169,10 @@ case:
 ;
 
 rule:
-  BAR pat ARROW expr { UHExp.Rule($2, $4) }
+  BAR pat ARROW expr {
+    let pat = UHPat.mk_OpSeq $2 in
+    UHExp.Rule(pat, $4)
+  }
 ;
 
 %inline op:
