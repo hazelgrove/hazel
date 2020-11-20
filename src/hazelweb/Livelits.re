@@ -944,7 +944,7 @@ module GrayscaleLivelit: LIVELIT = {
 
   let update = (model, _) => SpliceGenCmd.return(model);
 
-  let height = 18;
+  let height = 17;
   let view_shape = _ => LivelitView.MultiLine(height);
 
   let view =
@@ -955,7 +955,6 @@ module GrayscaleLivelit: LIVELIT = {
         {dargs, dhcode, uhcode}: LivelitView.splice_and_param_getters,
       ) => {
     let subject = {
-      let height_prop_val = Printf.sprintf("height: %dem;", height);
       switch (dargs, dhcode(brightness), dhcode(grayscale)) {
       | (
           Some([("url", Some((DHExp.StringLit(url), _)))]),
@@ -971,10 +970,9 @@ module GrayscaleLivelit: LIVELIT = {
             Attr.create(
               "style",
               Printf.sprintf(
-                "filter: brightness(%d%%) grayscale(%d%%); %s",
+                "filter: brightness(%d%%) grayscale(%d%%);",
                 b,
                 g,
-                height_prop_val,
               ),
             ),
           ],
@@ -986,10 +984,7 @@ module GrayscaleLivelit: LIVELIT = {
             Attr.classes(["missing-subject"]),
             Attr.create(
               "style",
-              Printf.sprintf(
-                "background-color: gray; width: 550px; %s",
-                height_prop_val,
-              ),
+              Printf.sprintf("background-color: gray; width: 550px;"),
             ),
           ],
           [],

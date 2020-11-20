@@ -1387,6 +1387,7 @@ input.slider::-moz-range-track {
 }
 
 .grayscale-livelit img.subject {
+  height: auto;
   width: 550px;
   filter: brightness(90%) grayscale(75%);
 }
