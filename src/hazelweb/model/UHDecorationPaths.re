@@ -63,17 +63,27 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     |> List.find_opt(is_current)
     |> Option.map(_ => UHDecorationShape.VarUse)
     |> Option.to_list;
-  let livelits =
-    dpaths.livelits
-    |> List.find_opt(steps =>
-         switch (shape) {
-         | LivelitExpression({hd_index}) => steps == [hd_index]
-         // | ApLivelit => steps == []
-         | _ => false
-         }
-       )
-    |> Option.map(_ => UHDecorationShape.LivelitExpression)
-    |> Option.to_list;
+  let livelits = {
+    let found =
+      dpaths.livelits
+      |> List.find_opt(steps =>
+           switch (shape) {
+           | LivelitExpression({hd_index, _}) => steps == [hd_index]
+           // | ApLivelit => steps == []
+           | _ => false
+           }
+         );
+    switch (found) {
+    | None => []
+    | Some(_) =>
+      switch (shape) {
+      | LivelitExpression({view_shape, _}) => [
+          UHDecorationShape.LivelitExpression(view_shape),
+        ]
+      | _ => []
+      }
+    };
+  };
   let current_term =
     switch (dpaths.current_term) {
     | Some((steps, _)) when is_current(steps) => [

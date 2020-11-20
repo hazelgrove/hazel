@@ -4,4 +4,4 @@ type t =
   | VarErrHole
   | VarUse
   | CurrentTerm
-  | LivelitExpression;
+  | LivelitExpression(Livelits.LivelitView.shape);

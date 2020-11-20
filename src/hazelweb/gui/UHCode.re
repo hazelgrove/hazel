@@ -255,9 +255,9 @@ let decoration_views =
                          (offset, m),
                        ),
                      )
-                   | LivelitExpression => (
+                   | LivelitExpression(view_shape) => (
                        "livelit-expression",
-                       LivelitExpression.view((offset, m)),
+                       LivelitExpression.view(view_shape, (offset, m)),
                      )
                    }
                  );

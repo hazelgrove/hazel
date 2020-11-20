@@ -142,11 +142,11 @@ let annot_Case: t => t =
 
 let annot_FreeLivelit =
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=TermShape.FreeLivelit, ()));
-let annot_LivelitExpression = (~hd_index) =>
+let annot_LivelitExpression = (~hd_index, ~view_shape) =>
   Doc.annot(
     UHAnnot.mk_Term(
       ~sort=Exp,
-      ~shape=LivelitExpression({hd_index: hd_index}),
+      ~shape=LivelitExpression({hd_index, view_shape}),
       (),
     ),
   );
@@ -726,6 +726,7 @@ let rec mk_BinOp =
       let llexp =
         annot_LivelitExpression(
           ~hd_index=hd_step,
+          ~view_shape=shape,
           go(~enforce_inline, skel),
         );
       let annot_LivelitView =

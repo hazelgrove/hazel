@@ -90,7 +90,11 @@ let livelit_handler = (~enforce_inline, go, seq, skel) =>
       };
       Some(
         Doc.hcats([
-          UHDoc_common.annot_LivelitExpression(~hd_index=hd_step, go(skel)),
+          UHDoc_common.annot_LivelitExpression(
+            ~hd_index=hd_step,
+            ~view_shape=shape,
+            go(skel),
+          ),
           llview_doc,
         ]),
       );

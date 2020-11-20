@@ -502,17 +502,40 @@ module Caret = {
 };
 
 module LivelitExpression = {
-  let view = ((offset, subject): UHMeasuredLayout.with_offset): Vdom.Node.t => {
+  let view =
+      (
+        shape: Livelits.LivelitView.shape,
+        (offset, subject): UHMeasuredLayout.with_offset,
+      )
+      : Vdom.Node.t => {
     Vdom.(
       Node.create_svg(
         "rect",
         [
-          Attr.create("width", string_of_int(MeasuredLayout.width(subject))),
+          Attr.create(
+            "width",
+            string_of_float(
+              Float.of_int(MeasuredLayout.width(subject)) +. 0.1,
+            ),
+          ),
           Attr.create(
             "height",
-            string_of_int(MeasuredLayout.height(subject)),
+            switch (shape) {
+            | Inline(_) => string_of_int(MeasuredLayout.height(subject))
+            | MultiLine(_) =>
+              string_of_float(
+                Float.of_int(MeasuredLayout.height(subject)) +. 0.1,
+              )
+            },
           ),
-          Attr.create("x", string_of_int(offset)),
+          Attr.create("x", string_of_float(Float.of_int(offset) -. 0.05)),
+          Attr.create(
+            "y",
+            switch (shape) {
+            | Inline(_) => "0.05"
+            | MultiLine(_) => "0"
+            },
+          ),
           Attr.create("style", "fill: var(--livelit-expression-color);"),
         ],
         [],
