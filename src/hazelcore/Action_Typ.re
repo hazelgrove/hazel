@@ -228,7 +228,8 @@ and perform_operand =
       PerformLivelitAction(_) |
       Construct(
         SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase |
-        SCommentLine,
+        SCommentLine |
+        SQuote,
       ) |
       SwapUp |
       SwapDown,
@@ -298,15 +299,14 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
   | (Construct(SChar("B")), CursorT(_, Hole)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
+  | (Construct(SChar("S")), CursorT(_)) =>
+    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
   | (Construct(SChar(_)), CursorT(_)) => Failed
 
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
 
   | (Construct(SLeftBracket), CursorT(_)) => Failed
-
-  | (Construct(SQuote), CursorT(_)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(String)))
 
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
