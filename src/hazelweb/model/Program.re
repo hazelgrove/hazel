@@ -148,28 +148,48 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
 };
 
 exception DoesNotElaborate;
-let expand = (~livelit_holes=false) =>
+let elaborate__livelit_holes_false =
   Memo.general(
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(
-      ~livelit_holes,
+      ~livelit_holes=false,
       (VarCtx.empty, Livelits.initial_livelit_ctx),
       Delta.empty,
     ),
   );
-let get_expansion = (~livelit_holes=false, program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand(~livelit_holes)) {
+let elaborate__livelit_holes_true =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Elaborator_Exp.syn_elab(
+      ~livelit_holes=true,
+      (VarCtx.empty, Livelits.initial_livelit_ctx),
+      Delta.empty,
+    ),
+  );
+let elaborate = (~livelit_holes) =>
+  livelit_holes
+    ? elaborate__livelit_holes_true : elaborate__livelit_holes_false;
+let get_elaboration = (~livelit_holes=false, program: t): DHExp.t => {
+  switch (program |> get_uhexp |> elaborate(~livelit_holes)) {
   | DoesNotElaborate => raise(DoesNotElaborate)
   | Elaborates(d, _, _) => d
   };
+};
 
 exception InvalidInput;
-let evaluate = (~eval_livelit_holes=false) => {
+let evaluate__eval_livelit_holes_false =
   Memo.general(
     ~cache_size_bound=1000,
-    Evaluator.evaluate(~eval_livelit_holes),
+    Evaluator.evaluate(~eval_livelit_holes=false),
   );
-};
+let evaluate__eval_livelit_holes_true =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Evaluator.evaluate(~eval_livelit_holes=true),
+  );
+let evaluate = (~eval_livelit_holes=false) =>
+  eval_livelit_holes
+    ? evaluate__eval_livelit_holes_true : evaluate__eval_livelit_holes_false;
 
 let fill_and_resume_llii =
     (llii: LivelitInstanceInfo.t): LivelitInstanceInfo.t =>
@@ -233,7 +253,7 @@ let get_result = (program: t): Result.t => {
       LivelitInstanceInfo.empty,
     );
   let ret = (d, wrapper) =>
-    switch (program |> get_expansion(~livelit_holes=true) |> evaluate) {
+    switch (program |> get_elaboration(~livelit_holes=true) |> evaluate) {
     | InvalidInput(_) => failwith("Failed evaluation only with livelit_holes")
     | BoxedValue(d')
     | Indet(d') =>
@@ -242,7 +262,7 @@ let get_result = (program: t): Result.t => {
       let llii = fill_and_resume_llii(llii);
       (d_renumbered, hii, llii, wrapper(d_renumbered));
     };
-  switch (program |> get_expansion(~livelit_holes=false) |> evaluate) {
+  switch (program |> get_elaboration(~livelit_holes=false) |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
   | BoxedValue(d) => ret(d, d' => Evaluator.BoxedValue(d'))
   | Indet(d) => ret(d, d' => Evaluator.Indet(d'))

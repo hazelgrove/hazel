@@ -151,7 +151,7 @@ let view =
                     ~settings=settings.evaluation,
                     ~width=80,
                     settings.evaluation.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
+                      ? program |> Program.get_elaboration
                       : program |> Program.get_result |> Result.get_dhexp,
                   ),
                 ],
