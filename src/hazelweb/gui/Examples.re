@@ -339,6 +339,56 @@ let lltest1 = "((LivelitDefLine((name(NotInVarHole $dog))(expansion_type(OpSeq(P
 
 let lltest1p = lltest1 |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
 
+let mk_slidy_slice_first = "((LivelitDefLine((name(NotInVarHole $slidy))(expansion_type(OpSeq(Placeholder 0)(S Int E)))(captures((ExpLine(OpSeq(Placeholder 0)(S(ListNil NotInHole)E)))))(model_type(OpSeq(Placeholder 0)(S Int E)))(action_type(OpSeq(Placeholder 0)(S Int E)))(init((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 50)E)))))(update((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole model)(A Comma(S(Var NotInHole NotInVarHole action)E)))))E))((OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E)))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole action)E)))))E)))))";
+
+let mk_slidy_slice_second = "(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole\"";
+
+let mk_slidy_slice_view1 = "(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole \"";
+
+let slidy_view_first = handler =>
+  "
+    <span class=\\\"slider-livelit\\\">
+      <input
+        class=\\\"slider\\\"
+        type=\\\"range\\\"
+        min=0
+        max=100
+        onClick=\\\""
+  ++ handler
+  ++ "\\\"
+        value=";
+
+let mk_slidy_slice_view2 = "\")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole \"";
+
+let slidy_view_last = ">
+      </input>
+    </span>";
+
+let mk_slidy_slice_view3 = "\")E)))))))))E)))))";
+
+let mk_slidy_slice_second_last = "\")E)))))E)))))";
+
+let mk_slidy_slice_last = "(shape((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(BoolLit NotInHole true)(A Comma(S(IntLit NotInHole 14)E)))))))E)))))(expand((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole\"((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole \")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole\")E))))\")E)))))))))E)))))))(ExpLine(OpSeq(Placeholder 0)(S(ApLivelit 0 NotInHole $slidy $slidy(IntLit 50)((next 0)(splice_map())(splice_order())))E))))";
+
+let model_v = "10";
+
+let slidy_onclick = "(function(){
+              alert('HHHHHZZZZZ');
+              return false;
+                 }) ();
+            return false;";
+
+let lltest2p =
+  mk_slidy_slice_first
+  ++ mk_slidy_slice_view1
+  ++ slidy_view_first(slidy_onclick)
+  ++ mk_slidy_slice_view2
+  ++ slidy_view_last
+  ++ mk_slidy_slice_view3
+  ++ mk_slidy_slice_last
+  |> Sexplib.Sexp.of_string
+  |> UHExp.t_of_sexp;
+
 [@deriving sexp]
 type id = string;
 let examples =
@@ -350,5 +400,6 @@ let examples =
     |> add("map_example", map_example)
     |> add("qsort_example", qsort_example)
     |> add("livelit_test_1", lltest1p)
+    |> add("livelit_test_2", lltest2p)
   );
 let get = id => StringMap.find(id, examples);

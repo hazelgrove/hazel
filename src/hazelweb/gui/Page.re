@@ -26,6 +26,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Attr.value("livelit_test_1")],
           [Node.text("livelit_test_1")],
         ),
+        Node.option(
+          [Attr.value("livelit_test_2")],
+          [Node.text("livelit_test_2")],
+        ),
       ],
     )
   );
