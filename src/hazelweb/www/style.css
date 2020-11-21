@@ -1042,6 +1042,7 @@ h1 {
   flex-direction: row;
   margin-bottom: 8px;
   border: 2px solid var(--matrix-cell-border-color);
+  padding: 2px 0;
 }
 .matrix-livelit .formula-bar-prompt {
   color: orange;
