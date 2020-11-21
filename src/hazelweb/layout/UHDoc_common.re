@@ -120,7 +120,7 @@ module Delim = {
   let eq_LetLine = (): t => mk(~index=2, "=");
   let in_LetLine = (): t => mk(~index=3, "in");
 
-  let abbrev_AbbrevLine = () => mk(~index=0, "abbrev");
+  let abbrev_AbbrevLine = () => mk(~index=0, "let");
   let eq_AbbrevLine = () => mk(~index=1, "=");
   let in_AbbrevLine = () => mk(~index=2, "in");
 
