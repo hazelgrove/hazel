@@ -1439,7 +1439,7 @@ module ColorLivelit: LIVELIT = {
     Node.div([Attr.classes(["color-livelit"])], [color_picker]);
   };
 
-  let view_shape = _ => LivelitView.MultiLine(10);
+  let view_shape = _ => LivelitView.MultiLine(9);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =
