@@ -285,6 +285,11 @@ let get_doc = (~settings: Settings.t, program) => {
 let get_layout = (~settings: Settings.t, program) => {
   let width = program.width;
   let (doc, splice_docs) = get_doc(~settings, program);
+  // print_endline("get_layout");
+  // splice_docs
+  // |> MetaVarMap.to_seq
+  // |> List.of_seq
+  // |> List.iter(((u, _)) => print_endline(string_of_int(u)));
   let layout =
     TimeUtil.measure_time(
       "LayoutOfDoc.layout_of_doc",
@@ -324,19 +329,16 @@ let get_layout = (~settings: Settings.t, program) => {
                            )
                          )
                     });
-               SpliceMap.ApMap.fold(
-                 (_, ap_splice_layout, ls) => {
-                   let inner_splice_layouts =
-                     splice_layouts(ap_splice_layout);
-                   MetaVarMap.union(
-                     (_, _, _) => None,
-                     ls,
-                     inner_splice_layouts,
-                   );
-                 },
-                 ap_splice_layouts,
-                 MetaVarMap.add(llu, ap_splice_layouts, ls),
-               );
+               let inner_splice_layouts =
+                 ap_splice_layouts
+                 |> SpliceMap.ApMap.bindings
+                 |> List.map(snd)
+                 |> List.map(splice_layouts)
+                 |> List.fold_left(
+                      MetaVarMap.union((_, _, _) => None),
+                      SpliceMap.empty,
+                    );
+               SpliceMap.put_ap(llu, ap_splice_layouts, inner_splice_layouts);
              | _ => ls
              },
        );
