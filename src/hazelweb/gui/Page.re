@@ -25,6 +25,7 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Attr.value("map_img_filter")],
           [Node.text("map_img_filter")],
         ),
+        Node.option([Attr.value("color")], [Node.text("color")]),
       ],
     )
   );
