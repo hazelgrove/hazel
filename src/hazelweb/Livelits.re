@@ -993,7 +993,7 @@ module GradeCutoffLivelit: LIVELIT = {
 };
 
 module GrayscaleLivelit: LIVELIT = {
-  let name = "$img_filter";
+  let name = "$basic_adjustments";
   let expansion_ty = HTyp.Int;
   let param_tys = [("url", HTyp.String)];
 
