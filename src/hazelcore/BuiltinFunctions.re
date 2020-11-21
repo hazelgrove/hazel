@@ -17,13 +17,13 @@ let ctx: VarCtx.t = [
     "compute_weighted_averages",
     Arrow(
       Prod([List(String), List(Prod([String, List(Float)]))]),
-      Arrow(List(Float), List(Float)),
+      Arrow(List(Float), List(Int)),
     ),
   ),
   ("weights", List(Float)),
   (
     "assign_grades",
-    Arrow(List(Float), Arrow(Prod([Int, Int, Int, Int]), Prod([]))),
+    Arrow(List(Int), Arrow(Prod([Int, Int, Int, Int]), Prod([]))),
   ),
   ("format_for_university", Arrow(Prod([]), Prod([]))),
 ];
