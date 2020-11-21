@@ -36,16 +36,17 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
       | {CursorInfo.typed: OnType, _} => Construct(SList)
       | _ => Construct(SListNil),
     ),
-    (Semicolon, _ => Construct(SOp(SCons))),
-    (Alt_L, _ => Construct(SInj(L))),
-    (Alt_R, _ => Construct(SInj(R))),
-    (Alt_C, _ => Construct(SCase)),
-    (Pound, _ => Construct(SCommentLine)),
-    (Shift_Enter, _ => Construct(SCommentLine)),
-    (Ctrl_Alt_I, _ => SwapUp),
-    (Ctrl_Alt_K, _ => SwapDown),
-    (Ctrl_Alt_J, _ => SwapLeft),
-    (Ctrl_Alt_L, _ => SwapRight),
+    (Semicolon, _ => Action.Construct(SOp(SCons))),
+    (Alt_L, _ => Action.Construct(SInj(L))),
+    (Alt_R, _ => Action.Construct(SInj(R))),
+    (Alt_C, _ => Action.Construct(SCase)),
+    (Pound, _ => Action.Construct(SCommentLine)),
+    (Shift_Enter, _ => Action.Construct(SCommentLine)),
+    (Ctrl_Alt_I, _ => Action.SwapUp),
+    (Ctrl_Alt_K, _ => Action.SwapDown),
+    (Ctrl_Alt_J, _ => Action.SwapLeft),
+    (Ctrl_Alt_L, _ => Action.SwapRight),
+    (Ctrl_Pound, _ => Action.RenumberHoles),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

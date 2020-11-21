@@ -129,3 +129,46 @@ let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);
 
 let fix_and_renumber_holes_z: (Contexts.t, ZExp.t) => Statics.edit_state;
+
+let ana_fix_holes_zoperand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    ZExp.zoperand,
+    HTyp.t
+  ) =>
+  (ZExp.zoperand, MetaVarGen.t);
+
+let ana_fix_holes_zopseq:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    ZExp.zopseq,
+    HTyp.t
+  ) =>
+  (ZExp.zopseq, MetaVarGen.t);
+
+let ana_fix_holes_zrules:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    ZExp.zrules,
+    HTyp.t,
+    HTyp.t
+  ) =>
+  (ZExp.zrules, MetaVarGen.t);
+
+let syn_fix_holes_zoperand:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, ZExp.zoperand) =>
+  (ZExp.zoperand, HTyp.t, MetaVarGen.t);
+
+let syn_fix_holes_zopseq:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, ZExp.zopseq) =>
+  (ZExp.zopseq, HTyp.t, MetaVarGen.t);
+
+let syn_fix_holes_zline:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, ZExp.zline) =>
+  (ZExp.zline, Contexts.t, MetaVarGen.t);

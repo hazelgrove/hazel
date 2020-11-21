@@ -64,3 +64,31 @@ let syn_fix_holes_z:
 let ana_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZPat.t, HTyp.t) =>
   (ZPat.t, Contexts.t, MetaVarGen.t);
+
+let ana_fix_holes_zoperand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    ZPat.zoperand,
+    HTyp.t
+  ) =>
+  (ZPat.zoperand, Contexts.t, MetaVarGen.t);
+
+let ana_fix_holes_zopseq:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    ZPat.zopseq,
+    HTyp.t
+  ) =>
+  (ZPat.zopseq, Contexts.t, MetaVarGen.t);
+
+let syn_fix_holes_zopseq:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, ZPat.zopseq) =>
+  (ZPat.zopseq, HTyp.t, Contexts.t, MetaVarGen.t);
+
+let syn_fix_holes_zoperand:
+  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, ZPat.zoperand) =>
+  (ZPat.zoperand, HTyp.t, Contexts.t, MetaVarGen.t);

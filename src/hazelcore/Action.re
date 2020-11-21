@@ -48,4 +48,5 @@ type t =
   | SwapRight
   | SwapUp
   | SwapDown
+  | RenumberHoles
   | Init;

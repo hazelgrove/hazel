@@ -417,6 +417,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combo(Enter, simple("Add new rule")),
       ],
     ),
+    section(
+      "Renumber Holes",
+      [combo(Ctrl_Pound, simple("Renumber holes"))],
+    ),
   ];
 };
 
@@ -492,5 +496,6 @@ let _check_actions = (a: Action.t) =>
   | Construct(SApPalette(_)) => failwith("Unimplemented")
   | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
+  | RenumberHoles => Added
   | Init => Added
   };

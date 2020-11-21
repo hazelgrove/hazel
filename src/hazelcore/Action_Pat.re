@@ -306,6 +306,7 @@ let rec syn_move =
   | SwapDown
   | SwapLeft
   | SwapRight
+  | RenumberHoles
   | Init =>
     failwith(
       __LOC__
@@ -370,6 +371,7 @@ let rec ana_move =
   | SwapDown
   | SwapLeft
   | SwapRight
+  | RenumberHoles
   | Init =>
     failwith(
       __LOC__
@@ -540,6 +542,15 @@ and syn_perform_opseq =
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
       }
     };
+  | (RenumberHoles, _) =>
+    let (zopseq, ty, ctx, u_gen) =
+      Statics_Pat.syn_fix_holes_zopseq(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        zopseq,
+      );
+    Succeeded((zopseq, ty, ctx, u_gen));
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_operand =
@@ -779,6 +790,15 @@ and syn_perform_operand =
         };
       Succeeded((zp, ty, ctx, u_gen));
     }
+  | (RenumberHoles, _) =>
+    let (new_zoperand, ty, ctx, u_gen) =
+      Statics_Pat.syn_fix_holes_zoperand(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        zoperand,
+      );
+    Succeeded((ZOpSeq.wrap(new_zoperand), ty, ctx, u_gen));
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
@@ -964,6 +984,8 @@ and ana_perform_opseq =
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
       }
     };
+  | (RenumberHoles, _) =>
+    Succeeded(Statics_Pat.ana_fix_holes_zopseq(ctx, u_gen, zopseq, ty))
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and ana_perform_operand =
@@ -1268,5 +1290,15 @@ and ana_perform_operand =
         Succeeded((zp, ctx, u_gen));
       }
     }
+  | (RenumberHoles, _) =>
+    let (new_zoperand, ctx, u_gen) =
+      Statics_Pat.ana_fix_holes_zoperand(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes=true,
+        zoperand,
+        ty,
+      );
+    Succeeded((ZOpSeq.wrap(new_zoperand), ctx, u_gen));
   | (Init, _) => failwith("Init action should not be performed.")
   };

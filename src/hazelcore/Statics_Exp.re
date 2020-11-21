@@ -591,6 +591,32 @@ and syn_fix_holes_line =
       (LetLine(p, ann, def), ctx, u_gen);
     }
   }
+and syn_fix_holes_zline =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ~renumber_empty_holes=false,
+      zline: ZExp.zline,
+    )
+    : (ZExp.zline, Contexts.t, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zline(zline);
+  let (line, ctx, u_gen) =
+    syn_fix_holes_line(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      ZExp.erase_zline(zline),
+    );
+  let zline =
+    CursorPath_Exp.follow_line(path, line)
+    |> OptUtil.get(() =>
+         failwith(
+           "syn_fix_holes_line did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zline, ctx, u_gen);
+}
 and syn_fix_holes_opseq =
     (
       ctx: Contexts.t,
@@ -602,6 +628,32 @@ and syn_fix_holes_opseq =
   let (skel, seq, ty, u_gen) =
     syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
   (OpSeq(skel, seq), ty, u_gen);
+}
+and syn_fix_holes_zopseq =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ~renumber_empty_holes=false,
+      ZOpSeq(_, _) as zopseq: ZExp.zopseq,
+    )
+    : (ZExp.zopseq, HTyp.t, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zopseq(zopseq);
+  let (opseq, ty, u_gen) =
+    syn_fix_holes_opseq(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      ZExp.erase_zopseq(zopseq),
+    );
+  let zopseq =
+    CursorPath_Exp.follow_opseq(path, opseq)
+    |> OptUtil.get(() =>
+         failwith(
+           "syn_fix_holes_opseq did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zopseq, ty, u_gen);
 }
 and syn_fix_holes_skel =
     (
@@ -789,7 +841,7 @@ and syn_fix_holes_operand =
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
       (EmptyHole(u), Hole, u_gen);
     } else {
       (e, Hole, u_gen);
@@ -882,6 +934,32 @@ and syn_fix_holes_operand =
     };
   };
 }
+and syn_fix_holes_zoperand =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ~renumber_empty_holes=false,
+      zoperand: ZExp.zoperand,
+    )
+    : (ZExp.zoperand, HTyp.t, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zoperand(zoperand);
+  let (operand, ty, u_gen) =
+    syn_fix_holes_operand(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      ZExp.erase_zoperand(zoperand),
+    );
+  let zoperand =
+    CursorPath_Exp.follow_operand(path, operand)
+    |> OptUtil.get(() =>
+         failwith(
+           "syn_fix_holes_operand did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zoperand, ty, u_gen);
+}
 and syn_fix_holes_rules =
     (
       ctx: Contexts.t,
@@ -948,6 +1026,36 @@ and ana_fix_holes_rules =
       rules,
     );
   (List.rev(rev_fixed_rules), u_gen);
+}
+and ana_fix_holes_zrules =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ~renumber_empty_holes=false,
+      zrules: ZExp.zrules,
+      pat_ty: HTyp.t,
+      clause_ty: HTyp.t,
+    )
+    : (ZExp.zrules, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zrules(zrules);
+  let (rules, u_gen) =
+    ana_fix_holes_rules(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      ZExp.erase_zrules(zrules),
+      pat_ty,
+      clause_ty,
+    );
+  let zrules =
+    CursorPath_Exp.follow_rules(path, rules)
+    |> OptUtil.get(() =>
+         failwith(
+           "ana_fix_holes_rules did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zrules, u_gen);
 }
 and ana_fix_holes_rule =
     (
@@ -1104,6 +1212,34 @@ and ana_fix_holes_opseq =
     }
   };
 }
+and ana_fix_holes_zopseq =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ~renumber_empty_holes=false,
+      zopseq: ZExp.zopseq,
+      ty: HTyp.t,
+    )
+    : (ZExp.zopseq, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zopseq(zopseq);
+  let (opseq, u_gen) =
+    ana_fix_holes_opseq(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      ZExp.erase_zopseq(zopseq),
+      ty,
+    );
+  let zopseq =
+    CursorPath_Exp.follow_opseq(path, opseq)
+    |> OptUtil.get(() =>
+         failwith(
+           "ana_fix_holes_opseq did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zopseq, u_gen);
+}
 and ana_fix_holes_skel =
     (
       ctx: Contexts.t,
@@ -1206,7 +1342,7 @@ and ana_fix_holes_operand =
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
       (EmptyHole(u), u_gen);
     } else {
       (e, u_gen);
@@ -1334,7 +1470,35 @@ and ana_fix_holes_operand =
         u_gen,
       );
     };
-  };
+  }
+and ana_fix_holes_zoperand =
+    (
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      ~renumber_empty_holes=false,
+      zoperand: ZExp.zoperand,
+      ty: HTyp.t,
+    )
+    : (ZExp.zoperand, MetaVarGen.t) => {
+  let path = CursorPath_Exp.of_zoperand(zoperand);
+  let (operand, u_gen) =
+    ana_fix_holes_operand(
+      ctx,
+      u_gen,
+      ~renumber_empty_holes,
+      ZExp.erase_zoperand(zoperand),
+      ty,
+    );
+  let zoperand =
+    CursorPath_Exp.follow_operand(path, operand)
+    |> OptUtil.get(() =>
+         failwith(
+           "ana_fix_holes_operand did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zoperand, u_gen);
+};
 
 let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
