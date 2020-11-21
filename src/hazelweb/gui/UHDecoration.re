@@ -64,10 +64,11 @@ module CurrentTerm = {
 
   let inline_open_child_rects =
       (start: MeasuredPosition.t, m: UHMeasuredLayout.t): rects => {
-    // TODO relax assumption
-    assert(MeasuredLayout.height(m) == 1);
-    // make singleton skinny rect along bottom
     [
+      // TODO relax assumption
+      // andrew commented out the below assertion as it was displeasing to him
+      //assert(MeasuredLayout.height(m) == 1);
+      // make singleton skinny rect along bottom
       SvgUtil.Rect.{
         min: {
           x: Float.of_int(start.col),

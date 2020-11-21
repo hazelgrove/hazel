@@ -169,7 +169,7 @@ let decoration_views =
       ~llii,
       ~selected_instances,
       ~sync_livelit,
-      ~llview_ctx,
+      ~llview_ctx: Statics.livelit_web_view_ctx,
       dpaths: UHDecorationPaths.t,
       (l, splice_ls): UHLayout.with_splices,
     )
@@ -301,7 +301,7 @@ let decoration_views =
                   // don't think we need widget-internal state
                   let state = ();
                   let container = Dom_html.(createSpan(document));
-                  container##.innerHTML := Js.string(llview(m));
+                  container##.innerHTML := Js.string(llview(llu, m));
                   (state, container);
                 },
               (),
@@ -602,7 +602,7 @@ let view =
       ~selected_instances: UserSelectedInstances.t,
       ~sync_livelit,
       ~settings: Settings.t,
-      ~llview_ctx,
+      ~llview_ctx: Statics.livelit_web_view_ctx,
       program: Program.t,
     )
     : Vdom.Node.t =>

@@ -17,7 +17,6 @@ module State = State;
 
 // see incr_dom app_intf.ml
 let on_startup = (~schedule_action, _) => {
-
   /* we need line heights + character widths for various layout computations,
       so we created a font specimen and update font metrics whenever that
      element resizes. */

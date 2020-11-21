@@ -88,8 +88,7 @@ let apply_action =
       log_action(action, state);
       switch (action) {
       | EditAction(a) =>
-        let llu = 0; // TODO(andrew): unhardcode me
-        let trigger = js_str => {
+        let trigger = (llu, js_str) => {
           print_endline("RUN TRIGGER");
           print_endline(Js.to_string(js_str));
           let serialized_action =

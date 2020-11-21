@@ -32,7 +32,7 @@ module rec M: Statics_Exp_Sig.S = {
       UHTyp.expand(model_type),
     );
   let ll_view_ty = (model_type, _) =>
-    HTyp.Arrow(UHTyp.expand(model_type), HTyp.String);
+    HTyp.Arrow(Prod([HTyp.Int, UHTyp.expand(model_type)]), HTyp.String);
   let ll_shape_ty = (_, _) => HTyp.Prod([Bool, Int]);
   let ll_expand_ty = (model_type, _) =>
     HTyp.Arrow(UHTyp.expand(model_type), String);
@@ -82,12 +82,13 @@ module rec M: Statics_Exp_Sig.S = {
     };
   };
 
-  let mk_ll_view = (view: UHExp.t, model: SerializedModel.t): string => {
+  let mk_ll_view = (view: UHExp.t, llu: int, model: SerializedModel.t): string => {
     // TODO(andrew): handle failure cases more better
     let model_dhexp = DHExp.t_of_sexp(model);
+    let llu_dhexp = DHExp.IntLit(llu);
     switch (Elaborator.syn_elab(Contexts.empty, Delta.empty, view)) {
     | Elaborates(view_dhexp, _, _) =>
-      let term = DHExp.Ap(view_dhexp, model_dhexp);
+      let term = DHExp.Ap(view_dhexp, DHExp.Pair(llu_dhexp, model_dhexp));
       switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
       | BoxedValue(StringLit(str)) => str
       | _ => failwith("mk_ll_view eval ERROR")
