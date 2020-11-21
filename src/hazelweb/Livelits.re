@@ -1820,7 +1820,7 @@ module SliderLivelit: LIVELIT = {
 module DataFrameLivelit: LIVELIT = {
   let name = "$data_frame";
   let expansion_ty =
-    HTyp.(Prod([List(String), List(Prod([String, List(Int)]))]));
+    HTyp.(Prod([List(String), List(Prod([String, List(Float)]))]));
   let param_tys = [];
 
   [@deriving sexp]
@@ -1860,7 +1860,7 @@ module DataFrameLivelit: LIVELIT = {
         init_height,
         bind(
           MonadsUtil.bind_count(
-            init_width, bind(new_splice(HTyp.Int)), row_cells =>
+            init_width, bind(new_splice(HTyp.Float)), row_cells =>
             bind(new_splice(HTyp.String), row_header =>
               return({header: row_header, cells: row_cells})
             )
@@ -1880,7 +1880,7 @@ module DataFrameLivelit: LIVELIT = {
     | Add(Row) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
-          get_width(m), bind(new_splice(HTyp.Int)), new_cells =>
+          get_width(m), bind(new_splice(HTyp.Float)), new_cells =>
           bind(new_splice(HTyp.String), new_header =>
             return({
               ...m,
@@ -1893,7 +1893,7 @@ module DataFrameLivelit: LIVELIT = {
     | Add(Col) =>
       SpliceGenCmd.(
         MonadsUtil.bind_count(
-          get_height(m), bind(new_splice(HTyp.Int)), new_cells =>
+          get_height(m), bind(new_splice(HTyp.Float)), new_cells =>
           bind(new_splice(HTyp.String), new_header =>
             return({
               selected: new_header,
