@@ -92,7 +92,7 @@ let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
     CursorInfo_Exp.syn_cursor_info((
-      VarCtx.empty,
+      BuiltinFunctions.ctx,
       Livelits.initial_livelit_ctx,
     )),
   );
@@ -148,7 +148,7 @@ let elaborate__livelit_holes_false =
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(
       ~livelit_holes=false,
-      (VarCtx.empty, Livelits.initial_livelit_ctx),
+      (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx),
       Delta.empty,
     ),
   );
@@ -157,7 +157,7 @@ let elaborate__livelit_holes_true =
     ~cache_size_bound=1000,
     Elaborator_Exp.syn_elab(
       ~livelit_holes=true,
-      (VarCtx.empty, Livelits.initial_livelit_ctx),
+      (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx),
       Delta.empty,
     ),
   );
@@ -373,7 +373,7 @@ let perform_action =
     | _ =>
       let ze = EditState.get_focused_term(program.edit_state);
       let EditState.{ty, u_gen, _} = program.edit_state;
-      let init_ctx = (VarCtx.empty, Livelits.initial_livelit_ctx);
+      let init_ctx = (BuiltinFunctions.ctx, Livelits.initial_livelit_ctx);
       switch (Action_Exp.syn_perform(init_ctx, a, (ze, ty, u_gen))) {
       | Failed => raise(FailedAction)
       | CursorEscaped(_) => raise(CursorEscaped)
