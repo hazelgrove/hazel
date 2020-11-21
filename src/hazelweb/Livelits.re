@@ -659,19 +659,69 @@ module GradeCutoffLivelit: LIVELIT = {
         {a, b, c, d, selecting},
         trigger,
         _,
-        {dargs, _}: LivelitView.splice_and_param_getters,
+        {dargs: _, _}: LivelitView.splice_and_param_getters,
       ) => {
+    /*
+     let data_opt =
+       switch (dargs) {
+       | None
+       | Some([(_, None)]) => None
+       | Some([(_, Some((d, _)))]) => Some(d)
+       | Some(l) =>
+         failwith(
+           "Invalid grade_cutoffs params: "
+           ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
+         )
+       };
+     */
     let data_opt =
-      switch (dargs) {
-      | None
-      | Some([(_, None)]) => None
-      | Some([(_, Some((d, _)))]) => Some(d)
-      | Some(l) =>
-        failwith(
-          "Invalid grade_cutoffs params: "
-          ++ (l |> List.map(((s, _)) => s) |> String.concat(", ")),
-        )
-      };
+      Some(
+        DHExp.(
+          Cons(
+            IntLit(93),
+            Cons(
+              IntLit(88),
+              Cons(
+                IntLit(75),
+                Cons(
+                  IntLit(86),
+                  Cons(
+                    IntLit(78),
+                    Cons(
+                      IntLit(82),
+                      Cons(
+                        IntLit(67),
+                        Cons(
+                          IntLit(54),
+                          Cons(
+                            IntLit(45),
+                            Cons(
+                              IntLit(71),
+                              Cons(
+                                IntLit(69),
+                                Cons(
+                                  IntLit(62),
+                                  Cons(
+                                    IntLit(97),
+                                    Cons(
+                                      IntLit(83),
+                                      Cons(IntLit(85), ListNil(Int)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        ),
+      );
     let grades_svgs_invalids_opt =
       data_opt
       |> Option.map(d =>
