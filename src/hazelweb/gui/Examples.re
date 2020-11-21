@@ -345,6 +345,11 @@ let map_img_filter =
   |> Sexplib.Sexp.of_string
   |> UHExp.t_of_sexp;
 
+let grade_cutoffs =
+  "((LetLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole grades)E))()((ExpLine(OpSeq(Placeholder 0)(S(ApLivelit 0 NotInHole $data_frame $data_frame((selected 0)(col_headers(18 19 20 21 22))(rows(((header 5)(cells(0 1 2 3 4)))((header 11)(cells(6 7 8 9 10)))((header 17)(cells(12 13 14 15 16))))))((next 23)(splice_map((0(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 205)E))))))(1(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 191)E))))))(2(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 192)E))))))(3(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 193)E))))))(4(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 194)E))))))(5(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole Alice)E))))))(6(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 195)E))))))(7(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 196)E))))))(8(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 197)E))))))(9(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 198)E))))))(10(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 199)E))))))(11(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole Bob)E))))))(12(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 200)E))))))(13(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 201)E))))))(14(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 202)E))))))(15(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 203)E))))))(16(Int((ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 204)E))))))(17(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole Carol)E))))))(18(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole A1)E))))))(19(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole A2)E))))))(20(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole A3)E))))))(21(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole Midterm)E))))))(22(String((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole Final)E))))))))(splice_order(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22))))E)))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 6)E))))"
+  |> Sexplib.Sexp.of_string
+  |> UHExp.t_of_sexp;
+
 [@deriving sexp]
 type id = string;
 let examples =
@@ -357,5 +362,6 @@ let examples =
     |> add("qsort_example", qsort_example)
     |> add("map_img_filter", map_img_filter)
     |> add("color", color)
+    |> add("grade_cutoffs", grade_cutoffs)
   );
 let get = id => StringMap.find(id, examples);
