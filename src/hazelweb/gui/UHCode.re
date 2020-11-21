@@ -352,15 +352,13 @@ let decoration_views =
               ~settings=settings.evaluation,
             );
 
-          let dhcode = splice_name =>
-            sim_dargs_opt
-            |> OptUtil.and_then(((splice_map, _)) =>
-                 switch (IntMap.find_opt(splice_name, splice_map)) {
-                 | None => raise(Not_found)
-                 | Some((_, d_opt)) =>
-                   d_opt |> Option.map(d => (d, dhview(d)))
-                 }
-               );
+          let dhcode = splice_name => {
+            open OptUtil.Syntax;
+            let* (splice_map, _) = sim_dargs_opt;
+            let* (_, d_opt) = IntMap.find_opt(splice_name, splice_map);
+            let+ d = d_opt;
+            (d, dhview(d));
+          };
 
           let dargs =
             sim_dargs_opt
