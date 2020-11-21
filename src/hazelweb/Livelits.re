@@ -1128,7 +1128,7 @@ module ColorLivelit: LIVELIT = {
             bind(
               new_splice(
                 ~init_uhexp_gen=
-                  u_gen => (UHExp.(Block.wrap(intlit'(255))), u_gen),
+                  u_gen => (UHExp.(Block.wrap(intlit'(100))), u_gen),
                 HTyp.Int,
               ),
               a =>
@@ -1187,6 +1187,7 @@ module ColorLivelit: LIVELIT = {
         {uhcode, dhcode, _}: LivelitView.splice_and_param_getters,
       ) => {
     let is_valid = color_value => 0 <= color_value && color_value < 256;
+    let is_valid_alpha = a => 0 <= a && a <= 100;
     let rgba_values =
       switch (dhcode(r), dhcode(g), dhcode(b), dhcode(a)) {
       | (
@@ -1195,7 +1196,8 @@ module ColorLivelit: LIVELIT = {
           Some((IntLit(b), _)),
           Some((IntLit(a), _)),
         )
-          when is_valid(r) && is_valid(g) && is_valid(b) && is_valid(a) =>
+          when
+            is_valid(r) && is_valid(g) && is_valid(b) && is_valid_alpha(a) =>
         Some((r, g, b, a))
       | _ => None
       };
@@ -1366,7 +1368,7 @@ module ColorLivelit: LIVELIT = {
                   r,
                   g,
                   b,
-                  Float.of_int(a) /. 255.0,
+                  Float.of_int(a) /. 100.0,
                 ),
               ),
             ],
@@ -1387,14 +1389,20 @@ module ColorLivelit: LIVELIT = {
                           +. Float.of_int(b)
                           *. 0.114 > 186.
                           *. Float.of_int(a)
-                          /. 255.
+                          /. 100.
                             ? "#000000" : "#ffffff",
                         ),
                       ),
                     ],
                     [
                       Node.text(
-                        Printf.sprintf("rgba(%d, %d, %d, %d)", r, g, b, a),
+                        Printf.sprintf(
+                          "rgba(%d, %d, %d, %.2f)",
+                          r,
+                          g,
+                          b,
+                          Float.of_int(a) /. 100.,
+                        ),
                       ),
                     ],
                   ),
