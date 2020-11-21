@@ -269,6 +269,10 @@ let builtinfunctions_evaluate = (x: string, l: list(DHExp.t)): result =>
       }
     | _ => BoxedValue(Triv)
     }
+  | "format_for_university"
+  | "assign_grades"
+  | "weights"
+  | "compute_weighted_averages" => Indet(ApBuiltin(x, l))
   | _ => failwith("impossible")
   };
 
