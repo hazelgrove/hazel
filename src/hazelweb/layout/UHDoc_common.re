@@ -103,9 +103,9 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);
+  let sym_Lam = (): t => mk(~index=0, "fun (");
   let colon_Lam = (): t => mk(~index=1, ":");
-  let open_Lam = (): t => mk(~index=2, ".{");
+  let open_Lam = (): t => mk(~index=2, ") {");
   let close_Lam = (): t => mk(~index=3, "}");
 
   let open_Case = (): t => mk(~index=0, "case");
@@ -552,9 +552,10 @@ let mk_Lam =
         let colon_delim = Delim.colon_Lam();
         Doc.hcats([
           lam_delim,
-          p |> pad_closed_child(~sort=Pat),
+          p |> pad_closed_child(~sort=Pat, ~inline_padding=(empty_, space_)),
           colon_delim,
-          ann |> pad_closed_child(~sort=Typ),
+          ann
+          |> pad_closed_child(~sort=Typ, ~inline_padding=(space_, empty_)),
           open_delim,
         ]);
       };
