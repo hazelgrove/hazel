@@ -2307,7 +2307,8 @@ module rec M: Statics_Exp_Sig.S = {
         switch (VarMap.lookup(def_ctx, name)) {
         | None =>
           print_endline(
-            "ERROR: build_ll_view: livelit name not found: " ++ name,
+            "WARNING: build_ll_view: livelit name not found: " ++ name
+            ++ "\n(this is fine if it's a built-in livelit)",
           );
           MetaVarMap.empty;
         | Some((view, shape)) =>

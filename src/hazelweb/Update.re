@@ -154,7 +154,7 @@ let apply_action =
         print_endline("Update.re: performed action");
         switch (Program.get_path(program)) {
         | None =>
-          print_endline("Update.re: FAILED TO get path");
+          print_endline("Update.re: failed to get path");
           performed;
         | Some(path) =>
           print_endline("Update.re: got path");
