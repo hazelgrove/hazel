@@ -42,7 +42,9 @@ module Path: {
   and cmd =
     | M(Point.t)
     | M_(Vector.t)
+    | H({x: float})
     | H_(Vector.h)
+    | V({y: float})
     | V_(Vector.v)
     | A({
         rx: float,

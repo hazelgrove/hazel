@@ -628,7 +628,7 @@ module GradeCutoffLivelit: LIVELIT = {
                  [
                    Attr.create("cx", string_of_int(grade)),
                    Attr.create("cy", "0"),
-                   Attr.create("r", "1"),
+                   Attr.create("r", "0.75"),
                    Attr.create("fill", "orange"),
                    Attr.create("stroke-width", "0"),
                  ],
@@ -674,53 +674,14 @@ module GradeCutoffLivelit: LIVELIT = {
          )
        };
      */
+    let grades = [93, 88, 75, 86, 78, 82, 67, 54, 45, 71, 69, 62, 97, 83, 85];
     let data_opt =
       Some(
-        DHExp.(
-          Cons(
-            IntLit(93),
-            Cons(
-              IntLit(88),
-              Cons(
-                IntLit(75),
-                Cons(
-                  IntLit(86),
-                  Cons(
-                    IntLit(78),
-                    Cons(
-                      IntLit(82),
-                      Cons(
-                        IntLit(67),
-                        Cons(
-                          IntLit(54),
-                          Cons(
-                            IntLit(45),
-                            Cons(
-                              IntLit(71),
-                              Cons(
-                                IntLit(69),
-                                Cons(
-                                  IntLit(62),
-                                  Cons(
-                                    IntLit(97),
-                                    Cons(
-                                      IntLit(83),
-                                      Cons(IntLit(85), ListNil(Int)),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          )
-        ),
+        grades
+        |> List.fold_left(
+             (acc, g) => DHExp.Cons(IntLit(g), acc),
+             DHExp.ListNil(Int),
+           ),
       );
     let grades_svgs_invalids_opt =
       data_opt
@@ -824,7 +785,7 @@ module GradeCutoffLivelit: LIVELIT = {
           [
             Attr.classes(["grade-cutoff-scale-label"]),
             Attr.create("x", string_of_int(p)),
-            Attr.create("y", "0.5"),
+            Attr.create("y", "1"),
             Attr.create("dominant-baseline", "hanging"),
             Attr.create("text-anchor", "middle"),
             Attr.create("vector-effect", "non-scaling-stroke"),
@@ -855,6 +816,81 @@ module GradeCutoffLivelit: LIVELIT = {
         ]
         @ grade_points,
       );
+    };
+
+    let distribution_line = {
+      let (fs, ds) = List.partition(g => g < d, grades);
+      let (ds, cs) = List.partition(g => g < c, ds);
+      let (cs, bs) = List.partition(g => g < b, cs);
+      let (bs, as_) = List.partition(g => g < a, bs);
+      let line_y = (-12.);
+      // let line =
+      //   Node.create_svg(
+      //     "line",
+      //     [
+      //       Attr.classes(["distribution-line"]),
+      //       Attr.create("x1", "0"),
+      //       Attr.create("y1", string_of_float(line_y)),
+      //       Attr.create("x2", Printf.sprintf("%f", scale_len)),
+      //       Attr.create("y2", string_of_float(line_y)),
+      //       Attr.create("vector-effect", "non-scaling-stroke"),
+      //     ],
+      //     [],
+      //   );
+      let labeled_bucket = (x1, x2, num) => {
+        let len = (-0.75);
+        let bucket =
+          SvgUtil.Path.[
+            M({x: x1, y: line_y -. len}),
+            V({y: line_y}),
+            H({x: x2}),
+            V({y: line_y -. len}),
+          ]
+          |> SvgUtil.Path.view(
+               ~attrs=[
+                 Attr.classes(["bucket-path"]),
+                 Attr.create("vector-effect", "non-scaling-stroke"),
+               ],
+             );
+        let label =
+          Node.create_svg(
+            "text",
+            [
+              Attr.classes(["grade-cutoff-bucket-label"]),
+              Attr.create("x", string_of_float((x1 +. x2) *. 0.5)),
+              Attr.create("y", string_of_float(line_y -. 1.)),
+              Attr.create("dominant-baseline", "auto"),
+              Attr.create("text-anchor", "middle"),
+              Attr.create("vector-effect", "non-scaling-stroke"),
+            ],
+            [Node.text(string_of_int(num))],
+          );
+        [bucket, label];
+      };
+      let buffer = 0.4;
+      let fs_bucket =
+        labeled_bucket(0., Float.of_int(d) -. buffer, List.length(fs));
+      let ds_bucket =
+        labeled_bucket(
+          Float.of_int(d) +. buffer,
+          Float.of_int(c) -. buffer,
+          List.length(ds),
+        );
+      let cs_bucket =
+        labeled_bucket(
+          Float.of_int(c) +. buffer,
+          Float.of_int(b) -. buffer,
+          List.length(cs),
+        );
+      let bs_bucket =
+        labeled_bucket(
+          Float.of_int(b) +. buffer,
+          Float.of_int(a) -. buffer,
+          List.length(bs),
+        );
+      let as_bucket =
+        labeled_bucket(Float.of_int(a) +. buffer, 100., List.length(as_));
+      fs_bucket @ ds_bucket @ cs_bucket @ bs_bucket @ as_bucket;
     };
 
     let thumbs = {
@@ -900,7 +936,7 @@ module GradeCutoffLivelit: LIVELIT = {
       };
 
     let width = scale_len +. 2. *. thumb_radius +. 2.;
-    let height = 2. *. thumb_radius +. thumb_tip +. 6.;
+    let height = 2. *. thumb_radius +. thumb_tip +. 10.;
     Node.div(
       [Attr.classes(["grade-cutoffs-livelit"])],
       [
@@ -913,7 +949,7 @@ module GradeCutoffLivelit: LIVELIT = {
               Printf.sprintf(
                 "%f %f %f %f",
                 -. (thumb_radius +. 1.),
-                -. (2. *. thumb_radius +. thumb_tip),
+                -. (2. *. thumb_radius +. thumb_tip +. 6.),
                 width,
                 height,
               ),
@@ -925,7 +961,7 @@ module GradeCutoffLivelit: LIVELIT = {
             ),
             Attr.create("stroke", "black"),
           ],
-          [percentage_line(grades_svgs), ...thumbs],
+          [percentage_line(grades_svgs), ...thumbs] @ distribution_line,
         ),
         Node.div([Attr.classes(["data-err-msg"])], data_err_msg),
         ...overlay,
@@ -936,7 +972,7 @@ module GradeCutoffLivelit: LIVELIT = {
   let view_shape = _ => {
     LivelitView.MultiLine(
       // TODO
-      5,
+      6,
     );
   };
 

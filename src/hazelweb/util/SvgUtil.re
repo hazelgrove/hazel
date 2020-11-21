@@ -38,7 +38,9 @@ module Path = {
   and cmd =
     | M(Point.t)
     | M_(Vector.t)
+    | H({x: float})
     | H_(Vector.h)
+    | V({y: float})
     | V_(Vector.v)
     | A({
         rx: float,
@@ -75,7 +77,9 @@ module Path = {
     fun
     | M({x, y}) => Printf.sprintf("M %f %f", x, y)
     | M_({dx, dy}) => Printf.sprintf("m %f %f", dx, dy)
+    | H({x}) => Printf.sprintf("H %f", x)
     | H_({dx}) => Printf.sprintf("h %f", dx)
+    | V({y}) => Printf.sprintf("V %f", y)
     | V_({dy}) => Printf.sprintf("v %f", dy)
     | A({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, target}) =>
       Printf.sprintf(

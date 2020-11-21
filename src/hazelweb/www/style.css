@@ -1093,11 +1093,19 @@ h1 {
   padding: 1em 0;
 }
 
+.grade-cutoffs-livelit {
+  margin: 0 -6px;
+}
 .grade-cutoff-thumb {
   fill: white;
 }
 .grade-cutoffs-livelit .grade-cutoff-thumb:hover {
   cursor: grab;
+}
+
+.grade-cutoffs-livelit .bucket-path {
+  fill: none;
+  stroke: #bebebe;
 }
 
 .grade-label {
@@ -1137,6 +1145,14 @@ h1 {
   font-family: "Gill Sans", sans-serif;
   font-size: 2pt;
   font-weight: lighter;
+}
+
+.grade-cutoffs-livelit .grade-cutoff-bucket-label {
+  font-family: "Gill Sans", sans-serif;
+  font-size: 2.5pt;
+  font-weight: bold;
+  fill: rgb(245, 159, 0);
+  stroke-width: 0;
 }
 
 .slider-livelit {
