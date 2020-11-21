@@ -356,29 +356,21 @@ and mk_child =
 };
 
 let mk_splices = (e: UHExp.t): UHDoc.splices => {
-  let rec mk_block = (~splices, block: UHExp.block): UHDoc.splices =>
-    block
-    |> List.fold_left((splices, line) => mk_line(~splices, line), splices)
-  and mk_line = (~splices, line: UHExp.line): UHDoc.splices =>
+  let union = MetaVarMap.union((_, _, _) => None);
+  let union_join = List.fold_left(union, SpliceMap.empty);
+  let rec mk_block = (block: UHExp.block): UHDoc.splices =>
+    block |> List.map(mk_line) |> union_join
+  and mk_line = (line: UHExp.line): UHDoc.splices =>
     switch (line) {
     | EmptyLine
-    | CommentLine(_) => splices
-    | ExpLine(opseq) => mk_opseq(~splices, opseq)
-    | AbbrevLine(_, _, _, args) =>
-      args
-      |> List.fold_left(
-           (splices, operand) => mk_operand(~splices, operand),
-           splices,
-         )
-    | LetLine(_, _, def) => mk_block(~splices, def)
+    | CommentLine(_) => SpliceMap.empty
+    | ExpLine(opseq) => mk_opseq(opseq)
+    | AbbrevLine(_, _, _, args) => args |> List.map(mk_operand) |> union_join
+    | LetLine(_, _, def) => mk_block(def)
     }
-  and mk_opseq = (~splices, OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>
-    Seq.operands(seq)
-    |> List.fold_left(
-         (splices, operand) => mk_operand(~splices, operand),
-         splices,
-       )
-  and mk_operand = (~splices, operand: UHExp.operand): UHDoc.splices =>
+  and mk_opseq = (OpSeq(_, seq): UHExp.opseq): UHDoc.splices =>
+    Seq.operands(seq) |> List.map(mk_operand) |> union_join
+  and mk_operand = (operand: UHExp.operand): UHDoc.splices =>
     switch (operand) {
     | EmptyHole(_)
     | Var(_)
@@ -388,48 +380,36 @@ let mk_splices = (e: UHExp.t): UHDoc.splices => {
     | BoolLit(_)
     | StringLit(_)
     | ListNil(_)
-    | FreeLivelit(_) => splices
+    | FreeLivelit(_) => SpliceMap.empty
     | ApLivelit(llu, _, _, _, _, splice_info) =>
-      let ap_splices =
+      let ap_docs =
         splice_info.splice_map
         |> IntMap.bindings
         |> List.to_seq
-        |> SpliceMap.ApMap.of_seq;
-      let (ap_docs, splices) =
-        SpliceMap.ApMap.fold(
-          (splice_name, (_, splice_e), (ap_docs, splices)) =>
-            (
-              ap_docs
-              |> SpliceMap.ApMap.add(
-                   splice_name,
-                   Lazy.force(
-                     mk,
-                     ~memoize=false,
-                     ~enforce_inline=false,
-                     splice_e,
-                   ),
-                 ),
-              mk_block(~splices, splice_e),
-            ),
-          ap_splices,
-          (SpliceMap.ApMap.empty, splices),
-        );
-      splices |> SpliceMap.put_ap(llu, ap_docs);
+        |> SpliceMap.ApMap.of_seq
+        |> SpliceMap.ApMap.map(((_, splice_e: UHExp.t)) =>
+             Lazy.force(mk, ~memoize=false, ~enforce_inline=false, splice_e)
+           );
+      let ap_splices =
+        splice_info.splice_map
+        |> IntMap.bindings
+        |> List.map(((_, (_, splice_e))) => mk_block(splice_e))
+        |> union_join;
+      SpliceMap.put_ap(llu, ap_docs, ap_splices);
     | Lam(_, _, _, e)
     | Inj(_, _, e)
-    | Parenthesized(e) => mk_block(~splices, e)
+    | Parenthesized(e) => mk_block(e)
     | Case(_, scrut, rules) =>
-      let splices = mk_block(~splices, scrut);
-      rules
-      |> List.fold_left(
-           (splices, UHExp.Rule(_, e)) => mk_block(~splices, e),
-           splices,
-         );
+      let scrut_splices = mk_block(scrut);
+      let rules_splices =
+        rules |> List.map((UHExp.Rule(_, e)) => mk_block(e)) |> union_join;
+      union(scrut_splices, rules_splices);
     | Subscript(_, e1, e2, e3) =>
-      let splices = mk_block(~splices, e1);
-      let splices = mk_block(~splices, e2);
-      mk_block(~splices, e3);
+      let splices_1 = mk_block(e1);
+      let splices_2 = mk_block(e2);
+      let splices_3 = mk_block(e3);
+      union_join([splices_1, splices_2, splices_3]);
     };
 
-  mk_block(~splices=SpliceMap.empty, e);
+  mk_block(e);
 };
