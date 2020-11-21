@@ -435,11 +435,10 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     && is_complete(start_, check_type_holes)
     && is_complete(end_, check_type_holes)
   | FreeLivelit(_) => false
-  | ApLivelit(_, InHole(_), _, _, _, _) => false
-  | ApLivelit(_, NotInHole, _, _, _, splice_info) =>
-    splice_info.splice_map
-    |> IntMap.bindings
-    |> List.for_all(((_, (_, e))) => is_complete(e, check_type_holes))
+  | ApLivelit(_) =>
+    // need to return false here because
+    // livelit applications contain metavars
+    false
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool =>
