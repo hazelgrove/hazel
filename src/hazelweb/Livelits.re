@@ -1849,7 +1849,7 @@ module DataFrameLivelit: LIVELIT = {
   type sync = action => unit;
 
   let init_height = 3;
-  let init_width = 6;
+  let init_width = 5;
 
   let get_height = (m: model): int => List.length(m.rows);
   let get_width = (m: model): int => List.length(m.col_headers);
