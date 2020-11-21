@@ -335,17 +335,11 @@ let qsort_example: UHExp.t = {
   UHExp.[append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line];
 };
 
-let lltest1 = "((LivelitDefLine((name(NotInVarHole $dog))(expansion_type(OpSeq(Placeholder 0)(S Int E)))(captures((ExpLine(OpSeq(Placeholder 0)(S(ListNil NotInHole)E)))))(model_type(OpSeq(Placeholder 0)(S Int E)))(action_type(OpSeq(Placeholder 0)(S Int E)))(init((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 666)E)))))(update((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole m)(A Comma(S(Var NotInHole NotInVarHole a)E)))))E))((OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E)))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole a)E)))))E)))))(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole\"\")E)))))E)))))(shape((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(BoolLit NotInHole true)(A Comma(S(IntLit NotInHole 15)E)))))))E)))))(expand((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole\"((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole \")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole\")E))))\")E)))))))))E)))))))(ExpLine(OpSeq(Placeholder 0)(S(EmptyHole 0)E))))";
-
-let lltest1p = lltest1 |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp;
-
 let mk_slidy_slice_first = "((LivelitDefLine((name(NotInVarHole $slidy))(expansion_type(OpSeq(Placeholder 0)(S Int E)))(captures((ExpLine(OpSeq(Placeholder 0)(S(ListNil NotInHole)E)))))(model_type(OpSeq(Placeholder 0)(S Int E)))(action_type(OpSeq(Placeholder 0)(S Int E)))(init((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 50)E)))))(update((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole model)(A Comma(S(Var NotInHole NotInVarHole action)E)))))E))((OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E)))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole action)E)))))E)))))";
-
-let mk_slidy_slice_second = "(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(Placeholder 0)(S(StringLit NotInHole\"";
 
 let mk_slidy_slice_view1 = "(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole \"";
 
-let slidy_view_first = (_onclick_handler, _onmousedown_handler) => "
+let slidy_view_first = "
      <span class=\\\"slider-livelit\\\">
        <input
          class=\\\"slider\\\"
@@ -353,79 +347,27 @@ let slidy_view_first = (_onclick_handler, _onmousedown_handler) => "
          type=\\\"range\\\"
          min=0
          max=100
-
-         oninput=\\\"(function(e){
-          console.log('ONINPUT');
-          console.log(e);
-          let value = document.getElementById('slidyy').value;
-          let action = '(IntLit ' + value + ')';
-          window.trigger(action);
-          return false;
-             }) ();
-        return false;\\\"
-
+         oninput=\\\"(function(e) {
+             let action = '(IntLit ' + document.getElementById('slidyy').value + ')';
+             window.trigger(action);
+             return false;}) ();
+             return false;\\\"
          value=";
-/*
- let slidy_view_first = (_onclick_handler, _onmousedown_handler) => "
-     <span class=\\\"slider-livelit\\\">
-       <input
-         class=\\\"slider\\\"
-         id=\\\"slidyy\\\"
-         type=\\\"range\\\"
-         min=0
-         max=100
-         value=";
- */
+
 let mk_slidy_slice_view2 = "\")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole \"";
 
 let slidy_view_last = ">
       </input>
-      <script>
-      console.log('SCRIPT RUNNING');
-      let el = document.getElementById('slidyy');
-      let f = function(e){console.log('FFFFFFFF'); console.log(e);};
-      el.addEventListener('onchange', f);
-      </script>
     </span>";
 
 let mk_slidy_slice_view3 = "\")E)))))))))E)))))";
 
-let mk_slidy_slice_second_last = "\")E)))))E)))))";
-
 let mk_slidy_slice_last = "(shape((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(BoolLit NotInHole true)(A Comma(S(IntLit NotInHole 14)E)))))))E)))))(expand((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole\"((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole \")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole\")E))))\")E)))))))))E)))))))(ExpLine(OpSeq(Placeholder 0)(S(ApLivelit 0 NotInHole $slidy $slidy(IntLit 50)((next 0)(splice_map())(splice_order())))E))))";
 
-let model_v = "10";
-
-let slidy_onclick = "(function(e){
-              console.log('ONCLICK');
-              console.log(e);
-              let value = document.getElementById('slidyy').value;
-              console.log(value);
-              console.log(this);
-
-              let value2222 = '87';
-              let action = '(IntLit ' + value2222 + ')';
-              window.trigger(action);
-              return false;
-                 }) ();
-            return false;";
-
-let slidy_onmousedown = "(function(e){
-            console.log('ONMOUSEDOWN');
-            console.log(e);
-            let value = document.getElementById('slidyy').value;
-            console.log(value);
-            console.log(this);
-            console.log(this.Event);
-            return false;
-                }) ();
-          return false;";
-
-//TODO(andrew): give slider unique id somehow?
-let lltest2p =
+let ll_def_slider =
   mk_slidy_slice_first
   ++ mk_slidy_slice_view1
-  ++ slidy_view_first(slidy_onclick, slidy_onmousedown)
+  ++ slidy_view_first
   ++ mk_slidy_slice_view2
   ++ slidy_view_last
   ++ mk_slidy_slice_view3
@@ -443,7 +385,6 @@ let examples =
     |> add("let_line", let_line)
     |> add("map_example", map_example)
     |> add("qsort_example", qsort_example)
-    |> add("livelit_test_1", lltest1p)
-    |> add("livelit_test_2", lltest2p)
+    |> add("ll_def_slider", ll_def_slider)
   );
 let get = id => StringMap.find(id, examples);

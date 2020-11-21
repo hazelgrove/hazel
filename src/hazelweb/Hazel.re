@@ -15,14 +15,8 @@ module Model = Model;
 module Action = ModelAction;
 module State = State;
 
-let ll_trigger = _ => {
-  6666;
-};
-
 // see incr_dom app_intf.ml
 let on_startup = (~schedule_action, _) => {
-  /* add livelit trigger fn as global */
-  //Js.Unsafe.set(Dom_html.window, "trigger", Js.wrap_callback(ll_trigger));
 
   /* we need line heights + character widths for various layout computations,
       so we created a font specimen and update font metrics whenever that

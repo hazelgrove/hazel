@@ -1670,15 +1670,9 @@ module SliderLivelitMin: LIVELIT = {
   type sync = action => unit;
 
   let init_model = SpliceGenCmd.return(0);
-  //let init_model = (psi, u_gen) => (0, psi, u_gen);
   let update = (_, n) => SpliceGenCmd.return(n);
-  //let update = (_, n) => (psi, u_gen) => (n, psi, u_gen);
-  let view_shape = _ => LivelitShape.Inline(14); // use inj for multiline vs inline
-  // need to include shape!!
+  let view_shape = _ => LivelitShape.Inline(14);
   let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
-  // how to do this... str of sexp?
-  // let expand = "(=> n (UHExp.Block.wrap (UHExp.intlit' n)))"
-  // (except with actual constructors instead of helpers)
 
   let view = (model, trigger: trigger, _sync, _) => {
     let value = string_of_int(model);

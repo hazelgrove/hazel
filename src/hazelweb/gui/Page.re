@@ -23,12 +23,8 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
         Node.option([Attr.value("map_example")], [Node.text("map")]),
         Node.option([Attr.value("qsort_example")], [Node.text("qsort")]),
         Node.option(
-          [Attr.value("livelit_test_1")],
-          [Node.text("livelit_test_1")],
-        ),
-        Node.option(
-          [Attr.value("livelit_test_2")],
-          [Node.text("livelit_test_2")],
+          [Attr.value("ll_def_slider")],
+          [Node.text("livelit slider, defined")],
         ),
       ],
     )
