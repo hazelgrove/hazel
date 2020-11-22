@@ -40,6 +40,7 @@
 %token GREATER LESSER
 %token PERIOD
 %token COMMA
+%token INJL INJR
 %token EOF
 %token <string> IDENT
 %token LPAREN RPAREN
@@ -150,6 +151,12 @@ simple_expr:
   | constant { $1 }
   | IDENT { UHExp.var $1 }
   | fn { $1 }
+  | INJL LPAREN expr RPAREN {
+    UHExp.Inj(ErrStatus.NotInHole, InjSide.L, $3)
+  }
+  | INJR LPAREN expr RPAREN {
+    UHExp.Inj(ErrStatus.NotInHole, InjSide.R, $3)
+  }
 ;
 
 fn:

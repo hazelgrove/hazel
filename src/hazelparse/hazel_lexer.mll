@@ -10,7 +10,7 @@ let _ =
       "case", CASE;
       "end", END;
       "true", TRUE;
-      "false", FALSE ]
+      "false", FALSE]
 }
 
 let white = [' ']+
@@ -62,6 +62,8 @@ rule read =
   | "|" { BAR }
   | "=>" { ARROW }
   | "->" { TARROW }
+  | "inj[L]" { INJL }
+  | "inj[R]" { INJR }
   | "#" white* ( [^'\n']* as t) { COMMENT t }
   | numlit { INT (Lexing.lexeme lexbuf) }
   | floatlit { FLOAT (Lexing.lexeme lexbuf) }
