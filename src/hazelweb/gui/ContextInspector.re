@@ -77,8 +77,7 @@ let view =
   let instructional_msg = msg =>
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
 
-  let path_view_titlebar =
-    Panel.view_of_other_title_bar("Closure above observed at ");
+  let path_view_titlebar = Panel.view_of_other_title_bar("Select a closure");
 
   [@warning "-26"]
   let mii_summary = (mii, (kind, (u, i) as inst): TaggedNodeInstance.t) => {
@@ -95,24 +94,26 @@ let view =
           Node.div(
             [],
             [
-              Node.div(
-                [Attr.classes(["hii-summary-inst"])],
-                [
-                  DHCode.view_of_hole_instance(
-                    ~inject,
-                    ~width=30,
-                    ~selected_instance,
-                    ~settings,
-                    inst,
-                  ),
-                ],
-              ),
-              Node.text(" = hole "),
-              Node.span(
-                [Attr.classes(["hole-name-normal-txt"])],
-                [Node.text(string_of_int(u + 1))],
-              ),
-              Node.text(" instance "),
+              /*
+               Node.div(
+                 [Attr.classes(["hii-summary-inst"])],
+                 [
+                   DHCode.view_of_hole_instance(
+                     ~inject,
+                     ~width=30,
+                     ~selected_instance,
+                     ~settings,
+                     inst,
+                   ),
+                 ],
+               ),
+               Node.text(" = hole "),
+               Node.span(
+                 [Attr.classes(["hole-name-normal-txt"])],
+                 [Node.text(string_of_int(u + 1))],
+               ),
+               */
+              Node.text(" closure "),
               Node.span(
                 [Attr.classes(["inst-number-normal-txt"])],
                 [Node.text(string_of_int(i + 1))],

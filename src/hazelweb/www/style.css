@@ -188,7 +188,7 @@ body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 400px;
+  width: 300px;
   flex-shrink: 0;
   transition: width 0.3s ease;
   overflow-x: hidden;
@@ -651,6 +651,7 @@ body {
   /* text-align: center; */
   /* padding: 5px; */
   display: flex;
+  position: relative;
 }
 
 .instance-info {
@@ -662,10 +663,15 @@ body {
 }
 
 .instance-controls {
-  flex-shrink: 0;
+  position: absolute;
+  top: -4px;
+  right: 180px;
   display: flex;
   align-items: center;
-  padding-right: 4px;
+  /*flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 4px;*/
 }
 
 .instance-button-wrapper {
@@ -852,6 +858,9 @@ h1 {
 .code-delim {
   font-weight: bold;
   font-variant-ligatures: normal;
+}
+.code-string-lit {
+  color: rgb(75, 140, 75);
 }
 
 .code-closed-child {
