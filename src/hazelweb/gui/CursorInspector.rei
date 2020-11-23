@@ -8,6 +8,6 @@ let view:
     ~inject: ModelAction.t => Vdom.Event.t,
     (float, float),
     Model.cursor_inspector,
-    CursorInfo_common.t
+    CursorInfo.t
   ) =>
   Vdom.Node.t;

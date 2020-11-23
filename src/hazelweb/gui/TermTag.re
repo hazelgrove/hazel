@@ -5,8 +5,7 @@ type tag_typ =
   | Pat
   | Typ;
 
-let get_cursor_term_tag_typ =
-    (cursor_term: CursorInfo_common.cursor_term): tag_typ => {
+let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
   switch (cursor_term) {
   | Exp(_, _)
   | ExpOp(_, _)

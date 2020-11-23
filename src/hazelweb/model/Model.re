@@ -157,12 +157,12 @@ let toggle_novice_mode = (model: t): t => {
 let get_program = (model: t): Program.t =>
   model.cardstacks |> ZCardstacks.get_program;
 
-let get_edit_state = (model: t): Statics_common.edit_state => {
+let get_edit_state = (model: t): Statics.edit_state => {
   let program = get_program(model);
   program.edit_state;
 };
 
-let get_cursor_info = (model: t): CursorInfo_common.t =>
+let get_cursor_info = (model: t): CursorInfo.t =>
   model |> get_program |> Program.get_cursor_info;
 
 let put_program = (program: Program.t, model: t): t => {
@@ -224,7 +224,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let update_program = (a: Action_common.t, new_program, model) => {
+let update_program = (a: Action.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -274,7 +274,7 @@ let next_card = model => {
   |> focus_cell;
 };
 
-let perform_edit_action = (a: Action_common.t, model: t): t => {
+let perform_edit_action = (a: Action.t, model: t): t => {
   TimeUtil.measure_time(
     "Model.perform_edit_action",
     model.measurements.measurements
@@ -357,7 +357,7 @@ let move_via_click = (row_col, model) => {
 };
 
 let select_case_branch =
-    (path_to_case: CursorPath_common.steps, branch_index: int, model: t): t => {
+    (path_to_case: CursorPath.steps, branch_index: int, model: t): t => {
   let program = model |> get_program;
   let action = Program.move_to_case_branch(path_to_case, branch_index);
   let new_program = Program.perform_edit_action(action, program);

@@ -186,9 +186,9 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      (steps, cursor): CursorPath_common.t,
+      (steps, cursor): CursorPath.t,
       cursor_inspector: Model.cursor_inspector,
-      cursor_info: CursorInfo_common.t,
+      cursor_info: CursorInfo.t,
       l: UHLayout.t,
     ) => {
   let cursor =
@@ -212,8 +212,7 @@ let view_of_cursor_inspector =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
-    : list(Vdom.Attr.t) => {
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);

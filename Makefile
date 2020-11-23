@@ -5,7 +5,7 @@ all: dev
 
 deps:
 	opam install \
-		dune reason=3.5.2 utop rtop \
+		dune reason=3.6.0 utop rtop \
 		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib ppx_expect ppx_inline_test ocamlformat bark
 
 dev:

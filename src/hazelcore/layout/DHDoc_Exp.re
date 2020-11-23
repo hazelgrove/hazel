@@ -61,7 +61,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   };
 };
 
-let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc_common.t =>
+let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | And => "&&"
@@ -69,7 +69,7 @@ let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc_common.t =>
     },
   );
 
-let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc_common.t =>
+let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | Minus => "-"
@@ -82,7 +82,7 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc_common.t =>
     },
   );
 
-let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc_common.t =>
+let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | FMinus => "-."
@@ -106,9 +106,9 @@ let rec mk =
           map: AssertMap.t,
           d: DHExp.t,
         )
-        : DHDoc_common.t => {
+        : DHDoc.t => {
   let precedence = precedence(~show_casts);
-  let mk_cast = ((doc: DHDoc_common.t, ty: option(HTyp.t))): DHDoc_common.t =>
+  let mk_cast = ((doc: DHDoc.t, ty: option(HTyp.t))): DHDoc.t =>
     switch (ty) {
     | Some(ty) when show_casts =>
       Doc.(
@@ -124,7 +124,7 @@ let rec mk =
     };
   let rec go =
           (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc_common.t, option(HTyp.t)) => {
+          : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, drs) =>
@@ -368,7 +368,7 @@ and mk_rule =
       ~selected_instance,
       Rule(dp, dclause): DHExp.rule,
     )
-    : DHDoc_common.t => {
+    : DHDoc.t => {
   open Doc;
   let mk' =
     mk(

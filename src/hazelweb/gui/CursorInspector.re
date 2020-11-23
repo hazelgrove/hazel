@@ -32,10 +32,9 @@ let emphasize_text = (~only_right=false, msg: string) => {
 let colon =
   Vdom.Node.div([Vdom.Attr.classes(["colon"])], [Vdom.Node.text(":")]);
 
-let advanced_summary =
-    (typed: CursorInfo_common.typed, tag_type: TermTag.tag_typ) => {
+let advanced_summary = (typed: CursorInfo.typed, tag_type: TermTag.tag_typ) => {
   let term_tag = TermTag.term_tag_view(tag_type, ~show_tooltip=true, []);
-  let rec message = (typed: CursorInfo_common.typed) => {
+  let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty)
@@ -184,8 +183,7 @@ let advanced_summary =
   ([term_tag, ...colon_message], type_message);
 };
 
-let novice_summary =
-    (typed: CursorInfo_common.typed, tag_typ: TermTag.tag_typ) => {
+let novice_summary = (typed: CursorInfo.typed, tag_typ: TermTag.tag_typ) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let article =
     switch (tag_typ) {
@@ -193,7 +191,7 @@ let novice_summary =
     | Pat
     | Typ => "a"
     };
-  let rec message = (typed: CursorInfo_common.typed) => {
+  let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty) => (
@@ -463,7 +461,7 @@ let novice_summary =
 let summary_bar =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ci: CursorInfo_common.t,
+      ci: CursorInfo.t,
       err_state_b: err_state_b,
       show_expanded: bool,
       term_novice_message_mode: bool,
@@ -546,7 +544,7 @@ let view =
       ~inject: ModelAction.t => Vdom.Event.t,
       loc: (float, float),
       cursor_inspector: Model.cursor_inspector,
-      cursor_info: CursorInfo_common.t,
+      cursor_info: CursorInfo.t,
     )
     : Vdom.Node.t => {
   let typebar = ty =>
@@ -700,7 +698,7 @@ let view =
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
-  let rec get_indicator_info = (typed: CursorInfo_common.typed) =>
+  let rec get_indicator_info = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
