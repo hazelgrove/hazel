@@ -13,7 +13,7 @@ let _ =
       "false", FALSE]
 }
 
-let white = [' ']+
+let white = [' ']
 let newline = ['\n']
 let digit = ['0'-'9']
 let numlit = digit+
@@ -26,14 +26,15 @@ rule read =
     let curr_p = lexbuf.lex_curr_p in
     let count = curr_p.pos_cnum - curr_p.pos_bol in
     Lexing.new_line lexbuf;
-    (* FIXME: This is to handle empty lines,
-     * but does not work with whitespace in the line *)
     if count = 1 then
       EMPTY
     else
       read lexbuf
   }
-  | white { read lexbuf }
+  | white* newline {
+    EMPTY
+  }
+  | white+ { read lexbuf }
   | lowercase_ident as id {
     try
       Hashtbl.find keyword_table id
