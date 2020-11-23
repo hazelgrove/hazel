@@ -8,4 +8,4 @@ let mk:
     ~selected_instance: option(HoleInstance.t),
     DHExp.t
   ) =>
-  DHDoc_common.t;
+  DHDoc.t;

@@ -133,11 +133,21 @@ let decoration_views =
                    switch (dshape) {
                    | ErrHole => (
                        "err-hole",
-                       ErrHole.view(~corner_radii, (offset, m)),
+                       ErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
                      )
                    | VarErrHole => (
                        "var-err-hole",
-                       VarErrHole.view(~corner_radii, (offset, m)),
+                       VarErrHole.view(
+                         ~contains_current_term=
+                           Option.is_some(dpaths.current_term),
+                         ~corner_radii,
+                         (offset, m),
+                       ),
                      )
                    | VarUse => (
                        "var-use",
@@ -173,8 +183,7 @@ let decoration_views =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
-    : list(Vdom.Attr.t) => {
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
