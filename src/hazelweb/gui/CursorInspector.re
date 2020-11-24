@@ -542,6 +542,7 @@ let summary_bar =
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
+      ~view_of_text,
       loc: (float, float),
       cursor_inspector: Model.cursor_inspector,
       cursor_info: CursorInfo.t,
@@ -946,7 +947,7 @@ let view =
   let content =
     switch (cursor_info.cursor_term, cursor_inspector.synthesizing) {
     | (Exp(_, EmptyHole(u)), Some((u', i, es))) when u == u' =>
-      content @ [SynthPanel.view(~inject, i, es)]
+      content @ [SynthPanel.view(~inject, ~view_of_text, i, es)]
     | _ => content
     };
   Vdom.(

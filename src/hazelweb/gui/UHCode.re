@@ -182,103 +182,6 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
-let view_of_cursor_inspector =
-    (
-      ~inject,
-      ~font_metrics: FontMetrics.t,
-      (steps, cursor): CursorPath.t,
-      cursor_inspector: Model.cursor_inspector,
-      cursor_info: CursorInfo.t,
-      l: UHLayout.t,
-    ) => {
-  let cursor =
-    switch (cursor) {
-    | OnText(_) => CursorPosition.OnText(0)
-    | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
-    | OnOp(_) => CursorPosition.OnOp(Before)
-    };
-  let m = UHMeasuredLayout.mk(l);
-  let cursor_pos =
-    UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
-    |> OptUtil.get(() => failwith("could not find caret"));
-  let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
-  let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
-  CursorInspector.view(
-    ~inject,
-    (cursor_x, cursor_y),
-    cursor_inspector,
-    cursor_info,
-  );
-};
-
-let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
-  open Vdom;
-  let prevent_stop_inject = a =>
-    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
-  [
-    Attr.on_keypress(_ => Event.Prevent_default),
-    Attr.on_keydown(evt => {
-      switch (MoveKey.of_key(Key.get_key(evt))) {
-      | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-      | None =>
-        switch (HazelKeyCombos.of_evt(evt)) {
-        | Some(Ctrl_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Undo);
-          }
-        | Some(Meta_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Undo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Shift_Z) =>
-          if (is_mac) {
-            Event.Ignore;
-          } else {
-            prevent_stop_inject(ModelAction.Redo);
-          }
-        | Some(Meta_Shift_Z) =>
-          if (is_mac) {
-            prevent_stop_inject(ModelAction.Redo);
-          } else {
-            Event.Ignore;
-          }
-        | Some(Ctrl_Space) =>
-          prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
-        | Some(kc) =>
-          prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-          )
-        | None =>
-          switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
-          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
-          | Some(kc) =>
-            prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-            )
-          | None =>
-            switch (JSUtil.is_single_key(evt)) {
-            | None => Event.Ignore
-            | Some(single_key) =>
-              prevent_stop_inject(
-                ModelAction.EditAction(
-                  Construct(SChar(JSUtil.single_key_string(single_key))),
-                ),
-              )
-            }
-          }
-        }
-      }
-    }),
-  ];
-};
-
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box =
         (~assert_map: option(AssertMap.t), box: UHBox.t): list(Vdom.Node.t) => {
@@ -361,6 +264,104 @@ let focus = () => {
 // TODO refactor so that it doesn't depend on assert map
 let view_of_text = (~assert_map: option(AssertMap.t)=?, l: UHLayout.t) => {
   view_of_box(~assert_map, UHBox.mk(l));
+};
+
+let view_of_cursor_inspector =
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      (steps, cursor): CursorPath.t,
+      cursor_inspector: Model.cursor_inspector,
+      cursor_info: CursorInfo.t,
+      l: UHLayout.t,
+    ) => {
+  let cursor =
+    switch (cursor) {
+    | OnText(_) => CursorPosition.OnText(0)
+    | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
+    | OnOp(_) => CursorPosition.OnOp(Before)
+    };
+  let m = UHMeasuredLayout.mk(l);
+  let cursor_pos =
+    UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
+    |> OptUtil.get(() => failwith("could not find caret"));
+  let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
+  let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
+  CursorInspector.view(
+    ~inject,
+    ~view_of_text=l => Vdom.Node.span([], view_of_text(l)),
+    (cursor_x, cursor_y),
+    cursor_inspector,
+    cursor_info,
+  );
+};
+
+let key_handlers =
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+  open Vdom;
+  let prevent_stop_inject = a =>
+    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+  [
+    Attr.on_keypress(_ => Event.Prevent_default),
+    Attr.on_keydown(evt => {
+      switch (MoveKey.of_key(Key.get_key(evt))) {
+      | Some(move_key) =>
+        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
+      | None =>
+        switch (HazelKeyCombos.of_evt(evt)) {
+        | Some(Ctrl_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(ModelAction.Undo);
+          }
+        | Some(Meta_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(ModelAction.Undo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(Ctrl_Shift_Z) =>
+          if (is_mac) {
+            Event.Ignore;
+          } else {
+            prevent_stop_inject(ModelAction.Redo);
+          }
+        | Some(Meta_Shift_Z) =>
+          if (is_mac) {
+            prevent_stop_inject(ModelAction.Redo);
+          } else {
+            Event.Ignore;
+          }
+        | Some(Ctrl_Space) =>
+          prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
+        | Some(kc) =>
+          prevent_stop_inject(
+            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+          )
+        | None =>
+          switch (HazelKeyCombos.of_evt(evt)) {
+          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
+          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
+          | Some(kc) =>
+            prevent_stop_inject(
+              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+            )
+          | None =>
+            switch (JSUtil.is_single_key(evt)) {
+            | None => Event.Ignore
+            | Some(single_key) =>
+              prevent_stop_inject(
+                ModelAction.EditAction(
+                  Construct(SChar(JSUtil.single_key_string(single_key))),
+                ),
+              )
+            }
+          }
+        }
+      }
+    }),
+  ];
 };
 
 let view =
