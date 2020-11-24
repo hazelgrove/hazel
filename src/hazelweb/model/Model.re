@@ -23,6 +23,7 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
+  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
 };
 
 type t = {
@@ -39,7 +40,6 @@ type t = {
   is_mac: bool,
   mouse_position: ref(MousePosition.t),
   cursor_inspector,
-  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -133,8 +133,8 @@ let init = (): t => {
       show_expanded: false,
       term_novice_message_mode: false,
       type_novice_message_mode: false,
+      synthesizing: None,
     },
-    synthesizing: None,
   };
 };
 
