@@ -224,23 +224,14 @@ let key_handlers =
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
           )
         | None =>
-          switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
-          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
-          | Some(kc) =>
+          switch (JSUtil.is_single_key(evt)) {
+          | None => Event.Ignore
+          | Some(single_key) =>
             prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+              ModelAction.EditAction(
+                Construct(SChar(JSUtil.single_key_string(single_key))),
+              ),
             )
-          | None =>
-            switch (JSUtil.is_single_key(evt)) {
-            | None => Event.Ignore
-            | Some(single_key) =>
-              prevent_stop_inject(
-                ModelAction.EditAction(
-                  Construct(SChar(JSUtil.single_key_string(single_key))),
-                ),
-              )
-            }
           }
         }
       }
