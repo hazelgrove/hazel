@@ -536,38 +536,53 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
 
 /******************************************************************************/
 
-type solve_result = list(list((MetaVar.t, UHExp.t)));
+//type solve_result = list(list((MetaVar.t, UHExp.t)));
+type solve_result = list(UHExp.t);
 
-let solve = (e: UHExp.t): option(solve_result) => {
+let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
   print_endline(
     Sexplib.Sexp.to_string(Smyth.Desugar.sexp_of_program(sm_prog)),
   );
-  switch (Smyth.Endpoint.solve_program(sm_prog)) {
-  | Error(_) => None
-  | Ok({hole_fillings, _}) =>
-    List.iter(
-      results =>
-        List.iter(
-          ((h, exp)) =>
-            Printf.printf(
-              "%d = %s\n",
-              h,
-              Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
-            ),
-          results,
-        ),
-      hole_fillings,
-    );
-    hole_fillings
-    |> List.map(hole_filling =>
-         hole_filling
-         |> List.map(((u, smexp)) => {
-              let+ e = smexp_to_uhexp(smexp);
-              (u, e);
-            })
-         |> OptUtil.sequence
-       )
-    |> OptUtil.sequence;
-  };
+  let solve_results =
+    switch (Smyth.Endpoint.solve_program_hole(sm_prog, hole_number)) {
+    | Error(_) => None
+    | Ok({hole_fillings, _}) =>
+      List.iter(
+        results =>
+          List.iter(
+            ((h, exp)) =>
+              Printf.printf(
+                "%d = %s\n",
+                h,
+                Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
+              ),
+            results,
+          ),
+        hole_fillings,
+      );
+      hole_fillings
+      |> List.map(hole_filling =>
+           hole_filling
+           |> List.map(((u, smexp)) => {
+                let+ e = smexp_to_uhexp(smexp);
+                (u, e);
+              })
+           |> OptUtil.sequence
+         )
+      |> OptUtil.sequence;
+    };
+
+  solve_results
+  |> Option.map(
+       List.map(xs => {
+         let right_hole_list =
+           List.filter(((hole_n, _)) => hole_n == hole_number, xs);
+         switch (right_hole_list) {
+         | [] => None
+         | [(_hole_num, expr), ..._] => Some(expr)
+         };
+       }),
+     )
+  |> Option.map(List.filter_map(x => x));
 };
