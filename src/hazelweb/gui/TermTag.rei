@@ -1,9 +1,4 @@
-type tag_typ =
-  | Exp
-  | Pat
-  | Typ;
-
-let get_cursor_term_tag_typ: CursorInfo.cursor_term => tag_typ;
+let get_cursor_term_sort: CursorInfo.cursor_term => TermSort.t;
 
 let term_tag_view:
-  (tag_typ, ~show_tooltip: bool=?, list(string)) => Virtual_dom.Vdom.Node.t;
+  (TermSort.t, ~show_tooltip: bool=?, list(string)) => Virtual_dom.Vdom.Node.t;

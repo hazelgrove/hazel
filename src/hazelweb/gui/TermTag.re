@@ -1,11 +1,6 @@
 module Vdom = Virtual_dom.Vdom;
 
-type tag_typ =
-  | Exp
-  | Pat
-  | Typ;
-
-let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
+let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): TermSort.t => {
   switch (cursor_term) {
   | Exp(_, _)
   | ExpOp(_, _)
@@ -19,7 +14,7 @@ let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => 
 };
 
 let term_tag_view =
-    (tag: tag_typ, ~show_tooltip: bool=false, add_classes: list(string))
+    (tag: TermSort.t, ~show_tooltip: bool=false, add_classes: list(string))
     : Vdom.Node.t => {
   switch (tag) {
   | Exp =>

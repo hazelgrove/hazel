@@ -32,7 +32,7 @@ let emphasize_text = (~only_right=false, msg: string) => {
 let colon =
   Vdom.Node.div([Vdom.Attr.classes(["colon"])], [Vdom.Node.text(":")]);
 
-let advanced_summary = (typed: CursorInfo.typed, tag_type: TermTag.tag_typ) => {
+let advanced_summary = (typed: CursorInfo.typed, tag_type: TermSort.t) => {
   let term_tag = TermTag.term_tag_view(tag_type, ~show_tooltip=true, []);
   let rec message = (typed: CursorInfo.typed) => {
     switch (typed) {
@@ -183,7 +183,7 @@ let advanced_summary = (typed: CursorInfo.typed, tag_type: TermTag.tag_typ) => {
   ([term_tag, ...colon_message], type_message);
 };
 
-let novice_summary = (typed: CursorInfo.typed, tag_typ: TermTag.tag_typ) => {
+let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
   let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
   let article =
     switch (tag_typ) {
@@ -479,7 +479,7 @@ let summary_bar =
     | BindingError => Icons.x_circle
     | OK => Icons.check_circle
     };
-  let tag_type = TermTag.get_cursor_term_tag_typ(ci.cursor_term);
+  let tag_type = TermTag.get_cursor_term_sort(ci.cursor_term);
   let (term_novice, type_novice) = novice_summary(ci.typed, tag_type);
   let (term_advanced, type_advanced) = advanced_summary(ci.typed, tag_type);
   let summary =
