@@ -76,7 +76,9 @@ let iter_solve_once (hole_name, worlds) params delta sigma (hf, us_all) =
     |> Nondet.and_then (simplify_constraints delta_merged sigma)
   in
   current_solution_count := !current_solution_count + 1 ;
-  Nondet.pure (hf', delta_merged)
+  Nondet.pure (hf', delta_merged, us_all)
+
+(* added us *)
 
 (* Staging *)
 

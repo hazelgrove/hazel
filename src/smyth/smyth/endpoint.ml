@@ -128,7 +128,7 @@ let solve_program_hole (program : Desugar.program)
           Ok
             { hole_fillings=
                 synthesis_result
-                |> Nondet.map (fst >> Clean.clean delta)
+                |> Nondet.map ((fun (a, _, _) -> a) >> Clean.clean delta)
                 |> Nondet.collapse_option |> Nondet.to_list
             ; time_taken } )
 
