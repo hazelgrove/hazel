@@ -351,7 +351,7 @@ body {
 }
 
 .cursor-inspector .synth-panel .selected-filling {
-  background-color: lightskyblue;
+  background-color: rgb(226, 244, 255);
 }
 
 .type-info-summary {
