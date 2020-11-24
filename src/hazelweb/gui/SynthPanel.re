@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 
-let view = (~inject as _, ~view_of_text, _i, es) => {
+let view = (~inject as _, ~view_of_text, j, es) => {
   let fillings =
     es
     |> List.map(
@@ -11,6 +11,12 @@ let view = (~inject as _, ~view_of_text, _i, es) => {
          Pretty.LayoutOfDoc.layout_of_doc(~width=40, ~pos=0),
        )
     |> List.map(OptUtil.get(() => failwith("failed layout")))
-    |> List.map(view_of_text);
+    |> List.mapi((i, l) =>
+         Node.div(
+           [Attr.classes(i == j ? ["selected-filling"] : [])],
+           view_of_text(l),
+         )
+       );
+
   Node.div([Attr.classes(["synth-panel"])], fillings);
 };

@@ -289,7 +289,7 @@ let view_of_cursor_inspector =
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
   CursorInspector.view(
     ~inject,
-    ~view_of_text=l => Vdom.Node.span([], view_of_text(l)),
+    ~view_of_text=l => view_of_text(l),
     (cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,
@@ -297,7 +297,13 @@ let view_of_cursor_inspector =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+    (
+      ~inject,
+      ~is_mac: bool,
+      ~cursor_info: CursorInfo.t,
+      ~cursor_inspector: Model.cursor_inspector,
+    )
+    : list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -306,7 +312,14 @@ let key_handlers =
     Attr.on_keydown(evt => {
       switch (MoveKey.of_key(Key.get_key(evt))) {
       | Some(move_key) =>
-        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
+        switch (cursor_inspector.synthesizing, move_key) {
+        | (Some((_, i, _)), ArrowUp) when i > 0 =>
+          prevent_stop_inject(ModelAction.ScrollFilling(i - 1))
+        | (Some((_, i, fillings)), ArrowDown)
+            when i < List.length(fillings) - 1 =>
+          prevent_stop_inject(ModelAction.ScrollFilling(i + 1))
+        | _ => prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
+        }
       | None =>
         switch (HazelKeyCombos.of_evt(evt)) {
         | Some(Ctrl_Z) =>
@@ -336,27 +349,23 @@ let key_handlers =
         | Some(Ctrl_Space) =>
           prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
         | Some(kc) =>
-          prevent_stop_inject(
-            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-          )
-        | None =>
-          switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
-          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
-          | Some(kc) =>
+          switch (cursor_inspector.synthesizing) {
+          | Some(_) when kc == Enter =>
+            prevent_stop_inject(ModelAction.AcceptFilling)
+          | _ =>
             prevent_stop_inject(
               ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
             )
-          | None =>
-            switch (JSUtil.is_single_key(evt)) {
-            | None => Event.Ignore
-            | Some(single_key) =>
-              prevent_stop_inject(
-                ModelAction.EditAction(
-                  Construct(SChar(JSUtil.single_key_string(single_key))),
-                ),
-              )
-            }
+          }
+        | None =>
+          switch (JSUtil.is_single_key(evt)) {
+          | None => Event.Ignore
+          | Some(single_key) =>
+            prevent_stop_inject(
+              ModelAction.EditAction(
+                Construct(SChar(JSUtil.single_key_string(single_key))),
+              ),
+            )
           }
         }
       }
@@ -379,6 +388,17 @@ let view =
     measure,
     () => {
       open Vdom;
+
+      let key_handlers =
+        program.is_focused
+          ? key_handlers(
+              ~inject,
+              ~is_mac,
+              ~cursor_inspector,
+              ~cursor_info=Program.get_cursor_info(program),
+            )
+          : [];
+
       let l =
         Program.get_layout(
           ~measure_program_get_doc=false,
@@ -423,15 +443,6 @@ let view =
         } else {
           [];
         };
-
-      let key_handlers =
-        program.is_focused
-          ? key_handlers(
-              ~inject,
-              ~is_mac,
-              ~cursor_info=Program.get_cursor_info(program),
-            )
-          : [];
 
       let click_handler = evt => {
         let container_rect =

@@ -7,7 +7,7 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     // HACK to get around cyclical dependency between UHCode, CursorInspector, SynthPanel for now
-    ~view_of_text: UHLayout.t => Vdom.Node.t,
+    ~view_of_text: UHLayout.t => list(Vdom.Node.t),
     (float, float),
     Model.cursor_inspector,
     CursorInfo.t

@@ -86,7 +86,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleNoviceMode
   | SynthesizeHole(_)
   | ScrollFilling(_)
-  | AcceptFilling(_) =>
+  | AcceptFilling =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -96,12 +96,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 };
 
 let apply_action =
-    (
-      model: Model.t,
-      action: ModelAction.t,
-      state: State.t,
-      ~schedule_action as _,
-    )
+    (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
   if (model.measurements.measurements) {
     Printf.printf("\n== Update.apply_action times ==\n");
@@ -146,8 +141,32 @@ let apply_action =
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
       | SynthesizeHole(u) => Model.synthesize(u, model)
-      | ScrollFilling(_) => failwith("todo scroll filling")
-      | AcceptFilling(_) => failwith("todo accept filling")
+      | ScrollFilling(i) =>
+        switch (model.cursor_inspector.synthesizing) {
+        | None => model
+        | Some((u, _, fillings)) => {
+            ...model,
+            cursor_inspector: {
+              ...model.cursor_inspector,
+              synthesizing: Some((u, i, fillings)),
+            },
+          }
+        }
+      | AcceptFilling =>
+        switch (model.cursor_inspector.synthesizing) {
+        | None => model
+        | Some((u, i, fillings)) =>
+          schedule_action(
+            ModelAction.EditAction(FillExpHole(u, List.nth(fillings, i))),
+          );
+          {
+            ...model,
+            cursor_inspector: {
+              ...model.cursor_inspector,
+              synthesizing: None,
+            },
+          };
+        }
       //
       | ToggleComputeResults => {
           ...model,

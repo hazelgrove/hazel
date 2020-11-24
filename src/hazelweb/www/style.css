@@ -350,6 +350,10 @@ body {
   padding: 3px;
 }
 
+.cursor-inspector .synth-panel .selected-filling {
+  background-color: rgb(226, 244, 255);
+}
+
 .type-info-summary {
   display: flex;
   align-items: flex-start;

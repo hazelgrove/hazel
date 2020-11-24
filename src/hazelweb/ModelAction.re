@@ -30,7 +30,7 @@ type t =
   | PrevCard
   | SynthesizeHole(MetaVar.t)
   | ScrollFilling(int)
-  | AcceptFilling(int)
+  | AcceptFilling
   // Result computation toggles
   | ToggleComputeResults
   | ToggleShowCaseClauses
