@@ -296,20 +296,23 @@ let synthesize = (u: MetaVar.t, model: t): t => {
      - call Shmyth.fill
      - populate model.synthesizing with results
    */
-  switch (Shmyth.solve(Program.get_uhexp(get_program(model)))) {
+  switch (Shmyth.solve(Program.get_uhexp(get_program(model)), u)) {
   | None =>
     print_endline("synth error");
     model;
   | Some([]) =>
     print_endline("no synth results");
     model;
-  | Some([synthesized, ..._]) =>
-    synthesized
-    |> List.fold_left(
-         (model, (u, synthesized)) =>
-           perform_edit_action(FillExpHole(u, synthesized), model),
-         model,
-       )
+  | Some([_, ..._] as uhexps) =>
+    let synthesizing = Some((u, 0, uhexps));
+    let cursor_inspector = {...model.cursor_inspector, synthesizing};
+    {...model, cursor_inspector};
+  /* synthesized
+     |> List.fold_left(
+          (model, (u, synthesized)) =>
+            perform_edit_action(FillExpHole(u, synthesized), model),
+          model,
+        ); */
   };
 };
 
