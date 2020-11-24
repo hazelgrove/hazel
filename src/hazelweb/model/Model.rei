@@ -34,6 +34,7 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
+  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
 };
 
 type t = {
@@ -57,7 +58,6 @@ type t = {
    */
   mouse_position: ref(MousePosition.t),
   cursor_inspector,
-  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
 };
 
 let cardstack_info: list(CardstackInfo.t);
