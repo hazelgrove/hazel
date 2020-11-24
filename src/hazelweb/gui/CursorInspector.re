@@ -943,6 +943,12 @@ let view =
     } else {
       [summary];
     };
+  let content =
+    switch (cursor_info.cursor_term, cursor_inspector.synthesizing) {
+    | (Exp(_, EmptyHole(u)), Some((u', i, es))) when u == u' =>
+      content @ [SynthPanel.view(~inject, i, es)]
+    | _ => content
+    };
   Vdom.(
     Node.div(
       [
