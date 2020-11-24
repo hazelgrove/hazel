@@ -146,6 +146,20 @@ and non_top_hexp_to_smexp = (hexp: UHExp.t): option(Smyth.Lang.exp) => {
      */
   switch (hexp) {
   | [ExpLine(opseq), ..._] => hexp_opseq_to_smexp(opseq)
+  // TODO: currently ignores case of multiple lets, other lines, etc.
+  | [
+      LetLine(
+        OpSeq(_, S(Var(_, _, name1), E)),
+        _ /*Some(h_ty)*/,
+        [ExpLine(OpSeq(_, S(Lam(_, h_pat, _ty, h_body), E))), ..._] as _h_def,
+      ),
+      ExpLine(OpSeq(_, S(Var(_, _, name2), E))),
+    ]
+      when name1 == name2 =>
+    let* (_, sm_pat) = hpat_opseq_to_smpat(h_pat);
+    //let* sm_exp = non_top_hexp_to_smexp(h_exp);
+    let* sm_body = non_top_hexp_to_smexp(h_body);
+    Some(EFix(Some(name1), PatParam(sm_pat), sm_body));
   | _ => None
   };
 }
