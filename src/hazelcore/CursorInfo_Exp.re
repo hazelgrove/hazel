@@ -536,9 +536,7 @@ and syn_cursor_info_zoperand =
     )
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
-    | None =>
-      print_endline("sadface, CursorE");
-      None;
+    | None => None
     | Some(ty) =>
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }

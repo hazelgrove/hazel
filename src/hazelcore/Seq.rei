@@ -136,3 +136,9 @@ let t_of_operand_and_surround:
 let t_of_operator_and_surround:
   ('operator, operator_surround('operand, 'operator)) =>
   t('operand, 'operator);
+
+let opt_update_nth_operand:
+  (int, 'operand, t('operand, 'operator)) => option(t('operand, 'operator));
+let opt_update_nth_operand_of_affix:
+  (int, 'operand, affix('operand, 'operator)) =>
+  option(affix('operand, 'operator));

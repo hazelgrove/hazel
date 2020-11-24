@@ -1845,19 +1845,74 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, UnaryOpZN(_, unop, zoperand) as whole) =>
+    /* true if unop, false is sequence */
+    let result_is_unop = (ze: ZExp.t) => {
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(_, (E, E)) => true
+          | ZOperand(_) => false
+          | _ => true
+          }
+        }
+      | _ => true
+      };
+    };
+
     let unwrap_zblock_to_zoperand = (ze: ZExp.t) => {
       switch (ze) {
       | (_, ExpLineZ(zopseq), _) =>
         switch (zopseq) {
         | ZOpSeq(_, seq) =>
           switch (seq) {
-          | ZOperand(zoperand, _) => zoperand
+          | ZOperand(zoperand, (E, E)) => zoperand
+          | ZOperand(_) => failwith("does not unwrap to zoperand")
           | _ => ParenthesizedZ(ze)
           }
         }
       | _ => ParenthesizedZ(ze)
       };
     };
+
+    let unwrap_zblock_to_zseq = (ze: ZExp.t, u_gen: MetaVarGen.t) => {
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(_, (E, E)) => failwith("does not unwrap to zseq")
+          | ZOperand(_) =>
+            let is_before = ZExp.is_before_zopseq(zopseq);
+            let first_operand = Seq.nth_operand(0, ZExp.erase_zseq(seq));
+            let wrapped_first_operand =
+              UHExp.UnaryOp(NotInHole, unop, first_operand);
+            let seq' =
+              Seq.update_nth_operand(
+                0,
+                wrapped_first_operand,
+                ZExp.erase_zseq(seq),
+              );
+            let (ze, ty, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq');
+            if (is_before) {
+              let placed_before = ZExp.place_before_opseq(ze);
+              let after_unop =
+                OptUtil.get(
+                  () => {failwith("could not place cursor after unop")},
+                  ZExp.move_cursor_right_zopseq(placed_before),
+                );
+              (after_unop, ty, u_gen);
+            } else {
+              (ZExp.place_after_opseq(ze), ty, u_gen);
+            };
+          | _ => failwith("does not unwrap to zseq")
+          }
+        }
+      | _ => failwith("does not unwrap to zseq")
+      };
+    };
+
     let ty_u = Statics_Exp.syn_unop(ctx, unop);
     switch (a, unop, zoperand) {
     | (Construct(SChar(".")), UnaryMinus, CursorE(_, e))
@@ -1890,8 +1945,8 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, Int, u_gen)));
     | _ =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
-      | Failed
-      | Succeeded(AnaExpands(_)) => failwith("not implemented 1938")
+      | Failed => Failed
+      | Succeeded(AnaExpands(_)) => failwith("unimplemented")
       | CursorEscaped(side) =>
         syn_perform_operand(
           ctx,
@@ -1899,22 +1954,25 @@ and syn_perform_operand =
           (whole, ty, u_gen),
         )
       | Succeeded(AnaDone((ze, u_gen))) =>
-        // TODO ANAND: If it's an opseq, negate the first part of the opseq and keep the rest!
-
-        let new_zoperand = unwrap_zblock_to_zoperand(ze);
-        if (HTyp.consistent(ty, ty_u)) {
-          let new_ze =
-            ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, new_zoperand));
-          Succeeded(SynDone((new_ze, ty, u_gen)));
+        let wrap_in_unop = result_is_unop(ze);
+        if (wrap_in_unop) {
+          let new_zoperand = unwrap_zblock_to_zoperand(ze);
+          if (HTyp.consistent(ty, ty_u)) {
+            let new_ze =
+              ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, new_zoperand));
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          } else {
+            let (u, u_gen) = u_gen |> MetaVarGen.next;
+            let new_ze =
+              ZExp.ZBlock.wrap(
+                UnaryOpZN(InHole(TypeInconsistent, u), unop, new_zoperand),
+              );
+            Succeeded(SynDone((new_ze, ty, u_gen)));
+          };
         } else {
-          let (u, u_gen) = u_gen |> MetaVarGen.next;
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              UnaryOpZN(InHole(TypeInconsistent, u), unop, new_zoperand),
-            );
-          Succeeded(SynDone((new_ze, ty, u_gen)));
+          let (zseq, ty, u_gen) = unwrap_zblock_to_zseq(ze, u_gen);
+          Succeeded(SynDone((ZExp.ZBlock.wrap'(zseq), ty, u_gen)));
         };
-      // remember: the first operand may not be delimited.
       }
     };
   | (_, LamZP(_, zp, ann, body)) =>
@@ -3301,8 +3359,7 @@ and ana_perform_operand =
     | Failed
     | CursorEscaped(_) => Failed
     | Succeeded(new_edit_state) =>
-      print_endline("HAHAHA");
-      ana_perform(ctx, a, new_edit_state, ty) |> wrap_in_AnaDone;
+      ana_perform(ctx, a, new_edit_state, ty) |> wrap_in_AnaDone
     }
 
   | (Construct(SLine), CursorE(_)) when ZExp.is_before_zoperand(zoperand) =>
@@ -3347,17 +3404,71 @@ and ana_perform_operand =
       Succeeded(AnaDone((new_ze, u_gen)));
     }
   | (_, UnaryOpZN(_, unop, zoperand) as whole) =>
+    /* true if unop, false is sequence */
+    let result_is_unop = (ze: ZExp.t) => {
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(_, (E, E)) => true
+          | ZOperand(_) => false
+          | _ => true
+          }
+        }
+      | _ => true
+      };
+    };
+
     let unwrap_zblock_to_zoperand = (ze: ZExp.t) => {
       switch (ze) {
       | (_, ExpLineZ(zopseq), _) =>
         switch (zopseq) {
         | ZOpSeq(_, seq) =>
           switch (seq) {
-          | ZOperand(zoperand, _) => zoperand
+          | ZOperand(zoperand, (E, E)) => zoperand
+          | ZOperand(_) => failwith("does not unwrap to zoperand")
           | _ => ParenthesizedZ(ze)
           }
         }
       | _ => ParenthesizedZ(ze)
+      };
+    };
+
+    let unwrap_zblock_to_zseq = (ze: ZExp.t, u_gen: MetaVarGen.t) => {
+      switch (ze) {
+      | (_, ExpLineZ(zopseq), _) =>
+        switch (zopseq) {
+        | ZOpSeq(_, seq) =>
+          switch (seq) {
+          | ZOperand(_, (E, E)) => failwith("does not unwrap to zseq")
+          | ZOperand(_) =>
+            let is_before = ZExp.is_before_zopseq(zopseq);
+            let first_operand = Seq.nth_operand(0, ZExp.erase_zseq(seq));
+            let wrapped_first_operand =
+              UHExp.UnaryOp(NotInHole, unop, first_operand);
+            let seq' =
+              Seq.update_nth_operand(
+                0,
+                wrapped_first_operand,
+                ZExp.erase_zseq(seq),
+              );
+            let (ze, u_gen) = mk_and_ana_fix_OpSeq(ctx, u_gen, seq', ty);
+            if (is_before) {
+              let placed_before = ZExp.place_before_opseq(ze);
+              let after_unop =
+                OptUtil.get(
+                  () => {failwith("could not place cursor after unop")},
+                  ZExp.move_cursor_right_zopseq(placed_before),
+                );
+              (after_unop, u_gen);
+            } else {
+              (ZExp.place_after_opseq(ze), u_gen);
+            };
+          | _ => failwith("does not unwrap to zseq")
+          }
+        }
+      | _ => failwith("does not unwrap to zseq")
       };
     };
 
@@ -3428,7 +3539,7 @@ and ana_perform_operand =
     | _ =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_u)) {
       | Failed
-      | Succeeded(AnaExpands(_)) => failwith("not implemented 3504")
+      | Succeeded(AnaExpands(_)) => failwith("unimplemented")
       | CursorEscaped(side) =>
         ana_perform_operand(
           ctx,
@@ -3437,21 +3548,27 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded(AnaDone((ze, u_gen))) =>
-        let zoperand = unwrap_zblock_to_zoperand(ze);
-        HTyp.consistent(ty, ty_u)
-          ? {
-            let new_ze =
-              ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, zoperand));
-            Succeeded(AnaDone((new_ze, u_gen)));
-          }
-          : {
-            let (u, u_gen) = u_gen |> MetaVarGen.next;
-            let new_ze =
-              ZExp.ZBlock.wrap(
-                UnaryOpZN(InHole(TypeInconsistent, u), unop, zoperand),
-              );
-            Succeeded(AnaDone((new_ze, u_gen)));
-          };
+        let wrap_in_unop = result_is_unop(ze);
+        if (wrap_in_unop) {
+          let zoperand = unwrap_zblock_to_zoperand(ze);
+          HTyp.consistent(ty, ty_u)
+            ? {
+              let new_ze =
+                ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, zoperand));
+              Succeeded(AnaDone((new_ze, u_gen)));
+            }
+            : {
+              let (u, u_gen) = u_gen |> MetaVarGen.next;
+              let new_ze =
+                ZExp.ZBlock.wrap(
+                  UnaryOpZN(InHole(TypeInconsistent, u), unop, zoperand),
+                );
+              Succeeded(AnaDone((new_ze, u_gen)));
+            };
+        } else {
+          let (zseq, u_gen) = unwrap_zblock_to_zseq(ze, u_gen);
+          Succeeded(AnaDone((ZExp.ZBlock.wrap'(zseq), u_gen)));
+        };
       }
     };
   | (_, LamZP(_, zp, ann, body)) =>
