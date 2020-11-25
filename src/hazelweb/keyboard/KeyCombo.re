@@ -31,6 +31,7 @@ let delete = plain(Key.the_key("Delete"));
 let tab = plain(Key.the_key("Tab"));
 let shift_tab = shift(Key.the_key("Tab"));
 let shift_enter = shift(Key.the_key("Enter")); // For creating another "CommentLine"
+let ctrl_enter = ctrl(Key.the_key("Enter"));
 let space = plain(Key.key1("Space", " "));
 let lt = no_ctrl_alt_meta(Key.the_key("<"));
 let gt = no_ctrl_alt_meta(Key.the_key(">"));

@@ -16,6 +16,7 @@ type t =
   | Equals
   | Enter
   | Shift_Enter
+  | Ctrl_Enter
   | Backslash
   | Plus
   | Minus
