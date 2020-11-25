@@ -20,8 +20,8 @@ let delete_min map =
 
 let delete hole_name map =
   let open Option2.Syntax in
-  let+ k, v = Hole_map.find_opt hole_name map in
-  ((k, v), Hole_map.remove k map)
+  let+ v = Hole_map.find_opt hole_name map in
+  ((hole_name, v), Hole_map.remove hole_name map)
 
 let empty = (Hole_map.empty, Hole_map.empty)
 
