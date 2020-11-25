@@ -352,6 +352,12 @@ let key_handlers =
           switch (cursor_inspector.synthesizing) {
           | Some(_) when kc == Enter =>
             prevent_stop_inject(ModelAction.AcceptFilling)
+          | None when kc == Ctrl_Enter =>
+            switch (cursor_info.cursor_term) {
+            | Exp(_, EmptyHole(u)) =>
+              prevent_stop_inject(ModelAction.SynthesizeHole(u))
+            | _ => Event.Ignore
+            }
           | _ =>
             prevent_stop_inject(
               ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),

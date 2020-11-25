@@ -47,3 +47,4 @@ let ctrl_alt_j: t;
 let ctrl_alt_l: t;
 let meta_z: t;
 let meta_shift_z: t;
+let ctrl_enter: t;

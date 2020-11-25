@@ -556,7 +556,7 @@ type solve_result = list(UHExp.t);
 let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
   print_endline(
-    Sexplib.Sexp.to_string(Smyth.Desugar.sexp_of_program(sm_prog)),
+    Sexplib.Sexp.to_string_hum(Smyth.Desugar.sexp_of_program(sm_prog)),
   );
   let solve_results =
     switch (Smyth.Endpoint.solve_program_hole(sm_prog, hole_number)) {
