@@ -6,11 +6,12 @@
 
 open Lang
 
-val delete : hole_name -> 'a hole_map -> 'a hole_map
-(** Deletes an element from a hole map (such as a
+val delete_min : 'a hole_map -> ((hole_name * 'a) * 'a hole_map) option
+(** Deletes and returns the minimum element of a hole map (such as a
     {!type:Lang.unsolved_constraints}). *)
 
-val delete_min : 'a hole_map -> ((hole_name * 'a) * 'a hole_map) option
+val delete :
+  hole_name -> 'a hole_map -> ((hole_name * 'a) * 'a hole_map) option
 (** Deletes and returns the minimum element of a hole map (such as a
     {!type:Lang.unsolved_constraints}). *)
 
