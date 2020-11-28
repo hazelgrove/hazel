@@ -335,7 +335,7 @@ and handle_rule: UHExp.rule => option(sm_rule) =
     )
       when case_name == case_name_in_let => {
       let* sm_body = non_top_hexp_to_smexp([let_body]);
-      Some((("S", PVar(let_name) /*PTuple([PVar(let_name)])*/), sm_body));
+      Some((("S", PVar(let_name)), sm_body));
     }
   | Rule(h_pat, h_exp) => {
       let* sm_pat = hpat_opseq_to_smpat(h_pat);
