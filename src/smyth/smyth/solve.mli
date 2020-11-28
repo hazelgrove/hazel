@@ -13,7 +13,7 @@ val solve_any :
     a nondeterministic set.) *)
 
 val solve_once :
-     hole_name
+     hole_name list
   -> hole_ctx
   -> datatype_ctx
   -> (hole_filling * worlds hole_map) Nondet.t

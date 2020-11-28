@@ -81,13 +81,14 @@ let solve_program : Desugar.program -> solve_result response =
 
 let solve ~sketch = sketch |> parse_program |> Result2.and_then solve_program
 
-let synthesis_pipeline_hole hole_name delta sigma assertions =
+let synthesis_pipeline_hole holes delta sigma assertions =
+  (*let h = match holes with [] -> 0 | x :: _ -> x in*)
   assertions
   |> Uneval.simplify_assertions delta sigma
-  |> Solve.solve_once hole_name delta sigma
+  |> Solve.solve_once holes delta sigma
 
 let solve_program_hole (program : Desugar.program)
-    (hole_name : Lang.hole_name) : solve_result_with_constraints response =
+    (holes : Lang.hole_name list) : solve_result_with_constraints response =
   let exp, sigma = Desugar.program program in
   match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
   | Error e -> Error (TypeError e)
@@ -106,7 +107,7 @@ let solve_program_hole (program : Desugar.program)
               =
             Timer.itimer_timeout "minimal_synthesis_result"
               !Params.max_total_time
-              (synthesis_pipeline_hole hole_name delta sigma)
+              (synthesis_pipeline_hole holes delta sigma)
               assertions Nondet.none
           in
           if
@@ -121,7 +122,7 @@ let solve_program_hole (program : Desugar.program)
               let () = Uneval.minimal_uneval := false in
               Timer.itimer_timeout "synthesis_result"
                 (!Params.max_total_time -. minimal_time_taken)
-                (synthesis_pipeline_hole hole_name delta sigma)
+                (synthesis_pipeline_hole holes delta sigma)
                 assertions Nondet.none
             in
             ( non_minimal_synthesis_result

@@ -596,7 +596,12 @@ let rec res_to_dhexp = (res): DHExp.t => {
   switch (res) {
   | RFix(_) => Triv // TODO: represent these more better or filter them out
   | RTuple([a, b]) => Pair(res_to_dhexp(a), res_to_dhexp(b))
-  | RTuple(_) => failwith("res_to_dhexp: non-pair RTuple not implemented")
+  // HACK(andrew) : added below  what was triggering this case??
+  | RTuple([a]) => Pair(res_to_dhexp(a), Triv)
+  | RTuple([a, b, c]) =>
+    Pair(res_to_dhexp(a), Pair(res_to_dhexp(b), res_to_dhexp(c)))
+  // HACK(andrew): this is getting triggered since iter_solve mod for multi-hole
+  | RTuple(_) => Triv //failwith("res_to_dhexp: non-pair RTuple not implemented")
   | RCtor("True", _) => BoolLit(true)
   | RCtor("False", _) => BoolLit(false)
   | RCtor("Z", _) => IntLit(0)
@@ -657,7 +662,14 @@ let rec example_to_dhexp = (ex): hexample => {
       }
     | _ => failwith("example_to_dhexp: bad tuple")
     }
-  | ExTuple(_) => failwith("value_to_dhexp: non-pair ExTuple not implemented")
+  // HACK(andrew) : added below  what was triggering this case??
+  | ExTuple([a]) =>
+    switch (example_to_dhexp(a)) {
+    | Ex(a) => Ex(Pair(a, Triv))
+    | _ => failwith("example_to_dhexp: bad tuple")
+    }
+  // HACK(andrew): this is getting triggered since iter_solve mod for multi-hole
+  | ExTuple(_) => Ex(Triv) //failwith("value_to_dhexp: non-pair ExTuple not implemented")
   | ExCtor("True", _) => Ex(BoolLit(true))
   | ExCtor("False", _) => Ex(BoolLit(false))
   | ExCtor("Z", _) => Ex(IntLit(0))
@@ -739,17 +751,18 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   );
   print_endline("HOLES:");
   let all_holes =
-    switch(sm_prog.main_opt) {
-    | None => []
-    | Some(e) => get_holes(e)
-    }
-    @
-    List.flatten(
-      List.map(((_, (_, e))) => get_holes(e), sm_prog.definitions),
-    );
+    (
+      switch (sm_prog.main_opt) {
+      | None => []
+      | Some(e) => get_holes(e)
+      }
+    )
+    @ List.flatten(
+        List.map(((_, (_, e))) => get_holes(e), sm_prog.definitions),
+      );
   print_endline(Sexplib.Sexp.to_string_hum(sexp_of_hole_list(all_holes)));
   let solve_results =
-    switch (Smyth.Endpoint.solve_program_hole(sm_prog, hole_number)) {
+    switch (Smyth.Endpoint.solve_program_hole(sm_prog, all_holes)) {
     | Error(_) => None
     | Ok({hole_fillings, constraints, _}) =>
       print_endline("constraints:");
