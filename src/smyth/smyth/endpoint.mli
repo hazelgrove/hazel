@@ -31,10 +31,15 @@ type solve_result =
   ; time_taken: float
         (** The time taken to produce the valid hole fillings. *) }
 
+type solve_result_with_constraints =
+  { hole_fillings: (Lang.hole_name * Lang.exp) list list
+  ; time_taken: float
+  ; constraints: Lang.output_constraints }
+
 val solve_program : Desugar.program -> solve_result response
 
 val solve_program_hole :
-  Desugar.program -> Lang.hole_name -> solve_result response
+  Desugar.program -> Lang.hole_name -> solve_result_with_constraints response
 
 val solve : sketch:string -> solve_result response
 (** [solve sketch] tries to return a {!solve_result} that satisfies the

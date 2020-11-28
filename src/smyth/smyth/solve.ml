@@ -80,6 +80,8 @@ let iter_solve_once hole_name params delta sigma (hf, us_all) =
       (* current_solution_count := !current_solution_count + 1 ; *)
       Nondet.pure (hf', delta_merged, us_all)
 
+(* added us_all -andrew *)
+
 (* added us *)
 
 (* Staging *)

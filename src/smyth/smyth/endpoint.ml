@@ -18,6 +18,11 @@ let parse_program : string -> Desugar.program response =
 type solve_result =
   {hole_fillings: (Lang.hole_name * Lang.exp) list list; time_taken: float}
 
+type solve_result_with_constraints =
+  { hole_fillings: (Lang.hole_name * Lang.exp) list list
+  ; time_taken: float
+  ; constraints: Lang.output_constraints }
+
 let synthesis_pipeline delta sigma assertions =
   assertions
   |> Uneval.simplify_assertions delta sigma
@@ -82,7 +87,7 @@ let synthesis_pipeline_hole hole_name delta sigma assertions =
   |> Solve.solve_once hole_name delta sigma
 
 let solve_program_hole (program : Desugar.program)
-    (hole_name : Lang.hole_name) : solve_result response =
+    (hole_name : Lang.hole_name) : solve_result_with_constraints response =
   let exp, sigma = Desugar.program program in
   match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
   | Error e -> Error (TypeError e)
@@ -130,7 +135,11 @@ let solve_program_hole (program : Desugar.program)
                 synthesis_result
                 |> Nondet.map ((fun (a, _, _) -> a) >> Clean.clean delta)
                 |> Nondet.collapse_option |> Nondet.to_list
-            ; time_taken } )
+            ; time_taken
+            ; constraints=
+                synthesis_result
+                |> Nondet.map (fun (_, _, c) -> c)
+                |> Nondet.to_list } )
 
 (* Test *)
 

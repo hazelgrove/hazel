@@ -335,7 +335,7 @@ and handle_rule: UHExp.rule => option(sm_rule) =
     )
       when case_name == case_name_in_let => {
       let* sm_body = non_top_hexp_to_smexp([let_body]);
-      Some((("S", PTuple([PVar(let_name)])), sm_body));
+      Some((("S", PVar(let_name) /*PTuple([PVar(let_name)])*/), sm_body));
     }
   | Rule(h_pat, h_exp) => {
       let* sm_pat = hpat_opseq_to_smpat(h_pat);
@@ -550,6 +550,144 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
 
 /******************************************************************************/
 
+// result conversion for constraints
+
+let rec res_to_dhexp = (res): DHExp.t => {
+  switch (res) {
+  | RFix(_) => Triv
+  //failwith("TODO (andrew) just dump these to a... string?")
+  | RTuple([a, b]) => Pair(res_to_dhexp(a), res_to_dhexp(b))
+  | RTuple(_) => failwith("res_to_dhexp: non-pair RTuple not implemented")
+  | RCtor("True", _) => BoolLit(true)
+  | RCtor("False", _) => BoolLit(false)
+  | RCtor("Z", _) => IntLit(0)
+  | RCtor("S", res) =>
+    switch (res_to_dhexp(res)) {
+    | IntLit(n) => IntLit(n + 1)
+    | _ => failwith("res_to_dhexp: bad number")
+    }
+  | RCtor("Nil", _) => ListNil(HTyp.Int)
+  | RCtor("Cons", RTuple([res1, res2])) =>
+    switch (res_to_dhexp(res1)) {
+    | IntLit(n) => Cons(IntLit(n), res_to_dhexp(res2))
+    | _ => failwith("res_to_dhexp: malformed cons: not IntList")
+    }
+  | RCtor("Cons", RTuple(_)) => failwith("res_to_dhexp: malformed cons")
+  | _ =>
+    // nondeterminates
+    failwith("res_to_dhexp: non-determinate result")
+  };
+};
+
+let rec value_to_dhexp = (v): DHExp.t => {
+  switch (v) {
+  | VTuple([a, b]) => Pair(value_to_dhexp(a), value_to_dhexp(b))
+  | VTuple(_) => failwith("value_to_dhexp: non-pair VTuple not implemented")
+  | VCtor("True", _) => BoolLit(true)
+  | VCtor("False", _) => BoolLit(false)
+  | VCtor("Z", _) => IntLit(0)
+  | VCtor("S", v) =>
+    switch (value_to_dhexp(v)) {
+    | IntLit(n) => IntLit(n + 1)
+    | _ => failwith("value_to_dhexp: bad number")
+    }
+  | VCtor("Nil", _) => ListNil(HTyp.Int)
+  | VCtor("Cons", VTuple([v1, v2])) =>
+    switch (value_to_dhexp(v1)) {
+    | IntLit(n) => Cons(IntLit(n), value_to_dhexp(v2))
+    | _ => failwith("example_to_dhexp: malformed cons: not IntList")
+    }
+  | VCtor("Cons", _) => failwith("value_to_dhexp: malformed cons")
+  | VCtor(_, _) => failwith("value_to_dhexp:unknown constructor")
+  };
+};
+
+[@deriving sexp]
+type hexample =
+  | Ex(DHExp.t)
+  | ExIO(DHExp.t, hexample);
+
+let rec example_to_dhexp = (ex): hexample => {
+  switch (ex) {
+  | ExTuple([a, b]) =>
+    switch (example_to_dhexp(a)) {
+    | Ex(a) =>
+      switch (example_to_dhexp(b)) {
+      | Ex(b) => Ex(Pair(a, b))
+      | _ => failwith("example_to_dhexp")
+      }
+    | _ => failwith("example_to_dhexp")
+    }
+  | ExTuple(_) => failwith("value_to_dhexp: non-pair ExTuple not implemented")
+  | ExCtor("True", _) => Ex(BoolLit(true))
+  | ExCtor("False", _) => Ex(BoolLit(false))
+  | ExCtor("Z", _) => Ex(IntLit(0))
+  | ExCtor("S", ex) =>
+    switch (example_to_dhexp(ex)) {
+    | Ex(IntLit(n)) => Ex(IntLit(n + 1))
+    | _ => failwith("example_to_dhexp: bad number")
+    }
+  | ExCtor("Nil", _) => Ex(ListNil(HTyp.Int))
+  | ExCtor("Cons", ExTuple([ex1, ex2])) =>
+    switch (example_to_dhexp(ex1)) {
+    | Ex(IntLit(n)) =>
+      switch (example_to_dhexp(ex2)) {
+      | Ex(w) => Ex(Cons(IntLit(n), w))
+      | _ => failwith("example_to_dhexp: malformed cons: not IntList")
+      }
+    | _ => failwith("example_to_dhexp: malformed cons: not IntList")
+    }
+  | ExCtor("Cons", ExTuple(_)) =>
+    failwith("example_to_dhexp: malformed cons")
+  | ExInputOutput(value, example) =>
+    // don't really understand this case; ignoring value part for now
+    ExIO(value_to_dhexp(value), example_to_dhexp(example))
+  | _ => Ex(Triv)
+  //failwith("example_to_dhexp: non-handled case")
+  };
+};
+
+[@deriving sexp]
+/* outer list is different options/possibilities
+   next outermost list is pairs of hole names and
+   lists of pairs of target values from examples and their corresponding environments */
+type h_constraints =
+  list(
+    list(
+      (Smyth.Lang.hole_name, list((hexample, list((string, DHExp.t))))),
+    ),
+  );
+
+let output_constraints_to_something =
+    (constraints: output_constraints): h_constraints => {
+  List.map(
+    m => {
+      Hole_map.fold(
+        (k, worlds, bs) => {
+          let new_worlds =
+            List.map(
+              ((env, example)) => {
+                let (rezzes, _types) = env;
+                let new_env =
+                  List.map(
+                    ((str, res)) => (str, res_to_dhexp(res)),
+                    rezzes,
+                  );
+                (example_to_dhexp(example), new_env);
+              },
+              worlds,
+            );
+          // HACK(andrew): add one to hole number so matches up with hazel display
+          [(k + 1, new_worlds), ...bs];
+        },
+        m,
+        [],
+      )
+    },
+    constraints,
+  );
+};
+
 //type solve_result = list(list((MetaVar.t, UHExp.t)));
 type solve_result = list(UHExp.t);
 
@@ -561,7 +699,22 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let solve_results =
     switch (Smyth.Endpoint.solve_program_hole(sm_prog, hole_number)) {
     | Error(_) => None
-    | Ok({hole_fillings, _}) =>
+    | Ok({hole_fillings, constraints, _}) =>
+      print_endline("constraints:");
+      /*
+       print_endline(
+         Sexplib.Sexp.to_string_hum(
+           Smyth.Lang.sexp_of_output_constraints(constraints),
+         ),
+       );
+       */
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          sexp_of_h_constraints(
+            output_constraints_to_something(constraints),
+          ),
+        ),
+      );
       List.iter(
         results =>
           List.iter(

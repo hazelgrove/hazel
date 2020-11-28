@@ -129,6 +129,7 @@ type hole_ctx = (hole_name * (type_ctx * typ * string option * int)) list
 type value =
   | VTuple of value list  (** Tuples *)
   | VCtor of string * value  (** Constructors *)
+[@@deriving sexp]
 
 (** Examples. *)
 type example =
@@ -136,21 +137,22 @@ type example =
   | ExCtor of string * example  (** Constructors *)
   | ExInputOutput of value * example  (** Input-output examples *)
   | ExTop  (** Top (wildcard) examples *)
+[@@deriving sexp]
 
 (** Example constraints, also known as "worlds." *)
-type world = env * example
+type world = env * example [@@deriving sexp]
 
 (** Multiple example constraints (worlds). *)
-type worlds = world list
+type worlds = world list [@@deriving sexp]
 
 (** Hole fillings. *)
-type hole_filling = exp hole_map
+type hole_filling = exp hole_map [@@deriving sexp]
 
 (** Unfilled holes, also known as "unsolved constraints." *)
-type unsolved_constraints = worlds hole_map
+type unsolved_constraints = worlds hole_map [@@deriving sexp]
 
 (** Constraints. *)
-type constraints = hole_filling * unsolved_constraints
+type constraints = hole_filling * unsolved_constraints [@@deriving sexp]
 
 (** Resumption assertions, as defined in {b Figure 7}. *)
 type resumption_assertion = res * value
@@ -170,3 +172,5 @@ type fill_goal = hole_name * synthesis_goal
 (** Parameters for synthesis. *)
 type synthesis_params =
   {max_scrutinee_size: int; max_match_depth: int; max_term_size: int}
+
+type output_constraints = worlds hole_map list [@@deriving sexp]
