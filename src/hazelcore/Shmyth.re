@@ -227,6 +227,10 @@ and hexp_opseq_to_smexp = (opseq: UHExp.opseq): option(Smyth.Lang.exp) => {
     let* s_e1 = hexp_opseq_to_smexp(OpSeq.OpSeq(e1n, seq));
     let* s_e2 = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
     Some(sm_app(s_e1, EAExp(s_e2)));
+  // TODO: handle pluses more robustly
+  | BinOp(_, Plus, _ /* hopefully this is a IntLit(1) */, e2n) =>
+    let* s_e2 = hexp_opseq_to_smexp(OpSeq.OpSeq(e2n, seq));
+    Some(ECtor("S", [], s_e2));
   | BinOp(_) => failwith(__LOC__)
   };
 }
