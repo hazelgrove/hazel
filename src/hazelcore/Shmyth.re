@@ -535,7 +535,15 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       switch (smexp_to_uhexp_opseq(m)) {
       | Some(OpSeq(_, h_m)) =>
         let OpSeq.OpSeq(_, one) = OpSeq.wrap(UHExp.intlit("1"));
-        Some(UHExp.mk_OpSeq(Seq.seq_op_seq(one, Operators_Exp.Plus, h_m)));
+        Some(
+          OpSeq.wrap(
+            UHExp.Parenthesized(
+              UHExp.Block.wrap'(
+                UHExp.mk_OpSeq(Seq.seq_op_seq(one, Operators_Exp.Plus, h_m)),
+              ),
+            ),
+          ),
+        );
       | None =>
         let+ num = smexp_num_to_int(snum);
         OpSeq.wrap(UHExp.intlit(string_of_int(num)));
