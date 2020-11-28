@@ -57,6 +57,21 @@ let rec iter_solve params delta sigma (hf, us_all) =
       in
       iter_solve params delta_merged sigma k_merged
 
+(* An attempt at a multi-hole version -andrew *)
+(* let rec iter_solve_once_list holes params delta sigma (hf, us_all) = let*
+   _ = Nondet.guard @@ should_continue () in match holes with | [] ->
+   current_solution_count := !current_solution_count + 1 ; Nondet.pure (hf,
+   delta) | hole_name::other_hole_names -> match Constraints.delete hole_name
+   us_all with | None -> current_solution_count := !current_solution_count +
+   1 ; Nondet.pure (hf, delta) | Some ((hole_name, worlds), us) -> let*
+   gamma, typ, dec, match_depth = Nondet.lift_option @@ List.assoc_opt
+   hole_name delta in let* k_new, delta_new = Fill.fill {params with
+   max_match_depth= params.max_match_depth - match_depth} delta sigma hf
+   (hole_name, ((gamma, typ, dec), worlds)) in let delta_merged = delta_new @
+   delta in let* k_merged = Constraints.merge [(hf, us); k_new] |>
+   Nondet.lift_option |> Nondet.and_then (simplify_constraints delta_merged
+   sigma) in iter_solve_once_list other_hole_names params delta_merged sigma
+   k_merged *)
 let iter_solve_once hole_name params delta sigma (hf, us_all) =
   let* _ = Nondet.guard @@ should_continue () in
   match Constraints.delete hole_name us_all with
