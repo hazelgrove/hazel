@@ -21,3 +21,5 @@ let nbsp = "\xC2\xA0"; // UTF-8 encoding for U+00A0 "No-break space"
 let zwsp = "\xE2\x80\x8B"; // UTF-8 encoding for U+200B "Zero-width space"
 
 let ellipsis = "\xE2\x80\xA6";
+
+let double_angle_right = "»";

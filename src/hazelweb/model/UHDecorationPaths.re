@@ -6,7 +6,7 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
-  synthesizing: Synthesizing.t,
+  synthesizing: option(Synthesizing.t),
 };
 
 let mk =
@@ -15,7 +15,7 @@ let mk =
       ~var_err_holes=[],
       ~var_uses=[],
       ~current_term=None,
-      ~synthesizing=Synthesizing.empty,
+      ~synthesizing=None,
       (),
     ) => {
   err_holes,
@@ -30,9 +30,10 @@ let is_empty = (dpaths: t): bool =>
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
   && dpaths.current_term == None
-  && Synthesizing.is_empty(dpaths.synthesizing);
+  && Option.is_none(dpaths.synthesizing);
 
 let take_step = (step: int, dpaths: t): t => {
+  open OptUtil.Syntax;
   let {err_holes, var_err_holes, current_term, var_uses, synthesizing} = dpaths;
   let remove_step =
     fun
@@ -41,18 +42,16 @@ let take_step = (step: int, dpaths: t): t => {
   let err_holes = err_holes |> List.filter_map(remove_step);
   let var_err_holes = var_err_holes |> List.filter_map(remove_step);
   let var_uses = var_uses |> List.filter_map(remove_step);
-  let current_term =
-    Option.bind(current_term, ((steps, cursor)) =>
-      remove_step(steps) |> Option.map(steps => (steps, cursor))
-    );
-  let synthesizing =
-    synthesizing
-    |> Synthesizing.bindings
-    |> List.filter_map(((steps, fill_state)) =>
-         steps |> remove_step |> Option.map(removed => (removed, fill_state))
-       )
-    |> List.to_seq
-    |> Synthesizing.of_seq;
+  let current_term = {
+    let* (steps, cursor) = current_term;
+    let+ steps = remove_step(steps);
+    (steps, cursor);
+  };
+  let synthesizing = {
+    let* (steps, z) = synthesizing;
+    let+ steps = remove_step(steps);
+    (steps, z);
+  };
   {err_holes, var_err_holes, var_uses, current_term, synthesizing};
 };
 
@@ -89,10 +88,10 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     | _ => []
     };
   let synthesizing =
-    switch (Synthesizing.find_opt([], dpaths.synthesizing)) {
-    | None => []
-    | Some(Filled(e, synthesizing)) => [FilledHole(e, synthesizing)]
-    | Some(Filling(selecting)) => [FillingHole(selecting)]
+    switch (dpaths.synthesizing) {
+    | Some(([], Filling(filling))) => [FillingHole(filling)]
+    | Some(([], Filled(t, filled))) => [FilledHole(t, filled)]
+    | _ => []
     };
   List.concat([
     err_holes,

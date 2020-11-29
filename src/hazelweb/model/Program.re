@@ -17,7 +17,7 @@ type t = {
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
-  synthesizing: Synthesizing.t,
+  synthesizing: option(Synthesizing.t),
 };
 
 let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
@@ -25,7 +25,7 @@ let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => 
   edit_state,
   start_col_of_vertical_movement: None,
   is_focused,
-  synthesizing: Synthesizing.empty,
+  synthesizing: None,
 };
 
 let put_start_col = (start_col, program) => {
