@@ -166,9 +166,10 @@ let decoration_cls: UHDecorationShape.t => string =
   | FillingHole(_) => "filling-hole";
 
 let decoration_view =
+    // todo
     (
-      ~decoration_views:
-         (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
+      ~decoration_views as
+        _: (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
       ~corner_radii: (float, float),
       ~contains_current_term: bool,
       ~term_sort: TermSort.t,
@@ -187,17 +188,17 @@ let decoration_view =
   | VarUse => VarUse.view(~corner_radii)
   | CurrentTerm =>
     CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-  | FilledHole(e, synthesizing) =>
-    let l = mk_layout(e);
-    let text = view_of_text(l);
-    let decorations = {
-      let dpaths = UHDecorationPaths.mk(~synthesizing, ());
-      decoration_views(dpaths, l);
-    };
-    FilledHole.view(~text, ~decorations);
-  | FillingHole(es) =>
+  | FilledHole(_synthesizing, _filled_holes) => failwith("todo")
+  // let l = mk_layout(e);
+  // let text = view_of_text(l);
+  // let decorations = {
+  //   let dpaths = UHDecorationPaths.mk(~synthesizing, ());
+  //   decoration_views(dpaths, l);
+  // };
+  // FilledHole.view(~text, ~decorations);
+  | FillingHole(filling) =>
     let options =
-      es
+      filling
       |> ZList.map(mk_layout, mk_layout)
       |> ZList.map(view_of_text, view_of_text)
       |> ZList.map(Vdom.Node.span([]), Vdom.Node.span([]));

@@ -7,7 +7,7 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
-  synthesizing: Synthesizing.t,
+  synthesizing: option(Synthesizing.t),
 };
 
 let mk:
@@ -16,7 +16,7 @@ let mk:
     ~var_err_holes: list(CursorPath.steps)=?,
     ~var_uses: list(CursorPath.steps)=?,
     ~current_term: option(CursorPath.t)=?,
-    ~synthesizing: Synthesizing.t=?,
+    ~synthesizing: option(Synthesizing.t)=?,
     unit
   ) =>
   t;
