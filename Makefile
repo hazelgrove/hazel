@@ -4,9 +4,7 @@ HTML_FILE=$(HTML_DIR)/index.html
 all: dev
 
 deps:
-	opam install \
-		dune reason=3.6.0 utop rtop \
-		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib ppx_expect ppx_inline_test
+	opam switch import opam.export
 
 dev:
 	dune build @src/fmt --auto-promote || true
