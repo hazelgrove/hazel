@@ -479,26 +479,31 @@ and smexp_num_to_int: Smyth.Lang.exp => option(int) =
 
 and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   fun
-  | EFix(None, PatParam(p), body) => {
+  | EFix(_, PatParam(p), body) => {
       let* h_p = smpat_to_uhpat(p);
       let+ body_uhexp = smexp_to_uhexp(body);
       OpSeq.wrap(UHExp.lam(h_p, body_uhexp));
     }
-  | EFix(Some(name), PatParam(p), body) => {
-      let+ h_lam = smexp_to_uhexp(EFix(None, PatParam(p), body));
-      OpSeq.wrap(
-        UHExp.Parenthesized([
-          UHExp.letline(OpSeq.wrap(UHPat.var(name)), h_lam),
-          ExpLine(OpSeq.wrap(UHExp.var(name))),
-        ]),
-      );
-    }
-  | EFix(None, TypeParam(_), _) => failwith(__LOC__)
-  | EFix(Some(_), TypeParam(_), _) => failwith(__LOC__)
-  | EApp(true, head, arg) => smexp_app_to_opseq(head, arg)
-  //| EApp(true, _head, _arg) => failwith(__LOC__)
-  // ERIC LOOK AT ME (andrew)
-  | EApp(false, head, arg) => smexp_app_to_opseq(head, arg)
+  // HACK(andrew) I temporarily disabled this to see what this
+  // felt like to play with without the extraneous lets
+  /*
+    | EFix(None, PatParam(p), body) => {
+        let* h_p = smpat_to_uhpat(p);
+        let+ body_uhexp = smexp_to_uhexp(body);
+        OpSeq.wrap(UHExp.lam(h_p, body_uhexp));
+      }
+    | EFix(Some(name), PatParam(p), body) => {
+        let+ h_lam = smexp_to_uhexp(EFix(None, PatParam(p), body));
+        OpSeq.wrap(
+          UHExp.Parenthesized([
+            UHExp.letline(OpSeq.wrap(UHPat.var(name)), h_lam),
+            ExpLine(OpSeq.wrap(UHExp.var(name))),
+          ]),
+        );
+      }
+   */
+  | EFix(_, TypeParam(_), _) => failwith(__LOC__)
+  | EApp(_, head, arg) => smexp_app_to_opseq(head, arg)
   | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
   | ETuple(args) => smexp_tuple_to_opseq(args)
   | EProj(n, i, arg) => {
@@ -562,14 +567,35 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
 
 /******************************************************************************/
 
+[@deriving sexp]
+type hole_list = list(int);
+
+let rec get_holes = (prog: Smyth.Lang.exp): hole_list => {
+  switch (prog) {
+  | EHole(name) => [name]
+  | EFix(_, _, e)
+  | EProj(_, _, e)
+  | ECtor(_, _, e)
+  | ETypeAnnotation(e, _) => get_holes(e)
+  | EApp(_, e1, EAExp(e2))
+  | EAssert(e1, e2) => get_holes(e1) @ get_holes(e2)
+  | EApp(_) => failwith("FUCK")
+  | EVar(_) => []
+  | ETuple(xs) => List.flatten(List.map(get_holes, xs))
+  | ECase(e, xs) =>
+    get_holes(e)
+    @ List.flatten(List.map(((_str, (_pat, e))) => get_holes(e), xs))
+  };
+};
+
+/******************************************************************************/
+
 // result conversion for constraints
 
 let rec res_to_dhexp = (res): DHExp.t => {
   switch (res) {
-  | RFix(_) => Triv
-  //failwith("TODO (andrew) just dump these to a... string?")
-  | RTuple([a, b]) => Pair(res_to_dhexp(a), res_to_dhexp(b))
-  | RTuple(_) => failwith("res_to_dhexp: non-pair RTuple not implemented")
+  | RFix(_) => BoundVar("closure") // TODO: represent these more better or filter them out
+  | RTuple(xs) => r_list_to_NestedPair(xs)
   | RCtor("True", _) => BoolLit(true)
   | RCtor("False", _) => BoolLit(false)
   | RCtor("Z", _) => IntLit(0)
@@ -589,12 +615,18 @@ let rec res_to_dhexp = (res): DHExp.t => {
     // nondeterminates
     failwith("res_to_dhexp: non-determinate result")
   };
+}
+and r_list_to_NestedPair = (xs): DHExp.t => {
+  switch (xs) {
+  | [] => BoundVar("empty_pair") // budget error code: empty pair
+  | [x] => res_to_dhexp(x)
+  | [x, ...xs] => Pair(res_to_dhexp(x), r_list_to_NestedPair(xs))
+  };
 };
 
 let rec value_to_dhexp = (v): DHExp.t => {
   switch (v) {
-  | VTuple([a, b]) => Pair(value_to_dhexp(a), value_to_dhexp(b))
-  | VTuple(_) => failwith("value_to_dhexp: non-pair VTuple not implemented")
+  | VTuple(xs) => v_list_to_NestedPair(xs)
   | VCtor("True", _) => BoolLit(true)
   | VCtor("False", _) => BoolLit(false)
   | VCtor("Z", _) => IntLit(0)
@@ -612,25 +644,23 @@ let rec value_to_dhexp = (v): DHExp.t => {
   | VCtor("Cons", _) => failwith("value_to_dhexp: malformed cons")
   | VCtor(_, _) => failwith("value_to_dhexp:unknown constructor")
   };
+}
+and v_list_to_NestedPair = (xs): DHExp.t => {
+  switch (xs) {
+  | [] => BoundVar("empty_pair") // budget error code
+  | [x] => value_to_dhexp(x)
+  | [x, ...xs] => Pair(value_to_dhexp(x), v_list_to_NestedPair(xs))
+  };
 };
 
 [@deriving sexp]
 type hexample =
   | Ex(DHExp.t)
-  | ExIO(DHExp.t, hexample);
+  | ExIO(list(DHExp.t));
 
 let rec example_to_dhexp = (ex): hexample => {
   switch (ex) {
-  | ExTuple([a, b]) =>
-    switch (example_to_dhexp(a)) {
-    | Ex(a) =>
-      switch (example_to_dhexp(b)) {
-      | Ex(b) => Ex(Pair(a, b))
-      | _ => failwith("example_to_dhexp")
-      }
-    | _ => failwith("example_to_dhexp")
-    }
-  | ExTuple(_) => failwith("value_to_dhexp: non-pair ExTuple not implemented")
+  | ExTuple(xs) => e_list_to_NestedPair(xs)
   | ExCtor("True", _) => Ex(BoolLit(true))
   | ExCtor("False", _) => Ex(BoolLit(false))
   | ExCtor("Z", _) => Ex(IntLit(0))
@@ -652,10 +682,32 @@ let rec example_to_dhexp = (ex): hexample => {
   | ExCtor("Cons", ExTuple(_)) =>
     failwith("example_to_dhexp: malformed cons")
   | ExInputOutput(value, example) =>
-    // don't really understand this case; ignoring value part for now
-    ExIO(value_to_dhexp(value), example_to_dhexp(example))
-  | _ => Ex(Triv)
-  //failwith("example_to_dhexp: non-handled case")
+    let first = value_to_dhexp(value);
+    switch (example_to_dhexp(example)) {
+    | Ex(last) => ExIO([first, last])
+    | ExIO(xs) => ExIO([first, ...xs])
+    };
+  | _ =>
+    print_endline("example_to_dhexp fallthru:");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_example(ex)),
+    );
+    Ex(BoundVar("example_to_dhexp_dallthru")); // budget error code. TODO: better failure handling
+  };
+}
+and e_list_to_NestedPair = (xs): hexample => {
+  switch (xs) {
+  | [] => Ex(Triv)
+  | [x] => example_to_dhexp(x)
+  | [x, ...xs] =>
+    switch (example_to_dhexp(x)) {
+    | Ex(x) =>
+      switch (e_list_to_NestedPair(xs)) {
+      | Ex(xs) => Ex(Pair(x, xs))
+      | _ => Ex(Triv)
+      }
+    | _ => Ex(Triv)
+    }
   };
 };
 
@@ -708,8 +760,20 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   print_endline(
     Sexplib.Sexp.to_string_hum(Smyth.Desugar.sexp_of_program(sm_prog)),
   );
+  print_endline("HOLES:");
+  let all_holes =
+    (
+      switch (sm_prog.main_opt) {
+      | None => []
+      | Some(e) => get_holes(e)
+      }
+    )
+    @ List.flatten(
+        List.map(((_, (_, e))) => get_holes(e), sm_prog.definitions),
+      );
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_hole_list(all_holes)));
   let solve_results =
-    switch (Smyth.Endpoint.solve_program_hole(sm_prog, hole_number)) {
+    switch (Smyth.Endpoint.solve_program_hole(sm_prog, all_holes)) {
     | Error(_) => None
     | Ok({hole_fillings, constraints, _}) =>
       print_endline("constraints:");

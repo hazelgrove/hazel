@@ -57,7 +57,43 @@ let rec iter_solve params delta sigma (hf, us_all) =
       in
       iter_solve params delta_merged sigma k_merged
 
-let iter_solve_once hole_name params delta sigma (hf, us_all) =
+(* An attempt at a multi-hole version -andrew I added the extra constraints
+   parameter at the end as a HACK, otherwise it was returning the merged
+   constraints, ie after solving for some of the holes. there is definitely a
+   better way of doing this. *)
+let rec iter_solve_once_list holes params delta sigma (hf, us_all)
+    (hf_init, us_all_init) =
+  let* _ = Nondet.guard @@ should_continue () in
+  match holes with
+  | [] ->
+      current_solution_count := !current_solution_count + 1 ;
+      Nondet.pure (hf, delta, us_all_init)
+  | hole_name :: other_hole_names -> (
+    match Constraints.delete hole_name us_all with
+    | None ->
+        current_solution_count := !current_solution_count + 1 ;
+        Nondet.pure (hf, delta, us_all_init)
+    | Some ((hole_name, worlds), us) ->
+        let* gamma, typ, dec, match_depth =
+          Nondet.lift_option @@ List.assoc_opt hole_name delta
+        in
+        let* k_new, delta_new =
+          Fill.fill
+            { params with
+              max_match_depth= params.max_match_depth - match_depth }
+            delta sigma hf
+            (hole_name, ((gamma, typ, dec), worlds))
+        in
+        let delta_merged = delta_new @ delta in
+        let* k_merged =
+          Constraints.merge [(hf, us); k_new]
+          |> Nondet.lift_option
+          |> Nondet.and_then (simplify_constraints delta_merged sigma)
+        in
+        iter_solve_once_list other_hole_names params delta_merged sigma
+          k_merged (hf_init, us_all_init) )
+
+let _iter_solve_once hole_name params delta sigma (hf, us_all) =
   let* _ = Nondet.guard @@ should_continue () in
   match Constraints.delete hole_name us_all with
   | None -> failwith __LOC__
@@ -129,7 +165,7 @@ let solve_any delta sigma constraints_nd =
   in
   constraints_nd |> Nondet.to_list |> expand_stages |> helper
 
-let solve_once hole_name delta sigma constraints_nd =
+let solve_once holes delta sigma constraints_nd =
   let rec helper problems =
     match problems with
     | [] -> Nondet.none
@@ -150,7 +186,8 @@ let solve_once hole_name delta sigma constraints_nd =
         current_solution_count := 0 ;
         Timer.Multi.reset Timer.Multi.Guess ;
         let solution_nd =
-          iter_solve_once hole_name params delta sigma constraints
+          iter_solve_once_list holes params delta sigma constraints
+            constraints
         in
         if Nondet.is_empty solution_nd then helper rest_problems
         else solution_nd

@@ -39,7 +39,9 @@ type solve_result_with_constraints =
 val solve_program : Desugar.program -> solve_result response
 
 val solve_program_hole :
-  Desugar.program -> Lang.hole_name -> solve_result_with_constraints response
+     Desugar.program
+  -> Lang.hole_name list
+  -> solve_result_with_constraints response
 
 val solve : sketch:string -> solve_result response
 (** [solve sketch] tries to return a {!solve_result} that satisfies the
