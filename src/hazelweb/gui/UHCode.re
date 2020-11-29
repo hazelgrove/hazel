@@ -165,6 +165,45 @@ let decoration_cls: UHDecorationShape.t => string =
   | FilledHole(_) => "filled-hole"
   | FillingHole(_) => "filling-hole";
 
+let decoration_view =
+    (
+      ~decoration_views:
+         (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
+      ~corner_radii: (float, float),
+      ~contains_current_term: bool,
+      ~term_sort: TermSort.t,
+      ~term_shape: TermShape.t,
+      dshape: UHDecorationShape.t,
+    ) => {
+  open UHDecoration;
+  let mk_layout = e =>
+    e
+    |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
+    |> Pretty.LayoutOfDoc.layout_of_doc(~width=25, ~pos=0)
+    |> OptUtil.get(() => failwith("layout failure"));
+  switch (dshape) {
+  | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
+  | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+  | VarUse => VarUse.view(~corner_radii)
+  | CurrentTerm =>
+    CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+  | FilledHole(e, synthesizing) =>
+    let l = mk_layout(e);
+    let text = view_of_text(l);
+    let decorations = {
+      let dpaths = UHDecorationPaths.mk(~synthesizing, ());
+      decoration_views(dpaths, l);
+    };
+    FilledHole.view(~text, ~decorations);
+  | FillingHole(es) =>
+    let options =
+      es
+      |> ZList.map(mk_layout, mk_layout)
+      |> ZList.map(view_of_text, view_of_text);
+    FillingHole.view(~options);
+  };
+};
+
 let rec decoration_views =
         (
           ~font_metrics: FontMetrics.t,
@@ -172,17 +211,15 @@ let rec decoration_views =
           l: UHLayout.t,
         )
         : list(Vdom.Node.t) => {
-  let decoration_views' = decoration_views(~font_metrics);
+  let decoration_views = decoration_views(~font_metrics);
+
   let corner_radius = 2.5;
   let corner_radii = (
     corner_radius /. font_metrics.col_width,
     corner_radius /. font_metrics.row_height,
   );
-  let mk_layout = e =>
-    e
-    |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
-    |> Pretty.LayoutOfDoc.layout_of_doc(~width=25, ~pos=0)
-    |> OptUtil.get(() => failwith("layout failure"));
+  let decoration_view = decoration_view(~corner_radii);
+  let decoration_container = decoration_container(~font_metrics);
 
   let rec go =
           (
@@ -220,47 +257,25 @@ let rec decoration_views =
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
         let offset = start.col - indent;
-        let contains_current_term = Option.is_some(dpaths.current_term);
+        let view = dshape =>
+          decoration_container(
+            ~height=MeasuredLayout.height(m),
+            ~width=MeasuredLayout.width(~offset, m),
+            ~origin=MeasuredPosition.{row: start.row, col: indent},
+            ~cls=decoration_cls(dshape),
+            [
+              decoration_view(
+                ~decoration_views,
+                ~contains_current_term=Option.is_some(dpaths.current_term),
+                ~term_sort=sort,
+                ~term_shape=shape,
+                dshape,
+                (offset, m),
+              ),
+            ],
+          );
         let current_vs =
-          UHDecorationPaths.current(shape, dpaths)
-          |> List.map((dshape: UHDecorationShape.t) => {
-               let cls = decoration_cls(dshape);
-               let view =
-                 UHDecoration.(
-                   switch (dshape) {
-                   | ErrHole =>
-                     ErrHole.view(~contains_current_term, ~corner_radii)
-                   | VarErrHole =>
-                     VarErrHole.view(~contains_current_term, ~corner_radii)
-                   | VarUse => VarUse.view(~corner_radii)
-                   | CurrentTerm =>
-                     CurrentTerm.view(~corner_radii, ~sort, ~shape)
-                   | FilledHole(e, synthesizing) =>
-                     let l = mk_layout(e);
-                     let text = view_of_text(l);
-                     let decorations =
-                       decoration_views'(
-                         UHDecorationPaths.mk(~synthesizing, ()),
-                         l,
-                       );
-                     FilledHole.view(~text, ~decorations);
-                   | FillingHole(es) =>
-                     let options =
-                       es
-                       |> ZList.map(mk_layout, mk_layout)
-                       |> ZList.map(view_of_text, view_of_text);
-                     FillingHole.view(~options);
-                   }
-                 );
-               decoration_container(
-                 ~font_metrics,
-                 ~height=MeasuredLayout.height(m),
-                 ~width=MeasuredLayout.width(~offset, m),
-                 ~origin=MeasuredPosition.{row: start.row, col: indent},
-                 ~cls,
-                 [view((offset, m))],
-               );
-             });
+          List.map(view, UHDecorationPaths.current(shape, dpaths));
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
