@@ -11,6 +11,7 @@ type t =
     width: int,
     start_col_of_vertical_movement: option(int),
     is_focused: bool,
+    synthesizing: Synthesizing.t,
   };
 
 let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;

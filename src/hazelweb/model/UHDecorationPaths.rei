@@ -7,7 +7,19 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  synthesizing: Synthesizing.t,
 };
+
+let mk:
+  (
+    ~err_holes: list(CursorPath.steps)=?,
+    ~var_err_holes: list(CursorPath.steps)=?,
+    ~var_uses: list(CursorPath.steps)=?,
+    ~current_term: option(CursorPath.t)=?,
+    ~synthesizing: Synthesizing.t=?,
+    unit
+  ) =>
+  t;
 
 let is_empty: t => bool;
 

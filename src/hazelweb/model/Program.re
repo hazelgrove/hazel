@@ -6,11 +6,18 @@ module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
 [@deriving sexp]
+type filling_hole = (
+  MetaVar.t,
+  ZList.t(UHExp.t, UHExp.t) /* + constraints */,
+);
+
+[@deriving sexp]
 type t = {
   edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
+  synthesizing: Synthesizing.t,
 };
 
 let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
@@ -18,6 +25,7 @@ let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => 
   edit_state,
   start_col_of_vertical_movement: None,
   is_focused,
+  synthesizing: Synthesizing.empty,
 };
 
 let put_start_col = (start_col, program) => {
@@ -95,6 +103,8 @@ let get_result = (program: t): (Result.t, AssertMap.t) =>
     ((d_renumbered, hii, Indet(d_renumbered)), assert_map);
   };
 
+exception HoleNotFound;
+
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
@@ -122,7 +132,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let synthesizing = program.synthesizing;
+  {current_term, err_holes, var_uses, var_err_holes, synthesizing};
 };
 
 exception FailedAction;
@@ -144,7 +155,6 @@ let perform_edit_action = (a, program) => {
   };
 };
 
-exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program.edit_state;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);

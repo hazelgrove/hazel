@@ -77,107 +77,6 @@ let decoration_container =
   );
 };
 
-let decoration_cls: UHDecorationShape.t => string =
-  fun
-  | ErrHole => "err-hole"
-  | VarErrHole => "var-err-hole"
-  | VarUse => "var-use"
-  | CurrentTerm => "current-term";
-
-let decoration_view =
-    (
-      ~contains_current_term: bool,
-      ~corner_radii: (float, float),
-      ~term_sort: TermSort.t,
-      ~term_shape: TermShape.t,
-      shape: UHDecorationShape.t,
-    ) =>
-  UHDecoration.(
-    switch (shape) {
-    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
-    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
-    | VarUse => VarUse.view(~corner_radii)
-    | CurrentTerm =>
-      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    }
-  );
-
-let decoration_views =
-    (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
-    : list(Vdom.Node.t) => {
-  let corner_radius = 2.5;
-  let corner_radii = (
-    corner_radius /. font_metrics.col_width,
-    corner_radius /. font_metrics.row_height,
-  );
-
-  let rec go =
-          (
-            ~tl: list(Vdom.Node.t)=[], // tail-recursive
-            ~indent=0, // indentation level of `m`
-            ~start=MeasuredPosition.zero, // start position of `m`
-            dpaths: UHDecorationPaths.t, // paths to decorations within `m`
-            m: UHMeasuredLayout.t,
-          )
-          : list(Vdom.Node.t) => {
-    let go' = go(~indent, ~start);
-    switch (m.layout) {
-    | Linebreak
-    | Text(_) => tl
-    | Cat(m1, m2) =>
-      let mid_row = start.row + MeasuredLayout.height(m1) - 1;
-      let mid_col = {
-        let (leading, MeasuredLayout.{width: last_width, _}) =
-          ListUtil.split_last(m1.metrics);
-        let offset =
-          switch (leading) {
-          | [] => start.col
-          | [_, ..._] => indent
-          };
-        offset + last_width;
-      };
-      let mid_tl =
-        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, dpaths, m2);
-      go'(~tl=mid_tl, dpaths, m1);
-    | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
-    | Annot(annot, m) =>
-      switch (annot) {
-      | Step(step) =>
-        let stepped = UHDecorationPaths.take_step(step, dpaths);
-        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
-      | Term({shape, sort, _}) =>
-        let offset = start.col - indent;
-        let current_vs =
-          UHDecorationPaths.current(shape, dpaths)
-          |> List.map((dshape: UHDecorationShape.t) => {
-               let cls = decoration_cls(dshape);
-               let view =
-                 decoration_view(
-                   ~contains_current_term=Option.is_some(dpaths.current_term),
-                   ~corner_radii,
-                   ~term_shape=shape,
-                   ~term_sort=sort,
-                   dshape,
-                   (offset, m),
-                 );
-               decoration_container(
-                 ~font_metrics,
-                 ~height=MeasuredLayout.height(m),
-                 ~width=MeasuredLayout.width(~offset, m),
-                 ~origin=MeasuredPosition.{row: start.row, col: indent},
-                 ~cls,
-                 [view],
-               );
-             });
-        go'(~tl=current_vs @ tl, dpaths, m);
-      | _ => go'(~tl, dpaths, m)
-      }
-    };
-  };
-
-  go(dpaths, UHMeasuredLayout.mk(l));
-};
-
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
 let rec view_of_box =
         (~assert_map: option(AssertMap.t), box: UHBox.t): list(Vdom.Node.t) => {
@@ -251,15 +150,130 @@ let rec view_of_box =
     }
   );
 };
-let root_id = "code-root";
-
-let focus = () => {
-  JSUtil.force_get_elem_by_id(root_id)##focus;
-};
 
 // TODO refactor so that it doesn't depend on assert map
 let view_of_text = (~assert_map: option(AssertMap.t)=?, l: UHLayout.t) => {
   view_of_box(~assert_map, UHBox.mk(l));
+};
+
+let decoration_cls: UHDecorationShape.t => string =
+  fun
+  | ErrHole => "err-hole"
+  | VarErrHole => "var-err-hole"
+  | VarUse => "var-use"
+  | CurrentTerm => "current-term"
+  | FilledHole(_) => "filled-hole"
+  | FillingHole(_) => "filling-hole";
+
+let rec decoration_views =
+        (
+          ~font_metrics: FontMetrics.t,
+          dpaths: UHDecorationPaths.t,
+          l: UHLayout.t,
+        )
+        : list(Vdom.Node.t) => {
+  let decoration_views' = decoration_views(~font_metrics);
+  let corner_radius = 2.5;
+  let corner_radii = (
+    corner_radius /. font_metrics.col_width,
+    corner_radius /. font_metrics.row_height,
+  );
+  let mk_layout = e =>
+    e
+    |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
+    |> Pretty.LayoutOfDoc.layout_of_doc(~width=25, ~pos=0)
+    |> OptUtil.get(() => failwith("layout failure"));
+
+  let rec go =
+          (
+            ~tl: list(Vdom.Node.t)=[], // tail-recursive
+            ~indent=0, // indentation level of `m`
+            ~start=MeasuredPosition.zero, // start position of `m`
+            dpaths: UHDecorationPaths.t, // paths to decorations within `m`
+            m: UHMeasuredLayout.t,
+          )
+          : list(Vdom.Node.t) => {
+    let go' = go(~indent, ~start);
+    switch (m.layout) {
+    | Linebreak
+    | Text(_) => tl
+    | Cat(m1, m2) =>
+      let mid_row = start.row + MeasuredLayout.height(m1) - 1;
+      let mid_col = {
+        let (leading, MeasuredLayout.{width: last_width, _}) =
+          ListUtil.split_last(m1.metrics);
+        let offset =
+          switch (leading) {
+          | [] => start.col
+          | [_, ..._] => indent
+          };
+        offset + last_width;
+      };
+      let mid_tl =
+        go(~tl, ~indent, ~start={row: mid_row, col: mid_col}, dpaths, m2);
+      go'(~tl=mid_tl, dpaths, m1);
+    | Align(m) => go(~tl, ~indent=start.col, ~start, dpaths, m)
+    | Annot(annot, m) =>
+      switch (annot) {
+      | Step(step) =>
+        let stepped = UHDecorationPaths.take_step(step, dpaths);
+        UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
+      | Term({shape, sort, _}) =>
+        let offset = start.col - indent;
+        let contains_current_term = Option.is_some(dpaths.current_term);
+        let current_vs =
+          UHDecorationPaths.current(shape, dpaths)
+          |> List.map((dshape: UHDecorationShape.t) => {
+               let cls = decoration_cls(dshape);
+               let view =
+                 UHDecoration.(
+                   switch (dshape) {
+                   | ErrHole =>
+                     ErrHole.view(~contains_current_term, ~corner_radii)
+                   | VarErrHole =>
+                     VarErrHole.view(~contains_current_term, ~corner_radii)
+                   | VarUse => VarUse.view(~corner_radii)
+                   | CurrentTerm =>
+                     CurrentTerm.view(~corner_radii, ~sort, ~shape)
+                   | FilledHole(e, synthesizing) =>
+                     let l = mk_layout(e);
+                     let text = view_of_text(l);
+                     let decorations =
+                       decoration_views'(
+                         UHDecorationPaths.mk(~synthesizing, ()),
+                         l,
+                       );
+                     FilledHole.view(~text, ~decorations);
+                   | FillingHole(es) =>
+                     let options =
+                       es
+                       |> ZList.map(mk_layout, mk_layout)
+                       |> ZList.map(view_of_text, view_of_text);
+                     FillingHole.view(~options);
+                   }
+                 );
+               decoration_container(
+                 ~font_metrics,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
+                 ~cls,
+                 [view((offset, m))],
+               );
+             });
+        go'(~tl=current_vs @ tl, dpaths, m);
+      | _ => go'(~tl, dpaths, m)
+      }
+    };
+  };
+
+  go(dpaths, UHMeasuredLayout.mk(l));
+};
+
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
 };
 
 let view_of_cursor_inspector =

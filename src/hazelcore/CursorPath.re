@@ -40,3 +40,18 @@ type zhole_list = {
   hole_selected: option(hole_info),
   holes_after: hole_list,
 };
+
+let rec compare_steps = (steps, steps') =>
+  switch (steps, steps') {
+  | ([], []) => 0
+  | ([], [_, ..._]) => (-1)
+  | ([_, ..._], []) => 1
+  | ([step, ...steps], [step', ...steps']) =>
+    let c = Int.compare(step, step');
+    c == 0 ? compare_steps(steps, steps') : c;
+  };
+
+let compare = ((steps, j), (steps', j')) => {
+  let c = compare_steps(steps, steps');
+  c == 0 ? Int.compare(j, j') : c;
+};

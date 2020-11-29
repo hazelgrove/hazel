@@ -486,3 +486,11 @@ module Caret = {
     );
   };
 };
+
+module FilledHole = {
+  let view = (~text as _, ~decorations as _, (_, _)) => Node.span([], []);
+};
+
+module FillingHole = {
+  let view = (~options as _, (_, _)) => Node.span([], []);
+};

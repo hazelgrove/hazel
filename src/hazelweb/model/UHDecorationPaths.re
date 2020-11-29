@@ -6,16 +6,34 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  synthesizing: Synthesizing.t,
+};
+
+let mk =
+    (
+      ~err_holes=[],
+      ~var_err_holes=[],
+      ~var_uses=[],
+      ~current_term=None,
+      ~synthesizing=Synthesizing.empty,
+      (),
+    ) => {
+  err_holes,
+  var_err_holes,
+  var_uses,
+  current_term,
+  synthesizing,
 };
 
 let is_empty = (dpaths: t): bool =>
   ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
-  && dpaths.current_term == None;
+  && dpaths.current_term == None
+  && Synthesizing.is_empty(dpaths.synthesizing);
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
+  let {err_holes, var_err_holes, current_term, var_uses, synthesizing} = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -27,10 +45,19 @@ let take_step = (step: int, dpaths: t): t => {
     Option.bind(current_term, ((steps, cursor)) =>
       remove_step(steps) |> Option.map(steps => (steps, cursor))
     );
-  {err_holes, var_err_holes, var_uses, current_term};
+  let synthesizing =
+    synthesizing
+    |> Synthesizing.bindings
+    |> List.filter_map(((steps, fill_state)) =>
+         steps |> remove_step |> Option.map(removed => (removed, fill_state))
+       )
+    |> List.to_seq
+    |> Synthesizing.of_seq;
+  {err_holes, var_err_holes, var_uses, current_term, synthesizing};
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
+  open UHDecorationShape;
   let is_current = steps =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
@@ -44,24 +71,34 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let err_holes =
     dpaths.err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.ErrHole)
+    |> Option.map(_ => ErrHole)
     |> Option.to_list;
   let var_err_holes =
     dpaths.var_err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.VarErrHole)
+    |> Option.map(_ => VarErrHole)
     |> Option.to_list;
   let var_uses =
     dpaths.var_uses
     |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.VarUse)
+    |> Option.map(_ => VarUse)
     |> Option.to_list;
   let current_term =
     switch (dpaths.current_term) {
-    | Some((steps, _)) when is_current(steps) => [
-        UHDecorationShape.CurrentTerm,
-      ]
+    | Some((steps, _)) when is_current(steps) => [CurrentTerm]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, var_uses, current_term]);
+  let synthesizing =
+    switch (Synthesizing.find_opt([], dpaths.synthesizing)) {
+    | None => []
+    | Some(Filled(e, synthesizing)) => [FilledHole(e, synthesizing)]
+    | Some(Filling(selecting)) => [FillingHole(selecting)]
+    };
+  List.concat([
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+    synthesizing,
+  ]);
 };
