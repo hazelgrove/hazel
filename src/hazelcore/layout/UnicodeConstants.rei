@@ -15,3 +15,4 @@ let undo: string;
 let nbsp: string;
 let zwsp: string;
 let ellipsis: string;
+let double_angle_right: string;

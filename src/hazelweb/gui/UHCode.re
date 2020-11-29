@@ -199,7 +199,8 @@ let decoration_view =
     let options =
       es
       |> ZList.map(mk_layout, mk_layout)
-      |> ZList.map(view_of_text, view_of_text);
+      |> ZList.map(view_of_text, view_of_text)
+      |> ZList.map(Vdom.Node.span([]), Vdom.Node.span([]));
     FillingHole.view(~options);
   };
 };
@@ -257,23 +258,46 @@ let rec decoration_views =
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
         let offset = start.col - indent;
-        let view = dshape =>
-          decoration_container(
-            ~height=MeasuredLayout.height(m),
-            ~width=MeasuredLayout.width(~offset, m),
-            ~origin=MeasuredPosition.{row: start.row, col: indent},
-            ~cls=decoration_cls(dshape),
-            [
-              decoration_view(
-                ~decoration_views,
-                ~contains_current_term=Option.is_some(dpaths.current_term),
-                ~term_sort=sort,
-                ~term_shape=shape,
-                dshape,
-                (offset, m),
-              ),
-            ],
-          );
+        let view = dshape => {
+          let view =
+            decoration_view(
+              ~decoration_views,
+              ~contains_current_term=Option.is_some(dpaths.current_term),
+              ~term_sort=sort,
+              ~term_shape=shape,
+              dshape,
+              (offset, m),
+            );
+          switch (dshape) {
+          | ErrHole
+          | VarErrHole
+          | VarUse
+          | CurrentTerm =>
+            decoration_container(
+              ~height=MeasuredLayout.height(m),
+              ~width=MeasuredLayout.width(~offset, m),
+              ~origin=MeasuredPosition.{row: start.row, col: indent},
+              ~cls=decoration_cls(dshape),
+              [view],
+            )
+          | FillingHole(_)
+          | FilledHole(_) =>
+            Vdom.Node.div(
+              Vdom.[
+                Attr.classes(["synthesizing-container"]),
+                Attr.create(
+                  "style",
+                  Printf.sprintf(
+                    "top: %fpx; left: %fpx",
+                    Float.of_int(start.row) *. font_metrics.row_height,
+                    Float.of_int(indent) *. font_metrics.col_width,
+                  ),
+                ),
+              ],
+              [view],
+            )
+          };
+        };
         let current_vs =
           List.map(view, UHDecorationPaths.current(shape, dpaths));
         go'(~tl=current_vs @ tl, dpaths, m);

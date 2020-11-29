@@ -492,5 +492,53 @@ module FilledHole = {
 };
 
 module FillingHole = {
-  let view = (~options as _, (_, _)) => Node.span([], []);
+  let view =
+      (
+        ~options: ZList.t(Node.t, Node.t),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      ) => {
+    print_endline("0");
+    let width = MeasuredLayout.width(subject);
+    let tab =
+      Node.div(
+        Attr.[classes(["synthesizing-tab-background"])],
+        [
+          Node.span(
+            [Attr.classes(["synthesizing-hole"])],
+            [Node.text(StringUtil.replicat(width, UnicodeConstants.nbsp))],
+          ),
+          Node.text(
+            StringUtil.cat(
+              UnicodeConstants.[nbsp, double_angle_right, nbsp],
+            ),
+          ),
+        ],
+      );
+    let options =
+      options
+      |> ZList.map(
+           o => Node.div([Attr.classes(["selected-filling"])], [o]),
+           o => Node.div([], [o]),
+         )
+      |> (wrapped => ZList.erase(wrapped, x => x));
+    Node.div(
+      [Attr.classes(["synthesizing-menu"])],
+      [
+        tab,
+        Node.div(
+          [
+            Attr.classes(["synthesizing-options"]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "top: 0px; left: %fpx;",
+                Float.of_int(offset + width + 3),
+              ),
+            ),
+          ],
+          options,
+        ),
+      ],
+    );
+  };
 };
