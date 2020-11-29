@@ -504,7 +504,10 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       }
    */
   | EFix(_, TypeParam(_), _) => failwith(__LOC__)
-  | EApp(_, head, arg) => smexp_app_to_opseq(head, arg)
+  | EApp(_, head, arg) => {
+      let* exp = smexp_app_to_opseq(head, arg);
+      Some(OpSeq.wrap(UHExp.Parenthesized([ExpLine(exp)])));
+    }
   | EVar(name) => Some(OpSeq.wrap(UHExp.var(name)))
   | ETuple(args) => smexp_tuple_to_opseq(args)
   | EProj(n, i, arg) => {
