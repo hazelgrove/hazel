@@ -34,7 +34,15 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
-  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
+  synthesizing:
+    option(
+      (
+        MetaVar.t,
+        int,
+        list(UHExp.t),
+        Shmyth.h_constraints /* + constraints */,
+      ),
+    ),
 };
 
 type t = {

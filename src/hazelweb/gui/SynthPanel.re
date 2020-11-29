@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 
-let view = (~inject as _, ~view_of_text, j, es) => {
+let view = (~inject as _, ~view_of_text, j, es, _constraints) => {
   let fillings =
     es
     |> List.map(

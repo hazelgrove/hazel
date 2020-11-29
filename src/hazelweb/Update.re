@@ -144,18 +144,18 @@ let apply_action =
       | ScrollFilling(i) =>
         switch (model.cursor_inspector.synthesizing) {
         | None => model
-        | Some((u, _, fillings)) => {
+        | Some((u, _, fillings, constraints)) => {
             ...model,
             cursor_inspector: {
               ...model.cursor_inspector,
-              synthesizing: Some((u, i, fillings)),
+              synthesizing: Some((u, i, fillings, constraints)),
             },
           }
         }
       | AcceptFilling =>
         switch (model.cursor_inspector.synthesizing) {
         | None => model
-        | Some((u, i, fillings)) =>
+        | Some((u, i, fillings, _constraints)) =>
           schedule_action(
             ModelAction.EditAction(FillExpHole(u, List.nth(fillings, i))),
           );
