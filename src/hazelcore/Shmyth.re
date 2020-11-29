@@ -452,7 +452,8 @@ and smexp_branch_to_uhexp_rule =
         ...clause,
       ],
     )
-  | ("IntList", _) => failwith("todo")
+  | ("Nil", _) => failwith("TODO: NatList")
+  | ("Cons", _) => failwith("TODO: NatList")
   | _ => assert(false)
   };
 }
@@ -533,10 +534,10 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         ),
       );
     }
-  | ECtor("True", _, ETuple([])) => Some(OpSeq.wrap(UHExp.boollit(true)))
-  | ECtor("False", _, ETuple([])) => Some(OpSeq.wrap(UHExp.boollit(false)))
-  | ECtor("Z", _, ETuple([])) => Some(OpSeq.wrap(UHExp.intlit("0")))
-  | ECtor("Z" | "S", _, m) as snum => {
+  | ECtor("True", _, _) => Some(OpSeq.wrap(UHExp.boollit(true)))
+  | ECtor("False", _, _) => Some(OpSeq.wrap(UHExp.boollit(false)))
+  | ECtor("Z", _, _) => Some(OpSeq.wrap(UHExp.intlit("0")))
+  | ECtor("S", _, m) as snum => {
       switch (smexp_to_uhexp_opseq(m)) {
       | Some(OpSeq(_, h_m)) =>
         let OpSeq.OpSeq(_, one) = OpSeq.wrap(UHExp.intlit("1"));
@@ -554,8 +555,12 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         OpSeq.wrap(UHExp.intlit(string_of_int(num)));
       };
     }
-  | ECtor("IntList", _, _) => failwith(__LOC__)
-  | ECtor(_, _, _) => assert(false)
+  | ECtor("NatList", _, _) => failwith(__LOC__)
+  | ECtor(str, _, _) => {
+      print_endline("Unhandled constructor:");
+      print_endline(str);
+      failwith(__LOC__);
+    }
   | ECase(scrut, branches) => {
       let* scrut = smexp_to_uhexp(scrut);
       let+ rules = smexp_branches_to_uhexp_rules(branches);
@@ -594,7 +599,7 @@ let rec get_holes = (prog: Smyth.Lang.exp): hole_list => {
 
 let rec res_to_dhexp = (res): DHExp.t => {
   switch (res) {
-  | RFix(_) => BoundVar("closure") // TODO: represent these more better or filter them out
+  | RFix(_) => BoundVar("closure") // TODO: represent these more better or filter them out?
   | RTuple(xs) => r_list_to_NestedPair(xs)
   | RCtor("True", _) => BoolLit(true)
   | RCtor("False", _) => BoolLit(false)
@@ -608,7 +613,7 @@ let rec res_to_dhexp = (res): DHExp.t => {
   | RCtor("Cons", RTuple([res1, res2])) =>
     switch (res_to_dhexp(res1)) {
     | IntLit(n) => Cons(IntLit(n), res_to_dhexp(res2))
-    | _ => failwith("res_to_dhexp: malformed cons: not IntList")
+    | _ => failwith("res_to_dhexp: malformed cons: not NatList")
     }
   | RCtor("Cons", RTuple(_)) => failwith("res_to_dhexp: malformed cons")
   | _ =>
@@ -618,7 +623,7 @@ let rec res_to_dhexp = (res): DHExp.t => {
 }
 and r_list_to_NestedPair = (xs): DHExp.t => {
   switch (xs) {
-  | [] => BoundVar("empty_pair") // budget error code: empty pair
+  | [] => BoundVar("empty_pair") // budget error code
   | [x] => res_to_dhexp(x)
   | [x, ...xs] => Pair(res_to_dhexp(x), r_list_to_NestedPair(xs))
   };
@@ -639,7 +644,7 @@ let rec value_to_dhexp = (v): DHExp.t => {
   | VCtor("Cons", VTuple([v1, v2])) =>
     switch (value_to_dhexp(v1)) {
     | IntLit(n) => Cons(IntLit(n), value_to_dhexp(v2))
-    | _ => failwith("example_to_dhexp: malformed cons: not IntList")
+    | _ => failwith("example_to_dhexp: malformed cons: not NatList")
     }
   | VCtor("Cons", _) => failwith("value_to_dhexp: malformed cons")
   | VCtor(_, _) => failwith("value_to_dhexp:unknown constructor")
@@ -675,9 +680,9 @@ let rec example_to_dhexp = (ex): hexample => {
     | Ex(IntLit(n)) =>
       switch (example_to_dhexp(ex2)) {
       | Ex(w) => Ex(Cons(IntLit(n), w))
-      | _ => failwith("example_to_dhexp: malformed cons: not IntList")
+      | _ => failwith("example_to_dhexp: malformed cons: not NatList")
       }
-    | _ => failwith("example_to_dhexp: malformed cons: not IntList")
+    | _ => failwith("example_to_dhexp: malformed cons: not NatList")
     }
   | ExCtor("Cons", ExTuple(_)) =>
     failwith("example_to_dhexp: malformed cons")
@@ -692,7 +697,7 @@ let rec example_to_dhexp = (ex): hexample => {
     print_endline(
       Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_example(ex)),
     );
-    Ex(BoundVar("example_to_dhexp_dallthru")); // budget error code. TODO: better failure handling
+    Ex(BoundVar("example_to_dhexp_fallthru")); // budget error code. TODO: better failure handling
   };
 }
 and e_list_to_NestedPair = (xs): hexample => {
