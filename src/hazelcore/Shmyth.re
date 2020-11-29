@@ -594,14 +594,8 @@ let rec get_holes = (prog: Smyth.Lang.exp): hole_list => {
 
 let rec res_to_dhexp = (res): DHExp.t => {
   switch (res) {
-  | RFix(_) => Triv // TODO: represent these more better or filter them out
-  | RTuple([a, b]) => Pair(res_to_dhexp(a), res_to_dhexp(b))
-  // HACK(andrew) : added below  what was triggering this case??
-  | RTuple([a]) => Pair(res_to_dhexp(a), Triv)
-  | RTuple([a, b, c]) =>
-    Pair(res_to_dhexp(a), Pair(res_to_dhexp(b), res_to_dhexp(c)))
-  // HACK(andrew): this is getting triggered since iter_solve mod for multi-hole
-  | RTuple(_) => Triv //failwith("res_to_dhexp: non-pair RTuple not implemented")
+  | RFix(_) => BoundVar("closure") // TODO: represent these more better or filter them out
+  | RTuple(xs) => r_list_to_NestedPair(xs)
   | RCtor("True", _) => BoolLit(true)
   | RCtor("False", _) => BoolLit(false)
   | RCtor("Z", _) => IntLit(0)
@@ -621,12 +615,18 @@ let rec res_to_dhexp = (res): DHExp.t => {
     // nondeterminates
     failwith("res_to_dhexp: non-determinate result")
   };
+}
+and r_list_to_NestedPair = (xs): DHExp.t => {
+  switch (xs) {
+  | [] => BoundVar("empty_pair") // budget error code: empty pair
+  | [x] => res_to_dhexp(x)
+  | [x, ...xs] => Pair(res_to_dhexp(x), r_list_to_NestedPair(xs))
+  };
 };
 
 let rec value_to_dhexp = (v): DHExp.t => {
   switch (v) {
-  | VTuple([a, b]) => Pair(value_to_dhexp(a), value_to_dhexp(b))
-  | VTuple(_) => failwith("value_to_dhexp: non-pair VTuple not implemented")
+  | VTuple(xs) => v_list_to_NestedPair(xs)
   | VCtor("True", _) => BoolLit(true)
   | VCtor("False", _) => BoolLit(false)
   | VCtor("Z", _) => IntLit(0)
@@ -644,6 +644,13 @@ let rec value_to_dhexp = (v): DHExp.t => {
   | VCtor("Cons", _) => failwith("value_to_dhexp: malformed cons")
   | VCtor(_, _) => failwith("value_to_dhexp:unknown constructor")
   };
+}
+and v_list_to_NestedPair = (xs): DHExp.t => {
+  switch (xs) {
+  | [] => BoundVar("empty_pair") // budget error code
+  | [x] => value_to_dhexp(x)
+  | [x, ...xs] => Pair(value_to_dhexp(x), v_list_to_NestedPair(xs))
+  };
 };
 
 [@deriving sexp]
@@ -653,23 +660,7 @@ type hexample =
 
 let rec example_to_dhexp = (ex): hexample => {
   switch (ex) {
-  | ExTuple([a, b]) =>
-    switch (example_to_dhexp(a)) {
-    | Ex(a) =>
-      switch (example_to_dhexp(b)) {
-      | Ex(b) => Ex(Pair(a, b))
-      | _ => failwith("example_to_dhexp: bad tuple")
-      }
-    | _ => failwith("example_to_dhexp: bad tuple")
-    }
-  // HACK(andrew) : added below  what was triggering this case??
-  | ExTuple([a]) =>
-    switch (example_to_dhexp(a)) {
-    | Ex(a) => Ex(Pair(a, Triv))
-    | _ => failwith("example_to_dhexp: bad tuple")
-    }
-  // HACK(andrew): this is getting triggered since iter_solve mod for multi-hole
-  | ExTuple(_) => Ex(Triv) //failwith("value_to_dhexp: non-pair ExTuple not implemented")
+  | ExTuple(xs) => e_list_to_NestedPair(xs)
   | ExCtor("True", _) => Ex(BoolLit(true))
   | ExCtor("False", _) => Ex(BoolLit(false))
   | ExCtor("Z", _) => Ex(IntLit(0))
@@ -696,7 +687,27 @@ let rec example_to_dhexp = (ex): hexample => {
     | Ex(last) => ExIO([first, last])
     | ExIO(xs) => ExIO([first, ...xs])
     };
-  | _ => Ex(Triv) // TODO: better failure handling
+  | _ =>
+    print_endline("example_to_dhexp fallthru:");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_example(ex)),
+    );
+    Ex(BoundVar("example_to_dhexp_dallthru")); // budget error code. TODO: better failure handling
+  };
+}
+and e_list_to_NestedPair = (xs): hexample => {
+  switch (xs) {
+  | [] => Ex(Triv)
+  | [x] => example_to_dhexp(x)
+  | [x, ...xs] =>
+    switch (example_to_dhexp(x)) {
+    | Ex(x) =>
+      switch (e_list_to_NestedPair(xs)) {
+      | Ex(xs) => Ex(Pair(x, xs))
+      | _ => Ex(Triv)
+      }
+    | _ => Ex(Triv)
+    }
   };
 };
 
