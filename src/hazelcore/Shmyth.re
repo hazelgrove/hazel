@@ -829,16 +829,18 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
     | Ok({hole_fillings, constraints, _}) =>
       let hazel_constraints = output_constraints_to_something(constraints);
       List.iter(
-        results =>
+        results => {
+          Format.printf("-----%!");
           List.iter(
             ((h, exp)) =>
-              Printf.printf(
+              Format.printf(
                 "%d = %s\n",
                 h,
-                Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
+                Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_exp(exp)),
               ),
             results,
-          ),
+          );
+        },
         hole_fillings,
       );
       (

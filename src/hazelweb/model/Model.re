@@ -312,6 +312,7 @@ let synthesize = (u: MetaVar.t, model: t): t => {
     print_endline("no synth results");
     model;
   | Some(([_, ..._] as uhexps, constraints)) =>
+    let uhexps = UHExp.Set.of_list(uhexps) |> UHExp.Set.elements;
     let synthesizing = Some((u, 0, uhexps, constraints));
     let cursor_inspector = {...model.cursor_inspector, synthesizing};
     {...model, cursor_inspector};
