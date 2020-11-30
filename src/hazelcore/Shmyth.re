@@ -405,7 +405,18 @@ and smexp_tuple_to_opseq = (args: list(Smyth.Lang.exp)): option(UHExp.opseq) => 
 
 and smexp_list_to_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
   fun
-  | ECtor("Nil", _, ETuple([])) => Some(OpSeq.wrap(UHExp.listnil()))
+  | ECtor("Nil", _, _) => Some(OpSeq.wrap(UHExp.listnil()))
+  | ECtor("Cons", _, EHole(h)) => {
+      Some(
+        UHExp.mk_OpSeq(
+          Seq.seq_op_seq(
+            Seq.wrap(UHExp.EmptyHole(h)),
+            Operators_Exp.Cons,
+            Seq.wrap(UHExp.EmptyHole(h + 1000)),
+          ),
+        ),
+      );
+    }
   | ECtor("Cons", _, ETuple([hd, tl])) => {
       let* OpSeq.OpSeq(_, hz_hd) = smexp_to_uhexp_opseq(hd);
       let* OpSeq.OpSeq(_, hz_tl) = smexp_list_to_opseq(tl);
@@ -413,7 +424,11 @@ and smexp_list_to_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         UHExp.mk_OpSeq(Seq.seq_op_seq(hz_hd, Operators_Exp.Cons, hz_tl)),
       );
     }
-  | _ => assert(false)
+  | ECtor(name, _, _) => {
+      Format.printf("bad list constructor: %s%!", name);
+      assert(false);
+    }
+  | exp => smexp_to_uhexp_opseq(exp)
 
 and smexp_app_to_opseq =
     (head: Smyth.Lang.exp, arg: Smyth.Lang.exp_arg): option(UHExp.opseq) => {
@@ -580,8 +595,8 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         OpSeq.wrap(UHExp.intlit(string_of_int(num)));
       };
     }
-  | ECtor("Nil", _, arg)
-  | ECtor("Cons", _, arg) => smexp_list_to_opseq(arg)
+  | ECtor("Nil", _, _) as exp
+  | ECtor("Cons", _, _) as exp => smexp_list_to_opseq(exp)
   | ECtor(str, _, _) => {
       print_endline("Unhandled constructor:");
       print_endline(str);
@@ -815,16 +830,18 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
       let hazel_constraints = output_constraints_to_something(constraints);
       /*
        List.iter(
-         results =>
+         results => {
+           Format.printf("-----%!");
            List.iter(
              ((h, exp)) =>
-               Printf.printf(
+               Format.printf(
                  "%d = %s\n",
                  h,
-                 Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
+                 Sexplib.Sexp.to_string_hum(Smyth.Lang.sexp_of_exp(exp)),
                ),
              results,
-           ),
+           );
+         },
          hole_fillings,
        );
        */

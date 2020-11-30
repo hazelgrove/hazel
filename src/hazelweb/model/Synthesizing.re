@@ -83,6 +83,7 @@ let mk = (u: MetaVar.t, e: UHExp.t): option(t) => {
     print_endline("synth error");
     None;
   | Some((es, constraints)) =>
+    let es = UHExp.Set.elements(UHExp.Set.of_list(es));
     switch (ZList.split_at(0, es)) {
     | None =>
       print_endline("no synth results");
@@ -93,7 +94,7 @@ let mk = (u: MetaVar.t, e: UHExp.t): option(t) => {
         CursorPath_common.steps_to_hole(holes, u)
         |> OptUtil.get(() => failwith("hole not found"));
       Some((hole_steps, Filling(zes, constraints)));
-    }
+    };
   };
 };
 

@@ -32,6 +32,12 @@ and rule =
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
+module Set =
+  Set.Make({
+    type nonrec t = t;
+    let compare = compare;
+  });
+
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
 [@deriving sexp]
