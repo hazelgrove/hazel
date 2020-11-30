@@ -23,7 +23,15 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
-  synthesizing: option((MetaVar.t, int, list(UHExp.t) /* + constraints */)),
+  synthesizing:
+    option(
+      (
+        MetaVar.t,
+        int,
+        list(UHExp.t),
+        Shmyth.h_constraints /* + constraints */,
+      ),
+    ),
 };
 
 type t = {
@@ -300,11 +308,11 @@ let synthesize = (u: MetaVar.t, model: t): t => {
   | None =>
     print_endline("synth error");
     model;
-  | Some([]) =>
+  | Some(([], _)) =>
     print_endline("no synth results");
     model;
-  | Some([_, ..._] as uhexps) =>
-    let synthesizing = Some((u, 0, uhexps));
+  | Some(([_, ..._] as uhexps, constraints)) =>
+    let synthesizing = Some((u, 0, uhexps, constraints));
     let cursor_inspector = {...model.cursor_inspector, synthesizing};
     {...model, cursor_inspector};
   /* synthesized

@@ -625,7 +625,7 @@ let rec get_holes = (prog: Smyth.Lang.exp): hole_list => {
 
 let rec res_to_dhexp = (res): DHExp.t => {
   switch (res) {
-  | RFix(_) => BoundVar("closure") // TODO: represent these more better or filter them out?
+  | RFix(_) => BoundVar("λ") // TODO: represent these more better or filter them out?
   | RTuple(xs) => r_list_to_NestedPair(xs)
   | RCtor("True", _) => BoolLit(true)
   | RCtor("False", _) => BoolLit(false)
@@ -743,15 +743,19 @@ and e_list_to_NestedPair = (xs): hexample => {
 };
 
 [@deriving sexp]
+type h_constraint_env = list((string, DHExp.t));
+[@deriving sexp]
+type h_constraint = (hexample, h_constraint_env);
+[@deriving sexp]
+type constraint_data = list(h_constraint);
+[@deriving sexp]
 /* outer list is different options/possibilities
    next outermost list is pairs of hole names and
    lists of pairs of target values from examples and their corresponding environments */
-type h_constraints =
-  list(
-    list(
-      (Smyth.Lang.hole_name, list((hexample, list((string, DHExp.t))))),
-    ),
-  );
+type h_constraints = list(list((Smyth.Lang.hole_name, constraint_data)));
+
+[@deriving sexp]
+type h_constraints_2 = list((Smyth.Lang.hole_name, constraint_data));
 
 let output_constraints_to_something =
     (constraints: output_constraints): h_constraints => {
@@ -772,8 +776,8 @@ let output_constraints_to_something =
               },
               worlds,
             );
-          // HACK(andrew): add one to hole number so matches up with hazel display
-          [(k + 1, new_worlds), ...bs];
+
+          [(k, new_worlds), ...bs];
         },
         m,
         [],
@@ -783,45 +787,32 @@ let output_constraints_to_something =
   );
 };
 
+let get_all_holes = (sm_prog: Smyth.Desugar.program) => {
+  (
+    switch (sm_prog.main_opt) {
+    | None => []
+    | Some(e) => get_holes(e)
+    }
+  )
+  @ List.flatten(
+      List.map(((_, (_, e))) => get_holes(e), sm_prog.definitions),
+    );
+};
+
 //type solve_result = list(list((MetaVar.t, UHExp.t)));
-type solve_result = list(UHExp.t);
+type solve_result = (list(UHExp.t), h_constraints);
 
 let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
   print_endline(
     Sexplib.Sexp.to_string_hum(Smyth.Desugar.sexp_of_program(sm_prog)),
   );
-  print_endline("HOLES:");
-  let all_holes =
-    (
-      switch (sm_prog.main_opt) {
-      | None => []
-      | Some(e) => get_holes(e)
-      }
-    )
-    @ List.flatten(
-        List.map(((_, (_, e))) => get_holes(e), sm_prog.definitions),
-      );
-  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_hole_list(all_holes)));
-  let solve_results =
+  let all_holes = get_all_holes(sm_prog);
+  let (solve_results, hazel_constraints) =
     switch (Smyth.Endpoint.solve_program_hole(sm_prog, all_holes)) {
-    | Error(_) => None
+    | Error(_) => (None, None)
     | Ok({hole_fillings, constraints, _}) =>
-      print_endline("constraints:");
-      /*
-       print_endline(
-         Sexplib.Sexp.to_string_hum(
-           Smyth.Lang.sexp_of_output_constraints(constraints),
-         ),
-       );
-       */
-      print_endline(
-        Sexplib.Sexp.to_string_hum(
-          sexp_of_h_constraints(
-            output_constraints_to_something(constraints),
-          ),
-        ),
-      );
+      let hazel_constraints = output_constraints_to_something(constraints);
       List.iter(
         results =>
           List.iter(
@@ -835,16 +826,19 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
           ),
         hole_fillings,
       );
-      hole_fillings
-      |> List.map(hole_filling =>
-           hole_filling
-           |> List.map(((u, smexp)) => {
-                let+ e = smexp_to_uhexp(smexp);
-                (u, e);
-              })
-           |> OptUtil.sequence
-         )
-      |> OptUtil.sequence;
+      (
+        hole_fillings
+        |> List.map(hole_filling =>
+             hole_filling
+             |> List.map(((u, smexp)) => {
+                  let+ e = smexp_to_uhexp(smexp);
+                  (u, e);
+                })
+             |> OptUtil.sequence
+           )
+        |> OptUtil.sequence,
+        Some(hazel_constraints),
+      );
     };
 
   solve_results
@@ -858,5 +852,14 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
          };
        }),
      )
-  |> Option.map(List.filter_map(x => x));
+  |> Option.map(List.filter_map(x => x))
+  |> Option.map(x =>
+       (
+         x,
+         switch (hazel_constraints) {
+         | None => []
+         | Some(hc) => hc
+         },
+       )
+     );
 };

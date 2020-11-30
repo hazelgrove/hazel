@@ -363,9 +363,9 @@ let key_handlers =
       switch (MoveKey.of_key(Key.get_key(evt))) {
       | Some(move_key) =>
         switch (cursor_inspector.synthesizing, move_key) {
-        | (Some((_, i, _)), ArrowUp) when i > 0 =>
+        | (Some((_, i, _, _constraints)), ArrowUp) when i > 0 =>
           prevent_stop_inject(ModelAction.ScrollFilling(i - 1))
-        | (Some((_, i, fillings)), ArrowDown)
+        | (Some((_, i, fillings, _constraints)), ArrowDown)
             when i < List.length(fillings) - 1 =>
           prevent_stop_inject(ModelAction.ScrollFilling(i + 1))
         | _ => prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
