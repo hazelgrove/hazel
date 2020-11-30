@@ -26,7 +26,19 @@ and z =
 let t_of_sexp = _ => failwith("Synthesizing.t_of_sexp todo");
 let sexp_of_t = _ => failwith("Synthesizing.sexp_of_t todo");
 
-let erase = (_z: z): option((UHExp.t, filled_holes)) => failwith("todo");
+let rec erase = (z: z): option((UHExp.t, filled_holes)) =>
+  switch (z) {
+  | Filling(_) => None
+  | Filled(e, filled_holes, (steps, z)) =>
+    let filled_holes =
+      switch (erase(z)) {
+      | None => filled_holes
+      | Some((e, f)) =>
+        let F(filled_map) = filled_holes;
+        F(HoleMap.add(steps, (e, f), filled_map));
+      };
+    Some((e, filled_holes));
+  };
 
 let scroll = (up: bool, (steps, z): t) => {
   let rec go = (z: z) =>
