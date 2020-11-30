@@ -88,7 +88,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ScrollFilling(_)
   | AcceptFilling
   | StepInFilling
-  | StepOutFilling =>
+  | StepOutFilling
+  | NextSynthesisHole
+  | PrevSynthesisHole =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -155,6 +157,10 @@ let apply_action =
       | StepInFilling => Model.map_program(Program.step_in_synthesized, model)
       | StepOutFilling =>
         Model.map_program(Program.step_out_synthesized, model)
+      | NextSynthesisHole =>
+        Model.map_program(Program.next_synthesis_hole, model)
+      | PrevSynthesisHole =>
+        Model.map_program(Program.prev_synthesis_hole, model)
       //
       | ToggleComputeResults => {
           ...model,

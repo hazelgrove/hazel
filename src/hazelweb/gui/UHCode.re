@@ -407,6 +407,10 @@ let key_handlers =
             prevent_stop_inject(ModelAction.SynthesizeHole(u))
           | _ => Event.Ignore
           }
+        | Some(Tab) when Option.is_some(synthesizing) =>
+          prevent_stop_inject(ModelAction.NextSynthesisHole)
+        | Some(ShiftTab) when Option.is_some(synthesizing) =>
+          prevent_stop_inject(ModelAction.PrevSynthesisHole)
         | Some(kc) =>
           prevent_stop_inject(
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),

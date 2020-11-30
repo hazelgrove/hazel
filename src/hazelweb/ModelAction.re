@@ -33,6 +33,8 @@ type t =
   | AcceptFilling
   | StepInFilling
   | StepOutFilling
+  | NextSynthesisHole
+  | PrevSynthesisHole
   // Result computation toggles
   | ToggleComputeResults
   | ToggleShowCaseClauses

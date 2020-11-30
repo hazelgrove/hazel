@@ -364,6 +364,23 @@ let scroll_synthesized_selection = (up, program) => {
   synthesizing: Option.bind(program.synthesizing, Synthesizing.scroll(up)),
 };
 
+let prev_synthesis_hole = program => {
+  ...program,
+  synthesizing:
+    Option.bind(
+      program.synthesizing,
+      Synthesizing.move_to_prev_hole(get_uhexp(program)),
+    ),
+};
+let next_synthesis_hole = program => {
+  ...program,
+  synthesizing:
+    Option.bind(
+      program.synthesizing,
+      Synthesizing.move_to_next_hole(get_uhexp(program)),
+    ),
+};
+
 let step_in_synthesized = program => {
   ...program,
   synthesizing:
