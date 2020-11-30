@@ -494,10 +494,10 @@ module FilledHole = {
 module FillingHole = {
   let view =
       (
+        ~font_metrics: FontMetrics.t,
         ~options: ZList.t(Node.t, Node.t),
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
-    print_endline("0");
     let width = MeasuredLayout.width(subject);
     let tab =
       Node.div(
@@ -522,7 +522,16 @@ module FillingHole = {
          )
       |> (wrapped => ZList.erase(wrapped, x => x));
     Node.div(
-      [Attr.classes(["synthesizing-menu"])],
+      [
+        Attr.classes(["synthesizing-menu"]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: 0px; left: %fpx;",
+            Float.of_int(offset) *. font_metrics.col_width,
+          ),
+        ),
+      ],
       [
         tab,
         Node.div(
@@ -532,7 +541,7 @@ module FillingHole = {
               "style",
               Printf.sprintf(
                 "top: 0px; left: %fpx;",
-                Float.of_int(offset + width + 3),
+                Float.of_int(width + 3) *. font_metrics.col_width,
               ),
             ),
           ],

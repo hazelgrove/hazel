@@ -373,6 +373,23 @@ body {
   border-top: 1px solid #444;
 }
 
+.code.presentation .synthesizing-container {
+  position: absolute;
+  z-index: 1000;
+}
+
+.code.presentation .synthesizing-menu {
+  background-color: white;
+  border: 1px solid black;
+}
+
+.code.presentation .synthesizing-options {
+  position: absolute;
+  z-index: 1000;
+  background-color: white;
+  border: 1px solid black;
+}
+
 .type-info-summary {
   display: flex;
   align-items: flex-start;

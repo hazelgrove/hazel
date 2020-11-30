@@ -170,6 +170,7 @@ let decoration_view =
     (
       ~decoration_views as
         _: (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
+      ~font_metrics,
       ~corner_radii: (float, float),
       ~contains_current_term: bool,
       ~term_sort: TermSort.t,
@@ -202,7 +203,7 @@ let decoration_view =
       |> ZList.map(mk_layout, mk_layout)
       |> ZList.map(view_of_text, view_of_text)
       |> ZList.map(Vdom.Node.span([]), Vdom.Node.span([]));
-    FillingHole.view(~options);
+    FillingHole.view(~font_metrics, ~options);
   };
 };
 
@@ -263,6 +264,7 @@ let rec decoration_views =
           let view =
             decoration_view(
               ~decoration_views,
+              ~font_metrics,
               ~contains_current_term=Option.is_some(dpaths.current_term),
               ~term_sort=sort,
               ~term_shape=shape,
@@ -289,7 +291,7 @@ let rec decoration_views =
                 Attr.create(
                   "style",
                   Printf.sprintf(
-                    "top: %fpx; left: %fpx",
+                    "top: %fpx; left: %fpx;",
                     Float.of_int(start.row) *. font_metrics.row_height,
                     Float.of_int(indent) *. font_metrics.col_width,
                   ),
