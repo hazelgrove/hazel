@@ -334,16 +334,3 @@ let step_out = (e: UHExp.t, (steps, z): t): option(t) => {
   let+ z = go(~sketch=[(e, F(HoleMap.empty), steps)], z);
   (steps, z);
 };
-
-// let move_out = (e: UHExp.t, synthesizing: t): option(t) => {
-//   let rec go = (ee, (ss, z): t) =>
-//     switch (z) {
-//     | Filling(_) => None
-//     | Filled(e, filled_holes, (steps, z)) =>
-//       switch (z) {
-//       | Filling(_) =>
-//         let u = get_meta_var(ss, ee);
-
-//       }
-//     }
-// }
