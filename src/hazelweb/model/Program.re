@@ -359,45 +359,34 @@ let begin_synthesizing = (u, program) => {
   synthesizing: Synthesizing.mk(u, get_uhexp(program)),
 };
 
-let scroll_synthesized_selection = (up, program) => {
-  ...program,
-  synthesizing: Option.bind(program.synthesizing, Synthesizing.scroll(up)),
-};
+let try_synth_update = (f: Synthesizing.t => option(Synthesizing.t), program) =>
+  switch (program.synthesizing) {
+  | None => program
+  | Some(synth) =>
+    switch (f(synth)) {
+    | None => program
+    | Some(_) as synthesizing => {...program, synthesizing}
+    }
+  };
 
-let prev_synthesis_hole = program => {
-  ...program,
-  synthesizing:
-    Option.bind(
-      program.synthesizing,
-      Synthesizing.move_to_prev_hole(get_uhexp(program)),
-    ),
-};
-let next_synthesis_hole = program => {
-  ...program,
-  synthesizing:
-    Option.bind(
-      program.synthesizing,
-      Synthesizing.move_to_next_hole(get_uhexp(program)),
-    ),
-};
+let scroll_synthesized_selection = up =>
+  try_synth_update(Synthesizing.scroll(up));
 
-let step_in_synthesized = program => {
-  ...program,
-  synthesizing:
-    Option.bind(
-      program.synthesizing,
-      Synthesizing.step_in(get_uhexp(program)),
-    ),
-};
+let prev_synthesis_hole = program =>
+  try_synth_update(
+    Synthesizing.move_to_prev_hole(get_uhexp(program)),
+    program,
+  );
+let next_synthesis_hole = program =>
+  try_synth_update(
+    Synthesizing.move_to_next_hole(get_uhexp(program)),
+    program,
+  );
 
-let step_out_synthesized = program => {
-  ...program,
-  synthesizing:
-    Option.bind(
-      program.synthesizing,
-      Synthesizing.step_out(get_uhexp(program)),
-    ),
-};
+let step_in_synthesized = program =>
+  try_synth_update(Synthesizing.step_in(get_uhexp(program)), program);
+let step_out_synthesized = program =>
+  try_synth_update(Synthesizing.step_out(get_uhexp(program)), program);
 
 let accept_synthesized = program =>
   switch (program.synthesizing) {
