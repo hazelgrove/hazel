@@ -403,6 +403,18 @@ and smexp_tuple_to_opseq = (args: list(Smyth.Lang.exp)): option(UHExp.opseq) => 
   Some(UHExp.mk_OpSeq(comma_seq));
 }
 
+and smexp_list_to_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
+  fun
+  | ECtor("Nil", _, ETuple([])) => Some(OpSeq.wrap(UHExp.listnil()))
+  | ECtor("Cons", _, ETuple([hd, tl])) => {
+      let* OpSeq.OpSeq(_, hz_hd) = smexp_to_uhexp_opseq(hd);
+      let* OpSeq.OpSeq(_, hz_tl) = smexp_list_to_opseq(tl);
+      Some(
+        UHExp.mk_OpSeq(Seq.seq_op_seq(hz_hd, Operators_Exp.Cons, hz_tl)),
+      );
+    }
+  | _ => assert(false)
+
 and smexp_app_to_opseq =
     (head: Smyth.Lang.exp, arg: Smyth.Lang.exp_arg): option(UHExp.opseq) => {
   switch (arg) {
@@ -452,8 +464,18 @@ and smexp_branch_to_uhexp_rule =
         ...clause,
       ],
     )
-  | ("Nil", _) => failwith("TODO: NatList")
-  | ("Cons", _) => failwith("TODO: NatList")
+  | ("Nil", _) => UHExp.Rule(OpSeq.wrap(UHPat.listnil()), clause)
+  | ("Cons", PVar(x)) =>
+    UHExp.Rule(
+      UHPat.mk_OpSeq(
+        Seq.seq_op_seq(
+          Seq.wrap(UHPat.var(x ++ "_hd")),
+          Operators_Pat.Cons,
+          Seq.wrap(UHPat.var(x ++ "_tl")),
+        ),
+      ),
+      clause,
+    )
   | _ => assert(false)
   };
 }
@@ -558,7 +580,8 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
         OpSeq.wrap(UHExp.intlit(string_of_int(num)));
       };
     }
-  | ECtor("NatList", _, _) => failwith(__LOC__)
+  | ECtor("Nil", _, arg)
+  | ECtor("Cons", _, arg) => smexp_list_to_opseq(arg)
   | ECtor(str, _, _) => {
       print_endline("Unhandled constructor:");
       print_endline(str);
