@@ -194,7 +194,7 @@ let step_in = (e: UHExp.t, synthesizing: t): option(t) => {
       let sketch = mk_sketch(get_meta_var(ss, e), selected);
       let holes = CursorPath_Exp.holes(selected, [], []);
       switch (holes) {
-      | [{steps, sort: ExpHole(u, _), _}] =>
+      | [{steps, sort: ExpHole(u, _)}, ..._] =>
         let+ (_, filling) = mk(u, sketch);
         (ss, Filled(selected, F(HoleMap.empty), (steps, filling)));
       | _ => None
