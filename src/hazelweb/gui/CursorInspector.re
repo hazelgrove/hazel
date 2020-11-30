@@ -947,7 +947,8 @@ let view =
   let content =
     switch (cursor_info.cursor_term, cursor_inspector.synthesizing) {
     | (Exp(_, EmptyHole(u)), Some((u', i, es, constraints))) when u == u' =>
-      content @ [SynthPanel.view(~inject, ~view_of_text, i, es, constraints)]
+      content
+      @ [SynthPanel.view(~inject, ~view_of_text, i, es, u', constraints)]
     | _ => content
     };
   Vdom.(

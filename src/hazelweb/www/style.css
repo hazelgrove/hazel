@@ -354,6 +354,25 @@ body {
   background-color: rgb(226, 244, 255);
 }
 
+.cursor-inspector table.synth-constraints {
+  width: 100%;
+  background-color: #333;
+  color: #bbb;
+  border-radius: 3px;
+}
+
+.cursor-inspector table.synth-constraints > tr > th {
+  color: white;
+  text-align: left;
+  background-color: #555;
+  border-bottom: 1px solid #888;
+  border-radius: 3px;
+}
+
+.cursor-inspector table.synth-constraints > tr {
+  border-top: 1px solid #444;
+}
+
 .type-info-summary {
   display: flex;
   align-items: flex-start;
