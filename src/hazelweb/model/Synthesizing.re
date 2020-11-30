@@ -148,6 +148,59 @@ let rec move_to_first_hole =
   };
 };
 
+let rec move_to_last_hole =
+        (~sketch, e: UHExp.t, F(filled_map): filled_holes): option(t) => {
+  let holes = CursorPath_Exp.holes(e, [], []);
+  // assuming all holes encountered here will be empty exp holes
+  switch (List.rev(holes)) {
+  | [{steps, sort: ExpHole(u, _)}, ..._] =>
+    switch (HoleMap.find_opt(steps, filled_map)) {
+    | None =>
+      let+ (_, filling) = mk(u, sketch);
+      (steps, filling);
+    | Some((e, filled_holes)) => move_to_last_hole(~sketch, e, filled_holes)
+    }
+  | _ => None
+  };
+};
+
+let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
+  let sketch = mk_sketch(e, synthesizing);
+  let rec go = ((ss, z): t): option(t) =>
+    switch (z) {
+    | Filling(_) => None
+    | Filled(e, F(filled_map) as filled, (steps, z) as synthesizing) =>
+      switch (go(synthesizing)) {
+      | Some(synthesizing) => Some((ss, Filled(e, filled, synthesizing)))
+      | None =>
+        let erased =
+          switch (erase(z)) {
+          | None => filled_map
+          | Some(f) => HoleMap.add(steps, f, filled_map)
+          };
+        let zholes = mk_zholes(steps, e);
+        let* (prev_u, prev_steps) =
+          // assuming all holes encountered here will be empty exp holes
+          switch (List.rev(zholes.holes_before)) {
+          | [{steps, sort: ExpHole(u, _), _}] => Some((u, steps))
+          | _ => None
+          };
+        let synthesize_prev = () => {
+          let+ (_, filling) = mk(prev_u, sketch);
+          (prev_steps, filling);
+        };
+        switch (HoleMap.find_opt(prev_steps, erased)) {
+        | None => synthesize_prev()
+        | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
+          synthesize_prev()
+        | Some((e, filled_holes)) =>
+          move_to_last_hole(~sketch, e, filled_holes)
+        };
+      }
+    };
+  go(synthesizing);
+};
+
 let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
   let sketch = mk_sketch(e, synthesizing);
   let rec go = ((ss, z): t): option(t) =>
