@@ -188,7 +188,7 @@ let decoration_view =
   | VarUse => VarUse.view(~corner_radii)
   | CurrentTerm =>
     CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-  | FilledHole(_synthesizing, _filled_holes) => failwith("todo")
+  | FilledHole(_e, _filled_holes, _synthesizing) => failwith("todo")
   // let l = mk_layout(e);
   // let text = view_of_text(l);
   // let decorations = {

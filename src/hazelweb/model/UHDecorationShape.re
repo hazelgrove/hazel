@@ -4,5 +4,5 @@ type t =
   | VarErrHole
   | VarUse
   | CurrentTerm
-  | FilledHole(Synthesizing.t, Synthesizing.filled_holes)
+  | FilledHole(UHExp.t, Synthesizing.filled_holes, Synthesizing.t)
   | FillingHole(ZList.t(UHExp.t, UHExp.t));
