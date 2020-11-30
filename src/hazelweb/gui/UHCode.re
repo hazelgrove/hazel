@@ -402,7 +402,8 @@ let key_handlers =
           switch (cursor_inspector.synthesizing) {
           | Some(_) when kc == Enter =>
             prevent_stop_inject(ModelAction.AcceptFilling)
-          | None when kc == Ctrl_Enter =>
+          | None
+          | Some(_) when kc == Ctrl_Enter =>
             switch (cursor_info.cursor_term) {
             | Exp(_, EmptyHole(u)) =>
               prevent_stop_inject(ModelAction.SynthesizeHole(u))
