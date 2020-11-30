@@ -109,6 +109,16 @@ let rec mk_sketch = (e: UHExp.t, (steps, z): t): UHExp.t =>
     UHExp.fill_hole(u, e', e);
   };
 
+let rec accept = (e: UHExp.t, (steps, z): t) => {
+  let accepted =
+    switch (z) {
+    | Filling((_, selected, _), _) => selected
+    | Filled(filled, filled_holes, synthesizing) =>
+      sketch_of_filled_holes(accept(filled, synthesizing), filled_holes)
+    };
+  UHExp.fill_hole(get_meta_var(steps, e), accepted, e);
+};
+
 let mk_zholes = (steps: CursorPath.steps, e: UHExp.t): CursorPath.zhole_list => {
   let holes = CursorPath_Exp.holes(e, [], []);
   let (i, _) =

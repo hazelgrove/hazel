@@ -389,6 +389,9 @@ body {
   background-color: white;
   border: 1px solid black;
 }
+.synthesizing-options .selected-filling {
+  background-color: rgb(226, 244, 255);
+}
 
 .type-info-summary {
   display: flex;

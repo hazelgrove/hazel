@@ -368,7 +368,7 @@ let accept_synthesized = program =>
   switch (program.synthesizing) {
   | None => program
   | Some(syn) =>
-    let e = Synthesizing.mk_sketch(get_uhexp(program), syn);
+    let e = Synthesizing.accept(get_uhexp(program), syn);
     let id_gen = get_id_gen(program);
     let (e, ty, id_gen) =
       Statics_Exp.syn_fix_holes(
