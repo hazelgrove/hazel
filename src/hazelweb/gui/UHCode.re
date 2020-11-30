@@ -181,7 +181,7 @@ let decoration_view =
   let mk_layout = e =>
     e
     |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
-    |> Pretty.LayoutOfDoc.layout_of_doc(~width=25, ~pos=0)
+    |> Pretty.LayoutOfDoc.layout_of_doc(~width=30, ~pos=0)
     |> OptUtil.get(() => failwith("layout failure"));
   switch (dshape) {
   | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
