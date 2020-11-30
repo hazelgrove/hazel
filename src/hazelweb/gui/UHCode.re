@@ -351,7 +351,7 @@ let key_handlers =
       ~inject,
       ~is_mac: bool,
       ~cursor_info: CursorInfo.t,
-      ~cursor_inspector: Model.cursor_inspector,
+      ~synthesizing: option(Synthesizing.t),
     )
     : list(Vdom.Attr.t) => {
   open Vdom;
@@ -361,15 +361,12 @@ let key_handlers =
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
       switch (MoveKey.of_key(Key.get_key(evt))) {
+      | Some(ArrowUp) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.ScrollFilling(true))
+      | Some(ArrowDown) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.ScrollFilling(false))
       | Some(move_key) =>
-        switch (cursor_inspector.synthesizing, move_key) {
-        | (Some((_, i, _, _constraints)), ArrowUp) when i > 0 =>
-          prevent_stop_inject(ModelAction.ScrollFilling(i - 1))
-        | (Some((_, i, fillings, _constraints)), ArrowDown)
-            when i < List.length(fillings) - 1 =>
-          prevent_stop_inject(ModelAction.ScrollFilling(i + 1))
-        | _ => prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
-        }
+        prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
         switch (HazelKeyCombos.of_evt(evt)) {
         | Some(Ctrl_Z) =>
@@ -398,21 +395,18 @@ let key_handlers =
           }
         | Some(Ctrl_Space) =>
           prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
-        | Some(kc) =>
-          switch (cursor_inspector.synthesizing) {
-          | Some(_) when kc == Enter =>
-            prevent_stop_inject(ModelAction.AcceptFilling)
-          | None when kc == Ctrl_Enter =>
-            switch (cursor_info.cursor_term) {
-            | Exp(_, EmptyHole(u)) =>
-              prevent_stop_inject(ModelAction.SynthesizeHole(u))
-            | _ => Event.Ignore
-            }
-          | _ =>
-            prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
-            )
+        | Some(Enter) when Option.is_some(synthesizing) =>
+          prevent_stop_inject(ModelAction.AcceptFilling)
+        | Some(Ctrl_Enter) when Option.is_none(synthesizing) =>
+          switch (cursor_info.cursor_term) {
+          | Exp(_, EmptyHole(u)) =>
+            prevent_stop_inject(ModelAction.SynthesizeHole(u))
+          | _ => Event.Ignore
           }
+        | Some(kc) =>
+          prevent_stop_inject(
+            ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+          )
         | None =>
           switch (JSUtil.is_single_key(evt)) {
           | None => Event.Ignore
@@ -450,8 +444,8 @@ let view =
           ? key_handlers(
               ~inject,
               ~is_mac,
-              ~cursor_inspector,
               ~cursor_info=Program.get_cursor_info(program),
+              ~synthesizing=program.synthesizing,
             )
           : [];
 

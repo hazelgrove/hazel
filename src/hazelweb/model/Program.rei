@@ -115,3 +115,7 @@ let get_caret_position:
     t
   ) =>
   Pretty.MeasuredPosition.t;
+
+let begin_synthesizing: (MetaVar.t, t) => t;
+let scroll_synthesized_selection: (bool, t) => t;
+let accept_synthesized: t => t;

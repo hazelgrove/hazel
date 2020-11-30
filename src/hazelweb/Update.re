@@ -96,7 +96,12 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 };
 
 let apply_action =
-    (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
+    (
+      model: Model.t,
+      action: ModelAction.t,
+      state: State.t,
+      ~schedule_action as _,
+    )
     : Model.t => {
   if (model.measurements.measurements) {
     Printf.printf("\n== Update.apply_action times ==\n");
@@ -140,33 +145,11 @@ let apply_action =
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
-      | SynthesizeHole(u) => Model.synthesize(u, model)
-      | ScrollFilling(i) =>
-        switch (model.cursor_inspector.synthesizing) {
-        | None => model
-        | Some((u, _, fillings, constraints)) => {
-            ...model,
-            cursor_inspector: {
-              ...model.cursor_inspector,
-              synthesizing: Some((u, i, fillings, constraints)),
-            },
-          }
-        }
-      | AcceptFilling =>
-        switch (model.cursor_inspector.synthesizing) {
-        | None => model
-        | Some((u, i, fillings, _constraints)) =>
-          schedule_action(
-            ModelAction.EditAction(FillExpHole(u, List.nth(fillings, i))),
-          );
-          {
-            ...model,
-            cursor_inspector: {
-              ...model.cursor_inspector,
-              synthesizing: None,
-            },
-          };
-        }
+      | SynthesizeHole(u) =>
+        Model.map_program(Program.begin_synthesizing(u), model)
+      | ScrollFilling(up) =>
+        Model.map_program(Program.scroll_synthesized_selection(up), model)
+      | AcceptFilling => Model.map_program(Program.accept_synthesized, model)
       //
       | ToggleComputeResults => {
           ...model,

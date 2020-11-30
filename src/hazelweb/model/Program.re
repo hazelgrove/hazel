@@ -353,3 +353,30 @@ let move_via_key =
 let cursor_on_exp_hole_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
 let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
+
+let begin_synthesizing = (u, program) => {
+  ...program,
+  synthesizing: Synthesizing.mk(u, get_uhexp(program)),
+};
+
+let scroll_synthesized_selection = (up, program) => {
+  ...program,
+  synthesizing: Option.bind(program.synthesizing, Synthesizing.scroll(up)),
+};
+
+let accept_synthesized = program =>
+  switch (program.synthesizing) {
+  | None => program
+  | Some(syn) =>
+    let e = Synthesizing.mk_sketch(get_uhexp(program), syn);
+    let id_gen = get_id_gen(program);
+    let (e, ty, id_gen) =
+      Statics_Exp.syn_fix_holes(
+        Contexts.empty,
+        id_gen,
+        ~renumber_empty_holes=true,
+        e,
+      );
+    let edit_state = (ZExp.place_after(e), ty, id_gen);
+    {...program, edit_state, synthesizing: None};
+  };

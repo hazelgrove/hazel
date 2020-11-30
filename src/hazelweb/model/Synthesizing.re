@@ -28,6 +28,25 @@ let sexp_of_t = _ => failwith("Synthesizing.sexp_of_t todo");
 
 let erase = (_z: z): option((UHExp.t, filled_holes)) => failwith("todo");
 
+let scroll = (up: bool, (steps, z): t) => {
+  let rec go = (z: z) =>
+    switch (z) {
+    | Filling((before, selected, after), constraints) =>
+      if (up) {
+        let+ (before, new_selected) = ListUtil.split_last_opt(before);
+        Filling((before, new_selected, [selected, ...after]), constraints);
+      } else {
+        let+ (new_selected, after) = ListUtil.split_first_opt(after);
+        Filling((before @ [selected], new_selected, after), constraints);
+      }
+    | Filled(e, filled_holes, (steps, z)) =>
+      let+ z = go(z);
+      Filled(e, filled_holes, (steps, z));
+    };
+  let+ z = go(z);
+  (steps, z);
+};
+
 let mk = (u: MetaVar.t, e: UHExp.t): option(t) => {
   switch (Shmyth.solve(e, u)) {
   | None =>

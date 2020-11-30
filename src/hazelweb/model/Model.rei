@@ -80,6 +80,7 @@ let get_novice_mode: t => bool;
 let toggle_novice_mode: t => t;
 
 let get_program: t => Program.t;
+let map_program: (Program.t => Program.t, t) => t;
 
 let get_edit_state: t => Statics.edit_state;
 
