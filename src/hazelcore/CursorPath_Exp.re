@@ -28,6 +28,9 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
+  | IfZ1(_, t1, _, _) => cons'(0, of_z(t1))
+  | IfZ2(_, _, t2, _) => cons'(1, of_z(t2))
+  | IfZ3(_, _, _, t3) => cons'(2, of_z(t3))
   | ApPaletteZ(_, _, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
@@ -172,6 +175,21 @@ and follow_operand =
           |> ZList.optmap_z(follow_rule((xs, cursor)))
           |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
         }
+      }
+    | If(err, t1, t2, t3) =>
+      switch (x) {
+      | 0 =>
+        t1
+        |> follow((xs, cursor))
+        |> Option.map(t1 => ZExp.IfZ1(err, t1, t2, t3))
+      | 1 =>
+        t2
+        |> follow((xs, cursor))
+        |> Option.map(t2 => ZExp.IfZ2(err, t1, t2, t3))
+      | _ =>
+        t3
+        |> follow((xs, cursor))
+        |> Option.map(t3 => ZExp.IfZ3(err, t1, t2, t3))
       }
     | ApPalette(err, name, serialized_model, splice_info) =>
       switch (

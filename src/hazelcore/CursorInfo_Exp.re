@@ -23,6 +23,9 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | IfZ1(_, t1, _, _) => extract_cursor_term(t1)
+  | IfZ2(_, _, t2, _) => extract_cursor_term(t2)
+  | IfZ3(_, _, _, t3) => extract_cursor_term(t3)
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
@@ -86,6 +89,9 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | IfZ1(_, t1, _, _) => get_zoperand_from_zexp(t1)
+  | IfZ2(_, _, t2, _) => get_zoperand_from_zexp(t2)
+  | IfZ3(_, _, _, t3) => get_zoperand_from_zexp(t3)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
@@ -142,6 +148,9 @@ and get_outer_zrules_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+  | IfZ1(_, t1, _, _) => get_outer_zrules_from_zexp(t1, outer_zrules)
+  | IfZ2(_, _, t2, _) => get_outer_zrules_from_zexp(t2, outer_zrules)
+  | IfZ3(_, _, _, t3) => get_outer_zrules_from_zexp(t3, outer_zrules)
   | ApPaletteZ(_, _, _, _) => failwith("not implemented")
   };
 }
