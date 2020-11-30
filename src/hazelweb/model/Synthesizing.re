@@ -143,3 +143,37 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
     };
   go(synthesizing);
 };
+
+let move_in = (e: UHExp.t, synthesizing: t): option(t) => {
+  let mk_sketch = (u, e') =>
+    mk_sketch(e, synthesizing) |> UHExp.fill_hole(u, e');
+  let rec go = (e: UHExp.t, (ss, z): t) =>
+    switch (z) {
+    | Filling((_, selected, _)) =>
+      let sketch = mk_sketch(get_meta_var(ss, e), selected);
+      let holes = CursorPath_Exp.holes(selected, [], []);
+      switch (holes) {
+      | [{steps, sort: ExpHole(u, _), _}] =>
+        let+ (_, filling) = mk(u, sketch);
+        (ss, Filled(selected, F(HoleMap.empty), (steps, filling)));
+      | _ => None
+      };
+    | Filled(e, filled_holes, synthesizing) =>
+      let+ synthesizing = go(e, synthesizing);
+      (ss, Filled(e, filled_holes, synthesizing));
+    };
+  go(e, synthesizing);
+};
+
+// let move_out = (e: UHExp.t, synthesizing: t): option(t) => {
+//   let rec go = (ee, (ss, z): t) =>
+//     switch (z) {
+//     | Filling(_) => None
+//     | Filled(e, filled_holes, (steps, z)) =>
+//       switch (z) {
+//       | Filling(_) =>
+//         let u = get_meta_var(ss, ee);
+
+//       }
+//     }
+// }
