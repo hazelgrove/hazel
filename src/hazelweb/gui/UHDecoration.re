@@ -487,8 +487,59 @@ module Caret = {
   };
 };
 
+let synth_tab = width =>
+  Node.div(
+    Attr.[classes(["synthesizing-tab-background"])],
+    [
+      Node.span(
+        [Attr.classes(["synthesizing-hole"])],
+        [Node.text(StringUtil.replicat(width, UnicodeConstants.nbsp))],
+      ),
+      Node.text(
+        StringUtil.cat(UnicodeConstants.[nbsp, double_angle_right, nbsp]),
+      ),
+    ],
+  );
+
 module FilledHole = {
-  let view = (~text as _, ~decorations as _, (_, _)) => Node.span([], []);
+  let view =
+      (
+        ~font_metrics: FontMetrics.t,
+        ~text: list(Node.t),
+        ~decorations: list(Node.t),
+        (offset, subject): UHMeasuredLayout.with_offset,
+      ) => {
+    let width = MeasuredLayout.width(subject);
+    let tab = synth_tab(width);
+    Node.div(
+      [
+        Attr.classes(["synthesized-menu"]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: 0px; left: %fpx;",
+            Float.of_int(offset) *. font_metrics.col_width,
+          ),
+        ),
+      ],
+      [
+        tab,
+        Node.div(
+          [
+            Attr.classes(["synthesized-options"]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "top: 0px; left: %fpx;",
+                Float.of_int(width + 3) *. font_metrics.col_width,
+              ),
+            ),
+          ],
+          text @ decorations,
+        ),
+      ],
+    );
+  };
 };
 
 module FillingHole = {
@@ -499,21 +550,7 @@ module FillingHole = {
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
     let width = MeasuredLayout.width(subject);
-    let tab =
-      Node.div(
-        Attr.[classes(["synthesizing-tab-background"])],
-        [
-          Node.span(
-            [Attr.classes(["synthesizing-hole"])],
-            [Node.text(StringUtil.replicat(width, UnicodeConstants.nbsp))],
-          ),
-          Node.text(
-            StringUtil.cat(
-              UnicodeConstants.[nbsp, double_angle_right, nbsp],
-            ),
-          ),
-        ],
-      );
+    let tab = synth_tab(width);
     let options =
       options
       |> ZList.map(

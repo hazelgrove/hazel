@@ -16,7 +16,7 @@ let mk:
     ~var_err_holes: list(CursorPath.steps)=?,
     ~var_uses: list(CursorPath.steps)=?,
     ~current_term: option(CursorPath.t)=?,
-    ~synthesizing: option(Synthesizing.t)=?,
+    ~synthesizing: Synthesizing.t=?,
     unit
   ) =>
   t;

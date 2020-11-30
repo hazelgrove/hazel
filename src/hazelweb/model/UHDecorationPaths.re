@@ -15,7 +15,7 @@ let mk =
       ~var_err_holes=[],
       ~var_uses=[],
       ~current_term=None,
-      ~synthesizing=None,
+      ~synthesizing=?,
       (),
     ) => {
   err_holes,

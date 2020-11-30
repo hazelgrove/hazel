@@ -382,6 +382,10 @@ body {
   background-color: white;
   border: 1px solid black;
 }
+.code.presentation .synthesized-menu {
+  background-color: white;
+  border: 1px solid black;
+}
 
 .code.presentation .synthesizing-options {
   position: absolute;
@@ -391,6 +395,12 @@ body {
 }
 .synthesizing-options .selected-filling {
   background-color: rgb(226, 244, 255);
+}
+.code.presentation .synthesized-options {
+  position: absolute;
+  z-index: 1000;
+  background-color: white;
+  border: 1px solid black;
 }
 
 .type-info-summary {

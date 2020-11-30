@@ -166,10 +166,9 @@ let decoration_cls: UHDecorationShape.t => string =
   | FillingHole(_) => "filling-hole";
 
 let decoration_view =
-    // todo
     (
-      ~decoration_views as
-        _: (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
+      ~decoration_views:
+         (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
       ~font_metrics,
       ~corner_radii: (float, float),
       ~contains_current_term: bool,
@@ -189,14 +188,14 @@ let decoration_view =
   | VarUse => VarUse.view(~corner_radii)
   | CurrentTerm =>
     CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-  | FilledHole(_e, _filled_holes, _synthesizing) => failwith("todo")
-  // let l = mk_layout(e);
-  // let text = view_of_text(l);
-  // let decorations = {
-  //   let dpaths = UHDecorationPaths.mk(~synthesizing, ());
-  //   decoration_views(dpaths, l);
-  // };
-  // FilledHole.view(~text, ~decorations);
+  | FilledHole(filled, _filled_holes_todo, synthesizing) =>
+    let l = mk_layout(filled);
+    let text = view_of_text(l);
+    let decorations = {
+      let dpaths = UHDecorationPaths.mk(~synthesizing, ());
+      decoration_views(dpaths, l);
+    };
+    FilledHole.view(~font_metrics, ~text, ~decorations);
   | FillingHole(filling, _constraints_todo) =>
     let options =
       filling
@@ -366,6 +365,10 @@ let key_handlers =
         prevent_stop_inject(ModelAction.ScrollFilling(true))
       | Some(ArrowDown) when Option.is_some(synthesizing) =>
         prevent_stop_inject(ModelAction.ScrollFilling(false))
+      | Some(ArrowLeft) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.StepOutFilling)
+      | Some(ArrowRight) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.StepInFilling)
       | Some(move_key) =>
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>

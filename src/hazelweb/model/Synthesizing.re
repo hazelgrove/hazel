@@ -185,7 +185,7 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
   go(synthesizing);
 };
 
-let move_in = (e: UHExp.t, synthesizing: t): option(t) => {
+let step_in = (e: UHExp.t, synthesizing: t): option(t) => {
   let mk_sketch = (u, e') =>
     mk_sketch(e, synthesizing) |> UHExp.fill_hole(u, e');
   let rec go = (e: UHExp.t, (ss, z): t) =>
@@ -206,6 +206,8 @@ let move_in = (e: UHExp.t, synthesizing: t): option(t) => {
   go(e, synthesizing);
 };
 
+let step_out = (_e: UHExp.t, _synthesizing: t): option(t) =>
+  failwith("Synthesizing.step_out todo");
 // let move_out = (e: UHExp.t, synthesizing: t): option(t) => {
 //   let rec go = (ee, (ss, z): t) =>
 //     switch (z) {

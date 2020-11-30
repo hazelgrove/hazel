@@ -364,6 +364,24 @@ let scroll_synthesized_selection = (up, program) => {
   synthesizing: Option.bind(program.synthesizing, Synthesizing.scroll(up)),
 };
 
+let step_in_synthesized = program => {
+  ...program,
+  synthesizing:
+    Option.bind(
+      program.synthesizing,
+      Synthesizing.step_in(get_uhexp(program)),
+    ),
+};
+
+let step_out_synthesized = program => {
+  ...program,
+  synthesizing:
+    Option.bind(
+      program.synthesizing,
+      Synthesizing.step_out(get_uhexp(program)),
+    ),
+};
+
 let accept_synthesized = program =>
   switch (program.synthesizing) {
   | None => program

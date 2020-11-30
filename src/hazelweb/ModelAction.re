@@ -31,6 +31,8 @@ type t =
   | SynthesizeHole(MetaVar.t)
   | ScrollFilling(bool)
   | AcceptFilling
+  | StepInFilling
+  | StepOutFilling
   // Result computation toggles
   | ToggleComputeResults
   | ToggleShowCaseClauses
