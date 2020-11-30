@@ -1,10 +1,23 @@
+open Sexplib.Std;
 open OptUtil.Syntax;
 
-module HoleMap =
-  Map.Make({
+module HoleMap = {
+  include Map.Make({
     type t = CursorPath.steps;
     let compare = CursorPath.compare_steps;
   });
+
+  let sexp_of_t = (sexp_of_v, map): Sexplib.Sexp.t =>
+    bindings(map)
+    |> sexp_of_list(((k, v)) =>
+         Sexplib.Sexp.List([CursorPath.sexp_of_steps(k), sexp_of_v(v)])
+       );
+  let t_of_sexp = sexp => {
+    failwith(
+      "Synthesizing.HoleMap.t_of_sexp " ++ Sexplib.Sexp.to_string(sexp),
+    );
+  };
+};
 
 type filled_holes =
   // need constructor to prevent type synonym cycle
@@ -12,19 +25,24 @@ type filled_holes =
 
 let filled_holes_of_sexp = _ =>
   failwith("Synthesizing.filled_holes_of_sexp todo");
-let sexp_of_filled_holes = _ =>
-  failwith("Synthesizing.sexp_of_filled_holes todo");
+let rec sexp_of_filled_holes = (F(map): filled_holes) =>
+  HoleMap.sexp_of_t(
+    ((e, filled_holes)) =>
+      Sexplib.Sexp.List([
+        UHExp.sexp_of_t(e),
+        sexp_of_filled_holes(filled_holes),
+      ]),
+    map,
+  );
 
 /**
  * Top-down zipper representing synthesis navigation
  */
+[@deriving sexp]
 type t = (CursorPath.steps, z)
 and z =
   | Filling(ZList.t(UHExp.t, UHExp.t), Shmyth.h_constraints)
   | Filled(UHExp.t, filled_holes, t);
-
-let t_of_sexp = _ => failwith("Synthesizing.t_of_sexp todo");
-let sexp_of_t = _ => failwith("Synthesizing.sexp_of_t todo");
 
 let rec erase = (z: z): option((UHExp.t, filled_holes)) =>
   switch (z) {
@@ -189,13 +207,15 @@ let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           let+ (_, filling) = mk(prev_u, sketch);
           (prev_steps, filling);
         };
-        switch (HoleMap.find_opt(prev_steps, erased)) {
-        | None => synthesize_prev()
-        | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
-          synthesize_prev()
-        | Some((e, filled_holes)) =>
-          move_to_last_hole(~sketch, e, filled_holes)
-        };
+        let+ synthesizing =
+          switch (HoleMap.find_opt(prev_steps, erased)) {
+          | None => synthesize_prev()
+          | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
+            synthesize_prev()
+          | Some((e, filled_holes)) =>
+            move_to_last_hole(~sketch, e, filled_holes)
+          };
+        (ss, Filled(e, filled, synthesizing));
       }
     };
   go(synthesizing);
@@ -226,13 +246,15 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           let+ (_, filling) = mk(next_u, sketch);
           (next_steps, filling);
         };
-        switch (HoleMap.find_opt(next_steps, erased)) {
-        | None => synthesize_next()
-        | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
-          synthesize_next()
-        | Some((e, filled_holes)) =>
-          move_to_first_hole(~sketch, e, filled_holes)
-        };
+        let+ synthesizing =
+          switch (HoleMap.find_opt(next_steps, erased)) {
+          | None => synthesize_next()
+          | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
+            synthesize_next()
+          | Some((e, filled_holes)) =>
+            move_to_first_hole(~sketch, e, filled_holes)
+          };
+        (ss, Filled(e, filled, synthesizing));
       }
     };
   go(synthesizing);
