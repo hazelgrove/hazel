@@ -282,8 +282,59 @@ let step_in = (e: UHExp.t, synthesizing: t): option(t) => {
   go(e, synthesizing);
 };
 
-let step_out = (_e: UHExp.t, _synthesizing: t): option(t) =>
-  failwith("Synthesizing.step_out todo");
+let step_out = (e: UHExp.t, (steps, z): t): option(t) => {
+  let rec go =
+          (~sketch: list((UHExp.t, filled_holes, CursorPath.steps)), z: z) => {
+    switch (z) {
+    | Filling(_) => None
+    | Filled(e, filled, (steps, z)) =>
+      switch (go(~sketch=[(e, filled, steps), ...sketch], z)) {
+      | Some(stepped_out) => Some(Filled(e, filled, (steps, stepped_out)))
+      | None =>
+        // need sketch up to this point
+        let synth_sketch = {
+          let ((root_e, _, root_steps), ancestors) =
+            ListUtil.split_first(List.rev(sketch));
+          let inner_sketch =
+            List.fold_right(
+              ((e, filled, steps), inner_sketch) => {
+                let sketch_filled_holes = sketch_of_filled_holes(e, filled);
+                switch (inner_sketch) {
+                | None => Some(sketch_filled_holes)
+                | Some(inner_sketch) =>
+                  Some(
+                    UHExp.fill_hole(
+                      get_meta_var(steps, e),
+                      inner_sketch,
+                      sketch_filled_holes,
+                    ),
+                  )
+                };
+              },
+              ancestors,
+              None,
+            );
+          switch (inner_sketch) {
+          | None => root_e
+          | Some(sketch) =>
+            UHExp.fill_hole(get_meta_var(root_steps, root_e), sketch, root_e)
+          };
+        };
+        let+ (_, filling) = {
+          let u = {
+            let (e, _, steps) = List.hd(sketch);
+            get_meta_var(steps, e);
+          };
+          mk(u, synth_sketch);
+        };
+        filling;
+      }
+    };
+  };
+  let+ z = go(~sketch=[(e, F(HoleMap.empty), steps)], z);
+  (steps, z);
+};
+
 // let move_out = (e: UHExp.t, synthesizing: t): option(t) => {
 //   let rec go = (ee, (ss, z): t) =>
 //     switch (z) {
