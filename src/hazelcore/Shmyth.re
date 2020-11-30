@@ -804,28 +804,30 @@ type solve_result = (list(UHExp.t), h_constraints);
 
 let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
-  print_endline(
-    Sexplib.Sexp.to_string_hum(Smyth.Desugar.sexp_of_program(sm_prog)),
-  );
+  /*print_endline(
+      Sexplib.Sexp.to_string_hum(Smyth.Desugar.sexp_of_program(sm_prog)),
+    );*/
   let all_holes = get_all_holes(sm_prog);
   let (solve_results, hazel_constraints) =
     switch (Smyth.Endpoint.solve_program_hole(sm_prog, all_holes)) {
     | Error(_) => (None, None)
     | Ok({hole_fillings, constraints, _}) =>
       let hazel_constraints = output_constraints_to_something(constraints);
-      List.iter(
-        results =>
-          List.iter(
-            ((h, exp)) =>
-              Printf.printf(
-                "%d = %s\n",
-                h,
-                Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
-              ),
-            results,
-          ),
-        hole_fillings,
-      );
+      /*
+       List.iter(
+         results =>
+           List.iter(
+             ((h, exp)) =>
+               Printf.printf(
+                 "%d = %s\n",
+                 h,
+                 Sexplib.Sexp.to_string(Smyth.Lang.sexp_of_exp(exp)),
+               ),
+             results,
+           ),
+         hole_fillings,
+       );
+       */
       (
         hole_fillings
         |> List.map(hole_filling =>
