@@ -377,6 +377,6 @@ let accept_synthesized = program =>
         ~renumber_empty_holes=true,
         e,
       );
-    let edit_state = (ZExp.place_after(e), ty, id_gen);
-    {...program, edit_state, synthesizing: None};
+    let edit_state = (ZExp.place_before(e), ty, id_gen);
+    {...program, edit_state, is_focused: false, synthesizing: None};
   };
