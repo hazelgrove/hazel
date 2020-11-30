@@ -196,7 +196,7 @@ let decoration_view =
   //   decoration_views(dpaths, l);
   // };
   // FilledHole.view(~text, ~decorations);
-  | FillingHole(filling) =>
+  | FillingHole(filling, _constraints_todo) =>
     let options =
       filling
       |> ZList.map(mk_layout, mk_layout)

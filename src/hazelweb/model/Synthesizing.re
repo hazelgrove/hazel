@@ -20,7 +20,7 @@ let sexp_of_filled_holes = _ =>
  */
 type t = (CursorPath.steps, z)
 and z =
-  | Filling(ZList.t(UHExp.t, UHExp.t))
+  | Filling(ZList.t(UHExp.t, UHExp.t), Shmyth.h_constraints)
   | Filled(UHExp.t, filled_holes, t);
 
 let t_of_sexp = _ => failwith("Synthesizing.t_of_sexp todo");
@@ -33,7 +33,7 @@ let mk = (u: MetaVar.t, e: UHExp.t): option(t) => {
   | None =>
     print_endline("synth error");
     None;
-  | Some(es) =>
+  | Some((es, constraints)) =>
     switch (ZList.split_at(0, es)) {
     | None =>
       print_endline("no synth results");
@@ -43,7 +43,7 @@ let mk = (u: MetaVar.t, e: UHExp.t): option(t) => {
       let hole_steps =
         CursorPath_common.steps_to_hole(holes, u)
         |> OptUtil.get(() => failwith("hole not found"));
-      Some((hole_steps, Filling(zes)));
+      Some((hole_steps, Filling(zes, constraints)));
     }
   };
 };
@@ -149,7 +149,7 @@ let move_in = (e: UHExp.t, synthesizing: t): option(t) => {
     mk_sketch(e, synthesizing) |> UHExp.fill_hole(u, e');
   let rec go = (e: UHExp.t, (ss, z): t) =>
     switch (z) {
-    | Filling((_, selected, _)) =>
+    | Filling((_, selected, _), _) =>
       let sketch = mk_sketch(get_meta_var(ss, e), selected);
       let holes = CursorPath_Exp.holes(selected, [], []);
       switch (holes) {

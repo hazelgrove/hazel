@@ -5,4 +5,4 @@ type t =
   | VarUse
   | CurrentTerm
   | FilledHole(UHExp.t, Synthesizing.filled_holes, Synthesizing.t)
-  | FillingHole(ZList.t(UHExp.t, UHExp.t));
+  | FillingHole(ZList.t(UHExp.t, UHExp.t), Shmyth.h_constraints);

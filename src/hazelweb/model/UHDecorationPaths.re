@@ -89,7 +89,9 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
     };
   let synthesizing =
     switch (dpaths.synthesizing) {
-    | Some(([], Filling(filling))) => [FillingHole(filling)]
+    | Some(([], Filling(filling, constraints))) => [
+        FillingHole(filling, constraints),
+      ]
     | Some(([], Filled(e, filled, t))) => [FilledHole(e, filled, t)]
     | _ => []
     };
