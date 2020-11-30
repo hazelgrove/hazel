@@ -23,15 +23,6 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
-  synthesizing:
-    option(
-      (
-        MetaVar.t,
-        int,
-        list(UHExp.t),
-        Shmyth.h_constraints /* + constraints */,
-      ),
-    ),
 };
 
 type t = {
@@ -141,7 +132,6 @@ let init = (): t => {
       show_expanded: false,
       term_novice_message_mode: false,
       type_novice_message_mode: false,
-      synthesizing: None,
     },
   };
 };
@@ -292,44 +282,6 @@ let perform_edit_action = (a: Action.t, model: t): t => {
         model |> get_program |> Program.perform_edit_action(a);
       model |> update_program(a, new_program);
     },
-  );
-};
-
-[@warning "-27"]
-let synthesize = (u: MetaVar.t, model: t): t => {
-  /*
-     Shmyth.fill
-     - will require a little more deconstruction of the current program
-       to get relevant contexts etc centered around the hole
-     - call Shmyth.fill
-     - populate model.synthesizing with results
-   */
-  switch (Shmyth.solve(Program.get_uhexp(get_program(model)), u)) {
-  | None =>
-    print_endline("synth error");
-    model;
-  | Some(([], _)) =>
-    print_endline("no synth results");
-    model;
-  | Some(([_, ..._] as uhexps, constraints)) =>
-    let synthesizing = Some((u, 0, uhexps, constraints));
-    let cursor_inspector = {...model.cursor_inspector, synthesizing};
-    {...model, cursor_inspector};
-  /* synthesized
-     |> List.fold_left(
-          (model, (u, synthesized)) =>
-            perform_edit_action(FillExpHole(u, synthesized), model),
-          model,
-        ); */
-  };
-};
-
-[@warning "-32"]
-let accept_filling = (_: t): t => {
-  /* just perform FillExpHole with selected filling
-     clear model.synthesizing */
-  failwith(
-    "todo",
   );
 };
 

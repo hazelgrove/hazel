@@ -34,15 +34,6 @@ type cursor_inspector = {
   show_expanded: bool,
   term_novice_message_mode: bool,
   type_novice_message_mode: bool,
-  synthesizing:
-    option(
-      (
-        MetaVar.t,
-        int,
-        list(UHExp.t),
-        Shmyth.h_constraints /* + constraints */,
-      ),
-    ),
 };
 
 type t = {
@@ -107,8 +98,6 @@ let prev_card: t => t;
 let next_card: t => t;
 
 let perform_edit_action: (Action.t, t) => t;
-
-let synthesize: (MetaVar.t, t) => t;
 
 let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;

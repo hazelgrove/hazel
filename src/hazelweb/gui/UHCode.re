@@ -339,7 +339,6 @@ let view_of_cursor_inspector =
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
   CursorInspector.view(
     ~inject,
-    ~view_of_text=l => view_of_text(l),
     (cursor_x, cursor_y),
     cursor_inspector,
     cursor_info,

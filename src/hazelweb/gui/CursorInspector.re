@@ -542,7 +542,6 @@ let summary_bar =
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~view_of_text,
       loc: (float, float),
       cursor_inspector: Model.cursor_inspector,
       cursor_info: CursorInfo.t,
@@ -943,13 +942,6 @@ let view =
       [summary, ind1, ind2];
     } else {
       [summary];
-    };
-  let content =
-    switch (cursor_info.cursor_term, cursor_inspector.synthesizing) {
-    | (Exp(_, EmptyHole(u)), Some((u', i, es, constraints))) when u == u' =>
-      content
-      @ [SynthPanel.view(~inject, ~view_of_text, i, es, u', constraints)]
-    | _ => content
     };
   Vdom.(
     Node.div(
