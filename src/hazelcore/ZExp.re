@@ -779,6 +779,15 @@ and move_cursor_left_zoperand =
         ),
       )
     }
+  | CursorE(OnDelim(k, Before), If(err, t1, t2, t3)) =>
+    // k == 1 || k == 2 || k == 3
+    if (k == 1) {
+      Some(IfZ1(err, place_after(t1), t2, t3));
+    } else if (k == 2) {
+      Some(IfZ2(err, t1, place_after(t2), t3));
+    } else {
+      Some(IfZ3(err, t1, t2, place_after(t3)));
+    }
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
@@ -837,17 +846,20 @@ and move_cursor_left_zoperand =
   | IfZ1(err, zt1, t2, t3) =>
     switch (move_cursor_left(zt1)) {
     | Some(zt1) => Some(IfZ1(err, zt1, t2, t3))
-    | None => Some(CursorE(OnDelim(0, After), If(err, erase(zt1), t2, t3)))
+    | None =>
+      Some(CursorE(OnDelim(0, After), If(err, erase(zt1), t2, t3)))
     }
   | IfZ2(err, t1, zt2, t3) =>
     switch (move_cursor_left(zt2)) {
     | Some(zt2) => Some(IfZ2(err, t1, zt2, t3))
-    | None => Some(CursorE(OnDelim(0, After), If(err, t1, erase(zt2), t3)))
+    | None =>
+      Some(CursorE(OnDelim(0, After), If(err, t1, erase(zt2), t3)))
     }
   | IfZ3(err, t1, t2, zt3) =>
     switch (move_cursor_left(zt3)) {
     | Some(zt3) => Some(IfZ3(err, t1, t2, zt3))
-    | None => Some(CursorE(OnDelim(0, After), If(err, t1, t2, erase(zt3))))
+    | None =>
+      Some(CursorE(OnDelim(0, After), If(err, t1, t2, erase(zt3))))
     }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_left_zrules =
@@ -1010,6 +1022,15 @@ and move_cursor_right_zoperand =
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
+  | CursorE(OnDelim(k, After), If(err, t1, t2, t3)) =>
+    // k == 1 || k == 2 || k == 3
+    if (k == 1) {
+      Some(IfZ1(err, place_before(t1), t2, t3));
+    } else if (k == 2) {
+      Some(IfZ2(err, t1, place_before(t2), t3));
+    } else {
+      Some(IfZ3(err, t1, t2, place_before(t3)));
+    }
   | CursorE(_, ApPalette(_)) => None
   | CursorE(
       OnDelim(_),
@@ -1085,6 +1106,24 @@ and move_cursor_right_zoperand =
         ),
       )
     }
+  | IfZ1(err, zt1, t2, t3) =>
+    switch (move_cursor_right(zt1)) {
+    | Some(zt1) => Some(IfZ1(err, zt1, t2, t3))
+    | None =>
+      Some(CursorE(OnDelim(0, Before), If(err, erase(zt1), t2, t3)))
+    }
+  | IfZ2(err, t1, zt2, t3) =>
+    switch (move_cursor_right(zt2)) {
+    | Some(zt2) => Some(IfZ2(err, t1, zt2, t3))
+    | None =>
+      Some(CursorE(OnDelim(0, Before), If(err, t1, erase(zt2), t3)))
+    }
+  | IfZ3(err, t1, t2, zt3) =>
+    switch (move_cursor_right(zt3)) {
+    | Some(zt3) => Some(IfZ3(err, t1, t2, zt3))
+    | None =>
+      Some(CursorE(OnDelim(0, Before), If(err, t1, t2, erase(zt3))))
+    }
   | ApPaletteZ(_, _, _, _) => None
 and move_cursor_right_zrules =
   fun
@@ -1153,6 +1192,9 @@ and cursor_on_EmptyHole_zoperand =
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
   | ApPaletteZ(_) => failwith("unimplemented")
   | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
+  | IfZ1(_, t1, _, _) => cursor_on_EmptyHole(t1)
+  | IfZ2(_, _, t2, _) => cursor_on_EmptyHole(t2)
+  | IfZ3(_, _, _, t3) => cursor_on_EmptyHole(t3)
 and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)
