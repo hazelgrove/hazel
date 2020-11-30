@@ -182,7 +182,7 @@ let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
         let* (prev_u, prev_steps) =
           // assuming all holes encountered here will be empty exp holes
           switch (List.rev(zholes.holes_before)) {
-          | [{steps, sort: ExpHole(u, _), _}] => Some((u, steps))
+          | [{steps, sort: ExpHole(u, _)}, ..._] => Some((u, steps))
           | _ => None
           };
         let synthesize_prev = () => {
@@ -219,7 +219,7 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
         let* (next_u, next_steps) =
           // assuming all holes encountered here will be empty exp holes
           switch (zholes.holes_after) {
-          | [{steps, sort: ExpHole(u, _), _}] => Some((u, steps))
+          | [{steps, sort: ExpHole(u, _)}, ..._] => Some((u, steps))
           | _ => None
           };
         let synthesize_next = () => {
