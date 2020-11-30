@@ -128,7 +128,7 @@ let init = (): t => {
     is_mac: true,
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     cursor_inspector: {
-      visible: true,
+      visible: false,
       show_expanded: false,
       term_novice_message_mode: false,
       type_novice_message_mode: false,
