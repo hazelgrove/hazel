@@ -354,14 +354,14 @@ body {
   background-color: rgb(226, 244, 255);
 }
 
-.cursor-inspector table.synth-constraints {
+.synthesizing-menu table.synth-constraints {
   width: 100%;
   background-color: #333;
   color: #bbb;
   border-radius: 3px;
 }
 
-.cursor-inspector table.synth-constraints > tr > th {
+.synthesizing-menu table.synth-constraints > tr > th {
   color: white;
   text-align: left;
   background-color: #555;
@@ -369,7 +369,7 @@ body {
   border-radius: 3px;
 }
 
-.cursor-inspector table.synth-constraints > tr {
+.synthesizing-menu table.synth-constraints > tr {
   border-top: 1px solid #444;
 }
 
@@ -379,16 +379,22 @@ body {
 }
 
 .code.presentation .synthesizing-menu {
-  background-color: white;
-  border: 1px solid black;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: start;
 }
 .code.presentation .synthesized-menu {
   background-color: white;
   border: 1px solid black;
 }
 
+.code.presentation .synthesizing-tab {
+  border: 1px solid black;
+  background-color: white;
+}
+
 .code.presentation .synthesizing-options {
-  position: absolute;
+  /*position: absolute;*/
   z-index: 1000;
   background-color: white;
   border: 1px solid black;

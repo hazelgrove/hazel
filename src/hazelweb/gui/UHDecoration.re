@@ -490,7 +490,7 @@ module Caret = {
 
 let synth_tab = width =>
   Node.div(
-    Attr.[classes(["synthesizing-tab-background"])],
+    Attr.[classes(["synthesizing-tab"])],
     [
       Node.span(
         [Attr.classes(["synthesizing-hole"])],
@@ -684,19 +684,7 @@ module FillingHole = {
       ],
       [
         tab,
-        Node.div(
-          [
-            Attr.classes(["synthesizing-options"]),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "top: 0px; left: %fpx;",
-                Float.of_int(width + 3) *. font_metrics.col_width,
-              ),
-            ),
-          ],
-          options,
-        ),
+        Node.div([Attr.classes(["synthesizing-options"])], options),
         constraints_table(constraints),
       ],
     );
