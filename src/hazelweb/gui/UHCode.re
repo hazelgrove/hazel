@@ -77,6 +77,31 @@ let decoration_container =
   );
 };
 
+let decoration_cls: UHDecorationShape.t => string =
+  fun
+  | ErrHole => "err-hole"
+  | VarErrHole => "var-err-hole"
+  | VarUse => "var-use"
+  | CurrentTerm => "current-term";
+
+let decoration_view =
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      ~term_sort: TermSort.t,
+      ~term_shape: TermShape.t,
+      shape: UHDecorationShape.t,
+    ) =>
+  UHDecoration.(
+    switch (shape) {
+    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
+    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+    | VarUse => VarUse.view(~corner_radii)
+    | CurrentTerm =>
+      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+    }
+  );
+
 let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
@@ -122,55 +147,26 @@ let decoration_views =
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
         let offset = start.col - indent;
-        let origin = MeasuredPosition.{row: start.row, col: indent};
-        let height = lazy(MeasuredLayout.height(m));
-        let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
-               let (cls, decoration) =
-                 UHDecoration.(
-                   switch (dshape) {
-                   | ErrHole => (
-                       "err-hole",
-                       ErrHole.view(
-                         ~contains_current_term=
-                           Option.is_some(dpaths.current_term),
-                         ~corner_radii,
-                         (offset, m),
-                       ),
-                     )
-                   | VarErrHole => (
-                       "var-err-hole",
-                       VarErrHole.view(
-                         ~contains_current_term=
-                           Option.is_some(dpaths.current_term),
-                         ~corner_radii,
-                         (offset, m),
-                       ),
-                     )
-                   | VarUse => (
-                       "var-use",
-                       VarUse.view(~corner_radii, (offset, m)),
-                     )
-                   | CurrentTerm => (
-                       "current-term",
-                       CurrentTerm.view(
-                         ~corner_radii,
-                         ~sort,
-                         ~shape,
-                         (offset, m),
-                       ),
-                     )
-                   }
+               let cls = decoration_cls(dshape);
+               let view =
+                 decoration_view(
+                   ~contains_current_term=Option.is_some(dpaths.current_term),
+                   ~corner_radii,
+                   ~term_shape=shape,
+                   ~term_sort=sort,
+                   dshape,
+                   (offset, m),
                  );
                decoration_container(
                  ~font_metrics,
-                 ~height=Lazy.force(height),
-                 ~width=Lazy.force(width),
-                 ~origin,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
                  ~cls,
-                 [decoration],
+                 [view],
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
@@ -183,8 +179,7 @@ let decoration_views =
 };
 
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo_common.t)
-    : list(Vdom.Attr.t) => {
+    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -225,23 +220,14 @@ let key_handlers =
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
           )
         | None =>
-          switch (HazelKeyCombos.of_evt(evt)) {
-          | Some(Ctrl_Z) => prevent_stop_inject(ModelAction.Undo)
-          | Some(Ctrl_Shift_Z) => prevent_stop_inject(ModelAction.Redo)
-          | Some(kc) =>
+          switch (JSUtil.is_single_key(evt)) {
+          | None => Event.Ignore
+          | Some(single_key) =>
             prevent_stop_inject(
-              ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
+              ModelAction.EditAction(
+                Construct(SChar(JSUtil.single_key_string(single_key))),
+              ),
             )
-          | None =>
-            switch (JSUtil.is_single_key(evt)) {
-            | None => Event.Ignore
-            | Some(single_key) =>
-              prevent_stop_inject(
-                ModelAction.EditAction(
-                  Construct(SChar(JSUtil.single_key_string(single_key))),
-                ),
-              )
-            }
           }
         }
       }
