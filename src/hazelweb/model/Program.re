@@ -122,6 +122,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
+  let _assert_results = failwith("todo sean");
   {current_term, err_holes, var_uses, var_err_holes};
 };
 
