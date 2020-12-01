@@ -1,21 +1,6 @@
 open Virtual_dom.Vdom;
 open Sexplib.Std;
-//open Smyth.Lang;
-
-[@deriving sexp]
-type h_constraint_env = list((string, DHExp.t));
-[@deriving sexp]
-type h_constraint = (Shmyth.hexample, h_constraint_env);
-[@deriving sexp]
-type constraint_data = list(h_constraint);
-[@deriving sexp]
-/* outer list is different options/possibilities
-   next outermost list is pairs of hole names and
-   lists of pairs of target values from examples and their corresponding environments */
-type h_constraints = list(list((Smyth.Lang.hole_name, constraint_data)));
-
-[@deriving sexp]
-type h_constraints_2 = list((Smyth.Lang.hole_name, constraint_data));
+open Shmyth;
 
 let rec natlist_dhexp_to_string_list = (dhexp: DHExp.t): list(string) => {
   switch (dhexp) {
