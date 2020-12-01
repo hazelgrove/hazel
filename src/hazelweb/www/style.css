@@ -406,6 +406,8 @@ body {
   position: relative;
   z-index: 1000;
   color: var(--synthesizing-text-color);
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
 }
 
 .code.presentation .synthesizing-options {
