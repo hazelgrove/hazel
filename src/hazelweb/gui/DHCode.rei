@@ -21,6 +21,7 @@ let view:
     ~selected_instance: option(HoleInstance.t),
     ~width: int,
     ~pos: int=?,
-    DHExp.t
+    DHExp.t,
+    AssertMap.t
   ) =>
   Vdom.Node.t;

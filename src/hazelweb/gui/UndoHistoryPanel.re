@@ -103,6 +103,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(num);
       }
+    | AssertLit(_) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("Assert"),
+            indicate_words_view(" literal "),
+            code_view("assert"),
+          ],
+        )
+      )
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(

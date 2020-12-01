@@ -21,4 +21,4 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
-let evaluate: DHExp.t => result;
+let evaluate: (DHExp.t, AssertMap.t) => (result, AssertMap.t);
