@@ -395,7 +395,6 @@ body {
 }
 
 .code.presentation .synthesizing-options {
-  /*position: absolute;*/
   z-index: 1000;
   background-color: white;
   border: 1px solid black;
@@ -404,7 +403,6 @@ body {
   background-color: rgb(226, 244, 255);
 }
 .code.presentation .synthesized-options {
-  position: absolute;
   z-index: 1000;
   background-color: white;
   border: 1px solid black;

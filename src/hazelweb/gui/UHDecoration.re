@@ -516,7 +516,7 @@ module FilledHole = {
         Attr.create(
           "style",
           Printf.sprintf(
-            "top: 0px; left: %fpx;",
+            "top: -1px; left: %fpx;",
             Float.of_int(offset) *. font_metrics.col_width,
           ),
         ),
@@ -542,7 +542,7 @@ module FilledHoleZ = {
         Attr.create(
           "style",
           Printf.sprintf(
-            "top: 0px; left: %fpx;",
+            "top: -1px; left: %fpx;",
             Float.of_int(offset) *. font_metrics.col_width,
           ),
         ),
@@ -550,16 +550,7 @@ module FilledHoleZ = {
       [
         tab,
         Node.div(
-          [
-            Attr.classes(["synthesized-options"]),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "top: 0px; left: %fpx;",
-                Float.of_int(width + 3) *. font_metrics.col_width,
-              ),
-            ),
-          ],
+          [Attr.classes(["synthesized-options"])],
           text @ decorations,
         ),
       ],
@@ -677,7 +668,7 @@ module FillingHole = {
         Attr.create(
           "style",
           Printf.sprintf(
-            "top: 0px; left: %fpx;",
+            "top: -1px; left: %fpx;",
             Float.of_int(offset) *. font_metrics.col_width,
           ),
         ),
