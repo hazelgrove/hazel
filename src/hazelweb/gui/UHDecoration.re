@@ -603,8 +603,7 @@ module FillingHole = {
       | [] => []
       | [(_ex, env), ..._] =>
         let env_names = List.map(((id_str, _v)) => id_str, env);
-        // reversals are temp hack to get result at back -andrew
-        List.rev(["=", ...env_names]);
+        ["=", ...env_names];
       };
     let rows =
       constraints
@@ -615,8 +614,7 @@ module FillingHole = {
                ((_id_str, v)) => constraint_dhexp_to_string(v),
                env,
              );
-           // see above re: reversal
-           List.rev([ex_str, ...env_values]);
+           [ex_str, ...env_values];
          });
     switch (headers) {
     | [] => []
