@@ -489,7 +489,7 @@ let view =
             ~memoize_doc=true,
             program,
           );
-        program.is_focused
+        program.is_focused && Option.is_none(program.synthesizing)
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
