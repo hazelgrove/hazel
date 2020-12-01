@@ -596,7 +596,10 @@ and smexp_to_uhexp_opseq: Smyth.Lang.exp => option(UHExp.opseq) =
       };
     }
   | ECtor("Nil", _, _) as exp
-  | ECtor("Cons", _, _) as exp => smexp_list_to_opseq(exp)
+  | ECtor("Cons", _, _) as exp => {
+      let* hexp = smexp_list_to_opseq(exp);
+      Some(OpSeq.wrap(UHExp.Parenthesized([ExpLine(hexp)])));
+    }
   | ECtor(str, _, _) => {
       print_endline("Unhandled constructor:");
       print_endline(str);
