@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open Virtual_dom.Vdom;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
@@ -567,10 +568,98 @@ module FilledHoleZ = {
 };
 
 module FillingHole = {
+  open Shmyth;
+
+  let rec natlist_dhexp_to_string_list = (dhexp: DHExp.t): list(string) => {
+    switch (dhexp) {
+    | ListNil(_) => []
+    | Cons(IntLit(n), cdr) =>
+      [string_of_int(n)] @ natlist_dhexp_to_string_list(cdr)
+    | _ => failwith("ERROR: natlist_dhexp_to_string: malformed natlist lit")
+    };
+  };
+
+  let rec constraint_dhexp_to_string = (constraint_dhexp: DHExp.t): string => {
+    switch (constraint_dhexp) {
+    | IntLit(n) => string_of_int(n)
+    | BoolLit(n) => string_of_bool(n)
+    | BoundVar(str) => str
+    | ListNil(_) => "[]"
+    | Cons(_) =>
+      "["
+      ++ String.concat(", ", natlist_dhexp_to_string_list(constraint_dhexp))
+      ++ "]"
+    | _ =>
+      print_endline("ERROR: constraint_dhexp_to_string:");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(constraint_dhexp)),
+      );
+      "?";
+    };
+  }
+  and constraint_ex_to_string = (constraint_ex: Shmyth.hexample): string => {
+    switch (constraint_ex) {
+    | Ex(dhexp) => constraint_dhexp_to_string(dhexp)
+    | ExIO(xs) =>
+      let strs = List.map(constraint_dhexp_to_string, xs);
+      "λ." ++ String.concat("→", strs);
+    };
+  };
+
+  let constraints_to_text_table = (constraints: constraint_data) => {
+    let headers =
+      switch (constraints) {
+      | [] => []
+      | [(_ex, env), ..._] =>
+        let env_names = List.map(((id_str, _v)) => id_str, env);
+        // reversals are temp hack to get result at back -andrew
+        List.rev(["=", ...env_names]);
+      };
+    let rows =
+      constraints
+      |> List.map(((ex, env)) => {
+           let ex_str = constraint_ex_to_string(ex);
+           let env_values =
+             List.map(
+               ((_id_str, v)) => constraint_dhexp_to_string(v),
+               env,
+             );
+           // see above re: reversal
+           List.rev([ex_str, ...env_values]);
+         });
+    switch (headers) {
+    | [] => []
+    | h => [h] @ rows
+    };
+  };
+
+  [@deriving sexp]
+  type constraint_str_table = list(list(string));
+
+  let make_row = (row_fn, row_data) => {
+    Node.tr(
+      [Attr.classes([])],
+      List.map(entry => row_fn([], [Node.text(entry)]), row_data),
+    );
+  };
+
+  let constraints_table = constraints => {
+    let contents =
+      switch (constraints_to_text_table(constraints)) {
+      | [] => []
+      | [header, ...rows] => [
+          make_row(Node.th, header),
+          ...List.map(make_row(Node.td), rows),
+        ]
+      };
+    Node.table([Attr.classes(["synth-constraints"])], contents);
+  };
+
   let view =
       (
         ~font_metrics: FontMetrics.t,
         ~options: ZList.t(Node.t, Node.t),
+        ~constraints: Shmyth.constraint_data,
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
     let width = MeasuredLayout.width(subject);
@@ -608,6 +697,7 @@ module FillingHole = {
           ],
           options,
         ),
+        constraints_table(constraints),
       ],
     );
   };

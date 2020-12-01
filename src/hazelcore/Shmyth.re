@@ -814,8 +814,28 @@ let get_all_holes = (sm_prog: Smyth.Desugar.program) => {
     );
 };
 
+let process_constraints = (hconstraints, hole_number) => {
+  /* the constraints i'm extracting from smyth have this outer nesting
+     list that i'm not sure i'm interpreting correctly. in the examples
+     i've looked at so far, whenever there is more than one element in this
+     outer list, the second element is a duplicate. for sake of time,
+     i am shelving my attempt to figure this out and just taking the first element. */
+  let one_world_constraints =
+    switch (hconstraints) {
+    | [] => []
+    | [x, ..._] => x
+    };
+  one_world_constraints
+  |> List.filter(((hole_name, _)) => hole_name == hole_number)
+  |> (
+    fun
+    | [] => []
+    | [(_hole_name, data), ..._] => data
+  );
+};
+
 //type solve_result = list(list((MetaVar.t, UHExp.t)));
-type solve_result = (list(UHExp.t), h_constraints);
+type solve_result = (list(UHExp.t), constraint_data);
 
 let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
   let* sm_prog = top_hexp_to_smprog(e);
@@ -827,7 +847,11 @@ let solve = (e: UHExp.t, hole_number: MetaVar.t): option(solve_result) => {
     switch (Smyth.Endpoint.solve_program_hole(sm_prog, all_holes)) {
     | Error(_) => (None, None)
     | Ok({hole_fillings, constraints, _}) =>
-      let hazel_constraints = output_constraints_to_something(constraints);
+      let hazel_constraints =
+        process_constraints(
+          output_constraints_to_something(constraints),
+          hole_number,
+        );
       /*
        List.iter(
          results => {

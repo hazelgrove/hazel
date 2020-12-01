@@ -41,7 +41,7 @@ let rec sexp_of_filled_holes = (F(map): filled_holes) =>
 [@deriving sexp]
 type t = (CursorPath.steps, z)
 and z =
-  | Filling(ZList.t(UHExp.t, UHExp.t), Shmyth.h_constraints)
+  | Filling(ZList.t(UHExp.t, UHExp.t), Shmyth.constraint_data)
   | Filled(UHExp.t, filled_holes, t);
 
 let rec erase = (z: z): (UHExp.t, filled_holes) =>

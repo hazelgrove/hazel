@@ -203,13 +203,13 @@ let decoration_view =
       decoration_views(dpaths, l);
     };
     FilledHoleZ.view(~font_metrics, ~text, ~decorations);
-  | FillingHole(filling, _constraints_todo) =>
+  | FillingHole(filling, constraints) =>
     let options =
       filling
       |> ZList.map(mk_layout, mk_layout)
       |> ZList.map(view_of_text, view_of_text)
       |> ZList.map(Vdom.Node.span([]), Vdom.Node.span([]));
-    FillingHole.view(~font_metrics, ~options);
+    FillingHole.view(~font_metrics, ~options, ~constraints);
   };
 };
 
