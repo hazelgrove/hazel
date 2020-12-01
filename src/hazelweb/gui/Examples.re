@@ -441,55 +441,69 @@ let addition_template: UHExp.t = [
   ),
 ];
 
+let shmyth_case_list =
+    (
+      scrutinee: string,
+      on_nil: UHExp.opseq,
+      hd: string,
+      tl: string,
+      on_cons: UHExp.opseq,
+    )
+    : UHExp.operand =>
+  UHExp.case(
+    [ExpLine(OpSeq.wrap(UHExp.var(scrutinee)))],
+    [
+      Rule(OpSeq.wrap(UHPat.listnil()), [ExpLine(on_nil)]),
+      Rule(
+        UHPat.mk_OpSeq(
+          Seq.seq_op_seq(
+            Seq.wrap(UHPat.var(hd)),
+            Operators_Pat.Cons,
+            Seq.wrap(UHPat.var(tl)),
+          ),
+        ),
+        [ExpLine(on_cons)],
+      ),
+    ],
+  );
+
+let shmyth_app = (fname: string, args: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(
+      UHExp.var(fname),
+      List.map(a => (Operators_Exp.Space, a), args),
+    ),
+  );
+
+let shmyth_parens = (a: UHExp.opseq): UHExp.operand =>
+  Parenthesized([ExpLine(a)]);
+
+let shmyth_cons =
+    (head: UHExp.operand, args: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(head, List.map(a => (Operators_Exp.Cons, a), args)),
+  );
+
+let shmyth_lam = (x: string, body: UHExp.opseq): UHExp.opseq =>
+  OpSeq.wrap(UHExp.lam(OpSeq.wrap(UHPat.var(x)), [ExpLine(body)]));
+
+let shmyth_hole = (h: int): UHExp.opseq => OpSeq.wrap(UHExp.EmptyHole(h));
+
 let append_template: UHExp.t = [
   UHExp.letline(
     OpSeq.wrap(UHPat.var("append")),
     ~ann=UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
-    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
+    [ExpLine(shmyth_hole(0))],
   ),
   mk_app_equality_assert(
     1,
     "append",
-    UHExp.[
-      Parenthesized([
-        ExpLine(
-          mk_OpSeq(
-            Seq.seq_op_seq(
-              Seq.wrap(intlit("1")),
-              Operators_Exp.Cons,
-              Seq.wrap(listnil()),
-            ),
-          ),
-        ),
-      ]),
-      Parenthesized([
-        ExpLine(
-          mk_OpSeq(
-            Seq.seq_op_seq(
-              Seq.wrap(intlit("2")),
-              Operators_Exp.Cons,
-              Seq.wrap(listnil()),
-            ),
-          ),
-        ),
-      ]),
+    [
+      shmyth_parens(shmyth_cons(UHExp.intlit("1"), [UHExp.listnil()])),
+      shmyth_parens(shmyth_cons(UHExp.intlit("2"), [UHExp.listnil()])),
     ],
-    UHExp.(
-      Parenthesized([
-        ExpLine(
-          mk_OpSeq(
-            Seq.seq_op_seq(
-              Seq.wrap(intlit("1")),
-              Operators_Exp.Cons,
-              Seq.seq_op_seq(
-                Seq.wrap(intlit("2")),
-                Operators_Exp.Cons,
-                Seq.wrap(listnil()),
-              ),
-            ),
-          ),
-        ),
-      ])
+    shmyth_parens(
+      shmyth_cons(UHExp.intlit("1"), [UHExp.intlit("2"), UHExp.listnil()]),
     ),
   ),
   mk_app_equality_assert(
@@ -503,81 +517,37 @@ let append_template: UHExp.t = [
   ),
 ];
 
+/* let max_template: UHExp.t = [] */
+
 let stutterN_template: UHExp.t = [
   UHExp.letline(
     OpSeq.wrap(UHPat.var("append")),
     ~ann=UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
     [
       ExpLine(
-        OpSeq.wrap(
-          UHExp.lam(
-            OpSeq.wrap(UHPat.var("xs")),
-            [
-              ExpLine(
-                OpSeq.wrap(
-                  UHExp.lam(
-                    OpSeq.wrap(UHPat.var("ys")),
-                    [
-                      ExpLine(
-                        OpSeq.wrap(
-                          UHExp.case(
-                            [ExpLine(OpSeq.wrap(UHExp.var("xs")))],
-                            [
-                              Rule(
-                                OpSeq.wrap(UHPat.listnil()),
-                                [ExpLine(OpSeq.wrap(UHExp.var("ys")))],
-                              ),
-                              Rule(
-                                UHPat.mk_OpSeq(
-                                  Seq.seq_op_seq(
-                                    Seq.wrap(UHPat.var("x")),
-                                    Operators_Pat.Cons,
-                                    Seq.wrap(UHPat.var("xs1")),
-                                  ),
-                                ),
-                                [
-                                  ExpLine(
-                                    UHExp.mk_OpSeq(
-                                      Seq.seq_op_seq(
-                                        Seq.wrap(UHExp.var("x")),
-                                        Operators_Exp.Cons,
-                                        Seq.wrap(
-                                          UHExp.Parenthesized([
-                                            ExpLine(
-                                              UHExp.mk_OpSeq(
-                                                Seq.seq_op_seq(
-                                                  Seq.wrap(
-                                                    UHExp.var("append"),
-                                                  ),
-                                                  Operators_Exp.Space,
-                                                  Seq.seq_op_seq(
-                                                    Seq.wrap(
-                                                      UHExp.var("xs1"),
-                                                    ),
-                                                    Operators_Exp.Space,
-                                                    Seq.wrap(
-                                                      UHExp.var("ys"),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ]),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+        shmyth_lam(
+          "xs",
+          shmyth_lam(
+            "ys",
+            OpSeq.wrap(
+              shmyth_case_list(
+                "xs",
+                OpSeq.wrap(UHExp.var("ys")),
+                "x",
+                "xs1",
+                shmyth_cons(
+                  UHExp.var("x"),
+                  [
+                    shmyth_parens(
+                      shmyth_app(
+                        "append",
+                        [UHExp.var("xs1"), UHExp.var("ys")],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
