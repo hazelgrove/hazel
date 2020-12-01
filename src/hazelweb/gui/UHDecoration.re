@@ -488,13 +488,13 @@ module Caret = {
   };
 };
 
-let synth_tab = width =>
+let synth_tab = _width =>
   Node.div(
     Attr.[classes(["synthesizing-tab"])],
     [
       Node.span(
         [Attr.classes(["synthesizing-hole"])],
-        [Node.text(StringUtil.replicat(width, UnicodeConstants.nbsp))],
+        [Node.text(UnicodeConstants.nbsp ++ "○")],
       ),
       Node.text(
         StringUtil.cat(UnicodeConstants.[nbsp, double_angle_right, nbsp]),
@@ -550,7 +550,7 @@ module FilledHoleZ = {
       [
         tab,
         Node.div(
-          [Attr.classes(["synthesized-options"])],
+          [Attr.classes(["synthesized-option"])],
           text @ decorations,
         ),
       ],
@@ -676,6 +676,7 @@ module FillingHole = {
       [
         tab,
         Node.div([Attr.classes(["synthesizing-options"])], options),
+        Node.div([], []),
         constraints_table(constraints),
       ],
     );
