@@ -449,6 +449,12 @@ let shmyth_app = (fname: string, args: list(UHExp.operand)): UHExp.opseq =>
     ),
   );
 
+let shmyth_app_operand =
+    (f: UHExp.operand, inputs: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(f, List.map(a => (Operators_Exp.Space, a), inputs)),
+  );
+
 let shmyth_parens = (a: UHExp.opseq): UHExp.operand =>
   Parenthesized([ExpLine(a)]);
 
@@ -468,6 +474,24 @@ let shmyth_let = (x: string, typ: UHTyp.opseq, v: UHExp.opseq): UHExp.line =>
 
 let shmyth_let_notype = (x: string, v: UHExp.opseq): UHExp.line =>
   UHExp.letline(OpSeq.wrap(UHPat.var(x)), [ExpLine(v)]);
+
+let shmyth_sub1 = (a: UHExp.operand): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.seq_op_seq(
+      Seq.wrap(a),
+      Operators_Exp.Minus,
+      Seq.wrap(UHExp.intlit("1")),
+    ),
+  );
+
+let shmyth_add1 = (a: UHExp.operand): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.seq_op_seq(
+      Seq.wrap(UHExp.intlit("1")),
+      Operators_Exp.Plus,
+      Seq.wrap(a),
+    ),
+  );
 
 let shmyth_case_list =
     (
@@ -512,13 +536,7 @@ let shmyth_case_nat =
         [
           shmyth_let_notype(
             succ_var_name,
-            UHExp.mk_OpSeq(
-              Seq.seq_op_seq(
-                Seq.wrap(UHExp.var(succ_var_name)),
-                Operators_Exp.Minus,
-                Seq.wrap(UHExp.intlit("1")),
-              ),
-            ),
+            shmyth_sub1(UHExp.var(succ_var_name)),
           ),
           UHExp.ExpLine(on_succ),
         ],
@@ -551,6 +569,72 @@ let append_template: UHExp.t = [
       Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
     ],
     Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+  ),
+];
+
+let mult_template: UHExp.t = [
+  shmyth_let(
+    "add",
+    UHTyp.contract(Arrow(Int, Arrow(Int, Int))),
+    shmyth_lam(
+      "x1",
+      shmyth_lam(
+        "x2",
+        OpSeq.wrap(
+          shmyth_case_nat(
+            "x1",
+            "y1",
+            OpSeq.wrap(UHExp.var("x2")),
+            shmyth_add1(
+              Parenthesized([
+                ExpLine(
+                  shmyth_app("add", [UHExp.var("y1"), UHExp.var("x2")]),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    ),
+  ),
+  shmyth_let(
+    "mult",
+    UHTyp.contract(Arrow(Int, Arrow(Int, Int))),
+    shmyth_lam(
+      "p",
+      shmyth_lam(
+        "q",
+        OpSeq.wrap(
+          shmyth_case_nat(
+            "p",
+            "y1",
+            OpSeq.wrap(UHExp.intlit("0")),
+            shmyth_app_operand(
+              Parenthesized([ExpLine(shmyth_app("add", [EmptyHole(0)]))]),
+              [
+                Parenthesized([
+                  ExpLine(
+                    shmyth_app("mult", [EmptyHole(1), EmptyHole(2)]),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  ),
+  mk_app_equality_assert(
+    1,
+    "mult",
+    [UHExp.intlit("3"), UHExp.intlit("2")],
+    UHExp.intlit("6"),
+  ),
+  mk_app_equality_assert(
+    2,
+    "mult",
+    [UHExp.intlit("2"), UHExp.intlit("1")],
+    UHExp.intlit("2"),
   ),
 ];
 
@@ -835,6 +919,7 @@ let examples =
     |> add("qsort_example_100", qsort_n(100))
     |> add("add_template", addition_template)
     |> add("max_template", max_template)
+    |> add("mult_template", mult_template)
     |> add("append_template", append_template)
     |> add("stutterN_template", stutterN_template)
   );
