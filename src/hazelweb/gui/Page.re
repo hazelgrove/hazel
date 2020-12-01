@@ -58,6 +58,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("revConcat template")],
         ),
         Node.option(
+          [Attr.value("stutter_template")],
+          [Node.text("stutter template")],
+        ),
+        Node.option(
           [Attr.value("stutterN_template")],
           [Node.text("stutterN template")],
         ),

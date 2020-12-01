@@ -755,6 +755,46 @@ let revConcat_template: UHExp.t = [
   ),
 ];
 
+let stutter_template: UHExp.t = [
+  shmyth_let(
+    "stutter",
+    UHTyp.contract(Arrow(List(Int), List(Int))),
+    shmyth_lam("xs", shmyth_hole(0)),
+  ),
+  mk_app_equality_assert(
+    1,
+    "stutter",
+    [
+      shmyth_parens(
+        shmyth_cons(
+          UHExp.intlit("1"),
+          [UHExp.intlit("0"), UHExp.listnil()],
+        ),
+      ),
+    ],
+    shmyth_parens(
+      shmyth_cons(
+        UHExp.intlit("1"),
+        [
+          UHExp.intlit("1"),
+          UHExp.intlit("0"),
+          UHExp.intlit("0"),
+          UHExp.listnil(),
+        ],
+      ),
+    ),
+  ),
+  mk_app_equality_assert(
+    2,
+    "stutter",
+    [shmyth_parens(shmyth_cons(UHExp.intlit("0"), [UHExp.listnil()]))],
+    shmyth_parens(
+      shmyth_cons(UHExp.intlit("0"), [UHExp.intlit("0"), UHExp.listnil()]),
+    ),
+  ),
+  mk_app_equality_assert(3, "stutter", [UHExp.listnil()], UHExp.listnil()),
+];
+
 let stutterN_template: UHExp.t = [
   UHExp.letline(
     OpSeq.wrap(UHPat.var("append")),
@@ -993,6 +1033,7 @@ let examples =
     |> add("mult_template", mult_template)
     |> add("append_template", append_template)
     |> add("revConcat_template", revConcat_template)
+    |> add("stutter_template", stutter_template)
     |> add("stutterN_template", stutterN_template)
   );
 let get = id => StringMap.find(id, examples);
