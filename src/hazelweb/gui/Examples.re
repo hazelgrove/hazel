@@ -441,32 +441,276 @@ let addition_template: UHExp.t = [
   ),
 ];
 
+let shmyth_case_list =
+    (
+      scrutinee: string,
+      on_nil: UHExp.opseq,
+      hd: string,
+      tl: string,
+      on_cons: UHExp.opseq,
+    )
+    : UHExp.operand =>
+  UHExp.case(
+    [ExpLine(OpSeq.wrap(UHExp.var(scrutinee)))],
+    [
+      Rule(OpSeq.wrap(UHPat.listnil()), [ExpLine(on_nil)]),
+      Rule(
+        UHPat.mk_OpSeq(
+          Seq.seq_op_seq(
+            Seq.wrap(UHPat.var(hd)),
+            Operators_Pat.Cons,
+            Seq.wrap(UHPat.var(tl)),
+          ),
+        ),
+        [ExpLine(on_cons)],
+      ),
+    ],
+  );
+
+let shmyth_app = (fname: string, args: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(
+      UHExp.var(fname),
+      List.map(a => (Operators_Exp.Space, a), args),
+    ),
+  );
+
+let shmyth_parens = (a: UHExp.opseq): UHExp.operand =>
+  Parenthesized([ExpLine(a)]);
+
+let shmyth_cons =
+    (head: UHExp.operand, args: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(head, List.map(a => (Operators_Exp.Cons, a), args)),
+  );
+
+let shmyth_lam = (x: string, body: UHExp.opseq): UHExp.opseq =>
+  OpSeq.wrap(UHExp.lam(OpSeq.wrap(UHPat.var(x)), [ExpLine(body)]));
+
+let shmyth_hole = (h: int): UHExp.opseq => OpSeq.wrap(UHExp.EmptyHole(h));
+
 let append_template: UHExp.t = [
   UHExp.letline(
     OpSeq.wrap(UHPat.var("append")),
     ~ann=UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
-    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(1)))],
+    [ExpLine(shmyth_hole(0))],
   ),
   mk_app_equality_assert(
     1,
     "append",
-    UHExp.[
-      Parenthesized([
-        ExpLine(
-          mk_OpSeq(
-            Seq.seq_op_seq(
-              Seq.wrap(intlit("1")),
-              Operators_Exp.Cons,
-              Seq.wrap(listnil()),
+    [
+      shmyth_parens(shmyth_cons(UHExp.intlit("1"), [UHExp.listnil()])),
+      shmyth_parens(shmyth_cons(UHExp.intlit("2"), [UHExp.listnil()])),
+    ],
+    shmyth_parens(
+      shmyth_cons(UHExp.intlit("1"), [UHExp.intlit("2"), UHExp.listnil()]),
+    ),
+  ),
+  mk_app_equality_assert(
+    1,
+    "append",
+    [
+      Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+      Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+    ],
+    Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+  ),
+];
+
+/* let max_template: UHExp.t = [] */
+
+let stutterN_template: UHExp.t = [
+  UHExp.letline(
+    OpSeq.wrap(UHPat.var("append")),
+    ~ann=UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
+    [
+      ExpLine(
+        shmyth_lam(
+          "xs",
+          shmyth_lam(
+            "ys",
+            OpSeq.wrap(
+              shmyth_case_list(
+                "xs",
+                OpSeq.wrap(UHExp.var("ys")),
+                "x",
+                "xs1",
+                shmyth_cons(
+                  UHExp.var("x"),
+                  [
+                    shmyth_parens(
+                      shmyth_app(
+                        "append",
+                        [UHExp.var("xs1"), UHExp.var("ys")],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-      ]),
+      ),
+    ],
+  ),
+  UHExp.letline(
+    OpSeq.wrap(UHPat.var("replicate")),
+    ~ann=UHTyp.contract(Arrow(Int, Arrow(Int, List(Int)))),
+    [
+      ExpLine(
+        OpSeq.wrap(
+          UHExp.lam(
+            OpSeq.wrap(UHPat.var("n")),
+            [
+              ExpLine(
+                OpSeq.wrap(
+                  UHExp.lam(
+                    OpSeq.wrap(UHPat.var("x")),
+                    [
+                      ExpLine(
+                        OpSeq.wrap(
+                          UHExp.case(
+                            [ExpLine(OpSeq.wrap(UHExp.var("n")))],
+                            [
+                              Rule(
+                                OpSeq.wrap(UHPat.intlit("0")),
+                                [ExpLine(OpSeq.wrap(UHExp.EmptyHole(0)))],
+                              ),
+                              Rule(
+                                UHPat.mk_OpSeq(
+                                  Seq.seq_op_seq(
+                                    Seq.wrap(UHPat.var("n_hd")),
+                                    Operators_Pat.Cons,
+                                    Seq.wrap(UHPat.var("n_tl")),
+                                  ),
+                                ),
+                                [ExpLine(OpSeq.wrap(UHExp.EmptyHole(1)))],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  ),
+  UHExp.letline(
+    OpSeq.wrap(UHPat.var("stutterN")),
+    ~ann=UHTyp.contract(Arrow(Int, Arrow(List(Int), List(Int)))),
+    [
+      ExpLine(
+        OpSeq.wrap(
+          UHExp.lam(
+            OpSeq.wrap(UHPat.var("n")),
+            [
+              ExpLine(
+                OpSeq.wrap(
+                  UHExp.lam(
+                    OpSeq.wrap(UHPat.var("xs")),
+                    [
+                      ExpLine(
+                        OpSeq.wrap(
+                          UHExp.case(
+                            [ExpLine(OpSeq.wrap(UHExp.var("xs")))],
+                            [
+                              Rule(
+                                OpSeq.wrap(UHPat.listnil()),
+                                [ExpLine(OpSeq.wrap(UHExp.listnil()))],
+                              ),
+                              Rule(
+                                UHPat.mk_OpSeq(
+                                  Seq.seq_op_seq(
+                                    Seq.wrap(UHPat.var("x")),
+                                    Operators_Pat.Cons,
+                                    Seq.wrap(UHPat.var("xs1")),
+                                  ),
+                                ),
+                                [
+                                  ExpLine(
+                                    UHExp.mk_OpSeq(
+                                      Seq.mk(
+                                        UHExp.var("append"),
+                                        [
+                                          (
+                                            Operators_Exp.Space,
+                                            Parenthesized([
+                                              ExpLine(
+                                                UHExp.mk_OpSeq(
+                                                  Seq.mk(
+                                                    UHExp.var("replicate"),
+                                                    [
+                                                      (
+                                                        Operators_Exp.Space,
+                                                        UHExp.var("n"),
+                                                      ),
+                                                      (
+                                                        Operators_Exp.Space,
+                                                        UHExp.var("x"),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ]),
+                                          ),
+                                          (
+                                            Operators_Exp.Space,
+                                            Parenthesized([
+                                              ExpLine(
+                                                UHExp.mk_OpSeq(
+                                                  Seq.mk(
+                                                    UHExp.var("stutterN"),
+                                                    [
+                                                      (
+                                                        Operators_Exp.Space,
+                                                        UHExp.var("n"),
+                                                      ),
+                                                      (
+                                                        Operators_Exp.Space,
+                                                        UHExp.var("xs1"),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ]),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  ),
+  mk_app_equality_assert(
+    1,
+    "stutterN",
+    UHExp.[
+      intlit("2"),
       Parenthesized([
         ExpLine(
           mk_OpSeq(
             Seq.seq_op_seq(
-              Seq.wrap(intlit("2")),
+              Seq.wrap(intlit("3")),
               Operators_Exp.Cons,
               Seq.wrap(listnil()),
             ),
@@ -479,10 +723,10 @@ let append_template: UHExp.t = [
         ExpLine(
           mk_OpSeq(
             Seq.seq_op_seq(
-              Seq.wrap(intlit("1")),
+              Seq.wrap(intlit("3")),
               Operators_Exp.Cons,
               Seq.seq_op_seq(
-                Seq.wrap(intlit("2")),
+                Seq.wrap(intlit("3")),
                 Operators_Exp.Cons,
                 Seq.wrap(listnil()),
               ),
@@ -491,15 +735,6 @@ let append_template: UHExp.t = [
         ),
       ])
     ),
-  ),
-  mk_app_equality_assert(
-    1,
-    "append",
-    [
-      Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
-      Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
-    ],
-    Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
   ),
 ];
 
@@ -518,5 +753,7 @@ let examples =
     |> add("qsort_example_30", qsort_n(30))
     |> add("qsort_example_100", qsort_n(100))
     |> add("add_template", addition_template)
+    |> add("append_template", append_template)
+    |> add("stutterN_template", stutterN_template)
   );
 let get = id => StringMap.find(id, examples);
