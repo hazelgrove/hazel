@@ -507,6 +507,30 @@ module FilledHole = {
         ~font_metrics: FontMetrics.t,
         ~text: list(Node.t),
         ~decorations: list(Node.t),
+        (offset, _subject): UHMeasuredLayout.with_offset,
+      ) => {
+    Node.div(
+      [
+        Attr.classes(["filled-hole-box"]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: 0px; left: %fpx;",
+            Float.of_int(offset) *. font_metrics.col_width,
+          ),
+        ),
+      ],
+      text @ decorations,
+    );
+  };
+};
+
+module FilledHoleZ = {
+  let view =
+      (
+        ~font_metrics: FontMetrics.t,
+        ~text: list(Node.t),
+        ~decorations: list(Node.t),
         (offset, subject): UHMeasuredLayout.with_offset,
       ) => {
     let width = MeasuredLayout.width(subject);

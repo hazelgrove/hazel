@@ -163,6 +163,7 @@ let decoration_cls: UHDecorationShape.t => string =
   | VarUse => "var-use"
   | CurrentTerm => "current-term"
   | FilledHole(_) => "filled-hole"
+  | FilledHoleZ(_) => "filled-hole-z"
   | FillingHole(_) => "filling-hole";
 
 let decoration_view =
@@ -188,14 +189,20 @@ let decoration_view =
   | VarUse => VarUse.view(~corner_radii)
   | CurrentTerm =>
     CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-  | FilledHole(filled, _filled_holes_todo, synthesizing) =>
+  | FilledHole(e, filled_holes) =>
+    let l = mk_layout(e);
+    let text = view_of_text(l);
+    let decorations =
+      decoration_views(UHDecorationPaths.mk(~filled_holes, ()), l);
+    FilledHole.view(~font_metrics, ~text, ~decorations);
+  | FilledHoleZ(filled, filled_holes, synthesizing) =>
     let l = mk_layout(filled);
     let text = view_of_text(l);
     let decorations = {
-      let dpaths = UHDecorationPaths.mk(~synthesizing, ());
+      let dpaths = UHDecorationPaths.mk(~synthesizing, ~filled_holes, ());
       decoration_views(dpaths, l);
     };
-    FilledHole.view(~font_metrics, ~text, ~decorations);
+    FilledHoleZ.view(~font_metrics, ~text, ~decorations);
   | FillingHole(filling, _constraints_todo) =>
     let options =
       filling
@@ -282,8 +289,9 @@ let rec decoration_views =
               ~cls=decoration_cls(dshape),
               [view],
             )
+          | FilledHole(_)
           | FillingHole(_)
-          | FilledHole(_) =>
+          | FilledHoleZ(_) =>
             Vdom.Node.div(
               Vdom.[
                 Attr.classes(["synthesizing-container"]),

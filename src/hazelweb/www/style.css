@@ -402,6 +402,10 @@ body {
   background-color: white;
   border: 1px solid black;
 }
+.synthesizing-container .filled-hole-box {
+  position: absolute;
+  background-color: white;
+}
 
 .type-info-summary {
   display: flex;

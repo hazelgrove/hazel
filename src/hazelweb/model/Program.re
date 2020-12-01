@@ -132,8 +132,16 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
+  let filled_holes = Synthesizing.(F(HoleMap.empty));
   let synthesizing = program.synthesizing;
-  {current_term, err_holes, var_uses, var_err_holes, synthesizing};
+  {
+    current_term,
+    err_holes,
+    var_uses,
+    var_err_holes,
+    filled_holes,
+    synthesizing,
+  };
 };
 
 exception FailedAction;

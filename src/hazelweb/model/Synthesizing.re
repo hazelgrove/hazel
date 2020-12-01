@@ -44,18 +44,12 @@ and z =
   | Filling(ZList.t(UHExp.t, UHExp.t), Shmyth.h_constraints)
   | Filled(UHExp.t, filled_holes, t);
 
-let rec erase = (z: z): option((UHExp.t, filled_holes)) =>
+let rec erase = (z: z): (UHExp.t, filled_holes) =>
   switch (z) {
-  | Filling(_) => None
-  | Filled(e, filled_holes, (steps, z)) =>
-    let filled_holes =
-      switch (erase(z)) {
-      | None => filled_holes
-      | Some((e, f)) =>
-        let F(filled_map) = filled_holes;
-        F(HoleMap.add(steps, (e, f), filled_map));
-      };
-    Some((e, filled_holes));
+  | Filling((_, selected, _), _) => (selected, F(HoleMap.empty))
+  | Filled(e, F(filled_map), (steps, z)) =>
+    let filled_holes = F(HoleMap.add(steps, erase(z), filled_map));
+    (e, filled_holes);
   };
 
 let scroll = (up: bool, (steps, z): t) => {
@@ -84,17 +78,17 @@ let mk = (u: MetaVar.t, e: UHExp.t): option(t) => {
     None;
   | Some((es, constraints)) =>
     let es = UHExp.Set.elements(UHExp.Set.of_list(es));
-    switch (ZList.split_at(0, es)) {
-    | None =>
-      print_endline("no synth results");
-      None;
-    | Some(zes) =>
-      let holes = CursorPath_Exp.holes(e, [], []);
-      let hole_steps =
-        CursorPath_common.steps_to_hole(holes, u)
-        |> OptUtil.get(() => failwith("hole not found"));
-      Some((hole_steps, Filling(zes, constraints)));
-    };
+    let zes =
+      Option.get(
+        ZList.split_at(0, [UHExp.Block.wrap(EmptyHole(u)), ...es]),
+      );
+    let holes = CursorPath_Exp.holes(e, [], []);
+    let hole_steps =
+      CursorPath_common.steps_to_hole(holes, u)
+      |> OptUtil.get(() =>
+           failwith("hole " ++ string_of_int(u) ++ " not found")
+         );
+    Some((hole_steps, Filling(zes, constraints)));
   };
 };
 
@@ -192,11 +186,7 @@ let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
       switch (go(synthesizing)) {
       | Some(synthesizing) => Some((ss, Filled(e, filled, synthesizing)))
       | None =>
-        let erased =
-          switch (erase(z)) {
-          | None => filled_map
-          | Some(f) => HoleMap.add(steps, f, filled_map)
-          };
+        let erased = HoleMap.add(steps, erase(z), filled_map);
         let zholes = mk_zholes(steps, e);
         let* (prev_u, prev_steps) =
           // assuming all holes encountered here will be empty exp holes
@@ -216,7 +206,7 @@ let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           | Some((e, filled_holes)) =>
             move_to_last_hole(~sketch, e, filled_holes)
           };
-        (ss, Filled(e, filled, synthesizing));
+        (ss, Filled(e, F(erased), synthesizing));
       }
     };
   go(synthesizing);
@@ -231,11 +221,7 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
       switch (go(synthesizing)) {
       | Some(synthesizing) => Some((ss, Filled(e, filled, synthesizing)))
       | None =>
-        let erased =
-          switch (erase(z)) {
-          | None => filled_map
-          | Some(f) => HoleMap.add(steps, f, filled_map)
-          };
+        let erased = HoleMap.add(steps, erase(z), filled_map);
         let zholes = mk_zholes(steps, e);
         let* (next_u, next_steps) =
           // assuming all holes encountered here will be empty exp holes
@@ -255,7 +241,7 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           | Some((e, filled_holes)) =>
             move_to_first_hole(~sketch, e, filled_holes)
           };
-        (ss, Filled(e, filled, synthesizing));
+        (ss, Filled(e, F(erased), synthesizing));
       }
     };
   go(synthesizing);
