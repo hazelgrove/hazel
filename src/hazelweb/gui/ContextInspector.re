@@ -283,7 +283,10 @@ let view =
         | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
-          | None => raise(InvalidInstance)
+          | None =>
+            // raise(InvalidInstance)
+            print_endline("[InvalidInstance]");
+            Elaborator_Exp.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
@@ -338,7 +341,9 @@ let view =
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None => raise(InvalidInstance)
+                | None =>
+                  // raise(InvalidInstance)
+                  [instructional_msg("Internal Error: InvalidInstance")]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),
