@@ -42,6 +42,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Node.text("add template")],
         ),
         Node.option(
+          [Attr.value("max_template")],
+          [Node.text("max template")],
+        ),
+        Node.option(
           [Attr.value("append_template")],
           [Node.text("append template")],
         ),

@@ -441,6 +441,34 @@ let addition_template: UHExp.t = [
   ),
 ];
 
+let shmyth_app = (fname: string, args: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(
+      UHExp.var(fname),
+      List.map(a => (Operators_Exp.Space, a), args),
+    ),
+  );
+
+let shmyth_parens = (a: UHExp.opseq): UHExp.operand =>
+  Parenthesized([ExpLine(a)]);
+
+let shmyth_cons =
+    (head: UHExp.operand, args: list(UHExp.operand)): UHExp.opseq =>
+  UHExp.mk_OpSeq(
+    Seq.mk(head, List.map(a => (Operators_Exp.Cons, a), args)),
+  );
+
+let shmyth_lam = (x: string, body: UHExp.opseq): UHExp.opseq =>
+  OpSeq.wrap(UHExp.lam(OpSeq.wrap(UHPat.var(x)), [ExpLine(body)]));
+
+let shmyth_hole = (h: int): UHExp.opseq => OpSeq.wrap(UHExp.EmptyHole(h));
+
+let shmyth_let = (x: string, typ: UHTyp.opseq, v: UHExp.opseq): UHExp.line =>
+  UHExp.letline(OpSeq.wrap(UHPat.var(x)), ~ann=typ, [ExpLine(v)]);
+
+let shmyth_let_notype = (x: string, v: UHExp.opseq): UHExp.line =>
+  UHExp.letline(OpSeq.wrap(UHPat.var(x)), [ExpLine(v)]);
+
 let shmyth_case_list =
     (
       scrutinee: string,
@@ -467,33 +495,42 @@ let shmyth_case_list =
     ],
   );
 
-let shmyth_app = (fname: string, args: list(UHExp.operand)): UHExp.opseq =>
-  UHExp.mk_OpSeq(
-    Seq.mk(
-      UHExp.var(fname),
-      List.map(a => (Operators_Exp.Space, a), args),
-    ),
+let shmyth_case_nat =
+    (
+      scrutinee: string,
+      succ_var_name: string,
+      on_zero: UHExp.opseq,
+      on_succ: UHExp.opseq,
+    )
+    : UHExp.operand =>
+  UHExp.case(
+    [ExpLine(OpSeq.wrap(UHExp.var(scrutinee)))],
+    [
+      Rule(OpSeq.wrap(UHPat.intlit("0")), [ExpLine(on_zero)]),
+      Rule(
+        OpSeq.wrap(UHPat.var(succ_var_name)),
+        [
+          shmyth_let_notype(
+            succ_var_name,
+            UHExp.mk_OpSeq(
+              Seq.seq_op_seq(
+                Seq.wrap(UHExp.var(succ_var_name)),
+                Operators_Exp.Minus,
+                Seq.wrap(UHExp.intlit("1")),
+              ),
+            ),
+          ),
+          UHExp.ExpLine(on_succ),
+        ],
+      ),
+    ],
   );
-
-let shmyth_parens = (a: UHExp.opseq): UHExp.operand =>
-  Parenthesized([ExpLine(a)]);
-
-let shmyth_cons =
-    (head: UHExp.operand, args: list(UHExp.operand)): UHExp.opseq =>
-  UHExp.mk_OpSeq(
-    Seq.mk(head, List.map(a => (Operators_Exp.Cons, a), args)),
-  );
-
-let shmyth_lam = (x: string, body: UHExp.opseq): UHExp.opseq =>
-  OpSeq.wrap(UHExp.lam(OpSeq.wrap(UHPat.var(x)), [ExpLine(body)]));
-
-let shmyth_hole = (h: int): UHExp.opseq => OpSeq.wrap(UHExp.EmptyHole(h));
 
 let append_template: UHExp.t = [
-  UHExp.letline(
-    OpSeq.wrap(UHPat.var("append")),
-    ~ann=UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
-    [ExpLine(shmyth_hole(0))],
+  shmyth_let(
+    "append",
+    UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
+    shmyth_hole(0),
   ),
   mk_app_equality_assert(
     1,
@@ -517,7 +554,51 @@ let append_template: UHExp.t = [
   ),
 ];
 
-/* let max_template: UHExp.t = [] */
+let max_template: UHExp.t = [
+  shmyth_let(
+    "max",
+    UHTyp.contract(Arrow(Int, Arrow(Int, Int))),
+    shmyth_lam(
+      "m",
+      shmyth_lam(
+        "n",
+        OpSeq.wrap(
+          shmyth_case_nat(
+            "m",
+            "y1",
+            OpSeq.wrap(UHExp.var("n")),
+            OpSeq.wrap(
+              shmyth_case_nat(
+                "n",
+                "y2",
+                OpSeq.wrap(UHExp.var("m")),
+                shmyth_hole(0),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  ),
+  mk_app_equality_assert(
+    1,
+    "max",
+    [UHExp.intlit("3"), UHExp.intlit("1")],
+    UHExp.intlit("3"),
+  ),
+  mk_app_equality_assert(
+    2,
+    "max",
+    [UHExp.intlit("1"), UHExp.intlit("2")],
+    UHExp.intlit("2"),
+  ),
+  mk_app_equality_assert(
+    3,
+    "max",
+    [UHExp.intlit("1"), UHExp.intlit("1")],
+    UHExp.intlit("1"),
+  ),
+];
 
 let stutterN_template: UHExp.t = [
   UHExp.letline(
@@ -753,6 +834,7 @@ let examples =
     |> add("qsort_example_30", qsort_n(30))
     |> add("qsort_example_100", qsort_n(100))
     |> add("add_template", addition_template)
+    |> add("max_template", max_template)
     |> add("append_template", append_template)
     |> add("stutterN_template", stutterN_template)
   );
