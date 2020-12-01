@@ -441,6 +441,68 @@ let addition_template: UHExp.t = [
   ),
 ];
 
+let append_template: UHExp.t = [
+  UHExp.letline(
+    OpSeq.wrap(UHPat.var("append")),
+    ~ann=UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
+    [ExpLine(OpSeq.wrap(UHExp.EmptyHole(1)))],
+  ),
+  mk_app_equality_assert(
+    1,
+    "append",
+    UHExp.[
+      Parenthesized([
+        ExpLine(
+          mk_OpSeq(
+            Seq.seq_op_seq(
+              Seq.wrap(intlit("1")),
+              Operators_Exp.Cons,
+              Seq.wrap(listnil()),
+            ),
+          ),
+        ),
+      ]),
+      Parenthesized([
+        ExpLine(
+          mk_OpSeq(
+            Seq.seq_op_seq(
+              Seq.wrap(intlit("2")),
+              Operators_Exp.Cons,
+              Seq.wrap(listnil()),
+            ),
+          ),
+        ),
+      ]),
+    ],
+    UHExp.(
+      Parenthesized([
+        ExpLine(
+          mk_OpSeq(
+            Seq.seq_op_seq(
+              Seq.wrap(intlit("1")),
+              Operators_Exp.Cons,
+              Seq.seq_op_seq(
+                Seq.wrap(intlit("2")),
+                Operators_Exp.Cons,
+                Seq.wrap(listnil()),
+              ),
+            ),
+          ),
+        ),
+      ])
+    ),
+  ),
+  mk_app_equality_assert(
+    1,
+    "append",
+    [
+      Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+      Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+    ],
+    Parenthesized([ExpLine(OpSeq.wrap(UHExp.listnil()))]),
+  ),
+];
+
 [@deriving sexp]
 type id = string;
 let examples =
