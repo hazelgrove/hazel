@@ -684,6 +684,77 @@ let max_template: UHExp.t = [
   ),
 ];
 
+let revConcat_template: UHExp.t = [
+  shmyth_let(
+    "revConcat",
+    UHTyp.contract(Arrow(List(Int), Arrow(List(Int), List(Int)))),
+    shmyth_lam(
+      "xs",
+      shmyth_lam(
+        "ys",
+        OpSeq.wrap(
+          shmyth_case_list(
+            "xs",
+            OpSeq.wrap(UHExp.var("ys")),
+            "head",
+            "tail",
+            shmyth_hole(0),
+          ),
+        ),
+      ),
+    ),
+  ),
+  mk_app_equality_assert(
+    1,
+    "revConcat",
+    [
+      shmyth_parens(
+        shmyth_cons(
+          UHExp.intlit("0"),
+          [UHExp.intlit("1"), UHExp.listnil()],
+        ),
+      ),
+      shmyth_parens(
+        shmyth_cons(
+          UHExp.intlit("2"),
+          [UHExp.intlit("3"), UHExp.listnil()],
+        ),
+      ),
+    ],
+    shmyth_parens(
+      shmyth_cons(
+        UHExp.intlit("1"),
+        [
+          UHExp.intlit("0"),
+          UHExp.intlit("2"),
+          UHExp.intlit("3"),
+          UHExp.listnil(),
+        ],
+      ),
+    ),
+  ),
+  mk_app_equality_assert(
+    2,
+    "revConcat",
+    [
+      shmyth_parens(shmyth_cons(UHExp.intlit("4"), [UHExp.listnil()])),
+      shmyth_parens(shmyth_cons(UHExp.intlit("5"), [UHExp.listnil()])),
+    ],
+    shmyth_parens(
+      shmyth_cons(UHExp.intlit("4"), [UHExp.intlit("5"), UHExp.listnil()]),
+    ),
+  ),
+  mk_app_equality_assert(
+    3,
+    "revConcat",
+    [
+      UHExp.listnil(),
+      shmyth_parens(shmyth_cons(UHExp.intlit("1"), [UHExp.listnil()])),
+    ],
+    shmyth_parens(shmyth_cons(UHExp.intlit("1"), [UHExp.listnil()])),
+  ),
+];
+
 let stutterN_template: UHExp.t = [
   UHExp.letline(
     OpSeq.wrap(UHPat.var("append")),
@@ -921,6 +992,7 @@ let examples =
     |> add("max_template", max_template)
     |> add("mult_template", mult_template)
     |> add("append_template", append_template)
+    |> add("revConcat_template", revConcat_template)
     |> add("stutterN_template", stutterN_template)
   );
 let get = id => StringMap.find(id, examples);
