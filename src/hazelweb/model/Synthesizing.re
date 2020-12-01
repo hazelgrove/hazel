@@ -103,7 +103,12 @@ let get_meta_var = (steps: CursorPath.steps, e: UHExp.t) => {
   );
 };
 
-let rec sketch_of_filled_holes = (e: UHExp.t, F(map): filled_holes) => {
+let rec sketch_of_filled_holes =
+        (
+          ~preserve_hole: option(MetaVar.t)=?,
+          e: UHExp.t,
+          F(map): filled_holes,
+        ) => {
   map
   |> HoleMap.bindings
   |> List.map(((steps, (e', map))) => {
@@ -111,7 +116,14 @@ let rec sketch_of_filled_holes = (e: UHExp.t, F(map): filled_holes) => {
        let e' = sketch_of_filled_holes(e', map);
        (u, e');
      })
-  |> List.fold_left((e, (u, e')) => UHExp.fill_hole(u, e', e), e);
+  |> List.fold_left(
+       (e, (u, e')) =>
+         switch (preserve_hole) {
+         | Some(v) when v == u => e
+         | _ => UHExp.fill_hole(u, e', e)
+         },
+       e,
+     );
 };
 let rec mk_sketch = (e: UHExp.t, (steps, z): t): UHExp.t =>
   switch (z) {
@@ -121,6 +133,37 @@ let rec mk_sketch = (e: UHExp.t, (steps, z): t): UHExp.t =>
     let u = get_meta_var(steps, e);
     UHExp.fill_hole(u, e', e);
   };
+
+type rev_sketch = list((UHExp.t, filled_holes, CursorPath.steps));
+let sketch_of_rev_sketch = (~preserve_hole: option(MetaVar.t)=?, rev_sketch) => {
+  let ((root_e, _, root_steps), ancestors) =
+    ListUtil.split_first(List.rev(rev_sketch));
+  let inner_sketch =
+    List.fold_right(
+      ((e, filled, steps), inner_sketch) => {
+        let sketch_filled_holes =
+          sketch_of_filled_holes(~preserve_hole?, e, filled);
+        switch (inner_sketch) {
+        | None => Some(sketch_filled_holes)
+        | Some(inner_sketch) =>
+          Some(
+            UHExp.fill_hole(
+              get_meta_var(steps, e),
+              inner_sketch,
+              sketch_filled_holes,
+            ),
+          )
+        };
+      },
+      ancestors,
+      None,
+    );
+  switch (inner_sketch) {
+  | None => root_e
+  | Some(sketch) =>
+    UHExp.fill_hole(get_meta_var(root_steps, root_e), sketch, root_e)
+  };
+};
 
 let rec accept = (e: UHExp.t, (steps, z): t) => {
   let accepted =
@@ -146,44 +189,47 @@ let mk_zholes = (steps: CursorPath.steps, e: UHExp.t): CursorPath.zhole_list => 
 };
 
 let rec move_to_first_hole =
-        (~sketch, e: UHExp.t, F(filled_map): filled_holes): option(t) => {
+        (~rev_sketch, e: UHExp.t, F(filled_map): filled_holes): option(t) => {
   let holes = CursorPath_Exp.holes(e, [], []);
   // assuming all holes encountered here will be empty exp holes
   switch (holes) {
   | [{steps, sort: ExpHole(u, _)}, ..._] =>
     switch (HoleMap.find_opt(steps, filled_map)) {
     | None =>
-      let+ (_, filling) = mk(u, sketch);
+      let+ (_, filling) = mk(u, sketch_of_rev_sketch(rev_sketch));
       (steps, filling);
-    | Some((e, filled_holes)) => move_to_first_hole(~sketch, e, filled_holes)
+    | Some((e, filled_holes)) =>
+      move_to_first_hole(~rev_sketch, e, filled_holes)
     }
   | _ => None
   };
 };
 
 let rec move_to_last_hole =
-        (~sketch, e: UHExp.t, F(filled_map): filled_holes): option(t) => {
+        (~rev_sketch, e: UHExp.t, F(filled_map): filled_holes): option(t) => {
   let holes = CursorPath_Exp.holes(e, [], []);
   // assuming all holes encountered here will be empty exp holes
   switch (List.rev(holes)) {
   | [{steps, sort: ExpHole(u, _)}, ..._] =>
     switch (HoleMap.find_opt(steps, filled_map)) {
     | None =>
-      let+ (_, filling) = mk(u, sketch);
+      let+ (_, filling) = mk(u, sketch_of_rev_sketch(rev_sketch));
       (steps, filling);
-    | Some((e, filled_holes)) => move_to_last_hole(~sketch, e, filled_holes)
+    | Some((e, filled_holes)) =>
+      move_to_last_hole(~rev_sketch, e, filled_holes)
     }
   | _ => None
   };
 };
 
-let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
-  let sketch = mk_sketch(e, synthesizing);
-  let rec go = ((ss, z): t): option(t) =>
+let move_to_prev_hole =
+    (e: UHExp.t, (steps, _) as synthesizing: t): option(t) => {
+  let rec go = (~rev_sketch, (ss, z): t): option(t) =>
     switch (z) {
     | Filling(_) => None
     | Filled(e, F(filled_map) as filled, (steps, z) as synthesizing) =>
-      switch (go(synthesizing)) {
+      let rev_sketch = [(e, filled, steps), ...rev_sketch];
+      switch (go(~rev_sketch, synthesizing)) {
       | Some(synthesizing) => Some((ss, Filled(e, filled, synthesizing)))
       | None =>
         let erased = HoleMap.add(steps, erase(z), filled_map);
@@ -195,6 +241,8 @@ let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           | _ => None
           };
         let synthesize_prev = () => {
+          let sketch =
+            sketch_of_rev_sketch(~preserve_hole=prev_u, rev_sketch);
           let+ (_, filling) = mk(prev_u, sketch);
           (prev_steps, filling);
         };
@@ -204,21 +252,22 @@ let move_to_prev_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
             synthesize_prev()
           | Some((e, filled_holes)) =>
-            move_to_last_hole(~sketch, e, filled_holes)
+            move_to_last_hole(~rev_sketch, e, filled_holes)
           };
         (ss, Filled(e, F(erased), synthesizing));
-      }
+      };
     };
-  go(synthesizing);
+  go(~rev_sketch=[(e, F(HoleMap.empty), steps)], synthesizing);
 };
 
-let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
-  let sketch = mk_sketch(e, synthesizing);
-  let rec go = ((ss, z): t): option(t) =>
+let move_to_next_hole =
+    (e: UHExp.t, (steps, _) as synthesizing: t): option(t) => {
+  let rec go = (~rev_sketch, (ss, z): t): option(t) =>
     switch (z) {
     | Filling(_) => None
     | Filled(e, F(filled_map) as filled, (steps, z) as synthesizing) =>
-      switch (go(synthesizing)) {
+      let rev_sketch = [(e, filled, steps), ...rev_sketch];
+      switch (go(~rev_sketch, synthesizing)) {
       | Some(synthesizing) => Some((ss, Filled(e, filled, synthesizing)))
       | None =>
         let erased = HoleMap.add(steps, erase(z), filled_map);
@@ -230,6 +279,8 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           | _ => None
           };
         let synthesize_next = () => {
+          let sketch =
+            sketch_of_rev_sketch(~preserve_hole=next_u, rev_sketch);
           let+ (_, filling) = mk(next_u, sketch);
           (next_steps, filling);
         };
@@ -239,12 +290,12 @@ let move_to_next_hole = (e: UHExp.t, synthesizing: t): option(t) => {
           | Some((_, F(filled_map))) when HoleMap.is_empty(filled_map) =>
             synthesize_next()
           | Some((e, filled_holes)) =>
-            move_to_first_hole(~sketch, e, filled_holes)
+            move_to_first_hole(~rev_sketch, e, filled_holes)
           };
         (ss, Filled(e, F(erased), synthesizing));
-      }
+      };
     };
-  go(synthesizing);
+  go(~rev_sketch=[(e, F(HoleMap.empty), steps)], synthesizing);
 };
 
 let step_in = (e: UHExp.t, synthesizing: t): option(t) => {
@@ -269,46 +320,18 @@ let step_in = (e: UHExp.t, synthesizing: t): option(t) => {
 };
 
 let step_out = (e: UHExp.t, (steps, z): t): option(t) => {
-  let rec go =
-          (~sketch: list((UHExp.t, filled_holes, CursorPath.steps)), z: z) => {
+  let rec go = (~rev_sketch, z: z) => {
     switch (z) {
     | Filling(_) => None
     | Filled(e, filled, (steps, z)) =>
-      switch (go(~sketch=[(e, filled, steps), ...sketch], z)) {
+      switch (go(~rev_sketch=[(e, filled, steps), ...rev_sketch], z)) {
       | Some(stepped_out) => Some(Filled(e, filled, (steps, stepped_out)))
       | None =>
         // need sketch up to this point
-        let synth_sketch = {
-          let ((root_e, _, root_steps), ancestors) =
-            ListUtil.split_first(List.rev(sketch));
-          let inner_sketch =
-            List.fold_right(
-              ((e, filled, steps), inner_sketch) => {
-                let sketch_filled_holes = sketch_of_filled_holes(e, filled);
-                switch (inner_sketch) {
-                | None => Some(sketch_filled_holes)
-                | Some(inner_sketch) =>
-                  Some(
-                    UHExp.fill_hole(
-                      get_meta_var(steps, e),
-                      inner_sketch,
-                      sketch_filled_holes,
-                    ),
-                  )
-                };
-              },
-              ancestors,
-              None,
-            );
-          switch (inner_sketch) {
-          | None => root_e
-          | Some(sketch) =>
-            UHExp.fill_hole(get_meta_var(root_steps, root_e), sketch, root_e)
-          };
-        };
+        let synth_sketch = sketch_of_rev_sketch(rev_sketch);
         let+ (_, filling) = {
           let u = {
-            let (e, _, steps) = List.hd(sketch);
+            let (e, _, steps) = List.hd(rev_sketch);
             get_meta_var(steps, e);
           };
           mk(u, synth_sketch);
@@ -317,6 +340,6 @@ let step_out = (e: UHExp.t, (steps, z): t): option(t) => {
       }
     };
   };
-  let+ z = go(~sketch=[(e, F(HoleMap.empty), steps)], z);
+  let+ z = go(~rev_sketch=[(e, F(HoleMap.empty), steps)], z);
   (steps, z);
 };
