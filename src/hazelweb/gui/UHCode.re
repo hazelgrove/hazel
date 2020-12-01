@@ -409,9 +409,9 @@ let key_handlers =
           prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
         | Some(Enter) when Option.is_some(synthesizing) =>
           prevent_stop_inject(ModelAction.AcceptFilling)
-        | Some(Ctrl_Enter) when Option.is_none(synthesizing) =>
-          switch (cursor_info.cursor_term) {
-          | Exp(_, EmptyHole(u)) =>
+        | Some(Ctrl_Enter) =>
+          switch (synthesizing, cursor_info.cursor_term) {
+          | (None, Exp(_, EmptyHole(u))) =>
             prevent_stop_inject(ModelAction.SynthesizeHole(u))
           | _ => Event.Ignore
           }

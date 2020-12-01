@@ -17,12 +17,31 @@ type h_constraints = list(list((Smyth.Lang.hole_name, constraint_data)));
 [@deriving sexp]
 type h_constraints_2 = list((Smyth.Lang.hole_name, constraint_data));
 
+let rec natlist_dhexp_to_string_list = (dhexp: DHExp.t): list(string) => {
+  switch (dhexp) {
+  | ListNil(_) => []
+  | Cons(IntLit(n), cdr) =>
+    [string_of_int(n)] @ natlist_dhexp_to_string_list(cdr)
+  | _ => failwith("ERROR: natlist_dhexp_to_string: malformed natlist lit")
+  };
+};
+
 let rec constraint_dhexp_to_string = (constraint_dhexp: DHExp.t): string => {
   switch (constraint_dhexp) {
   | IntLit(n) => string_of_int(n)
   | BoolLit(n) => string_of_bool(n)
   | BoundVar(str) => str
-  | _ => "?"
+  | ListNil(_) => "[]"
+  | Cons(_) =>
+    "["
+    ++ String.concat(", ", natlist_dhexp_to_string_list(constraint_dhexp))
+    ++ "]"
+  | _ =>
+    print_endline("ERROR: constraint_dhexp_to_string:");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(constraint_dhexp)),
+    );
+    "?";
   };
 }
 and constraint_ex_to_string = (constraint_ex: Shmyth.hexample): string => {
