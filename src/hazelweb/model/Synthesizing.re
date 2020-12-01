@@ -254,7 +254,8 @@ let move_to_prev_hole =
           | Some((e, filled_holes)) =>
             move_to_last_hole(~rev_sketch, e, filled_holes)
           };
-        (ss, Filled(e, F(erased), synthesizing));
+        let removed = HoleMap.remove(prev_steps, erased);
+        (ss, Filled(e, F(removed), synthesizing));
       };
     };
   go(~rev_sketch=[(e, F(HoleMap.empty), steps)], synthesizing);
@@ -292,7 +293,8 @@ let move_to_next_hole =
           | Some((e, filled_holes)) =>
             move_to_first_hole(~rev_sketch, e, filled_holes)
           };
-        (ss, Filled(e, F(erased), synthesizing));
+        let removed = HoleMap.remove(next_steps, erased);
+        (ss, Filled(e, F(removed), synthesizing));
       };
     };
   go(~rev_sketch=[(e, F(HoleMap.empty), steps)], synthesizing);
