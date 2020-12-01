@@ -6,6 +6,7 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  assert_results: list((CursorPath.steps, list(AssertResult.t))),
 };
 
 let is_empty = (dpaths: t): bool =>
