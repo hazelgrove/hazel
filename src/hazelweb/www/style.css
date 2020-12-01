@@ -45,6 +45,7 @@
   --synthesizing-color: rgb(15, 128, 154);
   --synthesizing-text-color: rgb(238, 238, 238);
   --synthesizing-selected-color: rgb(213, 235, 240);
+  --synthesizing-selecting-color: rgb(230, 255, 209);
   --synthesizing-shadow: drop-shadow(-1px 1px 1px rgb(160, 160, 160));
 
   --current-term-z: 0;
@@ -416,7 +417,7 @@ body {
   /*padding: 0 4px;*/
 }
 .synthesizing-options .selected-filling {
-  background-color: var(--synthesizing-selected-color);
+  background-color: var(--synthesizing-selecting-color);
 }
 .code.presentation .synthesized-options {
   position: relative;
@@ -438,9 +439,6 @@ body {
   position: absolute;
   border: 1px solid var(--synthesizing-color);
   background-color: var(--synthesizing-selected-color);
-  /*padding: 0 4px;*/
-}
-.code.presentation .synthesized-option {
   /*padding: 0 4px;*/
 }
 
