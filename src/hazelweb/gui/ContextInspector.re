@@ -342,9 +342,9 @@ let view =
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None =>
-                  //raise(InvalidInstance)
-                  [instructional_msg("Internal Error: [InvalidInstance]")]
+                | None => [
+                    instructional_msg("Internal Error: InvalidInstance"),
+                  ]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),
