@@ -648,19 +648,23 @@ let rec res_to_dhexp = (res): DHExp.t => {
   | RCtor("S", res) =>
     switch (res_to_dhexp(res)) {
     | IntLit(n) => IntLit(n + 1)
-    | _ => failwith("res_to_dhexp: bad number")
+    | _ =>
+      print_endline("ERROR: res_to_dhexp: bad number");
+      Triv;
     }
   | RCtor("Nil", _) => ListNil(HTyp.Int)
   | RCtor("Cons", RTuple([res1, res2])) =>
     switch (res_to_dhexp(res1)) {
     | IntLit(n) => Cons(IntLit(n), res_to_dhexp(res2))
-    | _ => failwith("res_to_dhexp: malformed cons: not NatList")
+    | _ =>
+      print_endline("ERROR: res_to_dhexp: malformed cons: not NatList");
+      Triv;
     }
   | RCtor("Cons", RTuple(_)) => failwith("res_to_dhexp: malformed cons")
   | _ =>
     // nondeterminates
-    print_endline("ERROR: res_to_dhexp: non-determinate result")
-    Triv
+    print_endline("ERROR: res_to_dhexp: non-determinate result");
+    Triv;
   };
 }
 and r_list_to_NestedPair = (xs): DHExp.t => {
@@ -680,16 +684,24 @@ let rec value_to_dhexp = (v): DHExp.t => {
   | VCtor("S", v) =>
     switch (value_to_dhexp(v)) {
     | IntLit(n) => IntLit(n + 1)
-    | _ => failwith("value_to_dhexp: bad number")
+    | _ =>
+      print_endline("ERROR: value_to_dhexp: bad number");
+      Triv;
     }
   | VCtor("Nil", _) => ListNil(HTyp.Int)
   | VCtor("Cons", VTuple([v1, v2])) =>
     switch (value_to_dhexp(v1)) {
     | IntLit(n) => Cons(IntLit(n), value_to_dhexp(v2))
-    | _ => failwith("example_to_dhexp: malformed cons: not NatList")
+    | _ =>
+      print_endline("ERROR: example_to_dhexp: malformed cons: not NatList");
+      Triv;
     }
-  | VCtor("Cons", _) => failwith("value_to_dhexp: malformed cons")
-  | VCtor(_, _) => failwith("value_to_dhexp:unknown constructor")
+  | VCtor("Cons", _) =>
+    print_endline("ERROR: value_to_dhexp: malformed cons");
+    Triv;
+  | VCtor(_, _) =>
+    print_endline("ERROR: value_to_dhexp:unknown constructor");
+    Triv;
   };
 }
 and v_list_to_NestedPair = (xs): DHExp.t => {
@@ -714,7 +726,9 @@ let rec example_to_dhexp = (ex): hexample => {
   | ExCtor("S", ex) =>
     switch (example_to_dhexp(ex)) {
     | Ex(IntLit(n)) => Ex(IntLit(n + 1))
-    | _ => failwith("example_to_dhexp: bad number")
+    | _ =>
+      print_endline("ERROR: example_to_dhexp: bad number");
+      Ex(Triv);
     }
   | ExCtor("Nil", _) => Ex(ListNil(HTyp.Int))
   | ExCtor("Cons", ExTuple([ex1, ex2])) =>
@@ -722,12 +736,17 @@ let rec example_to_dhexp = (ex): hexample => {
     | Ex(IntLit(n)) =>
       switch (example_to_dhexp(ex2)) {
       | Ex(w) => Ex(Cons(IntLit(n), w))
-      | _ => failwith("example_to_dhexp: malformed cons: not NatList")
+      | _ =>
+        print_endline("ERROR: example_to_dhexp: malformed cons: not NatList");
+        Ex(Triv);
       }
-    | _ => failwith("example_to_dhexp: malformed cons: not NatList")
+    | _ =>
+      print_endline("ERROR: example_to_dhexp: malformed cons: not NatList");
+      Ex(Triv);
     }
   | ExCtor("Cons", ExTuple(_)) =>
-    failwith("example_to_dhexp: malformed cons")
+    print_endline("ERROR: example_to_dhexp: malformed cons");
+    Ex(Triv);
   | ExInputOutput(value, example) =>
     let first = value_to_dhexp(value);
     switch (example_to_dhexp(example)) {
