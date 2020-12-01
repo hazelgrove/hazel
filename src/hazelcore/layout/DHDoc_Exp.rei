@@ -9,4 +9,4 @@ let mk:
     AssertMap.t,
     DHExp.t
   ) =>
-  DHDoc_common.t;
+  DHDoc.t;
