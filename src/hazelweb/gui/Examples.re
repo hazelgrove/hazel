@@ -684,6 +684,36 @@ let max_template: UHExp.t = [
   ),
 ];
 
+let odd_template: UHExp.t = [
+  shmyth_let(
+    "odd",
+    UHTyp.contract(Arrow(Int, Bool)),
+    shmyth_lam(
+      "n",
+      OpSeq.wrap(
+        shmyth_case_nat(
+          "n",
+          "y1",
+          OpSeq.wrap(UHExp.boollit(false)),
+          OpSeq.wrap(UHExp.EmptyHole(0)),
+        ),
+      ),
+    ),
+  ),
+  mk_app_equality_assert(
+    1,
+    "odd",
+    [UHExp.intlit("1")],
+    UHExp.boollit(true),
+  ),
+  mk_app_equality_assert(
+    2,
+    "odd",
+    [UHExp.intlit("2")],
+    UHExp.boollit(false),
+  ),
+];
+
 let revConcat_template: UHExp.t = [
   shmyth_let(
     "revConcat",
@@ -1030,6 +1060,7 @@ let examples =
     |> add("qsort_example_100", qsort_n(100))
     |> add("add_template", addition_template)
     |> add("max_template", max_template)
+    |> add("odd_template", odd_template)
     |> add("mult_template", mult_template)
     |> add("append_template", append_template)
     |> add("revConcat_template", revConcat_template)

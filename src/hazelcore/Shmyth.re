@@ -659,8 +659,8 @@ let rec res_to_dhexp = (res): DHExp.t => {
   | RCtor("Cons", RTuple(_)) => failwith("res_to_dhexp: malformed cons")
   | _ =>
     // nondeterminates
-    print_endline("ERROR: res_to_dhexp: non-determinate result")
-    Triv
+    print_endline("ERROR: res_to_dhexp: non-determinate result");
+    Triv;
   };
 }
 and r_list_to_NestedPair = (xs): DHExp.t => {
