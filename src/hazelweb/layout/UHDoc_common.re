@@ -1,4 +1,4 @@
-open Pretty;
+module Doc = Pretty.Doc;
 open UHDoc;
 
 type memoization_value('a) = {
@@ -82,7 +82,7 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);
+  let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let colon_Lam = (): t => mk(~index=1, ":");
   let open_Lam = (): t => mk(~index=2, ".{");
   let close_Lam = (): t => mk(~index=3, "}");
@@ -131,7 +131,7 @@ let user_newline: t =
   Doc.(
     hcats([
       space_,
-      text(UnicodeConstants.user_newline) |> annot(UHAnnot.UserNewline),
+      text(Unicode.user_newline) |> annot(UHAnnot.UserNewline),
     ])
   );
 

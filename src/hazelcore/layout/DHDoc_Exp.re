@@ -1,4 +1,5 @@
-open Pretty;
+module Doc = Pretty.Doc;
+
 let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
   switch (op) {
   | And => DHDoc_common.precedence_And
@@ -346,8 +347,7 @@ and mk_rule =
   open Doc;
   let mk' =
     mk(~show_casts, ~show_fn_bodies, ~show_case_clauses, ~selected_instance);
-  let hidden_clause =
-    annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
+  let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     show_case_clauses
       ? choices([
