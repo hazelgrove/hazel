@@ -289,24 +289,18 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~measure: bool,
       ~is_mac: bool,
+      ~settings: Settings.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    measure,
+    settings.performance.measure && settings.performance.uhcode_view,
     () => {
       open Vdom;
 
-      let l =
-        Program.get_layout(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=false,
-          program,
-        );
+      let l = Program.get_layout(~settings, program);
 
       let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
@@ -314,13 +308,7 @@ let view =
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
-        let caret_pos =
-          Program.get_caret_position(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          );
+        let caret_pos = Program.get_caret_position(~settings, program);
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
