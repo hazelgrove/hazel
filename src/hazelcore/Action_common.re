@@ -28,7 +28,7 @@ let shape_to_string = (shape: shape): string => {
     | SEquals => "=="
     | SSpace => "space"
     | SComma => ","
-    | SArrow => UnicodeConstants.typeArrowSym
+    | SArrow => Unicode.typeArrowSym
     | SVBar => "|"
     | SCons => "::"
     | SAnd => "&&"

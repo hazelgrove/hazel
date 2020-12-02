@@ -77,6 +77,31 @@ let decoration_container =
   );
 };
 
+let decoration_cls: UHDecorationShape.t => string =
+  fun
+  | ErrHole => "err-hole"
+  | VarErrHole => "var-err-hole"
+  | VarUse => "var-use"
+  | CurrentTerm => "current-term";
+
+let decoration_view =
+    (
+      ~contains_current_term: bool,
+      ~corner_radii: (float, float),
+      ~term_sort: TermSort.t,
+      ~term_shape: TermShape.t,
+      shape: UHDecorationShape.t,
+    ) =>
+  UHDecoration.(
+    switch (shape) {
+    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
+    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+    | VarUse => VarUse.view(~corner_radii)
+    | CurrentTerm =>
+      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+    }
+  );
+
 let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
@@ -122,55 +147,26 @@ let decoration_views =
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
         let offset = start.col - indent;
-        let origin = MeasuredPosition.{row: start.row, col: indent};
-        let height = lazy(MeasuredLayout.height(m));
-        let width = lazy(MeasuredLayout.width(~offset, m));
         let current_vs =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
-               let (cls, decoration) =
-                 UHDecoration.(
-                   switch (dshape) {
-                   | ErrHole => (
-                       "err-hole",
-                       ErrHole.view(
-                         ~contains_current_term=
-                           Option.is_some(dpaths.current_term),
-                         ~corner_radii,
-                         (offset, m),
-                       ),
-                     )
-                   | VarErrHole => (
-                       "var-err-hole",
-                       VarErrHole.view(
-                         ~contains_current_term=
-                           Option.is_some(dpaths.current_term),
-                         ~corner_radii,
-                         (offset, m),
-                       ),
-                     )
-                   | VarUse => (
-                       "var-use",
-                       VarUse.view(~corner_radii, (offset, m)),
-                     )
-                   | CurrentTerm => (
-                       "current-term",
-                       CurrentTerm.view(
-                         ~corner_radii,
-                         ~sort,
-                         ~shape,
-                         (offset, m),
-                       ),
-                     )
-                   }
+               let cls = decoration_cls(dshape);
+               let view =
+                 decoration_view(
+                   ~contains_current_term=Option.is_some(dpaths.current_term),
+                   ~corner_radii,
+                   ~term_shape=shape,
+                   ~term_sort=sort,
+                   dshape,
+                   (offset, m),
                  );
                decoration_container(
                  ~font_metrics,
-                 ~height=Lazy.force(height),
-                 ~width=Lazy.force(width),
-                 ~origin,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
                  ~cls,
-                 [decoration],
+                 [view],
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
@@ -187,7 +183,7 @@ let view_of_cursor_inspector =
       ~inject,
       ~font_metrics: FontMetrics.t,
       (steps, cursor): CursorPath.t,
-      cursor_inspector: Model.cursor_inspector,
+      cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       l: UHLayout.t,
     ) => {
@@ -249,7 +245,9 @@ let key_handlers =
             Event.Ignore;
           }
         | Some(Ctrl_Space) =>
-          prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
+          prevent_stop_inject(
+            ModelAction.UpdateSettings(CursorInspector(Toggle_visible)),
+          )
         | Some(kc) =>
           prevent_stop_inject(
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
@@ -324,25 +322,18 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~measure: bool,
       ~is_mac: bool,
-      ~cursor_inspector: Model.cursor_inspector,
+      ~settings: Settings.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    measure,
+    settings.performance.measure && settings.performance.uhcode_view,
     () => {
       open Vdom;
 
-      let l =
-        Program.get_layout(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=false,
-          program,
-        );
+      let l = Program.get_layout(~settings, program);
 
       let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
@@ -350,18 +341,12 @@ let view =
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
-        let caret_pos =
-          Program.get_caret_position(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          );
+        let caret_pos = Program.get_caret_position(~settings, program);
         program.is_focused
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
-        if (program.is_focused && cursor_inspector.visible) {
+        if (program.is_focused && settings.cursor_inspector.visible) {
           let path = Program.get_path(program);
           let ci = Program.get_cursor_info(program);
           [
@@ -369,7 +354,7 @@ let view =
               ~inject,
               ~font_metrics,
               path,
-              cursor_inspector,
+              settings.cursor_inspector,
               ci,
               l,
             ),

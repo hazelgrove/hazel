@@ -55,24 +55,9 @@ let get_result: t => Result.t;
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action: (Action.t, t) => t;
-let move_via_key:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    MoveKey.t,
-    t
-  ) =>
-  (t, Action.t);
+let move_via_key: (~settings: Settings.t, MoveKey.t, t) => (t, Action.t);
 let move_via_click:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    Pretty.MeasuredPosition.t,
-    t
-  ) =>
-  (t, Action.t);
+  (~settings: Settings.t, Pretty.MeasuredPosition.t, t) => (t, Action.t);
 
 exception HoleNotFound;
 let move_to_hole: (MetaVar.t, t) => Action.t;
@@ -85,31 +70,9 @@ let move_to_hole: (MetaVar.t, t) => Action.t;
  */
 let move_to_case_branch: (CursorPath.steps, int) => Action.t;
 
-let get_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHLayout.t;
-
-let get_measured_layout:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  UHMeasuredLayout.t;
+let get_layout: (~settings: Settings.t, t) => UHLayout.t;
 
 let cursor_on_exp_hole: t => option(MetaVar.t);
 
 let get_caret_position:
-  (
-    ~measure_program_get_doc: bool,
-    ~measure_layoutOfDoc_layout_of_doc: bool,
-    ~memoize_doc: bool,
-    t
-  ) =>
-  Pretty.MeasuredPosition.t;
+  (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
