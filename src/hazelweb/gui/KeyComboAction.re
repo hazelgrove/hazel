@@ -1,51 +1,51 @@
 let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
   [
     (HazelKeyCombos.Backspace, _ => Action.Backspace),
-    (Delete, _ => Action.Delete),
-    (ShiftTab, _ => Action.MoveToPrevHole),
-    (Tab, _ => Action.MoveToNextHole),
+    (Delete, _ => Delete),
+    (ShiftTab, _ => MoveToPrevHole),
+    (Tab, _ => MoveToNextHole),
     (
       GT,
       fun
-      | {CursorInfo.typed: OnType, _} => Action.Construct(SOp(SArrow))
-      | _ => Action.Construct(SOp(SGreaterThan)),
+      | {CursorInfo.typed: OnType, _} => Construct(SOp(SArrow))
+      | _ => Construct(SOp(SGreaterThan)),
     ),
-    (Ampersand, _ => Action.Construct(SOp(SAnd))),
-    (VBar, _ => Action.Construct(SOp(SOr))),
-    (LeftParen, _ => Action.Construct(SParenthesized)),
-    (Colon, _ => Action.Construct(SAsc)),
-    (Equals, _ => Action.Construct(SOp(SEquals))),
-    (Enter, _ => Action.Construct(SLine)),
-    (Backslash, _ => Action.Construct(SLam)),
-    (Plus, _ => Action.Construct(SOp(SPlus))),
-    (Minus, _ => Action.Construct(SOp(SMinus))),
-    (Asterisk, _ => Action.Construct(SOp(STimes))),
-    (Slash, _ => Action.Construct(SOp(SDivide))),
-    (LT, _ => Action.Construct(SOp(SLessThan))),
+    (Ampersand, _ => Construct(SOp(SAnd))),
+    (VBar, _ => Construct(SOp(SOr))),
+    (LeftParen, _ => Construct(SParenthesized)),
+    (Colon, _ => Construct(SAsc)),
+    (Equals, _ => Construct(SOp(SEquals))),
+    (Enter, _ => Construct(SLine)),
+    (Backslash, _ => Construct(SLam)),
+    (Plus, _ => Construct(SOp(SPlus))),
+    (Minus, _ => Construct(SOp(SMinus))),
+    (Asterisk, _ => Construct(SOp(STimes))),
+    (Slash, _ => Construct(SOp(SDivide))),
+    (LT, _ => Construct(SOp(SLessThan))),
     (
       Space,
       fun
       | {CursorInfo.cursor_term: Line(_, CommentLine(_)), _} =>
-        Action.Construct(SChar(" "))
-      | _ => Action.Construct(SOp(SSpace)),
+        Construct(SChar(" "))
+      | _ => Construct(SOp(SSpace)),
     ),
-    (Comma, _ => Action.Construct(SOp(SComma))),
+    (Comma, _ => Construct(SOp(SComma))),
     (
       LeftBracket,
       fun
-      | {CursorInfo.typed: OnType, _} => Action.Construct(SList)
-      | _ => Action.Construct(SListNil),
+      | {CursorInfo.typed: OnType, _} => Construct(SList)
+      | _ => Construct(SListNil),
     ),
-    (Semicolon, _ => Action.Construct(SOp(SCons))),
-    (Alt_L, _ => Action.Construct(SInj(L))),
-    (Alt_R, _ => Action.Construct(SInj(R))),
-    (Alt_C, _ => Action.Construct(SCase)),
-    (Pound, _ => Action.Construct(SCommentLine)),
-    (Shift_Enter, _ => Action.Construct(SCommentLine)),
-    (Ctrl_Alt_I, _ => Action.SwapUp),
-    (Ctrl_Alt_K, _ => Action.SwapDown),
-    (Ctrl_Alt_J, _ => Action.SwapLeft),
-    (Ctrl_Alt_L, _ => Action.SwapRight),
+    (Semicolon, _ => Construct(SOp(SCons))),
+    (Alt_L, _ => Construct(SInj(L))),
+    (Alt_R, _ => Construct(SInj(R))),
+    (Alt_C, _ => Construct(SCase)),
+    (Pound, _ => Construct(SCommentLine)),
+    (Shift_Enter, _ => Construct(SCommentLine)),
+    (Ctrl_Alt_I, _ => SwapUp),
+    (Ctrl_Alt_K, _ => SwapDown),
+    (Ctrl_Alt_J, _ => SwapLeft),
+    (Ctrl_Alt_L, _ => SwapRight),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;
