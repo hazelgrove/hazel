@@ -28,24 +28,7 @@ type t =
   | LoadCardstack(int)
   | NextCard
   | PrevCard
-  // Result computation toggles
-  | ToggleComputeResults
-  | ToggleShowCaseClauses
-  | ToggleShowFnBodies
-  | ToggleShowCasts
-  | ToggleShowUnevaluatedExpansion
-  // Time measurement toggles
-  | ToggleMeasureTimes
-  | ToggleMeasureModel_perform_edit_action
-  | ToggleMeasureProgram_get_doc
-  | ToggleMeasureLayoutOfDoc_layout_of_doc
-  | ToggleMeasureUHCode_view
-  | ToggleMeasureCell_view
-  | ToggleMeasurePage_view
-  | ToggleMeasureHazel_create
-  | ToggleMeasureUpdate_apply_action
-  //
-  | ToggleMemoizeDoc
+  | UpdateSettings(Settings.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
   | InvalidVar(string)
