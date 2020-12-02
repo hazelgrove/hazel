@@ -3,7 +3,6 @@ type t = {
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
-  memoize_doc: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
@@ -69,7 +68,6 @@ let init = (): t => {
     cell_width,
     selected_instances,
     undo_history,
-    memoize_doc: true,
     left_sidebar_open: false,
     right_sidebar_open: true,
     font_metrics:
