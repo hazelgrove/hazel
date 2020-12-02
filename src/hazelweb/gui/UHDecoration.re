@@ -494,11 +494,9 @@ let synth_tab = _width =>
     [
       Node.span(
         [Attr.classes(["synthesizing-hole"])],
-        [Node.text(UnicodeConstants.nbsp ++ "○")],
+        [Node.text(Unicode.nbsp ++ "○")],
       ),
-      Node.text(
-        StringUtil.cat(UnicodeConstants.[nbsp, double_angle_right, nbsp]),
-      ),
+      Node.text(StringUtil.cat(Unicode.[nbsp, double_angle_right, nbsp])),
     ],
   );
 

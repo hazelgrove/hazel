@@ -330,7 +330,7 @@ let view_of_cursor_inspector =
       ~inject,
       ~font_metrics: FontMetrics.t,
       (steps, cursor): CursorPath.t,
-      cursor_inspector: Model.cursor_inspector,
+      cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
       l: UHLayout.t,
     ) => {
@@ -406,7 +406,9 @@ let key_handlers =
             Event.Ignore;
           }
         | Some(Ctrl_Space) =>
-          prevent_stop_inject(ModelAction.ToggleShowCursorInspector)
+          prevent_stop_inject(
+            ModelAction.UpdateSettings(CursorInspector(Toggle_visible)),
+          )
         | Some(Enter) when Option.is_some(synthesizing) =>
           prevent_stop_inject(ModelAction.AcceptFilling)
         | Some(Ctrl_Enter) =>
@@ -443,15 +445,14 @@ let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
-      ~measure: bool,
       ~is_mac: bool,
-      ~cursor_inspector: Model.cursor_inspector,
+      ~settings: Settings.t,
       program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
     "UHCode.view",
-    measure,
+    settings.performance.measure && settings.performance.uhcode_view,
     () => {
       open Vdom;
 
@@ -465,13 +466,7 @@ let view =
             )
           : [];
 
-      let l =
-        Program.get_layout(
-          ~measure_program_get_doc=false,
-          ~measure_layoutOfDoc_layout_of_doc=false,
-          ~memoize_doc=false,
-          program,
-        );
+      let l = Program.get_layout(~settings, program);
 
       let code_text = {
         let assert_map = snd(Program.get_result(program));
@@ -482,18 +477,12 @@ let view =
         decoration_views(~font_metrics, dpaths, l);
       };
       let caret = {
-        let caret_pos =
-          Program.get_caret_position(
-            ~measure_program_get_doc=false,
-            ~measure_layoutOfDoc_layout_of_doc=false,
-            ~memoize_doc=true,
-            program,
-          );
+        let caret_pos = Program.get_caret_position(~settings, program);
         program.is_focused && Option.is_none(program.synthesizing)
           ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
       };
       let cursor_inspector =
-        if (program.is_focused && cursor_inspector.visible) {
+        if (program.is_focused && settings.cursor_inspector.visible) {
           let path = Program.get_path(program);
           let ci = Program.get_cursor_info(program);
           [
@@ -501,7 +490,7 @@ let view =
               ~inject,
               ~font_metrics,
               path,
-              cursor_inspector,
+              settings.cursor_inspector,
               ci,
               l,
             ),

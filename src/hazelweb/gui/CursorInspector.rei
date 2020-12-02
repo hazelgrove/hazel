@@ -7,7 +7,7 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     (float, float),
-    Model.cursor_inspector,
+    Settings.CursorInspector.t,
     CursorInfo.t
   ) =>
   Vdom.Node.t;

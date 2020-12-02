@@ -1,49 +1,8 @@
-/**
- * Flags for enabling/disabling live results
- * and configuring the result view
- */
-type compute_results = {
-  compute_results: bool,
-  show_case_clauses: bool,
-  show_fn_bodies: bool,
-  show_casts: bool,
-  show_unevaluated_expansion: bool,
-};
-
-/**
- * Flags for benchmarking various portions of
- * the render cycle
- */
-type measurements = {
-  measurements: bool,
-  model_perform_edit_action: bool,
-  program_get_doc: bool,
-  layoutOfDoc_layout_of_doc: bool,
-  uhcode_view: bool,
-  cell_view: bool,
-  page_view: bool,
-  hazel_create: bool,
-  update_apply_action: bool,
-};
-
-/**
- * Flags for the display of the cursor inspector
- */
-type cursor_inspector = {
-  visible: bool,
-  show_expanded: bool,
-  term_novice_message_mode: bool,
-  type_novice_message_mode: bool,
-};
-
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
-  compute_results,
-  measurements,
-  memoize_doc: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
@@ -56,7 +15,7 @@ type t = {
    * to realize preview when scrolling.
    */
   mouse_position: ref(MousePosition.t),
-  cursor_inspector,
+  settings: Settings.t,
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -66,9 +25,6 @@ let cardstack_info: list(CardstackInfo.t);
  */
 let cutoff: (t, t) => bool;
 let init: unit => t;
-
-let get_novice_mode: t => bool;
-let toggle_novice_mode: t => t;
 
 let get_program: t => Program.t;
 let map_program: (Program.t => Program.t, t) => t;

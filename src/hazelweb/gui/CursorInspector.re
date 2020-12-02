@@ -1,4 +1,4 @@
-module Vdom = Virtual_dom.Vdom;
+open Virtual_dom.Vdom;
 
 type err_state_b =
   | TypeInconsistency
@@ -6,31 +6,30 @@ type err_state_b =
   | OK;
 
 let inconsistent_symbol =
-  Vdom.Node.div(
+  Node.div(
     [
-      Vdom.Attr.classes(["consistency-symbol", "inconsistent-symbol"]),
-      Vdom.Attr.create("title", "Inconsistent"),
+      Attr.classes(["consistency-symbol", "inconsistent-symbol"]),
+      Attr.create("title", "Inconsistent"),
     ],
-    [Vdom.Node.text(UnicodeConstants.inconsistent)],
+    [Node.text(Unicode.inconsistent)],
   );
 
 let consistent_symbol =
-  Vdom.Node.div(
+  Node.div(
     [
-      Vdom.Attr.classes(["consistent-symbol", "colon"]),
-      Vdom.Attr.create("title", "Of Consistent Type"),
+      Attr.classes(["consistent-symbol", "colon"]),
+      Attr.create("title", "Of Consistent Type"),
     ],
-    [Vdom.Node.text(":"), Vdom.Node.text("~")],
+    [Node.text(":"), Node.text("~")],
   );
 
 let emphasize_text = (~only_right=false, msg: string) => {
   let classes =
     only_right ? ["emphasize-text", "only-right"] : ["emphasize-text"];
-  Vdom.Node.div([Vdom.Attr.classes(classes)], [Vdom.Node.text(msg)]);
+  Node.div([Attr.classes(classes)], [Node.text(msg)]);
 };
 
-let colon =
-  Vdom.Node.div([Vdom.Attr.classes(["colon"])], [Vdom.Node.text(":")]);
+let colon = Node.div([Attr.classes(["colon"])], [Node.text(":")]);
 
 let advanced_summary = (typed: CursorInfo.typed, tag_type: TermSort.t) => {
   let term_tag = TermTag.term_tag_view(tag_type, ~show_tooltip=true, []);
@@ -196,9 +195,9 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
     | Analyzed(ty)
     | PatAnalyzed(ty) => (
         [
-          Vdom.Node.text("Expecting " ++ article),
+          Node.text("Expecting " ++ article),
           term_tag,
-          Vdom.Node.text("of type"),
+          Node.text("of type"),
         ],
         [HTypCode.view(ty)],
       )
@@ -209,34 +208,30 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
       switch (got_ty, HTyp.eq(expected_ty, got_ty)) {
       | (HTyp.Hole, true) => (
           [
-            Vdom.Node.text("Expecting " ++ article),
+            Node.text("Expecting " ++ article),
             term_tag,
-            Vdom.Node.text("of type"),
+            Node.text("of type"),
           ],
           [HTypCode.view(expected_ty)],
         )
       | (HTyp.Hole, false) => (
           [
-            Vdom.Node.text("Expecting " ++ article),
+            Node.text("Expecting " ++ article),
             term_tag,
-            Vdom.Node.text("of type consistent with"),
+            Node.text("of type consistent with"),
           ],
           [HTypCode.view(expected_ty)],
         )
       | (_, false) => (
           [
-            Vdom.Node.text("Got " ++ article),
+            Node.text("Got " ++ article),
             term_tag,
-            Vdom.Node.text("of consistent type"),
+            Node.text("of consistent type"),
           ],
           [HTypCode.view(got_ty)],
         )
       | _ => (
-          [
-            Vdom.Node.text("Got " ++ article),
-            term_tag,
-            Vdom.Node.text("of type"),
-          ],
+          [Node.text("Got " ++ article), term_tag, Node.text("of type")],
           [HTypCode.view(got_ty)],
         )
       }
@@ -244,154 +239,122 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
     | PatSynthesized(ty) =>
       switch (ty) {
       | HTyp.Hole => (
-          [
-            Vdom.Node.text("Expecting " ++ article),
-            term_tag,
-            Vdom.Node.text("of"),
-          ],
+          [Node.text("Expecting " ++ article), term_tag, Node.text("of")],
           [emphasize_text("Any Type")],
         )
       | _ => (
-          [
-            Vdom.Node.text("Got " ++ article),
-            term_tag,
-            Vdom.Node.text("of type"),
-          ],
+          [Node.text("Got " ++ article), term_tag, Node.text("of type")],
           [HTypCode.view(ty)],
         )
       }
     | SynMatchingArrow(_, ty) => (
-        [
-          Vdom.Node.text("Got " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        [Node.text("Got " ++ article), term_tag, Node.text("of type")],
         [HTypCode.view(ty)],
       )
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk_diff(expected_ty, got_ty);
       (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of type"),
-        ],
+        [Node.text("Expecting " ++ article), term_tag, Node.text("of type")],
         [
           TypDiffCode.view(expected_diff),
-          Vdom.Node.text("but got inconsistent type"),
+          Node.text("but got inconsistent type"),
           TypDiffCode.view(got_diff),
         ],
       );
     | SynErrorArrow(_expected_ty, got_ty) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of"),
-        ],
+        [Node.text("Expecting " ++ article), term_tag, Node.text("of")],
         [
           emphasize_text("Function Type"),
-          Vdom.Node.text("but got inconsistent type"),
+          Node.text("but got inconsistent type"),
           HTypCode.view(got_ty),
         ],
       )
     | AnaWrongLength(expected_len, got_len, _expected_ty)
     | PatAnaWrongLength(expected_len, got_len, _expected_ty) => (
         [
-          Vdom.Node.text("Expecting " ++ article),
+          Node.text("Expecting " ++ article),
           term_tag,
-          Vdom.Node.text("of type"),
+          Node.text("of type"),
         ],
         [
           emphasize_text(string_of_int(expected_len) ++ "-tuple"),
-          Vdom.Node.text("but got"),
+          Node.text("but got"),
           emphasize_text(string_of_int(got_len) ++ "-tuple"),
         ],
       )
     | AnaInvalid(expected_ty)
     | PatAnaInvalid(expected_ty) => (
         [
-          Vdom.Node.text("Expecting " ++ article),
+          Node.text("Expecting " ++ article),
           term_tag,
-          Vdom.Node.text("of type"),
+          Node.text("of type"),
         ],
         [
           HTypCode.view(expected_ty),
-          Vdom.Node.text("but got"),
+          Node.text("but got"),
           emphasize_text("Invalid Text"),
         ],
       )
     | SynInvalid => (
-        [Vdom.Node.text("Got " ++ article), term_tag],
+        [Node.text("Got " ++ article), term_tag],
         [emphasize_text(~only_right=true, "Invalid Text")],
       )
     | SynInvalidArrow(_) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of"),
-        ],
+        [Node.text("Expecting " ++ article), term_tag, Node.text("of")],
         [
           emphasize_text("Function Type"),
-          Vdom.Node.text("but got"),
+          Node.text("but got"),
           emphasize_text("Invalid Text"),
         ],
       )
     | AnaFree(expected_ty) => (
         [
-          Vdom.Node.text("Expecting " ++ article),
+          Node.text("Expecting " ++ article),
           term_tag,
-          Vdom.Node.text("of type"),
+          Node.text("of type"),
         ],
         [
           HTypCode.view(expected_ty),
-          Vdom.Node.text("but got a"),
+          Node.text("but got a"),
           emphasize_text("Free Variable"),
         ],
       )
     | SynFree => (
-        [Vdom.Node.text("Got " ++ article), term_tag],
+        [Node.text("Got " ++ article), term_tag],
         [emphasize_text(~only_right=true, "Free Variable")],
       )
     | SynFreeArrow(_) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of"),
-        ],
+        [Node.text("Expecting " ++ article), term_tag, Node.text("of")],
         [
           emphasize_text("Function Type"),
-          Vdom.Node.text("but got a"),
+          Node.text("but got a"),
           emphasize_text("Free Variable"),
         ],
       )
     | AnaKeyword(expected_ty, _)
     | PatAnaKeyword(expected_ty, _) => (
         [
-          Vdom.Node.text("Expecting " ++ article),
+          Node.text("Expecting " ++ article),
           term_tag,
-          Vdom.Node.text("of type"),
+          Node.text("of type"),
         ],
         [
           HTypCode.view(expected_ty),
-          Vdom.Node.text("but got a"),
+          Node.text("but got a"),
           emphasize_text("Reserved Keyword"),
         ],
       )
     | SynKeyword(_)
     | PatSynKeyword(_) => (
-        [Vdom.Node.text("Got " ++ article), term_tag],
+        [Node.text("Got " ++ article), term_tag],
         [emphasize_text("Reserved Keyword")],
       )
     | SynKeywordArrow(_) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of"),
-        ],
+        [Node.text("Expecting " ++ article), term_tag, Node.text("of")],
         [
           emphasize_text("Function Type"),
-          Vdom.Node.text("but got a"),
+          Node.text("but got a"),
           emphasize_text("Reserved Keyword"),
         ],
       )
@@ -401,9 +364,9 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
         if (HTyp.consistent(ty, got_ty)) {
           (
             [
-              Vdom.Node.text("Got " ++ article),
+              Node.text("Got " ++ article),
               term_tag,
-              Vdom.Node.text("consistent with type"),
+              Node.text("consistent with type"),
             ],
             [HTypCode.view(ty)],
           );
@@ -411,46 +374,42 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
           let (ty_diff, got_diff) = TypDiff.mk_diff(ty, got_ty);
           (
             [
-              Vdom.Node.text("Expecting " ++ article),
+              Node.text("Expecting " ++ article),
               term_tag,
-              Vdom.Node.text("of type"),
+              Node.text("of type"),
             ],
             [
               TypDiffCode.view(ty_diff),
-              Vdom.Node.text("but got inconsistent type"),
+              Node.text("but got inconsistent type"),
               TypDiffCode.view(got_diff),
             ],
           );
         }
       | (InconsistentBranchTys(_), _) => (
-          [Vdom.Node.text("Got " ++ article), term_tag],
+          [Node.text("Got " ++ article), term_tag],
           [emphasize_text("Inconsistent Branch Types")],
         )
       | _ => message(typed)
       }
     | SynInconsistentBranches(_) => (
-        [Vdom.Node.text("Got " ++ article), term_tag],
+        [Node.text("Got " ++ article), term_tag],
         [emphasize_text("Inconsistent Branch Types")],
       )
     | SynInconsistentBranchesArrow(_) => (
-        [
-          Vdom.Node.text("Expecting " ++ article),
-          term_tag,
-          Vdom.Node.text("of"),
-        ],
+        [Node.text("Expecting " ++ article), term_tag, Node.text("of")],
         [
           emphasize_text("Function Type"),
-          Vdom.Node.text("but got"),
+          Node.text("but got"),
           emphasize_text("Inconsistent Branch Types"),
         ],
       )
-    | OnType => ([Vdom.Node.text("Got " ++ article), term_tag], [])
+    | OnType => ([Node.text("Got " ++ article), term_tag], [])
     | OnLine => (
-        [Vdom.Node.text("Got " ++ article), term_tag],
+        [Node.text("Got " ++ article), term_tag],
         [emphasize_text(~only_right=true, "Line")],
       )
     | OnRule => (
-        [Vdom.Node.text("Got " ++ article), term_tag],
+        [Node.text("Got " ++ article), term_tag],
         [emphasize_text(~only_right=true, "Rule")],
       )
     };
@@ -460,7 +419,7 @@ let novice_summary = (typed: CursorInfo.typed, tag_typ: TermSort.t) => {
 
 let summary_bar =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Event.t,
       ci: CursorInfo.t,
       err_state_b: err_state_b,
       show_expanded: bool,
@@ -483,143 +442,136 @@ let summary_bar =
   let (term_novice, type_novice) = novice_summary(ci.typed, tag_type);
   let (term_advanced, type_advanced) = advanced_summary(ci.typed, tag_type);
   let summary =
-    Vdom.(
-      Node.div(
-        [Attr.classes(["subsection"])],
-        [
-          Node.div(
-            [
-              Attr.classes(
-                term_novice_message_mode
-                  ? ["novice-mode", "subsection"] : ["subsection"],
-              ),
-              Attr.on_click(_ =>
-                Vdom.Event.Many([
-                  Event.Prevent_default,
-                  Event.Stop_propagation,
-                  inject(ModelAction.ToggleTermNoviceMessageMode),
-                ])
-              ),
-            ],
-            term_novice_message_mode ? term_novice : term_advanced,
-          ),
-          Node.div(
-            [
-              Attr.classes(
-                term_novice_message_mode
-                  ? ["novice-mode", "subsection"] : ["subsection"],
-              ),
-              Attr.on_click(_ =>
-                Vdom.Event.Many([
-                  Event.Prevent_default,
-                  Event.Stop_propagation,
-                  inject(ModelAction.ToggleTypeNoviceMessageMode),
-                ])
-              ),
-            ],
-            type_novice_message_mode ? type_novice : type_advanced,
-          ),
-        ],
-      )
-    );
-  Vdom.(
     Node.div(
+      [Attr.classes(["subsection"])],
       [
-        Attr.classes(["type-info-summary"]),
-        Attr.on_click(_ =>
-          Vdom.Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(ModelAction.ToggleCursorInspectorExpansion),
-          ])
+        Node.div(
+          [
+            Attr.classes(
+              term_novice_message_mode
+                ? ["novice-mode", "subsection"] : ["subsection"],
+            ),
+            Attr.on_click(_ =>
+              Event.Many([
+                Event.Prevent_default,
+                Event.Stop_propagation,
+                inject(
+                  ModelAction.UpdateSettings(
+                    CursorInspector(Toggle_term_novice_message_mode),
+                  ),
+                ),
+              ])
+            ),
+          ],
+          term_novice_message_mode ? term_novice : term_advanced,
+        ),
+        Node.div(
+          [
+            Attr.classes(
+              term_novice_message_mode
+                ? ["novice-mode", "subsection"] : ["subsection"],
+            ),
+            Attr.on_click(_ =>
+              Event.Many([
+                Event.Prevent_default,
+                Event.Stop_propagation,
+                inject(
+                  ModelAction.UpdateSettings(
+                    CursorInspector(Toggle_type_novice_message_mode),
+                  ),
+                ),
+              ])
+            ),
+          ],
+          type_novice_message_mode ? type_novice : type_advanced,
         ),
       ],
-      [summary, arrow, err_icon],
-    )
+    );
+  Node.div(
+    [
+      Attr.classes(["type-info-summary"]),
+      Attr.on_click(_ =>
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(
+            ModelAction.UpdateSettings(
+              CursorInspector(Toggle_show_expanded),
+            ),
+          ),
+        ])
+      ),
+    ],
+    [summary, arrow, err_icon],
   );
 };
 
 let view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Event.t,
       loc: (float, float),
-      cursor_inspector: Model.cursor_inspector,
+      cursor_inspector: Settings.CursorInspector.t,
       cursor_info: CursorInfo.t,
     )
-    : Vdom.Node.t => {
+    : Node.t => {
   let typebar = ty =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "typebar"])],
-        [HTypCode.view(ty)],
-      )
-    );
+    Node.div([Attr.classes(["infobar", "typebar"])], [HTypCode.view(ty)]);
   let typebar_diff = ty =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "typebar"])],
-        [TypDiffCode.view(ty)],
-      )
+    Node.div(
+      [Attr.classes(["infobar", "typebar"])],
+      [TypDiffCode.view(ty)],
     );
   let matched_ty_bar = (ty1, ty2) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "matched-type-bar"])],
-        [
-          HTypCode.view(ty1),
-          Node.span(
-            [Attr.classes(["matched-connective"])],
-            [Node.text(" ▶ ")],
-          ),
-          HTypCode.view(ty2),
-        ],
-      )
+    Node.div(
+      [Attr.classes(["infobar", "matched-type-bar"])],
+      [
+        HTypCode.view(ty1),
+        Node.span(
+          [Attr.classes(["matched-connective"])],
+          [Node.text(" ▶ ")],
+        ),
+        HTypCode.view(ty2),
+      ],
     );
   let inconsistent_branches_ty_bar =
       (branch_types, path_to_case, skipped_index) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
-        List.mapi(
-          (index, ty) => {
-            let shifted_index =
-              switch (skipped_index) {
-              | None => index
-              | Some(skipped_index) =>
-                if (index >= skipped_index) {
-                  index + 1;
-                } else {
-                  index;
-                }
-              };
-            Node.span(
-              [
-                Attr.on_click(_ => {
-                  inject(SelectCaseBranch(path_to_case, shifted_index))
-                }),
-              ],
-              [HTypCode.view(ty)],
-            );
-          },
-          branch_types,
-        ),
-      )
+    Node.div(
+      [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+      List.mapi(
+        (index, ty) => {
+          let shifted_index =
+            switch (skipped_index) {
+            | None => index
+            | Some(skipped_index) =>
+              if (index >= skipped_index) {
+                index + 1;
+              } else {
+                index;
+              }
+            };
+          Node.span(
+            [
+              Attr.on_click(_ => {
+                inject(SelectCaseBranch(path_to_case, shifted_index))
+              }),
+            ],
+            [HTypCode.view(ty)],
+          );
+        },
+        branch_types,
+      ),
     );
 
   let special_msg_bar = (msg: string) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["infobar", "special-msg-bar"])],
-        [Node.text(msg)],
-      )
+    Node.div(
+      [Attr.classes(["infobar", "special-msg-bar"])],
+      [Node.text(msg)],
     );
 
   let expected_indicator = (title_text, type_div) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["indicator", "expected-indicator"])],
-        [Panel.view_of_main_title_bar(title_text), type_div],
-      )
+    Node.div(
+      [Attr.classes(["indicator", "expected-indicator"])],
+      [Panel.view_of_main_title_bar(title_text), type_div],
     );
   let expected_ty_title = "Expecting an expression of type";
   let expected_ty_title_pat = "Expecting a pattern of type";
@@ -660,11 +612,9 @@ let view =
     );
 
   let got_indicator = (title_text, type_div) =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["indicator", "got-indicator"])],
-        [Panel.view_of_other_title_bar(title_text), type_div],
-      )
+    Node.div(
+      [Attr.classes(["indicator", "got-indicator"])],
+      [Panel.view_of_other_title_bar(title_text), type_div],
     );
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
@@ -917,7 +867,7 @@ let view =
     };
   let (x, y) = loc;
   let pos_attr =
-    Vdom.Attr.style(
+    Attr.style(
       Css_gen.combine(
         Css_gen.left(`Px(int_of_float(x))),
         Css_gen.top(`Px(int_of_float(y))),
@@ -943,20 +893,18 @@ let view =
     } else {
       [summary];
     };
-  Vdom.(
-    Node.div(
-      [
-        Attr.classes(["cursor-inspector-outer", above_or_below]),
-        // stop propagation to code click handler
-        Attr.on_mousedown(_ => Event.Stop_propagation),
-        pos_attr,
-      ],
-      [
-        Node.div(
-          [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
-          content,
-        ),
-      ],
-    )
+  Node.div(
+    [
+      Attr.classes(["cursor-inspector-outer", above_or_below]),
+      // stop propagation to code click handler
+      Attr.on_mousedown(_ => Event.Stop_propagation),
+      pos_attr,
+    ],
+    [
+      Node.div(
+        [Attr.classes(["panel", "cursor-inspector", cls_of_err_state_b])],
+        content,
+      ),
+    ],
   );
 };
