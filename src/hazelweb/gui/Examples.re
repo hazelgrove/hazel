@@ -378,10 +378,9 @@ let mk_slidy_slice_view3 = "\")E)))))))))E)))))";
 
 let mk_slidy_slice_last = "(shape((ExpLine(OpSeq(Placeholder 0)(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(BoolLit NotInHole true)(A Comma(S(IntLit NotInHole 14)E)))))))E)))))(expand((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole m)E))((OpSeq(Placeholder 0)(S Int E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(StringLit NotInHole\"((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole \")(A Caret(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole string_of_int)(A Space(S(Var NotInHole NotInVarHole m)E)))))))(A Caret(S(StringLit NotInHole\")E))))\")E)))))))))E)))))))(ExpLine(OpSeq(Placeholder 0)(S(ApLivelit 0 NotInHole $slidy $slidy(IntLit 50)((next 0)(splice_map())(splice_order())))E))))";
 
-
 /*
-This is the version with unique ids for divs; the display formatting breaks badly though.
-*/
+ This is the version with unique ids for divs; the display formatting breaks badly though.
+ */
 let slidy_string = "((LivelitDefLine((name(NotInVarHole $slidy))(expansion_type(OpSeq(Placeholder 0)(S Int E)))(captures((ExpLine(OpSeq(Placeholder 0)(S(ListNil NotInHole)E)))))(model_type(OpSeq(Placeholder 0)(S Int E)))(action_type(OpSeq(Placeholder 0)(S Int E)))(init((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 50)E)))))(update((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole model)(A Comma(S(Var NotInHole NotInVarHole action)E)))))E))((OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E)))((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole action)E)))))E)))))(view((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole id)(A Comma(S(Var NotInHole NotInVarHole model)E)))))E))((OpSeq(Placeholder 0)(S(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(S Int(A Prod(S Int E)))))E)))((ExpLine(OpSeq(BinOp NotInHole Caret(BinOp NotInHole Caret(BinOp NotInHole Caret(BinOp NotInHole Caret(BinOp NotInHole Caret(BinOp NotInHole Caret(BinOp NotInHole Caret(BinOp NotInHole Caret(Placeholder 0)(Placeholder 1))(Placeholder 2))(Placeholder 3))(Placeholder 4))(Placeholder 5))(Placeholder 6))(Placeholder 7))(Placeholder 8))(S(StringLit NotInHole \"
 <span class='slider-livelit'>
    <input
@@ -406,7 +405,7 @@ let ll_def_slider =
   ++ mk_slidy_slice_last
   |> Sexplib.Sexp.of_string
   |> UHExp.t_of_sexp;
-  //slidy_string
+//slidy_string
 
 [@deriving sexp]
 type id = string;

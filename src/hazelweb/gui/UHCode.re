@@ -272,7 +272,7 @@ let decoration_views =
                );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
-      | LivelitView({llu, base_llname, shape, model: m, hd_step, _}) =>
+      | LivelitView({llu, base_llname, shape, model, hd_step, _}) =>
         switch (IntMap.find_opt(llu, llview_ctx)) {
         | Some((llview, _)) =>
           // type magic required by virtual dom to ensure
@@ -284,25 +284,33 @@ let decoration_views =
             );
           Vdom.[
             Node.widget(
-              ~update=
-                (state, container) => {
-                  print_endline("WIDGET UPDATE");
-                  (state, container);
-                },
+              ~update=(state, container) => (state, container),
               ~id,
               ~init=
                 () => {
-                  print_endline("WIDGET INIT");
-                  print_endline("SETTING VIEW with MODEL:");
-                  print_endline(
-                    Sexplib.Sexp.to_string_hum(SerializedModel.sexp_of_t(m)),
+                  let container_origin_x =
+                    (-1.)
+                    +. Float.of_int(start.row)
+                    *. font_metrics.row_height;
+                  let container_origin_y =
+                    Float.of_int(1 + start.col) *. font_metrics.col_width;
+                  let container_position_style =
+                    Printf.sprintf(
+                      "top: %fpx; left: %fpx;",
+                      container_origin_x,
+                      container_origin_y,
+                    );
+                  let container = Dom_html.(createDiv(document));
+                  container##setAttribute(
+                    Js.string("class"),
+                    Js.string("user-defined-livelit-container"),
                   );
-
-                  // don't think we need widget-internal state
-                  let state = ();
-                  let container = Dom_html.(createSpan(document));
-                  container##.innerHTML := Js.string(llview(llu, m));
-                  (state, container);
+                  container##setAttribute(
+                    Js.string("style"),
+                    Js.string(container_position_style),
+                  );
+                  container##.innerHTML := Js.string(llview(llu, model));
+                  ((), container);
                 },
               (),
             ),
@@ -322,7 +330,7 @@ let decoration_views =
 
           let sync = serialized_action =>
             sync_livelit(ModelAction.LivelitAction(llu, serialized_action));
-          let livelit_view = llview(m, trigger, sync);
+          let livelit_view = llview(model, trigger, sync);
           let vs = {
             let uhcode = splice_name => {
               let splice_l =
