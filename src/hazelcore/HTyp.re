@@ -100,6 +100,30 @@ let get_prod_elements: t => list(t) =
 
 let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
 
+let rec get_projected_type = (ty: t, l: Label.t): option(t) => {
+  switch (ty) {
+  | Prod([]) => None
+  | Prod([ty, ...tys]) =>
+    switch (ty) {
+    | Label_Elt(l', ty') =>
+      if (l == l') {
+        Some(ty');
+      } else {
+        get_projected_type(Prod(tys), l);
+      }
+    | _ => get_projected_type(Prod(tys), l)
+    }
+  | Label_Elt(l', ty') =>
+    if (l == l') {
+      Some(ty');
+    } else {
+      None;
+    }
+  | Hole => Some(Hole)
+  | _ => None
+  };
+};
+
 /* matched sum types */
 let matched_sum =
   fun

@@ -13,6 +13,7 @@ let operator_of_shape =
   | SCons => Some(Cons)
   | SAnd => Some(And)
   | SOr => Some(Or)
+  | SDot => Some(Dot)
   | SArrow
   | SVBar => None
   };
@@ -32,6 +33,7 @@ let shape_of_operator =
   | Cons => Some(SCons)
   | And => Some(SAnd)
   | Or => Some(SOr)
+  | Dot => Some(SDot)
   | FPlus
   | FMinus
   | FTimes
@@ -352,6 +354,12 @@ let mk_syn_text =
         );
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
     }
+  | Prj(x, label) =>
+    let ze =
+      ZExp.ZBlock.wrap(
+        CursorE(text_cursor, UHExp.prj(UHExp.var(x), label)),
+      );
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
   };
 };
 
@@ -391,7 +399,8 @@ let mk_ana_text =
   | FloatLit(_)
   | BoolLit(_)
   | Underscore
-  | Var(_) =>
+  | Var(_)
+  | Prj(_, _) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
@@ -1330,9 +1339,12 @@ and syn_perform_opseq =
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+    print_endline("in construct op");
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None => failwith(__LOC__ ++ "Failed")
     | Some(operator) =>
+      print_endline("in some operator case");
+      print_endline("");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -1340,7 +1352,7 @@ and syn_perform_opseq =
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-    }
+    };
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -1372,6 +1384,7 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
+    // ECD: Proj construction gets here, should not
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
@@ -1466,7 +1479,8 @@ and syn_perform_operand =
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_) |
-        Label(_),
+        Label(_) |
+        Prj(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1533,6 +1547,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, u_gen, j, string_of_bool(b))
   | (Delete, CursorE(OnText(j), Label(_, l))) =>
     syn_delete_text(ctx, u_gen, j, l)
+  | (Delete, CursorE(OnText(j), Prj(_, _, pl))) =>
+    syn_delete_text(ctx, u_gen, j, pl)
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, u_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1544,8 +1560,9 @@ and syn_perform_operand =
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
   | (Backspace, CursorE(OnText(j), Label(_, l))) =>
-    // ECD TODO: test if there is a bug with allowing labels wiht an empty string
     syn_backspace_text(ctx, u_gen, j, l)
+  | (Backspace, CursorE(OnText(j), Prj(_, _, pl))) =>
+    syn_backspace_text(ctx, u_gen, j, pl)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -1636,6 +1653,11 @@ and syn_perform_operand =
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, u_gen, j, sop, l)
+  | (Construct(SOp(sop)), CursorE(OnText(j), Prj(_, _, pl)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    syn_split_text(ctx, u_gen, j, sop, pl)
 
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
@@ -1666,11 +1688,18 @@ and syn_perform_operand =
       ZExp.ZBlock.wrap(LamZA(err, zp |> ZPat.erase, new_zann, body));
     Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SAsc), CursorE(_)) => Failed
-
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
     syn_insert_text(ctx, u_gen, (0, s), "")
+  // if operator already exists, add projection to it
+  | (Construct(SChar(".")), CursorE(err, operand))
+      when ZExp.is_after_zoperand(zoperand) =>
+    let new_ze = ZExp.ZBlock.wrap(CursorE(err, UHExp.prj(operand, "")));
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     syn_insert_text(ctx, u_gen, (j, s), t)
+  // Insert projection with var
+  // | (Construct(SChar(".")), CursorE(OnText(j), Var(_, _, x))) =>
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
     syn_insert_text(ctx, u_gen, (j, s), x)
   | (Construct(SChar(s)), CursorE(OnText(j), IntLit(_, n))) =>
@@ -1681,6 +1710,9 @@ and syn_perform_operand =
     syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
   | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
     syn_insert_text(ctx, u_gen, (j, s), l)
+  | (Construct(SChar(s)), CursorE(OnText(j), Prj(_, _, pl))) =>
+    syn_insert_text(ctx, u_gen, (j, s), pl)
+  // Failing here for label projection
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
@@ -1790,8 +1822,9 @@ and syn_perform_operand =
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None => failwith(__LOC__ ++ " Failed")
     | Some(operator) =>
+      print_endline("succeded action");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -2026,8 +2059,19 @@ and syn_perform_operand =
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
-  | (_, CursorE(_, Prj(_, _))) =>
-    failwith(__LOC__ ++ " unimplemented Label Projection")
+  // switch (syn_perform(ctx, a, (body, ty, u_gen))) {
+  // | Failed => Failed
+  // | CursorEscaped(side) =>
+  //   syn_perform_operand(
+  //     ctx,
+  //     Action_common.escape(side),
+  //     (zoperand, ty, u_gen),
+  //   )
+  // // ECD You are here:
+  // | Succeeded((new_zbody, new_ty, u_gen)) =>
+  //   let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
+  //   Succeeded(SynDone((new_ze, new_ty, u_gen)));
+  // }
   };
 }
 and syn_perform_rules =
@@ -2736,9 +2780,11 @@ and ana_perform_opseq =
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+    print_endline(__LOC__ ++ " construct op");
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None => failwith(__LOC__ ++ " Failed")
     | Some(operator) =>
+      print_endline("succed action");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -2746,7 +2792,7 @@ and ana_perform_opseq =
       let (zseq, u_gen) =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
-    }
+    };
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -2879,7 +2925,8 @@ and ana_perform_operand =
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
         ApPalette(_) |
-        Label(_),
+        Label(_) |
+        Prj(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -2986,6 +3033,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
   | (Delete, CursorE(OnText(j), Label(_, l))) =>
     ana_delete_text(ctx, u_gen, j, l, ty)
+  | (Delete, CursorE(OnText(j), Prj(_, _, pl))) =>
+    ana_delete_text(ctx, u_gen, j, pl, ty)
 
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, u_gen, j, t, ty)
@@ -2999,6 +3048,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
   | (Backspace, CursorE(OnText(j), Label(_, l))) =>
     ana_backspace_text(ctx, u_gen, j, l, ty)
+  | (Backspace, CursorE(OnText(j), Prj(_, _, pl))) =>
+    ana_backspace_text(ctx, u_gen, j, pl, ty)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -3072,6 +3123,8 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Label(_, l))) =>
     ana_insert_text(ctx, u_gen, (j, s), l, ty)
+  | (Construct(SChar(s)), CursorE(OnText(j), Prj(_, _, pl))) =>
+    ana_insert_text(ctx, u_gen, (j, s), pl, ty)
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SCase), CursorE(_, operand)) =>
@@ -3111,6 +3164,11 @@ and ana_perform_operand =
         && !ZExp.is_after_zoperand(zoperand) =>
     ana_split_text(ctx, u_gen, j, sop, f, ty)
   | (Construct(SOp(sop)), CursorE(OnText(j), Label(_, l)))
+      when
+        !ZExp.is_before_zoperand(zoperand)
+        && !ZExp.is_after_zoperand(zoperand) =>
+    ana_split_text(ctx, u_gen, j, sop, l, ty)
+  | (Construct(SOp(sop)), CursorE(OnText(j), Prj(_, _, l)))
       when
         !ZExp.is_before_zoperand(zoperand)
         && !ZExp.is_after_zoperand(zoperand) =>
@@ -3193,8 +3251,9 @@ and ana_perform_operand =
 
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (operator_of_shape(os)) {
-    | None => Failed
+    | None => failwith(__LOC__ ++ "Failed")
     | Some(operator) =>
+      print_endline("In succeded operator case");
       let construct_operator =
         ZExp.is_before_zoperand(zoperand)
           ? construct_operator_before_zoperand
@@ -3423,7 +3482,6 @@ and ana_perform_operand =
   | (_, ApPaletteZ(_)) => ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
-  | (_, CursorE(_, Prj(_))) => failwith("unimplemented Label Projection")
   }
 and ana_perform_subsume =
     (

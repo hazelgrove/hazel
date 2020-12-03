@@ -173,6 +173,7 @@ let text_operand =
     );
   | Label(l) => (label(l), u_gen)
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
+  | Prj(_, _) => failwith("No projections at the pattern level")
   };
 
 let associate =

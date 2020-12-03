@@ -614,7 +614,6 @@ and syn_elab_skel =
         }
       };
     };
-
     switch (skel1) {
     | Placeholder(n) =>
       let en = seq |> Seq.nth_operand(n);
@@ -740,7 +739,24 @@ and syn_elab_skel =
         };
       }
     }
+  | BinOp(NotInHole, Dot, skel1, Placeholder(n)) =>
+    let en = seq |> Seq.nth_operand(n);
+    switch (syn_elab_skel(ctx, delta, skel1, seq)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(_, _, delta) =>
+      switch (en) {
+      | Label(NotInLabelHole, l) =>
+        let skels = UHExp.get_tuple_elements(skel1);
+        switch (UHExp.get_projected_skel(skels, seq, l)) {
+        | None => DoesNotElaborate
+        | Some(skel) => syn_elab_skel(ctx, delta, skel, seq)
+        };
+      | _ => DoesNotElaborate
+      }
+    };
+  | BinOp(NotInHole, Dot, _, _) => DoesNotElaborate
   }
+
 and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
@@ -755,7 +771,7 @@ and syn_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Prj(InHole(TypeInconsistent as reason, u), _) =>
+  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -775,7 +791,7 @@ and syn_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _) => DoesNotElaborate
+  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -840,8 +856,7 @@ and syn_elab_operand =
       };
     } else {
       DoesNotElaborate;
-    } // ECD TODO: May need to change to account for not valid labels evaluating as holes
-
+    }
   | Var(NotInHole, NotInVarHole, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -940,8 +955,16 @@ and syn_elab_operand =
      | None -> DoesNotElaborate
      end */ /* TODO fix me */
 
-  | Prj(NotInHole, _) =>
-    failwith(__LOC__ ++ " Unimplemented Label projection")
+  | Prj(NotInHole, body, l) =>
+    switch (syn_elab_operand(ctx, delta, body)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d, e_ty, delta) =>
+      switch (DHExp.get_projected(d, l), HTyp.get_projected_type(e_ty, l)) {
+      | (None, _)
+      | (_, None) => DoesNotElaborate
+      | (Some(d'), Some(ty')) => Elaborates(d', ty', delta)
+      }
+    }
   }
 and syn_elab_rules =
     (
@@ -1172,7 +1195,8 @@ and ana_elab_skel =
       FEquals |
       And |
       Or |
-      Space,
+      Space |
+      Dot,
       _,
       _,
     ) =>
@@ -1200,7 +1224,7 @@ and ana_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _)
-  | Prj(InHole(TypeInconsistent as reason, u), _) =>
+  | Prj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1229,7 +1253,7 @@ and ana_elab_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
+  | Prj(InHole(WrongLength, _), _, _) => DoesNotElaborate /* not in hole */ // See Issue #438 Tuple Annot Expression Evaluation reaches here, should not
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = id_env(gamma);
@@ -1326,7 +1350,8 @@ and ana_elab_operand =
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | ApPalette(NotInHole, _, _, _) =>
+  | ApPalette(NotInHole, _, _, _)
+  | Prj(NotInHole, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
 
@@ -1337,9 +1362,6 @@ and ana_elab_operand =
     } else {
       DoesNotElaborate;
     }
-
-  | Prj(NotInHole, _) =>
-    failwith(__LOC__ ++ " unimplemented label projection")
   }
 and ana_elab_rules =
     (

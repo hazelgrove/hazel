@@ -514,6 +514,8 @@ and syn_cursor_info_skel =
           ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty_list);
         }
       }
+    | BinOp(_, Dot, _, _) =>
+      failwith(__LOC__ ++ " Unimplemented Label Projection")
     };
   };
 }
@@ -813,7 +815,8 @@ and ana_cursor_info_skel =
         FEquals |
         And |
         Or |
-        Space,
+        Space |
+        Dot,
         _,
         _,
       ) =>
@@ -851,7 +854,7 @@ and ana_cursor_info_zoperand =
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-    | Prj(InHole(TypeInconsistent, _), _) =>
+    | Prj(InHole(TypeInconsistent, _), _, _) =>
       let operand' =
         zoperand
         |> ZExp.erase_zoperand
@@ -880,14 +883,15 @@ and ana_cursor_info_zoperand =
         _,
       )
     | ApPalette(InHole(WrongLength, _), _, _, _)
-    | Prj(InHole(WrongLength, _), _) => None
+    | Prj(InHole(WrongLength, _), _, _) => None
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ApPalette(NotInHole, _, _, _) =>
+    | ApPalette(NotInHole, _, _, _)
+    | Prj(NotInHole, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
@@ -921,8 +925,6 @@ and ana_cursor_info_zoperand =
             : None;
         }
       }
-    | Prj(NotInHole, _) =>
-      failwith(__LOC__ ++ " unimplemented label projection")
     } /* zipper cases */
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */

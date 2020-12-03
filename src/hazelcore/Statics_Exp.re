@@ -150,6 +150,17 @@ and syn_skel =
       let ty = HTyp.List(ty1);
       ana_skel(ctx, skel2, seq, ty) |> Option.map(_ => ty);
     }
+  | BinOp(NotInHole, Dot, skel1, skel2) =>
+    switch (syn_skel(ctx, skel1, seq), skel2) {
+    | (None, _) => None
+    | (Some(ty), Placeholder(n)) =>
+      let en = Seq.nth_operand(n, seq);
+      switch (en) {
+      | Label(NotInLabelHole, l) => HTyp.get_projected_type(ty, l)
+      | _ => None
+      };
+    | (_, _) => None
+    }
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
@@ -166,7 +177,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _) =>
+  | Prj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
   | Var(InHole(WrongLength, _), _, _)
@@ -178,7 +189,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _) => None
+  | Prj(InHole(WrongLength, _), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     switch (syn(ctx, scrut)) {
     | None => None
@@ -254,7 +265,11 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       }
     };
   | Parenthesized(body) => syn(ctx, body)
-  | Prj(NotInHole, _) => Some(Hole) // Projection by itself has no meaning, so hole
+  | Prj(NotInHole, body, label) =>
+    switch (syn_operand(ctx, body)) {
+    | None => None
+    | Some(ty) => HTyp.get_projected_type(ty, label)
+    }
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -361,7 +376,8 @@ and ana_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space,
+      Space |
+      Dot,
       _,
       _,
     ) =>
@@ -386,7 +402,7 @@ and ana_operand =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _) =>
+  | Prj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -401,7 +417,7 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _)
-  | Prj(InHole(WrongLength, _), _) =>
+  | Prj(InHole(WrongLength, _), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
@@ -413,7 +429,8 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
+  | BoolLit(NotInHole, _)
+  | Prj(NotInHole, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
     | None => None
@@ -467,7 +484,6 @@ and ana_operand =
       }
     }
   | Parenthesized(body) => ana(ctx, body, ty)
-  | Prj(NotInHole, _) => Some()
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -579,6 +595,8 @@ and syn_nth_type_mode' =
         | Some(ty1) => ana_go(skel2, ty1)
         };
       }
+    | BinOp(NotInHole, Dot, skel1, skel2) =>
+      n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
     };
   go(skel);
 }
@@ -639,7 +657,8 @@ and ana_nth_type_mode' =
         FLessThan |
         FGreaterThan |
         FEquals |
-        Space,
+        Space |
+        Dot,
         _,
         _,
       ) =>
@@ -926,7 +945,6 @@ and syn_fix_holes_skel =
           u_gen,
         );
       | Label(InLabelHole(_, _), _) =>
-        // ECD TODO: may not want to perform syn_fix_holes on the skel2 if this is already in a hole
         let (skel2, seq, _, u_gen) =
           syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq);
         (BinOp(NotInHole, Space, skel1, skel2), seq, Hole, u_gen);
@@ -966,6 +984,50 @@ and syn_fix_holes_skel =
       ana_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel2, seq, ty);
     let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
     (skel, seq, ty, u_gen);
+  | BinOp(_, Dot, skel1, Placeholder(n)) =>
+    let (skel1, seq, ty1, u_gen) =
+      syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+    let en = seq |> Seq.nth_operand(n);
+    switch (en) {
+    | EmptyHole(_) => (
+        BinOp(NotInHole, Dot, skel1, Placeholder(n)),
+        seq,
+        Hole,
+        u_gen,
+      )
+    | Label(NotInLabelHole, l) =>
+      switch (HTyp.get_projected_type(ty1, l)) {
+      | None => (
+          BinOp(
+            InHole(TypeInconsistent, u_gen),
+            Dot,
+            skel1,
+            Placeholder(n),
+          ),
+          seq,
+          Hole,
+          u_gen,
+        )
+      | Some(ty) => (
+          BinOp(NotInHole, Dot, skel1, Placeholder(n)),
+          seq,
+          ty,
+          u_gen,
+        )
+      }
+    | _ => (
+        BinOp(InHole(TypeInconsistent, u_gen), Dot, skel1, Placeholder(n)),
+        seq,
+        Hole,
+        u_gen,
+      )
+    };
+  | BinOp(_, Dot, skel1, skel2) => (
+      BinOp(InHole(TypeInconsistent, u_gen), Dot, skel1, skel2),
+      seq,
+      Hole,
+      u_gen,
+    )
   }
 and syn_fix_holes_operand =
     (
@@ -1083,9 +1145,13 @@ and syn_fix_holes_operand =
         u_gen,
       );
     };
-  // All projections should have their holes fixed in the skel case, so if here by itself
-  // then it must be a standalone projection, which is an inconsistent type
-  | Prj(_, _) => failwith(__LOC__ ++ " Unimplemented Label Projection")
+  | Prj(_, body, l) =>
+    let (block, ty, u_gen) =
+      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, body);
+    switch (HTyp.get_projected_type(ty, l)) {
+    | None => (Prj(InHole(TypeInconsistent, u_gen), block, l), Hole, u_gen)
+    | Some(proj_ty) => (Prj(NotInHole, block, l), proj_ty, u_gen)
+    };
   };
 }
 and syn_fix_holes_rules =
@@ -1386,7 +1452,8 @@ and ana_fix_holes_skel =
       FLessThan |
       FGreaterThan |
       FEquals |
-      Space,
+      Space |
+      Dot,
       _,
       _,
     ) =>
@@ -1423,7 +1490,7 @@ and ana_fix_holes_operand =
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _)
-  | Prj(_, _) =>
+  | Prj(_, _, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
@@ -1548,7 +1615,21 @@ let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
+  print_endline(Sexplib.Sexp.to_string(ZExp.sexp_of_t(ze)));
+  print_endline(
+    "Before: " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(ZExp.erase(ze))),
+  );
+  let _ =
+    CursorPath_Exp.follow(path, ZExp.erase(ze))
+    |> OptUtil.get(() =>
+         failwith(
+           "original z exp does not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+         )
+       );
   let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
+  print_endline("After: " ++ Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)));
+  // ECD You are here: syn fix holes is failing
   let ze =
     CursorPath_Exp.follow(path, e)
     |> OptUtil.get(() =>

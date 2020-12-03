@@ -24,7 +24,7 @@ and operand =
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
   | Label(LabelErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, operand, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -50,6 +50,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let label: (~err: LabelErrStatus.t=?, Label.t) => operand;
+
+let prj: (~err: ErrStatus.t=?, operand, Label.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, ~ann: UHTyp.t=?, t) => operand;
 
@@ -78,6 +80,8 @@ module Block: {
 };
 
 let get_tuple_elements: skel => list(skel);
+
+let get_projected_skel: (list(skel), seq, Label.t) => option(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 

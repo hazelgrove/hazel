@@ -13,7 +13,8 @@ let operator_of_shape: Action_common.operator_shape => option(UHPat.operator) =
   | SGreaterThan
   | SEquals
   | SArrow
-  | SVBar => None;
+  | SVBar
+  | SDot => None;
 
 let shape_of_operator = (op: UHPat.operator): Action_common.operator_shape =>
   switch (op) {
@@ -100,6 +101,7 @@ let mk_syn_text =
   | Label(l) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(l)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
+  | Prj(_, _) => failwith("Prj not valid at pattern level")
   };
 };
 
@@ -154,6 +156,7 @@ let mk_ana_text =
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
+  | Prj(_, _) => failwith("No label projections at the pattern level")
   };
 };
 

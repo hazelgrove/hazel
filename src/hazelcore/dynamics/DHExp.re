@@ -26,7 +26,8 @@ module BinBoolOp = {
     | FEquals
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Dot => None
     };
 
   let to_op = (op: t): UHExp.operator =>
@@ -67,7 +68,8 @@ module BinIntOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Dot => None
     };
 
   let to_op = (bio: t): UHExp.operator =>
@@ -113,7 +115,8 @@ module BinFloatOp = {
     | Or
     | Space
     | Cons
-    | Comma => None
+    | Comma
+    | Dot => None
     };
 
   let to_op = (bfo: t): UHExp.operator =>
@@ -201,9 +204,7 @@ let rec constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
   | Label(label) => label
-  | Label_Elt(l, elt2) =>
-    // ECD TODO: is this the right way, or should it be hardcoded?
-    l ++ " " ++ constructor_string(elt2)
+  | Label_Elt(l, elt2) => l ++ " " ++ constructor_string(elt2)
   };
 
 let rec mk_tuple: list(t) => t =
@@ -211,6 +212,18 @@ let rec mk_tuple: list(t) => t =
   | [] => failwith("mk_tuple: expected at least 1 element")
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
+
+let rec get_projected = (d: t, l: Label.t): option(t) => {
+  switch (d) {
+  | Label_Elt(l', d') => l == l' ? Some(d') : None
+  | Pair(d1, d2) =>
+    switch (get_projected(d1, l)) {
+    | None => get_projected(d2, l)
+    | Some(d') => Some(d')
+    }
+  | _ => None
+  };
+};
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
   if (HTyp.eq(t1, t2)) {

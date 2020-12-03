@@ -48,6 +48,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo_common.t => Action_common.t) =
     (Ctrl_Alt_K, _ => Action_common.SwapDown),
     (Ctrl_Alt_J, _ => Action_common.SwapLeft),
     (Ctrl_Alt_L, _ => Action_common.SwapRight),
+    (Dot, _ => Action_common.Construct(SOp(SDot))),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

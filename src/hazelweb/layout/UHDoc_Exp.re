@@ -4,7 +4,8 @@ let inline_padding_of_operator:
   UHExp.operator => (UHDoc_common.t, UHDoc_common.t) =
   fun
   | Space
-  | Cons => (UHDoc_common.empty_, UHDoc_common.empty_)
+  | Cons
+  | Dot => (UHDoc_common.empty_, UHDoc_common.empty_)
   | Plus
   | Minus
   | FPlus
@@ -229,7 +230,8 @@ and mk_operand =
             UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
-        | Prj(_, _) => failwith(__LOC__ ++ " unimplemented label projection")
+        // ECD TODO: mk_Prj function
+        | Prj(_, _, l) => mk_Label(l)
         }: UHDoc_common.t
       )
     )

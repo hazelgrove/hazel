@@ -26,7 +26,7 @@ and operand =
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
   | Label(LabelErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, Label.t)
+  | Prj(ErrStatus.t, operand, Label.t)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -63,6 +63,9 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
 
 let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t): operand =>
   Label(err, l);
+
+let prj = (~err: ErrStatus.t=NotInHole, op: operand, l: Label.t): operand =>
+  Prj(err, op, l);
 
 let lam =
     (
@@ -148,6 +151,25 @@ let rec get_tuple_elements: skel => list(skel) =
   | BinOp(_, Comma, skel1, skel2) =>
     get_tuple_elements(skel1) @ get_tuple_elements(skel2)
   | skel => [skel];
+
+let rec get_projected_skel =
+        (elements: list(skel), seq: seq, l: Label.t): option(skel) => {
+  switch (elements) {
+  | [] => None
+  | [BinOp(_, Space, Placeholder(n), skel2), ...skels] =>
+    let en = seq |> Seq.nth_operand(n);
+    switch (en) {
+    | Label(NotInLabelHole, l') =>
+      if (l' == l) {
+        Some(skel2);
+      } else {
+        get_projected_skel(skels, seq, l);
+      }
+    | _ => get_projected_skel(skels, seq, l)
+    };
+  | [_, ...skels] => get_projected_skel(skels, seq, l)
+  };
+};
 
 let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   switch (elements) {
@@ -352,7 +374,7 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
   | ApPalette(err, _, _, _)
-  | Prj(err, _) => err
+  | Prj(err, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -380,7 +402,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | Prj(_, label) => Prj(err, label)
+  | Prj(_, body, label) => Prj(err, body, label)
   };
 
 let is_inconsistent = operand =>
@@ -415,7 +437,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Prj(InHole(TypeInconsistent, _), _) => (operand, u_gen)
+  | Prj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
@@ -431,7 +453,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
     )
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Prj(NotInHole | InHole(WrongLength, _), _) =>
+  | Prj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -458,6 +480,7 @@ let text_operand =
     );
   | Label(l) => (label(l), u_gen)
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
+  | Prj(x, label) => (prj(var(x), label), u_gen)
   };
 
 let associate =

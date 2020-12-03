@@ -113,7 +113,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | ApPalette(_) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
   | Label(_, l) => CursorPosition.text_cursors(Label.length(l))
-  | Prj(_) => failwith("unimplemented Label Projection");
+  | Prj(_, _, pl) => CursorPosition.text_cursors(Label.length(pl));
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -171,7 +171,8 @@ and is_before_zoperand =
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_))
-  | CursorE(cursor, Label(_)) => cursor == OnText(0)
+  | CursorE(cursor, Label(_))
+  | CursorE(cursor, Prj(_, _, _)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
@@ -184,9 +185,7 @@ and is_before_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApPaletteZ(_) => false
-  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
-
+  | ApPaletteZ(_) => false;
 // The following 2 functions are specifically for CommentLines!!
 // Check if the cursor at "OnDelim(After)" in a "CommentLine"
 /* For example:
@@ -270,8 +269,9 @@ and is_after_zoperand =
   | CaseZE(_)
   | CaseZR(_)
   | ApPaletteZ(_) => false
-  | CursorE(cursor, Label(_, l)) => cursor == OnText(Label.length(l))
-  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
+  | CursorE(cursor, Label(_, l))
+  | CursorE(cursor, Prj(_, _, l)) => cursor == OnText(Label.length(l));
+
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
@@ -313,7 +313,8 @@ and is_outer_zoperand =
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_))
   | CursorE(_, ApPalette(_))
-  | CursorE(_, Label(_)) => true
+  | CursorE(_, Label(_))
+  | CursorE(_, Prj(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | LamZP(_)
   | LamZA(_)
@@ -321,8 +322,7 @@ and is_outer_zoperand =
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_)
-  | ApPaletteZ(_) => false
-  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection");
+  | ApPaletteZ(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
@@ -351,13 +351,13 @@ and place_before_operand = operand =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
-  | Label(_) => CursorE(OnText(0), operand)
+  | Label(_)
+  | Prj(_) => CursorE(OnText(0), operand)
   | Lam(_)
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
-  | Prj(_) => failwith("unimplemented Label Projection")
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
@@ -397,8 +397,8 @@ and place_after_operand = operand =>
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   | ApPalette(_) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
-  | Label(_, l) => CursorE(OnText(Label.length(l)), operand)
-  | Prj(_) => failwith("unimplemented Label Projection")
+  | Label(_, l)
+  | Prj(_, _, l) => CursorE(OnText(Label.length(l)), operand)
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
@@ -741,7 +741,8 @@ and move_cursor_left_zoperand =
   | CursorE(
       OnDelim(_),
       InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
-      Label(_),
+      Label(_) |
+      Prj(_),
     ) =>
     // invalid cursor position
     None
@@ -794,7 +795,6 @@ and move_cursor_left_zoperand =
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
   | ApPaletteZ(_, _, _, _) => None
-  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
 and move_cursor_left_zrules =
   fun
   | (prefix, zrule, suffix) =>
@@ -959,7 +959,8 @@ and move_cursor_right_zoperand =
   | CursorE(
       OnDelim(_),
       InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
-      Label(_),
+      Label(_) |
+      Prj(_),
     ) =>
     // invalid cursor position
     None
@@ -1032,7 +1033,6 @@ and move_cursor_right_zoperand =
       )
     }
   | ApPaletteZ(_, _, _, _) => None
-  | CursorE(_, Prj(_)) => failwith("unimplemented Label Projection")
 and move_cursor_right_zrules =
   fun
   | (prefix, zrule, suffix) =>

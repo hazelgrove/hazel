@@ -14,7 +14,8 @@ let operator_of_shape =
   | SLessThan
   | SGreaterThan
   | SEquals
-  | SCons => None
+  | SCons
+  | SDot => None
   };
 
 let shape_of_operator = (op: UHTyp.operator): Action_common.operator_shape =>

@@ -18,7 +18,8 @@ type t =
   | Comma
   | Cons
   | And
-  | Or;
+  | Or
+  | Dot;
 
 let to_string =
   fun
@@ -40,7 +41,8 @@ let to_string =
   | Comma => ","
   | Cons => "::"
   | And => "&&"
-  | Or => "||";
+  | Or => "||"
+  | Dot => ".";
 
 let is_Space =
   fun
@@ -67,7 +69,8 @@ let precedence =
   | Divide => 8
   | FTimes => 8
   | FDivide => 8
-  | Space => 9;
+  | Space => 9
+  | Dot => 1;
 
 let precedence_const = 0;
 let precedence_Ap = 1;

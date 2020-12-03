@@ -502,6 +502,7 @@ let _check_actions = (a: Action_common.t) =>
   | Construct(SCase) => Added
   | Construct(SLet) => Added
   | Construct(SOp(SVBar)) => Added
+  | Construct(SOp(SDot)) => Added
   | Construct(SChar(_)) => Added
   | SwapUp => Added
   | SwapDown => Added

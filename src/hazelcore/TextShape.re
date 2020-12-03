@@ -9,7 +9,8 @@ type t =
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
   | InvalidTextShape(string)
-  | Label(Label.t);
+  | Label(Label.t)
+  | Prj(Var.t, Label.t);
 
 /* Eventually replace Ocaml's ___of_string_opt with our own rules */
 /* Ocaml accepts _1 as a float */
@@ -48,6 +49,21 @@ let of_text = (text: string): t =>
     } else if (text |> Var.is_valid) {
       Var(text);
     } else {
-      InvalidTextShape(text);
+      // Split string into list to check for projection
+      let prj_split = Re.Str.split_delim(Re.Str.regexp("."), text);
+      if (List.length(prj_split) == 2) {
+        let var_name = List.nth(prj_split, 0);
+        let label_name = "." ++ List.nth(prj_split, 1);
+        // If variable name and label name are both valid
+        if ((var_name |> Var.is_valid || var_name |> String.equal("_"))
+            && label_name
+            |> Label.is_valid) {
+          Prj(var_name, label_name);
+        } else {
+          InvalidTextShape(text);
+        };
+      } else {
+        InvalidTextShape(text);
+      };
     }
   };

@@ -187,7 +187,7 @@ and follow_operand =
       | Some(zsplice_info) =>
         Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
-    | Prj(_, _) => failwith(__LOC__ ++ " unimplemented Label Projection")
+    | Prj(_, _, _) => failwith(__LOC__ ++ " unimplemented Label Projection")
     }
   }
 and follow_rules =
@@ -324,7 +324,8 @@ and of_steps_operand =
     | FloatLit(_, _)
     | BoolLit(_, _)
     | ListNil(_)
-    | Label(_, _) => None
+    | Label(_, _)
+    | Prj(_, _, _) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -374,7 +375,6 @@ and of_steps_operand =
       | Some((_, e)) =>
         e |> of_steps(xs, ~side) |> Option.map(path => cons'(x, path))
       };
-    | Prj(_, _) => failwith(__LOC__ ++ " unimplemented label projection")
     }
   }
 and of_steps_rule =
@@ -518,7 +518,7 @@ and holes_operand =
       hs,
     )
     |> holes_err(err, rev_steps);
-  | Prj(_, _) => failwith(__LOC__ ++ "unimplmented label projection")
+  | Prj(_, _, _) => failwith(__LOC__ ++ "unimplmented label projection")
   }
 and holes_rule =
     (

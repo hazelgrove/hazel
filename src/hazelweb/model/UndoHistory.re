@@ -570,7 +570,8 @@ let get_new_action_group =
         | SVBar
         | SCons
         | SAnd
-        | SOr => Some(ConstructEdit(shape))
+        | SOr
+        | SDot => Some(ConstructEdit(shape))
         | SSpace =>
           switch (new_cursor_term_info.cursor_term_before) {
           | Exp(pos, uexp_operand) =>
