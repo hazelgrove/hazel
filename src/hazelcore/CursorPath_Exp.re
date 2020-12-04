@@ -382,6 +382,12 @@ and of_steps_operand =
           z |> of_steps_rule(xs, ~side) |> Option.map(path => cons'(x, path));
         }
       }
+    | If(err, t1, t2, t3) =>
+      switch (x) {
+      | 0 => t1 |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
+      | 1 => t2 |> of_steps(~side, xs) |> Option.map(path => cons'(1, path))
+      | _ => t3 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
+      }
     | ApPalette(_, _, _, splice_info) =>
       let splice_map = splice_info.splice_map;
       switch (IntMap.find_opt(x, splice_map)) {
@@ -515,6 +521,12 @@ and holes_operand =
          rules,
        )
     |> holes(scrut, [0, ...rev_steps])
+    |> holes_case_err(err, rev_steps)
+  | If(err, t1, t2, t3) =>
+    hs
+    |> holes(t1, [0, ...rev_steps])
+    |> holes(t2, [0, ...rev_steps])
+    |> holes(t3, [0, ...rev_steps])
     |> holes_case_err(err, rev_steps)
   | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
@@ -813,6 +825,42 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnDelim(k, _), If(err, t1, t2, t3)) =>
+    let hole_selected: option(CursorPath_common.hole_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) =>
+        Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
+      };
+    let holes_t1 = holes(t1, [0, ...rev_steps], []);
+    let holes_t2 = holes(t2, [0, ...rev_steps], []);
+    let holes_t3 = holes(t3, [0, ...rev_steps], []);
+    let holes_rules =
+      switch (k) {
+      | 0 =>
+        CursorPath_common.mk_zholes(
+          ~hole_selected,
+          ~holes_after=holes_t1 @ holes_t2 @ holes_t3,
+          (),
+        )
+      | 1 =>
+        CursorPath_common.mk_zholes(
+          ~holes_before=holes_t1,
+          ~hole_selected,
+          ~holes_after=holes_t2 @ holes_t3,
+          (),
+        )
+      | 2 =>
+        CursorPath_common.mk_zholes(
+          ~holes_before=holes_t1 @ holes_t2,
+          ~hole_selected,
+          ~holes_after=holes_t3,
+          (),
+        )
+      | _ => CursorPath_common.no_holes
+      };
+
   | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes

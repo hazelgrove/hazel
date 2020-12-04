@@ -618,6 +618,9 @@ and syn_cursor_info_zoperand =
         )
       };
     }
+  | IfZ1(_, t1, _, _) => syn_cursor_info(~steps=steps @ [0], ctx, t1)
+  | IfZ2(_, _, t2, _) => syn_cursor_info(~steps=steps @ [1], ctx, t2)
+  | IfZ3(_, _, _, t3) => syn_cursor_info(~steps=steps @ [2], ctx, t3)
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, ze) = ZIntMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(~steps, ctx, ze, ty);
@@ -845,6 +848,7 @@ and ana_cursor_info_zoperand =
     | Lam(InHole(TypeInconsistent, _), _, _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+    | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' =
         zoperand
@@ -873,6 +877,12 @@ and ana_cursor_info_zoperand =
         _,
         _,
       )
+    | If(
+        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+        _,
+        _,
+        _,
+      )
     | ApPalette(InHole(WrongLength, _), _, _, _) => None
     /* not in hole */
     | EmptyHole(_)
@@ -889,6 +899,8 @@ and ana_cursor_info_zoperand =
     | ListNil(NotInHole)
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
+      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
+    | If(StandardErrStatus(NotInHole), _, _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Parenthesized(body) =>
       Statics_Exp.ana(ctx, body, ty)
@@ -931,6 +943,24 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
+  | IfZ1(
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
+  | IfZ2(
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
+  | IfZ3(
+      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
+      _,
+      _,
+      _,
+    )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
@@ -938,6 +968,9 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | IfZ1(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | IfZ2(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | IfZ3(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, body) =>
@@ -1000,6 +1033,12 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
+  | IfZ1(StandardErrStatus(NotInHole), t1, _, _) =>
+    syn_cursor_info(~steps=steps @ [0], ctx, t1)
+  | IfZ2(StandardErrStatus(NotInHole), _, t2, _) =>
+    syn_cursor_info(~steps=steps @ [1], ctx, t2)
+  | IfZ3(StandardErrStatus(NotInHole), _, _, t3) =>
+    syn_cursor_info(~steps=steps @ [2], ctx, t3)
   | ApPaletteZ(NotInHole, _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   };
