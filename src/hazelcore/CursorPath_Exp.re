@@ -833,34 +833,32 @@ and holes_zoperand =
       | InconsistentBranches(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
-    let holes_t1 = holes(t1, [0, ...rev_steps], []);
-    let holes_t2 = holes(t2, [0, ...rev_steps], []);
-    let holes_t3 = holes(t3, [0, ...rev_steps], []);
-    let holes_rules =
-      switch (k) {
-      | 0 =>
-        CursorPath_common.mk_zholes(
-          ~hole_selected,
-          ~holes_after=holes_t1 @ holes_t2 @ holes_t3,
-          (),
-        )
-      | 1 =>
-        CursorPath_common.mk_zholes(
-          ~holes_before=holes_t1,
-          ~hole_selected,
-          ~holes_after=holes_t2 @ holes_t3,
-          (),
-        )
-      | 2 =>
-        CursorPath_common.mk_zholes(
-          ~holes_before=holes_t1 @ holes_t2,
-          ~hole_selected,
-          ~holes_after=holes_t3,
-          (),
-        )
-      | _ => CursorPath_common.no_holes
-      };
-
+    let holes_t1 = holes(t1, [1, ...rev_steps], []);
+    let holes_t2 = holes(t2, [2, ...rev_steps], []);
+    let holes_t3 = holes(t3, [3, ...rev_steps], []);
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_after=holes_t1 @ holes_t2 @ holes_t3,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_t1,
+        ~hole_selected,
+        ~holes_after=holes_t2 @ holes_t3,
+        (),
+      )
+    | 2 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_t1 @ holes_t2,
+        ~hole_selected,
+        ~holes_after=holes_t3,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
   | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
