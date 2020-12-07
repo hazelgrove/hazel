@@ -41,6 +41,13 @@ let shape_of_operator =
   | FEquals => None
   };
 
+let binop_of_unop = (unop: UHExp.unop): option(UHExp.binop) =>
+  switch (unop) {
+  | UnaryMinus => Some(Minus)
+  | FUnaryMinus => Some(FMinus)
+  // | _ => None
+  };
+
 let shape_is_of_unop = (os: Action_common.operator_shape): bool =>
   switch (os) {
   | SMinus => true
@@ -1930,6 +1937,20 @@ and syn_perform_operand =
       | None => Failed
       | Some(ty) => Succeeded(SynDone((new_ze, ty, u_gen)))
       };
+    | (Construct(SOp(SSpace)), unop, zoperand)
+        when ZExp.is_before_zoperand(zoperand) =>
+      // convert unop to binop if applicable
+      switch (binop_of_unop(unop)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZExp.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+      }
     | (Backspace, FUnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
       // convert -. float negation to - int negation
       let (new_operand, u_gen) =
@@ -3498,6 +3519,20 @@ and ana_perform_operand =
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
+    | (Construct(SOp(SSpace)), unop, zoperand)
+        when ZExp.is_before_zoperand(zoperand) =>
+      // convert unop to binop if applicable
+      switch (binop_of_unop(unop)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZExp.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+      }
     | (Backspace, UnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
       let (operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
