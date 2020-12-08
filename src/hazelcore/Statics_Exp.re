@@ -122,6 +122,7 @@ module rec M: Statics_Exp_Sig.S = {
     //print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(term)));
     switch (Evaluator.evaluate(~eval_livelit_holes=false, term)) {
     | BoxedValue(StringLit(str)) =>
+      // TODO(andrew) : catch exceptions here
       str |> Sexplib.Sexp.of_string |> UHExp.t_of_sexp
     | BoxedValue(_) => failwith("mk_ll_expand eval otherval")
     | InvalidInput(code) =>
@@ -211,6 +212,9 @@ module rec M: Statics_Exp_Sig.S = {
           update: mk_ll_update(update),
           expand: mk_ll_expand(expand),
         };
+        print_endline("EXTENDING LIVELIT CTX");
+        print_endline(name_str);
+
         let livelit_ctx =
           LivelitCtx.extend(
             livelit_ctx,
@@ -1508,9 +1512,11 @@ module rec M: Statics_Exp_Sig.S = {
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, end_, Int);
       (Subscript(NotInHole, target, start_, end_), String, u_gen);
     | ApLivelit(llu, _, _, lln, model, splice_info) =>
+      print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, lln)) {
       | None =>
+        print_endline("ZZZT");
         let (u, u_gen) = MetaVarGen.next_hole(u_gen);
         (FreeLivelit(u, lln), Hole, u_gen);
       | Some((livelit_defn, closed_tys)) =>

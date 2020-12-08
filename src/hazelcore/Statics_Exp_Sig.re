@@ -49,6 +49,7 @@ module type S = {
    */
   let syn: (Contexts.t, UHExp.t) => option(HTyp.t);
   let syn_block: (Contexts.t, UHExp.block) => option(HTyp.t);
+  let syn_line: (Contexts.t, UHExp.line) => option(Contexts.t);
   let syn_lines: (Contexts.t, list(UHExp.line)) => option(Contexts.t);
   let syn_opseq: (Contexts.t, UHExp.opseq) => option(HTyp.t);
   let syn_skel: (Contexts.t, UHExp.skel, UHExp.seq) => option(HTyp.t);

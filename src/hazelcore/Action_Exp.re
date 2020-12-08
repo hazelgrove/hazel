@@ -611,6 +611,15 @@ let rec ana_move =
     )
   };
 
+let syn_perform_ll_line =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, new_lldef: ZExp.zline)
+    : ActionOutcome.t(line_success) => {
+  switch (Statics_Exp.syn_line(ctx, ZExp.erase_zline(new_lldef))) {
+  | None => Failed
+  | Some(ctx) => Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)))
+  };
+};
+
 let rec syn_perform =
         (
           ctx: Contexts.t,
@@ -1209,7 +1218,7 @@ and syn_perform_line =
     | Succeeded(expansion_type) =>
       let new_lldef =
         ZExp.LivelitDefLineZExpansionType({...llrecord, expansion_type});
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
   | (_, LivelitDefLineZCaptures({captures, _} as llrecord)) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(captures))) {
@@ -1220,7 +1229,7 @@ and syn_perform_line =
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((captures, _, u_gen)) =>
         let new_lldef = ZExp.LivelitDefLineZCaptures({...llrecord, captures});
-        Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+        syn_perform_ll_line(ctx, u_gen, new_lldef);
       }
     }
   | (
@@ -1251,7 +1260,7 @@ and syn_perform_line =
           update,
           view,
         });
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
   | (
       _,
@@ -1281,7 +1290,7 @@ and syn_perform_line =
           update,
           view,
         });
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     }
   | (_, LivelitDefLineZInit({model_type, action_type, init, _} as llrecord)) =>
     let init_ty = Statics_Exp.ll_init_ty(model_type, action_type);
@@ -1290,7 +1299,7 @@ and syn_perform_line =
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((init, u_gen)) =>
       let new_lldef = ZExp.LivelitDefLineZInit({...llrecord, init});
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     };
   | (
       _,
@@ -1304,7 +1313,7 @@ and syn_perform_line =
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((update, u_gen)) =>
       let new_lldef = ZExp.LivelitDefLineZUpdate({...llrecord, update});
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     };
   | (
       _,
@@ -1316,7 +1325,7 @@ and syn_perform_line =
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((shape, u_gen)) =>
       let new_lldef = ZExp.LivelitDefLineZShape({...llrecord, shape});
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     };
   | (
       _,
@@ -1330,7 +1339,7 @@ and syn_perform_line =
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((expand, u_gen)) =>
       let new_lldef = ZExp.LivelitDefLineZExpand({...llrecord, expand});
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     };
   | (_, LivelitDefLineZView({model_type, action_type, view, _} as llrecord)) =>
     let view_ty = Statics_Exp.ll_view_ty(model_type, action_type);
@@ -1339,7 +1348,7 @@ and syn_perform_line =
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((view, u_gen)) =>
       let new_lldef = ZExp.LivelitDefLineZView({...llrecord, view});
-      Succeeded(LineDone((([], new_lldef, []), ctx, u_gen)));
+      syn_perform_ll_line(ctx, u_gen, new_lldef);
     };
   | (_, LetLineZP(zp, None, def)) =>
     switch (Statics_Exp.syn(ctx, def)) {
