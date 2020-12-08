@@ -123,6 +123,9 @@ pat:
   pat COLONCOLON pat {
     mk_binop $1 Operators_Pat.Cons $3
   }
+  | pat COMMA pat {
+    mk_binop $1 Operators_Pat.Comma $3
+  }
   | pat_ { mk_seq $1 }
 ;
 
@@ -207,6 +210,7 @@ rule:
   | GREATER { Operators_Exp.GreaterThan }
   | LESSER { Operators_Exp.LessThan }
   | EQUAL EQUAL { Operators_Exp.Equals }
+  | COMMA { Operators_Exp.Comma }
 ;
 
 constant:
