@@ -18,7 +18,8 @@ let newline = ['\n']
 let digit = ['0'-'9']
 let numlit = digit+
 let floatlit = digit* '.' digit+ | digit+ '.' digit*
-let lowercase_ident = ['a'-'z' '_']+
+let alpha = ['A'-'Z' 'a'-'z' '_']
+let ident = ['A'-'Z' 'a'-'z' '_']+ (alpha | digit)*
 
 rule read =
   parse
@@ -35,7 +36,7 @@ rule read =
     EMPTY
   }
   | white+ { read lexbuf }
-  | lowercase_ident as id {
+  | ident as id {
     try
       Hashtbl.find keyword_table id
     with Not_found ->
