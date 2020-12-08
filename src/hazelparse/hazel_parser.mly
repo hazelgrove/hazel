@@ -70,7 +70,7 @@
 
 main:
   expr EOF { $1 }
-  | expr SEMICOLON expr EOF { List.concat [$1; $3] }
+  | expr SEMICOLON main EOF { List.concat [$1; $3] }
 ;
 
 let_binding:
@@ -149,7 +149,10 @@ expr:
 
 expr_:
   simple_expr { mk_seq $1 }
-  | case { mk_seq $1 }
+  | CASE expr rule+ END {
+    let e = UHExp.case $2 $3 in
+    mk_seq e
+  }
   | simple_expr simple_expr+ { mk_application $1 $2 }
   | expr_ op expr_ { mk_binop $1 $2 $3 }
   | expr_ COLONCOLON expr_ {
@@ -183,10 +186,6 @@ fn:
     let typ = UHTyp.mk_OpSeq $4 in
     UHExp.lam pat ~ann:typ $7
   }
-;
-
-case:
-  CASE expr rule+ END { UHExp.case $2 $3 }
 ;
 
 rule:
