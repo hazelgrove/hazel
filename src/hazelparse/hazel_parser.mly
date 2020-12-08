@@ -129,7 +129,15 @@ pat:
 pat_:
   LPAREN pat RPAREN { mk_pat_parenthesized $2 }
   | IDENT { UHPat.var $1 }
+  | pat_constant { $1 }
   | LBRACK RBRACK { UHPat.listnil () }
+;
+
+pat_constant:
+  INT { UHPat.intlit $1 }
+  | FLOAT { UHPat.floatlit $1 }
+  | TRUE { UHPat.boollit true }
+  | FALSE { UHPat.boollit false }
 ;
 
 expr:
