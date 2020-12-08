@@ -104,7 +104,13 @@ typ_:
 ;
 
 atomic_type:
-  IDENT { UHTyp.Int }
+  IDENT {
+    match $1 with
+    | "Int" -> UHTyp.Int
+    | "Bool" -> UHTyp.Bool
+    | "Float" -> UHTyp.Float
+    | _ -> failwith ("Unknown Type: "^$1)
+  }
 ;
 
 %inline typ_op:
