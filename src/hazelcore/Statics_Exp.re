@@ -64,6 +64,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty_join) => Statics_Pat.ana(ctx, p, ty_join)
       }
     | None =>
+    // TODO(andrew): eliminate
       switch (Statics_Pat.syn(ctx, p)) {
       | None => None
       | Some((ty, p_ctx)) => ana(ctx, def, ty) |> Option.map(_ => p_ctx)
@@ -685,10 +686,11 @@ and syn_fix_holes_line =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     let ty_join =
       switch (HTyp.join(LUB, ty_def, ty_p)) {
-      | None => ty_p // TODO(andrew): ???
+      | None => ty_p
       | Some(ty) => ty
       };
     let (ctx_def, _) = ctx_for_let(ctx, p, ty_join, def);
+    // TODO(andrew): just ana this, ignore none branch
     let (p, ctx, u_gen) =
       Statics_Pat.ana_fix_holes(
         ctx_def,
