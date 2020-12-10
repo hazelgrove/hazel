@@ -1,5 +1,5 @@
 // Test suite for the skel parser.
-let mvar = MetaVarGen.init;
+let mvar = IDGen.init;
 
 let%test "single operand test" = {
   // 1
@@ -29,7 +29,7 @@ let%test "simple addition test" = {
 
 let%test "single hole test" = {
   // _
-  let single_hole_seq = Seq.S(UHExp.EmptyHole(mvar), E);
+  let single_hole_seq = Seq.S(UHExp.EmptyHole(fst(mvar)), E);
   let single_hole_skel = Skel.Placeholder(0);
 
   UHExp.associate(single_hole_seq) == single_hole_skel;
@@ -39,7 +39,7 @@ let%test "addition w/ left hole" = {
   // _ + 2
   let add_l_hole_seq =
     Seq.S(
-      UHExp.EmptyHole(mvar),
+      UHExp.EmptyHole(fst(mvar)),
       Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
     );
   let add_l_hole_skel =
@@ -136,7 +136,7 @@ let%test "holey operator precedence test" = {
       Seq.A(
         Operators_Exp.Minus,
         Seq.S(
-          UHExp.EmptyHole(mvar),
+          UHExp.EmptyHole(fst(mvar)),
           Seq.A(
             Operators_Exp.Plus,
             Seq.S(

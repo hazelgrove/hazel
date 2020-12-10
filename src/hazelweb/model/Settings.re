@@ -115,15 +115,69 @@ module Performance = {
     };
 };
 
+/**
+ * Flags for the display of the cursor inspector
+ */
+module CursorInspector = {
+  type t = {
+    visible: bool,
+    show_expanded: bool,
+    term_novice_message_mode: bool,
+    type_novice_message_mode: bool,
+  };
+
+  let init = {
+    visible: true,
+    show_expanded: false,
+    term_novice_message_mode: false,
+    type_novice_message_mode: false,
+  };
+
+  [@deriving sexp]
+  type update =
+    | Toggle_visible
+    | Toggle_show_expanded
+    | Toggle_novice_mode
+    | Toggle_term_novice_message_mode
+    | Toggle_type_novice_message_mode;
+
+  let novice_mode = settings =>
+    settings.term_novice_message_mode && settings.type_novice_message_mode;
+
+  let apply_update = (u: update, settings: t) =>
+    switch (u) {
+    | Toggle_visible => {...settings, visible: !settings.visible}
+    | Toggle_show_expanded => {
+        ...settings,
+        show_expanded: !settings.show_expanded,
+      }
+    | Toggle_term_novice_message_mode => {
+        ...settings,
+        term_novice_message_mode: !settings.term_novice_message_mode,
+      }
+    | Toggle_type_novice_message_mode => {
+        ...settings,
+        type_novice_message_mode: !settings.type_novice_message_mode,
+      }
+    | Toggle_novice_mode => {
+        ...settings,
+        term_novice_message_mode: !novice_mode(settings),
+        type_novice_message_mode: !novice_mode(settings),
+      }
+    };
+};
+
 type t = {
   evaluation: Evaluation.t,
   performance: Performance.t,
+  cursor_inspector: CursorInspector.t,
   memoize_doc: bool,
 };
 
 let init: t = {
   evaluation: Evaluation.init,
   performance: Performance.init,
+  cursor_inspector: CursorInspector.init,
   memoize_doc: true,
 };
 
@@ -131,7 +185,8 @@ let init: t = {
 type update =
   | Toggle_memoize_doc
   | Evaluation(Evaluation.update)
-  | Performance(Performance.update);
+  | Performance(Performance.update)
+  | CursorInspector(CursorInspector.update);
 
 let apply_update = (u: update, settings: t) =>
   switch (u) {
@@ -143,5 +198,10 @@ let apply_update = (u: update, settings: t) =>
   | Performance(u) => {
       ...settings,
       performance: Performance.apply_update(u, settings.performance),
+    }
+  | CursorInspector(u) => {
+      ...settings,
+      cursor_inspector:
+        CursorInspector.apply_update(u, settings.cursor_inspector),
     }
   };

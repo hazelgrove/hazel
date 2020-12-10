@@ -16,6 +16,7 @@ type t =
   | Equals
   | Enter
   | Shift_Enter
+  | Ctrl_Enter
   | Backslash
   | Plus
   | Minus
@@ -31,6 +32,7 @@ type t =
   | Alt_C
   | Pound
   | Ctrl_Z
+  | Ctrl_Space
   | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K

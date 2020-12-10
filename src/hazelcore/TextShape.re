@@ -6,6 +6,7 @@ type t =
   | IntLit(string)
   | FloatLit(string)
   | BoolLit(bool)
+  | AssertLit
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
   | InvalidTextShape(string);
@@ -28,18 +29,24 @@ let hazel_float_of_string_opt = (s: string): option(float) =>
     };
   };
 
+let is_assert = (text: string) => {
+  String.equal("assert", text);
+};
+
 let of_text = (text: string): t =>
   switch (
     int_of_string_opt(text),
     hazel_float_of_string_opt(text),
     bool_of_string_opt(text),
     ExpandingKeyword.mk(text),
+    is_assert(text),
   ) {
-  | (Some(_), _, _, _) => IntLit(text)
-  | (_, Some(_), _, _) => FloatLit(text)
-  | (_, _, Some(b), _) => BoolLit(b)
-  | (_, _, _, Some(k)) => ExpandingKeyword(k)
-  | (None, None, None, None) =>
+  | (Some(_), _, _, _, _) => IntLit(text)
+  | (_, Some(_), _, _, _) => FloatLit(text)
+  | (_, _, Some(b), _, _) => BoolLit(b)
+  | (_, _, _, Some(k), _) => ExpandingKeyword(k)
+  | (_, _, _, _, true) => AssertLit //need to look up for the most recent unique id of assert
+  | (None, None, None, None, _) =>
     if (text |> String.equal("_")) {
       Underscore;
     } else if (text |> Var.is_valid) {

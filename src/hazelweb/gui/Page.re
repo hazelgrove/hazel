@@ -37,6 +37,38 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Attr.value("qsort_example_100")],
           [Node.text("qsort (100x)")],
         ),
+        Node.option(
+          [Attr.value("add_template")],
+          [Node.text("add template")],
+        ),
+        Node.option(
+          [Attr.value("max_template")],
+          [Node.text("max template")],
+        ),
+        Node.option(
+          [Attr.value("odd_template")],
+          [Node.text("odd template")],
+        ),
+        Node.option(
+          [Attr.value("mult_template")],
+          [Node.text("mult template")],
+        ),
+        Node.option(
+          [Attr.value("append_template")],
+          [Node.text("append template")],
+        ),
+        Node.option(
+          [Attr.value("revConcat_template")],
+          [Node.text("revConcat template")],
+        ),
+        Node.option(
+          [Attr.value("stutter_template")],
+          [Node.text("stutter template")],
+        ),
+        Node.option(
+          [Attr.value("stutterN_template")],
+          [Node.text("stutterN template")],
+        ),
       ],
     )
   );
@@ -166,8 +198,15 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                     ~settings=settings.evaluation,
                     ~width=80,
                     settings.evaluation.show_unevaluated_expansion
-                      ? program |> Program.get_expansion
+                      ? program |> Program.get_expansion  // change expansion
                       : program |> Program.get_result |> Result.get_dhexp,
+                    settings.evaluation.show_unevaluated_expansion
+                      ? AssertMap.empty
+                      : snd(
+                          program
+                          |> Program.get_result
+                          |> Result.get_dhexp_assert,
+                        ),
                   ),
                 ],
               ),
@@ -227,6 +266,21 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         ],
                         [Node.text("Serialize to console")],
                       ),
+                      Node.button(
+                        [
+                          Attr.on_click(_ => {
+                            let program = Model.get_program(model);
+                            let (ze, _, _) = program.edit_state;
+                            let holes_z = CursorPath_Exp.holes_z(ze, []);
+                            switch (holes_z.hole_selected) {
+                            | Some({sort: ExpHole(u, Empty), _}) =>
+                              inject(ModelAction.SynthesizeHole(u))
+                            | _ => Event.Many([])
+                            };
+                          }),
+                        ],
+                        [Node.text("Shmythesize")],
+                      ),
                       Node.div(
                         [
                           Attr.style(
@@ -243,7 +297,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
               ),
               Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
                 [
-                  CursorInspector.view(~inject, model),
                   ContextInspector.view(
                     ~inject,
                     ~selected_instance,

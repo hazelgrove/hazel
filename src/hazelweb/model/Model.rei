@@ -27,6 +27,7 @@ let cutoff: (t, t) => bool;
 let init: unit => t;
 
 let get_program: t => Program.t;
+let map_program: (Program.t => Program.t, t) => t;
 
 let get_edit_state: t => Statics.edit_state;
 

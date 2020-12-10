@@ -11,6 +11,7 @@ type t =
     width: int,
     start_col_of_vertical_movement: option(int),
     is_focused: bool,
+    synthesizing: option(Synthesizing.t),
   };
 
 let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
@@ -21,8 +22,10 @@ let blur: t => t;
 let get_zexp: t => ZExp.t;
 let get_uhexp: t => UHExp.t;
 
+let get_path: t => CursorPath.t;
 let get_steps: t => CursorPath.steps;
 
+let get_id_gen: t => IDGen.t;
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
  * (indicates a bug, either in that function or in Action
@@ -46,7 +49,7 @@ let get_expansion: t => DHExp.t;
  * because Action needs to return a well-typed edit state)
  */
 exception InvalidInput;
-let get_result: t => Result.t;
+let get_result: t => (Result.t, AssertMap.t);
 
 /**
  * Raised when an attempted edit action does not succeed
@@ -75,3 +78,11 @@ let cursor_on_exp_hole: t => option(MetaVar.t);
 
 let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
+
+let begin_synthesizing: (MetaVar.t, t) => t;
+let prev_synthesis_hole: t => t;
+let next_synthesis_hole: t => t;
+let step_in_synthesized: t => t;
+let step_out_synthesized: t => t;
+let scroll_synthesized_selection: (bool, t) => t;
+let accept_synthesized: t => t;

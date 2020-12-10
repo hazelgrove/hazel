@@ -6,11 +6,18 @@ module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
 
 [@deriving sexp]
+type filling_hole = (
+  MetaVar.t,
+  ZList.t(UHExp.t, UHExp.t) /* + constraints */,
+);
+
+[@deriving sexp]
 type t = {
   edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
+  synthesizing: option(Synthesizing.t),
 };
 
 let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
@@ -18,6 +25,7 @@ let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => 
   edit_state,
   start_col_of_vertical_movement: None,
   is_focused,
+  synthesizing: None,
 };
 
 let put_start_col = (start_col, program) => {
@@ -47,6 +55,10 @@ let get_steps = program => {
   let (steps, _) = program |> get_path;
   steps;
 };
+let get_id_gen = program => {
+  let (_, _, id_gen) = program.edit_state;
+  id_gen;
+};
 
 exception MissingCursorInfo;
 let cursor_info =
@@ -61,8 +73,42 @@ let get_cursor_info = (program: t) => {
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
+exception DoesNotElaborate;
+let expand =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
+  );
+let get_expansion = (program: t): DHExp.t =>
+  switch (program |> get_uhexp |> expand) {
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
+  };
+
+exception InvalidInput;
+
+let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+
+let get_result = (program: t): (Result.t, AssertMap.t) =>
+  //check if map is resetted here
+  switch (AssertMap.empty |> evaluate(get_expansion(program))) {
+  | (InvalidInput(_), _) => raise(InvalidInput)
+  | (BoxedValue(d), assert_map) =>
+    let (d_renumbered, hii) =
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+    ((d_renumbered, hii, BoxedValue(d_renumbered)), assert_map);
+  | (Indet(d), assert_map) =>
+    let (d_renumbered, hii) =
+      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
+    ((d_renumbered, hii, Indet(d_renumbered)), assert_map);
+  };
+
+exception HoleNotFound;
+
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-  let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let current_term =
+    program.is_focused && Option.is_none(program.synthesizing)
+      ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps}) =>
@@ -88,36 +134,17 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
-  {current_term, err_holes, var_uses, var_err_holes};
+  let filled_holes = Synthesizing.(F(HoleMap.empty));
+  let synthesizing = program.synthesizing;
+  {
+    current_term,
+    err_holes,
+    var_uses,
+    var_err_holes,
+    filled_holes,
+    synthesizing,
+  };
 };
-
-exception DoesNotElaborate;
-let expand =
-  Memo.general(
-    ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
-  );
-let get_expansion = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand) {
-  | DoesNotElaborate => raise(DoesNotElaborate)
-  | Elaborates(d, _, _) => d
-  };
-
-exception InvalidInput;
-
-let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
-  switch (program |> get_expansion |> evaluate) {
-  | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) =>
-    let (d_renumbered, hii) =
-      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, BoxedValue(d_renumbered));
-  | Indet(d) =>
-    let (d_renumbered, hii) =
-      Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, Indet(d_renumbered));
-  };
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(
@@ -164,18 +191,17 @@ let perform_edit_action = (a, program) => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (ze, ty, u_gen) = new_edit_state;
+    let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze), false)) {
-        (ze, ty, MetaVarGen.init);
+        (ze, ty, IDGen.init_hole(id_gen));
       } else {
-        (ze, ty, u_gen);
+        (ze, ty, id_gen);
       };
     program |> put_edit_state(new_edit_state);
   };
 };
 
-exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program.edit_state;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
@@ -279,3 +305,54 @@ let move_via_key =
 let cursor_on_exp_hole_ =
   Memo.general(~cache_size_bound=1000, ZExp.cursor_on_EmptyHole);
 let cursor_on_exp_hole = program => program |> get_zexp |> cursor_on_exp_hole_;
+
+let begin_synthesizing = (u, program) => {
+  ...program,
+  synthesizing: Synthesizing.mk(u, get_uhexp(program)),
+};
+
+let try_synth_update = (f: Synthesizing.t => option(Synthesizing.t), program) =>
+  switch (program.synthesizing) {
+  | None => program
+  | Some(synth) =>
+    switch (f(synth)) {
+    | None => program
+    | Some(_) as synthesizing => {...program, synthesizing}
+    }
+  };
+
+let scroll_synthesized_selection = up =>
+  try_synth_update(Synthesizing.scroll(up));
+
+let prev_synthesis_hole = program =>
+  try_synth_update(
+    Synthesizing.move_to_prev_hole(get_uhexp(program)),
+    program,
+  );
+let next_synthesis_hole = program =>
+  try_synth_update(
+    Synthesizing.move_to_next_hole(get_uhexp(program)),
+    program,
+  );
+
+let step_in_synthesized = program =>
+  try_synth_update(Synthesizing.step_in(get_uhexp(program)), program);
+let step_out_synthesized = program =>
+  try_synth_update(Synthesizing.step_out(get_uhexp(program)), program);
+
+let accept_synthesized = program =>
+  switch (program.synthesizing) {
+  | None => program
+  | Some(syn) =>
+    let e = Synthesizing.accept(get_uhexp(program), syn);
+    let id_gen = get_id_gen(program);
+    let (e, ty, id_gen) =
+      Statics_Exp.syn_fix_holes(
+        Contexts.empty,
+        id_gen,
+        ~renumber_empty_holes=true,
+        e,
+      );
+    let edit_state = (ZExp.place_before(e), ty, id_gen);
+    {...program, edit_state, is_focused: false, synthesizing: None};
+  };

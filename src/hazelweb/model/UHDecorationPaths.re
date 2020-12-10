@@ -6,16 +6,49 @@ type t = {
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
+  filled_holes: Synthesizing.filled_holes,
+  synthesizing: option(Synthesizing.t),
+};
+
+let mk =
+    (
+      ~err_holes=[],
+      ~var_err_holes=[],
+      ~var_uses=[],
+      ~current_term=None,
+      ~filled_holes=Synthesizing.(F(HoleMap.empty)),
+      ~synthesizing=?,
+      (),
+    ) => {
+  err_holes,
+  var_err_holes,
+  var_uses,
+  current_term,
+  filled_holes,
+  synthesizing,
 };
 
 let is_empty = (dpaths: t): bool =>
   ListUtil.is_empty(dpaths.err_holes)
   && ListUtil.is_empty(dpaths.var_err_holes)
   && ListUtil.is_empty(dpaths.var_uses)
-  && dpaths.current_term == None;
+  && dpaths.current_term == None
+  && {
+    let F(map) = dpaths.filled_holes;
+    Synthesizing.HoleMap.is_empty(map);
+  }
+  && Option.is_none(dpaths.synthesizing);
 
 let take_step = (step: int, dpaths: t): t => {
-  let {err_holes, var_err_holes, current_term, var_uses} = dpaths;
+  open OptUtil.Syntax;
+  let {
+    err_holes,
+    var_err_holes,
+    current_term,
+    var_uses,
+    filled_holes,
+    synthesizing,
+  } = dpaths;
   let remove_step =
     fun
     | [step', ...steps] when step == step' => Some(steps)
@@ -23,14 +56,41 @@ let take_step = (step: int, dpaths: t): t => {
   let err_holes = err_holes |> List.filter_map(remove_step);
   let var_err_holes = var_err_holes |> List.filter_map(remove_step);
   let var_uses = var_uses |> List.filter_map(remove_step);
-  let current_term =
-    Option.bind(current_term, ((steps, cursor)) =>
-      remove_step(steps) |> Option.map(steps => (steps, cursor))
-    );
-  {err_holes, var_err_holes, var_uses, current_term};
+  let current_term = {
+    let* (steps, cursor) = current_term;
+    let+ steps = remove_step(steps);
+    (steps, cursor);
+  };
+  let filled_holes = {
+    let F(map) = filled_holes;
+    let map =
+      map
+      |> Synthesizing.HoleMap.bindings
+      |> List.filter_map(((steps, v)) => {
+           let+ steps = remove_step(steps);
+           (steps, v);
+         })
+      |> List.to_seq
+      |> Synthesizing.HoleMap.of_seq;
+    Synthesizing.F(map);
+  };
+  let synthesizing = {
+    let* (steps, z) = synthesizing;
+    let+ steps = remove_step(steps);
+    (steps, z);
+  };
+  {
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+    filled_holes,
+    synthesizing,
+  };
 };
 
 let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
+  open UHDecorationShape;
   let is_current = steps =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
@@ -44,24 +104,44 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let err_holes =
     dpaths.err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.ErrHole)
+    |> Option.map(_ => ErrHole)
     |> Option.to_list;
   let var_err_holes =
     dpaths.var_err_holes
     |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.VarErrHole)
+    |> Option.map(_ => VarErrHole)
     |> Option.to_list;
   let var_uses =
     dpaths.var_uses
     |> List.find_opt(is_current)
-    |> Option.map(_ => UHDecorationShape.VarUse)
+    |> Option.map(_ => VarUse)
     |> Option.to_list;
   let current_term =
     switch (dpaths.current_term) {
-    | Some((steps, _)) when is_current(steps) => [
-        UHDecorationShape.CurrentTerm,
-      ]
+    | Some((steps, _)) when is_current(steps) => [CurrentTerm]
     | _ => []
     };
-  List.concat([err_holes, var_err_holes, var_uses, current_term]);
+  let filled_holes = {
+    let F(map) = dpaths.filled_holes;
+    switch (Synthesizing.HoleMap.find_opt([], map)) {
+    | None => []
+    | Some((e, filled_holes)) => [FilledHole(e, filled_holes)]
+    };
+  };
+  let synthesizing =
+    switch (dpaths.synthesizing) {
+    | Some(([], Filling(filling, constraints))) => [
+        FillingHole(filling, constraints),
+      ]
+    | Some(([], Filled(e, filled, t))) => [FilledHoleZ(e, filled, t)]
+    | _ => []
+    };
+  List.concat([
+    err_holes,
+    var_err_holes,
+    var_uses,
+    current_term,
+    filled_holes,
+    synthesizing,
+  ]);
 };

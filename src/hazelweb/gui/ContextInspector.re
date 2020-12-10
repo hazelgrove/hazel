@@ -56,6 +56,7 @@ let view =
                   ~selected_instance,
                   ~width=30,
                   d,
+                  AssertMap.empty,
                 ),
               ],
             ),
@@ -279,7 +280,7 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let (_, hii, _) = program |> Program.get_result;
+        let (_, hii, _) = fst(program |> Program.get_result);
         switch (selected_instance) {
         | None => Elaborator_Exp.id_env(ctx)
         | Some(inst) =>
@@ -323,7 +324,7 @@ let view =
         |> Program.get_cursor_info
         |> CursorInfo_common.get_ctx
         |> Contexts.gamma;
-      let (_, hii, _) = program |> Program.get_result;
+      let (_, hii, _) = fst(program |> Program.get_result);
       if (VarMap.is_empty(ctx)) {
         Node.div([], []);
       } else {
@@ -342,9 +343,9 @@ let view =
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None =>
-                  // raise(InvalidInstance)
-                  [instructional_msg("Internal Error: InvalidInstance")]
+                | None => [
+                    instructional_msg("Internal Error: InvalidInstance"),
+                  ]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),

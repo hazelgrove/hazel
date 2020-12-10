@@ -42,6 +42,21 @@ let view_of_layout = (~inject, l: DHLayout.t): Vdom.Node.t => {
     | Annot(FailedCastDelim, l) => [
         Node.span([Attr.classes(["FailedCastDelim"])], go(l)),
       ]
+    | Annot(AssertionFail, l) => [
+        Node.span([Attr.classes(["AssertionFail"])], go(l)),
+      ]
+    | Annot(AssertPass, l) => [
+        Node.span([Attr.classes(["AssertPass"])], go(l)),
+      ]
+    | Annot(AssertFail, l) => [
+        Node.span([Attr.classes(["AssertFail"])], go(l)),
+      ]
+    | Annot(AssertIndet, l) => [
+        Node.span([Attr.classes(["AssertIndet"])], go(l)),
+      ]
+    | Annot(AssertComp, l) => [
+        Node.span([Attr.classes(["AssertComp"])], go(l)),
+      ]
     | Annot(FailedCastDecoration, l) => [
         Node.span([Attr.classes(["FailedCastDecoration"])], go(l)),
       ]
@@ -63,10 +78,12 @@ let view =
       ~width: int,
       ~pos=0,
       d: DHExp.t,
+      map: AssertMap.t,
     )
     : Vdom.Node.t => {
+  // check assert map reset here
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
+  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance, map)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
@@ -91,6 +108,7 @@ let view_of_hole_instance =
     ~width,
     ~pos,
     DHExp.EmptyHole(u, i, []),
+    AssertMap.empty,
   );
 
 let view_of_var = x => Vdom.Node.text(x);

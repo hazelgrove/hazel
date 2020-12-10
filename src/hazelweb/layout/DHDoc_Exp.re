@@ -34,7 +34,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidText(_)
   | Keyword(_)
   | BoolLit(_)
+  | FailedAssert(_)
+  | AssertLit(_)
   | IntLit(_)
+  | Sequence(_, _)
   | FloatLit(_)
   | ListNil(_)
   | Inj(_)
@@ -99,6 +102,7 @@ let rec mk =
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
+          map: AssertMap.t,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -137,7 +141,7 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_instance)),
+            drs |> List.map(mk_rule(~settings, ~selected_instance, map)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -175,6 +179,20 @@ let rec mk =
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+      | AssertLit(n) =>
+        switch (AssertMap.lookup(n, map)) {
+        | Some(a) =>
+          switch (AssertMap.check(a)) {
+          | Pass => Doc.text("assert") |> Doc.annot(DHAnnot.AssertPass)
+          | Fail => Doc.text("assert") |> Doc.annot(DHAnnot.AssertFail)
+          | Indet => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
+          | Comp => Doc.text("assert") |> Doc.annot(DHAnnot.AssertComp)
+          }
+        | None => Doc.text("assert") |> Doc.annot(DHAnnot.AssertIndet)
+        }
+      | Sequence(d1, d2) =>
+        let (doc1, doc2) = (go'(d1), go'(d2));
+        DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ListNil(_) => DHDoc_common.Delim.list_nil
@@ -214,6 +232,14 @@ let rec mk =
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
+      | FailedAssert(_, x) =>
+        //let (d_doc, _) = go'(x);
+        let (d_doc, _) = go'(x);
+        let d_doc2 = d_doc |> annot(DHAnnot.AssertionFail);
+        /*let decoration =
+          Doc.text("assertion failure") |> annot(DHAnnot.InvalidOpDecoration);*/
+        //hcats([d_doc2, _]);
+        d_doc2;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
           mk_cast(go(~enforce_inline, ddef));
@@ -326,9 +352,10 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
+    (~settings, ~selected_instance, map, Rule(dp, dclause): DHExp.rule)
+    : DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_instance);
+  let mk' = mk(~settings, ~selected_instance, map);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses

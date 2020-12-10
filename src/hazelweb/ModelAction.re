@@ -28,6 +28,13 @@ type t =
   | LoadCardstack(int)
   | NextCard
   | PrevCard
+  | SynthesizeHole(MetaVar.t)
+  | ScrollFilling(bool)
+  | AcceptFilling
+  | StepInFilling
+  | StepOutFilling
+  | NextSynthesisHole
+  | PrevSynthesisHole
   | UpdateSettings(Settings.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)

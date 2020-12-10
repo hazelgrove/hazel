@@ -3,10 +3,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
-type tag_typ =
-  | Exp
-  | Pat
-  | Typ;
 
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
@@ -103,6 +99,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       } else {
         code_view(num);
       }
+    | AssertLit(_) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("Assert"),
+            indicate_words_view(" literal "),
+            code_view("assert"),
+          ],
+        )
+      )
     | BoolLit(_, bool_val) =>
       Vdom.(
         Node.span(
@@ -423,28 +430,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let get_cursor_term_tag_typ = (cursor_term: CursorInfo.cursor_term): tag_typ => {
-    switch (cursor_term) {
-    | Exp(_, _) => Exp
-    | Pat(_, _) => Pat
-    | Typ(_, _) => Typ
-    | ExpOp(_, _) => Exp
-    | PatOp(_, _) => Pat
-    | TypOp(_, _) => Typ
-    | Line(_, _)
-    | Rule(_, _) => Exp
-    };
-  };
   let display_tag_typ =
-      (undo_history_entry: undo_history_entry): option(tag_typ) => {
+      (undo_history_entry: undo_history_entry): option(TermSort.t) => {
     switch (undo_history_entry.action_group) {
     | DeleteEdit(edit_detail) =>
       switch (edit_detail) {
-      | Term(cursor_term, _) => Some(get_cursor_term_tag_typ(cursor_term))
+      | Term(cursor_term, _) =>
+        Some(TermTag.get_cursor_term_sort(cursor_term))
       | Space
       | EmptyLine =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_before,
           ),
         )
@@ -458,14 +454,14 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | SAsc => Some(Exp)
       | _ =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_after,
           ),
         )
       }
     | VarGroup(_) =>
       Some(
-        get_cursor_term_tag_typ(
+        TermTag.get_cursor_term_sort(
           undo_history_entry.cursor_term_info.cursor_term_after,
         ),
       )
@@ -477,7 +473,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | Left
       | Right =>
         Some(
-          get_cursor_term_tag_typ(
+          TermTag.get_cursor_term_sort(
             undo_history_entry.cursor_term_info.cursor_term_after,
           ),
         )
@@ -568,30 +564,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let history_typ_tag_view = (undo_history_entry: undo_history_entry) => {
     switch (display_tag_typ(undo_history_entry)) {
     | None => Vdom.(Node.div([], []))
-    | Some(typ) =>
-      switch (typ) {
-      | Exp =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-exp"])],
-            [Node.text("EXP")],
-          )
-        )
-      | Pat =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-pat"])],
-            [Node.text("PAT")],
-          )
-        )
-      | Typ =>
-        Vdom.(
-          Node.div(
-            [Attr.classes(["history-type-tag", "history-type-tag-typ"])],
-            [Node.text("TYP")],
-          )
-        )
-      }
+    | Some(typ) => TermTag.term_tag_view(typ, ["history-type-tag"])
     };
   };
 

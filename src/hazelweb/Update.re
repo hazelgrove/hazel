@@ -64,7 +64,14 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | UpdateIsMac(_) =>
+  | UpdateIsMac(_)
+  | SynthesizeHole(_)
+  | ScrollFilling(_)
+  | AcceptFilling
+  | StepInFilling
+  | StepOutFilling
+  | NextSynthesisHole
+  | PrevSynthesisHole =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -124,6 +131,18 @@ let apply_action =
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
+      | SynthesizeHole(u) =>
+        Model.map_program(Program.begin_synthesizing(u), model)
+      | ScrollFilling(up) =>
+        Model.map_program(Program.scroll_synthesized_selection(up), model)
+      | AcceptFilling => Model.map_program(Program.accept_synthesized, model)
+      | StepInFilling => Model.map_program(Program.step_in_synthesized, model)
+      | StepOutFilling =>
+        Model.map_program(Program.step_out_synthesized, model)
+      | NextSynthesisHole =>
+        Model.map_program(Program.next_synthesis_hole, model)
+      | PrevSynthesisHole =>
+        Model.map_program(Program.prev_synthesis_hole, model)
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)

@@ -16,6 +16,7 @@ type t =
   | Equals
   | Enter
   | Shift_Enter
+  | Ctrl_Enter
   | Backslash
   | Plus
   | Minus
@@ -31,6 +32,7 @@ type t =
   | Alt_C
   | Pound
   | Ctrl_Z
+  | Ctrl_Space
   | Ctrl_Shift_Z
   | Ctrl_Alt_I
   | Ctrl_Alt_K
@@ -55,6 +57,7 @@ let get_details =
   | Equals => KeyCombo.equals
   | Enter => KeyCombo.enter
   | Shift_Enter => KeyCombo.shift_enter
+  | Ctrl_Enter => KeyCombo.ctrl_enter
   | Backslash => KeyCombo.backslash
   | Plus => KeyCombo.plus
   | Minus => KeyCombo.minus
@@ -69,6 +72,7 @@ let get_details =
   | Alt_R => KeyCombo.alt_R
   | Alt_C => KeyCombo.alt_C
   | Ctrl_Z => KeyCombo.ctrl_z
+  | Ctrl_Space => KeyCombo.ctrl_space
   | Ctrl_Shift_Z => KeyCombo.ctrl_shift_z
   | Ctrl_Alt_I => KeyCombo.ctrl_alt_i
   | Ctrl_Alt_K => KeyCombo.ctrl_alt_k
@@ -115,6 +119,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Enter);
   } else if (evt_matches(KeyCombo.shift_enter)) {
     Some(Shift_Enter);
+  } else if (evt_matches(KeyCombo.ctrl_enter)) {
+    Some(Ctrl_Enter);
   } else if (evt_matches(KeyCombo.backslash)) {
     Some(Backslash);
   } else if (evt_matches(KeyCombo.plus)) {
@@ -149,6 +155,8 @@ let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     Some(Ctrl_Alt_J);
   } else if (evt_matches(KeyCombo.ctrl_alt_l)) {
     Some(Ctrl_Alt_L);
+  } else if (evt_matches(KeyCombo.ctrl_space)) {
+    Some(Ctrl_Space);
   } else {
     None;
   };

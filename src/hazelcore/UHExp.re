@@ -20,6 +20,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+  | AssertLit(ErrStatus.t, AssertNumber.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -30,6 +31,12 @@ and rule =
   | Rule(UHPat.t, t)
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
+
+module Set =
+  Set.Make({
+    type nonrec t = t;
+    let compare = compare;
+  });
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -58,6 +65,9 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
+
+let assertlit = (~err: ErrStatus.t=NotInHole, n: AssertNumber.t): operand =>
+  AssertLit(err, n);
 
 let lam =
     (
@@ -151,16 +161,15 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
-let new_InvalidText =
-    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  (InvalidText(u, t), u_gen);
+let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
+  let (u, id_gen) = IDGen.next_hole(id_gen);
+  (InvalidText(u, t), id_gen);
 };
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = u_gen |> MetaVarGen.next;
-  (EmptyHole(u), u_gen);
+let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
+  let (u, id_gen) = IDGen.next_hole(id_gen);
+  (EmptyHole(u), id_gen);
 };
 
 let is_EmptyHole =
@@ -168,11 +177,11 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
-let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
-  let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
-  let (e, u_gen) = new_EmptyHole(u_gen);
+let empty_rule = (id_gen: IDGen.t): (rule, IDGen.t) => {
+  let (p, id_gen) = UHPat.new_EmptyHole(id_gen);
+  let (e, id_gen) = new_EmptyHole(id_gen);
   let rule = Rule(OpSeq.wrap(p), Block.wrap(e));
-  (rule, u_gen);
+  (rule, id_gen);
 };
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
@@ -190,6 +199,7 @@ and get_err_status_operand =
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
+  | AssertLit(err, _)
   | ListNil(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
@@ -215,6 +225,7 @@ and set_err_status_operand = (err, operand) =>
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
+  | AssertLit(_, n) => AssertLit(err, n)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
@@ -230,17 +241,16 @@ let is_inconsistent = operand =>
   };
 
 /* put e in a new hole, if it is not already in a hole */
-let rec mk_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
-  mk_inconsistent_block(u_gen, e)
-and mk_inconsistent_block =
-    (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
+let rec mk_inconsistent = (id_gen: IDGen.t, e: t): (t, IDGen.t) =>
+  mk_inconsistent_block(id_gen, e)
+and mk_inconsistent_block = (id_gen: IDGen.t, block: block): (block, IDGen.t) => {
   let (leading, conclusion) = block |> Block.force_split_conclusion;
-  let (conclusion, u_gen) = conclusion |> mk_inconsistent_opseq(u_gen);
-  (Block.join_conclusion(leading, conclusion), u_gen);
+  let (conclusion, id_gen) = conclusion |> mk_inconsistent_opseq(id_gen);
+  (Block.join_conclusion(leading, conclusion), id_gen);
 }
-and mk_inconsistent_opseq = (u_gen, opseq) =>
-  OpSeq.mk_inconsistent(~mk_inconsistent_operand, u_gen, opseq)
-and mk_inconsistent_operand = (u_gen, operand) =>
+and mk_inconsistent_opseq = (id_gen, opseq) =>
+  OpSeq.mk_inconsistent(~mk_inconsistent_operand, id_gen, opseq)
+and mk_inconsistent_operand = (id_gen, operand) =>
   switch (operand) {
   /* already in hole */
   | EmptyHole(_)
@@ -249,16 +259,18 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | AssertLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, id_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | AssertLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
@@ -269,31 +281,33 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
     )
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
-    (operand, u_gen);
+    (operand, id_gen);
   /* err in constructor args */
   | Parenthesized(body) =>
-    let (body, u_gen) = body |> mk_inconsistent(u_gen);
-    (Parenthesized(body), u_gen);
+    let (body, id_gen) = body |> mk_inconsistent(id_gen);
+    (Parenthesized(body), id_gen);
   };
 
-let text_operand =
-    (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
+let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   switch (shape) {
-  | Underscore => (var("_"), u_gen)
-  | IntLit(n) => (intlit(n), u_gen)
-  | FloatLit(f) => (floatlit(f), u_gen)
-  | BoolLit(b) => (boollit(b), u_gen)
-  | Var(x) => (var(x), u_gen)
+  | Underscore => (var("_"), id_gen)
+  | IntLit(n) => (intlit(n), id_gen)
+  | FloatLit(f) => (floatlit(f), id_gen)
+  | BoolLit(b) => (boollit(b), id_gen)
+  | AssertLit =>
+    let (u, id_gen) = IDGen.next_assert(id_gen);
+    (assertlit(u), id_gen);
+  | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     (
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
-      u_gen,
+      id_gen,
     );
-  | InvalidTextShape(t) => new_InvalidText(u_gen, t)
+  | InvalidTextShape(t) => new_InvalidText(id_gen, t)
   };
 
 let associate =
@@ -346,6 +360,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | FloatLit(NotInHole, _) => true
   | BoolLit(InHole(_), _) => false
   | BoolLit(NotInHole, _) => true
+  | AssertLit(InHole(_), _) => false //not quite sure
+  | AssertLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Lam(InHole(_), _, _, _) => false
@@ -375,4 +391,109 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {
   is_complete_block(exp, check_type_holes);
+};
+
+let fill_hole = (u: MetaVar.t, filler: t, e: t) => {
+  open OptUtil.Syntax;
+  let rec go_block = (block: block): option(block) => {
+    let (filled, block) =
+      List.fold_right(
+        (line, (filled, lines)) =>
+          filled
+            ? (true, [line, ...lines])
+            : (
+              switch (go_line(line)) {
+              | None => (false, [line, ...lines])
+              | Some(filled_line) => (true, [filled_line, ...lines])
+              }
+            ),
+        block,
+        (false, []),
+      );
+    filled ? Some(block) : None;
+  }
+  and go_line = line =>
+    switch (line) {
+    | EmptyLine
+    | CommentLine(_) => None
+    | LetLine(p, ann, def) =>
+      let+ filled_def = go_block(def);
+      LetLine(p, ann, filled_def);
+    | ExpLine(OpSeq(_, seq)) =>
+      let+ filled_seq = go_seq(seq);
+      ExpLine(mk_OpSeq(filled_seq));
+    }
+  and go_seq: seq => option(seq) =
+    fun
+    | S(operand, affix) =>
+      switch (go_operand(operand)) {
+      | None =>
+        let+ filled_affix = go_affix(affix);
+        Seq.S(operand, filled_affix);
+      | Some(filled_operand) => Some(S(filled_operand, affix))
+      }
+  and go_affix: affix => option(affix) =
+    fun
+    | E => None
+    | A(op, seq) => {
+        let+ filled_seq = go_seq(seq);
+        Seq.A(op, filled_seq);
+      }
+  and go_operand = (operand: operand): option(operand) =>
+    switch (operand) {
+    | InvalidText(_)
+    | Var(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_)
+    | ListNil(_)
+    | AssertLit(_)
+    | ApPalette(_) => None
+    | EmptyHole(u') =>
+      if (u == u') {
+        switch (filler) {
+        | [ExpLine(OpSeq(_, S(operand, E)))] => Some(operand)
+        | _ => Some(Parenthesized(filler))
+        };
+      } else {
+        None;
+      }
+    | Parenthesized(body) =>
+      let+ filled_body = go_block(body);
+      Parenthesized(filled_body);
+    | Inj(err, side, body) =>
+      let+ filled_body = go_block(body);
+      Inj(err, side, filled_body);
+    | Lam(err, p, ann, def) =>
+      let+ filled_def = go_block(def);
+      Lam(err, p, ann, filled_def);
+    | Case(err, scrut, rules) =>
+      switch (go_block(scrut)) {
+      | Some(filled_scrut) => Some(Case(err, filled_scrut, rules))
+      | None =>
+        let (filled, rules) =
+          List.fold_right(
+            (rule, (filled, rules)) =>
+              filled
+                ? (true, [rule, ...rules])
+                : (
+                  switch (go_rule(rule)) {
+                  | None => (false, [rule, ...rules])
+                  | Some(filled_rule) => (true, [filled_rule, ...rules])
+                  }
+                ),
+            rules,
+            (false, []),
+          );
+        filled ? Some(Case(err, scrut, rules)) : None;
+      }
+    }
+  and go_rule = (Rule(p, clause): rule) => {
+    let+ filled_clause = go_block(clause);
+    Rule(p, filled_clause);
+  };
+  switch (go_block(e)) {
+  | None => e
+  | Some(filled) => filled
+  };
 };

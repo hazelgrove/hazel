@@ -28,6 +28,8 @@ let mk_InvalidText: string => UHDoc.t =
 let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_AssertLit: AssertNumber.t => UHDoc.t =
+  UHDoc_common.mk_AssertLit(~sort=Exp);
 let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
@@ -186,6 +188,7 @@ and mk_operand =
         | IntLit(_, n) => mk_IntLit(n)
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
+        | AssertLit(_, n) => mk_AssertLit(n)
         | ListNil(_) => mk_ListNil()
         | Lam(_, p, ann, body) =>
           let p =
@@ -244,6 +247,7 @@ and mk_rule =
               ~child_step=0,
               p,
             );
+
           let clause =
             mk_child(~memoize, ~enforce_inline=false, ~child_step=1, clause);
           UHDoc_common.mk_Rule(p, clause);

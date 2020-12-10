@@ -48,4 +48,5 @@ type t =
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init;
+  | Init
+  | FillExpHole(MetaVar.t, UHExp.t);

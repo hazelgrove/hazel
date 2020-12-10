@@ -77,39 +77,158 @@ let decoration_container =
   );
 };
 
+let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
+let rec view_of_box =
+        (~assert_map: option(AssertMap.t), box: UHBox.t): list(Vdom.Node.t) => {
+  Vdom.(
+    switch (WeakMap.get(box_table, box)) {
+    | Some(vs) => vs
+    | None =>
+      switch (box) {
+      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
+      | HBox(boxes) =>
+        boxes |> List.map(view_of_box(~assert_map)) |> List.flatten
+      | VBox(boxes) =>
+        let vs =
+          boxes
+          |> List.map(view_of_box(~assert_map))
+          |> ListUtil.join([Node.br([])])
+          |> List.flatten;
+        [Node.div([Attr.classes(["VBox"])], vs)];
+      | Annot(annot, box) =>
+        let vs = view_of_box(~assert_map, box);
+        switch (annot) {
+        | Token({shape, _}) =>
+          let clss =
+            switch (shape) {
+            | Text => ["code-text"]
+            | Op => ["code-op"]
+            | Delim(_) => ["code-delim"]
+            };
+          [Node.span([Attr.classes(clss)], vs)];
+        | HoleLabel({len}) =>
+          let width = Css_gen.width(`Ch(float_of_int(len)));
+          [
+            Node.span(
+              [Attr.style(width), Attr.classes(["HoleLabel"])],
+              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+            ),
+          ];
+        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
+        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | AssertNum({num}) =>
+          switch (assert_map) {
+          | None => vs
+          | Some(assert_map) =>
+            switch (AssertMap.lookup(num, assert_map)) {
+            | None => [
+                Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+              ]
+            | Some(a) =>
+              switch (AssertMap.check(a)) {
+              | Pass => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertPass"])], vs),
+                ]
+
+              | Fail => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertFail"])], vs),
+                ]
+
+              | Comp => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertComp"])], vs),
+                ]
+
+              | Indet => [
+                  Vdom.Node.span([Vdom.Attr.classes(["AssertIndet"])], vs),
+                ]
+              }
+            }
+          }
+        | _ => vs
+        };
+      }
+    }
+  );
+};
+
+// TODO refactor so that it doesn't depend on assert map
+let view_of_text = (~assert_map: option(AssertMap.t)=?, l: UHLayout.t) => {
+  view_of_box(~assert_map, UHBox.mk(l));
+};
+
 let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
-  | CurrentTerm => "current-term";
+  | CurrentTerm => "current-term"
+  | FilledHole(_) => "filled-hole"
+  | FilledHoleZ(_) => "filled-hole-z"
+  | FillingHole(_) => "filling-hole";
 
 let decoration_view =
     (
-      ~contains_current_term: bool,
+      ~decoration_views:
+         (UHDecorationPaths.t, UHLayout.t) => list(Vdom.Node.t),
+      ~font_metrics,
       ~corner_radii: (float, float),
+      ~contains_current_term: bool,
       ~term_sort: TermSort.t,
       ~term_shape: TermShape.t,
-      shape: UHDecorationShape.t,
-    ) =>
-  UHDecoration.(
-    switch (shape) {
-    | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
-    | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
-    | VarUse => VarUse.view(~corner_radii)
-    | CurrentTerm =>
-      CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    }
-  );
+      dshape: UHDecorationShape.t,
+    ) => {
+  open UHDecoration;
+  let mk_layout = e =>
+    e
+    |> Lazy.force(UHDoc_Exp.mk, ~memoize=false, ~enforce_inline=false)
+    |> Pretty.LayoutOfDoc.layout_of_doc(~width=30, ~pos=0)
+    |> OptUtil.get(() => failwith("layout failure"));
+  switch (dshape) {
+  | ErrHole => ErrHole.view(~contains_current_term, ~corner_radii)
+  | VarErrHole => VarErrHole.view(~contains_current_term, ~corner_radii)
+  | VarUse => VarUse.view(~corner_radii)
+  | CurrentTerm =>
+    CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
+  | FilledHole(e, filled_holes) =>
+    let l = mk_layout(e);
+    let text = view_of_text(l);
+    let decorations =
+      decoration_views(UHDecorationPaths.mk(~filled_holes, ()), l);
+    FilledHole.view(~font_metrics, ~text, ~decorations);
+  | FilledHoleZ(filled, filled_holes, synthesizing) =>
+    let l = mk_layout(filled);
+    let text = view_of_text(l);
+    let decorations = {
+      let dpaths = UHDecorationPaths.mk(~synthesizing, ~filled_holes, ());
+      decoration_views(dpaths, l);
+    };
+    FilledHoleZ.view(~font_metrics, ~text, ~decorations);
+  | FillingHole(filling, constraints) =>
+    let options =
+      filling
+      |> ZList.map(mk_layout, mk_layout)
+      |> ZList.map(view_of_text, view_of_text)
+      |> ZList.map(Vdom.Node.span([]), Vdom.Node.span([]));
+    FillingHole.view(~font_metrics, ~options, ~constraints);
+  };
+};
 
-let decoration_views =
-    (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
-    : list(Vdom.Node.t) => {
+let rec decoration_views =
+        (
+          ~font_metrics: FontMetrics.t,
+          dpaths: UHDecorationPaths.t,
+          l: UHLayout.t,
+        )
+        : list(Vdom.Node.t) => {
+  let decoration_views = decoration_views(~font_metrics);
+
   let corner_radius = 2.5;
   let corner_radii = (
     corner_radius /. font_metrics.col_width,
     corner_radius /. font_metrics.row_height,
   );
+  let decoration_view = decoration_view(~corner_radii);
+  let decoration_container = decoration_container(~font_metrics);
 
   let rec go =
           (
@@ -147,28 +266,50 @@ let decoration_views =
         UHDecorationPaths.is_empty(stepped) ? tl : go'(~tl, stepped, m);
       | Term({shape, sort, _}) =>
         let offset = start.col - indent;
+        let view = dshape => {
+          let view =
+            decoration_view(
+              ~decoration_views,
+              ~font_metrics,
+              ~contains_current_term=Option.is_some(dpaths.current_term),
+              ~term_sort=sort,
+              ~term_shape=shape,
+              dshape,
+              (offset, m),
+            );
+          switch (dshape) {
+          | ErrHole
+          | VarErrHole
+          | VarUse
+          | CurrentTerm =>
+            decoration_container(
+              ~height=MeasuredLayout.height(m),
+              ~width=MeasuredLayout.width(~offset, m),
+              ~origin=MeasuredPosition.{row: start.row, col: indent},
+              ~cls=decoration_cls(dshape),
+              [view],
+            )
+          | FilledHole(_)
+          | FillingHole(_)
+          | FilledHoleZ(_) =>
+            Vdom.Node.div(
+              Vdom.[
+                Attr.classes(["synthesizing-container"]),
+                Attr.create(
+                  "style",
+                  Printf.sprintf(
+                    "top: %fpx; left: %fpx;",
+                    Float.of_int(start.row) *. font_metrics.row_height,
+                    Float.of_int(indent) *. font_metrics.col_width,
+                  ),
+                ),
+              ],
+              [view],
+            )
+          };
+        };
         let current_vs =
-          UHDecorationPaths.current(shape, dpaths)
-          |> List.map((dshape: UHDecorationShape.t) => {
-               let cls = decoration_cls(dshape);
-               let view =
-                 decoration_view(
-                   ~contains_current_term=Option.is_some(dpaths.current_term),
-                   ~corner_radii,
-                   ~term_shape=shape,
-                   ~term_sort=sort,
-                   dshape,
-                   (offset, m),
-                 );
-               decoration_container(
-                 ~font_metrics,
-                 ~height=MeasuredLayout.height(m),
-                 ~width=MeasuredLayout.width(~offset, m),
-                 ~origin=MeasuredPosition.{row: start.row, col: indent},
-                 ~cls,
-                 [view],
-               );
-             });
+          List.map(view, UHDecorationPaths.current(shape, dpaths));
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
       }
@@ -178,8 +319,49 @@ let decoration_views =
   go(dpaths, UHMeasuredLayout.mk(l));
 };
 
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
+};
+
+let view_of_cursor_inspector =
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      (steps, cursor): CursorPath.t,
+      cursor_inspector: Settings.CursorInspector.t,
+      cursor_info: CursorInfo.t,
+      l: UHLayout.t,
+    ) => {
+  let cursor =
+    switch (cursor) {
+    | OnText(_) => CursorPosition.OnText(0)
+    | OnDelim(index, _) => CursorPosition.OnDelim(index, Before)
+    | OnOp(_) => CursorPosition.OnOp(Before)
+    };
+  let m = UHMeasuredLayout.mk(l);
+  let cursor_pos =
+    UHMeasuredLayout.caret_position_of_path((steps, cursor), m)
+    |> OptUtil.get(() => failwith("could not find caret"));
+  let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
+  let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
+  CursorInspector.view(
+    ~inject,
+    (cursor_x, cursor_y),
+    cursor_inspector,
+    cursor_info,
+  );
+};
+
 let key_handlers =
-    (~inject, ~is_mac: bool, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
+    (
+      ~inject,
+      ~is_mac: bool,
+      ~cursor_info: CursorInfo.t,
+      ~synthesizing: option(Synthesizing.t),
+    )
+    : list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
     Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
@@ -187,6 +369,14 @@ let key_handlers =
     Attr.on_keypress(_ => Event.Prevent_default),
     Attr.on_keydown(evt => {
       switch (MoveKey.of_key(Key.get_key(evt))) {
+      | Some(ArrowUp) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.ScrollFilling(true))
+      | Some(ArrowDown) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.ScrollFilling(false))
+      | Some(ArrowLeft) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.StepOutFilling)
+      | Some(ArrowRight) when Option.is_some(synthesizing) =>
+        prevent_stop_inject(ModelAction.StepInFilling)
       | Some(move_key) =>
         prevent_stop_inject(ModelAction.MoveAction(Key(move_key)))
       | None =>
@@ -215,6 +405,22 @@ let key_handlers =
           } else {
             Event.Ignore;
           }
+        | Some(Ctrl_Space) =>
+          prevent_stop_inject(
+            ModelAction.UpdateSettings(CursorInspector(Toggle_visible)),
+          )
+        | Some(Enter) when Option.is_some(synthesizing) =>
+          prevent_stop_inject(ModelAction.AcceptFilling)
+        | Some(Ctrl_Enter) =>
+          switch (synthesizing, cursor_info.cursor_term) {
+          | (None, Exp(_, EmptyHole(u))) =>
+            prevent_stop_inject(ModelAction.SynthesizeHole(u))
+          | _ => Event.Ignore
+          }
+        | Some(Tab) when Option.is_some(synthesizing) =>
+          prevent_stop_inject(ModelAction.NextSynthesisHole)
+        | Some(ShiftTab) when Option.is_some(synthesizing) =>
+          prevent_stop_inject(ModelAction.PrevSynthesisHole)
         | Some(kc) =>
           prevent_stop_inject(
             ModelAction.EditAction(KeyComboAction.get(cursor_info, kc)),
@@ -235,56 +441,6 @@ let key_handlers =
   ];
 };
 
-let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
-let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
-  Vdom.(
-    switch (WeakMap.get(box_table, box)) {
-    | Some(vs) => vs
-    | None =>
-      switch (box) {
-      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
-      | VBox(boxes) =>
-        let vs =
-          boxes
-          |> List.map(view_of_box)
-          |> ListUtil.join([Node.br([])])
-          |> List.flatten;
-        [Node.div([Attr.classes(["VBox"])], vs)];
-      | Annot(annot, box) =>
-        let vs = view_of_box(box);
-        switch (annot) {
-        | Token({shape, _}) =>
-          let clss =
-            switch (shape) {
-            | Text => ["code-text"]
-            | Op => ["code-op"]
-            | Delim(_) => ["code-delim"]
-            };
-          [Node.span([Attr.classes(clss)], vs)];
-        | HoleLabel({len}) =>
-          let width = Css_gen.width(`Ch(float_of_int(len)));
-          [
-            Node.span(
-              [Attr.style(width), Attr.classes(["HoleLabel"])],
-              [Node.span([Attr.classes(["HoleNumber"])], vs)],
-            ),
-          ];
-        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-        | _ => vs
-        };
-      }
-    }
-  );
-};
-
-let root_id = "code-root";
-
-let focus = () => {
-  JSUtil.force_get_elem_by_id(root_id)##focus;
-};
-
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -300,27 +456,48 @@ let view =
     () => {
       open Vdom;
 
-      let l = Program.get_layout(~settings, program);
-
-      let code_text = view_of_box(UHBox.mk(l));
-      let decorations = {
-        let dpaths = Program.get_decoration_paths(program);
-        decoration_views(~font_metrics, dpaths, l);
-      };
-      let caret = {
-        let caret_pos = Program.get_caret_position(~settings, program);
-        program.is_focused
-          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-      };
-
       let key_handlers =
         program.is_focused
           ? key_handlers(
               ~inject,
               ~is_mac,
               ~cursor_info=Program.get_cursor_info(program),
+              ~synthesizing=program.synthesizing,
             )
           : [];
+
+      let l = Program.get_layout(~settings, program);
+
+      let code_text = {
+        let assert_map = snd(Program.get_result(program));
+        view_of_text(~assert_map, l);
+      };
+      let decorations = {
+        let dpaths = Program.get_decoration_paths(program);
+        decoration_views(~font_metrics, dpaths, l);
+      };
+      let caret = {
+        let caret_pos = Program.get_caret_position(~settings, program);
+        program.is_focused && Option.is_none(program.synthesizing)
+          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
+      };
+      let cursor_inspector =
+        if (program.is_focused && settings.cursor_inspector.visible) {
+          let path = Program.get_path(program);
+          let ci = Program.get_cursor_info(program);
+          [
+            view_of_cursor_inspector(
+              ~inject,
+              ~font_metrics,
+              path,
+              settings.cursor_inspector,
+              ci,
+              l,
+            ),
+          ];
+        } else {
+          [];
+        };
 
       let click_handler = evt => {
         let container_rect =
@@ -359,6 +536,7 @@ let view =
           ...key_handlers,
         ],
         caret
+        @ cursor_inspector
         @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
       );
     },
