@@ -227,6 +227,18 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                         ],
                         [Node.text("Serialize to console")],
                       ),
+                      Node.button(
+                        [
+                          Attr.on_click(_ => {
+                            let e = program |> Program.get_zexp;
+                            JSUtil.log(
+                              Js.string(Serialization.string_of_zexp(e)),
+                            );
+                            Event.Ignore;
+                          }),
+                        ],
+                        [Node.text("Serialize Zexp to console")],
+                      ),
                       Node.div(
                         [
                           Attr.style(
