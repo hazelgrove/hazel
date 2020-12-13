@@ -4,11 +4,12 @@
  (name menhirtest)
  (libraries hazelcore re sexplib camomile pretty menhirLib)
  (wrapped false)
+ (inline_tests)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_let ppx_sexp_conv)))
+  (pps ppx_let ppx_sexp_conv ppx_inline_test)))
 
 (ocamllex
  (modules hazel_lexer))
