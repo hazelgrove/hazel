@@ -1,15 +1,15 @@
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
-let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
+let rec syn = (ctx: Contexts.t, p: UHPat.t): option((PTyp.t, Contexts.t)) =>
   syn_opseq(ctx, p)
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHPat.opseq)
-    : option((HTyp.t, Contexts.t)) =>
+    : option((PTyp.t, Contexts.t)) =>
   syn_skel(ctx, skel, seq)
 and syn_skel =
     (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
-    : option((HTyp.t, Contexts.t)) =>
+    : option((PTyp.t, Contexts.t)) =>
   switch (skel) {
   | Placeholder(n) =>
     let pn = seq |> Seq.nth_operand(n);
@@ -18,7 +18,7 @@ and syn_skel =
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel(ctx, skel_not_in_hole, seq)) {
     | None => None
-    | Some((_, ctx)) => Some((HTyp.Hole, ctx))
+    | Some((_, ctx)) => Some((Hole, ctx))
     };
   | BinOp(NotInHole, Comma, _, _) =>
     skel
@@ -28,7 +28,7 @@ and syn_skel =
            syn_skel(ctx, skel, seq) |> Option.map(TupleUtil.swap),
          ctx,
        )
-    |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
+    |> Option.map(((ctx, tys)) => (PTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
     | None => None
@@ -42,15 +42,15 @@ and syn_skel =
     switch (syn_skel(ctx, skel1, seq)) {
     | None => None
     | Some((ty1, ctx)) =>
-      let ty = HTyp.List(ty1);
-      switch (ana_skel(ctx, skel2, seq, ty)) {
+      let ty = PTyp.List(ty1);
+      switch (ana_skel(ctx, skel2, seq, PTyp.pTyp_to_hTyp(ty))) {
       | None => None
       | Some(ctx) => Some((ty, ctx))
       };
     }
   }
 and syn_operand =
-    (ctx: Contexts.t, operand: UHPat.operand): option((HTyp.t, Contexts.t)) =>
+    (ctx: Contexts.t, operand: UHPat.operand): option((PTyp.t, Contexts.t)) =>
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
@@ -65,7 +65,7 @@ and syn_operand =
   | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand')
-    |> Option.map(((_, gamma)) => (HTyp.Hole, gamma));
+    |> Option.map(((_, gamma)) => (PTyp.Hole, gamma));
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
@@ -81,7 +81,7 @@ and syn_operand =
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,
-      Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
+      Some((PTyp.Unspecified, Contexts.extend_gamma(ctx, (x, Hole)))),
     )
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
@@ -93,8 +93,8 @@ and syn_operand =
     | Some((ty1, ctx)) =>
       let ty =
         switch (inj_side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
+        | L => PTyp.Sum(ty1, Hole)
+        | R => PTyp.Sum(Hole, ty1)
         };
       Some((ty, ctx));
     }
@@ -103,7 +103,7 @@ and syn_operand =
     let ty1_ann = UHTyp.expand(ann);
     switch (ana_operand(ctx, op, ty1_ann)) {
     | None => None
-    | Some(ctx) => Some((ty1_ann, ctx))
+    | Some(ctx) => Some((PTyp.hTyp_to_pTyp(ty1_ann), ctx))
     };
   }
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
@@ -199,7 +199,7 @@ and ana_operand =
     switch (syn_operand(ctx, operand)) {
     | None => None
     | Some((ty', ctx')) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(ty, PTyp.pTyp_to_hTyp(ty'))) {
         Some(ctx');
       } else {
         None;
@@ -245,7 +245,7 @@ and syn_nth_type_mode' =
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
-          switch (HTyp.matched_arrow(ty1)) {
+          switch (HTyp.matched_arrow(PTyp.pTyp_to_hTyp(ty1))) {
           | None => None
           | Some((ty2, _)) => ana_go(skel2, ty2)
           };
@@ -256,7 +256,7 @@ and syn_nth_type_mode' =
       | None => None
       | Some((ty1, _)) =>
         n <= Skel.rightmost_tm_index(skel1)
-          ? go(skel1) : ana_go(skel2, HTyp.List(ty1))
+          ? go(skel1) : ana_go(skel2, HTyp.List(PTyp.pTyp_to_hTyp(ty1)))
       }
     };
   go(skel);
@@ -796,5 +796,5 @@ let ana_fix_holes_z =
 let syn_and_join = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(HTyp.t) =>
   switch (syn(ctx, p)) {
   | None => Some(ty)
-  | Some((ty1_p, _)) => HTyp.join(LUB, ty, ty1_p)
+  | Some((ty1_p, _)) => PTyp.join(LUB, ty, ty1_p)
   };

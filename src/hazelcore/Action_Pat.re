@@ -48,7 +48,7 @@ let mk_syn_result =
     : ActionOutcome.t(syn_success) =>
   switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
   | None => Failed
-  | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
+  | Some((ty, ctx)) => Succeeded((zp, PTyp.pTyp_to_hTyp(ty), ctx, u_gen))
   };
 let mk_ana_result =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
@@ -764,6 +764,7 @@ and syn_perform_operand =
     switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
     | Some((body_ty, ctx)) =>
+      let body_ty = PTyp.pTyp_to_hTyp(body_ty);
       let ty =
         switch (side) {
         | L => HTyp.Sum(body_ty, Hole)

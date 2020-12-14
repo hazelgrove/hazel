@@ -293,12 +293,13 @@ and syn_cursor_info_line =
         Some((typ, _)),
         Some(CursorOnDeferredVarPat(deferred, x)) as deferrable,
       ) =>
+      let typ = PTyp.pTyp_to_hTyp(typ);
       switch (HTyp.matched_arrow(typ)) {
       | None => deferrable
       | Some(_) =>
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
-      }
+      };
     }
   | LetLineZE(p, zdef) =>
     switch (Statics_Exp.syn(ctx, ZExp.erase(zdef))) {
@@ -526,6 +527,7 @@ and syn_cursor_info_zoperand =
     switch (Statics_Pat.syn_opseq(ctx, ZPat.erase(zp))) {
     | None => None
     | Some((ty, _)) =>
+      let ty = PTyp.pTyp_to_hTyp(ty);
       switch (
         CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty)
       ) {
@@ -534,12 +536,14 @@ and syn_cursor_info_zoperand =
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
         Some(uses |> deferred_ci);
-      }
+      };
     }
   | LamZE(_, p, zbody) =>
     switch (Statics_Pat.syn_opseq(ctx, p)) {
     | None => None
-    | Some((ty, ctx)) => ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty)
+    | Some((ty, ctx)) =>
+      let ty = PTyp.pTyp_to_hTyp(ty);
+      ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty);
     }
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>

@@ -77,7 +77,9 @@ and syn_cursor_info_zopseq =
            | Some((rev_tys, ctx)) =>
              switch (Statics_Pat.syn_skel(ctx, skel, seq)) {
              | None => None
-             | Some((ty, ctx)) => Some(([ty, ...rev_tys], ctx))
+             | Some((ty, ctx)) =>
+               let ty = PTyp.pTyp_to_hTyp(ty);
+               Some(([ty, ...rev_tys], ctx));
              }
            },
          Some(([], ctx)),
@@ -138,15 +140,16 @@ and syn_cursor_info_skel =
       )
     | ZOperator(_) =>
       Statics_Pat.syn_skel(ctx, skel, seq)
-      |> Option.map(((ty, _)) =>
+      |> Option.map(((ty, _)) => {
+           let ty = PTyp.pTyp_to_hTyp(ty);
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatSynthesized(ty),
                ctx,
                extract_cursor_pat_zseq(zseq),
              ),
-           )
-         )
+           );
+         })
     };
   } else {
     // recurse toward cursor
@@ -172,7 +175,8 @@ and syn_cursor_info_skel =
         switch (Statics_Pat.syn_skel(ctx, skel1, seq)) {
         | None => None
         | Some((ty_elt, ctx)) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.List(ty_elt))
+          let ty_elt = PTyp.pTyp_to_hTyp(ty_elt);
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.List(ty_elt));
         }
       }
     };
@@ -198,7 +202,8 @@ and syn_cursor_info_zoperand =
     )
   | CursorP(_, Var(NotInHole, NotInVarHole, x) as p) =>
     Statics_Pat.syn_operand(ctx, p)
-    |> Option.map(((ty, _)) =>
+    |> Option.map(((ty, _)) => {
+         let ty = PTyp.pTyp_to_hTyp(ty);
          CursorInfo_common.CursorOnDeferredVarPat(
            uses =>
              CursorInfo_common.mk(
@@ -208,19 +213,20 @@ and syn_cursor_info_zoperand =
                extract_from_zpat_operand(zoperand),
              ),
            x,
-         )
-       )
+         );
+       })
   | CursorP(_, p) =>
     Statics_Pat.syn_operand(ctx, p)
-    |> Option.map(((ty, _)) =>
+    |> Option.map(((ty, _)) => {
+         let ty = PTyp.pTyp_to_hTyp(ty);
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
              PatSynthesized(ty),
              ctx,
              extract_from_zpat_operand(zoperand),
            ),
-         )
-       )
+         );
+       })
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | TypeAnnZP(_, zop, _) =>
@@ -281,15 +287,16 @@ and ana_cursor_info_zopseq =
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
       Statics_Pat.syn_opseq(ctx, opseq')
-      |> Option.map(((ty', _)) =>
+      |> Option.map(((ty', _)) => {
+           let ty' = PTyp.pTyp_to_hTyp(ty');
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatAnaTypeInconsistent(ty, ty'),
                ctx,
                extract_cursor_pat_zseq(zseq),
              ),
-           )
-         );
+           );
+         });
     };
   | _ =>
     // cursor in tuple element
@@ -368,15 +375,16 @@ and ana_cursor_info_skel =
       | InHole(TypeInconsistent, _) =>
         let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
         Statics_Pat.syn_opseq(ctx, opseq')
-        |> Option.map(((ty', _)) =>
+        |> Option.map(((ty', _)) => {
+             let ty' = PTyp.pTyp_to_hTyp(ty');
              CursorInfo_common.CursorNotOnDeferredVarPat(
                CursorInfo_common.mk(
                  PatAnaTypeInconsistent(ty, ty'),
                  ctx,
                  extract_cursor_pat_zseq(zseq),
                ),
-             )
-           );
+             );
+           });
       };
     };
   } else {
@@ -446,6 +454,7 @@ and ana_cursor_info_zoperand =
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
       | Some((ty', _)) =>
+        let ty' = PTyp.pTyp_to_hTyp(ty');
         Some(
           CursorNotOnDeferredVarPat(
             CursorInfo_common.mk(
@@ -454,7 +463,7 @@ and ana_cursor_info_zoperand =
               cursor_term,
             ),
           ),
-        )
+        );
       };
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)

@@ -1068,7 +1068,7 @@ and syn_perform_line =
           | Some(ty_def) =>
             let ty_join =
               switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
-              | None => ty_def
+              | None => ty_def //TODO ty_p
               | Some(ty) => ty
               };
             let (new_p, ctx_body, u_gen) =
@@ -3139,7 +3139,7 @@ and ana_perform_operand =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-        | Some((ty_p, _)) => ty_p
+        | Some((ty_p, _)) => PTyp.pTyp_to_hTyp(ty_p)
         | None => ty1_given
         };
       switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
@@ -3163,7 +3163,7 @@ and ana_perform_operand =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (Statics_Pat.syn(ctx, p)) {
-        | Some((ty_p, _)) => ty_p
+        | Some((ty_p, _)) => PTyp.pTyp_to_hTyp(ty_p)
         | None => ty1_given
         };
       switch (Statics_Pat.ana(ctx, p, ty1)) {
