@@ -1057,13 +1057,13 @@ and syn_perform_line =
       switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
       | None => Failed
       | Some(ty_join) =>
-        let (recursive_ctx, _) =
+        let (rec_ctx, _) =
           Statics_Exp.ctx_for_let(ctx, p, ty_join, zdef |> ZExp.erase);
-        switch (ana_perform(recursive_ctx, a, (zdef, u_gen), ty_join)) {
+        switch (ana_perform(rec_ctx, a, (zdef, u_gen), ty_join)) {
         | Failed => Failed
         | CursorEscaped(side) => escape(u_gen, side)
         | Succeeded((new_zdef, u_gen)) =>
-          switch (Statics_Exp.syn(recursive_ctx, ZExp.erase(new_zdef))) {
+          switch (Statics_Exp.syn(rec_ctx, ZExp.erase(new_zdef))) {
           | None => Failed
           | Some(ty_def) =>
             let ty_join =

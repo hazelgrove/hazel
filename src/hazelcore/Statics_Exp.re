@@ -63,12 +63,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | None => None
       | Some(ty_join) => Statics_Pat.ana(ctx, p, ty_join)
       }
-    | None =>
-    // TODO(andrew): eliminate
-      switch (Statics_Pat.syn(ctx, p)) {
-      | None => None
-      | Some((ty, p_ctx)) => ana(ctx, def, ty) |> Option.map(_ => p_ctx)
-      }
+    | None => None
     }
   }
 and syn_opseq =
