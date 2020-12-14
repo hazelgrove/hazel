@@ -505,6 +505,7 @@ and syn_elab_line =
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotExpand
     | Some((ty1, ctx)) =>
+      let ty1 = PTyp.pTyp_to_hTyp(ty1);
       let (ctx1, is_recursive_fn) =
         Statics_Exp.ctx_for_let(ctx, p, ty1, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
@@ -785,6 +786,7 @@ and syn_elab_operand =
     switch (Statics_Pat.syn(ctx, p)) {
     | None => DoesNotElaborate
     | Some((ty1, _)) =>
+      let ty1 = PTyp.pTyp_to_hTyp(ty1);
       switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp, _, ctx, delta) =>
@@ -794,7 +796,7 @@ and syn_elab_operand =
           let d = DHExp.Lam(dp, ty1, d1);
           Elaborates(d, Arrow(ty1, ty2), delta);
         }
-      }
+      };
     }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {

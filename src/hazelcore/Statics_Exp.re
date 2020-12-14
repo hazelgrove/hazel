@@ -25,7 +25,7 @@ let get_pattern_type = (ctx, rule) =>
 
 let joint_pattern_type = (ctx, rules) => {
   let tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
-  Option.bind(tys, HTyp.join_all(LUB));
+  Option.bind(tys, PTyp.join_all(LUB));
 };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
@@ -187,7 +187,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(NotInHole, p, body) =>
     let (ty1, ctx) =
       switch (Statics_Pat.syn(ctx, p)) {
-      | Some(ty_and_ctx) => ty_and_ctx
+      | Some((ty, ctx)) => (PTyp.pTyp_to_hTyp(ty), ctx)
       | None => (HTyp.Hole, ctx)
       };
     switch (syn(ctx, body)) {
@@ -685,18 +685,12 @@ and syn_fix_holes_line =
       | Some(ty) => ty
       };
     let (ctx_def, _) = ctx_for_let(ctx, p, ty_join, def);
-    // TODO(andrew): just ana this, ignore none branch
-    let (p, ctx, u_gen) =
-      Statics_Pat.ana_fix_holes(
-        ctx_def,
-        u_gen,
-        ~renumber_empty_holes,
-        p,
-        ty_join,
-      );
     let (def, u_gen) =
       ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty_join);
-    (LetLine(p, def), ctx, u_gen);
+    switch (Statics_Pat.ana(ctx_def, p, ty_join)) {
+    | None => failwith("syn_fix_holes_line shouldn't happen")
+    | Some(ctx) => (LetLine(p, def), ctx, u_gen)
+    };
   }
 and syn_fix_holes_opseq =
     (
@@ -931,7 +925,7 @@ and syn_fix_holes_operand =
   | Lam(_, p, body) =>
     let ty1 =
       switch (Statics_Pat.syn(ctx, p)) {
-      | Some((ty, _)) => ty
+      | Some((ty, _)) => PTyp.pTyp_to_hTyp(ty)
       | None => HTyp.Hole
       };
     let (p, ctx, u_gen) =
