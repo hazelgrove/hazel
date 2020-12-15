@@ -35,6 +35,10 @@ let examples_select = (~inject: ModelAction.t => Vdom.Event.t) =>
           [Attr.value("ll_def_slider")],
           [Node.text("livelit slider, defined")],
         ),
+        Node.option(
+          [Attr.value("ll_def_slider2")],
+          [Node.text("livelit slider, defined, unique-id")],
+        ),
       ],
     )
   );
