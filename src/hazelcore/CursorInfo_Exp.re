@@ -308,6 +308,13 @@ and syn_cursor_info_line =
       switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
       | None => None
       | Some(ty_join) =>
+        let ty_p =
+          switch (Statics_Pat.syn(ctx, p)) {
+          | None => ty_def
+          | Some((ty1_p, _)) => PTyp.pTyp_to_hTyp(ty1_p)
+          };
+        print_endline("ZZZZZZZZT");
+        print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty_p)));
         let (ctx_def, _) =
           Statics_Exp.ctx_for_let(ctx, p, ty_join, zdef |> ZExp.erase);
         ana_cursor_info(~steps=steps @ [1], ctx_def, zdef, ty_join)
