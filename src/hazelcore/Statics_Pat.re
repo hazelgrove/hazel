@@ -796,5 +796,8 @@ let ana_fix_holes_z =
 let syn_and_join = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(HTyp.t) =>
   switch (syn(ctx, p)) {
   | None => Some(ty)
-  | Some((ty1_p, _)) => PTyp.join(LUB, ty, ty1_p)
+  | Some((ty1_p, _)) =>
+    print_endline("BLAHHHHH");
+    print_endline(Sexplib.Sexp.to_string_hum(PTyp.sexp_of_t(ty1_p)));
+    PTyp.join(LUB, ty, ty1_p);
   };
