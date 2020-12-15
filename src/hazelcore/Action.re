@@ -21,7 +21,6 @@ type operator_shape =
 [@deriving sexp]
 type shape =
   | SCommentLine
-  | SAbbrev
   | SList
   | SQuote
   | SLeftBracket
@@ -32,6 +31,8 @@ type shape =
   | SListNil
   | SInj(InjSide.t)
   | SLet
+  | SAbbrev
+  | SLivelitDef
   | SLine
   | SCase
   | SOp(operator_shape);

@@ -969,6 +969,12 @@ h1 {
   column-gap: 10px;
 }
 
+.code.presentation .user-defined-livelit-container {
+  z-index: var(--livelit-view-z);
+  white-space: normal;
+  position: absolute;
+}
+
 .grid-container {
   display: grid;
 }

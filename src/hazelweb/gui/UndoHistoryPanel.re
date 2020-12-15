@@ -588,8 +588,19 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           Node.span(
             [],
             [
+              indicate_words_view("livelit "),
               code_keywords_view("abbrev"),
-              indicate_words_view(" abbreviation"),
+              indicate_words_view("iation"),
+            ],
+          )
+        )
+      | LivelitDefLine(_) =>
+        Vdom.(
+          Node.span(
+            [],
+            [
+              code_keywords_view("livelit"),
+              indicate_words_view(" definition"),
             ],
           )
         )
@@ -626,8 +637,19 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         Node.span(
           [],
           [
+            indicate_words_view("livelit "),
             code_keywords_view("abbrev"),
-            indicate_words_view(" abbreviation"),
+            indicate_words_view("iation"),
+          ],
+        )
+      )
+    | SLivelitDef =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view("livelit"),
+            indicate_words_view(" definition"),
           ],
         )
       )

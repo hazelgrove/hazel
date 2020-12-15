@@ -75,12 +75,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 };
 
 let apply_action =
-    (
-      model: Model.t,
-      action: ModelAction.t,
-      state: State.t,
-      ~schedule_action as _,
-    )
+    (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
   let settings = model.settings;
   if (settings.performance.measure) {
@@ -93,6 +88,18 @@ let apply_action =
       log_action(action, state);
       switch (action) {
       | EditAction(a) =>
+        let trigger = (llu, js_str) => {
+          print_endline("RUN TRIGGER");
+          print_endline(Js.to_string(js_str));
+          let serialized_action =
+            js_str
+            |> Js.to_string
+            |> Sexplib.Sexp.of_string
+            |> SerializedAction.t_of_sexp;
+          schedule_action(ModelAction.LivelitAction(llu, serialized_action));
+        };
+        Js.Unsafe.set(Dom_html.window, "trigger", Js.wrap_callback(trigger));
+
         switch (model |> Model.perform_action(a)) {
         | new_model => new_model
         | exception Program.FailedAction =>
@@ -110,25 +117,47 @@ let apply_action =
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
           model;
-        }
+        };
       | MoveAction(Key(move_key)) =>
         switch (Model.move_via_key(move_key, model)) {
+        | exception Program.FailedAction =>
+          JSUtil.log("[Program.FailedAction]");
+          model;
+
         | None => model
         | Some(m) => m
         }
       | MoveAction(Click(opt_splice, row_col)) =>
-        model |> Model.move_via_click(opt_splice, row_col)
+        switch (model |> Model.move_via_click(opt_splice, row_col)) {
+        | exception Program.FailedAction =>
+          JSUtil.log("[Program.FailedAction]");
+          model;
+        | x => x
+        }
+
       | LivelitAction(llu, serialized_action) =>
+        print_endline("Update.re: livelit action recieved:");
+        print_endline(
+          Sexplib.Sexp.to_string_hum(
+            SerializedAction.sexp_of_t(serialized_action),
+          ),
+        );
         let program = Model.get_program(model);
+        print_endline("Update.re: got model");
         let performed =
           model
           |> Model.perform_action(
                Program.move_to_node(Livelit, llu, program),
              )
           |> Model.perform_action(PerformLivelitAction(serialized_action));
+        print_endline("Update.re: performed action");
         switch (Program.get_path(program)) {
-        | None => performed
-        | Some(path) => Model.perform_action(MoveTo(path), performed)
+        | None =>
+          print_endline("Update.re: failed to get path");
+          performed;
+        | Some(path) =>
+          print_endline("Update.re: got path");
+          Model.perform_action(MoveTo(path), performed);
         };
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)

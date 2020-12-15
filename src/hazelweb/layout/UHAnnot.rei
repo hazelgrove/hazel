@@ -38,7 +38,7 @@ type t =
       llu: MetaVar.t,
       base_llname: LivelitName.t,
       llname: LivelitName.t,
-      shape: Livelits.LivelitView.shape,
+      shape: LivelitShape.t,
       model: SerializedModel.t,
       hd_step: int,
     })

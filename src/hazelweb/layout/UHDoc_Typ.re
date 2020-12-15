@@ -22,6 +22,7 @@ let mk_NTuple =
     ~mk_operand,
     ~mk_operator,
     ~enforce_inline,
+    ~llview_ctx=IntMap.empty, // ????? -andrew
     opseq,
   );
 
@@ -32,6 +33,10 @@ let rec mk =
       (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc.t)
     )
   )
+and mk_doc = (uty, child_step) => {
+  Lazy.force(mk, ~memoize=false, ~enforce_inline=false, uty)
+  |> UHDoc_common.annot_Step(child_step);
+}
 and mk_opseq =
   lazy(
     UHDoc_common.memoize(

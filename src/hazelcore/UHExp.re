@@ -6,6 +6,18 @@ type operator = Operators_Exp.t;
 [@deriving sexp]
 type t = block
 and block = list(line)
+and livelit_record = {
+  name: (VarErrStatus.t, string), // 0
+  expansion_type: UHTyp.t, // 1
+  captures: t, //list((VarErrStatus.t, Var.t)), // 2
+  model_type: UHTyp.t, // 3
+  action_type: UHTyp.t, // 4
+  init: t, // 5
+  update: t, // 6
+  view: t, // 7
+  shape: t, //convert to shape // 8
+  expand: t // 9
+}
 and line =
   | EmptyLine
   | CommentLine(string)
@@ -17,6 +29,7 @@ and line =
       list(operand),
     )
   | ExpLine(opseq)
+  | LivelitDefLine(livelit_record)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -41,6 +54,7 @@ and operand =
       splice_info,
     )
   | FreeLivelit(MetaVar.t, LivelitName.t)
+
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -111,6 +125,7 @@ module Line = {
     | ExpLine(_)
     | EmptyLine
     | AbbrevLine(_)
+    | LivelitDefLine(_)
     | LetLine(_) => line
     };
 
@@ -119,6 +134,7 @@ module Line = {
     | EmptyLine
     | AbbrevLine(_)
     | CommentLine(_)
+    | LivelitDefLine(_)
     | LetLine(_) => None
     | ExpLine(opseq) => Some(opseq);
   let force_get_opseq = line =>
@@ -209,6 +225,7 @@ and find_operand_line =
   | CommentLine(_)
   | AbbrevLine(_) => None
   | LetLine(_, _, def) => def |> find_operand
+  | LivelitDefLine({init, _}) => find_operand(init) // ?
   | ExpLine(opseq) => opseq |> find_operand_opseq
 and find_operand_opseq =
   fun
@@ -377,6 +394,30 @@ let rec is_complete_line = (l: line, check_type_holes: bool): bool => {
     }
   | ExpLine(body) =>
     OpSeq.is_complete(is_complete_operand, body, check_type_holes)
+  | LivelitDefLine({
+      //err,
+      //captures,
+      //name,
+      expansion_type,
+      model_type,
+      action_type,
+      init,
+      update,
+      view,
+      expand,
+      _,
+    }) =>
+    // TODO: is name complete? captures?
+    let types_complete =
+      UHTyp.is_complete(expansion_type)
+      && UHTyp.is_complete(model_type)
+      && UHTyp.is_complete(action_type);
+    let exprs_complete =
+      is_complete(init, check_type_holes)
+      && is_complete(update, check_type_holes)
+      && is_complete(view, check_type_holes)
+      && is_complete(expand, check_type_holes);
+    exprs_complete && (check_type_holes ? types_complete : true);
   };
 }
 and is_complete_block = (b: block, check_type_holes: bool): bool => {

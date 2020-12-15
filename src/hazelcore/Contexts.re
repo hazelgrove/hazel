@@ -1,5 +1,6 @@
 [@deriving sexp]
 type t'('closed_llarg) = (VarCtx.t, LivelitCtx.t('closed_llarg));
+[@deriving sexp]
 type t = t'(HTyp.t);
 let empty = (BuiltinFunctions.ctx, LivelitCtx.empty);
 

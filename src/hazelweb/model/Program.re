@@ -142,6 +142,8 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   {current_term, err_holes, var_uses, var_err_holes, livelits};
 };
 
+module Elaborator_Exp = Elaborator_Exp.M(Statics_Exp);
+
 exception DoesNotElaborate;
 let elaborate__livelit_holes_false =
   Memo.general(
@@ -170,6 +172,8 @@ let get_elaboration = (~livelit_holes=false, program: t): DHExp.t => {
   | Elaborates(d, _, _) => d
   };
 };
+
+module Evaluator = Evaluator.M(Statics_Exp);
 
 exception InvalidInput;
 let evaluate__eval_livelit_holes_false =
@@ -259,13 +263,15 @@ let get_result = (program: t): Result.t => {
     };
   switch (program |> get_elaboration(~livelit_holes=false) |> evaluate) {
   | InvalidInput(_) => raise(InvalidInput)
-  | BoxedValue(d) => ret(d, d' => Evaluator.BoxedValue(d'))
-  | Indet(d) => ret(d, d' => Evaluator.Indet(d'))
+  | BoxedValue(d) => ret(d, d' => Eval.BoxedValue(d'))
+  | Indet(d) => ret(d, d' => Eval.Indet(d'))
   };
 };
 
 let get_doc = (~settings: Settings.t, program) => {
   let e = get_uhexp(program);
+  let llview_ctx = Statics_Exp.build_ll_view_ctx(e);
+
   let doc =
     TimeUtil.measure_time(
       "Program.get_doc",
@@ -275,10 +281,10 @@ let get_doc = (~settings: Settings.t, program) => {
         UHDoc_Exp.mk,
         ~memoize=settings.memoize_doc,
         ~enforce_inline=false,
-        e,
+        (llview_ctx, e),
       )
     );
-  let splice_docs = UHDoc_Exp.mk_splices(e);
+  let splice_docs = UHDoc_Exp.mk_splices(llview_ctx, e);
   (doc, splice_docs);
 };
 
@@ -467,11 +473,18 @@ let target_path_of_click_input =
       );
     };
   };
-  let (rev_path_suffix, _) =
-    m
-    |> UHMeasuredLayout.nearest_path_within_row(target)
-    |> OptUtil.get(() => failwith("row with no caret positions"));
-  CursorPath.(append(path_prefix, rev(rev_path_suffix)));
+  /*
+     let (rev_path_suffix, _) =
+       m
+       |> UHMeasuredLayout.nearest_path_within_row(target)
+       |> OptUtil.get(() => failwith("row with no caret positions"));
+     CursorPath.(append(path_prefix, rev(rev_path_suffix)));
+   */
+  switch (UHMeasuredLayout.nearest_path_within_row(target, m)) {
+  | None => ([], OnDelim(0, Before))
+  | Some((rev_path_suffix, _)) =>
+    CursorPath.(append(path_prefix, rev(rev_path_suffix)))
+  };
 };
 
 let target_path_of_key_input =

@@ -227,7 +227,8 @@ and perform_operand =
   | (
       PerformLivelitAction(_) |
       Construct(
-        SAsc | SLet | SAbbrev | SLine | SLam | SListNil | SInj(_) | SCase |
+        SAsc | SLet | SAbbrev | SLivelitDef | SLine | SLam | SListNil | SInj(_) |
+        SCase |
         SCommentLine |
         SQuote,
       ) |

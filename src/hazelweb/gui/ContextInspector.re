@@ -278,6 +278,8 @@ let view =
     );
   };
 
+  module Elaborator = Elaborator_Exp.M(Statics_Exp);
+
   let context_view = {
     let contents =
       switch (Program.get_cursor_info(program)) {
@@ -293,14 +295,14 @@ let view =
           if (settings.evaluate) {
             let (_, hii, llii, _) = program |> Program.get_result;
             switch (selected_instance) {
-            | None => Elaborator_Exp.id_env(ctx)
+            | None => Elaborator.id_env(ctx)
             | Some((kind, inst)) =>
               let lookup = ii =>
                 switch (NodeInstanceInfo.lookup(ii, inst)) {
                 | None =>
                   // raise(InvalidInstance);
                   print_endline("[InvalidInstance]");
-                  Elaborator_Exp.id_env(ctx);
+                  Elaborator.id_env(ctx);
                 | Some((sigma, _, _)) => sigma
                 };
               switch (kind) {
@@ -309,7 +311,7 @@ let view =
               };
             };
           } else {
-            Elaborator_Exp.id_env(ctx);
+            Elaborator.id_env(ctx);
           };
         switch (VarCtx.to_list(ctx)) {
         | [] => [

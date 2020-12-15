@@ -15,6 +15,8 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
     () => {
       open Vdom;
       let program = Model.get_program(model);
+      let e = Program.get_uhexp(program);
+      let llview_ctx = Statics_Exp.build_ll_view_ctx(e);
       Node.div(
         [Attr.id(cell_id)],
         [
@@ -25,12 +27,12 @@ let view = (~inject, ~sync_livelit, model: Model.t) => {
             [
               UHCode.view(
                 ~inject,
-                ~measure=performance.measure && performance.uhcode_view,
                 ~font_metrics=model.font_metrics,
                 ~is_mac=model.is_mac,
                 ~selected_instances=model.selected_instances,
                 ~sync_livelit,
                 ~settings,
+                ~llview_ctx,
                 program,
               ),
             ],

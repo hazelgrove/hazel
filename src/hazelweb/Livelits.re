@@ -15,11 +15,6 @@ module LivelitView = {
   };
 
   type t = splice_and_param_getters => div_type;
-
-  [@deriving sexp]
-  type shape =
-    | Inline(int)
-    | MultiLine(int);
 };
 
 module type LIVELIT = {
@@ -37,7 +32,7 @@ module type LIVELIT = {
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
   let view: (model, trigger, sync) => LivelitView.t;
-  let view_shape: model => LivelitView.shape;
+  let view_shape: model => LivelitShape.t;
   let expand: model => UHExp.t;
 };
 
@@ -85,7 +80,7 @@ type trigger_serialized = SerializedAction.t => Event.t;
 type sync_serialized = SerializedAction.t => unit;
 type serialized_view_fn_t =
   (SerializedModel.t, trigger_serialized, sync_serialized) => LivelitView.t;
-type serialized_view_shape_fn_t = SerializedModel.t => LivelitView.shape;
+type serialized_view_shape_fn_t = SerializedModel.t => LivelitShape.t;
 
 module LivelitViewCtx = {
   type t = VarMap.t_((serialized_view_fn_t, serialized_view_shape_fn_t));
@@ -175,7 +170,7 @@ module PairLivelit: LIVELIT = {
       [uhcode(leftID), uhcode(rightID)],
     );
   let view_shape = _ =>
-    LivelitView.Inline(
+    LivelitShape.Inline(
       // TODO fix brittle magic constant
       20,
     );
@@ -479,7 +474,7 @@ module MatrixLivelitFunctor = (I: MAT_INFO) : LIVELIT => {
 
   let view_shape = ((_, matrix)) => {
     let num_rows = List.length(matrix);
-    LivelitView.MultiLine(3 * num_rows + 2 + (I.is_live ? 1 : 0));
+    LivelitShape.MultiLine(3 * num_rows + 2 + (I.is_live ? 1 : 0));
   };
 
   let expand = ((_, m)) => {
@@ -970,7 +965,7 @@ module GradeCutoffLivelit: LIVELIT = {
   };
 
   let view_shape = _ => {
-    LivelitView.MultiLine(
+    LivelitShape.MultiLine(
       // TODO
       6,
     );
@@ -1031,7 +1026,7 @@ module GrayscaleLivelit: LIVELIT = {
   let update = (model, _) => SpliceGenCmd.return(model);
 
   let height = 17;
-  let view_shape = _ => LivelitView.MultiLine(height);
+  let view_shape = _ => LivelitShape.MultiLine(height);
 
   let view =
       (
@@ -1533,7 +1528,7 @@ module ColorLivelit: LIVELIT = {
     Node.div([Attr.classes(["color-livelit"])], [color_picker]);
   };
 
-  let view_shape = _ => LivelitView.MultiLine(9);
+  let view_shape = _ => LivelitShape.MultiLine(9);
 
   let expand = ({rgb: (r, g, b), a, _}) => {
     let four_tuple =
@@ -1628,7 +1623,7 @@ module GradientLivelit: LIVELIT = {
     );
   };
 
-  let view_shape = _ => LivelitView.Inline(10);
+  let view_shape = _ => LivelitShape.Inline(10);
 
   let expand = ({lcolor, rcolor, slider_value}) => {
     let typ_opseq = (hd, tl) => UHTyp.mk_OpSeq(Seq.mk(hd, tl));
@@ -1746,9 +1741,48 @@ module CheckboxLivelit: LIVELIT = {
     _ => Node.span([], [input_elt]);
   };
 
-  let view_shape = _ => LivelitView.Inline(/* TODO! */ 1);
+  let view_shape = _ => LivelitShape.Inline(/* TODO! */ 1);
 
   let expand = m => UHExp.Block.wrap(UHExp.BoolLit(NotInHole, m));
+};
+
+module SliderLivelitMin: LIVELIT = {
+  let name = "$slidem";
+  let expansion_ty = HTyp.Int;
+  let param_tys = [];
+
+  [@deriving sexp]
+  type model = int;
+  [@deriving sexp]
+  type action = int;
+  type trigger = action => Event.t;
+  type sync = action => unit;
+
+  let init_model = SpliceGenCmd.return(0);
+  let update = (_, n) => SpliceGenCmd.return(n);
+  let view_shape = _ => LivelitShape.Inline(14);
+  let expand = n => UHExp.Block.wrap(UHExp.intlit'(n));
+
+  let view = (model, trigger: trigger, _sync, _) => {
+    let value = string_of_int(model);
+    let on_input = (_, value_str) => trigger(int_of_string(value_str));
+    Node.span(
+      [Attr.classes(["slider-livelit"])],
+      [
+        Node.input(
+          [
+            Attr.classes(["slider"]),
+            Attr.type_("range"),
+            Attr.create("min", "0"),
+            Attr.create("max", "100"),
+            Attr.value(value),
+            Attr.on_input(on_input),
+          ],
+          [],
+        ),
+      ],
+    );
+  };
 };
 
 module SliderLivelit: LIVELIT = {
@@ -1895,7 +1929,7 @@ module SliderLivelit: LIVELIT = {
     };
   };
 
-  let view_shape = _ => LivelitView.Inline(14);
+  let view_shape = _ => LivelitShape.Inline(14);
 
   let expand =
     fun
@@ -2203,7 +2237,7 @@ module DataFrameLivelit: LIVELIT = {
   };
 
   let view_shape = m => {
-    LivelitView.MultiLine(3 * get_height(m) + 1);
+    LivelitShape.MultiLine(3 * get_height(m) + 1);
   };
 
   let expand = m => {
@@ -2249,6 +2283,7 @@ module GradientLivelitAdapter = LivelitAdapter(GradientLivelit);
 module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 module PairLivelitAdapter = LivelitAdapter(PairLivelit);
 module SliderLivelitAdapter = LivelitAdapter(SliderLivelit);
+module SliderLivelitMinAdapter = LivelitAdapter(SliderLivelitMin);
 module MatrixLivelitAdapter = LivelitAdapter(MatrixLivelit);
 module LiveMatrixLivelitAdapter = LivelitAdapter(LiveMatrixLivelit);
 module GradeCutoffLivelitAdapter = LivelitAdapter(GradeCutoffLivelit);
@@ -2266,24 +2301,27 @@ let (initial_livelit_ctx, initial_livelit_view_ctx) =
                 LivelitContexts.extend(
                   LivelitContexts.extend(
                     LivelitContexts.extend(
-                      empty_livelit_contexts,
-                      GrayscaleLivelitAdapter.contexts_entry,
+                      LivelitContexts.extend(
+                        empty_livelit_contexts,
+                        GrayscaleLivelitAdapter.contexts_entry,
+                      ),
+                      DataFrameLivelitAdapter.contexts_entry,
                     ),
-                    DataFrameLivelitAdapter.contexts_entry,
+                    GradeCutoffLivelitAdapter.contexts_entry,
                   ),
-                  GradeCutoffLivelitAdapter.contexts_entry,
+                  MatrixLivelitAdapter.contexts_entry,
                 ),
-                MatrixLivelitAdapter.contexts_entry,
+                LiveMatrixLivelitAdapter.contexts_entry,
               ),
-              LiveMatrixLivelitAdapter.contexts_entry,
+              PairLivelitAdapter.contexts_entry,
             ),
-            PairLivelitAdapter.contexts_entry,
+            CheckboxLivelitAdapter.contexts_entry,
           ),
-          CheckboxLivelitAdapter.contexts_entry,
+          SliderLivelitAdapter.contexts_entry,
         ),
-        SliderLivelitAdapter.contexts_entry,
+        ColorLivelitAdapter.contexts_entry,
       ),
-      ColorLivelitAdapter.contexts_entry,
+      GradientLivelitAdapter.contexts_entry,
     ),
-    GradientLivelitAdapter.contexts_entry,
+    SliderLivelitMinAdapter.contexts_entry,
   );

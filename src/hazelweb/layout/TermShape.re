@@ -9,7 +9,7 @@ type t =
   | ApLivelit
   | LivelitExpression({
       hd_index: int,
-      view_shape: Livelits.LivelitView.shape,
+      view_shape: LivelitShape.t,
     })
   | BinOp({op_index: int})
   | NTuple({comma_indices: list(int)})
