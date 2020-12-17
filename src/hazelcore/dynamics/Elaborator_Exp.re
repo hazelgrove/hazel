@@ -504,15 +504,14 @@ and syn_elab_line =
   | LetLine(p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotExpand
-    | Some((ty1, ctx)) =>
+    | Some((ty1, _)) =>
       let ty1 = PTyp.pTyp_to_hTyp(ty1);
-      let (ctx1, is_recursive_fn) =
-        Statics_Exp.ctx_for_let(ctx, p, ty1, def);
+      let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotExpand
       | Elaborates(d1, ty1', delta) =>
         let d1 =
-          switch (is_recursive_fn) {
+          switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => d1
           | Some(x) =>
             FixF(

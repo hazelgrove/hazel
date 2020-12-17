@@ -74,3 +74,5 @@ let ana_fix_holes_z:
  *
 */
 let syn_and_join: (Contexts.t, UHPat.t, HTyp.t) => option(HTyp.t);
+
+let syn_p: (Contexts.t, UHPat.t) => HTyp.t;
