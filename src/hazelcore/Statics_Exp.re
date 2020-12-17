@@ -39,7 +39,6 @@ and syn_lines =
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
   | EmptyLine
-  | CellBoundary
   | CommentLine(_) => Some(ctx)
   | ExpLine(opseq) =>
     let+ _ = syn_opseq(ctx, opseq);
@@ -573,7 +572,6 @@ and syn_fix_holes_line =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, u_gen);
   | EmptyLine
-  | CellBoundary
   | CommentLine(_) => (line, ctx, u_gen)
   | LetLine(p, ann, def) =>
     switch (ann) {
