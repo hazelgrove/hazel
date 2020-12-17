@@ -1437,7 +1437,6 @@ and syn_perform_opseq =
     }
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
-    print_endline("zipper syn");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
@@ -1487,7 +1486,9 @@ and syn_perform_opseq =
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
-      | Failed => Failed
+      | Failed =>
+        print_endline("ana_perofmr_operand failed ??? :P");
+        Failed;
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,
@@ -1561,6 +1562,7 @@ and syn_perform_operand =
     CursorEscaped(After)
 
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
+    print_endline("line 1564");
     let ze = UHExp.Block.wrap(operand) |> ZExp.place_before;
     ze |> ZExp.is_after
       ? Succeeded(SynDone((ze, Hole, u_gen))) : CursorEscaped(Before);
@@ -1571,13 +1573,15 @@ and syn_perform_operand =
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
-    syn_perform_operand(ctx, MoveLeft, (zoperand, ty, u_gen))
+    print_endline("line 1575");
+    syn_perform_operand(ctx, MoveLeft, (zoperand, ty, u_gen));
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorE(OnDelim(_, After), _)) =>
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
 
   /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorE(OnDelim(k, Before), operand)) =>
+    print_endline("line 1583");
     let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
     syn_perform_operand(ctx, Backspace, (new_zoperand, ty, u_gen));
 
@@ -3146,7 +3150,7 @@ and ana_perform_operand =
         Parenthesized(_) |
         ApPalette(_),
       ) |
-      CursorE(_, UnaryOp(_)),
+      CursorE(OnOp(After) | OnText(_) | OnDelim(_), UnaryOp(_)),
     ) =>
     Failed
 
@@ -3219,8 +3223,7 @@ and ana_perform_operand =
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
-    print_endline("ana moved left");
-    ana_perform_operand(ctx, MoveLeft, (zoperand, u_gen), ty);
+    ana_perform_operand(ctx, MoveLeft, (zoperand, u_gen), ty)
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorE(OnDelim(_, After), _)) =>
     ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), ty)
@@ -3233,6 +3236,10 @@ and ana_perform_operand =
   | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
+
+  | (Backspace, CursorE(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
+  | (Delete, CursorE(OnOp(Before), UnaryOp(_))) =>
+    failwith("unimplemented") // TODO ANAND implement this somehow
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, u_gen, j, t, ty)
@@ -3250,8 +3257,7 @@ and ana_perform_operand =
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
-    print_endline("ana moved left from int?");
-    ana_backspace_text(ctx, u_gen, j, n, ty);
+    ana_backspace_text(ctx, u_gen, j, n, ty)
   | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
