@@ -25,7 +25,7 @@ let get_pattern_type = (ctx, rule) =>
 
 let joint_pattern_type = (ctx, rules) => {
   let tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
-  Option.bind(tys, PTyp.join_all(LUB));
+  Option.bind(tys, PTyp.join_all);
 };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
@@ -58,12 +58,16 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | CommentLine(_) => Some(ctx)
   | LetLine(p, def) =>
     switch (syn(ctx, def)) {
+    | None => failwith("syn_line: impossible case (1)")
     | Some(ty_def) =>
-      switch (Statics_Pat.syn_and_join(ctx, p, ty_def)) {
-      | None => None
-      | Some(ty_join) => Statics_Pat.ana(ctx, p, ty_join)
+      switch (Statics_Pat.syn(ctx, p)) {
+      | None => failwith("syn_line: impossible case (2)")
+      | Some((ty_p, _)) =>
+        switch (PTyp.join(ty_def, ty_p)) {
+        | None => None
+        | Some(ty_join) => Statics_Pat.ana(ctx, p, ty_join)
+        }
       }
-    | None => None
     }
   }
 and syn_opseq =
@@ -679,14 +683,14 @@ and syn_fix_holes_line =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, def);
     let (p, ty_p, _, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+    let (ctx_def, _) = ctx_for_let(ctx, p, ty_p, def);
+    let (def, u_gen) =
+      ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty_p);
     let ty_join =
       switch (HTyp.join(LUB, ty_def, ty_p)) {
       | None => ty_p
       | Some(ty) => ty
       };
-    let (ctx_def, _) = ctx_for_let(ctx, p, ty_join, def);
-    let (def, u_gen) =
-      ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty_join);
     switch (Statics_Pat.ana(ctx_def, p, ty_join)) {
     | None => failwith("syn_fix_holes_line shouldn't happen")
     | Some(ctx) => (LetLine(p, def), ctx, u_gen)
@@ -1543,3 +1547,23 @@ let fix_and_renumber_holes_z =
        );
   (ze, ty, u_gen);
 };
+
+/*
+ let letline_types =
+     (ctx: Contexts.t, def: UHExp.t, p: UHPat.t): (HTyp.t, HTyp.t, HTyp.t) =>
+   switch (syn(ctx, def)) {
+   | None => failwith("letline_types: impossible case (1)")
+   | Some(ty_def) =>
+     switch (Statics_Pat.syn(ctx, p)) {
+     | None => failwith("letline_types: impossible case (2)")
+     | Some((p_ty_p, _)) =>
+       let ty_p = PTyp.pTyp_to_hTyp(p_ty_p);
+       let ty_join =
+         switch (PTyp.join(ty_def, p_ty_p)) {
+         | None => ty_p
+         | Some(ty) => ty
+         };
+       (ty_def, ty_p, ty_join);
+     }
+   };
+ */

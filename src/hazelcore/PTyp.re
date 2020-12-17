@@ -59,15 +59,11 @@ let rec consistent_all = (types: list(t)): bool =>
     }
   };
 
-let rec join = (j: HTyp.join, exp_ty: HTyp.t, pat_ty: t): option(HTyp.t) =>
+let rec join = (exp_ty: HTyp.t, pat_ty: t): option(HTyp.t) =>
   switch (exp_ty, pat_ty) {
-  | (ty, Unspecified) => Some(ty) // TODO(andrew): regardless of j?
-  | (_, Hole) => Some(Hole) // TODO(andrew): regardless of j?
-  | (Hole, _) =>
-    switch (j) {
-    | GLB => Some(Hole)
-    | LUB => Some(pTyp_to_hTyp(pat_ty))
-    }
+  | (ty, Unspecified) => Some(ty)
+  | (_, Hole) => Some(Hole)
+  | (Hole, _) => Some(pTyp_to_hTyp(pat_ty))
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -75,32 +71,32 @@ let rec join = (j: HTyp.join, exp_ty: HTyp.t, pat_ty: t): option(HTyp.t) =>
   | (Bool, Bool) => Some(Bool)
   | (Bool, _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
   | (Arrow(_), _) => None
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    switch (join(j, ty1, ty1'), join(j, ty2, ty2')) {
+    switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
     | _ => None
     }
   | (Sum(_), _) => None
   | (Prod(h_tys), Prod(p_tys)) =>
-    ListUtil.map2_opt(join(j), h_tys, p_tys)
+    ListUtil.map2_opt(join, h_tys, p_tys)
     |> Option.map(OptUtil.sequence)
     |> Option.join
     |> Option.map(joined_types => HTyp.Prod(joined_types))
   | (Prod(_), _) => None
   | (List(ty), List(ty')) =>
-    switch (join(j, ty, ty')) {
+    switch (join(ty, ty')) {
     | Some(ty) => Some(List(ty))
     | None => None
     }
   | (List(_), _) => None
   };
 
-let join_all = (j: HTyp.join, types: list(t)): option(HTyp.t) => {
+let join_all = (types: list(t)): option(HTyp.t) => {
   switch (types) {
   | [] => None
   | [hd] => Some(pTyp_to_hTyp(hd))
@@ -112,7 +108,7 @@ let join_all = (j: HTyp.join, types: list(t)): option(HTyp.t) => {
         (common_opt, ty) =>
           switch (common_opt) {
           | None => None
-          | Some(common_ty) => join(j, common_ty, ty)
+          | Some(common_ty) => join(common_ty, ty)
           },
         Some(pTyp_to_hTyp(hd)),
         tl,
