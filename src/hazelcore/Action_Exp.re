@@ -1375,13 +1375,26 @@ and syn_perform_opseq =
     print_endline("zipper syn no surround");
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
 
-  | (Backspace, ZOperand(zoperand, (A(operator, prefix), suffix)))
+  | (
+      Backspace,
+      ZOperand(
+        zoperand,
+        (
+          A(operator, S(prev_operand, prefix_of_prev_operand) as prefix),
+          suffix,
+        ),
+      ),
+    )
       when
         ZExp.is_before_zoperand(zoperand) && unop_of_binop(operator) != None =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
+      let new_prefix =
+        switch (prev_operand) {
+        | UHExp.EmptyHole(_) => prefix_of_prev_operand
+        | _ => Seq.A(Operators_Exp.Space, prefix)
+        };
       let zoperand = ZExp.UnaryOpZN(NotInHole, unop, zoperand);
-      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("binop has no unop")
@@ -2945,13 +2958,26 @@ and ana_perform_opseq =
     print_endline("zipper ana no surround");
     ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
 
-  | (Backspace, ZOperand(zoperand, (A(operator, prefix), suffix)))
+  | (
+      Backspace,
+      ZOperand(
+        zoperand,
+        (
+          A(operator, S(prev_operand, prefix_of_prev_operand) as prefix),
+          suffix,
+        ),
+      ),
+    )
       when
         ZExp.is_before_zoperand(zoperand) && unop_of_binop(operator) != None =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
+      let new_prefix =
+        switch (prev_operand) {
+        | UHExp.EmptyHole(_) => prefix_of_prev_operand
+        | _ => Seq.A(Operators_Exp.Space, prefix)
+        };
       let zoperand = ZExp.UnaryOpZN(NotInHole, unop, zoperand);
-      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | None => failwith("binop has no unop")
