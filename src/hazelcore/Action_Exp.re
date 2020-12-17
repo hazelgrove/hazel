@@ -1195,7 +1195,6 @@ and syn_perform_opseq =
     };
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
-    print_endline("syn backspace after operator");
     let new_ze =
       ZExp.ZBlock.wrap'(
         ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
@@ -1386,8 +1385,7 @@ and syn_perform_opseq =
     }
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    print_endline("zipper syn no surround");
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
 
   | (
       Backspace,
@@ -1486,9 +1484,7 @@ and syn_perform_opseq =
       }
     | Some(Ana(ty_zoperand)) =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
-      | Failed =>
-        print_endline("ana_perofmr_operand failed ??? :P");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,
@@ -1556,13 +1552,11 @@ and syn_perform_operand =
   /* Backspace & Deletion */
 
   | (Backspace, _) when ZExp.is_before_zoperand(zoperand) =>
-    print_endline("lol");
-    CursorEscaped(Before);
+    CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_zoperand(zoperand) =>
     CursorEscaped(After)
 
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
-    print_endline("line 1564");
     let ze = UHExp.Block.wrap(operand) |> ZExp.place_before;
     ze |> ZExp.is_after
       ? Succeeded(SynDone((ze, Hole, u_gen))) : CursorEscaped(Before);
@@ -1573,15 +1567,13 @@ and syn_perform_operand =
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
-    print_endline("line 1575");
-    syn_perform_operand(ctx, MoveLeft, (zoperand, ty, u_gen));
+    syn_perform_operand(ctx, MoveLeft, (zoperand, ty, u_gen))
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorE(OnDelim(_, After), _)) =>
     syn_perform_operand(ctx, MoveRight, (zoperand, ty, u_gen))
 
   /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorE(OnDelim(k, Before), operand)) =>
-    print_endline("line 1583");
     let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
     syn_perform_operand(ctx, Backspace, (new_zoperand, ty, u_gen));
 
@@ -1849,11 +1841,20 @@ and syn_perform_operand =
     switch (os) {
     | SMinus =>
       let unop = UnaryOperators_Exp.UnaryMinus;
+      let ty_u = HTyp.Int;
+      let (new_operand, u_gen) =
+        Statics_Exp.ana_fix_holes_operand(
+          ctx,
+          u_gen,
+          ZExp.erase_zoperand(zoperand),
+          ty_u,
+        );
+      let new_zoperand = ZExp.place_before_operand(new_operand);
       let new_ze =
         ZExp.ZBlock.wrap(
-          ZExp.UnaryOpZN(ErrStatus.NotInHole, unop, zoperand),
+          ZExp.UnaryOpZN(ErrStatus.NotInHole, unop, new_zoperand),
         );
-      Succeeded(SynDone((new_ze, ty, u_gen)));
+      Succeeded(SynDone((new_ze, ty_u, u_gen)));
     | _ =>
       switch (operator_of_shape(os)) {
       | None => Failed
@@ -2008,25 +2009,12 @@ and syn_perform_operand =
         ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, FUnaryMinus, new_zoperand));
       Succeeded(SynDone((new_ze, Float, u_gen)));
     | (Backspace, UnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
+      let zoperand = ZExp.set_err_status_zoperand(NotInHole, zoperand);
       let new_ze = ZExp.ZBlock.wrap(zoperand);
       switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
       | None => Failed
       | Some(ty) => Succeeded(SynDone((new_ze, ty, u_gen)))
       };
-    // | (Construct(SOp(SSpace)), unop, zoperand)
-    //     when ZExp.is_before_zoperand(zoperand) =>
-    //   // convert unop to binop if applicable
-    //   switch (binop_of_unop(unop)) {
-    //   | None => Failed
-    //   | Some(operator) =>
-    //     let construct_operator =
-    //       ZExp.is_before_zoperand(zoperand)
-    //         ? construct_operator_before_zoperand
-    //         : construct_operator_after_zoperand;
-    //     let (zseq, u_gen) =
-    //       construct_operator(u_gen, operator, zoperand, (E, E));
-    //     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-    //   }
     | (Backspace, FUnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
       // convert -. float negation to - int negation
       let (new_operand, u_gen) =
@@ -2796,7 +2784,6 @@ and ana_perform_opseq =
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
-    print_endline("ana backspace after operator");
     let new_zopseq =
       ZOpSeq.ZOpSeq(
         skel,
@@ -2995,8 +2982,7 @@ and ana_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    print_endline("zipper ana no surround");
-    ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
+    ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
 
   | (
       Backspace,
@@ -3046,7 +3032,6 @@ and ana_perform_opseq =
     }
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
-    print_endline("zipper ana");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.ana_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq, ty)
@@ -3650,20 +3635,6 @@ and ana_perform_operand =
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
-    // | (Construct(SOp(SSpace)), unop, zoperand)
-    //     when ZExp.is_before_zoperand(zoperand) =>
-    //   // convert unop to binop if applicable
-    //   switch (binop_of_unop(unop)) {
-    //   | None => Failed
-    //   | Some(operator) =>
-    //     let construct_operator =
-    //       ZExp.is_before_zoperand(zoperand)
-    //         ? construct_operator_before_zoperand
-    //         : construct_operator_after_zoperand;
-    //     let (zseq, u_gen) =
-    //       construct_operator(u_gen, operator, zoperand, (E, E));
-    //     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
-    //   }
     | (Backspace, UnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
       let (operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(

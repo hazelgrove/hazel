@@ -26,7 +26,7 @@ let memoize =
           };
         let _ = WeakMap.set(table, k, m);
         v;
-      | Some((m: memoization_value('v))) =>
+      | Some(m: memoization_value('v)) =>
         if (enforce_inline) {
           switch (m.inline_true) {
           | Some(v) => v
