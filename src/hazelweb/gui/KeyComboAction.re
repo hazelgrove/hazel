@@ -46,6 +46,7 @@ let table: Hashtbl.t(HazelKeyCombos.t, CursorInfo.t => Action.t) =
     (Ctrl_Alt_K, _ => Action.SwapDown),
     (Ctrl_Alt_J, _ => Action.SwapLeft),
     (Ctrl_Alt_L, _ => Action.SwapRight),
+    (Ctrl_Enter, _ => Action.AddCell),
   ]
   |> List.to_seq
   |> Hashtbl.of_seq;

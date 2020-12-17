@@ -296,6 +296,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           [keyboard_button(Pound), keyboard_button(Shift_Enter)],
         ),
         combo(LeftParen, simple("Parenthesize")),
+        combo(Enter, simple("Create new cell ")),
+        single_line_multiple_actions(
+          "Create new cell",
+          [keyboard_button(Ctrl_Enter)],
+        ),
       ],
     ),
     section(
