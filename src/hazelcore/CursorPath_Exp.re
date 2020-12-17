@@ -32,6 +32,8 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
     let zhole_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zhole_map);
     cons'(n, of_z(ze));
+  | PrjZE1(_, zexp, _) => cons'(0, of_zoperand(zexp))
+  | PrjZE1(_, _, zlabel) => cons'(1, of_zoperand(zexp))
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath_common.t => {
   let (cursor, _) = zoperator;
@@ -818,6 +820,7 @@ and holes_zoperand =
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | CursorE(_, Prj(_)) =>
+    // ECD: You are here, implmenting function holes_zoperand for prj, PrjZE1, and PrjZE2
     failwith(__LOC__ ++ " Unimplemented Label Projection")
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | LamZP(err, zp, ann, body) =>

@@ -354,12 +354,6 @@ let mk_syn_text =
         );
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
     }
-  | Prj(x, label) =>
-    let ze =
-      ZExp.ZBlock.wrap(
-        CursorE(text_cursor, UHExp.prj(UHExp.var(x), label)),
-      );
-    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, ze)));
   };
 };
 
@@ -399,8 +393,7 @@ let mk_ana_text =
   | FloatLit(_)
   | BoolLit(_)
   | Underscore
-  | Var(_)
-  | Prj(_, _) =>
+  | Var(_) =>
     // TODO: review whether subsumption correctly applied
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err

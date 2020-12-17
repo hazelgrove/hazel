@@ -26,7 +26,7 @@ and operand =
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
   | Label(LabelErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, operand, Label.t)
+  | Prj(ErrStatus.t, operand, operand)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)
@@ -65,7 +65,7 @@ let label = (~err: LabelErrStatus.t=NotInLabelHole, l: Label.t): operand =>
   Label(err, l);
 
 let prj = (~err: ErrStatus.t=NotInHole, op: operand, l: Label.t): operand =>
-  Prj(err, op, l);
+  Prj(err, op, Label(NotInLabelHole, l));
 
 let lam =
     (
@@ -480,7 +480,6 @@ let text_operand =
     );
   | Label(l) => (label(l), u_gen)
   | InvalidTextShape(t) => new_InvalidText(u_gen, t)
-  | Prj(x, label) => (prj(var(x), label), u_gen)
   };
 
 let associate =
@@ -559,7 +558,10 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
-  | Prj(_) => failwith("unimplemented Label Projection")
+  | Prj(InHole(_), _, _) => false
+  | Prj(NotInHole, op, label) =>
+    is_complete_operand(op, check_type_holes)
+    && is_complete_operand(label, check_type_holes)
   };
 }
 and is_complete = (exp: t, check_type_holes: bool): bool => {

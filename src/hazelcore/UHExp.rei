@@ -24,7 +24,7 @@ and operand =
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
   | Label(LabelErrStatus.t, Label.t)
-  | Prj(ErrStatus.t, operand, Label.t)
+  | Prj(ErrStatus.t, operand, operand)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, t)

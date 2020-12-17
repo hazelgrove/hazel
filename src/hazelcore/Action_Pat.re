@@ -101,7 +101,6 @@ let mk_syn_text =
   | Label(l) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.label(l)));
     Succeeded((zp, HTyp.Hole, ctx, u_gen));
-  | Prj(_, _) => failwith("Prj not valid at pattern level")
   };
 };
 
