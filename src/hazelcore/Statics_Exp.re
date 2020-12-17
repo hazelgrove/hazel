@@ -1,20 +1,28 @@
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
-let ctx_for_let =
-    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
-    : (Contexts.t, option(Var.t)) =>
-  switch (p, e) {
+let recursive_let_id =
+    (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): option(Var.t) => {
+  switch (p, def) {
   | (
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
     ) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
-    | None => (ctx, None)
-    }
-  | _ => (ctx, None)
+    let ty_p = Statics_Pat.syn_p(ctx, p);
+    Option.map(_ => x, HTyp.matched_arrow(ty_p));
+  | _ => None
   };
+};
+
+let extend_let_def_ctx =
+    (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+  switch (recursive_let_id(ctx, p, def)) {
+  | None => ctx
+  | Some(id) =>
+    let ty_p = Statics_Pat.syn_p(ctx, p);
+    Contexts.extend_gamma(ctx, (id, ty_p));
+  };
+};
 
 let get_pattern_type = (ctx, rule) =>
   rule
@@ -74,7 +82,7 @@ and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
   syn_skel(ctx, skel, seq)
 and syn_skel =
-    (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq): option(HTyp.t) =>
+    (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq): option(HTyp.t) => {
   switch (skel) {
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
@@ -133,7 +141,8 @@ and syn_skel =
       let ty = HTyp.List(ty1);
       ana_skel(ctx, skel2, seq, ty) |> Option.map(_ => ty);
     }
-  }
+  };
+}
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
   /* in hole */
@@ -679,22 +688,13 @@ and syn_fix_holes_line =
   | EmptyLine
   | CommentLine(_) => (line, ctx, u_gen)
   | LetLine(p, def) =>
-    let (def, ty_def, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, def);
     let (p, ty_p, _, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
-    let (ctx_def, _) = ctx_for_let(ctx, p, ty_p, def);
+    let def_ctx = extend_let_def_ctx(ctx, p, def);
     let (def, u_gen) =
-      ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty_p);
-    let ty_join =
-      switch (HTyp.join(LUB, ty_def, ty_p)) {
-      | None => ty_p
-      | Some(ty) => ty
-      };
-    switch (Statics_Pat.ana(ctx_def, p, ty_join)) {
-    | None => failwith("syn_fix_holes_line shouldn't happen")
-    | Some(ctx) => (LetLine(p, def), ctx, u_gen)
-    };
+      ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
+    let body_ctx = extend_let_body_ctx(ctx, p, def);
+    (LetLine(p, def), body_ctx, u_gen);
   }
 and syn_fix_holes_opseq =
     (
@@ -1454,7 +1454,28 @@ and ana_fix_holes_operand =
         u_gen,
       );
     };
+  }
+and extend_let_body_ctx =
+    (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+  let def_ctx = extend_let_def_ctx(ctx, p, def);
+  switch (syn(def_ctx, def)) {
+  | None => failwith("letline_ctx: impossible case (1)")
+  | Some(ty_def) =>
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => failwith("letline_ctx: impossible case (2)")
+    | Some((p_ty_p, _)) =>
+      let ty_join =
+        switch (PTyp.join(ty_def, p_ty_p)) {
+        | None => PTyp.pTyp_to_hTyp(p_ty_p)
+        | Some(ty) => ty
+        };
+      switch (Statics_Pat.ana(ctx, p, ty_join)) {
+      | None => failwith("letline_ctx: impossible case (3)")
+      | Some(body_ctx) => body_ctx
+      };
+    }
   };
+};
 
 let syn_fix_holes_z =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
@@ -1547,23 +1568,3 @@ let fix_and_renumber_holes_z =
        );
   (ze, ty, u_gen);
 };
-
-/*
- let letline_types =
-     (ctx: Contexts.t, def: UHExp.t, p: UHPat.t): (HTyp.t, HTyp.t, HTyp.t) =>
-   switch (syn(ctx, def)) {
-   | None => failwith("letline_types: impossible case (1)")
-   | Some(ty_def) =>
-     switch (Statics_Pat.syn(ctx, p)) {
-     | None => failwith("letline_types: impossible case (2)")
-     | Some((p_ty_p, _)) =>
-       let ty_p = PTyp.pTyp_to_hTyp(p_ty_p);
-       let ty_join =
-         switch (PTyp.join(ty_def, p_ty_p)) {
-         | None => ty_p
-         | Some(ty) => ty
-         };
-       (ty_def, ty_p, ty_join);
-     }
-   };
- */

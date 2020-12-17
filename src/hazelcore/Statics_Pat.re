@@ -798,3 +798,13 @@ let syn_and_join = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(HTyp.t) =>
   | None => Some(ty)
   | Some((ty_p, _)) => PTyp.join(ty, ty_p)
   };
+
+/*
+ * A wrapper for syn, under the understanding that no Nones
+ * should actually result.
+ */
+let syn_p = (ctx: Contexts.t, p: UHPat.t): HTyp.t =>
+  switch (syn(ctx, p)) {
+  | None => failwith("syn_p: impossible case")
+  | Some((ty, _)) => PTyp.pTyp_to_hTyp(ty)
+  };

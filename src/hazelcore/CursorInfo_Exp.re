@@ -282,39 +282,26 @@ and syn_cursor_info_line =
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZP(zp, def) =>
+    let ty_p = Statics_Pat.syn_p(ctx, ZPat.erase_zopseq(zp));
     switch (
-      Statics_Pat.syn(ctx, ZPat.erase_zopseq(zp)),
-      CursorInfo_Pat.syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zp),
+      CursorInfo_Pat.syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zp)
     ) {
-    | (None, _)
-    | (_, None) => None
-    | (_, Some(CursorNotOnDeferredVarPat(_)) as deferrable) => deferrable
-    | (
-        Some((typ, _)),
-        Some(CursorOnDeferredVarPat(deferred, x)) as deferrable,
-      ) =>
-      let typ = PTyp.pTyp_to_hTyp(typ);
-      switch (HTyp.matched_arrow(typ)) {
+    | None => None
+    | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
+    | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
+      switch (HTyp.matched_arrow(ty_p)) {
       | None => deferrable
       | Some(_) =>
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
-      };
-    }
+      }
+    };
   | LetLineZE(p, zdef) =>
-    switch (Statics_Exp.syn(ctx, ZExp.erase(zdef))) {
-    | None => None
-    | Some(ty_def) =>
-      let ty_p =
-        switch (Statics_Pat.syn(ctx, p)) {
-        | None => ty_def
-        | Some((ty, _)) => PTyp.pTyp_to_hTyp(ty)
-        };
-      let (ctx_def, _) =
-        Statics_Exp.ctx_for_let(ctx, p, ty_p, zdef |> ZExp.erase);
-      ana_cursor_info(~steps=steps @ [1], ctx_def, zdef, ty_p)
-      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
-    }
+    let def = ZExp.erase(zdef);
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    let ty_p = Statics_Pat.syn_p(ctx, p);
+    ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
+    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
   }
 and syn_cursor_info_zopseq =
     (

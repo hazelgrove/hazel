@@ -1031,55 +1031,27 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zp, ty_p, _, u_gen)) =>
-      let (def_ctx, _) =
-        Statics_Exp.ctx_for_let(ctx, ZPat.erase(new_zp), ty_p, def);
+      let p = ZPat.erase(new_zp);
+      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       let (new_def, u_gen) =
         Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
-      switch (Statics_Exp.syn(def_ctx, def)) {
-      | None => failwith("syn_perform: letlineZP: impossible case (1)")
-      | Some(ty_def) =>
-        let ty_join =
-          switch (HTyp.join(LUB, ty_def, ty_p)) {
-          | None => ty_p
-          | Some(ty) => ty
-          };
-        switch (Statics_Pat.ana(ctx, ZPat.erase(new_zp), ty_join)) {
-        | None => failwith("syn_perform: letlineZP: impossible case (2)")
-        | Some(body_ctx) =>
-          let new_zline = ZExp.LetLineZP(new_zp, new_def);
-          Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-        };
-      };
+      let new_zline = ZExp.LetLineZP(new_zp, new_def);
+      let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
     }
 
   | (_, LetLineZE(p, zdef)) =>
-    let (ty_p, _) =
-      switch (Statics_Pat.syn(ctx, p)) {
-      | None => failwith("syn_perform: letlineZE: impossible case (1)")
-      | Some(ty) => ty
-      };
-    let h_ty_p = PTyp.pTyp_to_hTyp(ty_p);
-    let (def_ctx, _) =
-      Statics_Exp.ctx_for_let(ctx, p, h_ty_p, zdef |> ZExp.erase);
-    switch (ana_perform(def_ctx, a, (zdef, u_gen), h_ty_p)) {
+    let ty_p = Statics_Pat.syn_p(ctx, p);
+    let def = ZExp.erase(zdef);
+    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+    switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(u_gen, side)
     | Succeeded((new_zdef, u_gen)) =>
-      let ty_join =
-        switch (Statics_Exp.syn(def_ctx, new_zdef |> ZExp.erase)) {
-        | None => failwith("syn_perform: letlineZE: impossible case (2)")
-        | Some(ty_def) =>
-          switch (PTyp.join(ty_def, ty_p)) {
-          | None => PTyp.pTyp_to_hTyp(ty_p)
-          | Some(ty_join) => ty_join
-          }
-        };
-      switch (Statics_Pat.ana(ctx, p, ty_join)) {
-      | None => failwith("syn_perform: letlineZE:impossible case (3)")
-      | Some(body_ctx) =>
-        let new_zline = ZExp.LetLineZE(p, new_zdef);
-        Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-      };
+      let new_zline = ZExp.LetLineZE(p, new_zdef);
+      let new_def = ZExp.erase(new_zdef);
+      let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
     };
   | (Init, _) => failwith("Init action should not be performed.")
   };
