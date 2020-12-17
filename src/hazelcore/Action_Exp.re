@@ -48,6 +48,13 @@ let binop_of_unop = (unop: UHExp.unop): option(UHExp.binop) =>
   // | _ => None
   };
 
+let unop_of_binop = (binop: UHExp.binop): option(UHExp.unop) =>
+  switch (binop) {
+  | Minus => Some(UnaryMinus)
+  | FMinus => Some(FUnaryMinus)
+  | _ => None
+  };
+
 let shape_is_of_unop = (os: Action_common.operator_shape): bool =>
   switch (os) {
   | SMinus => true
@@ -1188,6 +1195,7 @@ and syn_perform_opseq =
     };
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+    print_endline("syn backspace after operator");
     let new_ze =
       ZExp.ZBlock.wrap'(
         ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
@@ -1364,9 +1372,23 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
+    print_endline("zipper syn no surround");
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
+
+  | (Backspace, ZOperand(zoperand, (A(operator, prefix), suffix)))
+      when
+        ZExp.is_before_zoperand(zoperand) && unop_of_binop(operator) != None =>
+    switch (unop_of_binop(operator)) {
+    | Some(unop) =>
+      let zoperand = ZExp.UnaryOpZN(NotInHole, unop, zoperand);
+      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | None => failwith("binop has no unop")
+    }
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
+    print_endline("zipper syn");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
@@ -1484,7 +1506,8 @@ and syn_perform_operand =
   /* Backspace & Deletion */
 
   | (Backspace, _) when ZExp.is_before_zoperand(zoperand) =>
-    CursorEscaped(Before)
+    print_endline("lol");
+    CursorEscaped(Before);
   | (Delete, _) when ZExp.is_after_zoperand(zoperand) =>
     CursorEscaped(After)
 
@@ -2720,6 +2743,7 @@ and ana_perform_opseq =
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+    print_endline("ana backspace after operator");
     let new_zopseq =
       ZOpSeq.ZOpSeq(
         skel,
@@ -2918,8 +2942,23 @@ and ana_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
+    print_endline("zipper ana no surround");
+    ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
+
+  | (Backspace, ZOperand(zoperand, (A(operator, prefix), suffix)))
+      when
+        ZExp.is_before_zoperand(zoperand) && unop_of_binop(operator) != None =>
+    switch (unop_of_binop(operator)) {
+    | Some(unop) =>
+      let zoperand = ZExp.UnaryOpZN(NotInHole, unop, zoperand);
+      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+    | None => failwith("binop has no unop")
+    }
+
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
+    print_endline("zipper ana");
     let n = Seq.length_of_affix(prefix);
     switch (
       Statics_Exp.ana_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq, ty)
@@ -3096,7 +3135,8 @@ and ana_perform_operand =
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorE(OnDelim(_, Before), _)) =>
-    ana_perform_operand(ctx, MoveLeft, (zoperand, u_gen), ty)
+    print_endline("ana moved left");
+    ana_perform_operand(ctx, MoveLeft, (zoperand, u_gen), ty);
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorE(OnDelim(_, After), _)) =>
     ana_perform_operand(ctx, MoveRight, (zoperand, u_gen), ty)
@@ -3126,7 +3166,8 @@ and ana_perform_operand =
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
     ana_backspace_text(ctx, u_gen, j, x, ty)
   | (Backspace, CursorE(OnText(j), IntLit(_, n))) =>
-    ana_backspace_text(ctx, u_gen, j, n, ty)
+    print_endline("ana moved left from int?");
+    ana_backspace_text(ctx, u_gen, j, n, ty);
   | (Backspace, CursorE(OnText(j), FloatLit(_, f))) =>
     ana_backspace_text(ctx, u_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
