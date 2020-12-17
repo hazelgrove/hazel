@@ -246,7 +246,6 @@ let mk_SynExpandsToCase = (~u_gen, ~prefix=[], ~suffix=[], ~scrut, ()) =>
 let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
   SynExpands({kw: Let, u_gen, prefix, suffix, subject: def});
 let mk_SynExpandsToDefine = (~u_gen, ~prefix=[], ~suffix=[], ()) => {
-  let _ = print_endline("enter mk_SynExpandsToDefine");
   let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
   let sub = UHExp.Block.wrap(new_hole);
   SynExpands({kw: Define, u_gen, prefix, suffix, subject: sub});
@@ -638,11 +637,9 @@ let rec syn_perform =
       |> ZExp.prune_empty_hole_lines;
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
   | Succeeded(SynExpands({kw: Let, prefix, subject, suffix, u_gen})) =>
-    let _ = print_endline("almost finish syn_perform_block");
     let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
     let zlet = ZExp.LetLineZP(ZOpSeq.wrap(zp_hole), None, subject);
     let new_ze = (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-    let _ = print_endline("xxxxxxxjjjjjjjja");
     let _ = TyVarCtx.print(ctx.tyvars);
 
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
@@ -1035,19 +1032,14 @@ and syn_perform_line =
     };
 
   | (_, LetLineZA(p, zann, def)) =>
-    let _ = print_endline("enter letlineZA");
     //let _ = TyVarCtx.print(Contexts.tyvars(ctx));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), zann |> ZTyp.erase);
-    let _ = print_endline("expand succeed");
     switch (Statics_Typ.syn(ctx, hty)) {
     | None => Failed
     | Some(kind) =>
-      let _ = print_endline("syn_perform");
       let _ = TyVarCtx.print(Contexts.tyvars(ctx));
       switch (Action_Typ.syn_perform(ctx, a, (zann, kind, u_gen))) {
-      | Failed =>
-        print_endline("action_typ.syn_perform failed");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) => escape(u_gen, side)
       | Succeeded((new_zann, _, _)) =>
         let ty = UHTyp.expand(Contexts.tyvars(ctx), ZTyp.erase(new_zann));
@@ -1057,7 +1049,6 @@ and syn_perform_line =
         let (def, u_gen) =
           Statics_Exp.ana_fix_holes(ctx_def, u_gen, def, ty);
         let new_zline = ZExp.LetLineZA(p, new_zann, def);
-        let _ = print_endline("almost finish");
         Succeeded(LineDone((([], new_zline, []), new_ctx, u_gen)));
       };
     };
@@ -1367,8 +1358,7 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    let _ = print_endline("single operand");
-    syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
+    syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);

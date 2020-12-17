@@ -32,9 +32,7 @@ let mk_syn_result =
     : ActionOutcome.t(syn_success) => {
   let hty = UHTyp.expand(Contexts.tyvars(ctx), zty |> ZTyp.erase);
   switch (Statics_Typ.syn(ctx, hty)) {
-  | None =>
-    print_endline("syn kind failed");
-    Failed;
+  | None => Failed
   | Some(kind) => Succeeded((zty, kind, u_gen))
   };
 };
@@ -235,11 +233,8 @@ let mk_syn_text =
     ));
   | Some(TyVar(x)) =>
     if (TyVarCtx.contains(Contexts.tyvars(ctx), x)) {
-      let _ = print_endline("Contains is true");
       let _ = TyVarCtx.print(ctx.tyvars);
-      let _ = print_endline("--------");
       let idx = TyVarCtx.index_of_exn(Contexts.tyvars(ctx), x);
-      let _ = print_endline("index_of_exn finish");
       let (_, k) = TyVarCtx.tyvar_with_idx(Contexts.tyvars(ctx), idx);
       Succeeded((
         ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(NotInVarHole, x))),
@@ -503,21 +498,17 @@ and syn_perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   /* Zipper */
   | (_, ZOperand(zoperand, (E, E))) =>
-    let _ = print_endline("Typ perform_operand");
+    let _ = "Typ perform_operand";
     let _ = TyVarCtx.print(ctx.tyvars);
-    let _ = print_endline("-------");
     syn_perform_operand(ctx, a, (zoperand, k, u_gen));
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
-    let _ = print_endline("typ double perform_operand");
     let uhty = ZTyp.erase(ZOpSeq.wrap(zoperand));
     let hty = UHTyp.expand(Contexts.tyvars(ctx), uhty);
     switch (Statics_Typ.syn(ctx, hty)) {
     | None => Failed
     | Some(kind) =>
       switch (syn_perform_operand(ctx, a, (zoperand, kind, u_gen))) {
-      | Failed =>
-        print_endline("inside failed");
-        Failed;
+      | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_opseq(
           ctx,
@@ -525,7 +516,7 @@ and syn_perform_opseq =
           (zopseq, k, u_gen),
         )
       | Succeeded((ZOpSeq(_, zseq), _, u_gen)) =>
-        let _ = print_endline("inside succeeded");
+        let _ = "inside succeeded";
         switch (zseq) {
         | ZOperand(zoperand, (inner_prefix, inner_suffix)) =>
           let new_prefix = Seq.affix_affix(inner_prefix, prefix);

@@ -43,10 +43,6 @@ let rec eq = (ctx: Contexts.t, x: HTyp.t, y: HTyp.t): bool =>
 
 /* type consistency */
 let rec consistent = (ctx: Contexts.t, x: HTyp.t, y: HTyp.t): bool => {
-  let _ = print_endline("consisten begin");
-  let _ = print_endline(x |> HTyp.print);
-  let _ = print_endline(y |> HTyp.print);
-  let _ = print_endline("print end");
   let _ = TyVarCtx.print(ctx |> Contexts.tyvars);
   switch (x, y) {
   | (Hole, _) => true

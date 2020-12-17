@@ -699,16 +699,13 @@ and syn_fix_holes_line =
   | LetLine(p, ann, def) =>
     switch (ann) {
     | Some(uty1) =>
-      let _ = print_endline("typ fix holes");
       let _ = TyVarCtx.print(ctx.tyvars);
       let (uty1, u_gen) =
         Statics_Typ.fix_holes(ctx, u_gen, ~renumber_empty_holes, uty1);
-      let _ = print_endline("just before expand ty1");
       let ty1 = UHTyp.expand(Contexts.tyvars(ctx), uty1);
       let ctx_def = ctx_for_let(ctx, p, ty1, def);
       let (def, u_gen) =
         ana_fix_holes(ctx_def, u_gen, ~renumber_empty_holes, def, ty1);
-      let _ = print_endline("just before pat.ana_fix_holes");
       let (p, ctx, u_gen) =
         Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
       (LetLine(p, Some(uty1), def), ctx, u_gen);
@@ -724,9 +721,7 @@ and syn_fix_holes_line =
     let (uty, u_gen) =
       Statics_Typ.fix_holes(ctx, u_gen, ~renumber_empty_holes, uty);
     switch (tp) {
-    | EmptyHole(_) =>
-      let _ = print_endline("finish fix when tpat is empty");
-      (DefineLine(tp, uty), ctx, u_gen);
+    | EmptyHole(_) => (DefineLine(tp, uty), ctx, u_gen)
     | TyVar(_, id) =>
       let ty = UHTyp.expand(Contexts.tyvars(ctx), uty);
       switch (Statics_Typ.syn(ctx, ty)) {

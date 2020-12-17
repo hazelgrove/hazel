@@ -208,12 +208,10 @@ let update_program = (a: Action_common.t, new_program, model) => {
       }
     };
   };
-  let _ = print_endline("here");
   let _ =
     model
     |> put_program(new_program)
     |> map_selected_instances(update_selected_instances);
-  let _ = print_endline("there");
   model
   |> put_program(new_program)
   |> map_selected_instances(update_selected_instances)
@@ -223,7 +221,6 @@ let update_program = (a: Action_common.t, new_program, model) => {
          let prev_cardstacks = model |> get_cardstacks;
          let new_cardstacks =
            model |> put_program(new_program) |> get_cardstacks;
-         let _ = print_endline("fuck");
          UndoHistory.push_edit_state(
            history,
            prev_cardstacks,
@@ -253,7 +250,6 @@ let perform_edit_action = (a: Action_common.t, model: t): t => {
     () => {
       let new_program =
         model |> get_program |> Program.perform_edit_action(a);
-      let _ = print_endline("finish new_program");
       model |> update_program(a, new_program);
     },
   );

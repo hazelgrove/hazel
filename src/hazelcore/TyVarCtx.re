@@ -18,12 +18,8 @@ let rec _index_of = (ctx: t, x: TyId.t, n: int): option(int) =>
 
 let index_of = (ctx: t, x: TyId.t): option(int) =>
   switch (_index_of(ctx, x, 0)) {
-  | None =>
-    let _ = print_endline("not found");
-    None;
-  | Some(n) =>
-    let _ = print_endline(string_of_int(n));
-    Some(n);
+  | None => None
+  | Some(n) => Some(n)
   };
 
 let index_of_exn = (ctx: t, x: TyId.t): int =>
