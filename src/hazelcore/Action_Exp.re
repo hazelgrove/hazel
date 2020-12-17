@@ -1371,6 +1371,20 @@ and syn_perform_opseq =
 
   /* Zipper */
 
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(UnaryOpZN(_, unop, zoperand), (E, E)),
+    )
+      when ZExp.is_before_zoperand(zoperand) && binop_of_unop(unop) != None =>
+    switch (binop_of_unop(unop)) {
+    | Some(binop) =>
+      let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let new_prefix = Seq.A(binop, Seq.S(new_hole, E));
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, E));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | None => failwith("binop has no unop")
+    }
+
   | (_, ZOperand(zoperand, (E, E))) =>
     print_endline("zipper syn no surround");
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen));
@@ -1395,6 +1409,28 @@ and syn_perform_opseq =
         | _ => Seq.A(Operators_Exp.Space, prefix)
         };
       let zoperand = ZExp.UnaryOpZN(NotInHole, unop, zoperand);
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | None => failwith("binop has no unop")
+    }
+
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(
+        UnaryOpZN(_, unop, zoperand),
+        (A(operator, before_operator) as prefix, suffix),
+      ),
+    )
+      when ZExp.is_before_zoperand(zoperand) && binop_of_unop(unop) != None =>
+    switch (binop_of_unop(unop)) {
+    | Some(binop) =>
+      let (new_prefix, u_gen) =
+        switch (operator) {
+        | Operators_Exp.Space => (Seq.A(binop, before_operator), u_gen)
+        | _ =>
+          let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+          (Seq.A(binop, Seq.S(new_hole, prefix)), u_gen);
+        };
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("binop has no unop")
@@ -1973,20 +2009,20 @@ and syn_perform_operand =
       | None => Failed
       | Some(ty) => Succeeded(SynDone((new_ze, ty, u_gen)))
       };
-    | (Construct(SOp(SSpace)), unop, zoperand)
-        when ZExp.is_before_zoperand(zoperand) =>
-      // convert unop to binop if applicable
-      switch (binop_of_unop(unop)) {
-      | None => Failed
-      | Some(operator) =>
-        let construct_operator =
-          ZExp.is_before_zoperand(zoperand)
-            ? construct_operator_before_zoperand
-            : construct_operator_after_zoperand;
-        let (zseq, u_gen) =
-          construct_operator(u_gen, operator, zoperand, (E, E));
-        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-      }
+    // | (Construct(SOp(SSpace)), unop, zoperand)
+    //     when ZExp.is_before_zoperand(zoperand) =>
+    //   // convert unop to binop if applicable
+    //   switch (binop_of_unop(unop)) {
+    //   | None => Failed
+    //   | Some(operator) =>
+    //     let construct_operator =
+    //       ZExp.is_before_zoperand(zoperand)
+    //         ? construct_operator_before_zoperand
+    //         : construct_operator_after_zoperand;
+    //     let (zseq, u_gen) =
+    //       construct_operator(u_gen, operator, zoperand, (E, E));
+    //     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    //   }
     | (Backspace, FUnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
       // convert -. float negation to - int negation
       let (new_operand, u_gen) =
@@ -2983,6 +3019,28 @@ and ana_perform_opseq =
     | None => failwith("binop has no unop")
     }
 
+  | (
+      Construct(SOp(SSpace)),
+      ZOperand(
+        UnaryOpZN(_, unop, zoperand),
+        (A(operator, before_operator) as prefix, suffix),
+      ),
+    )
+      when ZExp.is_before_zoperand(zoperand) && binop_of_unop(unop) != None =>
+    switch (binop_of_unop(unop)) {
+    | Some(binop) =>
+      let (new_prefix, u_gen) =
+        switch (operator) {
+        | Operators_Exp.Space => (Seq.A(binop, before_operator), u_gen)
+        | _ =>
+          let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+          (Seq.A(binop, Seq.S(new_hole, prefix)), u_gen);
+        };
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+    | None => failwith("binop has no unop")
+    }
+
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     print_endline("zipper ana");
     let n = Seq.length_of_affix(prefix);
@@ -3586,20 +3644,20 @@ and ana_perform_operand =
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
-    | (Construct(SOp(SSpace)), unop, zoperand)
-        when ZExp.is_before_zoperand(zoperand) =>
-      // convert unop to binop if applicable
-      switch (binop_of_unop(unop)) {
-      | None => Failed
-      | Some(operator) =>
-        let construct_operator =
-          ZExp.is_before_zoperand(zoperand)
-            ? construct_operator_before_zoperand
-            : construct_operator_after_zoperand;
-        let (zseq, u_gen) =
-          construct_operator(u_gen, operator, zoperand, (E, E));
-        Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
-      }
+    // | (Construct(SOp(SSpace)), unop, zoperand)
+    //     when ZExp.is_before_zoperand(zoperand) =>
+    //   // convert unop to binop if applicable
+    //   switch (binop_of_unop(unop)) {
+    //   | None => Failed
+    //   | Some(operator) =>
+    //     let construct_operator =
+    //       ZExp.is_before_zoperand(zoperand)
+    //         ? construct_operator_before_zoperand
+    //         : construct_operator_after_zoperand;
+    //     let (zseq, u_gen) =
+    //       construct_operator(u_gen, operator, zoperand, (E, E));
+    //     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+    //   }
     | (Backspace, UnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
       let (operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
