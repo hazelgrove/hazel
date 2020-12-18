@@ -3214,8 +3214,11 @@ and ana_perform_operand =
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
 
   | (Backspace, CursorE(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
-  | (Delete, CursorE(OnOp(Before), UnaryOp(_))) =>
-    failwith("unimplemented") // TODO ANAND implement this somehow
+  | (Delete, CursorE(OnOp(Before), UnaryOp(_, _, operand))) =>
+    let (operand, u_gen) =
+      Statics_Exp.ana_fix_holes_operand(ctx, u_gen, operand, ty);
+    let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(operand));
+    Succeeded(AnaDone((new_ze, u_gen)));
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, u_gen, j, t, ty)
