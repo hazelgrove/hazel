@@ -1525,16 +1525,15 @@ and syn_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
-        ApPalette(_) |
-        UnaryOp(_),
+        ApPalette(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
         EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
-        ApPalette(_) |
-        UnaryOp(_),
-      ),
+        ApPalette(_),
+      ) |
+      CursorE(OnOp(After) | OnText(_) | OnDelim(_), UnaryOp(_)),
     ) =>
     Failed
   | (_, CursorE(cursor, operand))
@@ -1581,6 +1580,20 @@ and syn_perform_operand =
     let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
     let new_ze = ZExp.ZBlock.wrap(zhole);
     Succeeded(SynDone((new_ze, Hole, u_gen)));
+
+  | (Backspace, CursorE(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
+  | (Delete, CursorE(OnOp(Before), UnaryOp(_, _, operand))) =>
+    print_endline("here here here here!");
+    let new_zoperand =
+      ZExp.set_err_status_zoperand(
+        NotInHole,
+        ZExp.place_before_operand(operand),
+      );
+    let new_ze = ZExp.ZBlock.wrap(new_zoperand);
+    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+    | None => Failed
+    | Some(ty) => Succeeded(SynDone((new_ze, ty, u_gen)))
+    };
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, u_gen, j, t)
@@ -1911,8 +1924,6 @@ and syn_perform_operand =
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | LamZP(_) | LamZA(_)) => Failed
   | (SwapLeft | SwapRight, CursorE(_)) => Failed
-  | (SwapUp | SwapDown | SwapLeft | SwapRight, UnaryOpZN(_)) =>
-    failwith("not implemented.")
 
   /* Zipper Cases */
   | (_, ParenthesizedZ(zbody)) =>
@@ -3215,6 +3226,7 @@ and ana_perform_operand =
 
   | (Backspace, CursorE(OnOp(Before), UnaryOp(_))) => CursorEscaped(Before)
   | (Delete, CursorE(OnOp(Before), UnaryOp(_, _, operand))) =>
+    print_endline("here here!");
     let (operand, u_gen) =
       Statics_Exp.ana_fix_holes_operand(ctx, u_gen, operand, ty);
     let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(operand));

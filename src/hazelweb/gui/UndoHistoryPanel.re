@@ -124,7 +124,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | UnaryOp(_) => failwith("not implemented.")
+    | UnaryOp(_) => failwith("undo history for unary op not implemented.")
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
