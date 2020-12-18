@@ -258,6 +258,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | UnaryOp(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -267,6 +268,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | UnaryOp(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
@@ -282,9 +284,6 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Parenthesized(body) =>
     let (body, u_gen) = body |> mk_inconsistent(u_gen);
     (Parenthesized(body), u_gen);
-  | UnaryOp(err, unary_op, operand) =>
-    let (operand, u_gen) = operand |> mk_inconsistent_operand(u_gen);
-    (UnaryOp(err, unary_op, operand), u_gen);
   };
 
 let text_operand =

@@ -1381,7 +1381,7 @@ and syn_perform_opseq =
       let new_prefix = Seq.A(binop, Seq.S(new_hole, E));
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, E));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-    | None => failwith("binop has no unop")
+    | None => failwith("unop has no binop")
     }
 
   | (_, ZOperand(zoperand, (E, E))) =>
@@ -1431,7 +1431,7 @@ and syn_perform_opseq =
         };
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
-    | None => failwith("binop has no unop")
+    | None => failwith("unop has no binop")
     }
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
@@ -2040,6 +2040,7 @@ and syn_perform_operand =
         )
       | Succeeded(AnaDone((ze, u_gen))) =>
         let wrap_in_unop = result_is_unop(ze);
+        // FIXME ANAND: WHY ARE YOU CHECKING IF UNOP TYPE IS CONSISTENT WITH TY, WHAT EVEN IS TY? THIS IS ANALYSIS ONLY RIGHT?
         if (wrap_in_unop) {
           let new_zoperand = unwrap_zblock_to_zoperand(ze);
           if (HTyp.consistent(ty, ty_u)) {
@@ -3028,7 +3029,7 @@ and ana_perform_opseq =
         };
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
-    | None => failwith("binop has no unop")
+    | None => failwith("unop has no binop")
     }
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
