@@ -2029,7 +2029,7 @@ and syn_perform_operand =
         ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, UnaryMinus, new_zoperand));
       Succeeded(SynDone((new_ze, Int, u_gen)));
     | _ =>
-      switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty)) {
+      switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_u)) {
       | Failed => Failed
       | Succeeded(AnaExpands(_)) => failwith("unimplemented")
       | CursorEscaped(side) =>
@@ -2040,21 +2040,11 @@ and syn_perform_operand =
         )
       | Succeeded(AnaDone((ze, u_gen))) =>
         let wrap_in_unop = result_is_unop(ze);
-        // FIXME ANAND: WHY ARE YOU CHECKING IF UNOP TYPE IS CONSISTENT WITH TY, WHAT EVEN IS TY? THIS IS ANALYSIS ONLY RIGHT?
         if (wrap_in_unop) {
           let new_zoperand = unwrap_zblock_to_zoperand(ze);
-          if (HTyp.consistent(ty, ty_u)) {
-            let new_ze =
-              ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, new_zoperand));
-            Succeeded(SynDone((new_ze, ty, u_gen)));
-          } else {
-            let (u, u_gen) = u_gen |> MetaVarGen.next;
-            let new_ze =
-              ZExp.ZBlock.wrap(
-                UnaryOpZN(InHole(TypeInconsistent, u), unop, new_zoperand),
-              );
-            Succeeded(SynDone((new_ze, ty, u_gen)));
-          };
+          let new_ze =
+            ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, unop, new_zoperand));
+          Succeeded(SynDone((new_ze, ty, u_gen)));
         } else {
           let (zseq, ty, u_gen) = unwrap_zblock_to_zseq(ze, u_gen);
           Succeeded(SynDone((ZExp.ZBlock.wrap'(zseq), ty, u_gen)));
