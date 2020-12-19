@@ -517,7 +517,9 @@ and holes_operand =
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | UnaryOp(err, _, operand) =>
-    hs |> holes_operand(operand, rev_steps) |> holes_err(err, rev_steps)
+    hs
+    |> holes_operand(operand, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
   | Lam(err, p, ann, body) =>
