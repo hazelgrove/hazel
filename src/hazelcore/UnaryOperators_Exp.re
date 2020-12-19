@@ -1,12 +1,12 @@
 [@deriving sexp]
 type t =
-  | UnaryMinus
-  | FUnaryMinus;
+  | Negate
+  | FNegate;
 
 let to_string =
   fun
-  | UnaryMinus => "-"
-  | FUnaryMinus => "-.";
+  | Negate => "-"
+  | FNegate => "-.";
 
 let to_parse_string = to_string;
 

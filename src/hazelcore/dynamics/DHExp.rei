@@ -44,7 +44,7 @@ module BinFloatOp: {
 module UnIntOp: {
   [@deriving sexp]
   type t =
-    | UnaryMinus;
+    | Negate;
   let of_op: UHExp.unop => option((t, HTyp.t));
 
   let to_op: t => UHExp.unop;
@@ -53,7 +53,7 @@ module UnIntOp: {
 module UnFloatOp: {
   [@deriving sexp]
   type t =
-    | FUnaryMinus;
+    | FNegate;
   let of_op: UHExp.unop => option((t, HTyp.t));
 
   let to_op: t => UHExp.unop;

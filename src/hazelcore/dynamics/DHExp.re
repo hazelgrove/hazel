@@ -85,30 +85,30 @@ module BinIntOp = {
 module UnIntOp = {
   [@deriving sexp]
   type t =
-    | UnaryMinus;
+    | Negate;
   let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
     switch (op) {
-    | UnaryMinus => Some((UnaryMinus, Int))
+    | Negate => Some((Negate, Int))
     | _ => None
     };
   let to_op = (bio: t): UHExp.unop =>
     switch (bio) {
-    | UnaryMinus => UnaryMinus
+    | Negate => Negate
     };
 };
 
 module UnFloatOp = {
   [@deriving sexp]
   type t =
-    | FUnaryMinus;
+    | FNegate;
   let of_op = (op: UHExp.unop): option((t, HTyp.t)) =>
     switch (op) {
-    | FUnaryMinus => Some((FUnaryMinus, Float))
+    | FNegate => Some((FNegate, Float))
     | _ => None
     };
   let to_op = (bio: t): UHExp.unop =>
     switch (bio) {
-    | FUnaryMinus => FUnaryMinus
+    | FNegate => FNegate
     };
 };
 

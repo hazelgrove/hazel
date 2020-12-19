@@ -71,13 +71,13 @@ let eval_bin_float_op =
 
 let eval_un_int_op = (op: DHExp.UnIntOp.t, n1: int): DHExp.t => {
   switch (op) {
-  | UnaryMinus => IntLit(- n1)
+  | Negate => IntLit(- n1)
   };
 };
 
 let eval_un_float_op = (op: DHExp.UnFloatOp.t, n1: float): DHExp.t => {
   switch (op) {
-  | FUnaryMinus => FloatLit(-. n1)
+  | FNegate => FloatLit(-. n1)
   };
 };
 

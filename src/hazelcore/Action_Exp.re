@@ -43,15 +43,15 @@ let shape_of_operator =
 
 let binop_of_unop = (unop: UHExp.unop): option(UHExp.binop) =>
   switch (unop) {
-  | UnaryMinus => Some(Minus)
-  | FUnaryMinus => Some(FMinus)
+  | Negate => Some(Minus)
+  | FNegate => Some(FMinus)
   // | _ => None
   };
 
 let unop_of_binop = (binop: UHExp.binop): option(UHExp.unop) =>
   switch (binop) {
-  | Minus => Some(UnaryMinus)
-  | FMinus => Some(FUnaryMinus)
+  | Minus => Some(Negate)
+  | FMinus => Some(FNegate)
   | _ => None
   };
 
@@ -1853,7 +1853,7 @@ and syn_perform_operand =
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (os) {
     | SMinus =>
-      let unop = UnaryOperators_Exp.UnaryMinus;
+      let unop = UnaryOperators_Exp.Negate;
       let ty_u = HTyp.Int;
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
@@ -2010,23 +2010,23 @@ and syn_perform_operand =
 
     let ty_u = Statics_Exp.syn_unop(ctx, unop);
     switch (a, unop, zoperand) {
-    | (Construct(SChar(".")), UnaryMinus, CursorE(_, e))
+    | (Construct(SChar(".")), Negate, CursorE(_, e))
         when ZExp.is_before_zoperand(zoperand) =>
       // convert int negation - to float negation -.
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(ctx, u_gen, e, Float);
       let new_zoperand = ZExp.place_before_operand(new_operand);
       let new_ze =
-        ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, FUnaryMinus, new_zoperand));
+        ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, FNegate, new_zoperand));
       Succeeded(SynDone((new_ze, Float, u_gen)));
-    | (Backspace, UnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
+    | (Backspace, Negate, _) when ZExp.is_before_zoperand(zoperand) =>
       let zoperand = ZExp.set_err_status_zoperand(NotInHole, zoperand);
       let new_ze = ZExp.ZBlock.wrap(zoperand);
       switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
       | None => Failed
       | Some(ty) => Succeeded(SynDone((new_ze, ty, u_gen)))
       };
-    | (Backspace, FUnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
+    | (Backspace, FNegate, _) when ZExp.is_before_zoperand(zoperand) =>
       // convert -. float negation to - int negation
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
@@ -2037,7 +2037,7 @@ and syn_perform_operand =
         );
       let new_zoperand = ZExp.place_before_operand(new_operand);
       let new_ze =
-        ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, UnaryMinus, new_zoperand));
+        ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, Negate, new_zoperand));
       Succeeded(SynDone((new_ze, Int, u_gen)));
     | _ =>
       switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_u)) {
@@ -3441,7 +3441,7 @@ and ana_perform_operand =
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (os) {
     | SMinus =>
-      let unop = UnaryOperators_Exp.UnaryMinus;
+      let unop = UnaryOperators_Exp.Negate;
       let ty_u = Statics_Exp.syn_unop(ctx, unop);
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
@@ -3616,7 +3616,7 @@ and ana_perform_operand =
     };
     let ty_u = Statics_Exp.syn_unop(ctx, unop);
     switch (a, unop, zoperand) {
-    | (Construct(SChar(".")), UnaryMinus, CursorE(_, e))
+    | (Construct(SChar(".")), Negate, CursorE(_, e))
         when ZExp.is_before_zoperand(zoperand) =>
       // convert int negation - to float negation -.
       let (new_operand, u_gen) =
@@ -3632,15 +3632,11 @@ and ana_perform_operand =
           let (u, u_gen) = u_gen |> MetaVarGen.next;
           let new_ze =
             ZExp.ZBlock.wrap(
-              UnaryOpZN(
-                InHole(TypeInconsistent, u),
-                FUnaryMinus,
-                new_zoperand,
-              ),
+              UnaryOpZN(InHole(TypeInconsistent, u), FNegate, new_zoperand),
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
-    | (Backspace, UnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
+    | (Backspace, Negate, _) when ZExp.is_before_zoperand(zoperand) =>
       let (operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
           ctx,
@@ -3650,7 +3646,7 @@ and ana_perform_operand =
         );
       let new_ze = ZExp.ZBlock.wrap(ZExp.place_before_operand(operand));
       Succeeded(AnaDone((new_ze, u_gen)));
-    | (Backspace, FUnaryMinus, _) when ZExp.is_before_zoperand(zoperand) =>
+    | (Backspace, FNegate, _) when ZExp.is_before_zoperand(zoperand) =>
       // convert float negation -. back to int negation -
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
@@ -3663,18 +3659,14 @@ and ana_perform_operand =
       HTyp.consistent(ty, Int)
         ? {
           let new_ze =
-            ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, UnaryMinus, new_zoperand));
+            ZExp.ZBlock.wrap(UnaryOpZN(NotInHole, Negate, new_zoperand));
           Succeeded(AnaDone((new_ze, u_gen)));
         }
         : {
           let (u, u_gen) = u_gen |> MetaVarGen.next;
           let new_ze =
             ZExp.ZBlock.wrap(
-              UnaryOpZN(
-                InHole(TypeInconsistent, u),
-                UnaryMinus,
-                new_zoperand,
-              ),
+              UnaryOpZN(InHole(TypeInconsistent, u), Negate, new_zoperand),
             );
           Succeeded(AnaDone((new_ze, u_gen)));
         };
