@@ -822,16 +822,16 @@ and syn_elab_operand =
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
     };
-  | UnaryOp(NotInHole, Negate, operand) =>
-    switch (ana_elab_operand(ctx, delta, operand, HTyp.Int)) {
+  | UnaryOp(NotInHole, Negate, child) =>
+    switch (ana_elab_operand(ctx, delta, child, HTyp.Int)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
       let dc1 = DHExp.cast(d1, ty1, Int);
       let d = DHExp.UnIntOp(Negate, dc1);
       Elaborates(d, Int, delta);
     }
-  | UnaryOp(NotInHole, FNegate, operand) =>
-    switch (ana_elab_operand(ctx, delta, operand, HTyp.Float)) {
+  | UnaryOp(NotInHole, FNegate, child) =>
+    switch (ana_elab_operand(ctx, delta, child, HTyp.Float)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
       let dc1 = DHExp.cast(d1, ty1, Float);

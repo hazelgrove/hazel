@@ -17,7 +17,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
   | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_term(zexp)
-  | UnaryOpZ(_, _, zoperand) => extract_from_zexp_operand(zoperand)
+  | UnaryOpZ(_, _, zchild) => extract_from_zexp_operand(zchild)
   | LamZP(_, zpat, _, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | LamZA(_, _, ztyp, _) => CursorInfo_Typ.extract_cursor_term(ztyp)
   | LamZE(_, _, _, zexp)
@@ -80,7 +80,7 @@ and get_zoperand_from_zexp_operand =
     (zoperand: ZExp.zoperand): option(zoperand) => {
   switch (zoperand) {
   | CursorE(_, _) => Some(ZExp(zoperand))
-  | UnaryOpZ(_, _, zoperand) => get_zoperand_from_zexp_operand(zoperand)
+  | UnaryOpZ(_, _, zchild) => get_zoperand_from_zexp_operand(zchild)
   | ParenthesizedZ(zexp) => get_zoperand_from_zexp(zexp)
   | LamZP(_, zpat, _, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | LamZA(_, _, ztyp, _) => CursorInfo_Typ.get_zoperand_from_ztyp(ztyp)
@@ -137,8 +137,8 @@ and get_outer_zrules_from_zexp_operand =
     : option(ZExp.zrules) => {
   switch (zoperand) {
   | CursorE(_, _) => outer_zrules
-  | UnaryOpZ(_, _, zoperand) =>
-    get_outer_zrules_from_zexp_operand(zoperand, outer_zrules)
+  | UnaryOpZ(_, _, zchild) =>
+    get_outer_zrules_from_zexp_operand(zchild, outer_zrules)
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _) => outer_zrules
@@ -541,9 +541,9 @@ and syn_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | UnaryOpZ(_, unop, zoperand) =>
+  | UnaryOpZ(_, unop, zchild) =>
     let ty_u = Statics_Exp.syn_unop(ctx, unop);
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand, ty_u);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zchild, ty_u);
   | LamZP(_, zp, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -918,9 +918,9 @@ and ana_cursor_info_zoperand =
     } /* zipper cases */
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
-  | UnaryOpZ(_, unop, zoperand) =>
+  | UnaryOpZ(_, unop, zchild) =>
     let ty_u = Statics_Exp.syn_unop(ctx, unop);
-    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand, ty_u);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zchild, ty_u);
   /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _, _)
   | LamZA(InHole(WrongLength, _), _, _, _)

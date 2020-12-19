@@ -946,11 +946,10 @@ and syn_fix_holes_operand =
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
-  | UnaryOp(_, unop, operand) =>
+  | UnaryOp(_, unop, child) =>
     let ty_u = syn_unop(ctx, unop);
-    let (new_operand, u_gen) =
-      ana_fix_holes_operand(ctx, u_gen, operand, ty_u);
-    (UnaryOp(NotInHole, unop, new_operand), ty_u, u_gen);
+    let (new_child, u_gen) = ana_fix_holes_operand(ctx, u_gen, child, ty_u);
+    (UnaryOp(NotInHole, unop, new_child), ty_u, u_gen);
   | Parenthesized(body) =>
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);

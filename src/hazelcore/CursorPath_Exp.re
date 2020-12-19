@@ -19,7 +19,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath_common.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
-  | UnaryOpZ(_, _, zoperand) => cons'(0, of_zoperand(zoperand))
+  | UnaryOpZ(_, _, zchild) => cons'(0, of_zoperand(zchild))
   | LamZP(_, zp, _, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | LamZA(_, _, zann, _) => cons'(1, CursorPath_Typ.of_z(zann))
   | LamZE(_, _, _, zdef) => cons'(2, of_z(zdef))
@@ -137,10 +137,10 @@ and follow_operand =
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
       | _ => None
       }
-    | UnaryOp(err, unop, operand) =>
+    | UnaryOp(err, unop, child) =>
       switch (x) {
       | 0 =>
-        operand
+        child
         |> follow_operand((xs, cursor))
         |> Option.map(zoperand => ZExp.UnaryOpZ(err, unop, zoperand))
       | _ => None
@@ -359,10 +359,10 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
-    | UnaryOp(_, _, operand) =>
+    | UnaryOp(_, _, child) =>
       switch (x) {
       | 0 =>
-        operand
+        child
         |> of_steps_operand(xs, ~side)
         |> Option.map(path => cons'(0, path))
       | _ => None
@@ -516,9 +516,9 @@ and holes_operand =
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
-  | UnaryOp(err, _, operand) =>
+  | UnaryOp(err, _, child) =>
     hs
-    |> holes_operand(operand, [0, ...rev_steps])
+    |> holes_operand(child, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
@@ -852,9 +852,9 @@ and holes_zoperand =
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-  | UnaryOpZ(err, _, zoperand) =>
+  | UnaryOpZ(err, _, zchild) =>
     let CursorPath_common.{holes_before, hole_selected, holes_after} =
-      holes_zoperand(zoperand, [0, ...rev_steps]);
+      holes_zoperand(zchild, [0, ...rev_steps]);
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => []

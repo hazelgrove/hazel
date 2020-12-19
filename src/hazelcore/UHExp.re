@@ -225,7 +225,7 @@ and set_err_status_operand = (err, operand) =>
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  | UnaryOp(_, unary_op, operand) => UnaryOp(err, unary_op, operand)
+  | UnaryOp(_, unary_op, child) => UnaryOp(err, unary_op, child)
   };
 
 let is_inconsistent = operand =>
@@ -377,8 +377,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
     && is_complete_rules(rules, check_type_holes)
   | Parenthesized(body) => is_complete(body, check_type_holes)
   | UnaryOp(InHole(_), _, _) => false
-  | UnaryOp(NotInHole, _, operand) =>
-    is_complete_operand(operand, check_type_holes)
+  | UnaryOp(NotInHole, _, child) =>
+    is_complete_operand(child, check_type_holes)
   | ApPalette(InHole(_), _, _, _) => false
   | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   };
