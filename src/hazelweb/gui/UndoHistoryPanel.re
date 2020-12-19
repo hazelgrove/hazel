@@ -124,7 +124,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | UnaryOp(_, unop, _) => code_view(UnaryOperators_Exp.to_string(unop))
+    | UnaryOp(_, unop, _) => code_view(Unops_Exp.to_string(unop))
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
@@ -254,7 +254,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | Pat(_, pat) => pat_view(pat, show_indicate_word)
     | Typ(_, typ) => typ_view(typ)
     | ExpBinop(_, op) => code_view(Operators_Exp.to_string(op))
-    | ExpUnop(_, op) => code_view(UnaryOperators_Exp.to_string(op))
+    | ExpUnop(_, op) => code_view(Unops_Exp.to_string(op))
     | PatOp(_, op) => code_view(Operators_Pat.to_string(op))
     | TypOp(_, op) => code_view(Operators_Typ.to_string(op))
     | Line(_, line_content) =>

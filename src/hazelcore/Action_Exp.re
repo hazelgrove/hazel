@@ -1853,7 +1853,7 @@ and syn_perform_operand =
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (os) {
     | SMinus =>
-      let unop = UnaryOperators_Exp.Negate;
+      let unop = Unops_Exp.Negate;
       let ty_u = HTyp.Int;
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(
@@ -3441,7 +3441,7 @@ and ana_perform_operand =
   | (Construct(SOp(os)), CursorE(_)) =>
     switch (os) {
     | SMinus =>
-      let unop = UnaryOperators_Exp.Negate;
+      let unop = Unops_Exp.Negate;
       let ty_u = Statics_Exp.syn_unop(ctx, unop);
       let (new_operand, u_gen) =
         Statics_Exp.ana_fix_holes_operand(

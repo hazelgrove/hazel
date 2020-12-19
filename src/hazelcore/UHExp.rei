@@ -1,7 +1,7 @@
 [@deriving sexp]
 type binop = Operators_Exp.t;
 [@deriving sexp]
-type unop = UnaryOperators_Exp.t;
+type unop = Unops_Exp.t;
 
 [@deriving sexp]
 type t = block

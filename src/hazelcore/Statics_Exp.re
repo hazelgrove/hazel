@@ -230,8 +230,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   }
 and syn_unop = (_: Contexts.t, unop: UHExp.unop): HTyp.t => {
   switch (unop) {
-  | UnaryOperators_Exp.Negate => Int
-  | UnaryOperators_Exp.FNegate => Float
+  | Unops_Exp.Negate => Int
+  | Unops_Exp.FNegate => Float
   };
 }
 and syn_rules =
