@@ -290,7 +290,12 @@ let mk_Unop =
     )
     : t => {
   let op_doc = mk_op(Unops_Exp.to_string(unop)) |> annot_Tessera;
-  Doc.hcats([op_doc, mk_operand(operand) |> annot_Step(0)])
+  Doc.hcats([
+    op_doc,
+    mk_operand(operand)
+    |> annot_Step(0)
+    |> Doc.annot(UHAnnot.OpenChild(InlineWithBorder)),
+  ])
   |> annot_Operand(~sort);
 };
 
