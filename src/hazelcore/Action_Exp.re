@@ -3614,7 +3614,6 @@ and ana_perform_operand =
       | _ => failwith("does not unwrap to zseq")
       };
     };
-
     let ty_u = Statics_Exp.syn_unop(ctx, unop);
     switch (a, unop, zoperand) {
     | (Construct(SChar(".")), UnaryMinus, CursorE(_, e))

@@ -541,8 +541,9 @@ and syn_cursor_info_zoperand =
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
-  | UnaryOpZN(_, _, zoperand) =>
-    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand)
+  | UnaryOpZN(_, unop, zoperand) =>
+    let ty_u = Statics_Exp.syn_unop(ctx, unop);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand, ty_u);
   | LamZP(_, zp, ann, body) =>
     let ty1 =
       switch (ann) {
@@ -916,8 +917,11 @@ and ana_cursor_info_zoperand =
       }
     } /* zipper cases */
   | ParenthesizedZ(zbody) =>
-    ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
-  | UnaryOpZN(InHole(WrongLength, _), _, _)
+    ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
+  | UnaryOpZN(_, unop, zoperand) =>
+    let ty_u = Statics_Exp.syn_unop(ctx, unop);
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zoperand, ty_u);
+  /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _, _)
   | LamZA(InHole(WrongLength, _), _, _, _)
   | LamZE(InHole(WrongLength, _), _, _, _)
@@ -933,7 +937,6 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
-  | UnaryOpZN(InHole(TypeInconsistent, _), _, _)
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -943,8 +946,6 @@ and ana_cursor_info_zoperand =
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   /* zipper not in hole */
-  | UnaryOpZN(NotInHole, _, zoperand) =>
-    syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | LamZP(NotInHole, zp, ann, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
