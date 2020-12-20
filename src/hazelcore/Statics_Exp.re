@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
@@ -8,57 +10,47 @@ let ctx_for_let =
   | (
       OpSeq(_, S(Var(_, NotInVarHole, x), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
-    ) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
-    | None => (ctx, None)
-    }
+    )
+      when Option.is_some(HTyp.matched_arrow(ty)) => (
+      Contexts.extend_gamma(ctx, (x, ty)),
+      Some(x),
+    )
   | _ => (ctx, None)
   };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   syn_block(ctx, e)
-and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
-  switch (block |> UHExp.Block.split_conclusion) {
-  | None => None
-  | Some((leading, conclusion)) =>
-    switch (syn_lines(ctx, leading)) {
-    | None => None
-    | Some(ctx) => syn_opseq(ctx, conclusion)
-    }
-  }
+and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
+  let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
+  let* ctx = syn_lines(ctx, leading);
+  syn_opseq(ctx, conclusion);
+}
 and syn_lines =
     (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
   lines
   |> List.fold_left(
-       (opt_ctx: option(Contexts.t), line: UHExp.line) =>
-         switch (opt_ctx) {
-         | None => None
-         | Some(ctx) => syn_line(ctx, line)
-         },
+       (opt_ctx: option(Contexts.t), line: UHExp.line) => {
+         let* ctx = opt_ctx;
+         syn_line(ctx, line);
+       },
        Some(ctx),
      );
 }
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
-  | ExpLine(opseq) => syn_opseq(ctx, opseq) |> Option.map(_ => ctx)
   | EmptyLine
   | CommentLine(_) => Some(ctx)
-  | LetLine(p, ann, def) =>
-    switch (ann) {
-    | Some(uty) =>
-      let ty = UHTyp.expand(uty);
-      let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
-      switch (ana(ctx_def, def, ty)) {
-      | None => None
-      | Some(_) => Statics_Pat.ana(ctx, p, ty)
-      };
-    | None =>
-      switch (syn(ctx, def)) {
-      | None => None
-      | Some(ty) => Statics_Pat.ana(ctx, p, ty)
-      }
-    }
+  | ExpLine(opseq) =>
+    let+ _ = syn_opseq(ctx, opseq);
+    ctx;
+  | LetLine(p, None, def) =>
+    let* ty = syn(ctx, def);
+    Statics_Pat.ana(ctx, p, ty);
+  | LetLine(p, Some(uty), def) =>
+    let ty = UHTyp.expand(uty);
+    let (ctx_def, _) = ctx_for_let(ctx, p, ty, def);
+    let* _ = ana(ctx_def, def, ty);
+    Statics_Pat.ana(ctx, p, ty);
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -71,45 +63,33 @@ and syn_skel =
     syn_operand(ctx, en);
   | BinOp(InHole(_), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-    syn_skel(ctx, skel_not_in_hole, seq) |> Option.map(_ => HTyp.Hole);
+    let+ _ = syn_skel(ctx, skel_not_in_hole, seq);
+    HTyp.Hole;
   | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
-    switch (ana_skel(ctx, skel1, seq, HTyp.Int)) {
-    | None => None
-    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Int)
-    }
+    let+ _ = ana_skel(ctx, skel1, seq, HTyp.Int)
+    and+ _ = ana_skel(ctx, skel2, seq, Int);
+    HTyp.Int;
   | BinOp(NotInHole, FMinus | FPlus | FTimes | FDivide, skel1, skel2) =>
-    switch (ana_skel(ctx, skel1, seq, HTyp.Float)) {
-    | None => None
-    | Some(_) =>
-      ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Float)
-    }
+    let+ _ = ana_skel(ctx, skel1, seq, Float)
+    and+ _ = ana_skel(ctx, skel2, seq, Float);
+    HTyp.Float;
   | BinOp(NotInHole, And | Or, skel1, skel2) =>
-    switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
-    | None => None
-    | Some(_) =>
-      ana_skel(ctx, skel2, seq, HTyp.Bool) |> Option.map(_ => HTyp.Bool)
-    }
+    let+ _ = ana_skel(ctx, skel1, seq, Bool)
+    and+ _ = ana_skel(ctx, skel2, seq, Bool);
+    HTyp.Bool;
   | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
-    switch (ana_skel(ctx, skel1, seq, Int)) {
-    | None => None
-    | Some(_) => ana_skel(ctx, skel2, seq, Int) |> Option.map(_ => HTyp.Bool)
-    }
+    let+ _ = ana_skel(ctx, skel1, seq, Int)
+    and+ _ = ana_skel(ctx, skel2, seq, Int);
+    HTyp.Bool;
   | BinOp(NotInHole, FLessThan | FGreaterThan | FEquals, skel1, skel2) =>
-    switch (ana_skel(ctx, skel1, seq, Float)) {
-    | None => None
-    | Some(_) =>
-      ana_skel(ctx, skel2, seq, Float) |> Option.map(_ => HTyp.Bool)
-    }
+    let+ _ = ana_skel(ctx, skel1, seq, Float)
+    and+ _ = ana_skel(ctx, skel2, seq, Float);
+    HTyp.Bool;
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (syn_skel(ctx, skel1, seq)) {
-    | None => None
-    | Some(ty1) =>
-      switch (HTyp.matched_arrow(ty1)) {
-      | None => None
-      | Some((ty2, ty)) =>
-        ana_skel(ctx, skel2, seq, ty2) |> Option.map(_ => ty)
-      }
-    }
+    let* ty1 = syn_skel(ctx, skel1, seq);
+    let* (ty2, ty) = HTyp.matched_arrow(ty1);
+    let+ _ = ana_skel(ctx, skel2, seq, ty2);
+    ty;
   | BinOp(NotInHole, Comma, _, _) =>
     skel
     |> UHExp.get_tuple_elements
@@ -117,12 +97,10 @@ and syn_skel =
     |> OptUtil.sequence
     |> Option.map(tys => HTyp.Prod(tys))
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (syn_skel(ctx, skel1, seq)) {
-    | None => None
-    | Some(ty1) =>
-      let ty = HTyp.List(ty1);
-      ana_skel(ctx, skel2, seq, ty) |> Option.map(_ => ty);
-    }
+    let* ty1 = syn_skel(ctx, skel1, seq);
+    let ty = HTyp.List(ty1);
+    let+ _ = ana_skel(ctx, skel2, seq, ty);
+    ty;
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
@@ -140,7 +118,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | UnaryOp(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
+    let+ _ = syn_operand(ctx, operand');
+    HTyp.Hole;
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -152,27 +131,20 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ApPalette(InHole(WrongLength, _), _, _, _)
   | UnaryOp(InHole(WrongLength, _), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
-    switch (syn(ctx, scrut)) {
-    | None => None
-    | Some(pat_ty) =>
-      /* Make sure the rule synthesizes the type the rule_types says it does */
-      let correct_rule_types =
-        List.for_all2(
-          (rule_ty, rule) => {
-            switch (syn_rule(ctx, rule, pat_ty)) {
-            | None => false
-            | Some(syn_ty) => HTyp.eq(rule_ty, syn_ty)
-            }
-          },
-          rule_types,
-          rules,
-        );
-      if (correct_rule_types) {
-        Some(HTyp.Hole);
-      } else {
-        None;
-      };
-    }
+    let* pat_ty = syn(ctx, scrut);
+    /* Make sure the rule synthesizes the type the rule_types says it does */
+    let correct_rule_types =
+      List.for_all2(
+        (rule_ty, rule) => {
+          switch (syn_rule(ctx, rule, pat_ty)) {
+          | None => false
+          | Some(syn_ty) => HTyp.eq(rule_ty, syn_ty)
+          }
+        },
+        rule_types,
+        rules,
+      );
+    correct_rule_types ? Some(HTyp.Hole) : None;
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)
@@ -187,45 +159,27 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
       | Some(uty) => UHTyp.expand(uty)
       | None => HTyp.Hole
       };
-    switch (Statics_Pat.ana(ctx, p, ty1)) {
-    | None => None
-    | Some(ctx) =>
-      switch (syn(ctx, body)) {
-      | None => None
-      | Some(ty2) => Some(HTyp.Arrow(ty1, ty2))
-      }
-    };
+    let* ctx = Statics_Pat.ana(ctx, p, ty1);
+    let+ ty2 = syn(ctx, body);
+    HTyp.Arrow(ty1, ty2);
   | Inj(NotInHole, side, body) =>
-    switch (syn(ctx, body)) {
-    | None => None
-    | Some(ty) =>
-      switch (side) {
-      | L => Some(Sum(ty, Hole))
-      | R => Some(Sum(Hole, ty))
-      }
-    }
+    let+ ty = syn(ctx, body);
+    switch (side) {
+    | L => HTyp.Sum(ty, Hole)
+    | R => Sum(Hole, ty)
+    };
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
-    switch (syn(ctx, scrut)) {
-    | None => None
-    | Some(b_ty) => syn_rules(ctx, rules, b_ty)
-    }
+    let* clause_ty = syn(ctx, scrut);
+    syn_rules(ctx, rules, clause_ty);
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
-    | None => None
-    | Some(palette_defn) =>
-      switch (ana_splice_map(ctx, SpliceInfo.splice_map(psi))) {
-      | None => None
-      | Some(splice_ctx) =>
-        let expansion_ty = palette_defn.expansion_ty;
-        let expand = palette_defn.expand;
-        let expansion = expand(serialized_model);
-        switch (ana(splice_ctx, expansion, expansion_ty)) {
-        | None => None
-        | Some(_) => Some(expansion_ty)
-        };
-      }
-    };
+    let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
+    let* splice_ctx = ana_splice_map(ctx, SpliceInfo.splice_map(psi));
+    let expansion_ty = palette_defn.expansion_ty;
+    let expand = palette_defn.expand;
+    let expansion = expand(serialized_model);
+    let+ _ = ana(splice_ctx, expansion, expansion_ty);
+    expansion_ty;
   | Parenthesized(body) => syn(ctx, body)
   }
 and syn_unop = (_: Contexts.t, unop: UHExp.unop): HTyp.t => {
@@ -236,62 +190,44 @@ and syn_unop = (_: Contexts.t, unop: UHExp.unop): HTyp.t => {
 }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
-  let clause_types =
+  let* clause_types =
     List.fold_left(
-      (types_opt, r) =>
-        switch (types_opt) {
-        | None => None
-        | Some(types) =>
-          switch (syn_rule(ctx, r, pat_ty)) {
-          | None => None
-          | Some(r_ty) => Some([r_ty, ...types])
-          }
-        },
+      (types_opt, r) => {
+        let* types = types_opt;
+        let+ r_ty = syn_rule(ctx, r, pat_ty);
+        [r_ty, ...types];
+      },
       Some([]),
       rules,
     );
-  switch (clause_types) {
-  | None => None
-  | Some(types) => HTyp.join_all(GLB, types)
-  };
+  HTyp.join_all(GLB, clause_types);
 }
 and syn_rule =
     (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
   let Rule(p, clause) = rule;
-  switch (Statics_Pat.ana(ctx, p, pat_ty)) {
-  | None => None
-  | Some(ctx) => syn(ctx, clause)
-  };
+  let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
+  syn(ctx, clause);
 }
 and ana_splice_map =
     (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
   IntMap.fold(
-    (splice_name, (ty, e), c) =>
-      switch (c) {
-      | None => None
-      | Some(splice_ctx) =>
-        switch (ana(ctx, e, ty)) {
-        | None => None
-        | Some(_) =>
-          let splice_var = SpliceInfo.var_of_splice_name(splice_name);
-          Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
-        }
-      },
+    (splice_name, (ty, e), c) => {
+      let+ splice_ctx = c
+      and+ _ = ana(ctx, e, ty);
+      let splice_var = SpliceInfo.var_of_splice_name(splice_name);
+      Contexts.extend_gamma(splice_ctx, (splice_var, ty));
+    },
     splice_map,
     Some(Contexts.empty),
   )
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
 and ana_block =
-    (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) =>
-  switch (block |> UHExp.Block.split_conclusion) {
-  | None => None
-  | Some((leading, conclusion)) =>
-    switch (syn_lines(ctx, leading)) {
-    | None => None
-    | Some(ctx) => ana_opseq(ctx, conclusion, ty)
-    }
-  }
+    (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
+  let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
+  let* ctx = syn_lines(ctx, leading);
+  ana_opseq(ctx, conclusion, ty);
+}
 and ana_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
     : option(unit) =>
@@ -300,14 +236,17 @@ and ana_opseq =
     switch (UHExp.get_err_status_opseq(opseq), HTyp.get_prod_elements(ty)) {
     | (InHole(TypeInconsistent, _), [_])
     | (InHole(WrongLength, _), _) =>
-      let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
-      syn_opseq(ctx, opseq') |> Option.map(_ => ());
+      let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+      let+ _ = syn_opseq(ctx, opseq');
+      ();
     | _ => None
     }
   | Some(skel_tys) =>
-    skel_tys
-    |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
-    |> List.fold_left(OptUtil.map2((_, _) => ()), Some())
+    let+ _ =
+      skel_tys
+      |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
+      |> OptUtil.sequence;
+    ();
   }
 and ana_skel =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
@@ -320,14 +259,9 @@ and ana_skel =
     let en = Seq.nth_operand(n, seq);
     ana_operand(ctx, en, ty);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => None
-    | Some(ty_elt) =>
-      switch (ana_skel(ctx, skel1, seq, ty_elt)) {
-      | None => None
-      | Some(_) => ana_skel(ctx, skel2, seq, List(ty_elt))
-      }
-    }
+    let* ty_elt = HTyp.matched_list(ty);
+    let* _ = ana_skel(ctx, skel1, seq, ty_elt);
+    ana_skel(ctx, skel2, seq, List(ty_elt));
   | BinOp(InHole(TypeInconsistent, _), _, _, _)
   | BinOp(
       NotInHole,
@@ -343,10 +277,8 @@ and ana_skel =
       _,
       _,
     ) =>
-    switch (syn_skel(ctx, skel, seq)) {
-    | None => None
-    | Some(ty') => HTyp.consistent(ty, ty') ? Some() : None
-    }
+    let* ty' = syn_skel(ctx, skel, seq);
+    HTyp.consistent(ty, ty') ? Some() : None;
   }
 and ana_operand =
     (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
@@ -365,10 +297,8 @@ and ana_operand =
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | UnaryOp(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    switch (syn_operand(ctx, operand')) {
-    | None => None
-    | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
-    };
+    let+ _ = syn_operand(ctx, operand');
+    (); /* this is a consequence of subsumption and hole universality */
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -383,24 +313,15 @@ and ana_operand =
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => None
-    | Some(_) => Some()
-    }
+    let+ _ = HTyp.matched_list(ty);
+    ();
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-    switch (syn_operand(ctx, operand')) {
-    | None => None
-    | Some(ty') =>
-      if (HTyp.consistent(ty, ty')) {
-        Some();
-      } else {
-        None;
-      }
-    };
+    let* ty' = syn_operand(ctx, operand');
+    HTyp.consistent(ty, ty') ? Some() : None;
   | UnaryOp(NotInHole, _, _) =>
     switch (syn_operand(ctx, operand)) {
     | None => None
@@ -412,58 +333,39 @@ and ana_operand =
       }
     }
   | Lam(NotInHole, p, ann, body) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | None => None
-    | Some((ty1_given, ty2)) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
-        switch (HTyp.consistent(ty1_ann, ty1_given)) {
-        | false => None
-        | true =>
-          switch (Statics_Pat.ana(ctx, p, ty1_ann)) {
-          | None => None
-          | Some(ctx) => ana(ctx, body, ty2)
-          }
-        };
-      | None =>
-        switch (Statics_Pat.ana(ctx, p, ty1_given)) {
-        | None => None
-        | Some(ctx) => ana(ctx, body, ty2)
+    let* (ty1_given, ty2) = HTyp.matched_arrow(ty);
+    switch (ann) {
+    | None =>
+      let* ctx = Statics_Pat.ana(ctx, p, ty1_given);
+      ana(ctx, body, ty2);
+    | Some(uty1) =>
+      let ty1_ann = UHTyp.expand(uty1);
+      HTyp.consistent(ty1_ann, ty1_given)
+        ? {
+          let* ctx = Statics_Pat.ana(ctx, p, ty1_ann);
+          ana(ctx, body, ty2);
         }
-      }
-    }
+        : None;
+    };
   | Inj(NotInHole, side, body) =>
-    switch (HTyp.matched_sum(ty)) {
-    | None => None
-    | Some((ty1, ty2)) => ana(ctx, body, InjSide.pick(side, ty1, ty2))
-    }
+    let* (ty1, ty2) = HTyp.matched_sum(ty);
+    ana(ctx, body, InjSide.pick(side, ty1, ty2));
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
-    switch (syn(ctx, scrut)) {
-    | None => None
-    | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
-    }
+    let* ty1 = syn(ctx, scrut);
+    ana_rules(ctx, rules, ty1, ty);
   | ApPalette(NotInHole, _, _, _) =>
-    switch (syn_operand(ctx, operand)) {
-    | None => None
-    | Some(ty') =>
-      if (HTyp.consistent(ty, ty')) {
-        Some();
-      } else {
-        None;
-      }
-    }
+    let* ty' = syn_operand(ctx, operand);
+    HTyp.consistent(ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(unit) =>
   List.fold_left(
-    (b, r) =>
-      switch (b) {
-      | None => None
-      | Some(_) => ana_rule(ctx, r, pat_ty, clause_ty)
-      },
+    (b, r) => {
+      let* _ = b;
+      ana_rule(ctx, r, pat_ty, clause_ty);
+    },
     Some(),
     rules,
   )
@@ -474,28 +376,27 @@ and ana_rule =
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : option(unit) =>
-  switch (Statics_Pat.ana(ctx, p, pat_ty)) {
-  | None => None
-  | Some(ctx) => ana(ctx, clause, clause_ty)
-  };
+    : option(unit) => {
+  let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
+  ana(ctx, clause, clause_ty);
+};
 
 /**
-     * Get type mode of nth operand of an opseq in synthetic position
-     */
+ * Get type mode of nth operand of an opseq in synthetic position
+ */
 let rec syn_nth_type_mode =
         (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
-        : option(Statics_common.type_mode) =>
+        : option(Statics.type_mode) =>
   syn_nth_type_mode'(ctx, n, skel, seq)
 and syn_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
   let rec go = (skel: UHExp.skel) =>
     switch (skel) {
     | Placeholder(n') =>
       assert(n == n');
-      Some(Statics_common.Syn);
+      Some(Statics.Syn);
     | BinOp(InHole(_), op, skel1, skel2) =>
       go(BinOp(NotInHole, op, skel1, skel2))
     | BinOp(NotInHole, Comma, skel1, skel2) =>
@@ -507,19 +408,14 @@ and syn_nth_type_mode' =
         if (n <= Skel.rightmost_tm_index(skel1)) {
           go(skel1);
         } else {
-          switch (HTyp.matched_arrow(ty1)) {
-          | None => None
-          | Some((ty2, _)) => ana_go(skel2, ty2)
-          };
+          let* (ty2, _) = HTyp.matched_arrow(ty1);
+          ana_go(skel2, ty2);
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (syn_skel(ctx, skel1, seq)) {
-      | None => None
-      | Some(ty1) =>
-        n <= Skel.rightmost_tm_index(skel1)
-          ? go(skel1) : ana_go(skel2, HTyp.List(ty1))
-      }
+      let* ty1 = syn_skel(ctx, skel1, seq);
+      n <= Skel.rightmost_tm_index(skel1)
+        ? go(skel1) : ana_go(skel2, HTyp.List(ty1));
     | BinOp(
         NotInHole,
         Plus | Minus | Times | Divide | LessThan | GreaterThan,
@@ -543,26 +439,22 @@ and syn_nth_type_mode' =
       if (n <= Skel.rightmost_tm_index(skel1)) {
         go(skel1);
       } else {
-        switch (syn_skel(ctx, skel1, seq)) {
-        | None => None
-        | Some(ty1) => ana_go(skel2, ty1)
-        };
+        let* ty1 = syn_skel(ctx, skel1, seq);
+        ana_go(skel2, ty1);
       }
     | BinOp(NotInHole, FEquals, skel1, skel2) =>
       if (n <= Skel.rightmost_tm_index(skel1)) {
         go(skel1);
       } else {
-        switch (syn_skel(ctx, skel1, seq)) {
-        | None => None
-        | Some(ty1) => ana_go(skel2, ty1)
-        };
+        let* ty1 = syn_skel(ctx, skel1, seq);
+        ana_go(skel2, ty1);
       }
     };
   go(skel);
 }
 /**
-     * Get type mode of nth operand of an opseq in analytic position
-     */
+ * Get type mode of nth operand of an opseq in analytic position
+ */
 and ana_nth_type_mode =
     (
       ctx: Contexts.t,
@@ -570,11 +462,11 @@ and ana_nth_type_mode =
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   // handle n-tuples
   switch (tuple_zip(skel, ty)) {
   | None =>
-    syn_nth_type_mode(ctx, n, opseq |> UHExp.set_err_status_opseq(NotInHole))
+    syn_nth_type_mode(ctx, n, UHExp.set_err_status_opseq(NotInHole, opseq))
   | Some(skel_tys) =>
     let (nskel, nty) =
       skel_tys
@@ -587,7 +479,7 @@ and ana_nth_type_mode =
 }
 and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
-    : option(Statics_common.type_mode) => {
+    : option(Statics.type_mode) => {
   let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
   let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
     switch (skel) {
@@ -596,7 +488,7 @@ and ana_nth_type_mode' =
       failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
     | Placeholder(n') =>
       assert(n == n');
-      Some(Statics_common.Ana(ty));
+      Some(Statics.Ana(ty));
     | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
@@ -1480,7 +1372,7 @@ let syn_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, ty, u_gen);
@@ -1497,7 +1389,7 @@ let syn_fix_holes_zlines =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes_lines did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zlines, ctx, u_gen);
@@ -1520,7 +1412,7 @@ let syn_fix_holes_zrules =
     |> OptUtil.get(() =>
          failwith(
            "syn_fix_holes_rules did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (zrules, rule_types, common_type, u_gen);
@@ -1536,7 +1428,7 @@ let ana_fix_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "ana_fix_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, u_gen);
@@ -1548,7 +1440,7 @@ let fix_and_renumber_holes =
   syn_fix_holes(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
 
 let fix_and_renumber_holes_z =
-    (ctx: Contexts.t, ze: ZExp.t): Statics_common.edit_state => {
+    (ctx: Contexts.t, ze: ZExp.t): Statics.edit_state => {
   let path = CursorPath_Exp.of_z(ze);
   let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
   let ze =
@@ -1556,7 +1448,7 @@ let fix_and_renumber_holes_z =
     |> OptUtil.get(() =>
          failwith(
            "fix_and_renumber_holes did not preserve path "
-           ++ Sexplib.Sexp.to_string(CursorPath_common.sexp_of_t(path)),
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
   (ze, ty, u_gen);

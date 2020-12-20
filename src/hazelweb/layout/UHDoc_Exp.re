@@ -23,20 +23,17 @@ let inline_padding_of_operator:
   | Or => (UHDoc_common.space_, UHDoc_common.space_)
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);
 
-let mk_EmptyHole: string => UHDoc_common.t =
-  UHDoc_common.mk_EmptyHole(~sort=Exp);
-let mk_InvalidText: string => UHDoc_common.t =
+let mk_EmptyHole: string => UHDoc.t = UHDoc_common.mk_EmptyHole(~sort=Exp);
+let mk_InvalidText: string => UHDoc.t =
   UHDoc_common.mk_InvalidText(~sort=Exp);
-let mk_IntLit: string => UHDoc_common.t = UHDoc_common.mk_IntLit(~sort=Exp);
-let mk_FloatLit: string => UHDoc_common.t =
-  UHDoc_common.mk_FloatLit(~sort=Exp);
-let mk_BoolLit: bool => UHDoc_common.t = UHDoc_common.mk_BoolLit(~sort=Exp);
-let mk_ListNil: unit => UHDoc_common.t = UHDoc_common.mk_ListNil(~sort=Exp);
-let mk_Var: string => UHDoc_common.t = UHDoc_common.mk_Var(~sort=Exp);
-let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc_common.t =
+let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
+let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
+let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
+let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
-let mk_Inj:
-  (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc_common.t =
+let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple:
   (
@@ -45,14 +42,14 @@ let mk_NTuple:
     ~enforce_inline: bool,
     OpSeq.t('a, UHExp.binop)
   ) =>
-  UHDoc_common.t =
+  UHDoc.t =
   UHDoc_common.mk_NTuple(
     ~sort=Exp,
     ~get_tuple_elements=UHExp.get_tuple_elements,
     ~inline_padding_of_operator,
   );
 
-let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
+let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
   Doc.annot(
     UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
   );
@@ -60,7 +57,7 @@ let annot_SubBlock = (~hd_index: int): (UHDoc_common.t => UHDoc_common.t) =>
 let rec mk =
   lazy(
     UHDoc_common.memoize((~memoize: bool, ~enforce_inline: bool, e: UHExp.t) =>
-      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc_common.t)
+      (Lazy.force(mk_block_0, ~memoize, ~enforce_inline, e): UHDoc.t)
     )
   )
 // Two versions of `mk_block` so we can memoize them
@@ -68,19 +65,19 @@ and mk_block_0 =
   lazy(
     UHDoc_common.memoize(
       (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
-      (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc_common.t)
+      (mk_block(~offset=0, ~memoize, ~enforce_inline, block): UHDoc.t)
     )
   )
 and mk_block_1 =
   lazy(
     UHDoc_common.memoize(
       (~memoize: bool, ~enforce_inline: bool, block: UHExp.block) =>
-      (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc_common.t)
+      (mk_block(~offset=1, ~memoize, ~enforce_inline, block): UHDoc.t)
     )
   )
 and mk_block =
     (~offset: int, ~memoize, ~enforce_inline: bool, block: UHExp.block)
-    : UHDoc_common.t =>
+    : UHDoc.t =>
   if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
     Doc.fail();
   } else {
@@ -156,7 +153,7 @@ and mk_line =
                );
           let def = mk_child(~memoize, ~enforce_inline, ~child_step=2, def);
           UHDoc_common.mk_LetLine(p, ann, def);
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )
@@ -170,7 +167,7 @@ and mk_opseq =
           ~mk_operator,
           ~enforce_inline,
           opseq,
-        ): UHDoc_common.t
+        ): UHDoc.t
       )
     )
   )
@@ -234,7 +231,7 @@ and mk_operand =
             UHDoc_common.mk_Case(scrut, rules);
           }
         | ApPalette(_) => failwith("unimplemented: mk_exp/ApPalette")
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )
@@ -258,7 +255,7 @@ and mk_rule =
           let clause =
             mk_child(~memoize, ~enforce_inline=false, ~child_step=1, clause);
           UHDoc_common.mk_Rule(p, clause);
-        }: UHDoc_common.t
+        }: UHDoc.t
       )
     )
   )

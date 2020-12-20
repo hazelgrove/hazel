@@ -1,11 +1,10 @@
 open Sexplib.Std;
-open CursorInfo;
 
 [@deriving sexp]
 type join_of_branches =
   | NoBranches
   // steps to the case
-  | InconsistentBranchTys(list(HTyp.t), CursorPath_common.steps)
+  | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
 [@deriving sexp]
@@ -57,7 +56,7 @@ type typed =
   | SynKeywordArrow(HTyp.t, ExpandingKeyword.t)
   // cursor is on a case with inconsistent branch types
   // in the function position of an ap
-  | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath_common.steps)
+  | SynInconsistentBranchesArrow(list(HTyp.t), CursorPath.steps)
   // cursor is on invalid text in the fuction position of an ap
   | SynInvalidArrow(HTyp.t)
   // cursor is on invalid text
@@ -78,7 +77,7 @@ type typed =
       )
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
-  | SynInconsistentBranches(list(HTyp.t), CursorPath_common.steps)
+  | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
@@ -117,8 +116,7 @@ type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
-  | ExpBinop(CursorPosition.t, UHExp.binop)
-  | ExpUnop(CursorPosition.t, UHExp.unop)
+  | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
   | Line(CursorPosition.t, UHExp.line)
@@ -134,99 +132,3 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
-
-
-type zoperand =
-  | ZExp(ZExp.zoperand)
-  | ZTyp(ZTyp.zoperand)
-  | ZPat(ZPat.zoperand);
-
-let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | Exp(_, exp) =>
-    switch (exp) {
-    | EmptyHole(_)
-    | Var(_, _, _)
-    | IntLit(_, _)
-    | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-    | _ => false
-    }
-  | Pat(_, pat) =>
-    switch (pat) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | IntLit(_, _)
-    | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | _ => false
-    }
-  | Typ(_, _)
-  | ExpBinop(_, _)
-  | ExpUnop(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _) => false
-  | Line(_, line) =>
-    switch (line) {
-    | EmptyLine
-    | CommentLine(_) => true
-    | LetLine(_, _, _)
-    | ExpLine(_) => false
-    }
-  | Rule(_, _) => false
-  };
-};
-
-let is_empty_hole = (cursor_term: cursor_term): bool => {
-  switch (cursor_term) {
-  | Exp(_, EmptyHole(_)) => true
-  | Exp(_, _) => false
-  | Pat(_, EmptyHole(_)) => true
-  | Pat(_, _) => false
-  | Typ(_, Hole) => true
-  | Typ(_, _) => false
-  | ExpBinop(_, _)
-  | ExpUnop(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Line(_, _)
-  | Rule(_, _) => false
-  };
-};
-
-let is_empty_line = (cursor_term): bool => {
-  switch (cursor_term) {
-  | Line(_, EmptyLine) => true
-  | Line(_, _) => false
-  | Exp(_, _)
-  | Pat(_, _)
-  | Typ(_, _)
-  | ExpBinop(_, _)
-  | ExpUnop(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Rule(_, _) => false
-  };
-};
-
-let mk = (~uses=?, typed, ctx, cursor_term) => {
-  typed,
-  ctx,
-  uses,
-  cursor_term,
-};
-
-let get_ctx = ci => ci.ctx;
-
-/*
- * there are cases we can't determine where to find the uses of a variable
- * immediately after we see its binding site.
- * in this case, we will return a deferrable('t) and go up the tree
- * until we could find uses and feed it to (uses_list => 't).
- */
-
-type deferrable('t) =
-  | CursorNotOnDeferredVarPat('t)
-  | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
