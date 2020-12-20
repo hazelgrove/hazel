@@ -1384,17 +1384,27 @@ and syn_perform_opseq =
   | (_, ZOperand(zoperand, (E, E))) =>
     syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
 
+  /* Convert binop to unop */
   | (
       Backspace,
       ZOperand(
-        zchild,
+        zoperand,
         (
           A(operator, S(prev_operand, prefix_of_prev_operand) as prefix),
           suffix,
         ),
       ),
     )
-      when ZExp.is_before_zoperand(zchild) && unop_of_binop(operator) != None =>
+      when
+        ZExp.is_before_zoperand(zoperand)
+        && unop_of_binop(operator) != None
+        && (
+          switch (prev_operand, zoperand) {
+          | (_, CursorE(_, EmptyHole(_))) => false
+          | (UHExp.EmptyHole(_), _) => true
+          | _ => false
+          }
+        ) =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
       let new_prefix =
@@ -1402,7 +1412,7 @@ and syn_perform_opseq =
         | UHExp.EmptyHole(_) => prefix_of_prev_operand
         | _ => Seq.A(Operators_Exp.Space, prefix)
         };
-      let new_zoperand = ZExp.UnaryOpZ(NotInHole, unop, zchild);
+      let new_zoperand = ZExp.UnaryOpZ(NotInHole, unop, zoperand);
       let new_zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
     | None => failwith("binop has no unop")
@@ -2953,17 +2963,27 @@ and ana_perform_opseq =
   | (_, ZOperand(zoperand, (E, E))) =>
     ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
 
+  /* Convert binop to unop */
   | (
       Backspace,
       ZOperand(
-        zchild,
+        zoperand,
         (
           A(operator, S(prev_operand, prefix_of_prev_operand) as prefix),
           suffix,
         ),
       ),
     )
-      when ZExp.is_before_zoperand(zchild) && unop_of_binop(operator) != None =>
+      when
+        ZExp.is_before_zoperand(zoperand)
+        && unop_of_binop(operator) != None
+        && (
+          switch (prev_operand, zoperand) {
+          | (_, CursorE(_, EmptyHole(_))) => false
+          | (UHExp.EmptyHole(_), _) => true
+          | _ => false
+          }
+        ) =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
       let new_prefix =
@@ -2971,8 +2991,8 @@ and ana_perform_opseq =
         | UHExp.EmptyHole(_) => prefix_of_prev_operand
         | _ => Seq.A(Operators_Exp.Space, prefix)
         };
-      let zoperand = ZExp.UnaryOpZ(NotInHole, unop, zchild);
-      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      let new_zoperand = ZExp.UnaryOpZ(NotInHole, unop, zoperand);
+      let new_zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | None => failwith("binop has no unop")
     }
