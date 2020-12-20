@@ -1,5 +1,4 @@
-let operator_of_shape =
-    (os: Action_common.operator_shape): option(UHExp.binop) =>
+let operator_of_shape = (os: Action.operator_shape): option(UHExp.binop) =>
   switch (os) {
   | SPlus => Some(Plus)
   | SMinus => Some(Minus)
@@ -17,8 +16,7 @@ let operator_of_shape =
   | SVBar => None
   };
 
-let shape_of_operator =
-    (op: UHExp.binop): option(Action_common.operator_shape) =>
+let shape_of_operator = (op: UHExp.binop): option(Action.operator_shape) =>
   switch (op) {
   | Minus => Some(SMinus)
   | Plus => Some(SPlus)
@@ -55,7 +53,7 @@ let unop_of_binop = (binop: UHExp.binop): option(UHExp.unop) =>
   | _ => None
   };
 
-let shape_is_of_unop = (os: Action_common.operator_shape): bool =>
+let shape_is_of_unop = (os: Action.operator_shape): bool =>
   switch (os) {
   | SMinus => true
   | _ => false

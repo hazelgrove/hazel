@@ -12,7 +12,7 @@ and of_zoperator =
 let rec follow = (path: CursorPath.t, uty: UHTyp.t): option(ZTyp.t) =>
   follow_opseq(path, uty)
 and follow_opseq =
-    (path: CursorPath_common.t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
+    (path: CursorPath.t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
   CursorPath_common.follow_opseq_(~follow_operand, ~follow_binop, path, opseq)
 and follow_operand =
     ((steps, cursor): CursorPath.t, operand: UHTyp.operand)
@@ -45,7 +45,7 @@ and follow_operand =
     }
   }
 and follow_binop =
-    ((steps, cursor): CursorPath_common.t, operator: UHTyp.operator)
+    ((steps, cursor): CursorPath.t, operator: UHTyp.operator)
     : option(ZTyp.zoperator) =>
   switch (steps) {
   | [] => operator |> ZTyp.place_cursor_operator(cursor)
@@ -102,8 +102,8 @@ and of_steps_operand =
     }
   }
 and of_steps_binop =
-    (steps: CursorPath_common.steps, ~side: Side.t, operator: UHTyp.operator)
-    : option(CursorPath_common.t) =>
+    (steps: CursorPath.steps, ~side: Side.t, operator: UHTyp.operator)
+    : option(CursorPath.t) =>
   switch (steps) {
   | [_, ..._] => None
   | [] =>

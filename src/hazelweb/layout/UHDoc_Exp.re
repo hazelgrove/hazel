@@ -1,7 +1,6 @@
 module Doc = Pretty.Doc;
 
-let inline_padding_of_operator:
-  UHExp.binop => (UHDoc_common.t, UHDoc_common.t) =
+let inline_padding_of_operator: UHExp.binop => (UHDoc.t, UHDoc.t) =
   fun
   | Space
   | Cons => (UHDoc_common.empty_, UHDoc_common.empty_)
@@ -37,8 +36,8 @@ let mk_Inj: (~inj_side: InjSide.t, UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_Inj(~sort=Exp);
 let mk_NTuple:
   (
-    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc_common.t,
-    ~mk_operator: UHExp.binop => UHDoc_common.t,
+    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+    ~mk_operator: UHExp.binop => UHDoc.t,
     ~enforce_inline: bool,
     OpSeq.t('a, UHExp.binop)
   ) =>
@@ -171,7 +170,7 @@ and mk_opseq =
       )
     )
   )
-and mk_operator = (op: UHExp.binop): UHDoc_common.t =>
+and mk_operator = (op: UHExp.binop): UHDoc.t =>
   op |> Operators_Exp.is_Space
     ? UHDoc_common.mk_space_op
     : UHDoc_common.mk_op(Operators_Exp.to_string(op))
