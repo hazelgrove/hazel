@@ -1147,11 +1147,51 @@ and syn_perform_opseq =
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
     syn_move(ctx, a, (ZExp.ZBlock.wrap'(zopseq), ty, u_gen))
 
+  /* Convert binop to unop */
+  | (
+      Delete,
+      ZOperator(
+        (OnOp(After), operator),
+        (
+          S(left_operand, prefix_of_left_operand) as prefix,
+          S(right_operand, suffix_of_right_operand),
+        ),
+      ),
+    )
+      when
+        unop_of_binop(operator) != None
+        && (
+          switch (left_operand, right_operand) {
+          | (_, EmptyHole(_)) => false
+          | (UHExp.EmptyHole(_), _) => true
+          | _ => false
+          }
+        ) =>
+    switch (unop_of_binop(operator)) {
+    | Some(unop) =>
+      let new_prefix =
+        switch (left_operand) {
+        | UHExp.EmptyHole(_) => prefix_of_left_operand
+        | _ => Seq.A(Operators_Exp.Space, prefix)
+        };
+      let new_zoperand =
+        ZExp.UnaryOpZ(
+          NotInHole,
+          unop,
+          ZExp.place_before_operand(right_operand),
+        );
+      let new_zseq =
+        ZSeq.ZOperand(new_zoperand, (new_prefix, suffix_of_right_operand));
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
+    | None => failwith("binop has no unop")
+    }
+
   /* Deletion */
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    syn_perform_opseq(ctx, Action_common.escape(side), (zopseq, ty, u_gen))
+    print_endline("escaped due to delete");
+    syn_perform_opseq(ctx, Action_common.escape(side), (zopseq, ty, u_gen));
 
   /* Backspace "." from Float Op to get Int Op */
   /* ( +.<| ) ==> ( + ) */
@@ -2752,6 +2792,45 @@ and ana_perform_opseq =
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
     | None => Failed
     };
+
+  /* Convert binop to unop */
+  | (
+      Delete,
+      ZOperator(
+        (OnOp(After), operator),
+        (
+          S(left_operand, prefix_of_left_operand) as prefix,
+          S(right_operand, suffix_of_right_operand),
+        ),
+      ),
+    )
+      when
+        unop_of_binop(operator) != None
+        && (
+          switch (left_operand, right_operand) {
+          | (_, EmptyHole(_)) => false
+          | (UHExp.EmptyHole(_), _) => true
+          | _ => false
+          }
+        ) =>
+    switch (unop_of_binop(operator)) {
+    | Some(unop) =>
+      let new_prefix =
+        switch (left_operand) {
+        | UHExp.EmptyHole(_) => prefix_of_left_operand
+        | _ => Seq.A(Operators_Exp.Space, prefix)
+        };
+      let new_zoperand =
+        ZExp.UnaryOpZ(
+          NotInHole,
+          unop,
+          ZExp.place_before_operand(right_operand),
+        );
+      let new_zseq =
+        ZSeq.ZOperand(new_zoperand, (new_prefix, suffix_of_right_operand));
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+    | None => failwith("binop has no unop")
+    }
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
