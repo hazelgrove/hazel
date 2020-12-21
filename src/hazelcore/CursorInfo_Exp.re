@@ -382,7 +382,6 @@ and syn_cursor_info_skel =
         zoperand,
       )
     | ZOperator(_) =>
-
       // if the operator synthesizes a hole, it must have been a free user op,
       // so we want match it to a 2 argument function.
       let syn_ty = ty =>
@@ -423,7 +422,7 @@ and syn_cursor_info_skel =
       | Some((ty1, (ty2, _))) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
         | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2) 
+        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
         }
       | _ => Some(mk(SynFree))
       };
