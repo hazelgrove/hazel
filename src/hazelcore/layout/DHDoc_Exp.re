@@ -213,6 +213,7 @@ let rec mk =
       | BinUserOp(op, d1, d2) =>
         switch (op) {
         | UserOp(sym) =>
+          // Todo (corlaban): Figure out freevar holes for exp elaboration
           // annot(DHAnnot.VarHole(Free, (2, 2)), text(sym))
           let (doc1, doc2) =
             switch (Operators_Exp.associativity(UserOp(sym))) {
