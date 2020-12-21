@@ -1403,33 +1403,12 @@ and syn_perform_opseq =
     Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
 
   /* Convert binop to unop */
-  | (
-      Backspace,
-      ZOperand(
-        zoperand,
-        (
-          A(operator, S(prev_operand, prefix_of_prev_operand) as prefix),
-          suffix,
-        ),
-      ),
-    )
+  | (Backspace, ZOperand(zoperand, (A(operator, prefix), suffix)))
       when
-        ZExp.is_before_zoperand(zoperand)
-        && unop_of_binop(operator) != None
-        && (
-          switch (prev_operand, zoperand) {
-          | (_, CursorE(_, EmptyHole(_))) => false
-          | (UHExp.EmptyHole(_), _) => true
-          | _ => false
-          }
-        ) =>
+        ZExp.is_before_zoperand(zoperand) && unop_of_binop(operator) != None =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
-      let new_prefix =
-        switch (prev_operand) {
-        | UHExp.EmptyHole(_) => prefix_of_prev_operand
-        | _ => Seq.A(Operators_Exp.Space, prefix)
-        };
+      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zoperand = ZExp.UnaryOpZ(NotInHole, unop, zoperand);
       let new_zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, suffix));
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq)));
@@ -2798,28 +2777,13 @@ and ana_perform_opseq =
       Delete,
       ZOperator(
         (OnOp(After), operator),
-        (
-          S(left_operand, prefix_of_left_operand) as prefix,
-          S(right_operand, suffix_of_right_operand),
-        ),
+        (prefix, S(right_operand, suffix_of_right_operand)),
       ),
     )
-      when
-        unop_of_binop(operator) != None
-        && (
-          switch (left_operand, right_operand) {
-          | (_, EmptyHole(_)) => false
-          | (UHExp.EmptyHole(_), _) => true
-          | _ => false
-          }
-        ) =>
+      when unop_of_binop(operator) != None =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
-      let new_prefix =
-        switch (left_operand) {
-        | UHExp.EmptyHole(_) => prefix_of_left_operand
-        | _ => Seq.A(Operators_Exp.Space, prefix)
-        };
+      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zoperand =
         ZExp.UnaryOpZ(
           NotInHole,
@@ -3034,33 +2998,12 @@ and ana_perform_opseq =
     |> wrap_in_AnaDone;
 
   /* Convert binop to unop */
-  | (
-      Backspace,
-      ZOperand(
-        zoperand,
-        (
-          A(operator, S(prev_operand, prefix_of_prev_operand) as prefix),
-          suffix,
-        ),
-      ),
-    )
+  | (Backspace, ZOperand(zoperand, (A(operator, prefix), suffix)))
       when
-        ZExp.is_before_zoperand(zoperand)
-        && unop_of_binop(operator) != None
-        && (
-          switch (prev_operand, zoperand) {
-          | (_, CursorE(_, EmptyHole(_))) => false
-          | (UHExp.EmptyHole(_), _) => true
-          | _ => false
-          }
-        ) =>
+        ZExp.is_before_zoperand(zoperand) && unop_of_binop(operator) != None =>
     switch (unop_of_binop(operator)) {
     | Some(unop) =>
-      let new_prefix =
-        switch (prev_operand) {
-        | UHExp.EmptyHole(_) => prefix_of_prev_operand
-        | _ => Seq.A(Operators_Exp.Space, prefix)
-        };
+      let new_prefix = Seq.A(Operators_Exp.Space, prefix);
       let new_zoperand = ZExp.UnaryOpZ(NotInHole, unop, zoperand);
       let new_zseq = ZSeq.ZOperand(new_zoperand, (new_prefix, suffix));
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
