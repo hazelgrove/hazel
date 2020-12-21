@@ -7,14 +7,13 @@ module MeasuredLayout = Pretty.MeasuredLayout;
 
 [@deriving sexp]
 type t = {
-  edit_state: Statics_common.edit_state,
+  edit_state: Statics.edit_state,
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
 };
 
-let mk =
-    (~width: int, ~is_focused=false, edit_state: Statics_common.edit_state): t => {
+let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,
@@ -65,11 +64,9 @@ let get_cursor_info = (program: t) => {
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   // TODO (corlaban): this is where to add decorations.
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let (err_holes, var_err_holes) = {
-    let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
-
-    hole_list
-    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+  let (err_holes, var_err_holes) =
+    CursorPath_Exp.holes(get_uhexp(program), [], [])
+    |> List.filter_map((CursorPath.{sort, steps}) =>
          switch (sort) {
          | TypHole => None
          | PatHole(_, shape)
@@ -83,11 +80,10 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
        )
     |> List.partition(
          fun
-         | (CursorPath_common.TypeErr, _) => true
+         | (CursorPath.TypeErr, _) => true
          | (_var_err, _) => false,
        )
     |> TupleUtil.map2(List.map(snd));
-  };
 
   let op_err_holes = {
     let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
@@ -149,6 +145,43 @@ let get_result = (program: t): Result.t =>
     (d_renumbered, hii, Indet(d_renumbered));
   };
 
+let get_doc = (~settings: Settings.t, program) => {
+  TimeUtil.measure_time(
+    "Program.get_doc",
+    settings.performance.measure && settings.performance.program_get_doc,
+    () => {
+    Lazy.force(
+      UHDoc_Exp.mk,
+      ~memoize=settings.memoize_doc,
+      ~enforce_inline=false,
+      get_uhexp(program),
+    )
+  });
+};
+
+let get_layout = (~settings: Settings.t, program) => {
+  let doc = get_doc(~settings, program);
+  TimeUtil.measure_time(
+    "LayoutOfDoc.layout_of_doc",
+    settings.performance.measure
+    && settings.performance.layoutOfDoc_layout_of_doc,
+    () =>
+    Pretty.LayoutOfDoc.layout_of_doc(~width=program.width, ~pos=0, doc)
+  )
+  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
+};
+
+let get_measured_layout = (~settings: Settings.t, program): UHMeasuredLayout.t => {
+  program |> get_layout(~settings) |> UHMeasuredLayout.mk;
+};
+
+let get_caret_position = (~settings: Settings.t, program): MeasuredPosition.t => {
+  let m = get_measured_layout(~settings, program);
+  let path = get_path(program);
+  UHMeasuredLayout.caret_position_of_path(path, m)
+  |> OptUtil.get(() => failwith("could not find caret"));
+};
+
 exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
@@ -178,96 +211,20 @@ let move_to_hole = (u, program) => {
     let e = ZExp.erase(ze);
     switch (CursorPath_Exp.of_steps(hole_steps, e)) {
     | None => raise(HoleNotFound)
-    | Some(hole_path) => Action_common.MoveTo(hole_path)
+    | Some(hole_path) => Action.MoveTo(hole_path)
     };
   };
 };
 
-let move_to_case_branch = (steps_to_case, branch_index): Action_common.t => {
+let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
-  Action_common.MoveTo((steps_to_branch, OnDelim(1, After)));
-};
-
-let get_doc = (~measure_program_get_doc: bool, ~memoize_doc: bool, program) => {
-  TimeUtil.measure_time("Program.get_doc", measure_program_get_doc, () => {
-    Lazy.force(
-      UHDoc_Exp.mk,
-      ~memoize=memoize_doc,
-      ~enforce_inline=false,
-      get_uhexp(program),
-    )
-  });
-};
-
-let get_layout =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    ) => {
-  let width = program.width;
-  let doc = get_doc(~measure_program_get_doc, ~memoize_doc, program);
-  TimeUtil.measure_time(
-    "LayoutOfDoc.layout_of_doc", measure_layoutOfDoc_layout_of_doc, () =>
-    Pretty.LayoutOfDoc.layout_of_doc(~width, ~pos=0, doc)
-  )
-  |> OptUtil.get(() => failwith("unimplemented: layout failure"));
-};
-
-let get_measured_layout =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    )
-    : UHMeasuredLayout.t => {
-  program
-  |> get_layout(
-       ~measure_program_get_doc,
-       ~measure_layoutOfDoc_layout_of_doc,
-       ~memoize_doc,
-     )
-  |> UHMeasuredLayout.mk;
-};
-
-let get_caret_position =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      program,
-    )
-    : MeasuredPosition.t => {
-  let m =
-    get_measured_layout(
-      ~measure_program_get_doc,
-      ~measure_layoutOfDoc_layout_of_doc,
-      ~memoize_doc,
-      program,
-    );
-  let path = get_path(program);
-  UHMeasuredLayout.caret_position_of_path(path, m)
-  |> OptUtil.get(() => failwith("could not find caret"));
+  Action.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 
 let move_via_click =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      target: MeasuredPosition.t,
-      program,
-    )
-    : (t, Action_common.t) => {
-  let m =
-    get_measured_layout(
-      ~measure_program_get_doc,
-      ~measure_layoutOfDoc_layout_of_doc,
-      ~memoize_doc,
-      program,
-    );
+    (~settings: Settings.t, target: MeasuredPosition.t, program)
+    : (t, Action.t) => {
+  let m = get_measured_layout(~settings, program);
   let path =
     UHMeasuredLayout.nearest_path_within_row(target, m)
     |> OptUtil.get(() => failwith("row with no caret positions"))
@@ -279,28 +236,9 @@ let move_via_click =
 };
 
 let move_via_key =
-    (
-      ~measure_program_get_doc: bool,
-      ~measure_layoutOfDoc_layout_of_doc: bool,
-      ~memoize_doc: bool,
-      move_key: MoveKey.t,
-      program,
-    )
-    : (t, Action_common.t) => {
-  let caret_position =
-    get_caret_position(
-      ~measure_program_get_doc,
-      ~measure_layoutOfDoc_layout_of_doc,
-      ~memoize_doc,
-      program,
-    );
-  let m =
-    get_measured_layout(
-      ~measure_program_get_doc,
-      ~measure_layoutOfDoc_layout_of_doc,
-      ~memoize_doc,
-      program,
-    );
+    (~settings: Settings.t, move_key: MoveKey.t, program): (t, Action.t) => {
+  let caret_position = get_caret_position(~settings, program);
+  let m = get_measured_layout(~settings, program);
   let (from_col, put_col_on_start) =
     switch (program.start_col_of_vertical_movement) {
     | None =>

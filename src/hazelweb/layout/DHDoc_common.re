@@ -1,7 +1,5 @@
-open Pretty;
-
-[@deriving sexp]
-type t = Doc.t(DHAnnot.t);
+module Doc = Pretty.Doc;
+open DHDoc;
 
 type formattable_child = (~enforce_inline: bool) => t;
 
@@ -59,7 +57,7 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
-  let sym_Lam = mk(UnicodeConstants.lamSym);
+  let sym_Lam = mk(Unicode.lamSym);
   let colon_Lam = mk(":");
   let open_Lam = mk(".{");
   let close_Lam = mk("}");
@@ -80,12 +78,12 @@ module Delim = {
   let arrow_Rule = mk("=>");
 
   let open_Cast = mk("<");
-  let arrow_Cast = mk(UnicodeConstants.castArrowSym);
+  let arrow_Cast = mk(Unicode.castArrowSym);
   let close_Cast = mk(">");
 
   let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
   let arrow_FailedCast =
-    mk(UnicodeConstants.castArrowSym) |> Doc.annot(DHAnnot.FailedCastDelim);
+    mk(Unicode.castArrowSym) |> Doc.annot(DHAnnot.FailedCastDelim);
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
