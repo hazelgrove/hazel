@@ -99,7 +99,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     },
   );
 
-let mk_bin_user_op = (op: DHExp.BinUserOp.t): DHDoc_common.t =>
+let mk_bin_user_op = (op: DHExp.BinUserOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | UserOp(op) => op

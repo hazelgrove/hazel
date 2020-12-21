@@ -89,7 +89,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     let hole_list = CursorPath_Exp.holes(get_uhexp(program), [], []);
 
     hole_list
-    |> List.filter_map((CursorPath_common.{sort, steps}) =>
+    |> List.filter_map((CursorPath.{sort, steps}) =>
          switch (sort) {
          | TypHole => None
          | PatHole(_, _) => None

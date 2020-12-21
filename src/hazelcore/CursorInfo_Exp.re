@@ -387,7 +387,7 @@ and syn_cursor_info_skel =
       let syn_ty = ty =>
         switch (ty) {
         | HTyp.Hole =>
-          CursorInfo_common.SynFreeArrow(Arrow(Hole, Arrow(Hole, Hole)))
+          CursorInfo.SynFreeArrow(Arrow(Hole, Arrow(Hole, Hole)))
         | ty => Synthesized(ty)
         };
 
