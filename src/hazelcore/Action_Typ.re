@@ -163,10 +163,14 @@ and perform_opseq =
     perform_opseq(MoveRight, zopseq)
 
   | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
+    print_endline("ACTION_TYP perform: construct SOp");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(Action_common.sexp_of_operator_shape(os)),
+    );
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(op) => Succeeded(construct_operator(op, zoperand, surround))
-    }
+    };
 
   /* SwapLeft and SwapRight is handled at block level */
 
