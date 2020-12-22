@@ -535,8 +535,8 @@ and syn_cursor_info_zoperand =
       | Some(ty) => ty
       | _ => HTyp.Hole
       };
+    // NOTE(andrew): this was previously just syn_cursor_info
     ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
-  //syn_cursor_info(~steps=steps @ [0], ctx, zscrut)
   | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => None

@@ -526,7 +526,7 @@ and syn_perform_opseq =
     Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
 
   | (
-      Construct(SOp(SArrow | SVBar)),
+      Construct(SOp(_op)),
       ZOperand(TypeAnnZA(err, operand, zann), (prefix, suffix)),
     )
       when ZTyp.is_after(zann) =>
