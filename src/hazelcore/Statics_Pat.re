@@ -70,7 +70,7 @@ and syn_operand =
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
-      x, // TODO(andrew): this was the PTyp.Unspecified case (replaced with HTyp.Hole)
+      x,
       Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
     )
   | IntLit(NotInHole, _) => Some((Int, ctx))
