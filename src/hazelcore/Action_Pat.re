@@ -507,6 +507,41 @@ and syn_perform_opseq =
     | Some(zp) => syn_perform(ctx, u_gen, a, zp)
     };
 
+  | (
+      Construct(SOp(SComma)),
+      ZOperand(TypeAnnZA(err, operand, zann), (prefix, suffix)),
+    )
+      when ZTyp.is_after(zann) =>
+    /* This case ensures commas entered at the end of an annotation
+       are treated as delimiter for pattern tuples rather than type
+       tuples; insert parentheses to enter a product type. */
+    let new_prefix =
+      Seq.S(UHPat.TypeAnn(err, operand, ZTyp.erase(zann)), prefix);
+    let new_suffix = Seq.S(UHPat.EmptyHole(u_gen), suffix);
+    let new_zseq =
+      ZSeq.ZOperator(
+        (CursorPosition.OnOp(After), Operators_Pat.Comma),
+        (new_prefix, new_suffix),
+      );
+    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
+  | (
+      Construct(SOp(SArrow | SVBar)),
+      ZOperand(TypeAnnZA(err, operand, zann), (prefix, suffix)),
+    )
+      when ZTyp.is_after(zann) =>
+    /* Render unto Typ.perform those ops which are Typish */
+    switch (Action_Typ.perform(a, zann)) {
+    | Succeeded(new_zann) =>
+      let new_zseq =
+        ZSeq.ZOperand(
+          ZPat.TypeAnnZA(err, operand, new_zann),
+          (prefix, suffix),
+        );
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+    | _ => Failed
+    }
+
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZPat.is_before_zoperand(zoperand) || ZPat.is_after_zoperand(zoperand) =>
@@ -971,23 +1006,7 @@ and ana_perform_opseq =
     | None => Failed
     | Some(zp) => ana_perform(ctx, u_gen, a, zp, ty)
     };
-  | (
-      Construct(SOp(SComma)),
-      ZOperand(TypeAnnZA(err, op, zann), (prefix, suffix)),
-    )
-      when ZTyp.is_after(zann) =>
-    /* This case ensures commas entered at the end of an annotation
-        are treated as delimiter for pattern tuples rather than type
-       tuples; insert parentheses to enter a product type. */
-    let new_prefix =
-      Seq.S(UHPat.TypeAnn(err, op, ZTyp.erase(zann)), prefix);
-    let new_suffix = Seq.S(UHPat.EmptyHole(u_gen), suffix);
-    let new_zseq =
-      ZSeq.ZOperator(
-        (CursorPosition.OnOp(After), Operators_Pat.Comma),
-        (new_prefix, new_suffix),
-      );
-    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
   | (Construct(SOp(SComma)), _)
       when
         ZPat.is_after_zopseq(zopseq)
