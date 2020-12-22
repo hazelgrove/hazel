@@ -1159,21 +1159,27 @@ and ana_elab_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
-      switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
-      | None => DoesNotElaborate
-      | Some(ty1_join) =>
-        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_join)) {
+      let ty1_ann =
+        switch (Statics_Pat.syn(ctx, p)) {
+        | None => ty1_given
+        | Some((ty_p, _)) => PTyp.pTyp_to_hTyp(ty_p)
+        };
+        //TODO(andrew): is this check necessary?
+      switch (HTyp.consistent(ty1_ann, ty1_given)) {
+      | false => DoesNotElaborate
+      | true =>
+        switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(dp, ty1_p, ctx, delta) =>
+        | Elaborates(dp, ty1p, ctx, delta) =>
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1_p, ty2);
-            let d = DHExp.Lam(dp, ty1_p, d1);
+            let ty = HTyp.Arrow(ty1p, ty2);
+            let d = DHExp.Lam(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }
-      }
+      };
     }
   | Inj(NotInHole, side, body) =>
     switch (HTyp.matched_sum(ty)) {

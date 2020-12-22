@@ -282,20 +282,19 @@ and syn_cursor_info_line =
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZP(zp, def) =>
-    let ty_p = Statics_Pat.syn_p(ctx, ZPat.erase_zopseq(zp));
     switch (
       CursorInfo_Pat.syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zp)
     ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
     | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
-      switch (HTyp.matched_arrow(ty_p)) {
+      switch (Statics_Exp.recursive_let_id(ctx, ZPat.erase(zp), def)) {
       | None => deferrable
       | Some(_) =>
         let rec_uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, def);
         Some(CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x));
       }
-    };
+    }
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);

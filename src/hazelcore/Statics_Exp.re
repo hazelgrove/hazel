@@ -8,8 +8,12 @@ let recursive_let_id =
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
       [ExpLine(OpSeq(_, S(Lam(_), E)))],
     ) =>
-    let ty_p = Statics_Pat.syn_p(ctx, p);
-    Option.map(_ => x, HTyp.matched_arrow(ty_p));
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => None
+    | Some((ty, _)) =>
+      let ty_p = PTyp.pTyp_to_hTyp(ty);
+      Option.map(_ => x, HTyp.matched_arrow(ty_p));
+    }
   | _ => None
   };
 };
@@ -19,8 +23,12 @@ let extend_let_def_ctx =
   switch (recursive_let_id(ctx, p, def)) {
   | None => ctx
   | Some(id) =>
-    let ty_p = Statics_Pat.syn_p(ctx, p);
-    Contexts.extend_gamma(ctx, (id, ty_p));
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => ctx
+    | Some((ty, _)) =>
+      let ty_p = PTyp.pTyp_to_hTyp(ty);
+      Contexts.extend_gamma(ctx, (id, ty_p));
+    }
   };
 };
 
@@ -66,16 +74,8 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | CommentLine(_) => Some(ctx)
   | LetLine(p, def) =>
     switch (syn(ctx, def)) {
-    | None => failwith("syn_line: impossible case (1)")
-    | Some(ty_def) =>
-      switch (Statics_Pat.syn(ctx, p)) {
-      | None => failwith("syn_line: impossible case (2)")
-      | Some((ty_p, _)) =>
-        switch (PTyp.join(ty_def, ty_p)) {
-        | None => None
-        | Some(ty_join) => Statics_Pat.ana(ctx, p, ty_join)
-        }
-      }
+    | None => None
+    | Some(ty_def) => Statics_Pat.ana(ctx, p, ty_def)
     }
   }
 and syn_opseq =
@@ -198,15 +198,15 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
   | Lam(NotInHole, p, body) =>
-    let (ty1, ctx) =
-      switch (Statics_Pat.syn(ctx, p)) {
-      | Some((ty, ctx)) => (PTyp.pTyp_to_hTyp(ty), ctx)
-      | None => (HTyp.Hole, ctx)
-      };
-    switch (syn(ctx, body)) {
+    switch (Statics_Pat.syn(ctx, p)) {
     | None => None
-    | Some(ty2) => Some(HTyp.Arrow(ty1, ty2))
-    };
+    | Some((ty_p, body_ctx)) =>
+      let ty_p = PTyp.pTyp_to_hTyp(ty_p);
+      switch (syn(body_ctx, body)) {
+      | None => None
+      | Some(ty_body) => Some(HTyp.Arrow(ty_p, ty_body))
+      };
+    }
   | Inj(NotInHole, side, body) =>
     switch (syn(ctx, body)) {
     | None => None
@@ -408,14 +408,10 @@ and ana_operand =
   | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
-    | Some((ty1_given, ty2)) =>
-      switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
+    | Some((ty_p_given, ty_body)) =>
+      switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
       | None => None
-      | Some(ty1_join) =>
-        switch (Statics_Pat.ana(ctx, p, ty1_join)) {
-        | None => None
-        | Some(ctx) => ana(ctx, body, ty2)
-        }
+      | Some(ctx_body) => ana(ctx_body, body, ty_body)
       }
     }
   | Inj(NotInHole, side, body) =>
@@ -927,16 +923,11 @@ and syn_fix_holes_operand =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
   | Lam(_, p, body) =>
-    let ty1 =
-      switch (Statics_Pat.syn(ctx, p)) {
-      | Some((ty, _)) => PTyp.pTyp_to_hTyp(ty)
-      | None => HTyp.Hole
-      };
-    let (p, ctx, u_gen) =
-      Statics_Pat.ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, p, ty1);
-    let (body, ty2, u_gen) =
-      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
-    (Lam(NotInHole, p, body), Arrow(ty1, ty2), u_gen);
+    let (p, ty_p, ctx_body, u_gen) =
+      Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
+    let (body, ty_body, u_gen) =
+      syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
+    (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
   | Inj(_, side, body) =>
     let (body, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1373,28 +1364,17 @@ and ana_fix_holes_operand =
   | Lam(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>
-      switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
-      | Some(ty1_join) =>
-        let (p, ctx, u_gen) =
-          Statics_Pat.ana_fix_holes(
-            ctx,
-            u_gen,
-            ~renumber_empty_holes,
-            p,
-            ty1_join,
-          );
-        let (def, u_gen) =
-          ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-        (UHExp.Lam(NotInHole, p, def), u_gen);
-      | None =>
-        let (e', _, u_gen) =
-          syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+      let (p, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes(
+          ctx,
           u_gen,
+          ~renumber_empty_holes,
+          p,
+          ty1_given,
         );
-      }
+      let (def, u_gen) =
+        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
+      (UHExp.Lam(NotInHole, p, def), u_gen);
     | None =>
       let (e', _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -1457,22 +1437,14 @@ and ana_fix_holes_operand =
   }
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+  /* precondition: (p)attern and (def)inition have consistent types */
   let def_ctx = extend_let_def_ctx(ctx, p, def);
   switch (syn(def_ctx, def)) {
   | None => failwith("letline_ctx: impossible case (1)")
   | Some(ty_def) =>
-    switch (Statics_Pat.syn(ctx, p)) {
+    switch (Statics_Pat.ana(ctx, p, ty_def)) {
     | None => failwith("letline_ctx: impossible case (2)")
-    | Some((p_ty_p, _)) =>
-      let ty_join =
-        switch (PTyp.join(ty_def, p_ty_p)) {
-        | None => PTyp.pTyp_to_hTyp(p_ty_p)
-        | Some(ty) => ty
-        };
-      switch (Statics_Pat.ana(ctx, p, ty_join)) {
-      | None => failwith("letline_ctx: impossible case (3)")
-      | Some(body_ctx) => body_ctx
-      };
+    | Some(ctx) => ctx
     }
   };
 };
