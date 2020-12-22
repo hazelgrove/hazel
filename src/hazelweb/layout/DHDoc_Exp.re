@@ -1,4 +1,5 @@
-open Pretty;
+module Doc = Pretty.Doc;
+
 let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
   switch (op) {
   | And => DHDoc_common.precedence_And
@@ -58,7 +59,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   };
 };
 
-let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc_common.t =>
+let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | And => "&&"
@@ -66,7 +67,7 @@ let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc_common.t =>
     },
   );
 
-let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc_common.t =>
+let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | Minus => "-"
@@ -79,7 +80,7 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc_common.t =>
     },
   );
 
-let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc_common.t =>
+let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | FMinus => "-."
@@ -94,19 +95,17 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc_common.t =>
 
 let rec mk =
         (
-          ~show_casts: bool,
-          ~show_fn_bodies: bool,
-          ~show_case_clauses: bool,
+          ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
           d: DHExp.t,
         )
-        : DHDoc_common.t => {
-  let precedence = precedence(~show_casts);
-  let mk_cast = ((doc: DHDoc_common.t, ty: option(HTyp.t))): DHDoc_common.t =>
+        : DHDoc.t => {
+  let precedence = precedence(~show_casts=settings.show_casts);
+  let mk_cast = ((doc: DHDoc.t, ty: option(HTyp.t))): DHDoc.t =>
     switch (ty) {
-    | Some(ty) when show_casts =>
+    | Some(ty) when settings.show_casts =>
       Doc.(
         hcat(
           doc,
@@ -120,7 +119,7 @@ let rec mk =
     };
   let rec go =
           (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc_common.t, option(HTyp.t)) => {
+          : (DHDoc.t, option(HTyp.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, drs) =>
@@ -138,15 +137,7 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs
-            |> List.map(
-                 mk_rule(
-                   ~show_fn_bodies,
-                   ~show_case_clauses,
-                   ~show_casts,
-                   ~selected_instance,
-                 ),
-               ),
+            drs |> List.map(mk_rule(~settings, ~selected_instance)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -289,7 +280,7 @@ let rec mk =
        };
        */
       | Lam(dp, ty, dbody) =>
-        if (show_fn_bodies) {
+        if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
           hcats([
@@ -305,7 +296,7 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       | FixF(x, ty, dbody) =>
-        if (show_fn_bodies) {
+        if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
             go(~enforce_inline, dbody) |> mk_cast;
           hcats([
@@ -335,21 +326,12 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (
-      ~show_casts,
-      ~show_fn_bodies,
-      ~show_case_clauses,
-      ~selected_instance,
-      Rule(dp, dclause): DHExp.rule,
-    )
-    : DHDoc_common.t => {
+    (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
   open Doc;
-  let mk' =
-    mk(~show_casts, ~show_fn_bodies, ~show_case_clauses, ~selected_instance);
-  let hidden_clause =
-    annot(DHAnnot.Collapsed, text(UnicodeConstants.ellipsis));
+  let mk' = mk(~settings, ~selected_instance);
+  let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
-    show_case_clauses
+    settings.show_case_clauses
       ? choices([
           hcats([space(), mk'(~enforce_inline=true, dclause)]),
           hcats([

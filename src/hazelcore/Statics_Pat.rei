@@ -4,12 +4,12 @@ let tuple_zip: (UHPat.skel, HTyp.t) => option(list((UHPat.skel, HTyp.t)));
  * Get type mode of nth operand of an opseq in synthetic position
  */
 let syn_nth_type_mode:
-  (Contexts.t, int, UHPat.opseq) => option(Statics_common.type_mode);
+  (Contexts.t, int, UHPat.opseq) => option(Statics.type_mode);
 /**
  * Get type mode of nth operand of an opseq in analytic position
  */
 let ana_nth_type_mode:
-  (Contexts.t, int, UHPat.opseq, HTyp.t) => option(Statics_common.type_mode);
+  (Contexts.t, int, UHPat.opseq, HTyp.t) => option(Statics.type_mode);
 
 /**
  * Under context `ctx`, `syn(ctx, p)` synthesizes a type for `p` and

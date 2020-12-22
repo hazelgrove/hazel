@@ -1,39 +1,8 @@
-/**
- * Flags for enabling/disabling live results
- * and configuring the result view
- */
-type compute_results = {
-  compute_results: bool,
-  show_case_clauses: bool,
-  show_fn_bodies: bool,
-  show_casts: bool,
-  show_unevaluated_expansion: bool,
-};
-
-/**
- * Flags for benchmarking various portions of
- * the render cycle
- */
-type measurements = {
-  measurements: bool,
-  model_perform_edit_action: bool,
-  program_get_doc: bool,
-  layoutOfDoc_layout_of_doc: bool,
-  uhcode_view: bool,
-  cell_view: bool,
-  page_view: bool,
-  hazel_create: bool,
-  update_apply_action: bool,
-};
-
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
   undo_history: UndoHistory.t,
-  compute_results,
-  measurements,
-  memoize_doc: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   font_metrics: FontMetrics.t,
@@ -46,6 +15,7 @@ type t = {
    * to realize preview when scrolling.
    */
   mouse_position: ref(MousePosition.t),
+  settings: Settings.t,
 };
 
 let cardstack_info: list(CardstackInfo.t);
@@ -58,12 +28,12 @@ let init: unit => t;
 
 let get_program: t => Program.t;
 
-let get_edit_state: t => Statics_common.edit_state;
+let get_edit_state: t => Statics.edit_state;
 
 let get_card: t => ZCard.t;
 let get_cardstack: t => Cardstack.t;
 
-let get_cursor_info: t => CursorInfo_common.t;
+let get_cursor_info: t => CursorInfo.t;
 
 let get_undo_history: t => UndoHistory.t;
 let put_undo_history: (UndoHistory.t, t) => t;
@@ -82,7 +52,7 @@ let get_selected_hole_instance: t => option(HoleInstance.t);
 let prev_card: t => t;
 let next_card: t => t;
 
-let perform_edit_action: (Action_common.t, t) => t;
+let perform_edit_action: (Action.t, t) => t;
 
 let move_via_key: (MoveKey.t, t) => t;
 let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
@@ -90,7 +60,7 @@ let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
 /**
  * See `Program.move_to_case_branch`
  */
-let select_case_branch: (CursorPath_common.steps, int, t) => t;
+let select_case_branch: (CursorPath.steps, int, t) => t;
 
 /**
  * Show/hide sidebars
