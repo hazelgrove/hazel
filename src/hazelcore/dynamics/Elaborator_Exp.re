@@ -887,19 +887,13 @@ and syn_elab_rule =
     )
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
-  // andrew ------
-  switch (Statics_Pat.syn_and_join(ctx, p, pat_ty)) {
-  | None => None
-  | Some(ty_join) =>
-    // --------
-    switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty_join /*pat_ty*/)) {
+  switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
+  | DoesNotElaborate => None
+  | Elaborates(dp, _, ctx, delta) =>
+    switch (syn_elab(ctx, delta, clause)) {
     | DoesNotElaborate => None
-    | Elaborates(dp, _, ctx, delta) =>
-      switch (syn_elab(ctx, delta, clause)) {
-      | DoesNotElaborate => None
-      | Elaborates(d1, ty1, delta) =>
-        Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
-      }
+    | Elaborates(d1, ty1, delta) =>
+      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
     }
   };
 }
@@ -1260,19 +1254,13 @@ and ana_elab_rule =
     )
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
-  // andrew ------
-  switch (Statics_Pat.syn_and_join(ctx, p, pat_ty)) {
-  | None => None
-  | Some(ty_join) =>
-    // --------
-    switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty_join /*pat_ty*/)) {
+  switch (Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty)) {
+  | DoesNotElaborate => None
+  | Elaborates(dp, _, ctx, delta) =>
+    switch (ana_elab(ctx, delta, clause, clause_ty)) {
     | DoesNotElaborate => None
-    | Elaborates(dp, _, ctx, delta) =>
-      switch (ana_elab(ctx, delta, clause, clause_ty)) {
-      | DoesNotElaborate => None
-      | Elaborates(d1, ty1, delta) =>
-        Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
-      }
+    | Elaborates(d1, ty1, delta) =>
+      Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
     }
   };
 };

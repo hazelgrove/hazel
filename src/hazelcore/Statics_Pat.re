@@ -756,18 +756,3 @@ let ana_fix_holes_z =
        );
   (zp, ctx, u_gen);
 };
-
-let syn_and_join = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(HTyp.t) =>
-  switch (syn(ctx, p)) {
-  | None => Some(ty)
-  | Some((ty_p, _)) => HTyp.join(LUB, ty, ty_p)
-  };
-
-/*
- * A wrapper for syn, under the understanding that p has a type.
- */
-let syn_p = (ctx: Contexts.t, p: UHPat.t): HTyp.t =>
-  switch (syn(ctx, p)) {
-  | None => failwith("syn_p: impossible case")
-  | Some((ty, _)) => ty
-  };
