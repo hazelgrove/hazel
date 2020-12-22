@@ -1034,18 +1034,21 @@ and syn_perform_line =
     }
 
   | (_, LetLineZE(p, zdef)) =>
-    let ty_p = Statics_Pat.syn_p(ctx, p);
-    let def = ZExp.erase(zdef);
-    let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-    switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
-    | Failed => Failed
-    | CursorEscaped(side) => escape(u_gen, side)
-    | Succeeded((new_zdef, u_gen)) =>
-      let new_zline = ZExp.LetLineZE(p, new_zdef);
-      let new_def = ZExp.erase(new_zdef);
-      let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-      Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
-    };
+    switch (Statics_Pat.syn(ctx, p)) {
+    | None => Failed
+    | Some((ty_p, _)) =>
+      let def = ZExp.erase(zdef);
+      let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+      switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
+      | Failed => Failed
+      | CursorEscaped(side) => escape(u_gen, side)
+      | Succeeded((new_zdef, u_gen)) =>
+        let new_zline = ZExp.LetLineZE(p, new_zdef);
+        let new_def = ZExp.erase(new_zdef);
+        let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
+        Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
+      };
+    }
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
