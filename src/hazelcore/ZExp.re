@@ -337,7 +337,7 @@ and place_after_line =
   | CommentLine(comment) as line =>
     CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(_) as line => CursorL(OnDelim(3, After), line)
+  | LetLine(_) as line => CursorL(OnDelim(2, After), line)
   | ExpLine(e) => ExpLineZ(place_after_opseq(e))
 and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)

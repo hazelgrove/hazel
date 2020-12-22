@@ -3100,12 +3100,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
-      let ty1 =
-        switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-        | Some((ty_p, _)) => PTyp.pTyp_to_hTyp(ty_p)
-        | None => ty1_given
-        };
-      switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
+      switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1_given)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_operand(
@@ -3118,7 +3113,7 @@ and ana_perform_operand =
         let (body, u_gen) = Statics_Exp.ana_fix_holes(ctx, u_gen, body, ty2);
         let new_ze = ZExp.ZBlock.wrap(LamZP(NotInHole, zp, body));
         Succeeded(AnaDone((new_ze, u_gen)));
-      };
+      }
     }
   | (_, LamZE(_, p, zbody)) =>
     switch (HTyp.matched_arrow(ty)) {
