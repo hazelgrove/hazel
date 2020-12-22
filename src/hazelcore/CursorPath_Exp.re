@@ -181,15 +181,16 @@ and follow_operand =
       | 0 =>
         t1
         |> follow((xs, cursor))
-        |> Option.map(t1 => ZExp.IfZ1(err, t1, t2, t3))
+        |> Option.map(zt1 => ZExp.IfZ1(err, zt1, t2, t3))
       | 1 =>
         t2
         |> follow((xs, cursor))
-        |> Option.map(t2 => ZExp.IfZ2(err, t1, t2, t3))
-      | _ =>
+        |> Option.map(zt2 => ZExp.IfZ2(err, t1, zt2, t3))
+      | 2 =>
         t3
         |> follow((xs, cursor))
-        |> Option.map(t3 => ZExp.IfZ3(err, t1, t2, t3))
+        |> Option.map(zt3 => ZExp.IfZ3(err, t1, t2, zt3))
+      | _ => None
       }
     | ApPalette(err, name, serialized_model, splice_info) =>
       switch (
@@ -382,11 +383,12 @@ and of_steps_operand =
           z |> of_steps_rule(xs, ~side) |> Option.map(path => cons'(x, path));
         }
       }
-    | If(err, t1, t2, t3) =>
+    | If(_, t1, t2, t3) =>
       switch (x) {
       | 0 => t1 |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
       | 1 => t2 |> of_steps(~side, xs) |> Option.map(path => cons'(1, path))
-      | _ => t3 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
+      | 2 => t3 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
+      | _ => None
       }
     | ApPalette(_, _, _, splice_info) =>
       let splice_map = splice_info.splice_map;
@@ -833,9 +835,9 @@ and holes_zoperand =
       | InconsistentBranches(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
-    let holes_t1 = holes(t1, [1, ...rev_steps], []);
-    let holes_t2 = holes(t2, [2, ...rev_steps], []);
-    let holes_t3 = holes(t3, [3, ...rev_steps], []);
+    let holes_t1 = holes(t1, [0, ...rev_steps], []);
+    let holes_t2 = holes(t2, [1, ...rev_steps], []);
+    let holes_t3 = holes(t3, [2, ...rev_steps], []);
     switch (k) {
     | 0 =>
       CursorPath_common.mk_zholes(
@@ -859,7 +861,7 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
+  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | If(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | CursorE(_, ApPalette(_)) => CursorPath_common.no_holes /* TODO[livelits] */
@@ -1002,6 +1004,63 @@ and holes_zoperand =
       hole_selected,
       holes_after: holes_after @ holes_suffix,
     };
+  | IfZ1(err, zt1, t2, t3) =>
+    let holes_err: list(CursorPath_common.hole_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+        ]
+      };
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(zt1, [0, ...rev_steps]);
+    let holes_t2 = holes(t2, [1, ...rev_steps], []);
+    let holes_t3 = holes(t3, [2, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_t2 @ holes_t3,
+      (),
+    );
+  | IfZ2(err, t1, zt2, t3) => 
+    let holes_err: list(CursorPath_common.hole_info) =
+        switch (err) {
+        | StandardErrStatus(NotInHole) => []
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) => [
+            {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ]
+        };
+      let CursorPath_common.{holes_before, hole_selected, holes_after} =
+        holes_z(zt2, [1, ...rev_steps]);
+      let holes_t1 = holes(t1, [0, ...rev_steps], []);
+      let holes_t3 = holes(t3, [2, ...rev_steps], []);
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_err @ holes_t1 @ holes_before,
+        ~hole_selected,
+        ~holes_after=holes_after @ holes_t3,
+        (),
+      );
+  | IfZ3(err, t1, t2, zt3) => 
+    let holes_err: list(CursorPath_common.hole_info) =
+        switch (err) {
+        | StandardErrStatus(NotInHole) => []
+        | StandardErrStatus(InHole(_, u))
+        | InconsistentBranches(_, u) => [
+            {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+          ]
+        };
+      let CursorPath_common.{holes_before, hole_selected, holes_after} =
+        holes_z(zt3, [2, ...rev_steps]);
+      let holes_t1 = holes(t1, [0, ...rev_steps], []);
+      let holes_t2 = holes(t2, [1, ...rev_steps], []);
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_err @ holes_t1 @ holes_t2 @holes_before,
+        ~hole_selected,
+        ~holes_after,
+        (),
+      );
   | ApPaletteZ(_, _, _, zpsi) =>
     let zsplice_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zsplice_map);
