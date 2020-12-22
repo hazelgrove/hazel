@@ -145,7 +145,7 @@ type t =
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t) // TODO (andrew): Should we retain the type here?
+  | Lam(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | BoolLit(bool)
   | IntLit(int)

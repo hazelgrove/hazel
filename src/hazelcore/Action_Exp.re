@@ -913,7 +913,6 @@ and syn_perform_line =
     syn_perform_line(ctx, Backspace, (new_zline, u_gen));
 
   | (Backspace, CursorL(OnDelim(k, After), LetLine(p, def))) =>
-    /* andrew: this might need cleanup? */
     if (k == 1) {
       /* let x :<| Int = 2   ==>   let x| = 2 */
       let zp = p |> ZPat.place_after;
