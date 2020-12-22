@@ -57,7 +57,15 @@ let ana_fix_holes_opseq:
     HTyp.t
   ) =>
   (UHPat.opseq, Contexts.t, MetaVarGen.t);
-
+let ana_fix_holes_operand:
+  (
+    Contexts.t,
+    MetaVarGen.t,
+    ~renumber_empty_holes: bool=?,
+    UHPat.operand,
+    HTyp.t
+  ) =>
+  (UHPat.operand, Contexts.t, MetaVarGen.t);
 let syn_fix_holes_z:
   (Contexts.t, MetaVarGen.t, ZPat.t) =>
   (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);

@@ -463,6 +463,20 @@ and syn_perform_opseq =
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
     Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
 
+  | (
+      Backspace,
+      ZOperand(
+        TypeAnnZP(err, CursorP(_, EmptyHole(_)), ann) as zpann,
+        (A(Space, prefix_tl), suffix),
+      ),
+    )
+      when ZPat.is_before_zoperand(zpann) =>
+    let S(operand, new_prefix) = prefix_tl;
+    let zoperand =
+      ZPat.TypeAnnZP(err, operand |> ZPat.place_after_operand, ann);
+    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+    Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
   /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
   | (
       Delete,
@@ -911,6 +925,20 @@ and ana_perform_opseq =
       when ZPat.is_before_zoperand(zhole) =>
     let S(operand, new_prefix) = prefix_tl;
     let zoperand = operand |> ZPat.place_after_operand;
+    let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+    Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
+  | (
+      Backspace,
+      ZOperand(
+        TypeAnnZP(err, CursorP(_, EmptyHole(_)), ann) as zpann,
+        (A(Space, prefix_tl), suffix),
+      ),
+    )
+      when ZPat.is_before_zoperand(zpann) =>
+    let S(operand, new_prefix) = prefix_tl;
+    let zoperand =
+      ZPat.TypeAnnZP(err, operand |> ZPat.place_after_operand, ann);
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
     Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
 
@@ -1381,15 +1409,16 @@ and ana_perform_operand =
         ty,
       )
     | Succeeded(zann) =>
-      let ty = UHTyp.expand(ZTyp.erase(zann));
-      let (zpat, ctx, u_gen) =
-        Statics_Pat.ana_fix_holes_z(
-          ctx,
-          u_gen,
-          ZOpSeq.wrap(ZPat.TypeAnnZA(err, op, zann)),
-          ty,
-        );
-      Succeeded((zpat, ctx, u_gen));
+      let ty' = UHTyp.expand(ZTyp.erase(zann));
+      let (new_op, ctx, u_gen) =
+        Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
+      let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded((new_zopseq, ctx, u_gen));
+      } else {
+        let (new_zopseq, u_gen) = new_zopseq |> ZPat.mk_inconsistent(u_gen);
+        Succeeded((new_zopseq, ctx, u_gen));
+      };
     }
   /* Subsumption */
   | (Construct(SListNil), _) =>

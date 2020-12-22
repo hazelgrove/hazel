@@ -847,8 +847,8 @@ and ana_cursor_info_zoperand =
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
-    | ApPalette(NotInHole, _, _, _)
-    | Lam(NotInHole, _, _) =>
+    | ApPalette(NotInHole, _, _, _) =>
+      //| Lam(NotInHole, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
@@ -863,22 +863,26 @@ and ana_cursor_info_zoperand =
       |> Option.map(_ =>
            CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
          )
-    // TODO(andrew): am I right in deeming this case unnecessary?
-    /*
-     | Lam(NotInHole, _p, _) =>
 
-        switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
+    | Lam(NotInHole, p, body) =>
+      switch (Statics_Pat.syn(ctx, p)) {
+      | None => None
+      | Some((ty_p, body_ctx)) =>
+        switch (Statics_Exp.syn(body_ctx, body)) {
         | None => None
-        | Some(ty1_join) =>
+        | Some(ty_body) =>
           Some(
             CursorInfo_common.mk(
-              AnaAnnotatedLambda(ty, Arrow(ty1_join, ty2)),
+              AnaAnnotatedLambda(
+                ty,
+                Arrow(PTyp.pTyp_to_hTyp(ty_p), ty_body),
+              ),
               ctx,
               cursor_term,
             ),
           )
         }
-       */
+      }
     /* zipper cases */
     }
   | ParenthesizedZ(zbody) =>
