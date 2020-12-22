@@ -505,7 +505,6 @@ and syn_elab_line =
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotExpand
     | Some((ty1, _)) =>
-      let ty1 = PTyp.pTyp_to_hTyp(ty1);
       let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotExpand
@@ -785,7 +784,6 @@ and syn_elab_operand =
     switch (Statics_Pat.syn(ctx, p)) {
     | None => DoesNotElaborate
     | Some((ty1, _)) =>
-      let ty1 = PTyp.pTyp_to_hTyp(ty1);
       switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp, _, ctx, delta) =>
@@ -795,7 +793,7 @@ and syn_elab_operand =
           let d = DHExp.Lam(dp, ty1, d1);
           Elaborates(d, Arrow(ty1, ty2), delta);
         }
-      };
+      }
     }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
@@ -1162,7 +1160,7 @@ and ana_elab_operand =
       let ty1_ann =
         switch (Statics_Pat.syn(ctx, p)) {
         | None => ty1_given
-        | Some((ty_p, _)) => PTyp.pTyp_to_hTyp(ty_p)
+        | Some((ty_p, _)) => ty_p
         };
       //TODO(andrew): is this check necessary?
       switch (HTyp.consistent(ty1_ann, ty1_given)) {
