@@ -1750,13 +1750,29 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
     }
   | (_, LamZP(_, zp, body)) =>
+    switch (Action_Pat.syn_perform(ctx, u_gen, a, zp)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      syn_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, ty, u_gen),
+      )
+    | Succeeded((zp, ty_p, body_ctx, u_gen)) =>
+      let (body, ty_body, u_gen) =
+        Statics_Exp.syn_fix_holes(body_ctx, u_gen, body);
+      let new_ty = HTyp.Arrow(ty_p, ty_body);
+      let new_ze = ZExp.ZBlock.wrap(LamZP(NotInHole, zp, body));
+      Succeeded(SynDone((new_ze, new_ty, u_gen)));
+    }
+  | (_, LamZE(_, p, zbody)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
-    | Some((ty1_given, _)) =>
-      switch (Statics_Pat.syn_and_join(ctx, ZPat.erase(zp), ty1_given)) {
+    | Some((ty_p, ty_body)) =>
+      switch (Statics_Pat.syn(ctx, p)) {
       | None => Failed
-      | Some(ty1) =>
-        switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
+      | Some((_, body_ctx)) =>
+        switch (syn_perform(body_ctx, a, (zbody, ty_body, u_gen))) {
         | Failed => Failed
         | CursorEscaped(side) =>
           syn_perform_operand(
@@ -1764,40 +1780,14 @@ and syn_perform_operand =
             Action_common.escape(side),
             (zoperand, ty, u_gen),
           )
-        | Succeeded((zp, ctx, u_gen)) =>
-          let (body, ty2, u_gen) =
-            Statics_Exp.syn_fix_holes(ctx, u_gen, body);
-          let new_ty = HTyp.Arrow(ty1, ty2);
-          let new_ze = ZExp.ZBlock.wrap(LamZP(NotInHole, zp, body));
+        | Succeeded((zbody, new_ty_body, u_gen)) =>
+          let new_ty = HTyp.Arrow(ty_p, new_ty_body);
+          let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
           Succeeded(SynDone((new_ze, new_ty, u_gen)));
         }
       }
     }
-  | (_, LamZE(_, p, zbody)) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | None => Failed
-    | Some((ty1_given, ty2)) =>
-      switch (Statics_Pat.syn_and_join(ctx, p, ty1_given)) {
-      | None => Failed
-      | Some(ty1) =>
-        switch (Statics_Pat.ana(ctx, p, ty1)) {
-        | None => Failed
-        | Some(ctx_body) =>
-          switch (syn_perform(ctx_body, a, (zbody, ty2, u_gen))) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            syn_perform_operand(
-              ctx,
-              Action_common.escape(side),
-              (zoperand, ty, u_gen),
-            )
-          | Succeeded((zbody, ty2, u_gen)) =>
-            let new_ze = ZExp.ZBlock.wrap(LamZE(NotInHole, p, zbody));
-            Succeeded(SynDone((new_ze, Arrow(ty1, ty2), u_gen)));
-          }
-        }
-      }
-    }
+
   | (_, InjZ(_, side, zbody)) =>
     switch (ty) {
     | Sum(ty1, ty2) =>

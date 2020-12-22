@@ -218,7 +218,12 @@ and ana_operand =
       ana(ctx, p1, ty1);
     }
   | Parenthesized(p) => ana(ctx, p, ty)
-  | TypeAnn(NotInHole, op, _ann) => ana_operand(ctx, op, ty)
+  | TypeAnn(NotInHole, op, ann) =>
+    let ty_ann = UHTyp.expand(ann);
+    switch (HTyp.consistent(ty, ty_ann)) {
+    | false => None
+    | true => ana_operand(ctx, op, ty_ann)
+    };
   };
 
 let rec syn_nth_type_mode =
@@ -800,8 +805,7 @@ let syn_and_join = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(HTyp.t) =>
   };
 
 /*
- * A wrapper for syn, under the understanding that no Nones
- * should actually result.
+ * A wrapper for syn, under the understanding that p has a type.
  */
 let syn_p = (ctx: Contexts.t, p: UHPat.t): HTyp.t =>
   switch (syn(ctx, p)) {
