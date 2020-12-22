@@ -99,6 +99,7 @@ let put_program = (program: Program.t, model: t): t => {
 };
 let map_program = (f: Program.t => Program.t, model: t): t => {
   let new_program = f(model |> get_program);
+  print_endline("model145");
   model |> put_program(new_program);
 };
 
@@ -136,10 +137,12 @@ let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
   | None => None
   | Some(u) =>
+    print_endline("model183");
     let i =
       model.selected_instances
       |> UserSelectedInstances.find_opt(u)
       |> Option.get;
+    print_endline("model187");
     Some((u, i));
   };
 

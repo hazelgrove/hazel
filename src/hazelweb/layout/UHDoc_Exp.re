@@ -95,6 +95,7 @@ and mk_block =
       ((i, (hd, hd_doc)), tl_doc) =>
         switch ((hd: UHExp.line)) {
         | EmptyLine
+        | CellBoundary
         | CommentLine(_)
         | ExpLine(_) => Doc.vsep(hd_doc, tl_doc)
         | LetLine(_) =>
@@ -137,6 +138,7 @@ and mk_line =
           |> Doc.annot(UHAnnot.CommentLine);
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
+        | CellBoundary => UHDoc_common.mk_CellBoundary
         | LetLine(p, ann, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);

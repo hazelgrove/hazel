@@ -117,6 +117,36 @@ let cardstack_controls = (~inject, model: Model.t) =>
     )
   );
 
+let cell_controls = (~inject) =>
+  Vdom.(
+    Node.div(
+      [Attr.id("cardstack-controls")],
+      [
+        Node.div(
+          [Attr.id("button-centering-container")],
+          [
+            Node.button(
+              [
+                Attr.id("add-button"),
+                Attr.on_click(_ => inject(ModelAction.EditAction(AddCell))),
+              ],
+              [Node.text("Add")],
+            ),
+            Node.button(
+              [
+                Attr.id("remove-button"),
+                Attr.on_click(_ =>
+                  inject(ModelAction.EditAction(RemoveCell))
+                ),
+              ],
+              [Node.text("Remove")],
+            ),
+          ],
+        ),
+      ],
+    )
+  );
+
 let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
@@ -211,6 +241,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                           ),
                           Cell.view(~inject, model),
                           cell_status,
+                          cell_controls(~inject),
                           cardstack_controls(~inject, model),
                         ],
                       ),

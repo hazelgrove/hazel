@@ -68,9 +68,9 @@ and follow_line =
   switch (steps, line) {
   | (_, ExpLine(opseq)) =>
     follow_opseq(path, opseq) |> Option.map(zopseq => ZExp.ExpLineZ(zopseq))
-  | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
+  | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_) | CellBoundary) =>
     line |> ZExp.place_cursor_line(cursor)
-  | ([_, ..._], EmptyLine | CommentLine(_)) => None
+  | ([_, ..._], EmptyLine | CommentLine(_) | CellBoundary) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
     switch (x) {
     | 0 =>
@@ -245,14 +245,14 @@ and of_steps_line =
     : option(CursorPath.t) =>
   switch (steps, line) {
   | (_, ExpLine(opseq)) => of_steps_opseq(steps, ~side, opseq)
-  | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_)) =>
+  | ([], EmptyLine | LetLine(_, _, _) | CommentLine(_) | CellBoundary) =>
     let place_cursor =
       switch (side) {
       | Before => ZExp.place_before_line
       | After => ZExp.place_after_line
       };
     Some(of_zline(place_cursor(line)));
-  | ([_, ..._], EmptyLine | CommentLine(_)) => None
+  | ([_, ..._], EmptyLine | CommentLine(_) | CellBoundary) => None
   | ([x, ...xs], LetLine(p, ann, def)) =>
     switch (x) {
     | 0 =>
@@ -428,6 +428,7 @@ and holes_line =
     : CursorPath.hole_list =>
   switch (line) {
   | EmptyLine
+  | CellBoundary
   | CommentLine(_) => hs
   | LetLine(p, ann, def) =>
     hs
@@ -553,6 +554,7 @@ and holes_zline =
   switch (zline) {
   | CursorL(OnOp(_), _) => CursorPath_common.no_holes
   | CursorL(_, EmptyLine) => CursorPath_common.no_holes
+  | CursorL(_, CellBoundary) => CursorPath_common.no_holes
   | CursorL(_, CommentLine(_)) => CursorPath_common.no_holes
   | CursorL(_, ExpLine(_)) => CursorPath_common.no_holes /* invalid cursor position */
   | CursorL(cursor, LetLine(p, ann, def)) =>

@@ -6,6 +6,7 @@ type t = block
 and block = list(line)
 and line =
   | EmptyLine
+  | CellBoundary
   | CommentLine(string)
   | LetLine(UHPat.t, option(UHTyp.t), t)
   | ExpLine(opseq)

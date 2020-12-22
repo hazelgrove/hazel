@@ -31,6 +31,7 @@ type t =
       sort: TermSort.t,
     })
   | Tessera
+  | CellBoundary
   | CommentLine
   | Step(int)
   | Term(term_data);

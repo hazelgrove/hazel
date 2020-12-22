@@ -48,4 +48,6 @@ type t =
   | SwapRight
   | SwapUp
   | SwapDown
-  | Init;
+  | Init
+  | AddCell
+  | RemoveCell;

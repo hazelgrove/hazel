@@ -649,7 +649,9 @@ let get_new_action_group =
     | MoveRight
     | MoveToNextHole
     | MoveToPrevHole
-    | Init => None
+    | Init
+    | AddCell
+    | RemoveCell => None
     | UpdateApPalette(_) =>
       failwith("ApPalette is not implemented in undo_history")
     };
