@@ -1,6 +1,5 @@
-open Pretty;
-
-type t = Doc.t(UHAnnot.t);
+module Doc = Pretty.Doc;
+open UHDoc;
 
 type memoization_value('a) = {
   mutable inline_true: option('a),
@@ -84,7 +83,7 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~index=0, UnicodeConstants.lamSym);
+  let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
   let open_Lam = (): t => mk(~index=1, ".{");
   let close_Lam = (): t => mk(~index=2, "}");
 
@@ -133,7 +132,7 @@ let user_newline: t =
   Doc.(
     hcats([
       space_,
-      text(UnicodeConstants.user_newline) |> annot(UHAnnot.UserNewline),
+      text(Unicode.user_newline) |> annot(UHAnnot.UserNewline),
     ])
   );
 
@@ -285,7 +284,7 @@ let mk_Int = (): t =>
   Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Float = (): t =>
-  Delim.mk(~index=0, "Float") |> annot_Operand(~sort=Typ);
+  Delim.mk(~index=0, "Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
