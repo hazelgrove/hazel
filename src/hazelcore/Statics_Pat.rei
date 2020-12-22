@@ -15,11 +15,11 @@ let ana_nth_type_mode:
  * Under context `ctx`, `syn(ctx, p)` synthesizes a type for `p` and
  * produces a new context with bindings introduced by `p` (if possible)
  */
-let syn: (Contexts.t, UHPat.t) => option((PTyp.t, Contexts.t));
-let syn_opseq: (Contexts.t, UHPat.opseq) => option((PTyp.t, Contexts.t));
+let syn: (Contexts.t, UHPat.t) => option((HTyp.t, Contexts.t));
+let syn_opseq: (Contexts.t, UHPat.opseq) => option((HTyp.t, Contexts.t));
 let syn_skel:
-  (Contexts.t, UHPat.skel, UHPat.seq) => option((PTyp.t, Contexts.t));
-let syn_operand: (Contexts.t, UHPat.operand) => option((PTyp.t, Contexts.t));
+  (Contexts.t, UHPat.skel, UHPat.seq) => option((HTyp.t, Contexts.t));
+let syn_operand: (Contexts.t, UHPat.operand) => option((HTyp.t, Contexts.t));
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `p` against `ty` and

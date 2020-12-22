@@ -3115,7 +3115,7 @@ and ana_perform_operand =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (Statics_Pat.syn(ctx, p)) {
-        | Some((ty_p, _)) => PTyp.pTyp_to_hTyp(ty_p)
+        | Some((ty_p, _)) => ty_p
         | None => ty1_given
         };
       switch (Statics_Pat.ana(ctx, p, ty1)) {

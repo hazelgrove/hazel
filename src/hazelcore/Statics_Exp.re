@@ -12,9 +12,7 @@ let recursive_let_id =
     ) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => None
-    | Some((ty, _)) =>
-      let ty_p = PTyp.pTyp_to_hTyp(ty);
-      Option.map(_ => x, HTyp.matched_arrow(ty_p));
+    | Some((ty_p, _)) => Option.map(_ => x, HTyp.matched_arrow(ty_p))
     }
   | _ => None
   };
@@ -27,9 +25,7 @@ let extend_let_def_ctx =
   | Some(id) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => ctx
-    | Some((ty, _)) =>
-      let ty_p = PTyp.pTyp_to_hTyp(ty);
-      Contexts.extend_gamma(ctx, (id, ty_p));
+    | Some((ty_p, _)) => Contexts.extend_gamma(ctx, (id, ty_p))
     }
   };
 };
@@ -43,7 +39,7 @@ let get_pattern_type = (ctx, rule) =>
 
 let joint_pattern_type = (ctx, rules) => {
   let tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
-  Option.bind(tys, PTyp.join_all);
+  Option.bind(tys, HTyp.join_all(LUB));
 };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
@@ -179,11 +175,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => None
     | Some((ty_p, body_ctx)) =>
-      let ty_p = PTyp.pTyp_to_hTyp(ty_p);
       switch (syn(body_ctx, body)) {
       | None => None
       | Some(ty_body) => Some(HTyp.Arrow(ty_p, ty_body))
-      };
+      }
     }
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);

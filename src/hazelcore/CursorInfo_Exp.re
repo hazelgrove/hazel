@@ -510,7 +510,6 @@ and syn_cursor_info_zoperand =
     switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
     | None => None
     | Some((ty, _)) =>
-      let ty = PTyp.pTyp_to_hTyp(ty);
       switch (
         CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty)
       ) {
@@ -519,14 +518,12 @@ and syn_cursor_info_zoperand =
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
         Some(uses |> deferred_ci);
-      };
+      }
     }
   | LamZE(_, p, zbody) =>
     switch (Statics_Pat.syn_opseq(ctx, p)) {
     | None => None
-    | Some((ty, ctx)) =>
-      let ty = PTyp.pTyp_to_hTyp(ty);
-      ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty);
+    | Some((ty, ctx)) => ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty)
     }
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
@@ -869,10 +866,7 @@ and ana_cursor_info_zoperand =
         | Some(ty_body) =>
           Some(
             CursorInfo_common.mk(
-              AnaAnnotatedLambda(
-                ty,
-                Arrow(PTyp.pTyp_to_hTyp(ty_p), ty_body),
-              ),
+              AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)),
               ctx,
               cursor_term,
             ),
