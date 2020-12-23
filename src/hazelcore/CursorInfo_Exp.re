@@ -527,7 +527,10 @@ and syn_cursor_info_zoperand =
       | Some(ty) => ty
       | _ => HTyp.Hole
       };
-    // NOTE(andrew): this was previously just syn_cursor_info
+    /* Note that strictly speaking this should just be syn_cusor_info;
+     * This provides a bit of potentially useful type information to
+     * the user in the case where some of pattern branches are already
+     * populated with patterns having a consistent type. */
     ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
   | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
