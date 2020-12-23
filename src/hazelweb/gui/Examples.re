@@ -103,25 +103,6 @@ let map_example: UHExp.t = {
           ),
         ),
         Block.wrap(lam_node),
-        /*
-         letline(
-           OpSeq.wrap(UHPat.var("map")),
-           ~ann=
-             Operators_Typ.(
-               UHTyp.(
-                 Seq.mk(
-                   Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
-                   [
-                     (Arrow, List(OpSeq.wrap(Int))),
-                     (Arrow, List(OpSeq.wrap(Int))),
-                   ],
-                 )
-                 |> mk_OpSeq
-               )
-             ),
-           Block.wrap(lam_node),
-         )
-         */
       )
     );
   UHExp.[letline_node, ExpLine(EmptyHole(0) |> OpSeq.wrap)];
@@ -196,27 +177,6 @@ let qsort_example: UHExp.t = {
         Block.wrap(append_lam),
       )
     );
-  /*
-     UHExp.(
-       letline(
-         OpSeq.wrap(UHPat.var("append")),
-         ~ann=
-           UHTyp.(
-             Operators_Typ.(
-               Seq.mk(
-                 List(OpSeq.wrap(Int)),
-                 [
-                   (Arrow, List(OpSeq.wrap(Int))),
-                   (Arrow, List(OpSeq.wrap(Int))),
-                 ],
-               )
-               |> mk_OpSeq
-             )
-           ),
-         Block.wrap(append_lam),
-       )
-     );
-   */
   let partition_case =
     UHExp.(
       Operators_Exp.(

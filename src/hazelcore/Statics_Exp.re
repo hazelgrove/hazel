@@ -30,16 +30,12 @@ let extend_let_def_ctx =
   };
 };
 
-let get_pattern_type = (ctx, rule) =>
-  rule
-  |> (
-    (UHExp.Rule(p, _)) =>
-      p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty)
-  );
+let get_pattern_type = (ctx, UHExp.Rule(p, _)) =>
+  p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty);
 
 let joint_pattern_type = (ctx, rules) => {
-  let tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
-  Option.bind(tys, HTyp.join_all(LUB));
+  let* tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
+  HTyp.join_all(LUB, tys);
 };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
@@ -68,10 +64,8 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
   | LetLine(p, def) =>
-    switch (syn(ctx, def)) {
-    | None => None
-    | Some(ty_def) => Statics_Pat.ana(ctx, p, ty_def)
-    }
+    let* ty_def = syn(ctx, def);
+    Statics_Pat.ana(ctx, p, ty_def);
   }
 and syn_opseq =
     (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
@@ -172,14 +166,9 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
   | Lam(NotInHole, p, body) =>
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => None
-    | Some((ty_p, body_ctx)) =>
-      switch (syn(body_ctx, body)) {
-      | None => None
-      | Some(ty_body) => Some(HTyp.Arrow(ty_p, ty_body))
-      }
-    }
+    let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
+    let+ ty_body = syn(body_ctx, body);
+    HTyp.Arrow(ty_p, ty_body);
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);
     switch (side) {
@@ -333,14 +322,9 @@ and ana_operand =
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ty, ty') ? Some() : None;
   | Lam(NotInHole, p, body) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | None => None
-    | Some((ty_p_given, ty_body)) =>
-      switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
-      | None => None
-      | Some(ctx_body) => ana(ctx_body, body, ty_body)
-      }
-    }
+    let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
+    let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
+    ana(ctx_body, body, ty_body);
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
@@ -1313,15 +1297,11 @@ and ana_fix_holes_operand =
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */
-  let def_ctx = extend_let_def_ctx(ctx, p, def);
-  switch (syn(def_ctx, def)) {
-  | None => failwith("letline_ctx: impossible case (1)")
-  | Some(ty_def) =>
-    switch (Statics_Pat.ana(ctx, p, ty_def)) {
-    | None => failwith("letline_ctx: impossible case (2)")
-    | Some(ctx) => ctx
-    }
-  };
+  def
+  |> syn(extend_let_def_ctx(ctx, p, def))
+  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
+  |> Statics_Pat.ana(ctx, p)
+  |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
 };
 
 let syn_fix_holes_z =

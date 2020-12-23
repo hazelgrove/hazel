@@ -87,11 +87,9 @@ and syn_operand =
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
   | TypeAnn(NotInHole, op, ann) =>
-    let ty1_ann = UHTyp.expand(ann);
-    switch (ana_operand(ctx, op, ty1_ann)) {
-    | None => None
-    | Some(ctx) => Some((ty1_ann, ctx))
-    };
+    let ty_ann = UHTyp.expand(ann);
+    let+ op_ctx = ana_operand(ctx, op, ty_ann);
+    (ty_ann, op_ctx);
   }
 and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   ana_opseq(ctx, p, ty)
@@ -187,10 +185,7 @@ and ana_operand =
   | Parenthesized(p) => ana(ctx, p, ty)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
-    switch (HTyp.consistent(ty, ty_ann)) {
-    | false => None
-    | true => ana_operand(ctx, op, ty_ann)
-    };
+    HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
   };
 
 let rec syn_nth_type_mode =
