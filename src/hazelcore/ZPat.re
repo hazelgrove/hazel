@@ -1,3 +1,4 @@
+open OptUtil.Syntax;
 [@deriving sexp]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
@@ -261,10 +262,9 @@ and move_cursor_left_zoperand =
     | Some(zp) => Some(InjZ(err, side, zp))
     | None => Some(CursorP(OnDelim(0, After), Inj(err, side, erase(zp))))
     }
-  | TypeAnnZP(err, zop, ann) =>
-    switch (move_cursor_left_zoperand(zop)) {
-    | Some(zop) => Some(TypeAnnZP(err, zop, ann))
-    | None => None
+  | TypeAnnZP(err, zop, ann) => {
+      let+ zop = move_cursor_left_zoperand(zop);
+      TypeAnnZP(err, zop, ann);
     }
   | TypeAnnZA(err, zp, za) =>
     switch (ZTyp.move_cursor_left(za)) {
@@ -333,8 +333,7 @@ and move_cursor_right_zoperand =
         ),
       )
     }
-  | TypeAnnZA(err, op, zann) =>
-    switch (ZTyp.move_cursor_right(zann)) {
-    | Some(zann) => Some(TypeAnnZA(err, op, zann))
-    | None => None
+  | TypeAnnZA(err, op, zann) => {
+      let+ zann = ZTyp.move_cursor_right(zann);
+      TypeAnnZA(err, op, zann);
     };

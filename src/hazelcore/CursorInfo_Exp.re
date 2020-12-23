@@ -1,3 +1,4 @@
+open OptUtil.Syntax;
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
@@ -298,12 +299,9 @@ and syn_cursor_info_line =
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-    switch (Statics_Pat.syn(ctx, p)) {
-    | None => None
-    | Some((ty_p, _)) =>
-      ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
-      |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci))
-    };
+    let* (ty_p, _) = Statics_Pat.syn(ctx, p);
+    ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p)
+    |> Option.map(ci => CursorInfo_common.CursorNotOnDeferredVarPat(ci));
   }
 and syn_cursor_info_zopseq =
     (
@@ -510,24 +508,18 @@ and syn_cursor_info_zoperand =
     }
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | LamZP(_, zp, body) =>
-    switch (Statics_Pat.syn(ctx, ZPat.erase(zp))) {
-    | None => None
-    | Some((ty, _)) =>
-      switch (
-        CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty)
-      ) {
-      | None => None
-      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
-        Some(uses |> deferred_ci);
-      }
-    }
+    let* (ty, _) = Statics_Pat.syn(ctx, ZPat.erase(zp));
+    let+ defferrable =
+      CursorInfo_Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp, ty);
+    switch (defferrable) {
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
+      uses |> deferred_ci;
+    };
   | LamZE(_, p, zbody) =>
-    switch (Statics_Pat.syn_opseq(ctx, p)) {
-    | None => None
-    | Some((ty, ctx)) => ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty)
-    }
+    let* (ty, ctx) = Statics_Pat.syn_opseq(ctx, p);
+    ana_cursor_info(~steps=steps @ [2], ctx, zbody, ty);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
@@ -844,7 +836,6 @@ and ana_cursor_info_zoperand =
     | FloatLit(NotInHole, _)
     | BoolLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _) =>
-      //| Lam(NotInHole, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
@@ -861,21 +852,13 @@ and ana_cursor_info_zoperand =
          )
 
     | Lam(NotInHole, p, body) =>
-      switch (Statics_Pat.syn(ctx, p)) {
-      | None => None
-      | Some((ty_p, body_ctx)) =>
-        switch (Statics_Exp.syn(body_ctx, body)) {
-        | None => None
-        | Some(ty_body) =>
-          Some(
-            CursorInfo_common.mk(
-              AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)),
-              ctx,
-              cursor_term,
-            ),
-          )
-        }
-      }
+      let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
+      let+ ty_body = Statics_Exp.syn(body_ctx, body);
+      CursorInfo_common.mk(
+        AnaAnnotatedLambda(ty, Arrow(ty_p, ty_body)),
+        ctx,
+        cursor_term,
+      );
     /* zipper cases */
     }
   | ParenthesizedZ(zbody) =>
@@ -902,34 +885,28 @@ and ana_cursor_info_zoperand =
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, body) =>
-    switch (HTyp.matched_arrow(ty)) {
-    | None => None
-    | Some((ty_p_given, _)) =>
-      switch (
-        CursorInfo_Pat.ana_cursor_info(
-          ~steps=steps @ [0],
-          ctx,
-          zp,
-          ty_p_given,
-        )
-      ) {
-      | None => None
-      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
-      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
-        Some(uses |> deferred_ci);
-      }
-    }
+    let* (ty_p_given, _) = HTyp.matched_arrow(ty);
+    let+ defferrable =
+      CursorInfo_Pat.ana_cursor_info(
+        ~steps=steps @ [0],
+        ctx,
+        zp,
+        ty_p_given,
+      );
+    switch (defferrable) {
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_uses(~steps=steps @ [2], x, body);
+      uses |> deferred_ci;
+    };
+
   | LamZE(NotInHole, p, zbody) =>
-    switch (HTyp.matched_arrow(ty)) {
+    let* (ty_p_given, ty_body_given) = HTyp.matched_arrow(ty);
+    switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
     | None => None
-    | Some((ty_p_given, ty_body_given)) =>
-      switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
-      | None => None
-      | Some(body_ctx) =>
-        ana_cursor_info(~steps=steps @ [2], body_ctx, zbody, ty_body_given)
-      }
-    }
+    | Some(body_ctx) =>
+      ana_cursor_info(~steps=steps @ [2], body_ctx, zbody, ty_body_given)
+    };
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
