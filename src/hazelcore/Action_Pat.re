@@ -513,9 +513,9 @@ and syn_perform_opseq =
     switch (operator_of_shape(os)) {
     | None =>
       /* If the cursor is immeditely after a type annotation, and we're trying
-       * to insert and operator that Pat doesn't recognize, delegate the action
+       * to insert an operator that Pat doesn't recognize, delegate the action
        * to Typ.perform. Note that in the case of the one currently existing overlap,
-       * Comma, this means that Pat gets priority, and one must insert parens around
+       * SComma, this means that Pat gets priority, and one must insert parens around
        * a type annotation to express a product type.
        *  */
       switch (zoperand) {

@@ -248,11 +248,7 @@ let move_via_key =
       )
     | ArrowRight => (
         switch (UHMeasuredLayout.next_path_within_row(caret_position, m)) {
-        | Some((path, _)) as found =>
-          print_endline(
-            Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_rev_t(path)),
-          );
-          found;
+        | Some(_) as found => found
         | None =>
           caret_position.row < MeasuredLayout.height(m) - 1
             ? UHMeasuredLayout.first_path_in_row(caret_position.row + 1, m)

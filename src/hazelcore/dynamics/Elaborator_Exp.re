@@ -1156,7 +1156,6 @@ and ana_elab_operand =
         | None => ty1_given
         | Some((ty_p, _)) => ty_p
         };
-      //TODO(andrew): is this check necessary?
       switch (HTyp.consistent(ty1_ann, ty1_given)) {
       | false => DoesNotElaborate
       | true =>
