@@ -1,4 +1,4 @@
-open Sexplib.Std;
+// open Sexplib.Std;
 
 [@deriving sexp]
 type t =
@@ -21,7 +21,7 @@ type t =
   | Cons
   | And
   | Or
-  | UserOp(string);
+  | UserOp(Var.t);
 
 let to_string =
   fun
@@ -44,7 +44,7 @@ let to_string =
   | Cons => "::"
   | And => "&&"
   | Or => "||"
-  | UserOp(op) => op;
+  | UserOp(var) => var;
 
 let string_to_operator =
   fun

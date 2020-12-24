@@ -824,6 +824,7 @@ and syn_fix_holes_skel =
         (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, Hole, u_gen);
       }
     | _ =>
+      // if user op is not in this context, then it is a free var hole
       let (skel1, seq, u_gen) =
         ana_fix_holes_skel(
           ctx,
@@ -842,11 +843,8 @@ and syn_fix_holes_skel =
           seq,
           Hole,
         );
-      let (OpSeq(skel1, seq), u_gen) =
-        UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel1, seq));
-      let (OpSeq(skel2, seq), u_gen) =
-        UHExp.mk_inconsistent_opseq(u_gen, OpSeq(skel2, seq));
-
+      // let (u, u_gen) = MetaVarGen.next(u_gen);
+      // let reason: VarErrStatus.HoleReason.t = Free;
       (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, Hole, u_gen);
     }
   | BinOp(_, Comma, _, _) =>

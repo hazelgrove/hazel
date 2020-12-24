@@ -188,7 +188,9 @@ let rec evaluate = (d: DHExp.t): result =>
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
     }
-  | BinUserOp(op, d1, d2) => Indet(BinUserOp(op, d1, d2))
+  | BoundUserOp(op, d1, d2) => Indet(BoundUserOp(op, d1, d2)) // Todo (corlaban) This state should be InvalidInput, but we don't yet construct freeuserops correctly.
+  | FreeUserOp(u, i, sigma, op, d1, d2) =>
+    Indet(FreeUserOp(u, i, sigma, op, d1, d2))
   | Inj(ty, side, d1) =>
     switch (evaluate(d1)) {
     | InvalidInput(msg) => InvalidInput(msg)

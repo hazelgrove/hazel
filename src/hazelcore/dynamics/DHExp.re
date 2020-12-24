@@ -131,40 +131,12 @@ module BinFloatOp = {
     };
 };
 
-module BinUserOp = {
-  [@deriving sexp]
-  type t =
-    | UserOp(string);
-
-  let of_op = (op: UHExp.operator): option(t) =>
-    switch (op) {
-    | UserOp(sym) => Some(UserOp(sym))
-    | And
-    | Or
-    | Minus
-    | Plus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals
-    | FPlus
-    | FMinus
-    | FTimes
-    | FDivide
-    | FLessThan
-    | FGreaterThan
-    | FEquals
-    | Space
-    | Cons
-    | Comma => None
-    };
-
-  let to_op = (op: t): UHExp.operator =>
-    switch (op) {
-    | UserOp(sym) => UserOp(sym)
-    };
-};
+// module BinUserOp = {
+//   [@deriving sexp]
+//   type t =
+//     | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
+//     | BoundUserOp(Var.t);
+// };
 
 [@deriving sexp]
 type t =
@@ -191,7 +163,8 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | BinUserOp(BinUserOp.t, t, t)
+  | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t, t, t)
+  | BoundUserOp(Var.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
@@ -225,7 +198,8 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
-  | BinUserOp(_, _, _) => "BinUserOp"
+  | BoundUserOp(_, _, _) => "BoundBinUserOp"
+  | FreeUserOp(_, _, _, _, _, _) => "FreeBinUserOp"
   | ListNil(_) => "ListNil"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"

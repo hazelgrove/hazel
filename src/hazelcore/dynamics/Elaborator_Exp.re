@@ -59,18 +59,18 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
-  | BinUserOp(op, d3, d4) =>
-    switch (op) {
-    | UserOp(var) =>
-      if (Var.is_operator(x) && x |> Var.extract_op_exp |> Var.eq(var)) {
-        Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
-      } else {
-        let d3 = subst_var(d1, x, d3);
-        let d4 = subst_var(d1, x, d4);
-        BinUserOp(op, d3, d4);
-      }
+  | BoundUserOp(op, d3, d4) =>
+    if (Var.is_operator(x) && x |> Var.extract_op_exp |> Var.eq(op)) {
+      Ap(Ap(d1, subst_var(d1, x, d3)), subst_var(d1, x, d4));
+    } else {
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      BoundUserOp(op, d3, d4);
     }
-
+  | FreeUserOp(u, i, sigma, op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    FreeUserOp(u, i, sigma, op, d3, d4);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
@@ -164,7 +164,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
   | (_, BinFloatOp(_, _, _)) => Indet
-  | (_, BinUserOp(_, _, _)) => Indet
+  | (_, BoundUserOp(_, _, _)) => Indet
+  | (_, FreeUserOp(_, _, _, _, _, _)) => Indet
   | (_, ConsistentCase(Case(_, _, _))) => Indet
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -299,7 +300,8 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinUserOp(_, _, _)
+  | BoundUserOp(_, _, _)
+  | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -360,7 +362,8 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinUserOp(_, _, _)
+  | BoundUserOp(_, _, _)
+  | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -419,7 +422,8 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinUserOp(_, _, _)
+  | BoundUserOp(_, _, _)
+  | FreeUserOp(_, _, _, _, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
@@ -685,29 +689,59 @@ and syn_elab_skel =
         };
       }
     }
+  // | BinOp(
+  //     NotInHole,
+  //     UserOp(InVarHole(_reason, _m_var), _op),
+  //     _skel1,
+  //     _skel2,
+  //   ) =>
+  //   print_endline("does not elaborate, in var hole");
+  //   DoesNotElaborate;
   | BinOp(NotInHole, UserOp(op), skel1, skel2) =>
-    let op_ty =
-      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
-      | Some(ty) => ty
-      | None => Hole
-      };
+    // TODO (corlaban):
+    switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+    | Some(ty) =>
+      switch (HTyp.matched_two_ary_arrow(ty)) {
+      | Some((ty1, (ty2, ty3))) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d1, ty1', delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+          | DoesNotElaborate => DoesNotElaborate
+          | Elaborates(d2, ty2', delta) =>
+            let dc1 = DHExp.cast(d1, ty1', ty1);
+            let dc2 = DHExp.cast(d2, ty2', ty2);
 
-    switch (HTyp.matched_two_ary_arrow(op_ty)) {
-    | Some((ty1, (ty2, ty3))) =>
-      switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+            let d = DHExp.BoundUserOp(op, dc1, dc2);
+            Elaborates(d, ty3, delta);
+          }
+        }
+      | _ => DoesNotElaborate
+      }
+    | None =>
+      //TODO (corlaban): Need to add VarErrStatus as a field to Operators Exp
+      let (u, _) = MetaVarGen.next(0);
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, HTyp.Hole, gamma), delta);
+
+      switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty1', delta) =>
-        switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+        switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2', delta) =>
-          let dc1 = DHExp.cast(d1, ty1', ty1);
-          let dc2 = DHExp.cast(d2, ty2', ty2);
-          let d = DHExp.BinUserOp(UserOp(op), dc1, dc2);
-          Elaborates(d, ty3, delta);
+          let dc1 = DHExp.cast(d1, ty1', Hole);
+          let dc2 = DHExp.cast(d2, ty2', Hole);
+          print_endline("goes into correct free user op area");
+          // TODO (corlaban): Need to figure out the correct type of sigma
+          // let d = DHExp.FreeUserOp(op, dc1, dc2);
+          let d = DHExp.FreeUserOp(u, 0, sigma, op, dc1, dc2);
+          Elaborates(d, Hole, delta);
         }
-      }
-    | _ => DoesNotElaborate
-    };
+      };
+    }
   | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
     switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -1371,10 +1405,15 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | BinUserOp(op, d1, d2) =>
+  | BoundUserOp(op, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
-    (BinUserOp(op, d1, d2), hii);
+    (BoundUserOp(op, d1, d2), hii);
+  | FreeUserOp(u, _, sigma, op, d1, d2) =>
+    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    (FreeUserOp(u, i, sigma, op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Inj(ty, side, d1), hii);
@@ -1473,10 +1512,16 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (BinFloatOp(op, d1, d2), hii);
-  | BinUserOp(op, d1, d2) =>
+  | BoundUserOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
-    (BinUserOp(op, d1, d2), hii);
+    (BoundUserOp(op, d1, d2), hii);
+  | FreeUserOp(u, i, sigma, op, d1, d2) =>
+    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    (FreeUserOp(u, i, sigma, op, d1, d2), hii);
   | Inj(ty, side, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Inj(ty, side, d1), hii);

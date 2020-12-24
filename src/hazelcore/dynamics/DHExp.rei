@@ -41,15 +41,12 @@ module BinFloatOp: {
   let to_op: t => UHExp.operator;
 };
 
-module BinUserOp: {
-  [@deriving sexp]
-  type t =
-    | UserOp(string);
-
-  let of_op: UHExp.operator => option(t);
-
-  let to_op: t => UHExp.operator;
-};
+// module BinUserOp: {
+//   [@deriving sexp]
+//   type t =
+//     | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
+//     | BoundUserOp(Var.t);
+// };
 
 [@deriving sexp]
 type t =
@@ -76,7 +73,8 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | BinUserOp(BinUserOp.t, t, t)
+  | FreeUserOp(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t, t, t)
+  | BoundUserOp(Var.t, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
