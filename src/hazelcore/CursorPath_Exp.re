@@ -1023,44 +1023,44 @@ and holes_zoperand =
       ~holes_after=holes_after @ holes_t2 @ holes_t3,
       (),
     );
-  | IfZ2(err, t1, zt2, t3) => 
+  | IfZ2(err, t1, zt2, t3) =>
     let holes_err: list(CursorPath_common.hole_info) =
-        switch (err) {
-        | StandardErrStatus(NotInHole) => []
-        | StandardErrStatus(InHole(_, u))
-        | InconsistentBranches(_, u) => [
-            {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
-          ]
-        };
-      let CursorPath_common.{holes_before, hole_selected, holes_after} =
-        holes_z(zt2, [1, ...rev_steps]);
-      let holes_t1 = holes(t1, [0, ...rev_steps], []);
-      let holes_t3 = holes(t3, [2, ...rev_steps], []);
-      CursorPath_common.mk_zholes(
-        ~holes_before=holes_err @ holes_t1 @ holes_before,
-        ~hole_selected,
-        ~holes_after=holes_after @ holes_t3,
-        (),
-      );
-  | IfZ3(err, t1, t2, zt3) => 
+      switch (err) {
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+        ]
+      };
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(zt2, [1, ...rev_steps]);
+    let holes_t1 = holes(t1, [0, ...rev_steps], []);
+    let holes_t3 = holes(t3, [2, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_t1 @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_t3,
+      (),
+    );
+  | IfZ3(err, t1, t2, zt3) =>
     let holes_err: list(CursorPath_common.hole_info) =
-        switch (err) {
-        | StandardErrStatus(NotInHole) => []
-        | StandardErrStatus(InHole(_, u))
-        | InconsistentBranches(_, u) => [
-            {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
-          ]
-        };
-      let CursorPath_common.{holes_before, hole_selected, holes_after} =
-        holes_z(zt3, [2, ...rev_steps]);
-      let holes_t1 = holes(t1, [0, ...rev_steps], []);
-      let holes_t2 = holes(t2, [1, ...rev_steps], []);
-      CursorPath_common.mk_zholes(
-        ~holes_before=holes_err @ holes_t1 @ holes_t2 @holes_before,
-        ~hole_selected,
-        ~holes_after,
-        (),
-      );
+      switch (err) {
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
+          {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
+        ]
+      };
+    let CursorPath_common.{holes_before, hole_selected, holes_after} =
+      holes_z(zt3, [2, ...rev_steps]);
+    let holes_t1 = holes(t1, [0, ...rev_steps], []);
+    let holes_t2 = holes(t2, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_t1 @ holes_t2 @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   | ApPaletteZ(_, _, _, zpsi) =>
     let zsplice_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZIntMap.prj_z_kv(zsplice_map);

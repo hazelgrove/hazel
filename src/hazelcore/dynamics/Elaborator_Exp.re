@@ -714,6 +714,7 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -832,6 +833,34 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
+    switch (syn_elab(ctx, delta, t1)) {
+    | Elaborates(d1, ty, delta) =>
+      switch (syn_elab_rules(ctx, delta, t1, ty)) {
+      | None => DoesNotElaborate
+      | Some((drs, glb, delta)) =>
+        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        Elaborates(d, glb, delta);
+      }
+    };
+    switch (syn_elab(ctx, delta, t2)) {
+    | Elaborates(d1, ty, delta) =>
+      switch (syn_elab_rules(ctx, delta, t2, ty)) {
+      | None => DoesNotElaborate
+      | Some((drs, glb, delta)) =>
+        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        Elaborates(d, glb, delta);
+      }
+    };
+    switch (syn_elab(ctx, delta, t3)) {
+    | Elaborates(d1, ty, delta) =>
+      switch (syn_elab_rules(ctx, delta, t3, ty)) {
+      | None => DoesNotElaborate
+      | Some((drs, glb, delta)) =>
+        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
+        Elaborates(d, glb, delta);
+      }
+    };
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
     DoesNotElaborate /* let (_, palette_ctx) = ctx in
      begin match (VarMap.lookup palette_ctx name) with
