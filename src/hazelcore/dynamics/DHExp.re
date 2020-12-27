@@ -160,6 +160,7 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  | If(HTyp.t, t, t)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
@@ -193,6 +194,7 @@ let constructor_string = (d: t): string =>
   | Triv => "Triv"
   | ConsistentCase(_) => "ConsistentCase"
   | InconsistentBranches(_, _, _, _) => "InconsistentBranches"
+  | If(_, _, _) => "If"
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"

@@ -1446,7 +1446,7 @@ and syn_perform_operand =
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) | If(_) |
         Parenthesized(_) |
         ApPalette(_),
       ),

@@ -295,6 +295,7 @@ and matches_cast_Inj =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
+  | If(_, _, _) => DoesNotMatch
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -355,6 +356,7 @@ and matches_cast_Pair =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
+  | If(_, _, _) => DoesNotMatch
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -413,6 +415,7 @@ and matches_cast_Cons =
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => Indet
+  | If(_, _, _) => DoesNotMatch
   | EmptyHole(_, _, _) => Indet
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
@@ -835,31 +838,22 @@ and syn_elab_operand =
     }
   | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
     switch (syn_elab(ctx, delta, t1)) {
+    | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
-      switch (syn_elab_rules(ctx, delta, t1, ty)) {
-      | None => DoesNotElaborate
-      | Some((drs, glb, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
-        Elaborates(d, glb, delta);
-      }
+      let d = DHExp.If(Hole, t1, d1);
+      Elaborates(d, ty, delta);
     };
     switch (syn_elab(ctx, delta, t2)) {
+    | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
-      switch (syn_elab_rules(ctx, delta, t2, ty)) {
-      | None => DoesNotElaborate
-      | Some((drs, glb, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
-        Elaborates(d, glb, delta);
-      }
+      let d = DHExp.If(Hole, t2, d1);
+      Elaborates(d, ty, delta);
     };
     switch (syn_elab(ctx, delta, t3)) {
+    | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty, delta) =>
-      switch (syn_elab_rules(ctx, delta, t3, ty)) {
-      | None => DoesNotElaborate
-      | Some((drs, glb, delta)) =>
-        let d = DHExp.ConsistentCase(DHExp.Case(d1, drs, 0));
-        Elaborates(d, glb, delta);
-      }
+      let d = DHExp.If(Hole, t3, d1);
+      Elaborates(d, ty, delta);
     };
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
     DoesNotElaborate /* let (_, palette_ctx) = ctx in

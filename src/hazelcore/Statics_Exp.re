@@ -208,17 +208,19 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | None => None
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
     }
-  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
-    switch (syn(ctx, t1)) {
-    | None => None
-    | Some(b_ty) => syn_rules(ctx, t1, b_ty)
-    switch (syn(ctx, t2)) {
-    | None => None
-    | Some(b_ty) => syn_rules(ctx, t2, b_ty)
-    switch (syn(ctx, t3)) {
-    | None => None
-    | Some(b_ty) => syn_rules(ctx, t3, b_ty)
-    }
+  | If(StandardErrStatus(NotInHole), t1, t2, t3) => Some(List(UHExp.block))
+  /* switch (syn(ctx, t1)) {
+     | None => None
+     | Some(ty) => Some(UHExp.t(ty))
+     };
+     switch (syn(ctx, t2)) {
+     | None => None
+     | Some(b_ty) => syn_rules(ctx, t2, b_ty)
+     };
+     switch (syn(ctx, t3)) {
+     | None => None
+     | Some(b_ty) => syn_rules(ctx, t3, b_ty)
+     }; */
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
