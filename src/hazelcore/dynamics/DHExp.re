@@ -160,7 +160,7 @@ type t =
   | Triv
   | ConsistentCase(case)
   | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | If(HTyp.t, t, t)
+  | If(t, t, t)
   | Cast(t, HTyp.t, HTyp.t)
   | FailedCast(t, HTyp.t, HTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)

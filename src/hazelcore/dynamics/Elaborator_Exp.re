@@ -75,6 +75,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let rules = subst_var_rules(d1, x, rules);
     let sigma' = subst_var_env(d1, x, sigma);
     InconsistentBranches(u, i, sigma', Case(d3, rules, n));
+  | If(d3, d4, d5) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    let d5 = subst_var(d1, x, d5);
+    If(d3, d4, d5);
   | EmptyHole(u, i, sigma) =>
     let sigma' = subst_var_env(d1, x, sigma);
     EmptyHole(u, i, sigma');
@@ -697,7 +702,7 @@ and syn_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | If(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _, _)
+  | If(InHole(TypeInconsistent as reason, u), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -717,7 +722,7 @@ and syn_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
+  | If(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -836,25 +841,21 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
+  | If(NotInHole, t1, t2, t3) =>
     switch (syn_elab(ctx, delta, t1)) {
     | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty, delta) =>
-      let d = DHExp.If(Hole, t1, d1);
-      Elaborates(d, ty, delta);
-    };
-    switch (syn_elab(ctx, delta, t2)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty, delta) =>
-      let d = DHExp.If(Hole, t2, d1);
-      Elaborates(d, ty, delta);
-    };
-    switch (syn_elab(ctx, delta, t3)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty, delta) =>
-      let d = DHExp.If(Hole, t3, d1);
-      Elaborates(d, ty, delta);
-    };
+    | Elaborates(d1, _, delta) =>
+      switch (syn_elab(ctx, delta, t2)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, _, delta) =>
+        switch (syn_elab(ctx, delta, t3)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d3, ty, delta) =>
+          let d = DHExp.If(d1, d2, d3);
+          Elaborates(d, ty, delta);
+        }
+      }
+    }
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
     DoesNotElaborate /* let (_, palette_ctx) = ctx in
      begin match (VarMap.lookup palette_ctx name) with
@@ -1138,6 +1139,7 @@ and ana_elab_operand =
   | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
+  | If(InHole(TypeInconsistent as reason, u), _, _, _)
   | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -1166,6 +1168,7 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | If(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -1369,6 +1372,11 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (drules, hii) = renumber_result_only_rules(path, hii, rules);
     (InconsistentBranches(u, i, sigma, Case(d1, drules, n)), hii);
+  | If(d1, d2, d3) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    let (d2, hii) = renumber_result_only(path, hii, d2);
+    let (d3, hii) = renumber_result_only(path, hii, d3);
+    (If(d1, d2, d3), hii);
   | EmptyHole(u, _, sigma) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (EmptyHole(u, i, sigma), hii);
@@ -1468,6 +1476,11 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (rules, hii) = renumber_sigmas_only_rules(path, hii, rules);
     (InconsistentBranches(u, i, sigma, Case(d1, rules, n)), hii);
+  | If(d1, d2, d3) =>
+    let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+    let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
+    (If(d1, d2, d3), hii);
   | EmptyHole(u, i, sigma) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);

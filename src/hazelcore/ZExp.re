@@ -19,9 +19,9 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
-  | IfZ1(CaseErrStatus.t, t, UHExp.t, UHExp.t)
-  | IfZ2(CaseErrStatus.t, UHExp.t, t, UHExp.t)
-  | IfZ3(CaseErrStatus.t, UHExp.t, UHExp.t, t)
+  | IfZ1(ErrStatus.t, t, UHExp.t, UHExp.t)
+  | IfZ2(ErrStatus.t, UHExp.t, t, UHExp.t)
+  | IfZ3(ErrStatus.t, UHExp.t, UHExp.t, t)
   | ApPaletteZ(
       ErrStatus.t,
       PaletteName.t,
@@ -547,9 +547,9 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
-  | IfZ1(_, zt1, t2, t3) => IfZ1(StandardErrStatus(err), zt1, t2, t3)
-  | IfZ2(_, t1, zt2, t3) => IfZ2(StandardErrStatus(err), t1, zt2, t3)
-  | IfZ3(_, t1, t2, zt3) => IfZ3(StandardErrStatus(err), t1, t2, zt3)
+  | IfZ1(_, zt1, t2, t3) => IfZ1(err, zt1, t2, t3)
+  | IfZ2(_, t1, zt2, t3) => IfZ2(err, t1, zt2, t3)
+  | IfZ3(_, t1, t2, zt3) => IfZ3(err, t1, t2, zt3)
   | ApPaletteZ(_, name, model, psi) => ApPaletteZ(err, name, model, psi)
   };
 
@@ -606,28 +606,19 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       _,
     )
   | IfZ1(
-      StandardErrStatus(
-        NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
-      ) |
-      InconsistentBranches(_, _),
+      NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
       _,
       _,
       _,
     )
   | IfZ2(
-      StandardErrStatus(
-        NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
-      ) |
-      InconsistentBranches(_, _),
+      NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
       _,
       _,
       _,
     )
   | IfZ3(
-      StandardErrStatus(
-        NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
-      ) |
-      InconsistentBranches(_, _),
+      NotInHole | InHole(WrongLength, _) | InHole(TypeInconsistent, _),
       _,
       _,
       _,

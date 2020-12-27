@@ -529,7 +529,7 @@ and holes_operand =
     |> holes(t1, [0, ...rev_steps])
     |> holes(t2, [0, ...rev_steps])
     |> holes(t3, [0, ...rev_steps])
-    |> holes_case_err(err, rev_steps)
+    |> holes_err(err, rev_steps)
   | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
@@ -830,8 +830,8 @@ and holes_zoperand =
   | CursorE(OnDelim(k, _), If(err, t1, t2, t3)) =>
     let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => None
-      | StandardErrStatus(InHole(_, u))
+      | NotInHole => None
+      | InHole(_, u)
       | InconsistentBranches(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
