@@ -242,7 +242,8 @@ and ana_cursor_info_zopseq =
     let opseq = ZPat.erase_zopseq(zopseq);
     let err = UHPat.get_err_status_opseq(opseq);
     switch (err) {
-    | NotInHole =>
+    | NotInHole
+    | InHole(OperatorError(_), _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
@@ -338,7 +339,8 @@ and ana_cursor_info_skel =
       let opseq = OpSeq.OpSeq(skel, ZPat.erase_zseq(zseq));
       let err = UHPat.get_err_status_opseq(opseq);
       switch (err) {
-      | NotInHole =>
+      | NotInHole
+      | InHole(OperatorError(_), _) =>
         Statics_Pat.ana_skel(ctx, skel, seq, ty)
         |> Option.map(_ =>
              CursorInfo_common.CursorNotOnDeferredVarPat(
@@ -450,13 +452,21 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) => None
-    | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
+    | Var(
+        NotInHole | InHole(OperatorError(_), _),
+        InVarHole(Keyword(k), _),
+        _,
+      ) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
         ),
       )
-    | UserOp(NotInHole, InVarHole(Keyword(k), _), _) =>
+    | UserOp(
+        NotInHole | InHole(OperatorError(_), _),
+        InVarHole(Keyword(k), _),
+        _,
+      ) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
@@ -469,7 +479,7 @@ and ana_cursor_info_zoperand =
           CursorInfo_common.mk(PatAnaInvalid(ty), ctx, cursor_term),
         ),
       )
-    | Var(NotInHole, _, x) =>
+    | Var(NotInHole | InHole(OperatorError(_), _), _, x) =>
       Some(
         CursorOnDeferredVarPat(
           uses =>
@@ -477,7 +487,7 @@ and ana_cursor_info_zoperand =
           x,
         ),
       )
-    | UserOp(NotInHole, _, x) =>
+    | UserOp(NotInHole | InHole(OperatorError(_), _), _, x) =>
       Some(
         CursorOnDeferredVarPat(
           uses =>
@@ -485,32 +495,32 @@ and ana_cursor_info_zoperand =
           x,
         ),
       )
-    | Wild(NotInHole)
-    | ListNil(NotInHole) =>
+    | Wild(NotInHole | InHole(OperatorError(_), _))
+    | ListNil(NotInHole | InHole(OperatorError(_), _)) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
         ),
       )
-    | IntLit(NotInHole, _) =>
+    | IntLit(NotInHole | InHole(OperatorError(_), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaSubsumed(ty, Int), ctx, cursor_term),
         ),
       )
-    | FloatLit(NotInHole, _) =>
+    | FloatLit(NotInHole | InHole(OperatorError(_), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaSubsumed(ty, Float), ctx, cursor_term),
         ),
       )
-    | BoolLit(NotInHole, _) =>
+    | BoolLit(NotInHole | InHole(OperatorError(_), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaSubsumed(ty, Bool), ctx, cursor_term),
         ),
       )
-    | Inj(NotInHole, _, _) =>
+    | Inj(NotInHole | InHole(OperatorError(_), _), _, _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnalyzed(ty), ctx, cursor_term),
@@ -527,7 +537,7 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(WrongLength, _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
-  | InjZ(NotInHole, position, zbody) =>
+  | InjZ(NotInHole | InHole(OperatorError(_), _), position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
