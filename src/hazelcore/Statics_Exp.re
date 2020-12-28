@@ -122,15 +122,19 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   /* in hole */
   | EmptyHole(_) => Some(Hole)
   | InvalidText(_) => Some(Hole)
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | Var(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
+  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | Case(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | ApPalette(InHole(TypeInconsistent | OperatorError(_), _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -268,7 +272,7 @@ and ana_skel =
     let* ty_elt = HTyp.matched_list(ty);
     let* _ = ana_skel(ctx, skel1, seq, ty_elt);
     ana_skel(ctx, skel2, seq, List(ty_elt));
-  | BinOp(InHole(TypeInconsistent, _), _, _, _)
+  | BinOp(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
   | BinOp(
       NotInHole,
       And | Or | Minus | Plus | Times | Divide | FMinus | FPlus | FTimes |
@@ -293,15 +297,19 @@ and ana_operand =
   /* in hole */
   | EmptyHole(_) => Some()
   | InvalidText(_) => Some()
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | Var(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | IntLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | FloatLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | BoolLit(InHole(TypeInconsistent | OperatorError(_), _), _)
+  | ListNil(InHole(TypeInconsistent | OperatorError(_), _))
+  | Lam(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | Inj(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | Case(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | ApPalette(InHole(TypeInconsistent | OperatorError(_), _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -497,7 +505,7 @@ and ana_nth_type_mode' =
     | Placeholder(n') =>
       assert(n == n');
       Some(Statics.Ana(ty));
-    | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+    | BinOp(InHole(TypeInconsistent | OperatorError(_), _), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_go(skel_not_in_hole);
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -843,9 +851,17 @@ and syn_fix_holes_skel =
           seq,
           Hole,
         );
-      // let (u, u_gen) = MetaVarGen.next(u_gen);
-      // let reason: VarErrStatus.HoleReason.t = Free;
-      (BinOp(NotInHole, UserOp(op), skel1, skel2), seq, Hole, u_gen);
+      // TODO (corlaban): This toggles the appearence of holes???
+      let var_reason = VarErrStatus.HoleReason.Free;
+      let reason = ErrStatus.HoleReason.OperatorError(var_reason);
+
+      let (_u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        BinOp(InHole(reason, u_gen), UserOp(op), skel1, skel2),
+        seq,
+        Hole,
+        u_gen,
+      );
     }
   | BinOp(_, Comma, _, _) =>
     let ((u_gen, seq), pairs) =

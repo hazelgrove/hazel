@@ -409,23 +409,22 @@ and syn_cursor_info_skel =
         "Exp.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, UserOp(op), skel1, skel2) =>
-      // this case gets called when in operands of a bin user op
-      let op_ty =
-        switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
-        | Some(ty) => ty
-        | None => Hole
-        };
       let mk = typed =>
         CursorInfo_common.mk(typed, ctx, extract_from_zexp_zseq(zseq));
 
-      switch (HTyp.matched_two_ary_arrow(op_ty)) {
-      | Some((ty1, (ty2, _))) =>
-        switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
-        | Some(_) as result => result
-        | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
+      switch (VarMap.lookup(Contexts.gamma(ctx), op)) {
+      | Some(ty) =>
+        switch (HTyp.matched_two_ary_arrow(ty)) {
+        | Some((ty1, (ty2, _))) =>
+          switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty1)) {
+          | Some(_) as result => result
+          | None => ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty2)
+          }
+        | _ => Some(mk(SynErrorArrow(Hole, Hole)))
         }
-      | _ => Some(mk(SynFree))
+      | None => Some(mk(SynFree))
       };
+
     | BinOp(
         _,
         Minus | Plus | Times | Divide | LessThan | GreaterThan | Equals,
@@ -463,7 +462,7 @@ and syn_cursor_info_skel =
         switch (cursor_on_outer_expr(zoperand)) {
         | None => syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
         | Some(StandardErr(InHole(WrongLength, _))) => None
-        | Some(StandardErr(InHole(TypeInconsistent, _))) =>
+        | Some(StandardErr(InHole(TypeInconsistent | OperatorError(_), _))) =>
           let operand_nih =
             zoperand
             |> ZExp.erase_zoperand
@@ -716,6 +715,10 @@ and ana_cursor_info_zopseq =
           cursor_term,
         ),
       );
+    | InHole(OperatorError(_), _) =>
+      let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+      Statics_Exp.syn_opseq(ctx, opseq')
+      |> Option.map(_ => CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term));
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
       Statics_Exp.syn_opseq(ctx, opseq')
@@ -779,6 +782,12 @@ and ana_cursor_info_skel =
         |> Option.map(_ =>
              CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term)
            )
+      | InHole(OperatorError(_), _) =>
+        let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
+        Statics_Exp.syn_opseq(ctx, opseq')
+        |> Option.map(_ =>
+             CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term)
+           );
       | InHole(WrongLength, _) =>
         failwith(__LOC__ ++ ": n-tuples handled at opseq level")
       | InHole(TypeInconsistent, _) =>
@@ -852,6 +861,23 @@ and ana_cursor_info_zoperand =
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
     | InvalidText(_) =>
       Some(CursorInfo_common.mk(AnaInvalid(ty), ctx, cursor_term))
+    | Var(InHole(OperatorError(_), _), _, _)
+    | IntLit(InHole(OperatorError(_), _), _)
+    | FloatLit(InHole(OperatorError(_), _), _)
+    | BoolLit(InHole(OperatorError(_), _), _)
+    | ListNil(InHole(OperatorError(_), _))
+    | Lam(InHole(OperatorError(_), _), _, _, _)
+    | Inj(InHole(OperatorError(_), _), _, _)
+    | Case(StandardErrStatus(InHole(OperatorError(_), _)), _, _)
+    | ApPalette(InHole(OperatorError(_), _), _, _, _) =>
+      let operand' =
+        zoperand
+        |> ZExp.erase_zoperand
+        |> UHExp.set_err_status_operand(NotInHole);
+      switch (Statics_Exp.syn_operand(ctx, operand')) {
+      | None => None
+      | Some(_) => Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
+      };
     | Var(InHole(TypeInconsistent, _), _, _)
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
@@ -947,13 +973,21 @@ and ana_cursor_info_zoperand =
       _,
     )
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
-  | LamZP(InHole(TypeInconsistent, _), _, _, _)
-  | LamZA(InHole(TypeInconsistent, _), _, _, _)
-  | LamZE(InHole(TypeInconsistent, _), _, _, _)
-  | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
+  | LamZP(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | LamZA(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | LamZE(InHole(TypeInconsistent | OperatorError(_), _), _, _, _)
+  | InjZ(InHole(TypeInconsistent | OperatorError(_), _), _, _)
+  | CaseZE(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | CaseZR(
+      StandardErrStatus(InHole(TypeInconsistent | OperatorError(_), _)),
+      _,
+      _,
+    )
+  | ApPaletteZ(InHole(TypeInconsistent | OperatorError(_), _), _, _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, body) =>
     switch (HTyp.matched_arrow(ty)) {
