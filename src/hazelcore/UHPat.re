@@ -147,14 +147,37 @@ and mk_inconsistent_operand =
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) => (operand, u_gen)
   // not in hole
-  | Wild(NotInHole | InHole(WrongLength, _))
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | UserOp(NotInHole | InHole(WrongLength, _), _, _)
-  | IntLit(NotInHole | InHole(WrongLength, _), _)
-  | FloatLit(NotInHole | InHole(WrongLength, _), _)
-  | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
-  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
+  | Wild(NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _))
+  | Var(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
+  | UserOp(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    )
+  | IntLit(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+    )
+  | FloatLit(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+    )
+  | BoolLit(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+    )
+  | ListNil(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+    )
+  | Inj(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      _,
+      _,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let set_operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

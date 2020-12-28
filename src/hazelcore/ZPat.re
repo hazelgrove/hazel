@@ -60,7 +60,11 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
     let (operand, u_gen) = operand |> UHPat.mk_inconsistent_operand(u_gen);
     (CursorP(cursor, operand), u_gen);
   | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
-  | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
+  | InjZ(
+      NotInHole | InHole(WrongLength, _) | InHole(OperatorError(_), _),
+      inj_side,
+      zp,
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
   | ParenthesizedZ(zp) =>
