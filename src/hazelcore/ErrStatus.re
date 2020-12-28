@@ -4,7 +4,7 @@ module HoleReason = {
   type t =
     | TypeInconsistent
     | WrongLength
-    | OperatorError(VarErrStatus.t);
+    | OperatorError(VarErrStatus.HoleReason.t);
 };
 
 /* Variable: `err` */
