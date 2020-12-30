@@ -137,7 +137,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | If(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     syn_operand(ctx, operand') |> Option.map(_ => HTyp.Hole);
@@ -149,7 +149,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | If(StandardErrStatus(InHole(WrongLength, _)), _, _, _)
+  | If(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     switch (syn(ctx, scrut)) {
@@ -208,7 +208,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | None => None
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
     }
-  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
+  | If(NotInHole, t1, t2, t3) =>
     switch (syn(ctx, t1)) {
     | None => None
     | Some(ty1) =>
