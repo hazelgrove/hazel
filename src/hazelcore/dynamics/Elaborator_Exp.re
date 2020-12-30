@@ -228,7 +228,12 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(dp1, dp2), Cons(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
-    | Indet => Indet
+    | Indet =>
+      switch (matches(dp2, d2)) {
+      | DoesNotMatch => DoesNotMatch
+      | Indet
+      | Matches(_) => Indet
+      }
     | Matches(env1) =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
