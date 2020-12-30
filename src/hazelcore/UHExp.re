@@ -198,7 +198,6 @@ and get_err_status_operand =
   | If(err, _, _, _)
   | ApPalette(err, _, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
-  | If(err, _, _, _)
   | Parenthesized(e) => get_err_status(e);
 
 /* put e in the specified hole */
