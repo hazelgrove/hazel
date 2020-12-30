@@ -209,12 +209,17 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     | Some(b_ty) => syn_rules(ctx, rules, b_ty)
     }
   | If(NotInHole, t1, t2, t3) =>
-    switch (syn(ctx, t1)) {
+    switch (ana(ctx, t1, Bool)) {
     | None => None
-    | Some(ty1) =>
-      switch (syn(ctx, t2)) {
-      | None => None
-      | Some(ty2) => syn(ctx, t3)
+    | Some(_) =>
+      switch (syn(ctx, t2), syn(ctx, t3)) {
+      | (Some(ty2), Some(ty3)) =>
+        if (ty2 == ty3) {
+          Some(ty2);
+        } else {
+          None;
+        }
+      | _ => None
       }
     }
   | ApPalette(NotInHole, name, serialized_model, psi) =>
@@ -364,6 +369,7 @@ and ana_operand =
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | If(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     switch (syn_operand(ctx, operand')) {
@@ -378,6 +384,7 @@ and ana_operand =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
+  | If(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
@@ -432,6 +439,15 @@ and ana_operand =
     switch (syn(ctx, scrut)) {
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
+    }
+  | If(NotInHole, t1, t2, t3) =>
+    switch (ana(ctx, t1, Bool)) {
+    | None => None
+    | Some(_) =>
+      switch (ana(ctx, t2, ty), ana(ctx, t3, ty)) {
+      | (Some(_), Some(_)) => Some()
+      | _ => None
+      }
     }
   | ApPalette(NotInHole, _, _, _) =>
     switch (syn_operand(ctx, operand)) {
