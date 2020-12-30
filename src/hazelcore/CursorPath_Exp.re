@@ -831,8 +831,7 @@ and holes_zoperand =
     let hole_selected: option(CursorPath_common.hole_info) =
       switch (err) {
       | NotInHole => None
-      | InHole(_, u)
-      | InconsistentBranches(_, u) =>
+      | InHole(_, u) =>
         Some({sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)})
       };
     let holes_t1 = holes(t1, [0, ...rev_steps], []);
@@ -1007,9 +1006,8 @@ and holes_zoperand =
   | IfZ1(err, zt1, t2, t3) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u) => [
+      | NotInHole => []
+      | InHole(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
@@ -1026,9 +1024,8 @@ and holes_zoperand =
   | IfZ2(err, t1, zt2, t3) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u) => [
+      | NotInHole => []
+      | InHole(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
@@ -1045,9 +1042,8 @@ and holes_zoperand =
   | IfZ3(err, t1, t2, zt3) =>
     let holes_err: list(CursorPath_common.hole_info) =
       switch (err) {
-      | StandardErrStatus(NotInHole) => []
-      | StandardErrStatus(InHole(_, u))
-      | InconsistentBranches(_, u) => [
+      | NotInHole => []
+      | InHole(_, u) => [
           {sort: ExpHole(u, TypeErr), steps: List.rev(rev_steps)},
         ]
       };
