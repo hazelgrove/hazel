@@ -256,7 +256,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | If(StandardErrStatus(InHole(TypeInconsistent, _)), _, _, _)
+  | If(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -272,13 +272,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     )
-  | If(
-      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
-      InconsistentBranches(_, _),
-      _,
-      _,
-      _,
-    )
+  | If(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
@@ -379,9 +373,8 @@ and is_complete_operand = (operand: 'operand, check_type_holes: bool): bool => {
   | Case(StandardErrStatus(NotInHole), body, rules) =>
     is_complete(body, check_type_holes)
     && is_complete_rules(rules, check_type_holes)
-  | If(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _, _) =>
-    false
-  | If(StandardErrStatus(NotInHole), t1, t2, t3) =>
+  | If(InHole(_), _, _, _) => false
+  | If(NotInHole, t1, t2, t3) =>
     is_complete(t1, check_type_holes)
     && is_complete(t2, check_type_holes)
     && is_complete(t3, check_type_holes)
